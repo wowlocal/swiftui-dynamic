@@ -149,6 +149,34 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         }
     }
 
+    @Test func animationCombinatorChainRenders() throws {
+        let source = """
+        struct ContentView: View {
+            @State var spin = false
+
+            var body: some View {
+                Text("wave")
+                    .scaleEffect(spin ? 1.2 : 1.0)
+                    .animation(.easeInOut(duration: 0.4).delay(0.1).repeatForever(autoreverses: true), value: spin)
+                    .animation(.linear.speed(2).repeatCount(3), value: spin)
+            }
+        }
+        """
+        let outcome = InterpreterHost().render(source: source)
+        if case .failure(let error) = outcome {
+            Issue.record("render failed: \(error)")
+        }
+    }
+
+    @Test func doubleStyleChainRenders() throws {
+        let outcome = InterpreterHost().render(
+            source: #"Text("x").background(.blue.opacity(0.3).gradient)"#
+        )
+        if case .failure(let error) = outcome {
+            Issue.record("render failed: \(error)")
+        }
+    }
+
     @Test func unknownModifierIsLocatedError() throws {
         let outcome = InterpreterHost().render(source: #"Text("x").wobble()"#)
         switch outcome {

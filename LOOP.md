@@ -260,3 +260,13 @@ Each iteration does exactly this:
   marker yields an inert stub: writes accepted-and-ignored, config calls
   chain (`.standardAppearance.configureWithOpaqueBackground()`). Platform-stub
   doctrine, documented. **66/100 → 68/100**.
+- 2026-07-09 iter 34: recursive marker chains — ChainedImplicitCall.base is
+  now the full previous marker (not a bare name), member access on
+  ImplicitMemberCall/ChainedImplicitCall extends the chain instead of
+  throwing, and Coerce.animation folds combinator chains
+  (`.easeInOut(duration:).delay(0.2).repeatForever(...)`, `.speed`,
+  `.repeatCount`); colorLike/shapeStyle resolve chain bases recursively
+  (`.blue.opacity(0.3).gradient`). Kills the 4-project "unsupported member
+  on ImplicitMemberCall" class: CustomTabBar + ScrollParallax pass,
+  3DGestureCard shifts to arithmetic-on-marker, MoreTabBar (.init-as-view)
+  remains. **68/100 → 71/100**.

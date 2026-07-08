@@ -105,7 +105,7 @@ enum Coerce {
             return colorNamed(name)
         }
         if case .native(let any) = value, let chained = any as? ChainedImplicitCall,
-           let base = colorNamed(chained.baseName), chained.member == "opacity",
+           let base = colorLike(chained.base), chained.member == "opacity",
            let amount = chained.arguments.positional(0)?.doubleValue {
             return base.opacity(amount)
         }
@@ -121,8 +121,8 @@ enum Coerce {
             if let gradient = any as? RadialGradient { return AnyShapeStyle(gradient) }
             if let gradient = any as? AngularGradient { return AnyShapeStyle(gradient) }
             if let chained = any as? ChainedImplicitCall {
-                guard let base = colorNamed(chained.baseName) else {
-                    throw RuntimeError(message: "unknown color '.\(chained.baseName)'")
+                guard let base = colorLike(chained.base) else {
+                    throw RuntimeError(message: "unknown color before '.\(chained.member)' in style chain")
                 }
                 switch chained.member {
                 case "opacity":
@@ -131,7 +131,7 @@ enum Coerce {
                 case "gradient":
                     return AnyShapeStyle(base.gradient)
                 default:
-                    throw RuntimeError(message: "unsupported style '.\(chained.baseName).\(chained.member)'")
+                    throw RuntimeError(message: "unsupported style '.\(chained.baseName ?? "…").\(chained.member)'")
                 }
             }
         }
@@ -355,6 +355,26 @@ enum Coerce {
             case "bouncy": return .bouncy
             case "smooth": return .smooth
             default: throw RuntimeError(message: "unknown animation '.\(call.name)'")
+            }
+        }
+        // Combinator chains fold recursively:
+        // `.easeInOut(duration: 0.3).delay(0.2).repeatForever(autoreverses: false)`
+        if case .native(let any) = value, let chained = any as? ChainedImplicitCall {
+            let base = try animation(chained.base)
+            let first = chained.arguments.positional(0)
+            switch chained.member {
+            case "delay":
+                return base.delay(try double(first ?? .native(0.0)))
+            case "speed":
+                return base.speed(try double(first ?? .native(1.0)))
+            case "repeatForever":
+                let auto = (chained.arguments.labeled("autoreverses") ?? first)?.boolValue ?? true
+                return base.repeatForever(autoreverses: auto)
+            case "repeatCount":
+                let auto = (chained.arguments.labeled("autoreverses") ?? chained.arguments.positional(1))?.boolValue ?? true
+                return base.repeatCount(first?.intValue ?? 1, autoreverses: auto)
+            default:
+                throw RuntimeError(message: "unknown animation combinator '.\(chained.member)'")
             }
         }
         throw RuntimeError(message: "expected an animation like .easeInOut")

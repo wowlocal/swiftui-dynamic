@@ -106,17 +106,25 @@ public struct ImplicitMemberCall {
     }
 }
 
-/// A member (and optional call) chained onto an implicit member, e.g.
-/// `.blue.opacity(0.2)` or `.blue.gradient` — resolved at gateway boundaries.
+/// A member (and optional call) chained onto an unresolved marker, e.g.
+/// `.blue.opacity(0.2)` or `.easeInOut(duration: 0.3).delay(0.2)` — resolved
+/// recursively at gateway boundaries. `base` is the full previous marker
+/// (implicit member, ImplicitMemberCall, or another chain).
 public struct ChainedImplicitCall {
-    public let baseName: String
+    public let base: RuntimeValue
     public let member: String
     public let arguments: CallArguments
 
-    public init(baseName: String, member: String, arguments: CallArguments) {
-        self.baseName = baseName
+    public init(base: RuntimeValue, member: String, arguments: CallArguments) {
+        self.base = base
         self.member = member
         self.arguments = arguments
+    }
+
+    /// The root implicit-member name when the base is a bare `.name`.
+    public var baseName: String? {
+        if case .implicitMember(let name) = base { return name }
+        return nil
     }
 }
 

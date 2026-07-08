@@ -351,7 +351,7 @@ extension Interpreter {
             }
             // `.blue.opacity(0.2)` / `.blue.gradient` — keep the chain opaque
             // for gateways. Calling the result refines the arguments.
-            return .native(ChainedImplicitCall(baseName: baseName, member: name, arguments: CallArguments()))
+            return .native(ChainedImplicitCall(base: baseValue, member: name, arguments: CallArguments()))
 
         case .hostFunction(let function):
             // Host TYPE names (Color, UIScreen, …) resolve to constructor
@@ -399,6 +399,12 @@ extension Interpreter {
                 return .hostFunction(HostFunction(name: name) { args, ctx in
                     try modifier.apply(baseValue, args, ctx)
                 })
+            }
+            // Members on unresolved markers extend the chain instead of dying
+            // here — `.easeInOut(duration: 0.3).delay(0.2)` folds at the
+            // gateway boundary where the expected type is known.
+            if any is ImplicitMemberCall || any is ChainedImplicitCall {
+                return .native(ChainedImplicitCall(base: baseValue, member: name, arguments: CallArguments()))
             }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")
 
@@ -579,7 +585,7 @@ extension Interpreter {
             return .native(ImplicitMemberCall(name: name, arguments: args))
         case .native(let any) where any is ChainedImplicitCall:
             let chained = any as! ChainedImplicitCall
-            return .native(ChainedImplicitCall(baseName: chained.baseName, member: chained.member, arguments: args))
+            return .native(ChainedImplicitCall(base: chained.base, member: chained.member, arguments: args))
         case .native(let any) where any is HostTypeMarker:
             let marker = any as! HostTypeMarker
             throw error(node, "'\(marker.name)' has no interpreter constructor — only its static members (like \(marker.name).something) are supported")
