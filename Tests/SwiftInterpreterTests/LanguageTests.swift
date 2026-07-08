@@ -333,6 +333,35 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Array(0..<3).count").intValue == 3)
     }
 
+    @Test func nestedTypes() throws {
+        let source = """
+        struct DockProgress {
+            enum ProgressType: String {
+                case linear
+                case circular
+            }
+
+            struct Badge {
+                var count = 7
+            }
+
+            var type: ProgressType = .linear
+        }
+        let explicit: DockProgress.ProgressType = .circular
+        let viaMember = DockProgress.ProgressType.linear
+        let badge = DockProgress.Badge()
+        let d = DockProgress()
+        func describe(t: DockProgress.ProgressType) -> String {
+            switch t {
+            case .linear: return "lin"
+            case .circular: return "circ"
+            }
+        }
+        "\\(explicit.rawValue) \\(viaMember.rawValue) \\(badge.count) \\(describe(t: d.type))"
+        """
+        #expect(try eval(source).stringValue == "circular linear 7 lin")
+    }
+
     @Test func memberwiseTrailingClosureProperties() throws {
         let source = """
         struct Hook {

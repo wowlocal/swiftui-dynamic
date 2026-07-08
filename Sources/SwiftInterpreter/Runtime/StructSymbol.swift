@@ -67,6 +67,8 @@ public final class StructSymbol {
     public internal(set) var initializers: [InitializerDeclSyntax] = []
     public internal(set) var staticProperties: [String: ExprSyntax] = [:]
     public internal(set) var staticMethods: [String: FunctionDeclSyntax] = [:]
+    /// Types declared inside this type (`Outer.Kind`) — `.enumType`/`.type` values.
+    public internal(set) var nestedTypes: [String: RuntimeValue] = [:]
     var staticCache: [String: RuntimeValue] = [:]
 
     public init(name: String, conformsToView: Bool) {

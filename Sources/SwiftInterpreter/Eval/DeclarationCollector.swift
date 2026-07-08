@@ -28,13 +28,18 @@ extension Interpreter {
     // MARK: - Structs
 
     private func collectStruct(_ node: StructDeclSyntax) throws {
+        let symbol = try makeStructSymbol(node)
+        structSymbols.append(symbol)
+        globals.define(symbol.name, .type(symbol))
+    }
+
+    private func makeStructSymbol(_ node: StructDeclSyntax) throws -> StructSymbol {
         let conformsToView = node.inheritanceClause?.inheritedTypes.contains {
             $0.type.trimmedDescription == "View"
         } ?? false
         let symbol = StructSymbol(name: node.name.text, conformsToView: conformsToView)
         try collectStructMembers(node.memberBlock, into: symbol)
-        structSymbols.append(symbol)
-        globals.define(symbol.name, .type(symbol))
+        return symbol
     }
 
     /// Classes ride the same symbol machinery — Instance is already
@@ -65,8 +70,22 @@ extension Interpreter {
                 }
             } else if let initDecl = member.decl.as(InitializerDeclSyntax.self) {
                 symbol.initializers.append(initDecl)
+            } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
+                // Nested types register under `Outer.Name` (for annotations)
+                // and the bare name when unclaimed (for in-scope references).
+                let nested = try makeEnumSymbol(nestedEnum)
+                symbol.nestedTypes[nested.name] = .enumType(nested)
+                enumSymbols["\(symbol.name).\(nested.name)"] = nested
+                if enumSymbols[nested.name] == nil { enumSymbols[nested.name] = nested }
+            } else if let nestedStruct = member.decl.as(StructDeclSyntax.self) {
+                let nestedSymbol = try makeStructSymbol(nestedStruct)
+                symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
+                structSymbols.append(nestedSymbol)
+                globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
+                if globals.lookup(nestedSymbol.name) == nil {
+                    globals.define(nestedSymbol.name, .type(nestedSymbol))
+                }
             }
-            // Nested types etc. are ignored in v1.
         }
     }
 
@@ -110,6 +129,12 @@ extension Interpreter {
     // MARK: - Enums
 
     private func collectEnum(_ node: EnumDeclSyntax) throws {
+        let symbol = try makeEnumSymbol(node)
+        enumSymbols[symbol.name] = symbol
+        globals.define(symbol.name, .enumType(symbol))
+    }
+
+    private func makeEnumSymbol(_ node: EnumDeclSyntax) throws -> EnumSymbol {
         let symbol = EnumSymbol(name: node.name.text)
         let rawIsString = node.inheritanceClause?.inheritedTypes.contains {
             $0.type.trimmedDescription == "String"
@@ -135,8 +160,7 @@ extension Interpreter {
                 try collectEnumMember(member.decl, into: symbol)
             }
         }
-        enumSymbols[symbol.name] = symbol
-        globals.define(symbol.name, .enumType(symbol))
+        return symbol
     }
 
     private func collectEnumMember(_ decl: DeclSyntax, into symbol: EnumSymbol) throws {

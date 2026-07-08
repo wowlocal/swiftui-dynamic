@@ -245,6 +245,9 @@ extension Interpreter {
             throw error(node, "'\(symbol.name)' has no case or static member '\(name)'")
 
         case .type(let symbol):
+            if let nested = symbol.nestedTypes[name] {
+                return nested
+            }
             if let value = try staticMember(name, properties: symbol.staticProperties, methods: symbol.staticMethods, cache: &symbol.staticCache) {
                 return value
             }

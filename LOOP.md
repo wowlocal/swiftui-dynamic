@@ -122,3 +122,9 @@ Each iteration does exactly this:
   The 3-project `argument '_'` class eliminated; **14/25 holds** (all three
   advanced to deeper blockers). CustomContainer corpus added. Next: bare
   Color implicit members in view position (`.clear`/`.black`, 2).
+- 2026-07-09 iter 9: nested type declarations — enums/structs inside types
+  collect into `nestedTypes`, register under `Outer.Name` (annotations) and
+  the bare name when unclaimed (in-scope refs); `.type` member access serves
+  them. `DockProgress.ProgressType.linear` patterns work. **14/25 → 15/25**
+  (60%). Remaining classes are all singletons: parameterized closure props,
+  Color-as-view, doStmt, String.startIndex, colorScheme compare.
