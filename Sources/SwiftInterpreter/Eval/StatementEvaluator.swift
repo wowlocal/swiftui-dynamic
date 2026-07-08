@@ -323,7 +323,7 @@ extension Interpreter {
         switch value {
         case .void:
             break
-        case .instance(let instance) where instance.symbol.conformsToView:
+        case .instance(let instance) where instance.symbol.conformsToView || instance.symbol.isRepresentable:
             if let registry {
                 views.append(registry.makeRenderable(instance: instance, interpreter: self))
             } else {

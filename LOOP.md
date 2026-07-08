@@ -173,3 +173,7 @@ Each iteration does exactly this:
   string(from:), date(from:)) as the first user, shared by both registries.
   **17/25 holds**; the "cannot assign to host member" class is eliminated
   (DateTextField advanced into its closure-argument plumbing).
+- 2026-07-09 iter 17: UIKit/AppKit representables — `*Representable` structs
+  are accepted in view position (incl. modifiers on their instances) and
+  render inert in both registries (make/update never run — documented).
+  **17/25 → 18/25** (72%).

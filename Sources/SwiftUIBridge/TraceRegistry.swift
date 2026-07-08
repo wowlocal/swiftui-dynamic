@@ -167,6 +167,10 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func makeRenderable(instance: Instance, interpreter: Interpreter) -> RuntimeValue {
+        if instance.symbol.isRepresentable {
+            // No body to deep-render; recorded inert.
+            return .native(TraceNode(kind: "Representable:\(instance.symbol.name)"))
+        }
         let node = TraceNode(kind: "View:\(instance.symbol.name)")
         node.instance = instance
         return .native(node)

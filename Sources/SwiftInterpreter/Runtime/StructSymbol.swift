@@ -58,6 +58,9 @@ public final class StructSymbol {
 
     public let name: String
     public let conformsToView: Bool
+    /// UIViewRepresentable / NSViewRepresentable / …ControllerRepresentable —
+    /// accepted in view position but rendered inert (documented divergence).
+    public internal(set) var isRepresentable = false
     /// Declared with `class` — matters for observation; reference semantics
     /// are the default for ALL instances (the documented struct divergence).
     public internal(set) var isClass = false

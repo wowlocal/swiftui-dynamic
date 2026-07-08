@@ -62,7 +62,12 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func makeRenderable(instance: Instance, interpreter: Interpreter) -> RuntimeValue {
-        .native(AnyView(InterpretedView(instance: instance, interpreter: interpreter)))
+        if instance.symbol.isRepresentable {
+            // UIKit/AppKit representables embed host views we can't run —
+            // the honest stand-in is an inert empty view.
+            return .native(AnyView(EmptyView()))
+        }
+        return .native(AnyView(InterpretedView(instance: instance, interpreter: interpreter)))
     }
 
     public func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue {
@@ -99,7 +104,8 @@ public final class ViewRegistry: HostRegistry {
     /// Like `anyView`, but also accepts a bare interpreted-View instance in
     /// argument position (e.g. `NavigationLink(destination: DetailView())`).
     func anyViewResolving(_ value: RuntimeValue, _ ctx: EvalContext) throws -> AnyView {
-        if case .instance(let instance) = value, instance.symbol.conformsToView,
+        if case .instance(let instance) = value,
+           instance.symbol.conformsToView || instance.symbol.isRepresentable,
            let interpreter = ctx as? Interpreter {
             return try Self.anyView(makeRenderable(instance: instance, interpreter: interpreter))
         }

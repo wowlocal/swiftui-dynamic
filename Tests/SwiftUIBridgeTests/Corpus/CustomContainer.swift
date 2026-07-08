@@ -44,6 +44,19 @@ struct SizedBox<Content: View>: View {
     }
 }
 
+struct PickerChromeRemover: UIViewRepresentable {
+    var onAttach: () -> ()
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        onAttach()
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+    }
+}
+
 struct ContentView: View {
     @State var score = 42
     @Environment(\.colorScheme) var scheme
@@ -71,6 +84,10 @@ struct ContentView: View {
             Text(scheme == .dark ? "dark mode" : "light mode")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+
+            PickerChromeRemover {
+            }
+            .frame(height: 0)
         }
         .padding()
         .frame(maxWidth: 320)

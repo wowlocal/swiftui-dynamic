@@ -143,7 +143,9 @@ coverage.
   back to Int when the state was declared Int, e.g. for `Slider`).
 - **Platform stubs.** `UIScreen.main.bounds` maps to the main screen's frame
   (390×844 headlessly); `DispatchQueue.main.async` dispatches interpreted
-  closures through the real main queue.
+  closures through the real main queue; `UIViewRepresentable`/
+  `NSViewRepresentable` structs are accepted in view position but render
+  inert (their make/update methods never run).
 - **Property observers are inert.** `willSet`/`didSet` bindings parse as plain
   stored properties; the observer bodies never run.
 - **Model notification is box-level.** Writing a `@Published` property (or any

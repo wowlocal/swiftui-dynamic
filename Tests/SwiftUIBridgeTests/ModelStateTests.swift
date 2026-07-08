@@ -73,6 +73,36 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func representablesRenderInert() throws {
+        let source = """
+        struct Chrome: UIViewRepresentable {
+            var tag = 0
+            func makeUIView(context: Context) -> UIView {
+                UIView()
+            }
+            func updateUIView(_ view: UIView, context: Context) {
+            }
+        }
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    Text("above")
+                    Chrome(tag: 1)
+                }
+            }
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            Issue.record("expected an instance")
+            return
+        }
+        let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(body.children.map(\.kind) == ["Text", "Representable:Chrome"])
+    }
+
     @Test func dateFormatterHostObject() throws {
         let source = """
         let formatter = DateFormatter()
