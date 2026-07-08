@@ -333,6 +333,31 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Array(0..<3).count").intValue == 3)
     }
 
+    @Test func annotatedImplicitInitAndFactories() throws {
+        let source = """
+        struct Point {
+            var x = 0
+            var y = 0
+
+            static func origin() -> Point {
+                Point(x: 0, y: 0)
+            }
+
+            static let unit = Point(x: 1, y: 1)
+        }
+        class Store {
+            var items: [Int] = [1, 2]
+        }
+        let p: Point = .init(x: 3, y: 4)
+        let o: Point = .origin()
+        let u: Point = .unit
+        let s: Store = .init()
+        let made: [Point] = (1...3).map { .init(x: $0, y: 0) }
+        "\\(p.x + p.y) \\(o.x) \\(u.y) \\(s.items.count) \\(made[2].x)"
+        """
+        #expect(try eval(source).stringValue == "7 0 1 2 3")
+    }
+
     @Test func computedPropertySetters() throws {
         let source = """
         struct Temperature {

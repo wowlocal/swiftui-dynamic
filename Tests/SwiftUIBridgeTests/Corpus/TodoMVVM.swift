@@ -97,7 +97,7 @@ struct StatsFooter: View {
 }
 
 struct ContentView: View {
-    @StateObject var store = TodoStore()
+    @StateObject var store: TodoStore = .init()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

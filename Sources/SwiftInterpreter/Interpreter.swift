@@ -95,7 +95,7 @@ public final class Interpreter {
         for property in symbol.storedProperties {
             var value = RuntimeValue.void
             if let initializer = property.initializer {
-                value = resolveAnnotated(try evaluate(initializer, in: globals), annotation: property.typeAnnotation)
+                value = try resolveAnnotated(try evaluate(initializer, in: globals), annotation: property.typeAnnotation)
             }
             let box = Box(value)
             if notifying.contains(property.name) {
@@ -124,7 +124,7 @@ public final class Interpreter {
                    case .native(let any) = argument.value, let stub = any as? BindingStub {
                     instance.properties[label] = stub.box
                 } else {
-                    box.value = resolveAnnotated(argument.value, annotation: property.typeAnnotation)
+                    box.value = try resolveAnnotated(argument.value, annotation: property.typeAnnotation)
                 }
             }
         } else {
@@ -202,25 +202,55 @@ public final class Interpreter {
     }
 
     /// A type annotation turns a bare `.member` (or `.member(payload)`) into
-    /// an enum case when the annotated type is a known enum — the dynamic
-    /// stand-in for type context.
-    func resolveAnnotated(_ value: RuntimeValue, annotation: TypeSyntax?) -> RuntimeValue {
+    /// the annotated type's case, `.init`, or static member — the dynamic
+    /// stand-in for type context. `[Type]` annotations resolve array elements.
+    func resolveAnnotated(_ value: RuntimeValue, annotation: TypeSyntax?) throws -> RuntimeValue {
         guard let annotation else { return value }
-        var typeName = annotation.trimmedDescription
-        if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
-        guard let symbol = enumSymbols[typeName] else { return value }
+        return try resolveAnnotated(value, typeName: annotation.trimmedDescription)
+    }
 
-        if case .implicitMember(let name) = value,
-           let info = symbol.caseInfo(named: name), !info.hasAssociatedValues {
-            return .enumCase(EnumCaseValue(symbol: symbol, name: name))
+    private func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {
+        var typeName = rawName.trimmingCharacters(in: .whitespaces)
+        if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+
+        // `[Item]` — resolve each element against the element type.
+        if typeName.hasPrefix("["), typeName.hasSuffix("]"), !typeName.contains(":"),
+           let array = value.arrayValue {
+            let elementType = String(typeName.dropFirst().dropLast())
+            return .native(try array.map { try resolveAnnotated($0, typeName: elementType) })
         }
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall,
-           let info = symbol.caseInfo(named: call.name), info.hasAssociatedValues {
-            return .enumCase(EnumCaseValue(
-                symbol: symbol,
-                name: call.name,
-                associated: call.arguments.arguments.map(\.value)
-            ))
+
+        if let symbol = enumSymbols[typeName] {
+            if case .implicitMember(let name) = value,
+               let info = symbol.caseInfo(named: name), !info.hasAssociatedValues {
+                return .enumCase(EnumCaseValue(symbol: symbol, name: name))
+            }
+            if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+               let info = symbol.caseInfo(named: call.name), info.hasAssociatedValues {
+                return .enumCase(EnumCaseValue(
+                    symbol: symbol,
+                    name: call.name,
+                    associated: call.arguments.arguments.map(\.value)
+                ))
+            }
+            return value
+        }
+
+        // Structs/classes: `= .init(...)`, static factories, static values.
+        if case .type(let symbol)? = globals.lookup(typeName) {
+            if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+                if call.name == "init" {
+                    return try instantiate(symbol, with: call.arguments)
+                }
+                if let method = symbol.staticMethods[call.name], let body = method.body {
+                    let closure = makeFunctionClosure(method, body: body, captured: globals)
+                    return try callWithArguments(closure, args: call.arguments, node: nil)
+                }
+            }
+            if case .implicitMember(let name) = value,
+               let staticValue = try staticMember(name, properties: symbol.staticProperties, methods: symbol.staticMethods, cache: &symbol.staticCache) {
+                return staticValue
+            }
         }
         return value
     }

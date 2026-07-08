@@ -61,7 +61,7 @@ extension Interpreter {
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
                 }
                 let value = try evaluate(initializer, in: env)
-                env.define(ident.identifier.text, resolveAnnotated(value, annotation: binding.typeAnnotation?.type))
+                env.define(ident.identifier.text, try resolveAnnotated(value, annotation: binding.typeAnnotation?.type))
             }
             return
         }

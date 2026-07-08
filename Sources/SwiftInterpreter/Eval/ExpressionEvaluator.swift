@@ -299,7 +299,7 @@ extension Interpreter {
         }
     }
 
-    private func staticMember(
+    func staticMember(
         _ name: String,
         properties: [String: ExprSyntax],
         methods: [String: FunctionDeclSyntax],
@@ -494,7 +494,7 @@ extension Interpreter {
         let result = try executeBlock(closure.body, in: env)
         switch result {
         case .normal(let value), .returnValue(let value):
-            return resolveAnnotated(value, annotation: closure.returnType)
+            return try resolveAnnotated(value, annotation: closure.returnType)
         case .breakLoop, .continueLoop:
             throw RuntimeError(message: "break/continue escaped a function body")
         }
@@ -511,7 +511,7 @@ extension Interpreter {
         }
         for (index, parameter) in closure.parameters.enumerated() {
             if index < args.arguments.count {
-                env.define(parameter.name, resolveAnnotated(args.arguments[index].value, annotation: parameter.typeAnnotation))
+                env.define(parameter.name, try resolveAnnotated(args.arguments[index].value, annotation: parameter.typeAnnotation))
             } else if let defaultValue = parameter.defaultValue {
                 env.define(parameter.name, try evaluate(defaultValue, in: closure.captured))
             } else if let node {

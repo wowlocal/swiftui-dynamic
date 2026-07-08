@@ -111,3 +111,8 @@ Each iteration does exactly this:
   closures via a main-actor Task (GCD's queue never drains under swift test).
   **10/25 → 12/25**. Noted next: `.init()` in annotated positions (2 projects),
   colorScheme `@Environment` comparison (1).
+- 2026-07-09 iter 7: annotated implicit members for structs/classes —
+  `: T = .init(...)` instantiates, `.factory()` dispatches static methods,
+  bare `.staticValue` resolves, and `[T]` annotations resolve array elements
+  (covers `(1...8).map { .init(...) }`). **12/25 → 14/25** (56% of window;
+  --limit stays 25 until ~80%).
