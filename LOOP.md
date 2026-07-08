@@ -204,3 +204,6 @@ Each iteration does exactly this:
   StateStore; special semantics skipped (documented). All three class
   projects pass incl. DateTextField's five-iteration arc.
   **28/50 → 31/50** (62%). Next: `Type.self` statics (2).
+- 2026-07-09 iter 23: universal `.self` (the value itself — Swift semantics),
+  unblocking the PreferenceKey idiom (`.preference(key: SizeKey.self, …)`,
+  trace-recorded). **31/50 → 33/50** (66%).

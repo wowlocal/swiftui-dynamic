@@ -249,6 +249,9 @@ extension Interpreter {
     }
 
     func accessMember(_ name: String, on baseValue: RuntimeValue, node: some SyntaxProtocol, env: Environment) throws -> RuntimeValue {
+        if name == "self" {
+            return baseValue // `SizeKey.self`, `x.self` — the value itself
+        }
         switch baseValue {
         case .nilValue:
             // Optional chaining: member access on nil is nil.

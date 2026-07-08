@@ -433,6 +433,19 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 9)
     }
 
+    @Test func typeDotSelf() throws {
+        let source = """
+        struct SizeKey {
+            static var defaultValue = 0
+        }
+        let key = SizeKey.self
+        let viaSelf = key.defaultValue
+        let chained = SizeKey.self.defaultValue
+        "\\(viaSelf) \\(chained) \\(5.self)"
+        """
+        #expect(try eval(source).stringValue == "0 0 5")
+    }
+
     @Test func nestedTypes() throws {
         let source = """
         struct DockProgress {

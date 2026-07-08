@@ -73,6 +73,26 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func preferenceKeyPatternTraces() throws {
+        // The PreferenceKey idiom: Type.self flows into preference modifiers,
+        // which trace mode records without executing.
+        let source = """
+        struct OffsetKey {
+            static var defaultValue = 0.0
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text("row")
+                    .preference(key: OffsetKey.self, value: 12.0)
+                    .onPreferenceChange(OffsetKey.self) { value in
+                    }
+            }
+        }
+        """
+        _ = try HeadlessVerifier.verify(source: source)
+    }
+
     @Test func stateLikeWrappersProjectAndBind() throws {
         let source = """
         struct ContentView: View {
