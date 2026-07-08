@@ -35,6 +35,14 @@ let package = Package(
             dependencies: ["SwiftUIBridge"],
             swiftSettings: mainActorByDefault
         ),
+        .executableTarget(
+            name: "BridgeGen",
+            dependencies: [
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftParser", package: "swift-syntax"),
+            ],
+            swiftSettings: mainActorByDefault
+        ),
         .testTarget(
             name: "SwiftInterpreterTests",
             dependencies: ["SwiftInterpreter"],
