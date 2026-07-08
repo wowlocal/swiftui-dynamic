@@ -99,3 +99,9 @@ Each iteration does exactly this:
   error. Trace registry's generic recorder is uppercase-only (lowercase
   unresolveds error truthfully) with an explicit withAnimation case.
   **7/25 → 9/25**.
+- 2026-07-09 iter 5: GeometryReader/TimelineView proxy closures — the 4-project
+  class behind `$0`/`proxy`/`timeLine` failures. Real gateways evaluate content
+  at layout time with the real proxy (errors → RenderDiagnostics + EmptyView);
+  trace uses honest stubs (390×844). New `hostMember` registry hook serves
+  GeometryProxy/CGSize/CGRect/CGPoint members as Doubles, frame(in:) coerces
+  coordinate spaces. GeometryCard corpus program added. **9/25 → 10/25**.

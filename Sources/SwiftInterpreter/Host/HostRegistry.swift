@@ -85,4 +85,11 @@ public protocol HostRegistry: AnyObject {
     func makeRenderable(instance: Instance, interpreter: Interpreter) -> RuntimeValue
     /// Group multiple builder-collected views into one (implicit TupleView stand-in).
     func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue
+    /// Members on host-native values the core can't know (GeometryProxy.size,
+    /// CGSize.width, …). Return nil for unknown names.
+    func hostMember(_ name: String, on value: Any) -> RuntimeValue?
+}
+
+extension HostRegistry {
+    public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
 }

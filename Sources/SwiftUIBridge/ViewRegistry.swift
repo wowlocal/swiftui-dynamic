@@ -11,6 +11,7 @@ public final class ViewRegistry: HostRegistry {
     public init() {
         registerViews()
         registerModifiers()
+        registerGeometryViews()
     }
 
     public func constructor(named name: String) -> HostFunction? {

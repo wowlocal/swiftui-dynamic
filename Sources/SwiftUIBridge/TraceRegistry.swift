@@ -65,6 +65,19 @@ public final class TraceRegistry: HostRegistry {
                 }
                 return .native(node)
             }
+        case "GeometryReader", "TimelineView":
+            // Layout/time proxies don't exist headlessly; bind honest stubs
+            // so the content still deep-renders.
+            return HostFunction(name: name) { args, ctx in
+                let node = TraceNode(kind: name)
+                if let content = args.unlabeledClosures.first {
+                    let argument: RuntimeValue = name == "GeometryReader"
+                        ? .native(GeometryProxyStub())
+                        : .native(TimelineContextStub())
+                    node.children = try ctx.callBuilderClosure(content, arguments: [argument]).map(Self.node)
+                }
+                return .native(node)
+            }
         case "withAnimation":
             return HostFunction(name: name) { args, ctx in
                 guard let closure = args.unlabeledClosures.first else { return .void }
@@ -162,6 +175,10 @@ public final class TraceRegistry: HostRegistry {
         let node = TraceNode(kind: "Group")
         node.children = try views.map(Self.node)
         return .native(node)
+    }
+
+    public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
+        bridgeHostMember(name, on: value)
     }
 
     static func node(_ value: RuntimeValue) throws -> TraceNode {

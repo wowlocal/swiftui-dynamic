@@ -280,6 +280,9 @@ extension Interpreter {
             if let value = try nativeMember(name, on: any) {
                 return value
             }
+            if let value = registry?.hostMember(name, on: any) {
+                return value
+            }
             if let registry, registry.isViewValue(baseValue), let modifier = registry.modifier(named: name) {
                 return .hostFunction(HostFunction(name: name) { args, ctx in
                     try modifier.apply(baseValue, args, ctx)
