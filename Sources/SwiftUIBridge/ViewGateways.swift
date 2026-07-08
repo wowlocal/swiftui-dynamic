@@ -65,7 +65,9 @@ extension ViewRegistry {
             let colors = try colorsArg.map(Coerce.color)
             let start = try Coerce.unitPoint(args.labeled("startPoint") ?? .implicitMember("top"))
             let end = try Coerce.unitPoint(args.labeled("endPoint") ?? .implicitMember("bottom"))
-            return .native(AnyView(LinearGradient(colors: colors, startPoint: start, endPoint: end)))
+            // Raw, not AnyView-wrapped: it must stay usable as a ShapeStyle
+            // (`.fill(...)`) and converts to a view lazily in anyView().
+            return .native(LinearGradient(colors: colors, startPoint: start, endPoint: end))
         }
 
         // MARK: Stacks & containers

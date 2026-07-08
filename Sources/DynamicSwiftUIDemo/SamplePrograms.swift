@@ -5,7 +5,98 @@ struct SampleProgram: Identifiable, Hashable {
 }
 
 enum SamplePrograms {
-    static let all = [counter, form, staticLayout, list]
+    static let all = [counter, form, weather, staticLayout, list]
+
+    /// Enums with methods, switch in bodies, gradients, shapes, nested views.
+    static let weather = SampleProgram(name: "Weather", source: """
+    enum Condition: String, CaseIterable {
+        case sunny
+        case cloudy
+        case rainy
+        case snowy
+
+        var icon: String {
+            switch self {
+            case .sunny: return "sun.max.fill"
+            case .cloudy: return "cloud.fill"
+            case .rainy: return "cloud.rain.fill"
+            case .snowy: return "snowflake"
+            }
+        }
+    }
+
+    struct Forecast {
+        var day = ""
+        var condition: Condition = .sunny
+        var high = 0
+        var low = 0
+    }
+
+    struct ForecastRow: View {
+        var forecast = Forecast()
+
+        var body: some View {
+            HStack {
+                Text(forecast.day)
+                    .frame(width: 44, alignment: .leading)
+                Image(systemName: forecast.condition.icon)
+                Spacer()
+                Text("\\(forecast.low)°")
+                    .foregroundStyle(.white.opacity(0.7))
+                Text("\\(forecast.high)°")
+                    .bold()
+            }
+            .font(.system(size: 14))
+        }
+    }
+
+    struct ContentView: View {
+        @State var selected: Condition = .sunny
+
+        let week = [
+            Forecast(day: "Mon", condition: .sunny, high: 28, low: 17),
+            Forecast(day: "Tue", condition: .cloudy, high: 24, low: 16),
+            Forecast(day: "Wed", condition: .rainy, high: 19, low: 12),
+            Forecast(day: "Thu", condition: .snowy, high: 2, low: -3),
+        ]
+
+        var body: some View {
+            VStack(spacing: 16) {
+                Image(systemName: selected.icon)
+                    .font(.system(size: 56))
+                Text(selected.rawValue.capitalized)
+                    .font(.title)
+                    .bold()
+
+                HStack(spacing: 8) {
+                    ForEach(Condition.allCases, id: \\.self) { condition in
+                        Button {
+                            selected = condition
+                        } label: {
+                            Image(systemName: condition.icon)
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(condition == selected ? 1.0 : 0.5)
+                    }
+                }
+
+                Divider()
+
+                VStack(spacing: 6) {
+                    ForEach(week, id: \\.day) { forecast in
+                        ForecastRow(forecast: forecast)
+                    }
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(24)
+            .background(LinearGradient(colors: [.blue, .indigo], startPoint: .top, endPoint: .bottom))
+            .cornerRadius(20)
+            .shadow(radius: 12, y: 6)
+            .frame(maxWidth: 320)
+        }
+    }
+    """)
 
     /// The acceptance demo: @State + Button actions with live re-render.
     static let counter = SampleProgram(name: "Counter", source: """

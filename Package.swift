@@ -43,7 +43,7 @@ let package = Package(
         .testTarget(
             name: "SwiftUIBridgeTests",
             dependencies: ["SwiftUIBridge"],
-            resources: [.copy("Corpus")],
+            exclude: ["Corpus"],
             swiftSettings: mainActorByDefault
         ),
     ]

@@ -4,31 +4,38 @@ import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
 
+/// Corpus files live next to this test file (excluded from compilation in the
+/// manifest) and are listed via #filePath. Test arguments are enumerated off
+/// the main actor, so this path must be nonisolated despite the package-wide
+/// MainActor default — hence the free function instead of a closure initializer.
+private nonisolated func listCorpusFiles() -> [String] {
+    let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Corpus")
+    let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+    return names.filter { $0.hasSuffix(".swift") }.sorted()
+}
+
+nonisolated let corpusFiles: [String] = listCorpusFiles()
+
 /// The "runs real-world code" gate: every program in Corpus/ must interpret,
 /// deep-render (every View body force-evaluated, not just the lazy root),
 /// survive having all its actions invoked, and render through real SwiftUI
 /// hosting without inline errors.
 enum Corpus {
-    static let files: [String] = {
-        let urls = Bundle.module.urls(forResourcesWithExtension: "swift", subdirectory: "Corpus") ?? []
-        return urls.map(\.lastPathComponent).sorted()
-    }()
-
     static func source(_ file: String) throws -> String {
-        let name = file.hasSuffix(".swift") ? String(file.dropLast(6)) : file
-        guard let url = Bundle.module.url(forResource: name, withExtension: "swift", subdirectory: "Corpus") else {
-            throw RuntimeError(message: "missing corpus file \(file)")
-        }
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Corpus")
+            .appendingPathComponent(file)
         return try String(contentsOf: url, encoding: .utf8)
     }
 }
 
 @Suite struct CorpusTests {
     @Test func corpusIsPopulated() {
-        #expect(Corpus.files.count >= 10)
+        #expect(corpusFiles.count >= 10)
     }
 
-    @Test(arguments: Corpus.files)
+    @Test(arguments: corpusFiles)
     func traceDeepRenderWithInteractions(file: String) throws {
         let interpreter = Interpreter(registry: TraceRegistry())
         try interpreter.run(source: try Corpus.source(file))
@@ -43,17 +50,22 @@ enum Corpus {
         let nodeCount = try deepRender(interpreter, root, actions: &actions)
         #expect(nodeCount > 1, "\(file) rendered a trivial tree")
 
-        // Poke every recorded action once; the mutated state must still
-        // deep-render cleanly.
-        for action in actions {
-            _ = try interpreter.callClosure(action, arguments: [])
+        // Click through the UI like a user: each action fires against a FRESH
+        // render of the tree (closures from stale trees may hold dead indices,
+        // exactly as in real SwiftUI where old rows disappear).
+        for position in 0..<actions.count {
+            var current: [ClosureValue] = []
+            let tree = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            _ = try deepRender(interpreter, tree, actions: &current)
+            guard position < current.count else { break } // tree shrank
+            _ = try interpreter.callClosure(current[position], arguments: [])
         }
         var ignored: [ClosureValue] = []
         let rerendered = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
         _ = try deepRender(interpreter, rerendered, actions: &ignored)
     }
 
-    @Test(arguments: Corpus.files)
+    @Test(arguments: corpusFiles)
     func hostedRealRender(file: String) throws {
         RenderDiagnostics.reset()
         switch InterpreterHost().render(source: try Corpus.source(file)) {

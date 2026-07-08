@@ -23,7 +23,7 @@ public final class ViewRegistry: HostRegistry {
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .native(let any) = value {
-            return any is AnyView || any is ImageBox || any is ShapeBox
+            return any is AnyView || any is ImageBox || any is ShapeBox || any is LinearGradient
         }
         return false
     }
@@ -44,6 +44,7 @@ public final class ViewRegistry: HostRegistry {
             if let view = any as? AnyView { return view }
             if let box = any as? ImageBox { return AnyView(box.image) }
             if let box = any as? ShapeBox { return AnyView(box.shape) }
+            if let gradient = any as? LinearGradient { return AnyView(gradient) }
         }
         throw RuntimeError(message: "expected a View, got \(value.stringified)")
     }

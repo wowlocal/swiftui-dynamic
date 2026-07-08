@@ -51,19 +51,50 @@ source ──SwiftParser──▶ AST ──SwiftOperators.foldAll──▶ prec
   value and are resolved against the *expected* parameter type inside each
   gateway — type-inference dodged with lookup tables.
 
-## Supported subset (v1)
+## Supported subset
 
-Literals (incl. string interpolation), arrays + subscripts, operators with real
-precedence, `if`/`else`, `for`-in over ranges/arrays, `while`, functions
-(defaults, implicit return, trailing closures), closures (incl. `$0`
-shorthand, capture-by-reference), structs with stored/computed properties and
-methods, memberwise init, `@State`, `$state` binding projections.
+**Language**: literals + interpolation, arrays/dictionaries/tuples with
+subscripts, operators with real precedence, optionals (`if let`/`guard
+let`/shorthand, `??`, `?.` chaining, `!`), `if`/`else`, `switch` with
+expression/range/enum-payload/`where` patterns (also as expressions and in
+builders), `for`-in, `while`, `break`/`continue`, functions (defaults,
+implicit return, trailing closures, `@ViewBuilder`/`some View` builder
+bodies), closures (`$0` shorthand, capture-by-reference), structs (stored/
+computed properties, methods, custom `init`s, memberwise init, statics),
+enums (raw + associated values, methods, computed properties, `CaseIterable`),
+extensions, `@State`, `@Binding`, `$` projections, ~40 stdlib members
+(`map`/`filter`/`reduce`/`sorted`/`first(where:)`/`contains`/`joined`/
+mutating `append`/`remove(at:)`/…, string methods), and global
+`print`/`abs`/`min`/`max`/`String`/`Int`/`Double`/`Array`.
 
-SwiftUI: `Text`, `VStack`/`HStack`/`ZStack`, `Button`, `Image(systemName:)`,
-`Spacer`, `Divider`, `ForEach`, `Toggle`, `Slider`, `TextField`; modifiers
-`padding`, `font`, `bold`, `italic`,
-`fontWeight`, `foregroundStyle`/`foregroundColor`, `background`,
-`cornerRadius`, `opacity`, `frame`.
+**Type context, dynamically**: bare `.member` values resolve against known
+enums via the type annotations on properties, parameters, and return types —
+no inference engine, just annotations.
+
+**SwiftUI**: `Text`, `Image(systemName:)`, `Label`, stacks, `Group`,
+`ScrollView`, `List`, `Form`, `Section`, `LazyVGrid`/`LazyHGrid`/`GridItem`,
+`NavigationStack`/`NavigationLink`, `Button`, `Toggle`, `Slider`,
+`TextField`/`SecureField`, `Picker` (String selection), `ForEach`,
+`ProgressView`, `Spacer`/`Divider`, shapes (`Circle`, `Capsule`, `Rectangle`,
+`RoundedRectangle`, `Ellipse`) with `.fill`/`.stroke`, `LinearGradient`,
+`withAnimation`; ~45 modifiers including `padding`/`frame`/`font`/
+`foregroundStyle` (colors, materials, hierarchicals, `.color.opacity`/
+`.gradient` chains)/`background`/`overlay`/`shadow`/`clipShape`/`offset`/
+`scaleEffect`/`rotationEffect`/`animation(value:)`/`onAppear`/`onTapGesture`/
+`task`/`navigationTitle`/`listStyle`/`buttonStyle`/`pickerStyle`.
+
+## Corpus verification
+
+`Tests/SwiftUIBridgeTests/Corpus/` holds ten realistic programs (todo list,
+settings form, weather card, grid gallery, navigation profiles, stats
+dashboard, animated counter, string toolkit, shape showcase, traffic light).
+Each must: interpret; **deep-render** (every View body force-evaluated via the
+trace registry, not just the lazy root); survive a click-through pass where
+every Button action fires against a fresh render; and host through real
+SwiftUI (`NSHostingView` in a never-shown window) with zero inline errors
+(observed via `RenderDiagnostics`). This suite is the working definition of
+"runs real-world code" — new corpus files are the cheapest way to grow
+coverage.
 
 ## Deliberate divergences from Swift
 
