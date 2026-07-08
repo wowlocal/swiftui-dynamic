@@ -224,3 +224,8 @@ Each iteration does exactly this:
   `State(initialValue:)` constructs as its value. Write-through verified:
   child button mutates parent state via assigned storage. Custom_ScrollView
   passes (156-node render). **36/50 → 37/50** (74%).
+- 2026-07-09 iter 28: collection/Bool extensions — sugar-typed `extension
+  [Item]` keys match array candidates alongside `extension Array`; implicit
+  self on native values consults native members first (bare `count`/
+  `firstIndex` inside extension bodies). StackedCards passes.
+  **37/50 → 38/50** (76%).

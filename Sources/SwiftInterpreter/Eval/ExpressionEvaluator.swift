@@ -189,6 +189,9 @@ extension Interpreter {
         case .enumCase(let value):
             return try enumCaseMember(name, on: value)
         case .native(let any):
+            // Bare `count`/`firstIndex(...)` inside a host-type extension body
+            // is implicit self on the native value.
+            if let value = try nativeMember(name, on: any) { return value }
             return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
         default:
             return nil
@@ -233,6 +236,13 @@ extension Interpreter {
         if any is String { names.append("String") }
         if any is Int { names.append("Int") }
         if any is Double { names.append("Double"); names.append("CGFloat") }
+        if any is Bool { names.append("Bool") }
+        if any is DictValue { names.append("Dictionary") }
+        if any is [RuntimeValue] {
+            // `extension Array` and sugar-typed `extension [Item]` both apply.
+            names.append("Array")
+            names.append(contentsOf: hostExtensionSymbols.keys.filter { $0.hasPrefix("[") })
+        }
         return names
     }
 

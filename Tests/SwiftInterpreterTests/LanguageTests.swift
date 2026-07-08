@@ -433,6 +433,33 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 9)
     }
 
+    @Test func sugarTypedArrayExtensions() throws {
+        let source = """
+        struct Item {
+            var id = 0
+        }
+
+        extension [Item] {
+            func zIndex(_ item: Item) -> CGFloat {
+                if let index = firstIndex(where: { $0.id == item.id }) {
+                    return CGFloat(count) - CGFloat(index)
+                }
+                return 0.0
+            }
+        }
+
+        extension Array {
+            func middle() -> Int {
+                count / 2
+            }
+        }
+
+        let items = [Item(id: 1), Item(id: 2), Item(id: 3)]
+        "\\(items.zIndex(items[1])) \\(items.middle())"
+        """
+        #expect(try eval(source).stringValue == "2.0 1")
+    }
+
     @Test func asCasts() throws {
         let source = """
         struct Item {
