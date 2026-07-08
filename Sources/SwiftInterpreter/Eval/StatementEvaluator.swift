@@ -133,8 +133,17 @@ extension Interpreter {
                 }
                 guard !value.isNil else { return false }
                 bindings.define(name, value)
+            case .matchingPattern(let matching):
+                // `if case .loading = state` — rides the switch matcher.
+                let subject = try evaluate(matching.initializer.value, in: bindings)
+                guard try matches(matching.pattern, subject: subject, bindingInto: bindings, env: bindings) else {
+                    return false
+                }
+            case .availability:
+                // Latest-SDK host: `#available(...)` checks pass.
+                break
             default:
-                throw error(element, "unsupported condition (case patterns aren't supported)")
+                throw error(element, "unsupported condition (\(element.condition))")
             }
         }
         return true

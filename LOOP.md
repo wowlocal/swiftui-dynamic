@@ -160,3 +160,10 @@ Each iteration does exactly this:
   abs/min/max). **17/25 holds**; class eliminated — Custom_Indicators advanced
   to `getWidth`, exposing interpreted `extension View { func … }` helpers as
   the real next class (host-protocol extensions currently skipped).
+- 2026-07-09 iter 15: interpreted extensions of host types — `extension View`/
+  `String`/`Int`/`Double` members collect into synthetic symbols, resolved on
+  view values, view-conforming instances (implicit self), and native selves.
+  Removing the silent skip made BlurredSheet_Updated execute deeper code,
+  which forced two more condition kinds in the same iteration: `if case`
+  pattern conditions (rides the switch matcher) and `#available` (passes on
+  latest-SDK host). **17/25 holds — more honestly than before.**

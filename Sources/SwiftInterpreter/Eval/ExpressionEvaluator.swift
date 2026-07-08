@@ -160,13 +160,16 @@ extension Interpreter {
         throw error(node, "unresolved identifier '\(name)'")
     }
 
-    /// Implicit-self member resolution (works for struct instances and enum values).
+    /// Implicit-self member resolution (works for struct instances, enum
+    /// values, and native selves inside host-extension method bodies).
     private func selfMember(_ name: String, on selfValue: RuntimeValue) throws -> RuntimeValue? {
         switch selfValue {
         case .instance(let instance):
             return try instanceMember(name, on: instance)
         case .enumCase(let value):
             return try enumCaseMember(name, on: value)
+        case .native(let any):
+            return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
         default:
             return nil
         }
@@ -182,7 +185,34 @@ extension Interpreter {
         if let computed = instance.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
         }
+        if instance.symbol.conformsToView,
+           let value = try hostExtensionMember(name, candidates: ["View"], selfValue: .instance(instance)) {
+            return value
+        }
         return nil
+    }
+
+    /// Interpreted extension-of-host-type members (`extension View { … }`).
+    func hostExtensionMember(_ name: String, candidates: [String], selfValue: RuntimeValue) throws -> RuntimeValue? {
+        for typeName in candidates {
+            guard let symbol = hostExtensionSymbols[typeName] else { continue }
+            if let method = symbol.methods[name], let body = method.body {
+                return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue)))
+            }
+            if let computed = symbol.computedProperties[name] {
+                return try evaluateComputed(computed, selfValue: selfValue, name: name)
+            }
+        }
+        return nil
+    }
+
+    func hostCandidates(for any: Any) -> [String] {
+        var names: [String] = []
+        if let registry, registry.isViewValue(.native(any)) { names.append("View") }
+        if any is String { names.append("String") }
+        if any is Int { names.append("Int") }
+        if any is Double { names.append("Double"); names.append("CGFloat") }
+        return names
     }
 
     private func enumCaseMember(_ name: String, on value: EnumCaseValue) throws -> RuntimeValue? {
@@ -314,6 +344,9 @@ extension Interpreter {
                 return value
             }
             if let value = try nativeMember(name, on: any) {
+                return value
+            }
+            if let value = try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: baseValue) {
                 return value
             }
             if let registry, registry.isViewValue(baseValue), let modifier = registry.modifier(named: name) {

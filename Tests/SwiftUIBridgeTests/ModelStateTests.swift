@@ -73,6 +73,45 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func hostTypeExtensions() throws {
+        let source = """
+        extension View {
+            func screenWidth() -> Double {
+                return 390.0
+            }
+
+            var halfWidth: Double {
+                screenWidth() / 2
+            }
+        }
+
+        extension String {
+            func shout() -> String {
+                self.uppercased() + "!"
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text("w=\\(screenWidth()) h=\\(halfWidth) \\("hi".shout())")
+            }
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            Issue.record("expected an instance")
+            return
+        }
+        let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(body.findAll("Text").first?.args.first == "w=390.0 h=195.0 HI!")
+
+        // Member-call form on a view value.
+        let width = try interpreter.run(source: #"Text("x").screenWidth()"#)
+        #expect(width.doubleValue == 390.0)
+    }
+
     @Test func environmentValuesInjectAndCompare() throws {
         let source = """
         struct ContentView: View {

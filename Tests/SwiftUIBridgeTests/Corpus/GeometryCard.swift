@@ -1,3 +1,9 @@
+extension View {
+    func contentWidth() -> Double {
+        UIScreen.main.bounds.width - 40.0
+    }
+}
+
 struct MeterBar: View {
     var fraction = 0.5
 
@@ -49,6 +55,10 @@ struct ContentView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+
+            Text("usable \(Int(contentWidth()))pt")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .frame(maxWidth: 340)

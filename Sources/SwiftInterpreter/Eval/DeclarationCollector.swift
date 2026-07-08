@@ -202,8 +202,12 @@ extension Interpreter {
                 try collectEnumMember(member.decl, into: symbol)
             }
         default:
-            // Extensions of host or unknown types are skipped (documented).
-            break
+            // Extensions of host types (`extension View { func … }`) collect
+            // into synthetic symbols, resolved on matching host values.
+            let symbol = hostExtensionSymbols[typeName]
+                ?? StructSymbol(name: typeName, conformsToView: false)
+            try collectStructMembers(node.memberBlock, into: symbol)
+            hostExtensionSymbols[typeName] = symbol
         }
     }
 

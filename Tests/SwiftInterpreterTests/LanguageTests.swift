@@ -343,6 +343,26 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Array(0..<3).count").intValue == 3)
     }
 
+    @Test func ifCaseConditions() throws {
+        let source = """
+        enum Phase {
+            case idle
+            case loading(Int)
+        }
+        func describe(p: Phase) -> String {
+            if case .loading(let percent) = p {
+                return "loading \\(percent)"
+            }
+            if case .idle = p {
+                return "idle"
+            }
+            return "?"
+        }
+        describe(p: .loading(40)) + " / " + describe(p: .idle)
+        """
+        #expect(try eval(source).stringValue == "loading 40 / idle")
+    }
+
     @Test func doCatchThrowTry() throws {
         let source = """
         enum LoadError: Error {

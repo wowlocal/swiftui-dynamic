@@ -16,6 +16,9 @@ public final class Interpreter {
     /// Struct symbols in declaration order (used to pick the root View).
     public internal(set) var structSymbols: [StructSymbol] = []
     var enumSymbols: [String: EnumSymbol] = [:]
+    /// Interpreted `extension View { … }` / `extension String { … }` members,
+    /// keyed by the extended host type's name.
+    var hostExtensionSymbols: [String: StructSymbol] = [:]
 
     var locationConverter: SourceLocationConverter?
     var steps = 0
