@@ -69,6 +69,15 @@ struct ContentView: View {
                 .fill(LinearGradient(colors: [.purple, .pink, .orange], startPoint: .leading, endPoint: .trailing))
                 .frame(height: 8)
                 .cornerRadius(4)
+
+            ZStack {
+                Color.black.opacity(0.05)
+                Color.clear
+                Text("color layers")
+                    .font(.caption2)
+            }
+            .frame(height: 36)
+            .cornerRadius(6)
         }
         .padding(24)
         .frame(maxWidth: 400)

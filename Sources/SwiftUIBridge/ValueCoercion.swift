@@ -97,6 +97,21 @@ enum Coerce {
         }
     }
 
+    /// A Color when the value is color-shaped: `.black`, `Color.clear`, or
+    /// `.black.opacity(x)` chains. Colors are Views, so this also powers
+    /// bare colors in view position.
+    static func colorLike(_ value: RuntimeValue) -> Color? {
+        if case .implicitMember(let name) = value {
+            return colorNamed(name)
+        }
+        if case .native(let any) = value, let chained = any as? ChainedImplicitCall,
+           let base = colorNamed(chained.baseName), chained.member == "opacity",
+           let amount = chained.arguments.positional(0)?.doubleValue {
+            return base.opacity(amount)
+        }
+        return nil
+    }
+
     /// The wide funnel for style positions: colors, hierarchical styles,
     /// materials, gradients, and `.color.opacity(x)` / `.color.gradient` chains.
     static func shapeStyle(_ value: RuntimeValue) throws -> AnyShapeStyle {

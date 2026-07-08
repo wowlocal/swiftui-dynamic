@@ -49,9 +49,11 @@ public final class ViewRegistry: HostRegistry {
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .native(let any) = value {
-            return any is AnyView || any is ImageBox || any is ShapeBox || any is LinearGradient
+            if any is AnyView || any is ImageBox || any is ShapeBox || any is LinearGradient {
+                return true
+            }
         }
-        return false
+        return Coerce.colorLike(value) != nil // Color IS a View
     }
 
     public func makeRenderable(instance: Instance, interpreter: Interpreter) -> RuntimeValue {
@@ -72,6 +74,7 @@ public final class ViewRegistry: HostRegistry {
             if let box = any as? ShapeBox { return AnyView(box.shape) }
             if let gradient = any as? LinearGradient { return AnyView(gradient) }
         }
+        if let color = Coerce.colorLike(value) { return AnyView(color) }
         throw RuntimeError(message: "expected a View, got \(value.stringified)")
     }
 

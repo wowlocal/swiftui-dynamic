@@ -161,8 +161,8 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
-        if case .native(let any) = value { return any is TraceNode }
-        return false
+        if case .native(let any) = value, any is TraceNode { return true }
+        return Coerce.colorLike(value) != nil // Color IS a View
     }
 
     public func makeRenderable(instance: Instance, interpreter: Interpreter) -> RuntimeValue {
@@ -183,6 +183,11 @@ public final class TraceRegistry: HostRegistry {
 
     static func node(_ value: RuntimeValue) throws -> TraceNode {
         if case .native(let any) = value, let node = any as? TraceNode { return node }
+        if Coerce.colorLike(value) != nil {
+            let node = TraceNode(kind: "Color")
+            node.args = [value.stringified]
+            return node
+        }
         throw RuntimeError(message: "expected a view, got \(value.stringified)")
     }
 

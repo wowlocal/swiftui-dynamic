@@ -111,6 +111,25 @@ import SwiftInterpreter
         }
     }
 
+    @Test func colorsActAsViews() throws {
+        // Bare colors, opacity chains, and view modifiers on colors.
+        let interpreter = Interpreter(registry: TraceRegistry())
+        let result = try interpreter.run(source: """
+        VStack {
+            Color.clear
+            Color.black.opacity(0.3)
+            Color.red.frame(height: 4.0)
+        }
+        """)
+        let node = try TraceRegistry.node(result)
+        #expect(node.children.count == 3)
+        #expect(node.children[0].kind == "Color")
+        #expect(node.children[1].kind == "Color")
+
+        let real = Interpreter(registry: ViewRegistry())
+        _ = try real.run(source: #"ZStack { Color.black.ignoresSafeArea()\#nText("x") }"#)
+    }
+
     @Test func hostTypeStaticMembersActAsImplicitMembers() throws {
         // Color.black ≡ .black — including chains through .opacity.
         let interpreter = Interpreter(registry: ViewRegistry())

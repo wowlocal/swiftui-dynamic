@@ -134,3 +134,9 @@ Each iteration does exactly this:
   builds. SizedBox added to CustomContainer corpus. **15/25 holds**; class
   eliminated (ScrollParallax → `proxy.bounds(of:)` next; Canvas's identical
   message is really the GraphicsContext wall).
+- 2026-07-09 iter 11: Colors as Views — `Coerce.colorLike` (bare `.black`,
+  `Color.clear`, `.opacity` chains) accepted by both registries' isViewValue/
+  anyView/node paths; view modifiers route on implicit-member bases
+  (`Color.black.ignoresSafeArea()`), while `opacity`/`gradient` stay style
+  chains. **15/25 holds**; class eliminated — both projects advanced (`round`
+  builtin, dynamic range bounds are next-up singletons).

@@ -254,6 +254,16 @@ extension Interpreter {
             throw error(node, "'\(symbol.name)' has no static member '\(name)'")
 
         case .implicitMember(let baseName):
+            // View modifiers on color-shaped bases (`Color.black.ignoresSafeArea()`)
+            // route to the modifier table; `opacity`/`gradient` stay opaque
+            // chains because they're style transforms, not view modifiers here.
+            if name != "opacity", name != "gradient",
+               let registry, registry.isViewValue(baseValue),
+               let modifier = registry.modifier(named: name) {
+                return .hostFunction(HostFunction(name: name) { args, ctx in
+                    try modifier.apply(baseValue, args, ctx)
+                })
+            }
             // `.blue.opacity(0.2)` / `.blue.gradient` — keep the chain opaque
             // for gateways. Calling the result refines the arguments.
             return .native(ChainedImplicitCall(baseName: baseName, member: name, arguments: CallArguments()))
