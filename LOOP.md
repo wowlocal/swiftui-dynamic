@@ -250,3 +250,9 @@ Each iteration does exactly this:
   ScrollViewReader (real proxy.scrollTo / no-op stub), joining the reader
   family. "missing argument" 7 → 4 (Canvas wall remains).
   **60/100 → 64/100** (64%).
+- 2026-07-09 iter 32: uninitialized optionals are nil (real Swift semantics) —
+  `var view: UICollectionView?` without initializer defaults to nil in stored
+  properties AND locals, so optional chains propagate instead of dying on
+  void. **64/100 → 66/100**. Remaining void-member subroots: unknown
+  @Environment keys (modelContext → SwiftData), third-party wrappers
+  (@ObservedResults/Realm — quarantine candidate).

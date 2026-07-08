@@ -58,6 +58,10 @@ extension Interpreter {
                     throw error(binding, "computed properties are only supported inside types")
                 }
                 guard let initializer = binding.initializer?.value else {
+                    if binding.typeAnnotation?.type.trimmedDescription.hasSuffix("?") == true {
+                        env.define(ident.identifier.text, .nilValue) // `var x: T?` is nil
+                        continue
+                    }
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
                 }
                 let value = try evaluate(initializer, in: env)

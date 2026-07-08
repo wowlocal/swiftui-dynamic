@@ -433,6 +433,27 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 9)
     }
 
+    @Test func uninitializedOptionalsAreNil() throws {
+        let source = """
+        class Observer {
+            var attachedView: Item?
+            var count = 0
+        }
+        struct Item {
+            var width = 44.0
+        }
+        let o = Observer()
+        let beforeAttach = o.attachedView?.width ?? 1.0
+        o.attachedView = Item()
+        let after = o.attachedView?.width ?? 1.0
+        var pending: Item?
+        let localNil = pending == nil
+        pending = Item(width: 9.0)
+        "\\(beforeAttach) \\(after) \\(localNil) \\(pending?.width ?? 0.0)"
+        """
+        #expect(try eval(source).stringValue == "1.0 44.0 true 9.0")
+    }
+
     @Test func labelAwareParameterBinding() throws {
         let source = """
         func box(width: Int, padding: Int = 2, title: String = "t", height: Int) -> String {
