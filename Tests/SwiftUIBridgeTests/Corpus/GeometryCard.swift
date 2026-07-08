@@ -34,11 +34,13 @@ struct ContentView: View {
             GeometryReader {
                 let size = $0.size
                 let frame = $0.frame(in: .global)
+                let insetTop = $0.safeAreaInsets.top
+                let scrollBounds = $0.bounds(of: .scrollView(axis: .horizontal))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("canvas \(Int(size.width))×\(Int(size.height))")
+                    Text("canvas \(Int(size.width))×\(Int(size.height)) inset \(Int(insetTop))")
                         .font(.caption)
                         .monospaced()
-                    Text("origin \(Int(frame.minX)),\(Int(frame.minY))")
+                    Text("origin \(Int(frame.minX)),\(Int(frame.minY)) scroll \(Int(scrollBounds?.minX ?? 0))")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

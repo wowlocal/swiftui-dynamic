@@ -85,9 +85,16 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let proxy = value as? GeometryProxy {
         switch name {
         case "size": return .native(proxy.size)
+        case "safeAreaInsets": return .native(proxy.safeAreaInsets)
         case "frame":
             return .hostFunction(HostFunction(name: "frame") { args, _ in
                 .native(proxy.frame(in: try coordinateSpace(args.labeled("in") ?? args.positional(0))))
+            })
+        case "bounds":
+            return .hostFunction(HostFunction(name: "bounds") { args, _ in
+                guard let space = namedCoordinateSpace(args.labeled("of") ?? args.positional(0)),
+                      let rect = proxy.bounds(of: space) else { return .nilValue }
+                return .native(rect)
             })
         default: return nil
         }
@@ -95,8 +102,13 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let stub = value as? GeometryProxyStub {
         switch name {
         case "size": return .native(stub.size)
+        case "safeAreaInsets": return .native(EdgeInsets())
         case "frame":
             return .hostFunction(HostFunction(name: "frame") { _, _ in
+                .native(CGRect(origin: .zero, size: stub.size))
+            })
+        case "bounds":
+            return .hostFunction(HostFunction(name: "bounds") { _, _ in
                 .native(CGRect(origin: .zero, size: stub.size))
             })
         default: return nil
@@ -168,6 +180,25 @@ private func coordinateSpace(_ value: RuntimeValue?) throws -> some CoordinateSp
         }
     }
     return AnyCoordinateSpaceBox(.global)
+}
+
+/// `bounds(of:)` takes a NamedCoordinateSpace specifically.
+private func namedCoordinateSpace(_ value: RuntimeValue?) -> NamedCoordinateSpace? {
+    guard let value else { return nil }
+    if case .implicitMember("scrollView") = value { return .scrollView }
+    if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+        switch call.name {
+        case "named":
+            if let name = call.arguments.positional(0)?.stringValue { return .named(name) }
+        case "scrollView":
+            if case .implicitMember(let axisName)? = call.arguments.labeled("axis") {
+                return .scrollView(axis: axisName == "horizontal" ? .horizontal : .vertical)
+            }
+            return .scrollView
+        default: break
+        }
+    }
+    return nil
 }
 
 /// Type-erases the heterogeneous coordinate-space statics behind one type.

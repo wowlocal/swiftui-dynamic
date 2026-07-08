@@ -189,3 +189,6 @@ Each iteration does exactly this:
   --limit 50. New baseline: 25/50**; top classes: GeometryProxyStub members
   (4: minX/bounds family), $-projection on non-state (2), ImplicitMemberCall
   members (2), host statics (2).
+- 2026-07-09 iter 20: GeometryProxy.safeAreaInsets + bounds(of:) on both the
+  real proxy (NamedCoordinateSpace coercion, optional CGRect) and the stub
+  (zero insets, canvas rect). 4-project class eliminated; **25/50 → 27/50**.
