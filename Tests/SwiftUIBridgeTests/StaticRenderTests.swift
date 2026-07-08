@@ -1,0 +1,162 @@
+import Testing
+import SwiftInterpreter
+@testable import SwiftUIBridge
+
+private func traceRun(_ source: String) throws -> (interpreter: Interpreter, result: RuntimeValue) {
+    let interpreter = Interpreter(registry: TraceRegistry())
+    let result = try interpreter.run(source: source)
+    return (interpreter, result)
+}
+
+@Suite struct StaticRenderTests {
+    @Test func textWithModifiers() throws {
+        let (_, result) = try traceRun(#"Text("hi").padding().font(.title)"#)
+        let node = try TraceRegistry.node(result)
+        #expect(node.kind == "Text")
+        #expect(node.args == ["hi"])
+        #expect(node.modifiers == ["padding", "font(.title)"])
+    }
+
+    @Test func stackCollectsChildren() throws {
+        let source = """
+        VStack(spacing: 8) {
+            Text("a")
+            Text("b")
+        }
+        """
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.kind == "VStack")
+        #expect(node.children.count == 2)
+        #expect(node.children.map(\.kind) == ["Text", "Text"])
+        #expect(node.children.map(\.args) == [["a"], ["b"]])
+    }
+
+    @Test func forEachOverRange() throws {
+        let source = """
+        ForEach(0..<3) { i in
+            Text("Row \\(i)")
+        }
+        """
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.kind == "ForEach")
+        #expect(node.children.count == 3)
+        #expect(node.children.last?.args == ["Row 2"])
+    }
+
+    @Test func forEachOverArray() throws {
+        let source = """
+        ForEach(["x", "y"], id: \\.self) { s in
+            Text(s)
+        }
+        """
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.children.map(\.args) == [["x"], ["y"]])
+    }
+
+    @Test func builderIfIncludesOnlyTakenBranch() throws {
+        let source = """
+        VStack {
+            if true {
+                Text("yes")
+            }
+            if false {
+                Text("no")
+            } else {
+                Text("fallback")
+            }
+        }
+        """
+        let (_, result) = try traceRun(source)
+        let node = try TraceRegistry.node(result)
+        #expect(node.children.map(\.args) == [["yes"], ["fallback"]])
+    }
+
+    @Test func userViewStructRenders() throws {
+        let source = """
+        struct Card: View {
+            var title = "untitled"
+
+            var body: some View {
+                Text(title)
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    Card(title: "hello")
+                    Card()
+                }
+            }
+        }
+        """
+        let (interpreter, _) = try traceRun(source)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        #expect(symbol.name == "ContentView")
+        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            Issue.record("expected an instance")
+            return
+        }
+        let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(body.kind == "VStack")
+        #expect(body.children.map(\.kind) == ["View:Card", "View:Card"])
+
+        // Evaluate the nested interpreted view's body too.
+        let card = try #require(body.children.first?.instance)
+        let cardBody = try TraceRegistry.node(interpreter.evaluateBody(of: card))
+        #expect(cardBody.args == ["hello"])
+    }
+
+    @Test func buttonRecordsTitleAndAction() throws {
+        let (_, result) = try traceRun(#"Button("tap") { }"#)
+        let node = try TraceRegistry.node(result)
+        #expect(node.kind == "Button")
+        #expect(node.args == ["tap"])
+        #expect(node.actions["action"] != nil)
+    }
+
+    @Test func realRegistryRendersCounterSource() throws {
+        let source = """
+        struct ContentView: View {
+            @State var count = 0
+
+            var body: some View {
+                VStack(spacing: 16) {
+                    Text("Count: \\(count)")
+                        .font(.largeTitle)
+                    HStack(spacing: 12) {
+                        Button("-") {
+                            count -= 1
+                        }
+                        Button("+") {
+                            count += 1
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
+        """
+        let outcome = InterpreterHost().render(source: source)
+        switch outcome {
+        case .success:
+            break
+        case .failure(let error):
+            Issue.record("render failed: \(error)")
+        }
+    }
+
+    @Test func unknownModifierIsLocatedError() throws {
+        let outcome = InterpreterHost().render(source: #"Text("x").wobble()"#)
+        switch outcome {
+        case .success:
+            Issue.record("expected failure")
+        case .failure(let error):
+            #expect(error.message.contains("wobble"))
+            #expect(error.line == 1)
+        }
+    }
+}
