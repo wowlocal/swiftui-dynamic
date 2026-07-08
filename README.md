@@ -145,7 +145,8 @@ coverage.
   (390×844 headlessly); `DispatchQueue.main.async` dispatches interpreted
   closures through the real main queue; `UIViewRepresentable`/
   `NSViewRepresentable` structs are accepted in view position but render
-  inert (their make/update methods never run).
+  inert (their make/update methods never run); `X.appearance()` proxies accept
+  all configuration inertly (writes ignored, config calls chain).
 - **Casts are optimistic.** `as`/`as!` pass the value through; `as?` only
   yields nil for nil inputs. The target type does resolve implicit-member
   markers and bridges Int/Double.

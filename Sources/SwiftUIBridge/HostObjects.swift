@@ -49,6 +49,11 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     }
 }
 
+/// `UITabBar.appearance().isHidden = true` — iOS styling side-channels have
+/// no macOS analog; the proxy accepts configuration inertly (writes ignored,
+/// config calls chain).
+struct AppearanceStub {}
+
 /// `Calendar.current` — backed by the real Foundation calendar.
 struct CalendarBox {
     let calendar = Calendar.current
@@ -123,6 +128,13 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return nil
         }
     }
+    if value is HostTypeMarker, name == "appearance" {
+        return .hostFunction(HostFunction(name: "appearance") { _, _ in .native(AppearanceStub()) })
+    }
+    if value is AppearanceStub {
+        // Config calls chain (`.configureWithOpaqueBackground()` → stub).
+        return .hostFunction(HostFunction(name: name) { _, _ in .native(AppearanceStub()) })
+    }
     if let marker = value as? HostTypeMarker, marker.name == "Timer", name == "publish" {
         return .hostFunction(HostFunction(name: "publish") { args, _ in
             let interval = (args.labeled("every") ?? args.positional(0))?.doubleValue ?? 1.0
@@ -161,6 +173,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
 
 /// Writable members on host objects.
 func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
+    if value is AppearanceStub {
+        return true // appearance configuration is accepted and ignored
+    }
     guard let box = value as? DateFormatterBox else { return false }
     switch name {
     case "dateFormat":

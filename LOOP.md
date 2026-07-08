@@ -256,3 +256,7 @@ Each iteration does exactly this:
   void. **64/100 → 66/100**. Remaining void-member subroots: unknown
   @Environment keys (modelContext → SwiftData), third-party wrappers
   (@ObservedResults/Realm — quarantine candidate).
+- 2026-07-09 iter 33: UIKit appearance proxies — `X.appearance()` on any host
+  marker yields an inert stub: writes accepted-and-ignored, config calls
+  chain (`.standardAppearance.configureWithOpaqueBackground()`). Platform-stub
+  doctrine, documented. **66/100 → 68/100**.

@@ -265,6 +265,17 @@ import SwiftInterpreter
         #expect(body.children.map(\.kind) == ["Text", "Representable:Chrome"])
     }
 
+    @Test func appearanceProxiesAreInert() throws {
+        let source = """
+        UITabBar.appearance().isHidden = true
+        UITableView.appearance().backgroundColor = .clear
+        UINavigationBar.appearance().standardAppearance.configureWithOpaqueBackground()
+        7
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        #expect(try interpreter.run(source: source).intValue == 7)
+    }
+
     @Test func dateFoundationPipeline() throws {
         // The real-project date pipeline: random amounts, Calendar math on
         // .now, format styles — all backed by real Foundation.
