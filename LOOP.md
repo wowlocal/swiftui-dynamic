@@ -1,0 +1,77 @@
+# The Loop
+
+## High-level goal
+
+A Swift interpreter that **matches native SwiftUI's abilities and runs real
+open-source SwiftUI projects without errors**. Architecture (settled, don't
+relitigate): tree-walk SwiftSyntax ASTs directly (never SIL), delegate all
+framework behavior to gateways (hand-written overrides + BridgeGen-generated
+tables from the SDK's swiftinterfaces), stub types (`InterpretedView`) for
+protocol conformance. See README.md for what already works.
+
+**North-star metric: `swift run ProjectCheck` pass rate.** 587 real zipped
+SwiftUI sample projects sit in `/Users/mike/Documents/sample-projects`. The
+runner extracts them (into gitignored `External/`), merges each project's
+`.swift` files, interprets, deep-renders every View body, and clicks every
+action. Its failure-class histogram is the priority queue.
+
+## The iteration algorithm (never invent the next step)
+
+Each iteration does exactly this:
+
+1. **Health check**: `swift test` (~100 tests). If red, fix that first — the
+   suite is never weakened, tests are never deleted to go green.
+2. **Measure**: `swift run ProjectCheck --limit N` (N grows over time; start
+   25, raise when the current window passes ~80%). Read the failure-class
+   histogram.
+3. **Pick the single biggest failure class** (most projects blocked). If two
+   tie, pick the one that's an interpreter-language gap over a gateway gap.
+4. **Classify and fix properly** (no per-project hacks):
+   - *Language gap* (unsupported syntax/semantics) → implement in
+     `Sources/SwiftInterpreter/` following existing evaluator patterns.
+   - *Missing view/modifier/type* → prefer teaching BridgeGen a coercion or
+     mapping and regenerate (`swift run BridgeGen --emit`); hand-write in
+     `ViewGateways`/`ModifierGateways` only when generation can't express it.
+   - *iOS-only / platform-impossible API* (UIKit interop, UIScreen…) → add a
+     minimal inert stub if cheap and honest (renders something reasonable),
+     otherwise record the project name + reason in the Quarantine section
+     below. Quarantine is a last resort and never used to inflate pass rate.
+5. **Add regression coverage**: a corpus program under
+   `Tests/SwiftUIBridgeTests/Corpus/` or a unit test that captures the fixed
+   class. New capability without a test doesn't count.
+6. **Verify**: full `swift test` green AND ProjectCheck pass count strictly
+   improved (or same count with the histogram's top class eliminated).
+7. **Commit** with the failure class named in the message.
+8. **Update the Progress log below** (date, pass rate, what was fixed). Keep
+   entries to one line.
+9. If ProjectCheck passes everything in the current window: raise `--limit`
+   (25 → 50 → 100 → … → --all). When the local ladder is exhausted, find
+   harder material: search GitHub for small real SwiftUI apps (10–40 files,
+   stars > 100), clone into `External/oss/<name>`, and point ProjectCheck at
+   them. Never fabricate passing material.
+
+## Rules
+
+- Small commits, one failure class each. No drive-by refactors.
+- Hand-written gateways stay authoritative over generated ones.
+- Semantic divergences (reference-backed structs, positional identity, etc.)
+  are documented in README.md, not silently extended. If a fix requires a NEW
+  divergence, document it in the same commit.
+- The step budget, located errors (`line:col`), and headless verifiability
+  are invariants — don't trade them away for pass rate.
+- Known deep walls, in preferred order when the ladder forces them:
+  `@Environment` values (dismiss, colorScheme…) → value semantics for structs
+  → protocols/generics in interpreted code → async/await → `@main App`/scene
+  shell → Foundation breadth (Date formatting, Timer, URLSession stubs).
+  Don't start one preemptively; wait until it's the top failure class.
+
+## Quarantine
+
+(projects excluded from the metric, with reasons — keep short)
+
+## Progress log
+
+- 2026-07-09: Loop bootstrapped. Corpus (12 programs) + 97 unit tests green.
+  ProjectCheck baseline over smallest 25 real projects: **1/25**. Top classes:
+  top-level `#Preview` as expression (12), `Bool.toggle()` (3), get/set
+  computed properties (3), `UIScreen.main` (2), `Color.black` static (2).

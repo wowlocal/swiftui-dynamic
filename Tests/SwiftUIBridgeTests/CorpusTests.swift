@@ -37,32 +37,8 @@ enum Corpus {
 
     @Test(arguments: corpusFiles)
     func traceDeepRenderWithInteractions(file: String) throws {
-        let interpreter = Interpreter(registry: TraceRegistry())
-        try interpreter.run(source: try Corpus.source(file))
-        let symbol = try #require(interpreter.rootViewSymbol(), "no View struct in \(file)")
-        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
-            Issue.record("could not instantiate root of \(file)")
-            return
-        }
-
-        var actions: [ClosureValue] = []
-        let root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
-        let nodeCount = try deepRender(interpreter, root, actions: &actions)
-        #expect(nodeCount > 1, "\(file) rendered a trivial tree")
-
-        // Click through the UI like a user: each action fires against a FRESH
-        // render of the tree (closures from stale trees may hold dead indices,
-        // exactly as in real SwiftUI where old rows disappear).
-        for position in 0..<actions.count {
-            var current: [ClosureValue] = []
-            let tree = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
-            _ = try deepRender(interpreter, tree, actions: &current)
-            guard position < current.count else { break } // tree shrank
-            _ = try interpreter.callClosure(current[position], arguments: [])
-        }
-        var ignored: [ClosureValue] = []
-        let rerendered = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
-        _ = try deepRender(interpreter, rerendered, actions: &ignored)
+        let report = try HeadlessVerifier.verify(source: try Corpus.source(file))
+        #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
     @Test(arguments: corpusFiles)
@@ -90,30 +66,4 @@ enum Corpus {
         }
     }
 
-    /// Recursively evaluates interpreted-View bodies and collects actions.
-    /// `.environmentObject` injections recorded on a node scope its subtree,
-    /// mirroring how the bridge rides SwiftUI's Environment.
-    @discardableResult
-    private func deepRender(
-        _ interpreter: Interpreter,
-        _ node: TraceNode,
-        actions: inout [ClosureValue],
-        environment: [String: Instance] = [:],
-        depth: Int = 0
-    ) throws -> Int {
-        guard depth < 16 else { return 1 }
-        var count = 1
-        var environment = environment
-        environment.merge(node.environmentModels) { _, injected in injected }
-        actions += node.actions.values
-        if let instance = node.instance {
-            try interpreter.injectEnvironmentObjects(into: instance, models: environment)
-            let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
-            count += try deepRender(interpreter, body, actions: &actions, environment: environment, depth: depth + 1)
-        }
-        for child in node.children {
-            count += try deepRender(interpreter, child, actions: &actions, environment: environment, depth: depth + 1)
-        }
-        return count
-    }
 }

@@ -36,6 +36,11 @@ let package = Package(
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
+            name: "ProjectCheck",
+            dependencies: ["SwiftUIBridge"],
+            swiftSettings: mainActorByDefault
+        ),
+        .executableTarget(
             name: "BridgeGen",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),

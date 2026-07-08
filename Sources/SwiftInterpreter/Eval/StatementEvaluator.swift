@@ -43,6 +43,9 @@ extension Interpreter {
     }
 
     func executeDecl(_ decl: DeclSyntax, in env: Environment) throws {
+        if decl.is(MacroExpansionDeclSyntax.self) {
+            return // #Preview and friends are inert at runtime
+        }
         if let varDecl = decl.as(VariableDeclSyntax.self) {
             for binding in varDecl.bindings {
                 guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
