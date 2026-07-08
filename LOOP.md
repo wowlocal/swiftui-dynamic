@@ -207,3 +207,7 @@ Each iteration does exactly this:
 - 2026-07-09 iter 23: universal `.self` (the value itself — Swift semantics),
   unblocking the PreferenceKey idiom (`.preference(key: SizeKey.self, …)`,
   trace-recorded). **31/50 → 33/50** (66%).
+- 2026-07-09 iter 24: CG numeric type context — `CGFloat(x)` global builtin
+  (our CGFloat model IS Double) and `.zero` statics for CGSize/CGPoint/CGRect
+  via the marker path (covers `: CGSize = .zero` annotations). DropDown and
+  MarqueeText pass. **33/50 → 35/50** (70%).

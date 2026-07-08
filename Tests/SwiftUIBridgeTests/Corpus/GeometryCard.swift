@@ -23,6 +23,7 @@ struct MeterBar: View {
 
 struct ContentView: View {
     @State var level = 0.7
+    @State var nudge: CGSize = .zero
 
     let screenWidth = UIScreen.main.bounds.width
 
@@ -48,6 +49,7 @@ struct ContentView: View {
             .frame(height: 44)
 
             MeterBar(fraction: level)
+                .offset(x: nudge.width + CGFloat(0))
             Button("More") {
                 level = min(1.0, level + 0.1)
             }

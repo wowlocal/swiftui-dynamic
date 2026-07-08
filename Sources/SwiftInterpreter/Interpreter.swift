@@ -381,6 +381,13 @@ public final class Interpreter {
             if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
             return .nilValue
         }
+        define("CGFloat") { args, _ in
+            // Our CGFloat model IS Double.
+            guard let d = args.positional(0)?.doubleValue else {
+                throw RuntimeError(message: "CGFloat needs a number")
+            }
+            return .native(d)
+        }
         define("Array") { args, _ in
             guard let value = args.positional(0) else { return .native([RuntimeValue]()) }
             if let range = value.rangeValue { return .native(range.map { RuntimeValue.native($0) }) }

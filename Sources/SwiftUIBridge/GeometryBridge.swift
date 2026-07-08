@@ -44,6 +44,12 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .native(MainQueueStub())
         case ("UIApplication", "shared"), ("NSApplication", "shared"):
             return .native(AppStub())
+        case ("CGSize", "zero"):
+            return .native(CGSize.zero)
+        case ("CGPoint", "zero"):
+            return .native(CGPoint.zero)
+        case ("CGRect", "zero"):
+            return .native(CGRect.zero)
         default:
             return nil
         }

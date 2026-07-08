@@ -73,6 +73,31 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func cgNumericTypeContext() throws {
+        let source = """
+        struct ContentView: View {
+            @State var dragOffset: CGSize = .zero
+
+            var body: some View {
+                Text("x")
+                    .offset(x: dragOffset.width + CGFloat(10))
+            }
+        }
+        let p: CGPoint = .zero
+        let width = CGFloat(2.5) * 2.0
+        "\\(p.y) \\(width)"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        #expect(try interpreter.run(source: source).stringValue == "0.0 5.0")
+
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            Issue.record("expected an instance")
+            return
+        }
+        _ = try interpreter.evaluateBody(of: instance) // offset math must evaluate
+    }
+
     @Test func preferenceKeyPatternTraces() throws {
         // The PreferenceKey idiom: Type.self flows into preference modifiers,
         // which trace mode records without executing.
