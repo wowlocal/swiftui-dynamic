@@ -324,6 +324,16 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(#""abc".replacingOccurrences(of: "b", with: "-")"#).stringValue == "a-c")
     }
 
+    @Test func mathBuiltins() throws {
+        #expect(try eval("Int(round(2.6))").intValue == 3)
+        #expect(try eval("Int(round(2.4))").intValue == 2)
+        #expect(try eval("floor(2.9)").doubleValue == 2.0)
+        #expect(try eval("ceil(2.1)").doubleValue == 3.0)
+        #expect(try eval("sqrt(81.0)").doubleValue == 9.0)
+        #expect(try eval("pow(2.0, 10.0)").doubleValue == 1024.0)
+        #expect(try eval("round(7)").doubleValue == 7.0) // Int promotes
+    }
+
     @Test func globalFunctions() throws {
         #expect(try eval("abs(-5)").intValue == 5)
         #expect(try eval("min(3, 1, 2)").intValue == 1)

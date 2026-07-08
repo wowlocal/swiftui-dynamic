@@ -310,6 +310,24 @@ public final class Interpreter {
             if let d = value.doubleValue { return .native(Swift.abs(d)) }
             throw RuntimeError(message: "abs needs a number")
         }
+        func defineUnaryMath(_ name: String, _ op: @escaping (Double) -> Double) {
+            define(name) { args, _ in
+                guard let d = args.positional(0)?.doubleValue else {
+                    throw RuntimeError(message: "\(name) needs a number")
+                }
+                return .native(op(d))
+            }
+        }
+        defineUnaryMath("round") { $0.rounded() }
+        defineUnaryMath("floor") { $0.rounded(.down) }
+        defineUnaryMath("ceil") { $0.rounded(.up) }
+        defineUnaryMath("sqrt") { $0.squareRoot() }
+        define("pow") { args, _ in
+            guard let base = args.positional(0)?.doubleValue, let exponent = args.positional(1)?.doubleValue else {
+                throw RuntimeError(message: "pow needs two numbers")
+            }
+            return .native(Foundation.pow(base, exponent))
+        }
         define("min") { args, _ in
             try Self.extremum(args, op: "<")
         }

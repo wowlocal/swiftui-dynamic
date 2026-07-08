@@ -156,3 +156,7 @@ Each iteration does exactly this:
   uncatchable; `await` evaluates inline (documented divergence). Also learned:
   stale incremental objects after core-type layout changes cause garbage
   crashes — rule added. **16/25 → 17/25** (68%).
+- 2026-07-09 iter 14: math builtins (round/floor/ceil/sqrt/pow, joining
+  abs/min/max). **17/25 holds**; class eliminated — Custom_Indicators advanced
+  to `getWidth`, exposing interpreted `extension View { func … }` helpers as
+  the real next class (host-protocol extensions currently skipped).
