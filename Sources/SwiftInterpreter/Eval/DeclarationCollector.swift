@@ -10,6 +10,8 @@ extension Interpreter {
             guard case .decl(let decl) = item.item else { continue }
             if let structDecl = decl.as(StructDeclSyntax.self) {
                 try collectStruct(structDecl)
+            } else if let classDecl = decl.as(ClassDeclSyntax.self) {
+                try collectClass(classDecl)
             } else if let enumDecl = decl.as(EnumDeclSyntax.self) {
                 try collectEnum(enumDecl)
             } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
@@ -30,6 +32,22 @@ extension Interpreter {
             $0.type.trimmedDescription == "View"
         } ?? false
         let symbol = StructSymbol(name: node.name.text, conformsToView: conformsToView)
+        try collectStructMembers(node.memberBlock, into: symbol)
+        structSymbols.append(symbol)
+        globals.define(symbol.name, .type(symbol))
+    }
+
+    /// Classes ride the same symbol machinery — Instance is already
+    /// reference-backed, which is exactly class semantics. The extra flags
+    /// drive observation (`ObservableObject` conformance / `@Observable`).
+    private func collectClass(_ node: ClassDeclSyntax) throws {
+        let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
+        let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
+        symbol.isClass = true
+        symbol.conformsToObservableObject = inherited.contains("ObservableObject")
+        symbol.observableViaMacro = node.attributes.contains {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Observable"
+        }
         try collectStructMembers(node.memberBlock, into: symbol)
         structSymbols.append(symbol)
         globals.define(symbol.name, .type(symbol))
@@ -205,6 +223,9 @@ extension Interpreter {
     private func propertyWrapper(of attributes: AttributeListSyntax) -> StructSymbol.Wrapper {
         if hasAttribute(attributes, named: "State") { return .state }
         if hasAttribute(attributes, named: "Binding") { return .binding }
+        if hasAttribute(attributes, named: "Published") { return .published }
+        if hasAttribute(attributes, named: "StateObject") { return .stateObject }
+        if hasAttribute(attributes, named: "ObservedObject") { return .observedObject }
         return .none
     }
 

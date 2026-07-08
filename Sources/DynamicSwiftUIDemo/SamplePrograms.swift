@@ -5,7 +5,110 @@ struct SampleProgram: Identifiable, Hashable {
 }
 
 enum SamplePrograms {
-    static let all = [counter, form, weather, staticLayout, list]
+    static let all = [counter, todoMVVM, form, weather, staticLayout, list]
+
+    /// A real view-model app: ObservableObject store shared by three views.
+    static let todoMVVM = SampleProgram(name: "Todo", source: """
+    struct Todo {
+        var title = ""
+        var done = false
+    }
+
+    class TodoStore: ObservableObject {
+        @Published var todos: [Todo] = [
+            Todo(title: "Interpret Swift", done: true),
+            Todo(title: "Render SwiftUI", done: true),
+            Todo(title: "Run real projects"),
+        ]
+        @Published var newTitle = ""
+
+        var remaining: Int {
+            todos.filter { !$0.done }.count
+        }
+
+        func add() {
+            let trimmed = newTitle.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else {
+                return
+            }
+            todos.append(Todo(title: trimmed))
+            newTitle = ""
+        }
+
+        func toggle(at index: Int) {
+            guard index < todos.count else {
+                return
+            }
+            let item = todos[index]
+            item.done = !item.done
+            todos[index] = item
+        }
+
+        func remove(at index: Int) {
+            guard index < todos.count else {
+                return
+            }
+            todos.remove(at: index)
+        }
+    }
+
+    struct AddBar: View {
+        @ObservedObject var store: TodoStore
+
+        var body: some View {
+            HStack {
+                TextField("What needs doing?", text: $store.newTitle)
+                    .textFieldStyle(.roundedBorder)
+                Button("Add") {
+                    store.add()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.newTitle.isEmpty)
+            }
+        }
+    }
+
+    struct ContentView: View {
+        @StateObject var store = TodoStore()
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Todos (MVVM)")
+                    .font(.title2)
+                    .bold()
+
+                AddBar(store: store)
+
+                VStack(spacing: 6) {
+                    ForEach(store.todos.indices) { i in
+                        HStack {
+                            Button(store.todos[i].done ? "☑" : "☐") {
+                                store.toggle(at: i)
+                            }
+                            .buttonStyle(.plain)
+                            Text(store.todos[i].title)
+                                .opacity(store.todos[i].done ? 0.4 : 1.0)
+                            Spacer()
+                            Button("✕") {
+                                store.remove(at: i)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.red)
+                        }
+                    }
+                }
+
+                Divider()
+
+                Text("\\(store.remaining) of \\(store.todos.count) remaining")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .frame(maxWidth: 360)
+        }
+    }
+    """)
 
     /// Enums with methods, switch in bodies, gradients, shapes, nested views.
     static let weather = SampleProgram(name: "Weather", source: """

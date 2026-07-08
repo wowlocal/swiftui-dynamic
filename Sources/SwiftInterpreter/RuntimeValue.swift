@@ -124,3 +124,14 @@ public struct ChainedImplicitCall {
 public struct KeyPathStub {
     public init() {}
 }
+
+/// The value of `$model` where model is @StateObject/@ObservedObject: member
+/// access projects a `BindingStub` onto the model's property box, so
+/// `TextField("…", text: $store.query)` works.
+public struct ModelProjection {
+    public let model: Instance
+
+    public init(model: Instance) {
+        self.model = model
+    }
+}

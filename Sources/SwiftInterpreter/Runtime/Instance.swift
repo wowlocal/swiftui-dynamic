@@ -1,9 +1,29 @@
+/// Multicast change notification for observable model instances. Handlers are
+/// keyed by observer identity so re-subscription (every body evaluation) stays
+/// idempotent; observers hold themselves weakly inside their handlers.
+public final class ChangeSignal {
+    private var observers: [ObjectIdentifier: @MainActor () -> Void] = [:]
+
+    public init() {}
+
+    public func subscribe(_ key: ObjectIdentifier, _ handler: @escaping @MainActor () -> Void) {
+        observers[key] = handler
+    }
+
+    public func fire() {
+        for handler in observers.values { handler() }
+    }
+}
+
 /// A user-struct instance. Deliberately class-backed even though the source
 /// declares a struct: reference semantics are what let a Button action closure
 /// mutate `self.count` and have the next `body` evaluation observe it, with no
 /// copy machinery. Documented divergence from Swift value semantics.
+/// (For `class` declarations, reference semantics is simply correct.)
 public final class Instance: CustomStringConvertible {
     public let symbol: StructSymbol
+    /// Fired when a notifying (@Published / @Observable-tracked) property mutates.
+    public let changeSignal = ChangeSignal()
     /// Plain stored properties. `@Binding` properties live here too, but their
     /// Box is shared with the parent's state box rather than owned.
     public var properties: [String: Box] = [:]

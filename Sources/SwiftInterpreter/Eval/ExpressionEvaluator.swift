@@ -114,6 +114,15 @@ extension Interpreter {
             guard case .instance(let instance)? = env.lookup("self") else {
                 throw error(node, "'\(name)' can only be used inside a View body")
             }
+            // `$store` on a model property projects the model so `$store.field`
+            // can become a binding to the model's own box.
+            if let property = instance.symbol.storedProperty(named: propertyName),
+               property.wrapper == .stateObject || property.wrapper == .observedObject {
+                guard case .instance(let model)? = instance.box(for: propertyName)?.value else {
+                    throw error(node, "'\(name)' has no model instance assigned")
+                }
+                return .native(ModelProjection(model: model))
+            }
             guard let box = instance.projectedBox(for: propertyName) else {
                 throw error(node, "'\(name)' requires an @State or @Binding property named '\(propertyName)'")
             }
@@ -241,6 +250,12 @@ extension Interpreter {
             return .native(ChainedImplicitCall(baseName: baseName, member: name, arguments: CallArguments()))
 
         case .native(let any):
+            if let projection = any as? ModelProjection {
+                guard let box = projection.model.box(for: name) else {
+                    throw error(node, "'$\(projection.model.symbol.name)' has no stored property '\(name)'")
+                }
+                return .native(BindingStub(box: box))
+            }
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
                 return value
             }
@@ -512,10 +527,10 @@ extension Interpreter {
         }
     }
 
-    enum LValue {
+    indirect enum LValue {
         case box(Box)
         case instanceProperty(Instance, String)
-        case element(Box, Int)
+        case element(LValue, Int)
         case dictElement(DictValue, RuntimeValue)
 
         func read() throws -> RuntimeValue {
@@ -527,8 +542,8 @@ extension Interpreter {
                     throw EvalMessage(text: "'\(instance.symbol.name)' has no stored property '\(name)'")
                 }
                 return box.value
-            case .element(let box, let index):
-                guard let array = box.value.arrayValue, array.indices.contains(index) else {
+            case .element(let base, let index):
+                guard let array = try base.read().arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
                 return array[index]
@@ -553,12 +568,14 @@ extension Interpreter {
                     throw EvalMessage(text: "'\(instance.symbol.name)' has no stored property '\(name)'")
                 }
                 box.value = value
-            case .element(let box, let index):
-                guard var array = box.value.arrayValue, array.indices.contains(index) else {
+            case .element(let base, let index):
+                // Read-modify-write through the base lvalue, so element writes
+                // propagate box/publisher notifications all the way up.
+                guard var array = try base.read().arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
                 array[index] = value
-                box.value = .native(array)
+                try base.write(.native(array))
             case .dictElement(let dict, let key):
                 try dict.update(key, to: value)
             }
@@ -590,13 +607,10 @@ extension Interpreter {
                 return .dictElement(dict, try evaluate(indexExpr, in: env))
             }
             let base = try resolveLValue(subscriptCall.calledExpression, in: env)
-            guard case .box(let box) = base else {
-                throw error(subscriptCall, "nested subscript assignment isn't supported")
-            }
             guard let index = try evaluate(indexExpr, in: env).intValue else {
                 throw error(subscriptCall, "subscript assignment requires an Int index")
             }
-            return .element(box, index)
+            return .element(base, index)
         }
         if let tuple = expr.as(TupleExprSyntax.self), tuple.elements.count == 1, let only = tuple.elements.first {
             return try resolveLValue(only.expression, in: env)

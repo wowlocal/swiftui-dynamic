@@ -63,7 +63,8 @@ extension Interpreter {
             try defineFunction(funcDecl, in: env)
             return
         }
-        if decl.is(StructDeclSyntax.self) || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
+        if decl.is(StructDeclSyntax.self) || decl.is(ClassDeclSyntax.self)
+            || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
             throw error(decl, "types must be declared at the top level")
         }
         throw error(decl, "unsupported declaration (\(decl.kind))")

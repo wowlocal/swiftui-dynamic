@@ -62,7 +62,11 @@ implicit return, trailing closures, `@ViewBuilder`/`some View` builder
 bodies), closures (`$0` shorthand, capture-by-reference), structs (stored/
 computed properties, methods, custom `init`s, memberwise init, statics),
 enums (raw + associated values, methods, computed properties, `CaseIterable`),
-extensions, `@State`, `@Binding`, `$` projections, ~40 stdlib members
+**classes** (reference semantics, custom inits, statics), extensions,
+**view models** — `ObservableObject`/`@Observable` with `@Published`,
+`@StateObject` (model persists across view recreation), `@ObservedObject`
+(shared models re-render every observing view), `$store.field` bindings onto
+model properties — plus `@State`, `@Binding`, `$` projections, ~40 stdlib members
 (`map`/`filter`/`reduce`/`sorted`/`first(where:)`/`contains`/`joined`/
 mutating `append`/`remove(at:)`/…, string methods), and global
 `print`/`abs`/`min`/`max`/`String`/`Int`/`Double`/`Array`.
@@ -112,6 +116,11 @@ coverage.
 - **Bindings are Box handles.** `$name` projects the state's storage box; the
   bridge wraps it in a real `Binding` whose setter writes the box (rounding
   back to Int when the state was declared Int, e.g. for `Slider`).
+- **Model notification is box-level.** Writing a `@Published` property (or any
+  stored property of an `@Observable` class) fires the model's change signal.
+  Mutating an instance nested *inside* a published collection doesn't — 
+  reassign through the collection (`todos[i] = item`) to notify. `@StateObject`
+  initializer side effects re-run (and are discarded) on view recreation.
 - Not supported (v1): generics, protocols, enums, custom `init`, optionals
   beyond `nil` literals, `guard`, `switch`, dictionaries.
 - An evaluation **step budget** (100k) guards the main thread against

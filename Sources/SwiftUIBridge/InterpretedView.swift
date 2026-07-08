@@ -25,13 +25,30 @@ final class StateStore: ObservableObject {
 
     /// Idempotent and cheap — runs on every body evaluation.
     func adopt(into instance: Instance) {
-        for name in instance.symbol.statePropertyNames {
+        // @State values and @StateObject models persist via their boxes; a
+        // fresh instance's just-initialized box is discarded in favor of the
+        // persisted one (mirrors @StateObject keeping its first model).
+        for name in instance.symbol.persistentPropertyNames {
             if let persisted = boxes[name] {
                 instance.stateBoxes[name] = persisted
             } else if let fresh = instance.stateBoxes[name] {
                 boxes[name] = fresh
             }
             boxes[name]?.onChange = { [weak self] in self?.objectWillChange.send() }
+        }
+        wireModelSubscriptions(of: instance)
+    }
+
+    /// Any @StateObject/@ObservedObject model this view declares re-renders it
+    /// when a notifying property mutates. Keyed subscription keeps repeated
+    /// adoption idempotent.
+    private func wireModelSubscriptions(of instance: Instance) {
+        for property in instance.symbol.storedProperties
+        where property.wrapper == .stateObject || property.wrapper == .observedObject {
+            guard case .instance(let model)? = instance.box(for: property.name)?.value else { continue }
+            model.changeSignal.subscribe(ObjectIdentifier(self)) { [weak self] in
+                self?.objectWillChange.send()
+            }
         }
     }
 }

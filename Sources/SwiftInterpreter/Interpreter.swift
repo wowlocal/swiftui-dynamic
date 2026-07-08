@@ -65,7 +65,8 @@ public final class Interpreter {
         var last: RuntimeValue = .void
         for item in file.statements {
             if case .decl(let decl) = item.item,
-               decl.is(StructDeclSyntax.self) || decl.is(FunctionDeclSyntax.self)
+               decl.is(StructDeclSyntax.self) || decl.is(ClassDeclSyntax.self)
+                || decl.is(FunctionDeclSyntax.self)
                 || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
                 continue // already collected
             }
@@ -89,15 +90,22 @@ public final class Interpreter {
     /// arguments for `@Binding` properties share the parent's Box.
     public func instantiate(_ symbol: StructSymbol, with args: CallArguments, node: Syntax? = nil) throws -> RuntimeValue {
         let instance = Instance(symbol: symbol)
+        let notifying = Set(symbol.notifyingPropertyNames)
         for property in symbol.storedProperties {
             var value = RuntimeValue.void
             if let initializer = property.initializer {
                 value = resolveAnnotated(try evaluate(initializer, in: globals), annotation: property.typeAnnotation)
             }
             let box = Box(value)
-            if property.wrapper == .state {
+            if notifying.contains(property.name) {
+                // @Published (or @Observable-tracked) mutation → model signal.
+                let signal = instance.changeSignal
+                box.onChange = { signal.fire() }
+            }
+            switch property.wrapper {
+            case .state, .stateObject:
                 instance.stateBoxes[property.name] = box
-            } else {
+            default:
                 instance.properties[property.name] = box
             }
         }

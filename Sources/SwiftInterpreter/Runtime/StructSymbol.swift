@@ -20,6 +20,9 @@ public final class StructSymbol {
         case none
         case state
         case binding
+        case published
+        case stateObject
+        case observedObject
     }
 
     public struct StoredProperty {
@@ -31,6 +34,11 @@ public final class StructSymbol {
 
     public let name: String
     public let conformsToView: Bool
+    /// Declared with `class` — matters for observation; reference semantics
+    /// are the default for ALL instances (the documented struct divergence).
+    public internal(set) var isClass = false
+    public internal(set) var conformsToObservableObject = false
+    public internal(set) var observableViaMacro = false
     public internal(set) var storedProperties: [StoredProperty] = []
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
     public internal(set) var methods: [String: FunctionDeclSyntax] = [:]
@@ -44,8 +52,30 @@ public final class StructSymbol {
         self.conformsToView = conformsToView
     }
 
+    public var isObservable: Bool {
+        conformsToObservableObject || observableViaMacro
+    }
+
     public var statePropertyNames: [String] {
         storedProperties.filter { $0.wrapper == .state }.map(\.name)
+    }
+
+    /// Properties whose boxes the bridge persists across view recreation:
+    /// @State values and @StateObject models (the model instance lives in the
+    /// persisted box).
+    public var persistentPropertyNames: [String] {
+        storedProperties.filter { $0.wrapper == .state || $0.wrapper == .stateObject }.map(\.name)
+    }
+
+    /// Properties whose mutation fires the instance's change signal:
+    /// @Published for ObservableObject conformers, every plain stored property
+    /// for @Observable classes.
+    public var notifyingPropertyNames: [String] {
+        guard isObservable else { return [] }
+        if observableViaMacro {
+            return storedProperties.filter { $0.wrapper == .none }.map(\.name)
+        }
+        return storedProperties.filter { $0.wrapper == .published }.map(\.name)
     }
 
     public func storedProperty(named name: String) -> StoredProperty? {
