@@ -84,3 +84,6 @@ Each iteration does exactly this:
   inert — 12-project class eliminated; **1/25 → 3/25**. Next top classes:
   `Bool.toggle()` (3), get/set computed properties (3), statics on host types
   like `Color.black` (2+2 related).
+- 2026-07-09 iter 2: `Bool.toggle()` via the lvalue path (state notification
+  fires); **3/25 → 7/25**. Next: get/set computed properties (3), member
+  access on host-type functions (`Color.black`, `String.…`, ~4 related).

@@ -34,7 +34,7 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 Button("Spin") {
                     withAnimation(.easeInOut(duration: 0.8)) {
-                        spinning = !spinning
+                        spinning.toggle()
                     }
                 }
             }

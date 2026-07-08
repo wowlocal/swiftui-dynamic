@@ -322,6 +322,16 @@ extension Interpreter {
         call: FunctionCallExprSyntax,
         in env: Environment
     ) throws -> RuntimeValue? {
+        // Bool.toggle() — ubiquitous in SwiftUI code (`show.toggle()`); writes
+        // through the lvalue so @State/@Published notification fires.
+        if name == "toggle",
+           let target = try? resolveLValue(base, in: env),
+           let current = try target.read().boolValue {
+            _ = try collectArguments(of: call, in: env) // evaluate (empty) args for side effects
+            try relocating(call) { try target.write(.native(!current)) }
+            return .void
+        }
+
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
         if mutating.contains(name),
            let target = try? resolveLValue(base, in: env),

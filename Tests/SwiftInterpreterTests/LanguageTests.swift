@@ -333,6 +333,45 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Array(0..<3).count").intValue == 3)
     }
 
+    @Test func boolToggle() throws {
+        #expect(try eval("var on = false\non.toggle()\non").boolValue == true)
+        let viaSelf = """
+        struct Switch {
+            var flag = true
+            mutating func flip() {
+                flag.toggle()
+            }
+        }
+        let s = Switch()
+        s.flip()
+        s.flag
+        """
+        #expect(try eval(viaSelf).boolValue == false)
+        #expect(try eval("var d = [true]\nd[0].toggle()\nd[0]").boolValue == false)
+    }
+
+    @Test func toggleFiresStateNotification() throws {
+        let interpreter = Interpreter()
+        try interpreter.run(source: """
+        class Model: ObservableObject {
+            @Published var on = false
+            func flip() {
+                on.toggle()
+            }
+        }
+        let m = Model()
+        """)
+        guard case .instance(let model)? = interpreter.globals.lookup("m") else {
+            Issue.record("expected a model")
+            return
+        }
+        var fires = 0
+        model.changeSignal.subscribe(ObjectIdentifier(model)) { fires += 1 }
+        try interpreter.run(source: "m.flip()")
+        #expect(fires == 1)
+        #expect(model.box(for: "on")?.value.boolValue == true)
+    }
+
     @Test func previewMacrosAreInert() throws {
         // Real project files end in #Preview blocks; both the expression and
         // declaration parse forms must be skipped, not errors.
