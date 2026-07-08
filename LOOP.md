@@ -128,3 +128,9 @@ Each iteration does exactly this:
   them. `DockProgress.ProgressType.linear` patterns work. **14/25 → 15/25**
   (60%). Remaining classes are all singletons: parameterized closure props,
   Color-as-view, doStmt, String.startIndex, colorScheme compare.
+- 2026-07-09 iter 10: parameterized @ViewBuilder closure properties —
+  function-typed annotations (`(CGSize) -> Content`) store the closure at
+  memberwise init instead of pre-building; the body's `content(size)` call
+  builds. SizedBox added to CustomContainer corpus. **15/25 holds**; class
+  eliminated (ScrollParallax → `proxy.bounds(of:)` next; Canvas's identical
+  message is really the GraphicsContext wall).

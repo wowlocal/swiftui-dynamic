@@ -32,6 +32,18 @@ struct BadgeRow: View {
     }
 }
 
+struct SizedBox<Content: View>: View {
+    var height = 40.0
+    @ViewBuilder var content: (CGSize) -> Content
+
+    var body: some View {
+        GeometryReader { proxy in
+            content(proxy.size)
+        }
+        .frame(height: height)
+    }
+}
+
 struct ContentView: View {
     @State var score = 42
 
@@ -47,6 +59,12 @@ struct ContentView: View {
                     score += 10
                 }
                 .buttonStyle(.borderedProminent)
+            }
+
+            SizedBox(height: 30.0) { size in
+                Text("inner width \(Int(size.width))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding()

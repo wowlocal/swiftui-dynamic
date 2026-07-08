@@ -140,9 +140,13 @@ public final class Interpreter {
                         throw RuntimeError(message: message)
                     }
                     assigned.insert(property.name)
-                    if property.isBuilderClosure {
+                    let functionTyped = property.typeAnnotation?.trimmedDescription.contains("->") ?? false
+                    if property.isBuilderClosure && !functionTyped {
+                        // `@ViewBuilder var content: Content` — build now.
                         box.value = try groupViews(try callBuilderClosure(closure, arguments: []))
                     } else {
+                        // `var content: (CGSize) -> Content` (builder or not) —
+                        // store the closure; the body calls it with arguments.
                         box.value = argument.value
                     }
                 } else {
