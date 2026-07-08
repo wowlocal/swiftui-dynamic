@@ -23,6 +23,7 @@ public final class StructSymbol {
         case published
         case stateObject
         case observedObject
+        case environmentObject
     }
 
     public struct StoredProperty {

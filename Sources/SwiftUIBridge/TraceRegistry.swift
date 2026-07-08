@@ -9,6 +9,7 @@ public final class TraceNode {
     public var modifiers: [String] = []
     public var actions: [String: ClosureValue] = [:]
     public var bindings: [String: BindingStub] = [:]
+    public var environmentModels: [String: Instance] = [:]
     public var instance: Instance?
 
     init(kind: String) {
@@ -108,9 +109,28 @@ public final class TraceRegistry: HostRegistry {
         }
     }
 
+    /// Modifiers whose closure arguments are ViewBuilders (never actions) —
+    /// trace mode evaluates them unconditionally so presented/deferred content
+    /// (sheet bodies, alert buttons, tab items) still gets deep coverage.
+    private static let builderModifiers: Set<String> = [
+        "sheet", "alert", "confirmationDialog", "popover",
+        "tabItem", "overlay", "background", "safeAreaInset", "toolbar",
+    ]
+
     public func modifier(named name: String) -> HostModifier? {
-        HostModifier(name: name) { value, args, _ in
+        HostModifier(name: name) { value, args, ctx in
             let node = try Self.node(value)
+            if name == "environmentObject", let first = args.positional(0),
+               case .instance(let model) = first {
+                node.environmentModels[model.symbol.name] = model
+            }
+            if Self.builderModifiers.contains(name) {
+                for argument in args.arguments {
+                    if let closure = argument.value.closureValue, closure.parameters.isEmpty {
+                        node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
+                    }
+                }
+            }
             let argText = args.arguments
                 .map { ($0.label.map { "\($0): " } ?? "") + $0.value.stringified }
                 .joined(separator: ", ")

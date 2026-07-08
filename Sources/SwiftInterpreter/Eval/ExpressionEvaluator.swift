@@ -117,7 +117,8 @@ extension Interpreter {
             // `$store` on a model property projects the model so `$store.field`
             // can become a binding to the model's own box.
             if let property = instance.symbol.storedProperty(named: propertyName),
-               property.wrapper == .stateObject || property.wrapper == .observedObject {
+               property.wrapper == .stateObject || property.wrapper == .observedObject
+                || property.wrapper == .environmentObject {
                 guard case .instance(let model)? = instance.box(for: propertyName)?.value else {
                     throw error(node, "'\(name)' has no model instance assigned")
                 }

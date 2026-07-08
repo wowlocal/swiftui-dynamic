@@ -237,6 +237,66 @@ extension ViewRegistry {
         register("navigationTitle") { view, args, _ in
             AnyView(view.navigationTitle(args.positional(0)?.stringValue ?? ""))
         }
+
+        // MARK: Environment & presentation
+
+        register("environmentObject") { view, args, _ in
+            guard case .instance(let model)? = args.positional(0) else {
+                throw RuntimeError(message: ".environmentObject needs a model instance")
+            }
+            return AnyView(view.transformEnvironment(\.interpretedModels) { environment in
+                environment.models[model.symbol.name] = model
+            })
+        }
+
+        register("sheet") { view, args, ctx in
+            guard let isPresented = args.labeled("isPresented") else {
+                throw RuntimeError(message: ".sheet needs isPresented:")
+            }
+            let binding = try Coerce.boolBinding(isPresented)
+            guard let closure = args.closure(labeled: "content") ?? args.unlabeledClosures.first else {
+                throw RuntimeError(message: ".sheet needs a content closure")
+            }
+            let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
+            let content = views.count == 1 ? views[0] : AnyView(VStack { Self.indexed(views) })
+            return AnyView(view.sheet(isPresented: binding) { content })
+        }
+
+        register("alert") { view, args, ctx in
+            let title = args.positional(0)?.stringValue ?? ""
+            guard let isPresented = args.labeled("isPresented") else {
+                throw RuntimeError(message: ".alert needs isPresented:")
+            }
+            let binding = try Coerce.boolBinding(isPresented)
+            let actionViews = try (args.closure(labeled: "actions") ?? args.unlabeledClosures.first)
+                .map { try ctx.callBuilderClosure($0, arguments: []).map(Self.anyView) } ?? []
+            let messageViews = try args.closure(labeled: "message")
+                .map { try ctx.callBuilderClosure($0, arguments: []).map(Self.anyView) } ?? []
+            if let message = messageViews.first {
+                return AnyView(view.alert(title, isPresented: binding,
+                                          actions: { Self.indexed(actionViews) },
+                                          message: { message }))
+            }
+            return AnyView(view.alert(title, isPresented: binding) { Self.indexed(actionViews) })
+        }
+
+        register("confirmationDialog") { view, args, ctx in
+            let title = args.positional(0)?.stringValue ?? ""
+            guard let isPresented = args.labeled("isPresented") else {
+                throw RuntimeError(message: ".confirmationDialog needs isPresented:")
+            }
+            let binding = try Coerce.boolBinding(isPresented)
+            let actionViews = try (args.closure(labeled: "actions") ?? args.unlabeledClosures.first)
+                .map { try ctx.callBuilderClosure($0, arguments: []).map(Self.anyView) } ?? []
+            return AnyView(view.confirmationDialog(title, isPresented: binding) { Self.indexed(actionViews) })
+        }
+
+        register("tabItem") { view, args, ctx in
+            guard let closure = args.unlabeledClosures.first else { return view }
+            let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
+            let label = views.count == 1 ? views[0] : AnyView(VStack { Self.indexed(views) })
+            return AnyView(view.tabItem { label })
+        }
         register("tag") { view, args, _ in
             let value = args.positional(0)
             return AnyView(view.tag(value?.stringValue ?? value?.stringified ?? ""))

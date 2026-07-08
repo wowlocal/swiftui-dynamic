@@ -97,6 +97,11 @@ extension ViewRegistry {
             return .native(AnyView(Group { Self.indexed(content) }))
         }
 
+        constructors["TabView"] = HostFunction(name: "TabView") { args, ctx in
+            let content = try Self.builderContent(args, ctx)
+            return .native(AnyView(TabView { Self.indexed(content) }))
+        }
+
         constructors["ScrollView"] = HostFunction(name: "ScrollView") { args, ctx in
             var axes: Axis.Set = .vertical
             if case .implicitMember(let name)? = args.positional(0) {
@@ -222,8 +227,16 @@ extension ViewRegistry {
                 throw RuntimeError(message: "Button needs a title or a label closure")
             }
 
+            var role: ButtonRole?
+            if case .implicitMember(let roleName)? = args.labeled("role") {
+                switch roleName {
+                case "destructive": role = .destructive
+                case "cancel": role = .cancel
+                default: throw RuntimeError(message: "unknown button role '.\(roleName)'")
+                }
+            }
             let action = { _ = try? ctx.callClosure(actionClosure, arguments: []) }
-            return .native(AnyView(Button(action: action) { label }))
+            return .native(AnyView(Button(role: role, action: action) { label }))
         }
 
         constructors["Toggle"] = HostFunction(name: "Toggle") { args, ctx in

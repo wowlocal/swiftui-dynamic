@@ -77,11 +77,15 @@ no inference engine, just annotations.
 
 **SwiftUI**: `Text`, `Image(systemName:)`, `Label`, stacks, `Group`,
 `ScrollView`, `List`, `Form`, `Section`, `LazyVGrid`/`LazyHGrid`/`GridItem`,
-`NavigationStack`/`NavigationLink`, `Button`, `Toggle`, `Slider`,
-`TextField`/`SecureField`, `Picker` (String selection), `ForEach`,
-`ProgressView`, `Spacer`/`Divider`, shapes (`Circle`, `Capsule`, `Rectangle`,
-`RoundedRectangle`, `Ellipse`) with `.fill`/`.stroke`, `LinearGradient`,
-`withAnimation`; ~45 modifiers including `padding`/`frame`/`font`/
+`NavigationStack`/`NavigationLink`, `TabView`/`.tabItem`, `Button` (with
+roles), `Toggle`, `Slider`, `TextField`/`SecureField`, `Picker` (String
+selection), `ForEach`, `ProgressView`, `Spacer`/`Divider`, shapes (`Circle`,
+`Capsule`, `Rectangle`, `RoundedRectangle`, `Ellipse`) with `.fill`/`.stroke`,
+`LinearGradient`, `withAnimation`; presentation — `.sheet(isPresented:)`,
+`.alert(_:isPresented:actions:message:)`, `.confirmationDialog`; environment —
+`.environmentObject(_:)` + `@EnvironmentObject` (carried on SwiftUI's real
+Environment, so scoping and propagation into sheets come for free); `UUID()`
+and `Date()` basics; ~50 modifiers including `padding`/`frame`/`font`/
 `foregroundStyle` (colors, materials, hierarchicals, `.color.opacity`/
 `.gradient` chains)/`background`/`overlay`/`shadow`/`clipShape`/`offset`/
 `scaleEffect`/`rotationEffect`/`animation(value:)`/`onAppear`/`onTapGesture`/

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftSyntax
 import SwiftParser
 import SwiftOperators
@@ -171,6 +172,19 @@ public final class Interpreter {
         return try groupViews(views)
     }
 
+    /// Fill `@EnvironmentObject` properties from ambient models (keyed by type
+    /// name). The SwiftUI bridge reads the models off the real Environment;
+    /// headless harnesses thread them down the trace tree.
+    public func injectEnvironmentObjects(into instance: Instance, models: [String: Instance]) throws {
+        for property in instance.symbol.storedProperties where property.wrapper == .environmentObject {
+            let typeName = property.typeAnnotation?.trimmedDescription ?? ""
+            guard let model = models[typeName] else {
+                throw RuntimeError(message: "no ObservableObject of type '\(typeName)' in the environment — inject it with .environmentObject(_:)")
+            }
+            instance.box(for: property.name)?.value = .instance(model)
+        }
+    }
+
     /// The struct to render when the program doesn't end in an explicit view
     /// expression: `ContentView` if present, then `Main`, then the first
     /// View-conforming struct in declaration order.
@@ -259,6 +273,8 @@ public final class Interpreter {
             if let array = value.arrayValue { return .native(array) }
             return .native([value])
         }
+        define("UUID") { _, _ in .native(UUID()) }
+        define("Date") { _, _ in .native(Date()) }
     }
 
     private static func extremum(_ args: CallArguments, op: String) throws -> RuntimeValue {

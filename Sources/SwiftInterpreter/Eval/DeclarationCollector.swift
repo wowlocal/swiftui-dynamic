@@ -226,6 +226,7 @@ extension Interpreter {
         if hasAttribute(attributes, named: "Published") { return .published }
         if hasAttribute(attributes, named: "StateObject") { return .stateObject }
         if hasAttribute(attributes, named: "ObservedObject") { return .observedObject }
+        if hasAttribute(attributes, named: "EnvironmentObject") { return .environmentObject }
         return .none
     }
 

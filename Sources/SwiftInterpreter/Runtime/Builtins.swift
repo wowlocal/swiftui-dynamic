@@ -1,3 +1,5 @@
+import Foundation
+
 /// Binary and prefix operator implementations over `RuntimeValue`, with
 /// Int/Double promotion. `&&`/`||`/`??` are short-circuited in the evaluator
 /// and never reach this table. Errors are unlocated `EvalMessage`s; the
@@ -102,6 +104,11 @@ enum Builtins {
             return true
         }
         if let l = lhs.rangeValue, let r = rhs.rangeValue { return l == r }
+        if case .native(let la) = lhs, case .native(let ra) = rhs {
+            if let l = la as? UUID, let r = ra as? UUID { return l == r }
+            if let l = la as? Date, let r = ra as? Date { return l == r }
+        }
+        if case .instance(let l) = lhs, case .instance(let r) = rhs { return l === r }
         // Enum cases compare by name (+ associated values); a bare implicit
         // member matches an enum case of the same name — the dynamic stand-in
         // for `status == .active`.

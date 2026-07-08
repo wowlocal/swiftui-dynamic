@@ -91,22 +91,28 @@ enum Corpus {
     }
 
     /// Recursively evaluates interpreted-View bodies and collects actions.
+    /// `.environmentObject` injections recorded on a node scope its subtree,
+    /// mirroring how the bridge rides SwiftUI's Environment.
     @discardableResult
     private func deepRender(
         _ interpreter: Interpreter,
         _ node: TraceNode,
         actions: inout [ClosureValue],
+        environment: [String: Instance] = [:],
         depth: Int = 0
     ) throws -> Int {
         guard depth < 16 else { return 1 }
         var count = 1
+        var environment = environment
+        environment.merge(node.environmentModels) { _, injected in injected }
         actions += node.actions.values
         if let instance = node.instance {
+            try interpreter.injectEnvironmentObjects(into: instance, models: environment)
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
-            count += try deepRender(interpreter, body, actions: &actions, depth: depth + 1)
+            count += try deepRender(interpreter, body, actions: &actions, environment: environment, depth: depth + 1)
         }
         for child in node.children {
-            count += try deepRender(interpreter, child, actions: &actions, depth: depth + 1)
+            count += try deepRender(interpreter, child, actions: &actions, environment: environment, depth: depth + 1)
         }
         return count
     }

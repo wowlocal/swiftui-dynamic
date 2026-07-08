@@ -47,6 +47,20 @@ extension Interpreter {
             default: return nil
             }
         }
+        if let uuid = any as? UUID {
+            switch name {
+            case "uuidString": return .native(uuid.uuidString)
+            default: return nil
+            }
+        }
+        if let date = any as? Date {
+            switch name {
+            case "formatted":
+                return .hostFunction(HostFunction(name: name) { _, _ in .native(date.formatted()) })
+            case "timeIntervalSince1970": return .native(date.timeIntervalSince1970)
+            default: return nil
+            }
+        }
         return nil
     }
 
