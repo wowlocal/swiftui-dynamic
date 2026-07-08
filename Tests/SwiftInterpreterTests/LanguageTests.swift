@@ -333,6 +333,29 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Array(0..<3).count").intValue == 3)
     }
 
+    @Test func previewMacrosAreInert() throws {
+        // Real project files end in #Preview blocks; both the expression and
+        // declaration parse forms must be skipped, not errors.
+        let source = """
+        struct Card: View {
+            var body: some View {
+                Text("x")
+            }
+        }
+
+        #Preview {
+            Card()
+        }
+
+        #Preview("named", traits: .sizeThatFitsLayout) {
+            Card()
+        }
+
+        7
+        """
+        #expect(try eval(source).intValue == 7)
+    }
+
     @Test func enumeratedTuples() throws {
         let source = """
         var out = ""

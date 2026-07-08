@@ -74,3 +74,7 @@ struct ContentView: View {
         todos.remove(at: index)
     }
 }
+
+#Preview {
+    ContentView()
+}

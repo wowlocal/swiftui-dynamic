@@ -52,6 +52,11 @@ Each iteration does exactly this:
 
 ## Rules
 
+- **Model & attribution**: the loop is intended to run on **Claude Fable 5 at
+  xhigh reasoning effort** (session-level settings — `/model` and `/effort`;
+  the loop cannot change them itself). Every commit made by the loop MUST
+  record who made the change with a trailer line before Co-Authored-By:
+  `Model: <model name> (<model id>), effort=<effort>`.
 - Small commits, one failure class each. No drive-by refactors.
 - Hand-written gateways stay authoritative over generated ones.
 - Semantic divergences (reference-backed structs, positional identity, etc.)
@@ -75,3 +80,7 @@ Each iteration does exactly this:
   ProjectCheck baseline over smallest 25 real projects: **1/25**. Top classes:
   top-level `#Preview` as expression (12), `Bool.toggle()` (3), get/set
   computed properties (3), `UIScreen.main` (2), `Color.black` static (2).
+- 2026-07-09 iter 1: statement-position `#Preview` (MacroExpansionExpr) made
+  inert — 12-project class eliminated; **1/25 → 3/25**. Next top classes:
+  `Bool.toggle()` (3), get/set computed properties (3), statics on host types
+  like `Color.black` (2+2 related).

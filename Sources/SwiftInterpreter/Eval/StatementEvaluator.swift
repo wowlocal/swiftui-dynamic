@@ -38,6 +38,9 @@ extension Interpreter {
             if let switchExpr = expr.as(SwitchExprSyntax.self) {
                 return try executeSwitch(switchExpr, in: env)
             }
+            if expr.is(MacroExpansionExprSyntax.self) {
+                return .normal(.void) // statement-position #Preview {} is inert
+            }
             return .normal(try evaluate(expr, in: env))
         }
     }
