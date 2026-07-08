@@ -25,6 +25,20 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     switch name {
     case "DateFormatter":
         return HostFunction(name: name) { _, _ in .native(DateFormatterBox()) }
+    case "CGSize":
+        return HostFunction(name: name) { args, _ in
+            .native(CGSize(
+                width: try Coerce.cgFloat(args.labeled("width") ?? .native(0)),
+                height: try Coerce.cgFloat(args.labeled("height") ?? .native(0))
+            ))
+        }
+    case "CGPoint":
+        return HostFunction(name: name) { args, _ in
+            .native(CGPoint(
+                x: try Coerce.cgFloat(args.labeled("x") ?? .native(0)),
+                y: try Coerce.cgFloat(args.labeled("y") ?? .native(0))
+            ))
+        }
     default:
         return nil
     }
@@ -32,6 +46,9 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
 
 /// Readable members on host objects (extends bridgeHostMember's coverage).
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let marker = value as? HostTypeMarker, marker.name == "Date", name == "now" {
+        return .native(Date())
+    }
     if let marker = value as? HostTypeMarker, marker.name == "Timer", name == "publish" {
         return .hostFunction(HostFunction(name: "publish") { args, _ in
             let interval = (args.labeled("every") ?? args.positional(0))?.doubleValue ?? 1.0

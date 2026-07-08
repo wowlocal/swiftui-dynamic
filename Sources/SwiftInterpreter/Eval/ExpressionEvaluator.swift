@@ -363,13 +363,14 @@ extension Interpreter {
 
     func staticMember(
         _ name: String,
-        properties: [String: ExprSyntax],
+        properties: [String: StructSymbol.StaticProperty],
         methods: [String: FunctionDeclSyntax],
         cache: inout [String: RuntimeValue]
     ) throws -> RuntimeValue? {
         if let cached = cache[name] { return cached }
-        if let initializer = properties[name] {
-            let value = try evaluate(initializer, in: globals)
+        if let property = properties[name] {
+            let raw = try evaluate(property.initializer, in: globals)
+            let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
             cache[name] = value
             return value
         }
@@ -423,16 +424,23 @@ extension Interpreter {
            let target = try? resolveLValue(base, in: env),
            var array = try target.read(self).arrayValue {
             let args = try collectArguments(of: call, in: env)
+            // `items.append(.init())` — the element type comes from the
+            // target property's `[Type]` annotation.
+            let elementType = target.annotatedElementType()
+            func resolved(_ value: RuntimeValue) throws -> RuntimeValue {
+                guard let elementType else { return value }
+                return try resolveAnnotated(value, typeName: elementType)
+            }
             switch name {
             case "append":
                 guard let value = args.positional(0) else { throw error(call, "append needs a value") }
-                array.append(value)
+                array.append(try resolved(value))
             case "insert":
                 guard let value = args.positional(0), let index = args.labeled("at")?.intValue,
                       index >= 0, index <= array.count else {
                     throw error(call, "insert needs a value and a valid at: index")
                 }
-                array.insert(value, at: index)
+                array.insert(try resolved(value), at: index)
             case "remove":
                 guard let index = args.labeled("at")?.intValue, array.indices.contains(index) else {
                     throw error(call, "remove(at:) index out of range")
@@ -633,6 +641,17 @@ extension Interpreter {
         case hostProperty(Any, String)
         case element(LValue, Int)
         case dictElement(DictValue, RuntimeValue)
+
+        /// The element type of an `[X]`-annotated instance property, if known.
+        func annotatedElementType() -> String? {
+            guard case .instanceProperty(let instance, let name) = self,
+                  let annotation = instance.symbol.storedProperty(named: name)?.typeAnnotation else {
+                return nil
+            }
+            let text = annotation.trimmedDescription.trimmingCharacters(in: .whitespaces)
+            guard text.hasPrefix("["), text.hasSuffix("]"), !text.contains(":") else { return nil }
+            return String(text.dropFirst().dropLast())
+        }
 
         func read(_ interpreter: Interpreter) throws -> RuntimeValue {
             switch self {

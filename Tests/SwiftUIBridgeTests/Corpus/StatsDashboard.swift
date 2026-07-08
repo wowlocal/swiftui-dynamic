@@ -25,7 +25,7 @@ struct BarView: View {
 }
 
 struct ContentView: View {
-    static let data = [
+    static let data: [Sample] = [
         Sample(label: "Mon", value: 12),
         Sample(label: "Tue", value: 31),
         Sample(label: "Wed", value: 8),

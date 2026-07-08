@@ -192,3 +192,10 @@ Each iteration does exactly this:
 - 2026-07-09 iter 20: GeometryProxy.safeAreaInsets + bounds(of:) on both the
   real proxy (NamedCoordinateSpace coercion, optional CGRect) and the stub
   (zero insets, canvas rect). 4-project class eliminated; **25/50 → 27/50**.
+- 2026-07-09 iter 21: type context for statics, host inits, and mutating-array
+  payloads — static properties keep their annotations (`static let samples:
+  [Item] = [.init(...)]`); host-type annotations construct via host object
+  constructors/global builtins (`: Date = .init()`, CGSize/CGPoint added,
+  `Date.now`); `items.append(.init(...))` resolves against the target
+  property's `[Type]` annotation. **27/50 → 28/50**; ShaderExample passed,
+  the others advanced deeper.

@@ -474,6 +474,31 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 8)
     }
 
+    @Test func annotatedStaticsAndHostInits() throws {
+        let source = """
+        struct Item {
+            var name = ""
+            var tag = 0
+
+            static let samples: [Item] = [.init(name: "a", tag: 1), .init(name: "b", tag: 2)]
+        }
+        struct Ledger {
+            var items: [Item] = []
+            mutating func add() {
+                items.append(.init(name: "c", tag: 3))
+            }
+        }
+        let second = Item.samples[1].name
+        let start: Date = .init()
+        let epoch = start.timeIntervalSince1970 > 0.0
+        let ledger = Ledger()
+        ledger.add()
+        "\\(second) \\(epoch) \\(ledger.items[0].tag)"
+        """
+        let interpreter = Interpreter()
+        #expect(try interpreter.run(source: source).stringValue == "b true 3")
+    }
+
     @Test func annotatedImplicitInitAndFactories() throws {
         let source = """
         struct Point {

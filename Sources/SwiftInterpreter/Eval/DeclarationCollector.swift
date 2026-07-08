@@ -111,7 +111,10 @@ extension Interpreter {
                 )
             } else if isStaticDecl {
                 if let initializer = binding.initializer?.value {
-                    symbol.staticProperties[name] = initializer
+                    symbol.staticProperties[name] = .init(
+                        initializer: initializer,
+                        typeAnnotation: binding.typeAnnotation?.type
+                    )
                 }
             } else {
                 symbol.storedProperties.append(.init(
@@ -177,7 +180,10 @@ extension Interpreter {
                         setter: accessors.setter
                     )
                 } else if isStaticDecl, let initializer = binding.initializer?.value {
-                    symbol.staticProperties[ident.identifier.text] = initializer
+                    symbol.staticProperties[ident.identifier.text] = .init(
+                        initializer: initializer,
+                        typeAnnotation: binding.typeAnnotation?.type
+                    )
                 }
             }
         } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {

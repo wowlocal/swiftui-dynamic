@@ -251,7 +251,7 @@ public final class Interpreter {
         return try resolveAnnotated(value, typeName: annotation.trimmedDescription)
     }
 
-    private func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {
+    func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {
         var typeName = rawName.trimmingCharacters(in: .whitespaces)
         if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
 
@@ -278,7 +278,7 @@ public final class Interpreter {
             return value
         }
 
-        // Structs/classes: `= .init(...)`, static factories, static values.
+        // User structs/classes: `= .init(...)`, static factories, static values.
         if case .type(let symbol)? = globals.lookup(typeName) {
             if case .native(let any) = value, let call = any as? ImplicitMemberCall {
                 if call.name == "init" {
@@ -293,6 +293,30 @@ public final class Interpreter {
                let staticValue = try staticMember(name, properties: symbol.staticProperties, methods: symbol.staticMethods, cache: &symbol.staticCache) {
                 return staticValue
             }
+            return value
+        }
+
+        // Host-type annotations: `: Date = .init()`, `: CGSize = .init(…)`,
+        // `.now`-style statics served by the bridge.
+        if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+            if call.name == "init" {
+                if let ctor = registry?.hostObjectConstructor(named: typeName) {
+                    return try ctor.invoke(call.arguments, self)
+                }
+                if case .hostFunction(let builtin)? = globals.lookup(typeName) {
+                    return try builtin.invoke(call.arguments, self)
+                }
+            }
+            if let member = registry?.hostMember(call.name, on: HostTypeMarker(name: typeName)) {
+                if case .hostFunction(let function) = member {
+                    return try function.invoke(call.arguments, self)
+                }
+                return member
+            }
+        }
+        if case .implicitMember(let memberName) = value,
+           let member = registry?.hostMember(memberName, on: HostTypeMarker(name: typeName)) {
+            return member
         }
         return value
     }

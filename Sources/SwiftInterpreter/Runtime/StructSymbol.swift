@@ -66,11 +66,16 @@ public final class StructSymbol {
     public internal(set) var isClass = false
     public internal(set) var conformsToObservableObject = false
     public internal(set) var observableViaMacro = false
+    public struct StaticProperty {
+        public let initializer: ExprSyntax
+        public let typeAnnotation: TypeSyntax?
+    }
+
     public internal(set) var storedProperties: [StoredProperty] = []
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
     public internal(set) var methods: [String: FunctionDeclSyntax] = [:]
     public internal(set) var initializers: [InitializerDeclSyntax] = []
-    public internal(set) var staticProperties: [String: ExprSyntax] = [:]
+    public internal(set) var staticProperties: [String: StaticProperty] = [:]
     public internal(set) var staticMethods: [String: FunctionDeclSyntax] = [:]
     /// Types declared inside this type (`Outer.Kind`) — `.enumType`/`.type` values.
     public internal(set) var nestedTypes: [String: RuntimeValue] = [:]
