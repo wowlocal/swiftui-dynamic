@@ -433,6 +433,41 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 9)
     }
 
+    @Test func labelAwareParameterBinding() throws {
+        let source = """
+        func box(width: Int, padding: Int = 2, title: String = "t", height: Int) -> String {
+            "\\(width)x\\(height) p\\(padding) \\(title)"
+        }
+        struct Card {
+            var size = 0
+            var corner = 4
+            var label = ""
+
+            init(size: Int, corner: Int = 8, label: String) {
+                self.size = size
+                self.corner = corner
+                self.label = label
+            }
+        }
+        let a = box(width: 3, height: 9)
+        let b = box(width: 1, title: "x", height: 2)
+        let c = Card(size: 5, label: "hi")
+        let d = Card(size: 6, corner: 1, label: "yo")
+        "\\(a) | \\(b) | \\(c.corner)\\(c.label) | \\(d.corner)\\(d.label)"
+        """
+        #expect(try eval(source).stringValue == "3x9 p2 t | 1x2 p2 x | 8hi | 1yo")
+    }
+
+    @Test func trailingClosureBindsLastUnbound() throws {
+        let source = """
+        func retry(times: Int = 3, label: String = "op", work: (Int) -> Int) -> Int {
+            work(times)
+        }
+        retry { $0 * 10 } + retry(times: 5) { $0 }
+        """
+        #expect(try eval(source).intValue == 35)
+    }
+
     @Test func sugarTypedArrayExtensions() throws {
         let source = """
         struct Item {

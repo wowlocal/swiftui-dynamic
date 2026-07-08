@@ -13,6 +13,9 @@ struct TimelineContextStub {
     let date = Date()
 }
 
+/// Trace-mode stand-in for ScrollViewProxy (scrollTo is a no-op headlessly).
+struct ScrollViewProxyStub {}
+
 /// iOS code reads `UIScreen.main.bounds`; the honest macOS analog is the main
 /// screen's frame (fixed canvas headlessly).
 struct ScreenStub {
@@ -142,6 +145,23 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         default: return nil
         }
     }
+    if let proxy = value as? ScrollViewProxy {
+        if name == "scrollTo" {
+            return .hostFunction(HostFunction(name: "scrollTo") { args, _ in
+                guard let id = args.positional(0) else { return .void }
+                let anchor = (try? args.labeled("anchor").map(Coerce.unitPoint)) ?? nil
+                proxy.scrollTo(id.stringValue ?? id.stringified, anchor: anchor)
+                return .void
+            })
+        }
+        return nil
+    }
+    if value is ScrollViewProxyStub {
+        if name == "scrollTo" {
+            return .hostFunction(HostFunction(name: "scrollTo") { _, _ in .void })
+        }
+        return nil
+    }
     if let context = value as? TimelineViewDefaultContext {
         if name == "date" { return .native(context.date) }
         return nil
@@ -252,6 +272,15 @@ extension ViewRegistry {
             }
             return .native(AnyView(GeometryReader { proxy in
                 renderProxyContent(content, argument: .native(proxy), ctx: ctx, in: "GeometryReader")
+            }))
+        }
+
+        constructors["ScrollViewReader"] = HostFunction(name: "ScrollViewReader") { args, ctx in
+            guard let content = args.unlabeledClosures.first else {
+                throw RuntimeError(message: "ScrollViewReader needs a content closure")
+            }
+            return .native(AnyView(ScrollViewReader { proxy in
+                renderProxyContent(content, argument: .native(proxy), ctx: ctx, in: "ScrollViewReader")
             }))
         }
 

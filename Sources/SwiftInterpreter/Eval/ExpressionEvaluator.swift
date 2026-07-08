@@ -621,8 +621,11 @@ extension Interpreter {
         }
     }
 
-    /// Positional binding: labels are not checked against parameter names (v1
-    /// divergence). No-parameter closures get `$0`, `$1`, … shorthand bindings.
+    /// Label-aware binding: labeled arguments match parameter labels, omitted
+    /// defaulted parameters (including in the middle) fall back to their
+    /// defaults, positional arguments fill unlabeled parameters in order, and
+    /// the unlabeled trailing closure binds to the LAST unbound parameter.
+    /// No-parameter closures get `$0`, `$1`, … shorthand bindings.
     func bindParameters(of closure: ClosureValue, to args: CallArguments, into env: Environment, node: Syntax?) throws {
         if closure.parameters.isEmpty {
             for (index, argument) in args.arguments.enumerated() {
@@ -630,11 +633,50 @@ extension Interpreter {
             }
             return
         }
+
+        var labeled: [String: RuntimeValue] = [:]
+        var positionals: [RuntimeValue] = []
+        var unlabeledTrailing: [RuntimeValue] = []
+        for argument in args.arguments {
+            if let label = argument.label {
+                labeled[label] = argument.value
+            } else if argument.isTrailing {
+                unlabeledTrailing.append(argument.value)
+            } else {
+                positionals.append(argument.value)
+            }
+        }
+
+        var bound = [RuntimeValue?](repeating: nil, count: closure.parameters.count)
+        var positionalCursor = 0
         for (index, parameter) in closure.parameters.enumerated() {
-            if index < args.arguments.count {
-                env.define(parameter.name, try resolveAnnotated(args.arguments[index].value, annotation: parameter.typeAnnotation))
+            if let label = parameter.label, let value = labeled.removeValue(forKey: label) {
+                bound[index] = value
+            } else if parameter.label == nil, positionalCursor < positionals.count {
+                bound[index] = positionals[positionalCursor]
+                positionalCursor += 1
+            }
+        }
+        // Leftover positionals fill remaining unbound params in order (calls
+        // that pass labeled params positionally — a tolerated looseness).
+        for (index, value) in zip(bound.indices.filter({ bound[$0] == nil }), positionals[positionalCursor...]) {
+            bound[index] = value
+        }
+        // The unlabeled trailing closure binds to the last unbound parameter.
+        for trailing in unlabeledTrailing.reversed() {
+            if let index = bound.indices.last(where: { bound[$0] == nil }) {
+                bound[index] = trailing
+            }
+        }
+
+        for (index, parameter) in closure.parameters.enumerated() {
+            if let value = bound[index] {
+                env.define(parameter.name, try resolveAnnotated(value, annotation: parameter.typeAnnotation))
             } else if let defaultValue = parameter.defaultValue {
-                env.define(parameter.name, try evaluate(defaultValue, in: closure.captured))
+                env.define(parameter.name, try resolveAnnotated(
+                    try evaluate(defaultValue, in: closure.captured),
+                    annotation: parameter.typeAnnotation
+                ))
             } else if let node {
                 throw error(node, "missing argument for parameter '\(parameter.name)'")
             } else {

@@ -243,3 +243,10 @@ Each iteration does exactly this:
   calls and computed properties. **New baseline: 60/100.** Top classes:
   parameterized closures w/o data (7), member-on-void (6), appearance-proxy
   assigns (4).
+- 2026-07-09 iter 31: label-aware parameter binding (the declared load-bearing
+  lie, finally forced): labeled args match parameter labels, omitted MIDDLE
+  defaults fall back correctly, positionals fill unlabeled params, the
+  unlabeled trailing closure binds to the LAST unbound parameter. Plus
+  ScrollViewReader (real proxy.scrollTo / no-op stub), joining the reader
+  family. "missing argument" 7 → 4 (Canvas wall remains).
+  **60/100 → 64/100** (64%).

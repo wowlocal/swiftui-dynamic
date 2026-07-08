@@ -7,12 +7,15 @@ import SwiftSyntax
 public final class ClosureValue {
     public struct Parameter {
         public let name: String
+        /// External argument label (nil for `_` and closure parameters).
+        public let label: String?
         public let defaultValue: ExprSyntax?
         /// Used to resolve `.member` arguments against known enums.
         public let typeAnnotation: TypeSyntax?
 
-        public init(name: String, defaultValue: ExprSyntax? = nil, typeAnnotation: TypeSyntax? = nil) {
+        public init(name: String, label: String? = nil, defaultValue: ExprSyntax? = nil, typeAnnotation: TypeSyntax? = nil) {
             self.name = name
+            self.label = label
             self.defaultValue = defaultValue
             self.typeAnnotation = typeAnnotation
         }

@@ -171,6 +171,7 @@ public final class Interpreter {
             let parameters = chosen.signature.parameterClause.parameters.map { param in
                 ClosureValue.Parameter(
                     name: (param.secondName ?? param.firstName).text,
+                    label: param.firstName.text == "_" ? nil : param.firstName.text,
                     defaultValue: param.defaultValue?.value,
                     typeAnnotation: param.type
                 )
