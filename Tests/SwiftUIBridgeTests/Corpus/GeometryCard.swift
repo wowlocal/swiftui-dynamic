@@ -50,6 +50,11 @@ struct ContentView: View {
 
             MeterBar(fraction: level)
                 .offset(x: nudge.width + CGFloat(0))
+            if nudge == .zero {
+                Text("centered")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             Button("More") {
                 level = min(1.0, level + 0.1)
             }

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Binary and prefix operator implementations over `RuntimeValue`, with
@@ -107,6 +108,9 @@ enum Builtins {
         if case .native(let la) = lhs, case .native(let ra) = rhs {
             if let l = la as? UUID, let r = ra as? UUID { return l == r }
             if let l = la as? Date, let r = ra as? Date { return l == r }
+            if let l = la as? CGSize, let r = ra as? CGSize { return l == r }
+            if let l = la as? CGPoint, let r = ra as? CGPoint { return l == r }
+            if let l = la as? CGRect, let r = ra as? CGRect { return l == r }
         }
         if case .instance(let l) = lhs, case .instance(let r) = rhs { return l === r }
         // Enum cases compare by name (+ associated values); a bare implicit

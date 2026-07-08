@@ -211,3 +211,6 @@ Each iteration does exactly this:
   (our CGFloat model IS Double) and `.zero` statics for CGSize/CGPoint/CGRect
   via the marker path (covers `: CGSize = .zero` annotations). DropDown and
   MarqueeText pass. **33/50 → 35/50** (70%).
+- 2026-07-09 iter 25: implicit members adopt the OTHER operand's host type in
+  ==/!= (`dragOffset == .zero` resolves .zero as CGSize via the marker path);
+  CG equality cases added. TouchAnimation passes. **35/50 → 36/50** (72%).

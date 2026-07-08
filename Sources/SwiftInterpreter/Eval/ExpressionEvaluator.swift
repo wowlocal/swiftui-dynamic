@@ -632,10 +632,30 @@ extension Interpreter {
             }
             return .void
         default:
-            let lhs = try evaluate(infix.leftOperand, in: env)
-            let rhs = try evaluate(infix.rightOperand, in: env)
+            var lhs = try evaluate(infix.leftOperand, in: env)
+            var rhs = try evaluate(infix.rightOperand, in: env)
+            if op == "==" || op == "!=" {
+                // `dragOffset == .zero` — an unresolved implicit member adopts
+                // the other operand's host type before comparing.
+                lhs = try adoptHostType(of: rhs, for: lhs)
+                rhs = try adoptHostType(of: lhs, for: rhs)
+            }
             return try relocating(infix) { try Builtins.binary(op, lhs, rhs) }
         }
+    }
+
+    private func adoptHostType(of other: RuntimeValue, for value: RuntimeValue) throws -> RuntimeValue {
+        let unresolved: Bool
+        switch value {
+        case .implicitMember:
+            unresolved = true
+        case .native(let any):
+            unresolved = any is ImplicitMemberCall || any is ChainedImplicitCall
+        default:
+            unresolved = false
+        }
+        guard unresolved, case .native(let otherAny) = other else { return value }
+        return try resolveAnnotated(value, typeName: String(describing: type(of: otherAny)))
     }
 
     indirect enum LValue {

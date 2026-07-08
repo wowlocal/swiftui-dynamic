@@ -73,6 +73,16 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func implicitMembersAdoptComparisonType() throws {
+        let source = """
+        let a: CGSize = .zero
+        let moved = CGSize(width: 3.0, height: 0.0)
+        "\\(a == .zero) \\(.zero == a) \\(moved != .zero)"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        #expect(try interpreter.run(source: source).stringValue == "true true true")
+    }
+
     @Test func cgNumericTypeContext() throws {
         let source = """
         struct ContentView: View {
