@@ -24,6 +24,11 @@ public final class Interpreter {
     var steps = 0
     /// Guards against `while true {}` freezing the UI: evaluation is main-actor.
     let stepBudget = 100_000
+    /// Guards against runaway interpreted recursion overflowing the NATIVE
+    /// stack (each interpreted call is ~10 Swift frames) before the step
+    /// budget can trip. Fatal — never catchable by interpreted code.
+    var callDepth = 0
+    let callDepthLimit = 200
 
     public init(registry: HostRegistry? = nil) {
         self.registry = registry

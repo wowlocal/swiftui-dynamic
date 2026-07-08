@@ -56,8 +56,21 @@ extension Interpreter {
         if let date = any as? Date {
             switch name {
             case "formatted":
-                return .hostFunction(HostFunction(name: name) { _, _ in .native(date.formatted()) })
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    if args.isEmpty { return .native(date.formatted()) }
+                    return .native(date.formatted(
+                        date: Self.dateStyle(args.labeled("date")),
+                        time: Self.timeStyle(args.labeled("time"))
+                    ))
+                })
             case "timeIntervalSince1970": return .native(date.timeIntervalSince1970)
+            case "addingTimeInterval":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let interval = args.positional(0)?.doubleValue else {
+                        throw RuntimeError(message: "addingTimeInterval needs a number")
+                    }
+                    return .native(date.addingTimeInterval(interval))
+                })
             default: return nil
             }
         }
@@ -275,6 +288,27 @@ extension Interpreter {
             })
         default:
             return nil
+        }
+    }
+
+    private static func dateStyle(_ value: RuntimeValue?) -> Date.FormatStyle.DateStyle {
+        guard case .implicitMember(let name)? = value else { return .omitted }
+        switch name {
+        case "numeric": return .numeric
+        case "abbreviated": return .abbreviated
+        case "long": return .long
+        case "complete": return .complete
+        default: return .omitted
+        }
+    }
+
+    private static func timeStyle(_ value: RuntimeValue?) -> Date.FormatStyle.TimeStyle {
+        guard case .implicitMember(let name)? = value else { return .omitted }
+        switch name {
+        case "shortened": return .shortened
+        case "standard": return .standard
+        case "complete": return .complete
+        default: return .omitted
         }
     }
 

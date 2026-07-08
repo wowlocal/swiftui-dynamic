@@ -265,6 +265,28 @@ import SwiftInterpreter
         #expect(body.children.map(\.kind) == ["Text", "Representable:Chrome"])
     }
 
+    @Test func dateFoundationPipeline() throws {
+        // The real-project date pipeline: random amounts, Calendar math on
+        // .now, format styles — all backed by real Foundation.
+        let source = """
+        struct Entry {
+            var amount: Double
+            var date: Date
+
+            init(daysAgo: Int) {
+                self.amount = .random(in: 10...99)
+                self.date = Calendar.current.date(byAdding: .day, value: -daysAgo, to: .now) ?? .now
+            }
+        }
+        let e = Entry(daysAgo: 3)
+        let text = e.date.formatted(date: .numeric, time: .shortened)
+        let inRange = e.amount >= 10.0 && e.amount <= 99.0
+        "\\(text.isEmpty) \\(inRange) \\(e.date.timeIntervalSince1970 < Date().timeIntervalSince1970)"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        #expect(try interpreter.run(source: source).stringValue == "false true true")
+    }
+
     @Test func dateFormatterHostObject() throws {
         let source = """
         let formatter = DateFormatter()

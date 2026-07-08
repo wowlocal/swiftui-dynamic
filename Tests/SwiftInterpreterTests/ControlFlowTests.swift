@@ -106,6 +106,23 @@ private func eval(_ source: String) throws -> RuntimeValue {
         }
     }
 
+    @Test func runawayRecursionIsAFatalLocatedError() throws {
+        do {
+            _ = try eval("func f() -> Int { return f() }\nf()")
+            Issue.record("expected the depth guard to trip")
+        } catch let e as RuntimeError {
+            #expect(e.message.contains("call depth"))
+            #expect(e.fatal)
+        }
+        // Self-recursive computed properties too.
+        do {
+            _ = try eval("struct S { var x: Int { x } }\nS().x")
+            Issue.record("expected the depth guard to trip")
+        } catch let e as RuntimeError {
+            #expect(e.message.contains("call depth"))
+        }
+    }
+
     @Test func nestedFunctionAndRecursion() throws {
         let source = """
         func fib(n: Int) -> Int {

@@ -232,3 +232,14 @@ Each iteration does exactly this:
 - 2026-07-09 iter 29: BindingStub.wrappedValue — reads return the box value,
   writes go straight through the box (projectedValue returns the stub).
   PopUpNavigation passes. **38/50 → 39/50** (78% — one from the 100-window).
+- 2026-07-09 iter 30: the Foundation date pipeline + crash guard. Format
+  styles (`formatted(date:time:)`), plain assignments adopt property
+  annotations (`self.amount = .random(in:)`), Double/CGFloat/Int `.random`
+  statics, real-Calendar box (`Calendar.current.date(byAdding:value:to:)`,
+  startOfDay, component) accepting `.now`/`.random` gateway args.
+  CustomFileExtension passes → **40/50 = 80% → window raised to 100**.
+  First 100-run SEGFAULTED (interpreted recursion overflows the native stack
+  before the step budget) → call-depth guard (200, fatal, uncatchable) in
+  calls and computed properties. **New baseline: 60/100.** Top classes:
+  parameterized closures w/o data (7), member-on-void (6), appearance-proxy
+  assigns (4).

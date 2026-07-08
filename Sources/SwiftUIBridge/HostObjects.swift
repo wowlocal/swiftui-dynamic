@@ -49,10 +49,79 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     }
 }
 
+/// `Calendar.current` — backed by the real Foundation calendar.
+struct CalendarBox {
+    let calendar = Calendar.current
+}
+
+private func dateArg(_ value: RuntimeValue?) -> Date? {
+    if case .native(let any)? = value, let date = any as? Date { return date }
+    if case .implicitMember("now")? = value { return Date() }
+    return nil
+}
+
+private func intArg(_ value: RuntimeValue?) -> Int? {
+    if let i = value?.intValue { return i }
+    // `.random(in: 1...100)` arriving without type context.
+    if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "random",
+       let range = (call.arguments.labeled("in") ?? call.arguments.positional(0))?.rangeValue {
+        return Int.random(in: range)
+    }
+    return nil
+}
+
+private func calendarComponent(_ value: RuntimeValue?) -> Calendar.Component? {
+    guard case .implicitMember(let name)? = value else { return nil }
+    switch name {
+    case "day": return .day
+    case "month": return .month
+    case "year": return .year
+    case "hour": return .hour
+    case "minute": return .minute
+    case "second": return .second
+    case "weekday": return .weekday
+    default: return nil
+    }
+}
+
 /// Readable members on host objects (extends bridgeHostMember's coverage).
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let marker = value as? HostTypeMarker, marker.name == "Date", name == "now" {
         return .native(Date())
+    }
+    if let marker = value as? HostTypeMarker, marker.name == "Calendar", name == "current" {
+        return .native(CalendarBox())
+    }
+    if let box = value as? CalendarBox {
+        switch name {
+        case "date":
+            return .hostFunction(HostFunction(name: "date") { args, _ in
+                guard let component = calendarComponent(args.labeled("byAdding")),
+                      let amount = intArg(args.labeled("value")),
+                      let to = dateArg(args.labeled("to")) else {
+                    throw RuntimeError(message: "date(byAdding:value:to:) needs a component, value, and Date")
+                }
+                return box.calendar.date(byAdding: component, value: amount, to: to)
+                    .map { RuntimeValue.native($0) } ?? .nilValue
+            })
+        case "startOfDay":
+            return .hostFunction(HostFunction(name: "startOfDay") { args, _ in
+                guard let date = dateArg(args.labeled("for")) else {
+                    throw RuntimeError(message: "startOfDay(for:) needs a Date")
+                }
+                return .native(box.calendar.startOfDay(for: date))
+            })
+        case "component":
+            return .hostFunction(HostFunction(name: "component") { args, _ in
+                guard let component = calendarComponent(args.positional(0)),
+                      let date = dateArg(args.labeled("from")) else {
+                    throw RuntimeError(message: "component(_:from:) needs a component and Date")
+                }
+                return .native(box.calendar.component(component, from: date))
+            })
+        default:
+            return nil
+        }
     }
     if let marker = value as? HostTypeMarker, marker.name == "Timer", name == "publish" {
         return .hostFunction(HostFunction(name: "publish") { args, _ in

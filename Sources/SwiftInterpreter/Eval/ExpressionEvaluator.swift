@@ -259,6 +259,11 @@ extension Interpreter {
     }
 
     func evaluateComputed(_ computed: ComputedProperty, selfValue: RuntimeValue, name: String) throws -> RuntimeValue {
+        callDepth += 1
+        defer { callDepth -= 1 }
+        guard callDepth < callDepthLimit else {
+            throw RuntimeError(message: "call depth exceeded evaluating '\(name)' (possible infinite recursion)", fatal: true)
+        }
         let env = selfEnvironment(selfValue)
         if computed.isBuilder {
             let views = try collectBuilderViews(computed.accessor, in: env)
@@ -597,6 +602,11 @@ extension Interpreter {
     }
 
     func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {
+        callDepth += 1
+        defer { callDepth -= 1 }
+        guard callDepth < callDepthLimit else {
+            throw RuntimeError(message: "call depth exceeded (possible infinite recursion)", fatal: true)
+        }
         let env = Environment(parent: closure.captured)
         try bindParameters(of: closure, to: args, into: env, node: node)
         if closure.isBuilder {
@@ -750,7 +760,11 @@ extension Interpreter {
                     return
                 }
                 if let box = instance.box(for: name) {
-                    box.value = value
+                    // Plain assignment adopts the property's annotation
+                    // (`self.amount = .random(in:)`, `self.date = .now`).
+                    box.value = try interpreter.resolveAnnotated(
+                        value, annotation: instance.symbol.storedProperty(named: name)?.typeAnnotation
+                    )
                     return
                 }
                 if let computed = instance.symbol.computedProperties[name] {
