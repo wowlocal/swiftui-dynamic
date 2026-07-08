@@ -359,6 +359,13 @@ extension Interpreter {
             return .implicitMember(name)
 
         case .native(let any):
+            if let stub = any as? BindingStub {
+                switch name {
+                case "wrappedValue": return stub.box.value
+                case "projectedValue": return baseValue
+                default: break
+                }
+            }
             // The bridge gets first refusal on host natives (GeometryProxy,
             // CGRect, and static chains like UIScreen.main / DispatchQueue.main).
             if let value = registry?.hostMember(name, on: any) {
@@ -791,9 +798,15 @@ extension Interpreter {
             if case .instance(let instance) = baseValue {
                 return .instanceProperty(instance, instance.symbol.canonicalPropertyName(member.declName.baseName.text))
             }
-            if case .native(let any) = baseValue, registry != nil {
-                // Host objects with settable members (formatter.dateFormat = …).
-                return .hostProperty(any, member.declName.baseName.text)
+            if case .native(let any) = baseValue {
+                // `binding.wrappedValue = …` writes straight through the box.
+                if let stub = any as? BindingStub, member.declName.baseName.text == "wrappedValue" {
+                    return .box(stub.box)
+                }
+                if registry != nil {
+                    // Host objects with settable members (formatter.dateFormat = …).
+                    return .hostProperty(any, member.declName.baseName.text)
+                }
             }
             throw error(member, "cannot assign to a member of \(baseValue.stringified)")
         }

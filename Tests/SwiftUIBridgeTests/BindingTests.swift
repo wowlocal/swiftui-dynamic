@@ -76,6 +76,37 @@ import SwiftInterpreter
         }
     }
 
+    @Test func wrappedValueReadsAndWritesThroughTheBox() throws {
+        let source = """
+        struct ContentView: View {
+            @State var n = 1
+
+            var body: some View {
+                VStack {
+                    Text("value \\($n.wrappedValue)")
+                    Button("bump") {
+                        $n.wrappedValue += 4
+                    }
+                }
+            }
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            Issue.record("expected an instance")
+            return
+        }
+        let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(body.findAll("Text").first?.args.first == "value 1")
+        _ = try interpreter.callClosure(
+            try #require(body.findAll("Button").first?.actions["action"]), arguments: []
+        )
+        let rerendered = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(rerendered.findAll("Text").first?.args.first == "value 5")
+    }
+
     @Test func projectionWithoutStatePropertyIsLocatedError() throws {
         // Body evaluation is lazy (InterpreterHost.render only wraps the root),
         // so evaluate the body directly to observe the located error.

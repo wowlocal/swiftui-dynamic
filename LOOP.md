@@ -229,3 +229,6 @@ Each iteration does exactly this:
   self on native values consults native members first (bare `count`/
   `firstIndex` inside extension bodies). StackedCards passes.
   **37/50 → 38/50** (76%).
+- 2026-07-09 iter 29: BindingStub.wrappedValue — reads return the box value,
+  writes go straight through the box (projectedValue returns the stub).
+  PopUpNavigation passes. **38/50 → 39/50** (78% — one from the 100-window).
