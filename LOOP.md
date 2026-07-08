@@ -116,3 +116,9 @@ Each iteration does exactly this:
   bare `.staticValue` resolves, and `[T]` annotations resolve array elements
   (covers `(1...8).map { .init(...) }`). **12/25 → 14/25** (56% of window;
   --limit stays 25 until ~80%).
+- 2026-07-09 iter 8: memberwise trailing closures — unlabeled trailing closure
+  binds to the last closure-shaped stored property; `@ViewBuilder var content`
+  stores the BUILT view (Swift's synthesized builder-memberwise semantics).
+  The 3-project `argument '_'` class eliminated; **14/25 holds** (all three
+  advanced to deeper blockers). CustomContainer corpus added. Next: bare
+  Color implicit members in view position (`.clear`/`.black`, 2).

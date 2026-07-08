@@ -333,6 +333,18 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Array(0..<3).count").intValue == 3)
     }
 
+    @Test func memberwiseTrailingClosureProperties() throws {
+        let source = """
+        struct Hook {
+            var factor = 1
+            var transform: (Int) -> Int
+        }
+        let h = Hook(factor: 3) { $0 * 2 }
+        h.transform(h.factor + 1)
+        """
+        #expect(try eval(source).intValue == 8)
+    }
+
     @Test func annotatedImplicitInitAndFactories() throws {
         let source = """
         struct Point {

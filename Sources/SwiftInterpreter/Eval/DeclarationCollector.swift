@@ -100,7 +100,8 @@ extension Interpreter {
                     name: name,
                     wrapper: wrapper,
                     initializer: binding.initializer?.value,
-                    typeAnnotation: binding.typeAnnotation?.type
+                    typeAnnotation: binding.typeAnnotation?.type,
+                    isBuilderClosure: hasBuilderAttribute
                 ))
             }
         }

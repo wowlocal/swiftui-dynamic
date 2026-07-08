@@ -44,6 +44,14 @@ public final class StructSymbol {
         public let wrapper: Wrapper
         public let initializer: ExprSyntax?
         public let typeAnnotation: TypeSyntax?
+        /// `@ViewBuilder var content: Content` — memberwise init takes a
+        /// trailing closure and stores the BUILT view.
+        public let isBuilderClosure: Bool
+
+        /// Function-typed or @ViewBuilder: what a trailing closure can fill.
+        public var acceptsTrailingClosure: Bool {
+            isBuilderClosure || (typeAnnotation?.trimmedDescription.contains("->") ?? false)
+        }
     }
 
     public let name: String

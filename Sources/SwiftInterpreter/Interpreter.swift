@@ -112,19 +112,43 @@ public final class Interpreter {
         }
 
         if symbol.initializers.isEmpty {
+            var assigned = Set<String>()
             for argument in args.arguments {
-                guard let label = argument.label,
-                      let property = symbol.storedProperty(named: label),
-                      let box = instance.box(for: label) else {
-                    let message = "argument '\(argument.label ?? "_")' doesn't match a stored property of '\(symbol.name)'"
+                if let label = argument.label {
+                    guard let property = symbol.storedProperty(named: label),
+                          let box = instance.box(for: label) else {
+                        let message = "argument '\(label)' doesn't match a stored property of '\(symbol.name)'"
+                        if let node { throw error(node, message) }
+                        throw RuntimeError(message: message)
+                    }
+                    assigned.insert(label)
+                    if property.wrapper == .binding,
+                       case .native(let any) = argument.value, let stub = any as? BindingStub {
+                        instance.properties[label] = stub.box
+                    } else {
+                        box.value = try resolveAnnotated(argument.value, annotation: property.typeAnnotation)
+                    }
+                } else if let closure = argument.value.closureValue {
+                    // Trailing closure → last unassigned closure-shaped stored
+                    // property; @ViewBuilder properties store the BUILT view
+                    // (matching Swift's synthesized memberwise + builder init).
+                    guard let property = symbol.storedProperties.last(where: {
+                        !assigned.contains($0.name) && $0.acceptsTrailingClosure
+                    }), let box = instance.box(for: property.name) else {
+                        let message = "trailing closure doesn't match a closure property of '\(symbol.name)'"
+                        if let node { throw error(node, message) }
+                        throw RuntimeError(message: message)
+                    }
+                    assigned.insert(property.name)
+                    if property.isBuilderClosure {
+                        box.value = try groupViews(try callBuilderClosure(closure, arguments: []))
+                    } else {
+                        box.value = argument.value
+                    }
+                } else {
+                    let message = "argument '_' doesn't match a stored property of '\(symbol.name)'"
                     if let node { throw error(node, message) }
                     throw RuntimeError(message: message)
-                }
-                if property.wrapper == .binding,
-                   case .native(let any) = argument.value, let stub = any as? BindingStub {
-                    instance.properties[label] = stub.box
-                } else {
-                    box.value = try resolveAnnotated(argument.value, annotation: property.typeAnnotation)
                 }
             }
         } else {
