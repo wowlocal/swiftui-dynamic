@@ -367,7 +367,8 @@ public final class Interpreter {
     func tick(_ node: some SyntaxProtocol) throws {
         steps += 1
         if steps > stepBudget {
-            throw error(node, "evaluation budget exceeded (possible infinite loop)")
+            let located = error(node, "evaluation budget exceeded (possible infinite loop)")
+            throw RuntimeError(message: located.message, line: located.line, column: located.column, fatal: true)
         }
     }
 }

@@ -86,6 +86,22 @@ extension Interpreter {
             // Member/call/subscript on nil propagates nil (see accessMember/invoke).
             return try evaluate(chaining.expression, in: env)
         }
+        if let tryExpr = expr.as(TryExprSyntax.self) {
+            if tryExpr.questionOrExclamationMark?.text == "?" {
+                do {
+                    return try evaluate(tryExpr.expression, in: env)
+                } catch is InterpretedThrow {
+                    return .nilValue
+                } catch let hostError as RuntimeError where !hostError.fatal {
+                    return .nilValue
+                }
+            }
+            return try evaluate(tryExpr.expression, in: env) // try / try!
+        }
+        if let awaitExpr = expr.as(AwaitExprSyntax.self) {
+            // Synchronous stand-in: async work evaluates inline (documented).
+            return try evaluate(awaitExpr.expression, in: env)
+        }
         if expr.is(KeyPathExprSyntax.self) {
             return .native(KeyPathStub())
         }

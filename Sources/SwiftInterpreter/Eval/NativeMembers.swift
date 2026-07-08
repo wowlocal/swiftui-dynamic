@@ -220,6 +220,7 @@ extension Interpreter {
         switch name {
         case "count": return .native(string.count)
         case "isEmpty": return .native(string.isEmpty)
+        case "localizedDescription": return .native(string) // caught host errors are strings
         case "first": return string.first.map { .native(String($0)) } ?? .nilValue
         case "last": return string.last.map { .native(String($0)) } ?? .nilValue
         case "uppercased":

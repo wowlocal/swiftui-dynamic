@@ -64,6 +64,11 @@ Each iteration does exactly this:
   divergence, document it in the same commit.
 - The step budget, located errors (`line:col`), and headless verifiability
   are invariants — don't trade them away for pass rate.
+- **Stale-build gotcha**: after changing the layout of a public core type
+  (e.g. adding a field to RuntimeError), `touch` dependent sources
+  (SwiftUIBridge, ProjectCheck, tests) before trusting results — SwiftPM's
+  incremental build has linked stale objects twice (once a link error, once
+  a SIGBUS with garbage error output).
 - Known deep walls, in preferred order when the ladder forces them:
   `@Environment` values (dismiss, colorScheme…) → value semantics for structs
   → protocols/generics in interpreted code → async/await → `@main App`/scene
@@ -145,3 +150,9 @@ Each iteration does exactly this:
   (colorScheme, dismiss) before body; headless harnesses inject honest
   defaults (light, no-op dismiss) via InterpretedEnvironment.defaults().
   Table is extensible per-key. **15/25 → 16/25** (64%).
+- 2026-07-09 iter 13: do/catch/throw/try/try?/try!/await — interpreted throws
+  deliver their value to the catch binding; non-fatal host errors arrive as
+  message strings (`.localizedDescription` works); budget errors are fatal and
+  uncatchable; `await` evaluates inline (documented divergence). Also learned:
+  stale incremental objects after core-type layout changes cause garbage
+  crashes — rule added. **16/25 → 17/25** (68%).

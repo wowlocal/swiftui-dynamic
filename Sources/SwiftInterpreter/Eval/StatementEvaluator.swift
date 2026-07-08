@@ -93,6 +93,12 @@ extension Interpreter {
         if let guardStmt = stmt.as(GuardStmtSyntax.self) {
             return try executeGuard(guardStmt, in: env)
         }
+        if let doStmt = stmt.as(DoStmtSyntax.self) {
+            return try executeDo(doStmt, in: env)
+        }
+        if let throwStmt = stmt.as(ThrowStmtSyntax.self) {
+            throw InterpretedThrow(value: try evaluate(throwStmt.expression, in: env))
+        }
         if let forStmt = stmt.as(ForStmtSyntax.self) {
             return try executeFor(forStmt, in: env)
         }
@@ -147,6 +153,40 @@ extension Interpreter {
         case .ifExpr(let nested):
             return try executeIf(nested, in: env)
         }
+    }
+
+    /// `do`/`catch`: interpreted throws deliver their original value to the
+    /// binding; non-fatal host errors arrive as their message (so real code's
+    /// `catch { print(error) }` behaves sensibly for gateway failures too).
+    private func executeDo(_ doStmt: DoStmtSyntax, in env: Environment) throws -> StatementResult {
+        guard !doStmt.catchClauses.isEmpty else {
+            return try executeBlock(doStmt.body.statements, in: Environment(parent: env))
+        }
+        do {
+            return try executeBlock(doStmt.body.statements, in: Environment(parent: env))
+        } catch let thrown as InterpretedThrow {
+            return try executeCatch(doStmt.catchClauses, error: thrown.value, in: env)
+        } catch let hostError as RuntimeError where !hostError.fatal {
+            return try executeCatch(doStmt.catchClauses, error: .native(hostError.message), in: env)
+        }
+    }
+
+    private func executeCatch(
+        _ clauses: CatchClauseListSyntax,
+        error thrown: RuntimeValue,
+        in env: Environment
+    ) throws -> StatementResult {
+        // v1: the first clause handles everything; `catch let name` binds it.
+        let clause = clauses.first!
+        let child = Environment(parent: env)
+        var name = "error"
+        if let pattern = clause.catchItems.first?.pattern,
+           let binding = pattern.as(ValueBindingPatternSyntax.self),
+           let ident = binding.pattern.as(IdentifierPatternSyntax.self) {
+            name = ident.identifier.text
+        }
+        child.define(name, thrown)
+        return try executeBlock(clause.body.statements, in: child)
     }
 
     private func executeGuard(_ guardStmt: GuardStmtSyntax, in env: Environment) throws -> StatementResult {

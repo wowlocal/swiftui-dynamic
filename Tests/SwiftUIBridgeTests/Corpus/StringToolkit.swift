@@ -1,3 +1,7 @@
+enum ParseFailure: Error {
+    case notANumber
+}
+
 struct ContentView: View {
     @State var input = "the quick brown fox jumps over the lazy dog the end"
 
@@ -34,6 +38,22 @@ struct ContentView: View {
         return n % 2 == 0 ? "even \(n)" : "odd \(n)"
     }
 
+    func strictParse(_ text: String) throws -> Int {
+        guard let n = Int(text) else {
+            throw ParseFailure.notANumber
+        }
+        return n
+    }
+
+    var strictReport: String {
+        do {
+            let n = try strictParse("12x")
+            return "parsed \(n)"
+        } catch {
+            return "rejected: \(error)"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("String toolkit")
@@ -60,6 +80,9 @@ struct ContentView: View {
 
             Text("42 is " + numberSummary(of: "42"))
             Text("'fox' is " + numberSummary(of: "fox"))
+            Text(strictReport)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .frame(maxWidth: 400)

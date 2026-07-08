@@ -333,6 +333,76 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Array(0..<3).count").intValue == 3)
     }
 
+    @Test func doCatchThrowTry() throws {
+        let source = """
+        enum LoadError: Error {
+            case missing
+        }
+
+        func load(ok: Bool) throws -> Int {
+            if !ok {
+                throw LoadError.missing
+            }
+            return 5
+        }
+
+        var result = 0
+        var caught = ""
+        do {
+            result = try load(ok: true)
+            result = try load(ok: false)
+        } catch {
+            caught = "\\(error)"
+        }
+
+        var named = ""
+        do {
+            _ = try load(ok: false)
+        } catch let failure {
+            named = "\\(failure)"
+        }
+
+        let fallback = (try? load(ok: false)) ?? -1
+        let fine = (try? load(ok: true)) ?? -1
+        let awaited = try! load(ok: true)
+
+        "\\(result) \\(caught) \\(named) \\(fallback) \\(fine) \\(awaited)"
+        """
+        #expect(try eval(source).stringValue == "5 LoadError.missing LoadError.missing -1 5 5")
+    }
+
+    @Test func catchHandlesHostErrorsButNotBudget() throws {
+        let hostError = """
+        var caught = ""
+        do {
+            let x = [1, 2][9]
+        } catch {
+            caught = error.localizedDescription
+        }
+        caught
+        """
+        #expect(try eval(hostError).stringValue?.contains("out of range") == true)
+
+        // The infinite-loop guard must NOT be swallowed by user catch blocks.
+        do {
+            _ = try eval("do { while true { } } catch { }")
+            Issue.record("expected the budget to trip")
+        } catch let e as RuntimeError {
+            #expect(e.message.contains("budget"))
+        }
+    }
+
+    @Test func awaitEvaluatesInline() throws {
+        let source = """
+        func fetch() async throws -> Int {
+            return 9
+        }
+        let v = try await fetch()
+        v
+        """
+        #expect(try eval(source).intValue == 9)
+    }
+
     @Test func nestedTypes() throws {
         let source = """
         struct DockProgress {
