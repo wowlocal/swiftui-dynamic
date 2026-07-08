@@ -65,6 +65,11 @@ public final class TraceRegistry: HostRegistry {
                 }
                 return .native(node)
             }
+        case "withAnimation":
+            return HostFunction(name: name) { args, ctx in
+                guard let closure = args.unlabeledClosures.first else { return .void }
+                return try ctx.callClosure(closure, arguments: [])
+            }
         case "ForEach":
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: "ForEach")
@@ -78,9 +83,12 @@ public final class TraceRegistry: HostRegistry {
                 return .native(node)
             }
         default:
-            // Generic recorder: any other constructor becomes a node; builder
-            // closures expand (over leading array/range data when they take a
-            // parameter), `action:` closures are stored for tests.
+            // Generic recorder: any other TYPE-looking constructor becomes a
+            // node; builder closures expand (over leading array/range data
+            // when they take a parameter), `action:` closures are stored for
+            // tests. Lowercase names stay unresolved so genuine identifier
+            // errors surface truthfully instead of becoming fake recorders.
+            guard name.first?.isUppercase == true else { return nil }
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: name)
                 var data: RuntimeValue?

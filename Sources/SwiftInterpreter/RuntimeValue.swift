@@ -125,6 +125,18 @@ public struct KeyPathStub {
     public init() {}
 }
 
+/// An uppercase identifier that resolved to no known type or constructor —
+/// assumed to be a host type used for static access (`Color.red`,
+/// `UIScreen.main`). Member access on it yields an implicit member; calling
+/// it is a located error.
+public struct HostTypeMarker {
+    public let name: String
+
+    public init(name: String) {
+        self.name = name
+    }
+}
+
 /// The value of `$model` where model is @StateObject/@ObservedObject: member
 /// access projects a `BindingStub` onto the model's property box, so
 /// `TextField("…", text: $store.query)` works.

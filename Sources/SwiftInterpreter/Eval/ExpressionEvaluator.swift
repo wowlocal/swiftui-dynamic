@@ -136,6 +136,11 @@ extension Interpreter {
         if let ctor = registry?.constructor(named: name) {
             return .hostFunction(ctor)
         }
+        // Unknown type-looking names are assumed host types used for static
+        // access (Color.red, UIScreen.main). Calling them errors clearly.
+        if let first = name.first, first.isUppercase {
+            return .native(HostTypeMarker(name: name))
+        }
         throw error(node, "unresolved identifier '\(name)'")
     }
 
@@ -250,7 +255,19 @@ extension Interpreter {
             // for gateways. Calling the result refines the arguments.
             return .native(ChainedImplicitCall(baseName: baseName, member: name, arguments: CallArguments()))
 
+        case .hostFunction:
+            // Host TYPE names (Color, Font, …) resolve to constructor
+            // functions; their static members act like implicit members and
+            // get resolved against the expected type at the gateway boundary:
+            // `Color.black` ≡ `.black`.
+            return .implicitMember(name)
+
         case .native(let any):
+            if let marker = any as? HostTypeMarker {
+                // `Color.red` ≡ `.red` — resolved by expected type at gateways.
+                _ = marker
+                return .implicitMember(name)
+            }
             if let projection = any as? ModelProjection {
                 guard let box = projection.model.box(for: name) else {
                     throw error(node, "'$\(projection.model.symbol.name)' has no stored property '\(name)'")
@@ -440,6 +457,9 @@ extension Interpreter {
         case .native(let any) where any is ChainedImplicitCall:
             let chained = any as! ChainedImplicitCall
             return .native(ChainedImplicitCall(baseName: chained.baseName, member: chained.member, arguments: args))
+        case .native(let any) where any is HostTypeMarker:
+            let marker = any as! HostTypeMarker
+            throw error(node, "'\(marker.name)' has no interpreter constructor — only its static members (like \(marker.name).something) are supported")
         default:
             throw error(node, "\(callee.stringified) is not callable")
         }

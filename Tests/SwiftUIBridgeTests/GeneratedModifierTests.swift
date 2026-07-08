@@ -111,6 +111,14 @@ import SwiftInterpreter
         }
     }
 
+    @Test func hostTypeStaticMembersActAsImplicitMembers() throws {
+        // Color.black ≡ .black — including chains through .opacity.
+        let interpreter = Interpreter(registry: ViewRegistry())
+        _ = try interpreter.run(source: #"Text("x").foregroundStyle(Color.red)"#)
+        _ = try interpreter.run(source: #"Text("x").background(Color.black.opacity(0.4))"#)
+        _ = try interpreter.run(source: #"Text("x").font(Font.headline)"#)
+    }
+
     @Test func handWrittenGatewaysStillWin() throws {
         // padding is in both tables; the hand-written one accepts
         // (.horizontal, 8) which has no generated equivalent shape.

@@ -93,3 +93,9 @@ Each iteration does exactly this:
   (freed projects hit next blockers). Noted for later: Int literals don't
   promote to Double-annotated storage. Next: host-type static members
   (`Color.black` family, ~5 across variants).
+- 2026-07-09 iter 4: host-type static members — unknown uppercase identifiers
+  become HostTypeMarker; member access on markers/host constructors yields
+  implicit members (`Color.red` ≡ `.red`), calling a marker is a clear located
+  error. Trace registry's generic recorder is uppercase-only (lowercase
+  unresolveds error truthfully) with an explicit withAnimation case.
+  **7/25 → 9/25**.
