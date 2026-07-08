@@ -146,6 +146,10 @@ coverage.
   closures through the real main queue; `UIViewRepresentable`/
   `NSViewRepresentable` structs are accepted in view position but render
   inert (their make/update methods never run).
+- **State-like wrappers flatten to @State.** `@AppStorage`, `@SceneStorage`,
+  `@GestureState`, and `@FocusState` bind and project like `@State` but skip
+  their special semantics (no UserDefaults persistence, no gesture reset, no
+  focus plumbing).
 - **Property observers are inert.** `willSet`/`didSet` bindings parse as plain
   stored properties; the observer bodies never run.
 - **Model notification is box-level.** Writing a `@Published` property (or any

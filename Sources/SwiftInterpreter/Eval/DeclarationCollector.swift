@@ -276,6 +276,12 @@ extension Interpreter {
     private func propertyWrapper(of attributes: AttributeListSyntax) -> StructSymbol.Wrapper {
         if hasAttribute(attributes, named: "State") { return .state }
         if hasAttribute(attributes, named: "Binding") { return .binding }
+        // State-like wrappers behave as plain @State (documented divergence:
+        // no UserDefaults persistence, no gesture-reset, no focus plumbing).
+        for stateLike in ["AppStorage", "SceneStorage", "GestureState", "FocusState"]
+        where hasAttribute(attributes, named: stateLike) {
+            return .state
+        }
         if hasAttribute(attributes, named: "Published") { return .published }
         if hasAttribute(attributes, named: "StateObject") { return .stateObject }
         if hasAttribute(attributes, named: "ObservedObject") { return .observedObject }

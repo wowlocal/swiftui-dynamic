@@ -73,6 +73,38 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func stateLikeWrappersProjectAndBind() throws {
+        let source = """
+        struct ContentView: View {
+            @AppStorage("firstTime") var isFirstTime = true
+            @GestureState var dragOffset = 0.0
+
+            var body: some View {
+                VStack {
+                    Toggle("Intro", isOn: $isFirstTime)
+                    Text(isFirstTime ? "welcome" : "back")
+                    Text("drag \\(dragOffset)")
+                }
+            }
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            Issue.record("expected an instance")
+            return
+        }
+        let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(body.findAll("Toggle").first?.bindings["isOn"] != nil)
+        #expect(body.findAll("Text").first?.args.first == "welcome")
+
+        // Binding writes re-render like @State.
+        try #require(body.findAll("Toggle").first?.bindings["isOn"]).box.value = .native(false)
+        let rerendered = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(rerendered.findAll("Text").first?.args.first == "back")
+    }
+
     @Test func applicationWindowChain() throws {
         let interpreter = Interpreter(registry: TraceRegistry())
         let bottom = try interpreter.run(

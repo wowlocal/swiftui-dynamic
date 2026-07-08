@@ -84,12 +84,15 @@ struct TodoRow: View {
 
 struct StatsFooter: View {
     @ObservedObject var store: TodoStore
+    @AppStorage("compactFooter") var compact = false
 
     var body: some View {
         HStack {
-            Text("\(store.remaining) of \(store.todos.count) remaining")
+            Text(compact ? "\(store.remaining)" : "\(store.remaining) of \(store.todos.count) remaining")
                 .foregroundStyle(.secondary)
             Spacer()
+            Toggle("Compact", isOn: $compact)
+                .font(.caption2)
             Toggle("Show done", isOn: $store.showCompleted)
         }
         .font(.caption)
