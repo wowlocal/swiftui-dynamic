@@ -25,6 +25,7 @@ struct ScreenStub {
 /// zero insets is the honest macOS analog.
 struct AppStub {}
 struct WindowStub {}
+struct WindowSceneStub {}
 
 /// `DispatchQueue.main` — async dispatches through the real main queue.
 struct MainQueueStub {}
@@ -55,8 +56,20 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
     }
     if value is AppStub {
-        if name == "windows" { return .native([RuntimeValue.native(WindowStub())]) }
-        return nil
+        switch name {
+        case "windows": return .native([RuntimeValue.native(WindowStub())])
+        case "connectedScenes": return .native([RuntimeValue.native(WindowSceneStub())])
+        default: return nil
+        }
+    }
+    if value is WindowSceneStub {
+        switch name {
+        case "screen": return .native(ScreenStub())
+        case "keyWindow", "windows": return name == "windows"
+            ? .native([RuntimeValue.native(WindowStub())])
+            : .native(WindowStub())
+        default: return nil
+        }
     }
     if value is WindowStub {
         if name == "safeAreaInsets" { return .native(EdgeInsets()) }

@@ -214,3 +214,8 @@ Each iteration does exactly this:
 - 2026-07-09 iter 25: implicit members adopt the OTHER operand's host type in
   ==/!= (`dragOffset == .zero` resolves .zero as CGSize via the marker path);
   CG equality cases added. TouchAnimation passes. **35/50 → 36/50** (72%).
+- 2026-07-09 iter 26: as/as?/as! casts — target type resolves markers via
+  resolveAnnotated, Int/Double bridge, optimistic as? (nil only for nil;
+  documented). AppStub gains connectedScenes/WindowSceneStub (screen,
+  keyWindow). **36/50 holds**; CustomHUDs advanced to rootViewController —
+  the UIKit hosting wall, possible quarantine candidate.

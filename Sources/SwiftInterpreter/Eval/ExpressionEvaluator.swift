@@ -105,6 +105,26 @@ extension Interpreter {
         if expr.is(KeyPathExprSyntax.self) {
             return .native(KeyPathStub())
         }
+        if let asExpr = expr.as(AsExprSyntax.self) {
+            // Dynamic casts: give the target type a chance to resolve markers,
+            // bridge numerics, and otherwise pass the value through
+            // (optimistic `as?` — documented divergence).
+            let value = try evaluate(asExpr.expression, in: env)
+            if asExpr.questionOrExclamationMark?.text == "?", value.isNil {
+                return .nilValue
+            }
+            var typeName = asExpr.type.trimmedDescription
+            if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+            switch typeName {
+            case "Double", "CGFloat", "TimeInterval":
+                if let d = value.doubleValue { return .native(d) }
+            case "Int":
+                if let d = value.doubleValue { return .native(Int(d)) }
+            default:
+                break
+            }
+            return try resolveAnnotated(value, typeName: typeName)
+        }
         if let ifExpr = expr.as(IfExprSyntax.self) {
             if case .normal(let value) = try executeIf(ifExpr, in: env) { return value }
             throw error(ifExpr, "control flow can't escape an if-expression")

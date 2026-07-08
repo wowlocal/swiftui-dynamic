@@ -146,6 +146,9 @@ coverage.
   closures through the real main queue; `UIViewRepresentable`/
   `NSViewRepresentable` structs are accepted in view position but render
   inert (their make/update methods never run).
+- **Casts are optimistic.** `as`/`as!` pass the value through; `as?` only
+  yields nil for nil inputs. The target type does resolve implicit-member
+  markers and bridges Int/Double.
 - **State-like wrappers flatten to @State.** `@AppStorage`, `@SceneStorage`,
   `@GestureState`, and `@FocusState` bind and project like `@State` but skip
   their special semantics (no UserDefaults persistence, no gesture reset, no

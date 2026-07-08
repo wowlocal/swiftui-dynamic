@@ -433,6 +433,22 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 9)
     }
 
+    @Test func asCasts() throws {
+        let source = """
+        struct Item {
+            var n = 1
+        }
+        let any = Item(n: 7)
+        let cast = any as? Item
+        let bridged = 3 as Double
+        let narrowed = 9.9 as Int
+        let missing: Int? = nil
+        let nilCast = missing as? Int
+        "\\(cast?.n ?? -1) \\(bridged) \\(narrowed) \\(nilCast == nil)"
+        """
+        #expect(try eval(source).stringValue == "7 3.0 9 true")
+    }
+
     @Test func typeDotSelf() throws {
         let source = """
         struct SizeKey {
