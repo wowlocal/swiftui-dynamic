@@ -182,3 +182,10 @@ Each iteration does exactly this:
   `.onReceive` drives interpreted closures from actual ticks (trace records
   the modifier inert). AnimatedCounter corpus ticks a session counter.
   **18/25 → 19/25** (76% — one from the 80% window raise).
+- 2026-07-09 iter 19: UIApplication window chain — `shared` → app stub,
+  `windows` → one-window array, `safeAreaInsets` → zero EdgeInsets (honest
+  macOS analog), EdgeInsets components as Doubles. Custom_Indicators passes
+  after its 4-iteration march. **19/25 → 20/25 = 80% → window raised to
+  --limit 50. New baseline: 25/50**; top classes: GeometryProxyStub members
+  (4: minX/bounds family), $-projection on non-state (2), ImplicitMemberCall
+  members (2), host statics (2).

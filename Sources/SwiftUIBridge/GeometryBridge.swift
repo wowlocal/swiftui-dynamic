@@ -21,6 +21,11 @@ struct ScreenStub {
     }
 }
 
+/// `UIApplication.shared.windows.first?.safeAreaInsets…` — one window with
+/// zero insets is the honest macOS analog.
+struct AppStub {}
+struct WindowStub {}
+
 /// `DispatchQueue.main` — async dispatches through the real main queue.
 struct MainQueueStub {}
 
@@ -37,8 +42,27 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .native(ScreenStub())
         case ("DispatchQueue", "main"):
             return .native(MainQueueStub())
+        case ("UIApplication", "shared"), ("NSApplication", "shared"):
+            return .native(AppStub())
         default:
             return nil
+        }
+    }
+    if value is AppStub {
+        if name == "windows" { return .native([RuntimeValue.native(WindowStub())]) }
+        return nil
+    }
+    if value is WindowStub {
+        if name == "safeAreaInsets" { return .native(EdgeInsets()) }
+        return nil
+    }
+    if let insets = value as? EdgeInsets {
+        switch name {
+        case "top": return .native(Double(insets.top))
+        case "leading", "left": return .native(Double(insets.leading))
+        case "bottom": return .native(Double(insets.bottom))
+        case "trailing", "right": return .native(Double(insets.trailing))
+        default: return nil
         }
     }
     if value is ScreenStub {

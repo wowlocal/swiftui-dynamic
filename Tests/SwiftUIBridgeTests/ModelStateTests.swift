@@ -73,6 +73,14 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func applicationWindowChain() throws {
+        let interpreter = Interpreter(registry: TraceRegistry())
+        let bottom = try interpreter.run(
+            source: "UIApplication.shared.windows.first?.safeAreaInsets.bottom ?? -1.0"
+        )
+        #expect(bottom.doubleValue == 0.0)
+    }
+
     @Test func timerPublisherPlumbing() throws {
         // The publish/autoconnect chain yields the box either way…
         let interpreter = Interpreter(registry: TraceRegistry())

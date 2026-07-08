@@ -60,6 +60,7 @@ struct ContentView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
+        .padding(.bottom, UIApplication.shared.windows.first?.safeAreaInsets.bottom ?? 0.0)
         .padding()
         .frame(maxWidth: 340)
     }
