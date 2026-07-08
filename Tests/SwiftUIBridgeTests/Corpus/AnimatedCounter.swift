@@ -1,6 +1,7 @@
 struct ContentView: View {
     @State var count = 0
     @State var spinning = false
+    @State var elapsed = 0
 
     var milestone: Bool {
         count != 0 && count % 5 == 0
@@ -44,6 +45,13 @@ struct ContentView: View {
                     .foregroundStyle(.orange)
                     .transition(.opacity)
             }
+
+            Text("session ticks: \(elapsed)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+                    elapsed += 1
+                }
         }
         .padding(32)
     }

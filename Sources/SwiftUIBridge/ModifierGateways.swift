@@ -231,6 +231,15 @@ extension ViewRegistry {
             guard let closure = args.unlabeledClosures.first else { return view }
             return AnyView(view.task { _ = try? ctx.callClosure(closure, arguments: []) })
         }
+        register("onReceive") { view, args, ctx in
+            guard case .native(let any)? = args.positional(0), let box = any as? TimerPublisherBox else {
+                throw RuntimeError(message: ".onReceive supports Timer publishers (Timer.publish(...).autoconnect())")
+            }
+            guard let closure = args.unlabeledClosures.first else { return view }
+            return AnyView(view.onReceive(box.publisher) { date in
+                _ = try? ctx.callClosure(closure, arguments: [.native(date)])
+            })
+        }
 
         // MARK: Container configuration
 

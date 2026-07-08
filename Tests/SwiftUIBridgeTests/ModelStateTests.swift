@@ -73,6 +73,23 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func timerPublisherPlumbing() throws {
+        // The publish/autoconnect chain yields the box either way…
+        let interpreter = Interpreter(registry: TraceRegistry())
+        let box = try interpreter.run(source: "Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()")
+        if case .native(let any) = box {
+            #expect(any is TimerPublisherBox)
+        } else {
+            Issue.record("expected a TimerPublisherBox")
+        }
+        // …and the real registry renders the .onReceive pattern.
+        let real = Interpreter(registry: ViewRegistry())
+        _ = try real.run(source: """
+        Text("t").onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+        }
+        """)
+    }
+
     @Test func representablesRenderInert() throws {
         let source = """
         struct Chrome: UIViewRepresentable {

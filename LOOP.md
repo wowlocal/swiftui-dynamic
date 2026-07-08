@@ -177,3 +177,8 @@ Each iteration does exactly this:
   are accepted in view position (incl. modifiers on their instances) and
   render inert in both registries (make/update never run — documented).
   **17/25 → 18/25** (72%).
+- 2026-07-09 iter 18: Timer publishers — `Timer.publish(every:on:in:)
+  .autoconnect()` yields a box wrapping the REAL Combine publisher;
+  `.onReceive` drives interpreted closures from actual ticks (trace records
+  the modifier inert). AnimatedCounter corpus ticks a session counter.
+  **18/25 → 19/25** (76% — one from the 80% window raise).
