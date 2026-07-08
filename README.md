@@ -141,6 +141,8 @@ coverage.
 - **Bindings are Box handles.** `$name` projects the state's storage box; the
   bridge wraps it in a real `Binding` whose setter writes the box (rounding
   back to Int when the state was declared Int, e.g. for `Slider`).
+- **Property observers are inert.** `willSet`/`didSet` bindings parse as plain
+  stored properties; the observer bodies never run.
 - **Model notification is box-level.** Writing a `@Published` property (or any
   stored property of an `@Observable` class) fires the model's change signal.
   Mutating an instance nested *inside* a published collection doesn't — 

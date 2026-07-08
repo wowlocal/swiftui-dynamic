@@ -326,16 +326,16 @@ extension Interpreter {
         // through the lvalue so @State/@Published notification fires.
         if name == "toggle",
            let target = try? resolveLValue(base, in: env),
-           let current = try target.read().boolValue {
+           let current = try target.read(self).boolValue {
             _ = try collectArguments(of: call, in: env) // evaluate (empty) args for side effects
-            try relocating(call) { try target.write(.native(!current)) }
+            try relocating(call) { try target.write(.native(!current), self) }
             return .void
         }
 
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
         if mutating.contains(name),
            let target = try? resolveLValue(base, in: env),
-           var array = try target.read().arrayValue {
+           var array = try target.read(self).arrayValue {
             let args = try collectArguments(of: call, in: env)
             switch name {
             case "append":
@@ -352,7 +352,7 @@ extension Interpreter {
                     throw error(call, "remove(at:) index out of range")
                 }
                 let removed = array.remove(at: index)
-                try relocating(call) { try target.write(.native(array)) }
+                try relocating(call) { try target.write(.native(array), self) }
                 return removed
             case "removeAll":
                 if let closure = args.closure(labeled: "where") {
@@ -367,12 +367,12 @@ extension Interpreter {
             case "removeFirst":
                 guard !array.isEmpty else { throw error(call, "removeFirst on an empty array") }
                 let removed = array.removeFirst()
-                try relocating(call) { try target.write(.native(array)) }
+                try relocating(call) { try target.write(.native(array), self) }
                 return removed
             case "removeLast":
                 guard !array.isEmpty else { throw error(call, "removeLast on an empty array") }
                 let removed = array.removeLast()
-                try relocating(call) { try target.write(.native(array)) }
+                try relocating(call) { try target.write(.native(array), self) }
                 return removed
             case "sort":
                 var failure: Error?
@@ -385,7 +385,7 @@ extension Interpreter {
             default:
                 return nil
             }
-            try relocating(call) { try target.write(.native(array)) }
+            try relocating(call) { try target.write(.native(array), self) }
             return .void
         }
 
@@ -501,7 +501,7 @@ extension Interpreter {
         if infix.operator.is(AssignmentExprSyntax.self) {
             let value = try evaluate(infix.rightOperand, in: env)
             let target = try resolveLValue(infix.leftOperand, in: env)
-            try relocating(infix) { try target.write(value) }
+            try relocating(infix) { try target.write(value, self) }
             return .void
         }
         guard let binOp = infix.operator.as(BinaryOperatorExprSyntax.self) else {
@@ -527,8 +527,8 @@ extension Interpreter {
             let target = try resolveLValue(infix.leftOperand, in: env)
             let rhs = try evaluate(infix.rightOperand, in: env)
             try relocating(infix) {
-                let combined = try Builtins.binary(String(op.dropLast()), try target.read(), rhs)
-                try target.write(combined)
+                let combined = try Builtins.binary(String(op.dropLast()), try target.read(self), rhs)
+                try target.write(combined, self)
             }
             return .void
         default:
@@ -544,17 +544,18 @@ extension Interpreter {
         case element(LValue, Int)
         case dictElement(DictValue, RuntimeValue)
 
-        func read() throws -> RuntimeValue {
+        func read(_ interpreter: Interpreter) throws -> RuntimeValue {
             switch self {
             case .box(let box):
                 return box.value
             case .instanceProperty(let instance, let name):
-                guard let box = instance.box(for: name) else {
-                    throw EvalMessage(text: "'\(instance.symbol.name)' has no stored property '\(name)'")
+                if let box = instance.box(for: name) { return box.value }
+                if let computed = instance.symbol.computedProperties[name] {
+                    return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
                 }
-                return box.value
+                throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
             case .element(let base, let index):
-                guard let array = try base.read().arrayValue, array.indices.contains(index) else {
+                guard let array = try base.read(interpreter).arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
                 return array[index]
@@ -563,7 +564,7 @@ extension Interpreter {
             }
         }
 
-        func write(_ value: RuntimeValue) throws {
+        func write(_ value: RuntimeValue, _ interpreter: Interpreter) throws {
             switch self {
             case .box(let box):
                 box.value = value
@@ -575,18 +576,28 @@ extension Interpreter {
                     instance.properties[name] = stub.box
                     return
                 }
-                guard let box = instance.box(for: name) else {
-                    throw EvalMessage(text: "'\(instance.symbol.name)' has no stored property '\(name)'")
+                if let box = instance.box(for: name) {
+                    box.value = value
+                    return
                 }
-                box.value = value
+                if let computed = instance.symbol.computedProperties[name] {
+                    guard let setter = computed.setter else {
+                        throw EvalMessage(text: "cannot assign to get-only property '\(name)'")
+                    }
+                    let env = interpreter.selfEnvironment(.instance(instance))
+                    env.define(setter.parameterName, value)
+                    _ = try interpreter.executeBlock(setter.body, in: env)
+                    return
+                }
+                throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
             case .element(let base, let index):
                 // Read-modify-write through the base lvalue, so element writes
                 // propagate box/publisher notifications all the way up.
-                guard var array = try base.read().arrayValue, array.indices.contains(index) else {
+                guard var array = try base.read(interpreter).arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
                 array[index] = value
-                try base.write(.native(array))
+                try base.write(.native(array), interpreter)
             case .dictElement(let dict, let key):
                 try dict.update(key, to: value)
             }
@@ -597,7 +608,8 @@ extension Interpreter {
         if let ref = expr.as(DeclReferenceExprSyntax.self) {
             let name = ref.baseName.text
             if let box = env.box(for: name) { return .box(box) }
-            if case .instance(let instance)? = env.lookup("self"), instance.box(for: name) != nil {
+            if case .instance(let instance)? = env.lookup("self"),
+               instance.box(for: name) != nil || instance.symbol.computedProperties[name] != nil {
                 return .instanceProperty(instance, name)
             }
             throw error(ref, "cannot assign to '\(name)'")

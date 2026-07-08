@@ -1,14 +1,27 @@
 import SwiftSyntax
 
-/// A computed property's accessor body. `isBuilder` marks `@ViewBuilder`
+/// A computed property's accessors. `isBuilder` marks `@ViewBuilder`
 /// members and `some View` return types — those evaluate in builder mode.
 public struct ComputedProperty {
+    public struct Setter {
+        public let body: CodeBlockItemListSyntax
+        /// `newValue`, or the custom name from `set(custom)`.
+        public let parameterName: String
+
+        public init(body: CodeBlockItemListSyntax, parameterName: String) {
+            self.body = body
+            self.parameterName = parameterName
+        }
+    }
+
     public let accessor: CodeBlockItemListSyntax
     public let isBuilder: Bool
+    public let setter: Setter?
 
-    public init(accessor: CodeBlockItemListSyntax, isBuilder: Bool) {
+    public init(accessor: CodeBlockItemListSyntax, isBuilder: Bool, setter: Setter? = nil) {
         self.accessor = accessor
         self.isBuilder = isBuilder
+        self.setter = setter
     }
 }
 

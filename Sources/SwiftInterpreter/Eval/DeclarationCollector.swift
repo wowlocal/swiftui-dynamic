@@ -80,12 +80,16 @@ extension Interpreter {
                 throw error(binding, "unsupported property pattern")
             }
             let name = ident.identifier.text
-            if let accessorBlock = binding.accessorBlock {
-                let accessor = try getterStatements(of: accessorBlock)
+            // A binding with an accessor block is computed only if it has a
+            // getter; willSet/didSet-only observers mean a stored property
+            // (observers are inert — documented divergence).
+            if let accessorBlock = binding.accessorBlock,
+               let accessors = parseAccessors(of: accessorBlock) {
                 let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
                 symbol.computedProperties[name] = ComputedProperty(
-                    accessor: accessor,
-                    isBuilder: hasBuilderAttribute || returnsView
+                    accessor: accessors.getter,
+                    isBuilder: hasBuilderAttribute || returnsView,
+                    setter: accessors.setter
                 )
             } else if isStaticDecl {
                 if let initializer = binding.initializer?.value {
@@ -140,12 +144,13 @@ extension Interpreter {
             let isStaticDecl = isStatic(varDecl.modifiers)
             for binding in varDecl.bindings {
                 guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
-                if let accessorBlock = binding.accessorBlock {
-                    let accessor = try getterStatements(of: accessorBlock)
+                if let accessorBlock = binding.accessorBlock,
+                   let accessors = parseAccessors(of: accessorBlock) {
                     let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
                     symbol.computedProperties[ident.identifier.text] = ComputedProperty(
-                        accessor: accessor,
-                        isBuilder: hasBuilderAttribute || returnsView
+                        accessor: accessors.getter,
+                        isBuilder: hasBuilderAttribute || returnsView,
+                        setter: accessors.setter
                     )
                 } else if isStaticDecl, let initializer = binding.initializer?.value {
                     symbol.staticProperties[ident.identifier.text] = initializer
@@ -208,15 +213,29 @@ extension Interpreter {
 
     // MARK: - Helpers
 
-    private func getterStatements(of accessorBlock: AccessorBlockSyntax) throws -> CodeBlockItemListSyntax {
+    /// nil ⇒ no getter (willSet/didSet observers only): treat as stored.
+    private func parseAccessors(
+        of accessorBlock: AccessorBlockSyntax
+    ) -> (getter: CodeBlockItemListSyntax, setter: ComputedProperty.Setter?)? {
         switch accessorBlock.accessors {
         case .getter(let items):
-            return items
+            return (items, nil)
         case .accessors(let list):
-            guard let getter = list.first(where: { $0.accessorSpecifier.tokenKind == .keyword(.get) })?.body?.statements else {
-                throw error(accessorBlock, "only get-only computed properties are supported")
+            var getter: CodeBlockItemListSyntax?
+            var setter: ComputedProperty.Setter?
+            for accessor in list {
+                guard let body = accessor.body?.statements else { continue }
+                switch accessor.accessorSpecifier.tokenKind {
+                case .keyword(.get):
+                    getter = body
+                case .keyword(.set):
+                    setter = .init(body: body, parameterName: accessor.parameters?.name.text ?? "newValue")
+                default:
+                    break // willSet/didSet observers are inert
+                }
             }
-            return getter
+            guard let getter else { return nil }
+            return (getter, setter)
         }
     }
 

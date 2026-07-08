@@ -333,6 +333,79 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Array(0..<3).count").intValue == 3)
     }
 
+    @Test func computedPropertySetters() throws {
+        let source = """
+        struct Temperature {
+            var fahrenheit = 32.0
+
+            var celsius: Double {
+                get { (fahrenheit - 32) * 5 / 9 }
+                set { fahrenheit = newValue * 9 / 5 + 32 }
+            }
+
+            mutating func warmUp() {
+                celsius += 10
+            }
+        }
+        let t = Temperature()
+        t.celsius = 100.0
+        let boiling = t.fahrenheit
+        t.warmUp()
+        "\\(boiling) \\(t.celsius)"
+        """
+        #expect(try eval(source).stringValue == "212.0 110.0")
+    }
+
+    @Test func customSetterParameterName() throws {
+        let source = """
+        struct Box {
+            var stored = 0
+            var doubled: Int {
+                get { stored * 2 }
+                set(fresh) { stored = fresh / 2 }
+            }
+        }
+        let b = Box()
+        b.doubled = 10
+        b.stored
+        """
+        #expect(try eval(source).intValue == 5)
+    }
+
+    @Test func getOnlyAssignmentIsError() throws {
+        let source = """
+        struct S {
+            var x: Int { 4 }
+        }
+        let s = S()
+        s.x = 9
+        """
+        do {
+            _ = try eval(source)
+            Issue.record("expected an error")
+        } catch let e as RuntimeError {
+            #expect(e.message.contains("get-only"))
+        }
+    }
+
+    @Test func propertyObserversAreInertStoredProperties() throws {
+        // didSet/willSet observers parse as stored properties whose observers
+        // don't run — documented divergence.
+        let source = """
+        struct Counter {
+            var count = 0 {
+                didSet {
+                    count = 999
+                }
+            }
+        }
+        let c = Counter()
+        c.count = 5
+        c.count
+        """
+        #expect(try eval(source).intValue == 5)
+    }
+
     @Test func boolToggle() throws {
         #expect(try eval("var on = false\non.toggle()\non").boolValue == true)
         let viaSelf = """

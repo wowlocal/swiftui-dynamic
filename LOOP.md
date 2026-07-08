@@ -87,3 +87,9 @@ Each iteration does exactly this:
 - 2026-07-09 iter 2: `Bool.toggle()` via the lvalue path (state notification
   fires); **3/25 → 7/25**. Next: get/set computed properties (3), member
   access on host-type functions (`Color.black`, `String.…`, ~4 related).
+- 2026-07-09 iter 3: settable computed properties (get/set accessors, custom
+  setter param names, compound assignment through getter+setter; observer-only
+  bindings are stored+inert, documented). Class eliminated; **7/25 → 7/25**
+  (freed projects hit next blockers). Noted for later: Int literals don't
+  promote to Double-annotated storage. Next: host-type static members
+  (`Color.black` family, ~5 across variants).
