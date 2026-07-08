@@ -73,6 +73,56 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func wrapperBackingStorageInCustomInits() throws {
+        let source = """
+        struct Stepper2: View {
+            @Binding var value: Int
+            @State var label: String
+            var step = 1
+
+            init(value: Binding<Int>, step: Int) {
+                self._value = value
+                self._label = State(initialValue: "step \\(step)")
+                self.step = step
+            }
+
+            var body: some View {
+                Button(label) {
+                    value += step
+                }
+            }
+        }
+
+        struct ContentView: View {
+            @State var total = 10
+
+            var body: some View {
+                VStack {
+                    Text("total \\(total)")
+                    Stepper2(value: $total, step: 5)
+                }
+            }
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            Issue.record("expected an instance")
+            return
+        }
+
+        var actions: [ClosureValue] = []
+        let root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        _ = try HeadlessVerifier.deepRender(interpreter, root, actions: &actions)
+
+        // The child's button label came from State(initialValue:), and its
+        // action writes THROUGH the assigned binding storage to the parent.
+        _ = try interpreter.callClosure(try #require(actions.first), arguments: [])
+        let rerendered = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(rerendered.findAll("Text").first?.args.first == "total 15")
+    }
+
     @Test func implicitMembersAdoptComparisonType() throws {
         let source = """
         let a: CGSize = .zero

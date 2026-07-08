@@ -25,6 +25,11 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     switch name {
     case "DateFormatter":
         return HostFunction(name: name) { _, _ in .native(DateFormatterBox()) }
+    case "State":
+        // `self._count = State(initialValue: 5)` — the storage IS the value.
+        return HostFunction(name: name) { args, _ in
+            args.labeled("initialValue") ?? args.labeled("wrappedValue") ?? args.positional(0) ?? .void
+        }
     case "CGSize":
         return HostFunction(name: name) { args, _ in
             .native(CGSize(

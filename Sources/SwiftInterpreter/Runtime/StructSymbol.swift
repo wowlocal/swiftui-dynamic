@@ -115,4 +115,12 @@ public final class StructSymbol {
     public func storedProperty(named name: String) -> StoredProperty? {
         storedProperties.first { $0.name == name }
     }
+
+    /// `_offset` refers to `offset`'s wrapper storage in custom inits
+    /// (`self._offset = offset`); returns the canonical property name.
+    public func canonicalPropertyName(_ name: String) -> String {
+        guard name.hasPrefix("_") else { return name }
+        let stripped = String(name.dropFirst())
+        return storedProperty(named: stripped) != nil ? stripped : name
+    }
 }

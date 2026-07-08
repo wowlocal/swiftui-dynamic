@@ -219,3 +219,8 @@ Each iteration does exactly this:
   documented). AppStub gains connectedScenes/WindowSceneStub (screen,
   keyWindow). **36/50 holds**; CustomHUDs advanced to rootViewController —
   the UIKit hosting wall, possible quarantine candidate.
+- 2026-07-09 iter 27: wrapper backing storage — `self._offset = offset` in
+  custom inits canonicalizes `_x` → `x` (binding-stub swap included), and
+  `State(initialValue:)` constructs as its value. Write-through verified:
+  child button mutates parent state via assigned storage. Custom_ScrollView
+  passes (156-node render). **36/50 → 37/50** (74%).

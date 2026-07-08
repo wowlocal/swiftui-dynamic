@@ -196,7 +196,8 @@ extension Interpreter {
     }
 
     /// Property → method → computed property, or nil if the name is unknown.
-    func instanceMember(_ name: String, on instance: Instance) throws -> RuntimeValue? {
+    func instanceMember(_ rawName: String, on instance: Instance) throws -> RuntimeValue? {
+        let name = instance.symbol.canonicalPropertyName(rawName)
         if let box = instance.box(for: name) { return box.value }
         if let method = instance.symbol.methods[name] {
             guard let body = method.body else { return nil }
@@ -767,16 +768,18 @@ extension Interpreter {
         if let ref = expr.as(DeclReferenceExprSyntax.self) {
             let name = ref.baseName.text
             if let box = env.box(for: name) { return .box(box) }
-            if case .instance(let instance)? = env.lookup("self"),
-               instance.box(for: name) != nil || instance.symbol.computedProperties[name] != nil {
-                return .instanceProperty(instance, name)
+            if case .instance(let instance)? = env.lookup("self") {
+                let canonical = instance.symbol.canonicalPropertyName(name)
+                if instance.box(for: canonical) != nil || instance.symbol.computedProperties[canonical] != nil {
+                    return .instanceProperty(instance, canonical)
+                }
             }
             throw error(ref, "cannot assign to '\(name)'")
         }
         if let member = expr.as(MemberAccessExprSyntax.self), let base = member.base {
             let baseValue = try evaluate(base, in: env)
             if case .instance(let instance) = baseValue {
-                return .instanceProperty(instance, member.declName.baseName.text)
+                return .instanceProperty(instance, instance.symbol.canonicalPropertyName(member.declName.baseName.text))
             }
             if case .native(let any) = baseValue, registry != nil {
                 // Host objects with settable members (formatter.dateFormat = …).
