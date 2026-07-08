@@ -14,7 +14,25 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func constructor(named name: String) -> HostFunction? {
-        constructors[name]
+        let hand = constructors[name]
+        let generated = GeneratedConstructors.table[name]
+        if hand == nil && generated == nil { return nil }
+        // Hand-written first; if it rejects this call shape and a generated
+        // table exists, fall through — so e.g. Text(verbatim:) can come from
+        // codegen while Text("x") stays hand-written.
+        return HostFunction(name: name) { args, ctx in
+            if let hand {
+                do {
+                    return try hand.invoke(args, ctx)
+                } catch where generated != nil {
+                    // fall through to generated overloads
+                }
+            }
+            guard let generated else {
+                throw RuntimeError(message: "no constructor for \(name)")
+            }
+            return .native(try GeneratedDispatch.construct(name: name, overloads: generated, args: args, ctx: ctx))
+        }
     }
 
     public func modifier(named name: String) -> HostModifier? {

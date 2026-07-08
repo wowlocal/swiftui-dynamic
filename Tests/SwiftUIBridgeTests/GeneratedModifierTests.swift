@@ -73,6 +73,44 @@ import SwiftInterpreter
         }
     }
 
+    @Test func generatedConstructorsAreSubstantial() {
+        #expect(GeneratedConstructors.table.count >= 12)
+    }
+
+    @Test func generatedConstructorsDispatchThroughRealRendering() throws {
+        // None of these View inits were ever hand-written.
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    ContentUnavailableView("No results", systemImage: "magnifyingglass")
+                    RenameButton()
+                    EmptyView()
+                    AngularGradient(gradient: Gradient(colors: [.red, .blue]), center: .center)
+                        .frame(width: 40, height: 40)
+                }
+            }
+        }
+        """
+        RenderDiagnostics.reset()
+        switch InterpreterHost().render(source: source) {
+        case .failure(let error):
+            Issue.record("render failed: \(error)")
+        case .success(let view):
+            let hosting = NSHostingView(rootView: view.frame(width: 300, height: 400))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 300, height: 400),
+                styleMask: .borderless, backing: .buffered, defer: false
+            )
+            window.contentView = hosting
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            for (viewName, error) in RenderDiagnostics.errors {
+                Issue.record("\(viewName): \(error)")
+            }
+        }
+    }
+
     @Test func handWrittenGatewaysStillWin() throws {
         // padding is in both tables; the hand-written one accepts
         // (.horizontal, 8) which has no generated equivalent shape.

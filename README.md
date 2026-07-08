@@ -96,9 +96,15 @@ and `Date()` basics; ~50 modifiers including `padding`/`frame`/`font`/
 Hand-writing gateways doesn't scale to SwiftUI's real surface, so
 `swift run BridgeGen --emit` parses the SDK's **actual swiftinterface files**
 (SwiftUICore + SwiftUI — the modern SDK splits them) and generates
-`Generated/GeneratedModifiers.swift`: currently **214 overload variants across
-~127 modifier names**, each a statically-compiled call against the real SDK,
-so a wrong signature fails at build time rather than in a session. Dispatch
+`Generated/GeneratedModifiers.swift` (**214 overload variants across ~127
+modifier names**) and `Generated/GeneratedViews.swift` (**44 initializer
+variants across 15 View structs** — Button, Toggle, TextField, Label,
+ContentUnavailableView, gradients…). Struct inits mostly live in *extensions*
+with same-type constraints (`extension GroupBox where Label == Text`), so the
+generator threads struct-level generics plus extension where-clauses (both
+conformance sets and concrete substitutions) into parameter analysis. Every
+entry is a statically-compiled call against the real SDK, so a wrong signature
+fails at build time rather than in a session. Dispatch
 goes through the ArgumentMatcher (`GeneratedSupport.swift`): per-overload
 parameter specs (label + coercible type tag), label/coercibility filtering,
 most-specific-first ranking. Hand-written gateways are consulted first and

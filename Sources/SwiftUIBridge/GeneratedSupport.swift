@@ -14,6 +14,7 @@ enum ParamTag: String {
     case bindingBool, bindingString, bindingDouble
     case shapeStyle, anyView, shape
     case visibility, axisSet, edgeInsets, gradient, gridItems
+    case axis, colorArray
     case builder, action, equatable
 }
 
@@ -39,6 +40,11 @@ struct ActionValue: @unchecked Sendable {
 struct GeneratedOverload {
     let params: [ParamSpec]
     let invoke: @MainActor (AnyView, [Any]) throws -> AnyView
+}
+
+struct GeneratedConstructor {
+    let params: [ParamSpec]
+    let invoke: @MainActor ([Any]) throws -> AnyView
 }
 
 enum GeneratedDispatch {
@@ -84,7 +90,15 @@ enum GeneratedDispatch {
         case .imageScale:
             return try Coerce.imageScale(value)
         case .buttonRole:
-            return try Coerce.buttonRole(value)
+            guard let role = try Coerce.buttonRole(value) else {
+                throw RuntimeError(message: "expected a button role")
+            }
+            return role
+        case .axis:
+            return try Coerce.axis(value)
+        case .colorArray:
+            guard let array = value.arrayValue else { throw RuntimeError(message: "expected [Color]") }
+            return try array.map(Coerce.color)
         case .bindingBool:
             return try Coerce.boolBinding(value)
         case .bindingString:
@@ -147,6 +161,20 @@ enum GeneratedDispatch {
         let shape = args.arguments.map { $0.label ?? "_" }.joined(separator: ":")
         throw RuntimeError(message: "no matching overload for .\(name)(\(shape):) — argument types or labels don't fit")
     }
+
+    static func construct(
+        name: String,
+        overloads: [GeneratedConstructor],
+        args: CallArguments,
+        ctx: EvalContext
+    ) throws -> AnyView {
+        for overload in overloads.sorted(by: { $0.params.count > $1.params.count }) {
+            guard let values = matches(overload.params, args, ctx) else { continue }
+            return try overload.invoke(values)
+        }
+        let shape = args.arguments.map { $0.label ?? "_" }.joined(separator: ":")
+        throw RuntimeError(message: "no matching initializer for \(name)(\(shape):) — argument types or labels don't fit")
+    }
 }
 
 /// Namespace the generated file extends with `build()`.
@@ -160,6 +188,20 @@ enum GeneratedModifiers {
         _ invoke: @escaping @MainActor (AnyView, [Any]) throws -> AnyView
     ) {
         table[name, default: []].append(GeneratedOverload(params: params, invoke: invoke))
+    }
+}
+
+/// Namespace the generated constructors file extends with `build()`.
+enum GeneratedConstructors {
+    static let table: [String: [GeneratedConstructor]] = build()
+
+    static func register(
+        _ table: inout [String: [GeneratedConstructor]],
+        _ name: String,
+        _ params: [ParamSpec],
+        _ invoke: @escaping @MainActor ([Any]) throws -> AnyView
+    ) {
+        table[name, default: []].append(GeneratedConstructor(params: params, invoke: invoke))
     }
 }
 
@@ -182,6 +224,17 @@ extension Coerce {
         case "destructive": return .destructive
         case "cancel": return .cancel
         default: throw RuntimeError(message: "unknown button role '.\(name)'")
+        }
+    }
+
+    static func axis(_ value: RuntimeValue) throws -> Axis {
+        guard case .implicitMember(let name) = value else {
+            throw RuntimeError(message: "expected .horizontal or .vertical")
+        }
+        switch name {
+        case "horizontal": return .horizontal
+        case "vertical": return .vertical
+        default: throw RuntimeError(message: "unknown axis '.\(name)'")
         }
     }
 

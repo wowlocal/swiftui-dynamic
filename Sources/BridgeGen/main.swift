@@ -97,6 +97,9 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "EdgeInsets": return .init(tag: "edgeInsets", cast: "%@ as! EdgeInsets")
     case "Gradient": return .init(tag: "gradient", cast: "%@ as! Gradient")
     case "[GridItem]": return .init(tag: "gridItems", cast: "%@ as! [GridItem]")
+    case "ButtonRole": return .init(tag: "buttonRole", cast: "%@ as! ButtonRole")
+    case "Axis": return .init(tag: "axis", cast: "%@ as! Axis")
+    case "[Color]": return .init(tag: "colorArray", cast: "%@ as! [Color]")
     case "Binding<Bool>": return .init(tag: "bindingBool", cast: "%@ as! Binding<Bool>")
     case "Binding<String>": return .init(tag: "bindingString", cast: "%@ as! Binding<String>")
     case "Binding<Double>": return .init(tag: "bindingDouble", cast: "%@ as! Binding<Double>")
@@ -117,6 +120,49 @@ func constraintMapping(for constraint: String) -> TypeMapping? {
     }
 }
 
+// MARK: - Generics
+
+/// What we know about a generic parameter: conformance constraints, or a
+/// concrete substitution from a same-type requirement (`where Label == Text`).
+enum GenericFacts {
+    case constraints(Set<String>)
+    case concrete(String)
+}
+typealias Generics = [String: GenericFacts]
+
+func addConstraint(_ generics: inout Generics, _ name: String, _ constraint: String) {
+    switch generics[name] {
+    case .concrete:
+        break
+    case .constraints(var set):
+        set.insert(constraint)
+        generics[name] = .constraints(set)
+    case nil:
+        generics[name] = .constraints(constraint.isEmpty ? [] : [constraint])
+    }
+}
+
+func collectWhereClause(_ whereClause: GenericWhereClauseSyntax?, into generics: inout Generics) {
+    guard let whereClause else { return }
+    for requirement in whereClause.requirements {
+        if let conformance = requirement.requirement.as(ConformanceRequirementSyntax.self) {
+            addConstraint(&generics, normalize(conformance.leftType.trimmedDescription),
+                          normalize(conformance.rightType.trimmedDescription))
+        } else if let sameType = requirement.requirement.as(SameTypeRequirementSyntax.self) {
+            generics[normalize(sameType.leftType.trimmedDescription)] =
+                .concrete(normalize(sameType.rightType.trimmedDescription))
+        }
+    }
+}
+
+func collectGenericClause(_ clause: GenericParameterClauseSyntax?, into generics: inout Generics) {
+    guard let clause else { return }
+    for parameter in clause.parameters {
+        addConstraint(&generics, parameter.name.text,
+                      normalize(parameter.inheritedType?.trimmedDescription ?? ""))
+    }
+}
+
 // MARK: - Parameter analysis
 
 struct AnalyzedParam {
@@ -127,7 +173,7 @@ struct AnalyzedParam {
     let usesGeneric: String?
 }
 
-func analyzeParameter(_ param: FunctionParameterSyntax, generics: [String: String]) -> AnalyzedParam {
+func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> AnalyzedParam {
     let labelText = param.firstName.text
     let label: String? = labelText == "_" ? nil : labelText
     let hasDefault = param.defaultValue != nil
@@ -166,31 +212,29 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: [String: Strin
     if let mapping = directMapping(for: normalized) {
         return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
     }
-    if let constraint = generics[normalized] {
-        if let mapping = constraintMapping(for: constraint) {
-            return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized)
+    if let facts = generics[normalized] {
+        switch facts {
+        case .concrete(let concrete):
+            if let mapping = directMapping(for: concrete) {
+                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized)
+            }
+            return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "== \(concrete)", usesGeneric: normalized)
+        case .constraints(let set):
+            if set.count == 1, let mapping = constraintMapping(for: set.first!) {
+                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized)
+            }
+            return .init(label: label, mapping: nil, hasDefault: hasDefault,
+                         blocker: "<\(set.sorted().joined(separator: "&"))>", usesGeneric: normalized)
         }
-        return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "<\(constraint)>", usesGeneric: normalized)
     }
     return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: normalized, usesGeneric: nil)
 }
 
-func genericConstraints(of function: FunctionDeclSyntax) -> [String: String] {
-    var constraints: [String: String] = [:]
-    if let clause = function.genericParameterClause {
-        for parameter in clause.parameters {
-            constraints[parameter.name.text] = normalize(parameter.inheritedType?.trimmedDescription ?? "")
-        }
-    }
-    if let whereClause = function.genericWhereClause {
-        for requirement in whereClause.requirements {
-            if let conformance = requirement.requirement.as(ConformanceRequirementSyntax.self) {
-                constraints[normalize(conformance.leftType.trimmedDescription)] =
-                    normalize(conformance.rightType.trimmedDescription)
-            }
-        }
-    }
-    return constraints
+func genericConstraints(of function: FunctionDeclSyntax) -> Generics {
+    var generics: Generics = [:]
+    collectGenericClause(function.genericParameterClause, into: &generics)
+    collectWhereClause(function.genericWhereClause, into: &generics)
+    return generics
 }
 
 // MARK: - Availability
@@ -315,19 +359,135 @@ func processModifier(_ function: FunctionDeclSyntax, guarded: Bool) {
     }
 }
 
+// MARK: - View-struct init sweep
+
+var initVariants: [Variant] = []
+var initSeenKeys = Set<String>()
+var initTotal = 0
+var initGeneratable = 0
+var initGuarded = 0
+var viewStructs = Set<String>()
+var generatableStructs = Set<String>()
+
+/// Struct names never emitted (compile problems or hand-only semantics).
+let denyStructs: Set<String> = []
+
+func structGenerics(_ structDecl: StructDeclSyntax) -> Generics {
+    var generics: Generics = [:]
+    collectGenericClause(structDecl.genericParameterClause, into: &generics)
+    collectWhereClause(structDecl.genericWhereClause, into: &generics)
+    return generics
+}
+
+func processInit(_ structName: String, _ initDecl: InitializerDeclSyntax, generics baseGenerics: Generics, guarded: Bool) {
+    initTotal += 1
+    guard initDecl.optionalMark == nil else { return } // failable inits
+
+    // Struct-level generics + the init's own clause: this is what unblocks
+    // `@ViewBuilder content: () -> Content` where Content lives on the struct,
+    // and `where Label == Text` same-type substitutions.
+    var generics = baseGenerics
+    collectGenericClause(initDecl.genericParameterClause, into: &generics)
+    collectWhereClause(initDecl.genericWhereClause, into: &generics)
+
+    let parameters = initDecl.signature.parameterClause.parameters
+    if parameters.contains(where: { $0.ellipsis != nil }) {
+        blockers["variadic", default: 0] += 1
+        return
+    }
+    let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
+    let genericUses = analyzed.compactMap(\.usesGeneric)
+    if Set(genericUses).count != genericUses.count {
+        blockers["<shared generic>", default: 0] += 1
+        return
+    }
+    if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
+        blockers[firstBlocked.blocker ?? "?", default: 0] += 1
+        return
+    }
+    if guarded || needsAvailabilityGuard(initDecl.attributes) {
+        initGuarded += 1
+        return
+    }
+    initGeneratable += 1
+    generatableStructs.insert(structName)
+    guard !denyStructs.contains(structName) else { return }
+
+    let maxLen = analyzed.prefix(while: { $0.mapping != nil }).count
+    var cut = maxLen
+    while true {
+        if analyzed[cut...].allSatisfy(\.hasDefault) {
+            let slice = analyzed[..<cut]
+            let variant = Variant(
+                name: structName,
+                params: slice.map { .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast) }
+            )
+            if initSeenKeys.insert(variant.key).inserted {
+                initVariants.append(variant)
+            }
+        }
+        guard cut > 0, analyzed[cut - 1].hasDefault else { break }
+        cut -= 1
+    }
+}
+
+// Pass A: View-extension modifiers + View structs (recording their generics
+// so pass B can process extension-declared inits, where most of them live).
+var viewStructInfo: [String: (generics: Generics, guarded: Bool)] = [:]
+
 for file in interfaceFiles {
     for statement in file.statements {
         guard case .decl(let decl) = statement.item else { continue }
-        guard let ext = decl.as(ExtensionDeclSyntax.self),
-              normalize(ext.extendedType.trimmedDescription) == "View",
+
+        if let ext = decl.as(ExtensionDeclSyntax.self),
+           normalize(ext.extendedType.trimmedDescription) == "View",
+           isUsable(ext.attributes) {
+            let extGuarded = needsAvailabilityGuard(ext.attributes)
+            for member in ext.memberBlock.members {
+                guard let function = member.decl.as(FunctionDeclSyntax.self),
+                      isUsable(function.attributes),
+                      let returnType = function.signature.returnClause?.type.trimmedDescription,
+                      acceptableModifierReturn(returnType) else { continue }
+                processModifier(function, guarded: extGuarded)
+            }
+        }
+
+        if let structDecl = decl.as(StructDeclSyntax.self),
+           isUsable(structDecl.attributes),
+           !structDecl.name.text.hasPrefix("_"),
+           structDecl.inheritanceClause?.inheritedTypes.contains(where: {
+               normalize($0.type.trimmedDescription) == "View"
+           }) == true {
+            let name = structDecl.name.text
+            viewStructs.insert(name)
+            let guarded = needsAvailabilityGuard(structDecl.attributes)
+            let generics = structGenerics(structDecl)
+            viewStructInfo[name] = (generics, guarded)
+            for member in structDecl.memberBlock.members {
+                guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
+                      isUsable(initDecl.attributes) else { continue }
+                processInit(name, initDecl, generics: generics, guarded: guarded)
+            }
+        }
+    }
+}
+
+// Pass B: inits declared in extensions of known View structs (e.g.
+// `extension GroupBox where Label == Text { init(_ titleKey:content:) }`).
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let decl) = statement.item,
+              let ext = decl.as(ExtensionDeclSyntax.self),
               isUsable(ext.attributes) else { continue }
-        let extGuarded = needsAvailabilityGuard(ext.attributes)
+        let extendedName = normalize(ext.extendedType.trimmedDescription)
+        guard let info = viewStructInfo[extendedName] else { continue }
+        var generics = info.generics
+        collectWhereClause(ext.genericWhereClause, into: &generics)
+        let guarded = info.guarded || needsAvailabilityGuard(ext.attributes)
         for member in ext.memberBlock.members {
-            guard let function = member.decl.as(FunctionDeclSyntax.self),
-                  isUsable(function.attributes),
-                  let returnType = function.signature.returnClause?.type.trimmedDescription,
-                  acceptableModifierReturn(returnType) else { continue }
-            processModifier(function, guarded: extGuarded)
+            guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
+                  isUsable(initDecl.attributes) else { continue }
+            processInit(extendedName, initDecl, generics: generics, guarded: guarded)
         }
     }
 }
@@ -341,6 +501,13 @@ total overloads:        \(modifierTotal)  (\(modifierNames.count) distinct names
 generatable overloads:  \(modifierGeneratable)  (\(generatableNames.count) distinct names)
 newer-OS (skipped):     \(modifierGuarded)
 emitted variants:       \(variants.count)
+
+═══ View-struct initializers ═══
+View structs:           \(viewStructs.count)
+total inits:            \(initTotal)
+generatable inits:      \(initGeneratable)  (across \(generatableStructs.count) structs)
+newer-OS (skipped):     \(initGuarded)
+emitted variants:       \(initVariants.count)
 
 ═══ Top blocking types ═══
 """)
@@ -403,3 +570,56 @@ output += "}\n"
 let outputPath = "Sources/SwiftUIBridge/Generated/GeneratedModifiers.swift"
 try output.write(toFile: outputPath, atomically: true, encoding: .utf8)
 print("\nwrote \(outputPath) (\(sorted.count) variants)")
+
+// MARK: - Emit constructors
+
+func initEntryCode(_ variant: Variant) -> String {
+    let specs = variant.params
+        .map { "ParamSpec(\($0.label.map { "\"\($0)\"" } ?? "nil"), .\($0.tag))" }
+        .joined(separator: ", ")
+    let argList = variant.params.enumerated()
+        .map { index, param in
+            (param.label.map { "\($0): " } ?? "") + param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
+        }
+        .joined(separator: ", ")
+    return """
+        register(&t, "\(variant.name)", [\(specs)]) { v in
+            AnyView(\(variant.name)(\(argList)))
+        }
+    """
+}
+
+let sortedInits = initVariants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
+let initChunks = stride(from: 0, to: sortedInits.count, by: chunkSize).map {
+    Array(sortedInits[$0..<min($0 + chunkSize, sortedInits.count)])
+}
+
+var viewsOutput = """
+// GENERATED by BridgeGen from the SDK's SwiftUICore/SwiftUI swiftinterfaces.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+// \(sortedInits.count) initializer variants across \(Set(sortedInits.map(\.name)).count) View structs.
+import SwiftUI
+import SwiftInterpreter
+
+extension GeneratedConstructors {
+    static func build() -> [String: [GeneratedConstructor]] {
+        var t: [String: [GeneratedConstructor]] = [:]
+
+"""
+for index in initChunks.indices {
+    viewsOutput += "        build\(index)(&t)\n"
+}
+viewsOutput += "        return t\n    }\n"
+
+for (index, chunk) in initChunks.enumerated() {
+    viewsOutput += "\n    private static func build\(index)(_ t: inout [String: [GeneratedConstructor]]) {\n"
+    for variant in chunk {
+        viewsOutput += initEntryCode(variant) + "\n"
+    }
+    viewsOutput += "    }\n"
+}
+viewsOutput += "}\n"
+
+let viewsPath = "Sources/SwiftUIBridge/Generated/GeneratedViews.swift"
+try viewsOutput.write(toFile: viewsPath, atomically: true, encoding: .utf8)
+print("wrote \(viewsPath) (\(sortedInits.count) variants)")
