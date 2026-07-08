@@ -164,6 +164,22 @@ extension ViewRegistry {
             return .native(GridItem(size, spacing: spacing))
         }
 
+        constructors["EdgeInsets"] = HostFunction(name: "EdgeInsets") { args, _ in
+            .native(EdgeInsets(
+                top: try args.labeled("top").map(Coerce.cgFloat) ?? 0,
+                leading: try args.labeled("leading").map(Coerce.cgFloat) ?? 0,
+                bottom: try args.labeled("bottom").map(Coerce.cgFloat) ?? 0,
+                trailing: try args.labeled("trailing").map(Coerce.cgFloat) ?? 0
+            ))
+        }
+
+        constructors["Gradient"] = HostFunction(name: "Gradient") { args, _ in
+            guard let colors = args.labeled("colors")?.arrayValue else {
+                throw RuntimeError(message: "Gradient needs colors: [...]")
+            }
+            return .native(Gradient(colors: try colors.map(Coerce.color)))
+        }
+
         // MARK: Navigation
 
         let navigationStack = HostFunction(name: "NavigationStack") { args, ctx in

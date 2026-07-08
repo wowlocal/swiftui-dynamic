@@ -18,7 +18,14 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func modifier(named name: String) -> HostModifier? {
-        modifiers[name]
+        if let handWritten = modifiers[name] { return handWritten }
+        guard let overloads = GeneratedModifiers.table[name] else { return nil }
+        return HostModifier(name: name) { value, args, ctx in
+            let view = try Self.anyView(value)
+            return .native(try GeneratedDispatch.dispatch(
+                name: name, overloads: overloads, view: view, args: args, ctx: ctx
+            ))
+        }
     }
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {

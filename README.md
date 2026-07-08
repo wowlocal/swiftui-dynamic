@@ -91,6 +91,21 @@ and `Date()` basics; ~50 modifiers including `padding`/`frame`/`font`/
 `scaleEffect`/`rotationEffect`/`animation(value:)`/`onAppear`/`onTapGesture`/
 `task`/`navigationTitle`/`listStyle`/`buttonStyle`/`pickerStyle`.
 
+## Generated gateways (BridgeGen)
+
+Hand-writing gateways doesn't scale to SwiftUI's real surface, so
+`swift run BridgeGen --emit` parses the SDK's **actual swiftinterface files**
+(SwiftUICore + SwiftUI — the modern SDK splits them) and generates
+`Generated/GeneratedModifiers.swift`: currently **214 overload variants across
+~127 modifier names**, each a statically-compiled call against the real SDK,
+so a wrong signature fails at build time rather than in a session. Dispatch
+goes through the ArgumentMatcher (`GeneratedSupport.swift`): per-overload
+parameter specs (label + coercible type tag), label/coercibility filtering,
+most-specific-first ranking. Hand-written gateways are consulted first and
+always win. The report mode (no `--emit`) prints the blocking-type histogram —
+the priority list for new coercions. Defaulted parameters are handled by
+emitting suffix variants (full call, then trailing defaults dropped).
+
 ## Corpus verification
 
 `Tests/SwiftUIBridgeTests/Corpus/` holds ten realistic programs (todo list,
