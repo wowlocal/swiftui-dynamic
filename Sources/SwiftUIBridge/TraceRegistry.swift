@@ -8,6 +8,7 @@ public final class TraceNode {
     public var children: [TraceNode] = []
     public var modifiers: [String] = []
     public var actions: [String: ClosureValue] = [:]
+    public var bindings: [String: BindingStub] = [:]
     public var instance: Instance?
 
     init(kind: String) {
@@ -30,11 +31,15 @@ public final class TraceRegistry: HostRegistry {
 
     public func constructor(named name: String) -> HostFunction? {
         switch name {
-        case "Text", "Image", "Spacer", "Divider":
+        case "Text", "Image", "Spacer", "Divider", "Toggle", "TextField", "Slider":
             return HostFunction(name: name) { args, _ in
                 let node = TraceNode(kind: name)
-                node.args = args.arguments.compactMap { argument in
-                    argument.value.closureValue == nil ? argument.value.stringified : nil
+                for argument in args.arguments {
+                    if case .native(let any) = argument.value, let stub = any as? BindingStub {
+                        node.bindings[argument.label ?? "_"] = stub
+                    } else if argument.value.closureValue == nil {
+                        node.args.append(argument.value.stringified)
+                    }
                 }
                 return .native(node)
             }

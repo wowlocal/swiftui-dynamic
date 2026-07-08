@@ -31,14 +31,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Headless verification hook: render the counter sample through the real
     /// interpreter pipeline to a PNG (no window, no screen-recording permission).
     private func renderSnapshot(to path: String) {
-        switch InterpreterHost().render(source: SamplePrograms.counter.source) {
+        let sampleName = CommandLine.arguments.firstIndex(of: "--sample").flatMap { index in
+            CommandLine.arguments.indices.contains(index + 1) ? CommandLine.arguments[index + 1] : nil
+        }
+        let sample = SamplePrograms.all.first { $0.name == sampleName } ?? SamplePrograms.counter
+        switch InterpreterHost().render(source: sample.source) {
         case .success(let view):
-            let renderer = ImageRenderer(content: view.padding(40).background(.white))
-            renderer.scale = 2
-            guard let nsImage = renderer.nsImage,
-                  let tiff = nsImage.tiffRepresentation,
-                  let rep = NSBitmapImageRep(data: tiff),
-                  let png = rep.representation(using: .png, properties: [:]) else {
+            // NSHostingView in a never-shown window (not ImageRenderer):
+            // AppKit-backed controls don't draw under ImageRenderer, and
+            // SwiftUI layers don't draw via cacheDisplay without a window.
+            let hosting = NSHostingView(rootView: view.padding(40).background(Color.white))
+            hosting.layoutSubtreeIfNeeded()
+            hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
+            let window = NSWindow(contentRect: hosting.frame, styleMask: .borderless, backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: .aqua)
+            window.contentView = hosting
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+                FileHandle.standardError.write(Data("snapshot failed\n".utf8))
+                exit(1)
+            }
+            hosting.cacheDisplay(in: hosting.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]) else {
                 FileHandle.standardError.write(Data("snapshot failed\n".utf8))
                 exit(1)
             }

@@ -5,6 +5,43 @@ import SwiftInterpreter
 /// the SwiftUI type a gateway parameter expects — the "expected type context"
 /// trick reduced to lookup tables, dodging real type inference.
 enum Coerce {
+    static func bindingBox(_ value: RuntimeValue) throws -> Box {
+        if case .native(let any) = value, let stub = any as? BindingStub { return stub.box }
+        throw RuntimeError(message: "expected a binding like $someState, got \(value.stringified)")
+    }
+
+    static func boolBinding(_ value: RuntimeValue) throws -> Binding<Bool> {
+        let box = try bindingBox(value)
+        return Binding(
+            get: { box.value.boolValue ?? false },
+            set: { box.value = .native($0) }
+        )
+    }
+
+    static func stringBinding(_ value: RuntimeValue) throws -> Binding<String> {
+        let box = try bindingBox(value)
+        return Binding(
+            get: { box.value.stringValue ?? "" },
+            set: { box.value = .native($0) }
+        )
+    }
+
+    /// If the underlying state is an Int, writes round back to Int so the
+    /// interpreted program keeps seeing the type it declared.
+    static func doubleBinding(_ value: RuntimeValue) throws -> Binding<Double> {
+        let box = try bindingBox(value)
+        return Binding(
+            get: { box.value.doubleValue ?? 0 },
+            set: { newValue in
+                if box.value.intValue != nil {
+                    box.value = .native(Int(newValue.rounded()))
+                } else {
+                    box.value = .native(newValue)
+                }
+            }
+        )
+    }
+
     static func cgFloat(_ value: RuntimeValue) throws -> CGFloat {
         if let d = value.doubleValue { return CGFloat(d) }
         if case .implicitMember("infinity") = value { return .infinity }

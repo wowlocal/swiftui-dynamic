@@ -80,6 +80,37 @@ extension ViewRegistry {
             return .native(AnyView(Button(action: action) { label }))
         }
 
+        constructors["Toggle"] = HostFunction(name: "Toggle") { args, _ in
+            guard let isOn = args.labeled("isOn") else {
+                throw RuntimeError(message: "Toggle needs an isOn: binding")
+            }
+            let title = args.positional(0)?.stringValue ?? ""
+            return .native(AnyView(Toggle(title, isOn: try Coerce.boolBinding(isOn))))
+        }
+
+        constructors["TextField"] = HostFunction(name: "TextField") { args, _ in
+            guard let text = args.labeled("text") else {
+                throw RuntimeError(message: "TextField needs a text: binding")
+            }
+            let title = args.positional(0)?.stringValue ?? ""
+            return .native(AnyView(TextField(title, text: try Coerce.stringBinding(text))))
+        }
+
+        constructors["Slider"] = HostFunction(name: "Slider") { args, _ in
+            guard let value = args.labeled("value") else {
+                throw RuntimeError(message: "Slider needs a value: binding")
+            }
+            let binding = try Coerce.doubleBinding(value)
+            guard let rangeValue = args.labeled("in") else {
+                return .native(AnyView(Slider(value: binding)))
+            }
+            guard case .native(let any) = rangeValue, let range = any as? Range<Int> else {
+                throw RuntimeError(message: "Slider(in:) needs an integer range like 0...10")
+            }
+            let bounds = Double(range.lowerBound)...Double(range.upperBound - 1)
+            return .native(AnyView(Slider(value: binding, in: bounds)))
+        }
+
         constructors["ForEach"] = HostFunction(name: "ForEach") { args, ctx in
             guard let data = args.positional(0) else {
                 throw RuntimeError(message: "ForEach needs a range or an array")

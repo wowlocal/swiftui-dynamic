@@ -79,6 +79,18 @@ extension Interpreter {
 
     func resolveIdentifier(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
         if let value = env.lookup(name) { return value }
+        // `$count` — projected value of an @State property. (`$0`-style closure
+        // shorthands were already bound in the environment above.)
+        if name.hasPrefix("$"), name.count > 1, !name.dropFirst().allSatisfy(\.isNumber) {
+            let propertyName = String(name.dropFirst())
+            guard let instance = currentSelf(in: env) else {
+                throw error(node, "'\(name)' can only be used inside a View body")
+            }
+            guard let box = instance.stateBoxes[propertyName] else {
+                throw error(node, "'\(name)' requires an @State property named '\(propertyName)'")
+            }
+            return .native(BindingStub(box: box))
+        }
         if let instance = currentSelf(in: env),
            let value = try instanceMember(name, on: instance) {
             return value

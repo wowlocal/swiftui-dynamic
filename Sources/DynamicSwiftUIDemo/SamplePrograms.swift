@@ -5,7 +5,7 @@ struct SampleProgram: Identifiable, Hashable {
 }
 
 enum SamplePrograms {
-    static let all = [counter, staticLayout, list]
+    static let all = [counter, form, staticLayout, list]
 
     /// The acceptance demo: @State + Button actions with live re-render.
     static let counter = SampleProgram(name: "Counter", source: """
@@ -30,6 +30,34 @@ enum SamplePrograms {
                 }
             }
             .padding()
+        }
+    }
+    """)
+
+    /// Two-way bindings: $state projections driving Toggle/Slider/TextField.
+    static let form = SampleProgram(name: "Form", source: """
+    struct ContentView: View {
+        @State var name = ""
+        @State var notify = true
+        @State var volume = 5
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Settings")
+                    .font(.headline)
+                TextField("Your name", text: $name)
+                Toggle("Notifications", isOn: $notify)
+                HStack {
+                    Text("Volume: \\(volume)")
+                    Slider(value: $volume, in: 0...10)
+                }
+                Divider()
+                Text("Hi \\(name)! Notifications \\(notify ? "on" : "off"), volume \\(volume).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .frame(maxWidth: 340)
         }
     }
     """)

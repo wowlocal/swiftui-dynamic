@@ -12,8 +12,9 @@ swift run DynamicSwiftUIDemo
 ```
 
 An editor opens on the left, the live interpreted view renders on the right.
-Three built-in samples (toolbar picker): **Counter** (`@State` + Button
-actions), **Layout** (stacks, modifiers, `ForEach` chips), **List** (nested
+Four built-in samples (toolbar picker): **Counter** (`@State` + Button
+actions), **Form** (`$state` bindings driving `Toggle`/`Slider`/`TextField`),
+**Layout** (stacks, modifiers, `ForEach` chips), **List** (nested
 user-defined views).
 
 ```
@@ -56,10 +57,11 @@ Literals (incl. string interpolation), arrays + subscripts, operators with real
 precedence, `if`/`else`, `for`-in over ranges/arrays, `while`, functions
 (defaults, implicit return, trailing closures), closures (incl. `$0`
 shorthand, capture-by-reference), structs with stored/computed properties and
-methods, memberwise init, `@State`.
+methods, memberwise init, `@State`, `$state` binding projections.
 
 SwiftUI: `Text`, `VStack`/`HStack`/`ZStack`, `Button`, `Image(systemName:)`,
-`Spacer`, `Divider`, `ForEach`; modifiers `padding`, `font`, `bold`, `italic`,
+`Spacer`, `Divider`, `ForEach`, `Toggle`, `Slider`, `TextField`; modifiers
+`padding`, `font`, `bold`, `italic`,
 `fontWeight`, `foregroundStyle`/`foregroundColor`, `background`,
 `cornerRadius`, `opacity`, `frame`.
 
@@ -76,9 +78,11 @@ SwiftUI: `Text`, `VStack`/`HStack`/`ZStack`, `Button`, `Image(systemName:)`,
   so `@State` inside reordered children won't track.
 - **No type checking.** Type annotations parse but are ignored; errors show up
   at evaluation time, located (`line:col`) in the error bar.
+- **Bindings are Box handles.** `$name` projects the state's storage box; the
+  bridge wraps it in a real `Binding` whose setter writes the box (rounding
+  back to Int when the state was declared Int, e.g. for `Slider`).
 - Not supported (v1): generics, protocols, enums, custom `init`, optionals
-  beyond `nil` literals, `guard`, `switch`, dictionaries, `Binding`
-  (`$`-projection) — so no `Toggle`/`Slider` yet.
+  beyond `nil` literals, `guard`, `switch`, dictionaries.
 - An evaluation **step budget** (100k) guards the main thread against
   `while true {}`.
 
