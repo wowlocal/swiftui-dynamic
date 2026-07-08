@@ -1,6 +1,18 @@
 import SwiftUI
 import SwiftInterpreter
 
+/// Body-evaluation errors render inline (the view keeps working), but tests
+/// and tools need to observe them — hosted rendering is otherwise silent.
+public enum RenderDiagnostics {
+    public private(set) static var errors: [(view: String, error: RuntimeError)] = []
+
+    public static func reset() { errors = [] }
+
+    static func record(_ error: RuntimeError, in view: String) {
+        errors.append((view, error))
+    }
+}
+
 /// Persists `@State` boxes across instance recreations. `@StateObject` gives
 /// the store SwiftUI structural identity: parent re-renders build fresh
 /// `Instance`s (mirroring how real SwiftUI recreates view values), and
@@ -47,8 +59,10 @@ public struct InterpretedView: View {
         do {
             return try ViewRegistry.anyView(interpreter.evaluateBody(of: instance))
         } catch let error as RuntimeError {
+            RenderDiagnostics.record(error, in: instance.symbol.name)
             return AnyView(errorLabel(error.description))
         } catch {
+            RenderDiagnostics.record(RuntimeError(message: String(describing: error)), in: instance.symbol.name)
             return AnyView(errorLabel(String(describing: error)))
         }
     }

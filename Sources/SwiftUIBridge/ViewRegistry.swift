@@ -22,7 +22,9 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
-        if case .native(let any) = value { return any is AnyView }
+        if case .native(let any) = value {
+            return any is AnyView || any is ImageBox || any is ShapeBox
+        }
         return false
     }
 
@@ -38,7 +40,11 @@ public final class ViewRegistry: HostRegistry {
     // MARK: - Helpers shared by gateways
 
     static func anyView(_ value: RuntimeValue) throws -> AnyView {
-        if case .native(let any) = value, let view = any as? AnyView { return view }
+        if case .native(let any) = value {
+            if let view = any as? AnyView { return view }
+            if let box = any as? ImageBox { return AnyView(box.image) }
+            if let box = any as? ShapeBox { return AnyView(box.shape) }
+        }
         throw RuntimeError(message: "expected a View, got \(value.stringified)")
     }
 
@@ -53,5 +59,15 @@ public final class ViewRegistry: HostRegistry {
             throw RuntimeError(message: "missing content closure")
         }
         return try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
+    }
+
+    /// Like `anyView`, but also accepts a bare interpreted-View instance in
+    /// argument position (e.g. `NavigationLink(destination: DetailView())`).
+    func anyViewResolving(_ value: RuntimeValue, _ ctx: EvalContext) throws -> AnyView {
+        if case .instance(let instance) = value, instance.symbol.conformsToView,
+           let interpreter = ctx as? Interpreter {
+            return try Self.anyView(makeRenderable(instance: instance, interpreter: interpreter))
+        }
+        return try Self.anyView(value)
     }
 }

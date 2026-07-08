@@ -155,10 +155,14 @@ extension Interpreter {
     }
 
     private func executeFor(_ forStmt: ForStmtSyntax, in env: Environment) throws -> StatementResult {
-        guard let ident = forStmt.pattern.as(IdentifierPatternSyntax.self) else {
+        let name: String?
+        if let ident = forStmt.pattern.as(IdentifierPatternSyntax.self) {
+            name = ident.identifier.text
+        } else if forStmt.pattern.is(WildcardPatternSyntax.self) {
+            name = nil // `for _ in …`
+        } else {
             throw error(forStmt.pattern, "only simple for-in patterns are supported")
         }
-        let name = ident.identifier.text
         let sequence = try evaluate(forStmt.sequence, in: env)
 
         let elements: [RuntimeValue]
@@ -173,7 +177,7 @@ extension Interpreter {
         loop: for element in elements {
             try tick(forStmt)
             let child = Environment(parent: env)
-            child.define(name, element)
+            if let name { child.define(name, element) }
             let result = try executeBlock(forStmt.body.statements, in: child)
             switch result {
             case .normal, .continueLoop: continue

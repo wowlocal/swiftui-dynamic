@@ -77,7 +77,34 @@ public final class TraceRegistry: HostRegistry {
                 return .native(node)
             }
         default:
-            return nil
+            // Generic recorder: any other constructor becomes a node; builder
+            // closures expand (over leading array/range data when they take a
+            // parameter), `action:` closures are stored for tests.
+            return HostFunction(name: name) { args, ctx in
+                let node = TraceNode(kind: name)
+                var data: RuntimeValue?
+                for argument in args.arguments {
+                    if case .native(let any) = argument.value, let stub = any as? BindingStub {
+                        node.bindings[argument.label ?? "_"] = stub
+                    } else if let closure = argument.value.closureValue {
+                        if argument.label == "action" {
+                            node.actions["action"] = closure
+                            continue
+                        }
+                        if let data, let elements = try? Self.elements(of: data) {
+                            for element in elements {
+                                node.children += try ctx.callBuilderClosure(closure, arguments: [element]).map(Self.node)
+                            }
+                        } else {
+                            node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
+                        }
+                    } else {
+                        if argument.label == nil { data = argument.value }
+                        node.args.append(argument.value.stringified)
+                    }
+                }
+                return .native(node)
+            }
         }
     }
 

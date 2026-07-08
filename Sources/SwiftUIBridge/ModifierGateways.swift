@@ -1,10 +1,15 @@
 import SwiftUI
 import SwiftInterpreter
 
-/// Modifier gateways: `.padding`, `.font`, `.foregroundStyle`, `.background`,
-/// `.cornerRadius`, `.frame`, `.opacity`, `.bold`, … applied to `AnyView`.
+/// Modifier gateways applied to view values. Most convert the receiver to
+/// `AnyView` first; shape/image-typed modifiers (`.fill`, `.resizable`) check
+/// the receiver's box type instead.
 extension ViewRegistry {
     func registerModifiers() {
+        registerTypedModifiers()
+
+        // MARK: Spacing & sizing
+
         register("padding") { view, args, _ in
             if args.isEmpty { return AnyView(view.padding()) }
             if let first = args.positional(0), case .implicitMember = first {
@@ -20,46 +25,11 @@ extension ViewRegistry {
             return AnyView(view.padding())
         }
 
-        register("font") { view, args, _ in
-            guard let value = args.positional(0) else { throw RuntimeError(message: ".font needs an argument") }
-            return AnyView(view.font(try Coerce.font(value)))
-        }
-
-        register("bold") { view, _, _ in AnyView(view.bold()) }
-        register("italic") { view, _, _ in AnyView(view.italic()) }
-
-        register("fontWeight") { view, args, _ in
-            guard let value = args.positional(0) else { throw RuntimeError(message: ".fontWeight needs an argument") }
-            return AnyView(view.fontWeight(try Coerce.fontWeight(value)))
-        }
-
-        let foreground: @MainActor (AnyView, CallArguments, EvalContext) throws -> AnyView = { view, args, _ in
-            guard let value = args.positional(0) else { throw RuntimeError(message: "missing color argument") }
-            return AnyView(view.foregroundStyle(try Coerce.color(value)))
-        }
-        register("foregroundStyle", foreground)
-        register("foregroundColor", foreground)
-
-        register("background") { view, args, _ in
-            guard let value = args.positional(0) else { throw RuntimeError(message: ".background needs a color") }
-            return AnyView(view.background(try Coerce.color(value)))
-        }
-
-        register("cornerRadius") { view, args, _ in
-            guard let value = args.positional(0) else { throw RuntimeError(message: ".cornerRadius needs a radius") }
-            return AnyView(view.clipShape(RoundedRectangle(cornerRadius: try Coerce.cgFloat(value))))
-        }
-
-        register("opacity") { view, args, _ in
-            guard let value = args.positional(0), let amount = value.doubleValue else {
-                throw RuntimeError(message: ".opacity needs a number")
-            }
-            return AnyView(view.opacity(amount))
-        }
-
         register("frame") { view, args, _ in
             let width = try args.labeled("width").map(Coerce.cgFloat)
             let height = try args.labeled("height").map(Coerce.cgFloat)
+            let minWidth = try args.labeled("minWidth").map(Coerce.cgFloat)
+            let minHeight = try args.labeled("minHeight").map(Coerce.cgFloat)
             let maxWidth = try args.labeled("maxWidth").map(Coerce.cgFloat)
             let maxHeight = try args.labeled("maxHeight").map(Coerce.cgFloat)
             let alignment = try args.labeled("alignment").map(Coerce.alignment) ?? .center
@@ -68,13 +38,292 @@ extension ViewRegistry {
             if width != nil || height != nil {
                 result = AnyView(result.frame(width: width, height: height, alignment: alignment))
             }
-            if maxWidth != nil || maxHeight != nil {
-                result = AnyView(result.frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: alignment))
+            if minWidth != nil || minHeight != nil || maxWidth != nil || maxHeight != nil {
+                result = AnyView(result.frame(
+                    minWidth: minWidth, maxWidth: maxWidth,
+                    minHeight: minHeight, maxHeight: maxHeight,
+                    alignment: alignment
+                ))
             }
-            if width == nil && height == nil && maxWidth == nil && maxHeight == nil {
-                throw RuntimeError(message: ".frame needs width/height/maxWidth/maxHeight")
+            if width == nil && height == nil && minWidth == nil && minHeight == nil && maxWidth == nil && maxHeight == nil {
+                throw RuntimeError(message: ".frame needs width/height/min/max arguments")
             }
             return result
+        }
+
+        register("fixedSize") { view, args, _ in
+            if let horizontal = args.labeled("horizontal")?.boolValue,
+               let vertical = args.labeled("vertical")?.boolValue {
+                return AnyView(view.fixedSize(horizontal: horizontal, vertical: vertical))
+            }
+            return AnyView(view.fixedSize())
+        }
+
+        register("layoutPriority") { view, args, _ in
+            AnyView(view.layoutPriority(try Coerce.double(args.positional(0) ?? .native(0.0))))
+        }
+        register("zIndex") { view, args, _ in
+            AnyView(view.zIndex(try Coerce.double(args.positional(0) ?? .native(0.0))))
+        }
+        register("offset") { view, args, _ in
+            let x = try args.labeled("x").map(Coerce.cgFloat) ?? 0
+            let y = try args.labeled("y").map(Coerce.cgFloat) ?? 0
+            return AnyView(view.offset(x: x, y: y))
+        }
+        register("ignoresSafeArea") { view, _, _ in AnyView(view.ignoresSafeArea()) }
+
+        // MARK: Text styling
+
+        register("font") { view, args, _ in
+            guard let value = args.positional(0) else { throw RuntimeError(message: ".font needs an argument") }
+            return AnyView(view.font(try Coerce.font(value)))
+        }
+        register("bold") { view, _, _ in AnyView(view.bold()) }
+        register("italic") { view, _, _ in AnyView(view.italic()) }
+        register("monospaced") { view, _, _ in AnyView(view.monospaced()) }
+        register("strikethrough") { view, _, _ in AnyView(view.strikethrough()) }
+        register("underline") { view, _, _ in AnyView(view.underline()) }
+        register("fontWeight") { view, args, _ in
+            guard let value = args.positional(0) else { throw RuntimeError(message: ".fontWeight needs an argument") }
+            return AnyView(view.fontWeight(try Coerce.fontWeight(value)))
+        }
+        register("lineLimit") { view, args, _ in
+            AnyView(view.lineLimit(args.positional(0)?.intValue))
+        }
+        register("multilineTextAlignment") { view, args, _ in
+            AnyView(view.multilineTextAlignment(try Coerce.textAlignment(args.positional(0) ?? .implicitMember("leading"))))
+        }
+        register("minimumScaleFactor") { view, args, _ in
+            AnyView(view.minimumScaleFactor(try Coerce.cgFloat(args.positional(0) ?? .native(1.0))))
+        }
+        register("imageScale") { view, args, _ in
+            AnyView(view.imageScale(try Coerce.imageScale(args.positional(0) ?? .implicitMember("medium"))))
+        }
+
+        // MARK: Color & effects
+
+        let foreground: @MainActor (AnyView, CallArguments, EvalContext) throws -> AnyView = { view, args, _ in
+            guard let value = args.positional(0) else { throw RuntimeError(message: "missing style argument") }
+            return AnyView(view.foregroundStyle(try Coerce.shapeStyle(value)))
+        }
+        register("foregroundStyle", foreground)
+        register("foregroundColor", foreground)
+
+        register("background") { [unowned self] view, args, ctx in
+            if let closure = args.unlabeledClosures.first {
+                let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
+                let content = views.count == 1 ? views[0] : AnyView(ZStack { Self.indexed(views) })
+                return AnyView(view.background(content))
+            }
+            guard let first = args.positional(0) else {
+                throw RuntimeError(message: ".background needs a style or view")
+            }
+            if let style = try? Coerce.shapeStyle(first) {
+                if let shapeArg = args.labeled("in") {
+                    return AnyView(view.background(style, in: try Coerce.shape(shapeArg)))
+                }
+                return AnyView(view.background(style))
+            }
+            return AnyView(view.background(try self.anyViewResolving(first, ctx)))
+        }
+
+        register("overlay") { [unowned self] view, args, ctx in
+            let alignment = try args.labeled("alignment").map(Coerce.alignment) ?? .center
+            if let closure = args.unlabeledClosures.first {
+                let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
+                let content = views.count == 1 ? views[0] : AnyView(ZStack { Self.indexed(views) })
+                return AnyView(view.overlay(alignment: alignment) { content })
+            }
+            guard let first = args.positional(0) else {
+                throw RuntimeError(message: ".overlay needs a view")
+            }
+            let content = try self.anyViewResolving(first, ctx)
+            return AnyView(view.overlay(alignment: alignment) { content })
+        }
+
+        register("shadow") { view, args, _ in
+            let radius = try Coerce.cgFloat(args.labeled("radius") ?? .native(4))
+            let color = try args.labeled("color").map(Coerce.color) ?? Color.black.opacity(0.33)
+            let x = try args.labeled("x").map(Coerce.cgFloat) ?? 0
+            let y = try args.labeled("y").map(Coerce.cgFloat) ?? 0
+            return AnyView(view.shadow(color: color, radius: radius, x: x, y: y))
+        }
+
+        register("cornerRadius") { view, args, _ in
+            guard let value = args.positional(0) else { throw RuntimeError(message: ".cornerRadius needs a radius") }
+            return AnyView(view.clipShape(RoundedRectangle(cornerRadius: try Coerce.cgFloat(value))))
+        }
+        register("clipShape") { view, args, _ in
+            guard let value = args.positional(0) else { throw RuntimeError(message: ".clipShape needs a shape") }
+            return AnyView(view.clipShape(try Coerce.shape(value)))
+        }
+        register("clipped") { view, _, _ in AnyView(view.clipped()) }
+
+        register("border") { view, args, _ in
+            guard let style = args.positional(0) else { throw RuntimeError(message: ".border needs a style") }
+            let width = try args.labeled("width").map(Coerce.cgFloat) ?? 1
+            return AnyView(view.border(try Coerce.shapeStyle(style), width: width))
+        }
+
+        register("opacity") { view, args, _ in
+            AnyView(view.opacity(try Coerce.double(args.positional(0) ?? .native(1.0))))
+        }
+        register("blur") { view, args, _ in
+            AnyView(view.blur(radius: try Coerce.cgFloat(args.labeled("radius") ?? args.positional(0) ?? .native(0))))
+        }
+        register("grayscale") { view, args, _ in
+            AnyView(view.grayscale(try Coerce.double(args.positional(0) ?? .native(0.0))))
+        }
+        register("brightness") { view, args, _ in
+            AnyView(view.brightness(try Coerce.double(args.positional(0) ?? .native(0.0))))
+        }
+        register("saturation") { view, args, _ in
+            AnyView(view.saturation(try Coerce.double(args.positional(0) ?? .native(1.0))))
+        }
+        register("tint") { view, args, _ in
+            AnyView(view.tint(try Coerce.color(args.positional(0) ?? .implicitMember("accentColor"))))
+        }
+
+        // MARK: Geometry & animation
+
+        register("scaleEffect") { view, args, _ in
+            AnyView(view.scaleEffect(try Coerce.cgFloat(args.positional(0) ?? .native(1.0))))
+        }
+        register("rotationEffect") { view, args, _ in
+            guard let value = args.positional(0) else { throw RuntimeError(message: ".rotationEffect needs an angle") }
+            return AnyView(view.rotationEffect(try Coerce.angle(value)))
+        }
+        register("aspectRatio") { view, args, _ in
+            let mode = try Coerce.contentMode(args.labeled("contentMode") ?? .implicitMember("fit"))
+            if let ratio = try args.positional(0).map(Coerce.cgFloat) {
+                return AnyView(view.aspectRatio(ratio, contentMode: mode))
+            }
+            return AnyView(view.aspectRatio(contentMode: mode))
+        }
+        register("scaledToFit") { view, _, _ in AnyView(view.scaledToFit()) }
+        register("scaledToFill") { view, _, _ in AnyView(view.scaledToFill()) }
+
+        register("animation") { view, args, _ in
+            let animation = try args.positional(0).map(Coerce.animation) ?? .default
+            // `value:` is stringified — it changes whenever the state it
+            // depends on changes, which is what retriggers the animation.
+            let value = args.labeled("value")?.stringified ?? ""
+            return AnyView(view.animation(animation, value: value))
+        }
+
+        register("transition") { view, _, _ in view } // accepted, ignored in v1
+
+        // MARK: Events
+
+        register("onAppear") { view, args, ctx in
+            guard let closure = args.unlabeledClosures.first else { return view }
+            return AnyView(view.onAppear { _ = try? ctx.callClosure(closure, arguments: []) })
+        }
+        register("onDisappear") { view, args, ctx in
+            guard let closure = args.unlabeledClosures.first else { return view }
+            return AnyView(view.onDisappear { _ = try? ctx.callClosure(closure, arguments: []) })
+        }
+        register("onTapGesture") { view, args, ctx in
+            guard let closure = args.unlabeledClosures.first else { return view }
+            return AnyView(view.onTapGesture { _ = try? ctx.callClosure(closure, arguments: []) })
+        }
+        register("task") { view, args, ctx in
+            guard let closure = args.unlabeledClosures.first else { return view }
+            return AnyView(view.task { _ = try? ctx.callClosure(closure, arguments: []) })
+        }
+
+        // MARK: Container configuration
+
+        register("navigationTitle") { view, args, _ in
+            AnyView(view.navigationTitle(args.positional(0)?.stringValue ?? ""))
+        }
+        register("tag") { view, args, _ in
+            let value = args.positional(0)
+            return AnyView(view.tag(value?.stringValue ?? value?.stringified ?? ""))
+        }
+        register("disabled") { view, args, _ in
+            AnyView(view.disabled(args.positional(0)?.boolValue ?? false))
+        }
+        register("labelsHidden") { view, _, _ in AnyView(view.labelsHidden()) }
+        register("id") { view, args, _ in
+            let value = args.positional(0)
+            return AnyView(view.id(value?.stringValue ?? value?.stringified ?? ""))
+        }
+
+        register("listStyle") { view, args, _ in
+            guard case .implicitMember(let name)? = args.positional(0) else { return view }
+            switch name {
+            case "plain": return AnyView(view.listStyle(.plain))
+            case "inset": return AnyView(view.listStyle(.inset))
+            case "sidebar": return AnyView(view.listStyle(.sidebar))
+            case "bordered": return AnyView(view.listStyle(.bordered))
+            default: return AnyView(view.listStyle(.automatic))
+            }
+        }
+        register("buttonStyle") { view, args, _ in
+            guard case .implicitMember(let name)? = args.positional(0) else { return view }
+            switch name {
+            case "bordered": return AnyView(view.buttonStyle(.bordered))
+            case "borderedProminent": return AnyView(view.buttonStyle(.borderedProminent))
+            case "plain": return AnyView(view.buttonStyle(.plain))
+            case "borderless": return AnyView(view.buttonStyle(.borderless))
+            case "link": return AnyView(view.buttonStyle(.link))
+            default: return AnyView(view.buttonStyle(.automatic))
+            }
+        }
+        register("pickerStyle") { view, args, _ in
+            guard case .implicitMember(let name)? = args.positional(0) else { return view }
+            switch name {
+            case "segmented": return AnyView(view.pickerStyle(.segmented))
+            case "menu": return AnyView(view.pickerStyle(.menu))
+            case "inline": return AnyView(view.pickerStyle(.inline))
+            case "radioGroup": return AnyView(view.pickerStyle(.radioGroup))
+            default: return AnyView(view.pickerStyle(.automatic))
+            }
+        }
+        register("textFieldStyle") { view, args, _ in
+            guard case .implicitMember(let name)? = args.positional(0) else { return view }
+            switch name {
+            case "roundedBorder": return AnyView(view.textFieldStyle(.roundedBorder))
+            case "plain": return AnyView(view.textFieldStyle(.plain))
+            case "squareBorder": return AnyView(view.textFieldStyle(.squareBorder))
+            default: return AnyView(view.textFieldStyle(.automatic))
+            }
+        }
+        register("controlSize") { view, args, _ in
+            guard case .implicitMember(let name)? = args.positional(0) else { return view }
+            switch name {
+            case "mini": return AnyView(view.controlSize(.mini))
+            case "small": return AnyView(view.controlSize(.small))
+            case "large": return AnyView(view.controlSize(.large))
+            case "extraLarge": return AnyView(view.controlSize(.extraLarge))
+            default: return AnyView(view.controlSize(.regular))
+            }
+        }
+    }
+
+    /// Shape- and image-typed modifiers that must see the raw box, not AnyView.
+    private func registerTypedModifiers() {
+        modifiers["fill"] = HostModifier(name: "fill") { value, args, _ in
+            guard case .native(let any) = value, let box = any as? ShapeBox else {
+                throw RuntimeError(message: ".fill applies to shapes like Circle()")
+            }
+            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
+            return .native(AnyView(box.shape.fill(style)))
+        }
+        modifiers["stroke"] = HostModifier(name: "stroke") { value, args, _ in
+            guard case .native(let any) = value, let box = any as? ShapeBox else {
+                throw RuntimeError(message: ".stroke applies to shapes like Circle()")
+            }
+            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
+            let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
+            return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
+        }
+        modifiers["resizable"] = HostModifier(name: "resizable") { value, _, _ in
+            guard case .native(let any) = value, let box = any as? ImageBox else {
+                throw RuntimeError(message: ".resizable applies to Image")
+            }
+            return .native(ImageBox(box.image.resizable()))
         }
     }
 
