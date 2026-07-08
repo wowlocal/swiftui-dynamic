@@ -14,6 +14,7 @@ public final class Interpreter {
     public var registry: HostRegistry?
     /// Struct symbols in declaration order (used to pick the root View).
     public internal(set) var structSymbols: [StructSymbol] = []
+    var enumSymbols: [String: EnumSymbol] = [:]
 
     var locationConverter: SourceLocationConverter?
     var steps = 0
@@ -22,6 +23,7 @@ public final class Interpreter {
 
     public init(registry: HostRegistry? = nil) {
         self.registry = registry
+        defineGlobalBuiltins()
     }
 
     // MARK: - Parsing
@@ -50,7 +52,7 @@ public final class Interpreter {
 
     // MARK: - Running programs
 
-    /// Parse and run a whole program: struct/func declarations are hoisted,
+    /// Parse and run a whole program: type/function declarations are hoisted,
     /// then top-level statements execute in order. Returns the value of the
     /// last top-level expression (handy for tests and for `ContentView()` as
     /// an explicit root).
@@ -63,7 +65,8 @@ public final class Interpreter {
         var last: RuntimeValue = .void
         for item in file.statements {
             if case .decl(let decl) = item.item,
-               decl.is(StructDeclSyntax.self) || decl.is(FunctionDeclSyntax.self) {
+               decl.is(StructDeclSyntax.self) || decl.is(FunctionDeclSyntax.self)
+                || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
                 continue // already collected
             }
             let result = try execute(item, in: globals)
@@ -81,46 +84,83 @@ public final class Interpreter {
 
     // MARK: - Instances
 
-    /// Default + memberwise initialization (custom `init`s aren't supported):
-    /// stored-property initializers run first, then labeled arguments override.
+    /// Custom `init`s run with `self` bound to a defaults-initialized instance;
+    /// otherwise default + memberwise initialization applies. `$binding`
+    /// arguments for `@Binding` properties share the parent's Box.
     public func instantiate(_ symbol: StructSymbol, with args: CallArguments, node: Syntax? = nil) throws -> RuntimeValue {
         let instance = Instance(symbol: symbol)
         for property in symbol.storedProperties {
             var value = RuntimeValue.void
             if let initializer = property.initializer {
-                value = try evaluate(initializer, in: globals)
+                value = resolveAnnotated(try evaluate(initializer, in: globals), annotation: property.typeAnnotation)
             }
             let box = Box(value)
-            if property.isState {
+            if property.wrapper == .state {
                 instance.stateBoxes[property.name] = box
             } else {
                 instance.properties[property.name] = box
             }
         }
-        for argument in args.arguments {
-            guard let label = argument.label, let box = instance.box(for: label) else {
-                let message = "argument '\(argument.label ?? "_")' doesn't match a stored property of '\(symbol.name)'"
-                if let node { throw error(node, message) }
-                throw RuntimeError(message: message)
+
+        if symbol.initializers.isEmpty {
+            for argument in args.arguments {
+                guard let label = argument.label,
+                      let property = symbol.storedProperty(named: label),
+                      let box = instance.box(for: label) else {
+                    let message = "argument '\(argument.label ?? "_")' doesn't match a stored property of '\(symbol.name)'"
+                    if let node { throw error(node, message) }
+                    throw RuntimeError(message: message)
+                }
+                if property.wrapper == .binding,
+                   case .native(let any) = argument.value, let stub = any as? BindingStub {
+                    instance.properties[label] = stub.box
+                } else {
+                    box.value = resolveAnnotated(argument.value, annotation: property.typeAnnotation)
+                }
             }
-            box.value = argument.value
+        } else {
+            let chosen = chooseInitializer(from: symbol.initializers, for: args)
+            guard let body = chosen.body else {
+                throw RuntimeError(message: "init of '\(symbol.name)' has no body")
+            }
+            let parameters = chosen.signature.parameterClause.parameters.map { param in
+                ClosureValue.Parameter(
+                    name: (param.secondName ?? param.firstName).text,
+                    defaultValue: param.defaultValue?.value,
+                    typeAnnotation: param.type
+                )
+            }
+            let closure = ClosureValue(
+                parameters: parameters,
+                body: body.statements,
+                captured: selfEnvironment(.instance(instance))
+            )
+            _ = try callWithArguments(closure, args: args, node: node)
         }
         return .instance(instance)
+    }
+
+    private func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
+        let argLabels = args.arguments.compactMap(\.label)
+        for candidate in initializers {
+            let params = candidate.signature.parameterClause.parameters
+            let labels = params.map { $0.firstName.text }
+            if args.arguments.count <= params.count, argLabels.allSatisfy({ labels.contains($0) }) {
+                return candidate
+            }
+        }
+        return initializers[0]
     }
 
     /// Evaluate an instance's `body` computed property in ViewBuilder mode.
     /// Multiple top-level views are grouped by the registry (TupleView stand-in).
     public func evaluateBody(of instance: Instance) throws -> RuntimeValue {
         steps = 0
-        guard let accessor = instance.symbol.computedProperties["body"] else {
+        guard let computed = instance.symbol.computedProperties["body"] else {
             throw RuntimeError(message: "'\(instance.symbol.name)' has no body property")
         }
-        let views = try collectBuilderViews(accessor, in: methodEnvironment(for: instance))
-        if views.count == 1 { return views[0] }
-        guard let registry else {
-            throw RuntimeError(message: "no host registry configured")
-        }
-        return try registry.makeGroup(views)
+        let views = try collectBuilderViews(computed.accessor, in: selfEnvironment(.instance(instance)))
+        return try groupViews(views)
     }
 
     /// The struct to render when the program doesn't end in an explicit view
@@ -133,10 +173,93 @@ public final class Interpreter {
             ?? candidates.first
     }
 
-    func methodEnvironment(for instance: Instance) -> Environment {
+    func selfEnvironment(_ selfValue: RuntimeValue) -> Environment {
         let env = Environment(parent: globals)
-        env.define("self", .instance(instance))
+        env.define("self", selfValue)
         return env
+    }
+
+    /// A type annotation turns a bare `.member` (or `.member(payload)`) into
+    /// an enum case when the annotated type is a known enum — the dynamic
+    /// stand-in for type context.
+    func resolveAnnotated(_ value: RuntimeValue, annotation: TypeSyntax?) -> RuntimeValue {
+        guard let annotation else { return value }
+        var typeName = annotation.trimmedDescription
+        if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+        guard let symbol = enumSymbols[typeName] else { return value }
+
+        if case .implicitMember(let name) = value,
+           let info = symbol.caseInfo(named: name), !info.hasAssociatedValues {
+            return .enumCase(EnumCaseValue(symbol: symbol, name: name))
+        }
+        if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+           let info = symbol.caseInfo(named: call.name), info.hasAssociatedValues {
+            return .enumCase(EnumCaseValue(
+                symbol: symbol,
+                name: call.name,
+                associated: call.arguments.arguments.map(\.value)
+            ))
+        }
+        return value
+    }
+
+    // MARK: - Global builtins
+
+    private func defineGlobalBuiltins() {
+        func define(_ name: String, _ invoke: @escaping @MainActor (CallArguments, EvalContext) throws -> RuntimeValue) {
+            globals.define(name, .hostFunction(HostFunction(name: name, invoke: invoke)))
+        }
+        define("print") { args, _ in
+            Swift.print(args.arguments.map { $0.value.stringValue ?? $0.value.stringified }.joined(separator: " "))
+            return .void
+        }
+        define("abs") { args, _ in
+            guard let value = args.positional(0) else { throw RuntimeError(message: "abs needs a number") }
+            if let i = value.intValue { return .native(Swift.abs(i)) }
+            if let d = value.doubleValue { return .native(Swift.abs(d)) }
+            throw RuntimeError(message: "abs needs a number")
+        }
+        define("min") { args, _ in
+            try Self.extremum(args, op: "<")
+        }
+        define("max") { args, _ in
+            try Self.extremum(args, op: ">")
+        }
+        define("String") { args, _ in
+            if let repeating = args.labeled("repeating")?.stringValue, let count = args.labeled("count")?.intValue {
+                return .native(Swift.String(repeating: repeating, count: Swift.max(0, count)))
+            }
+            guard let value = args.positional(0) ?? args.labeled("describing") else { return .native("") }
+            return .native(value.stringValue ?? value.stringified)
+        }
+        define("Int") { args, _ in
+            guard let value = args.positional(0) else { return .nilValue }
+            if let i = value.intValue { return .native(i) }
+            if let d = value.doubleValue { return .native(Int(d)) }
+            if let s = value.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            return .nilValue
+        }
+        define("Double") { args, _ in
+            guard let value = args.positional(0) else { return .nilValue }
+            if let d = value.doubleValue { return .native(d) }
+            if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            return .nilValue
+        }
+        define("Array") { args, _ in
+            guard let value = args.positional(0) else { return .native([RuntimeValue]()) }
+            if let range = value.rangeValue { return .native(range.map { RuntimeValue.native($0) }) }
+            if let array = value.arrayValue { return .native(array) }
+            return .native([value])
+        }
+    }
+
+    private static func extremum(_ args: CallArguments, op: String) throws -> RuntimeValue {
+        let values = args.arguments.map(\.value)
+        guard var best = values.first else { throw RuntimeError(message: "min/max need arguments") }
+        for value in values.dropFirst() {
+            if try Builtins.binary(op, value, best).boolValue == true { best = value }
+        }
+        return best
     }
 
     // MARK: - Errors & budget

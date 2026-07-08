@@ -4,7 +4,8 @@
 /// copy machinery. Documented divergence from Swift value semantics.
 public final class Instance: CustomStringConvertible {
     public let symbol: StructSymbol
-    /// Plain stored properties.
+    /// Plain stored properties. `@Binding` properties live here too, but their
+    /// Box is shared with the parent's state box rather than owned.
     public var properties: [String: Box] = [:]
     /// `@State`-marked properties, kept separate so the SwiftUI bridge can swap
     /// in persisted boxes across instance recreations.
@@ -16,6 +17,13 @@ public final class Instance: CustomStringConvertible {
 
     public func box(for name: String) -> Box? {
         stateBoxes[name] ?? properties[name]
+    }
+
+    /// The box behind `$name` — an @State box or a shared @Binding box.
+    public func projectedBox(for name: String) -> Box? {
+        if let state = stateBoxes[name] { return state }
+        if symbol.storedProperty(named: name)?.wrapper == .binding { return properties[name] }
+        return nil
     }
 
     public var description: String {

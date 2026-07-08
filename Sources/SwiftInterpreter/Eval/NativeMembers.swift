@@ -1,0 +1,272 @@
+import Foundation
+import SwiftSyntax
+
+/// Members on native values: arrays, strings, ranges, dictionaries, doubles.
+/// This is the hand-written slice of the standard library that real SwiftUI
+/// sample code leans on. Methods come back as bound `HostFunction`s so
+/// `names.map { … }` works like any other call; closure-taking methods call
+/// back through the `EvalContext`.
+extension Interpreter {
+    /// Returns nil when the name is unknown, so the caller can try other routes
+    /// (e.g. view modifiers) before erroring.
+    func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
+        if let array = any as? [RuntimeValue] {
+            return try arrayMember(name, array)
+        }
+        if let range = any as? Range<Int> {
+            switch name {
+            case "lowerBound": return .native(range.lowerBound)
+            case "upperBound": return .native(range.upperBound)
+            case "contains":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let v = args.positional(0)?.intValue else { return .native(false) }
+                    return .native(range.contains(v))
+                })
+            default:
+                // Everything else (count, map, …) behaves like the materialized array.
+                return try arrayMember(name, range.map { .native($0) })
+            }
+        }
+        if let string = any as? String {
+            return stringMember(name, string)
+        }
+        if let dict = any as? DictValue {
+            switch name {
+            case "count": return .native(dict.count)
+            case "isEmpty": return .native(dict.isEmpty)
+            case "keys": return .native(dict.keys)
+            case "values": return .native(dict.values)
+            default: return nil
+            }
+        }
+        if let double = any as? Double {
+            switch name {
+            case "rounded":
+                return .hostFunction(HostFunction(name: name) { _, _ in .native(double.rounded()) })
+            case "isZero": return .native(double.isZero)
+            default: return nil
+            }
+        }
+        return nil
+    }
+
+    private func arrayMember(_ name: String, _ array: [RuntimeValue]) throws -> RuntimeValue? {
+        switch name {
+        case "count": return .native(array.count)
+        case "isEmpty": return .native(array.isEmpty)
+        case "first": return array.first ?? .nilValue
+        case "last": return array.last ?? .nilValue
+        case "indices": return .native(0..<array.count)
+
+        case "map", "compactMap":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                let closure = try Self.requiredClosure(args, name)
+                var out: [RuntimeValue] = []
+                for element in array {
+                    let mapped = try ctx.callClosure(closure, arguments: [element])
+                    if name == "compactMap" && mapped.isNil { continue }
+                    out.append(mapped)
+                }
+                return .native(out)
+            })
+        case "filter":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                let closure = try Self.requiredClosure(args, name)
+                var out: [RuntimeValue] = []
+                for element in array where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
+                    out.append(element)
+                }
+                return .native(out)
+            })
+        case "forEach":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                let closure = try Self.requiredClosure(args, name)
+                for element in array {
+                    _ = try ctx.callClosure(closure, arguments: [element])
+                }
+                return .void
+            })
+        case "reduce":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                guard let initial = args.positional(0) else {
+                    throw RuntimeError(message: "reduce needs an initial value")
+                }
+                let closure = try Self.requiredClosure(args, name)
+                var accumulator = initial
+                for element in array {
+                    accumulator = try ctx.callClosure(closure, arguments: [accumulator, element])
+                }
+                return accumulator
+            })
+        case "sorted":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                if let closure = args.unlabeledClosures.first {
+                    var failure: Error?
+                    let out = array.sorted { a, b in
+                        if failure != nil { return false }
+                        do { return try ctx.callClosure(closure, arguments: [a, b]).boolValue == true }
+                        catch { failure = error; return false }
+                    }
+                    if let failure { throw failure }
+                    return .native(out)
+                }
+                var failure: Error?
+                let out = array.sorted { a, b in
+                    if failure != nil { return false }
+                    do { return try Builtins.binary("<", a, b).boolValue == true }
+                    catch { failure = error; return false }
+                }
+                if let failure { throw failure }
+                return .native(out)
+            })
+        case "contains":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                if let closure = args.closure(labeled: "where") ?? args.unlabeledClosures.first {
+                    for element in array where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
+                        return .native(true)
+                    }
+                    return .native(false)
+                }
+                guard let target = args.positional(0) else {
+                    throw RuntimeError(message: "contains needs a value or a closure")
+                }
+                for element in array where try Builtins.areEqual(element, target) {
+                    return .native(true)
+                }
+                return .native(false)
+            })
+        case "firstIndex":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                if let closure = args.closure(labeled: "where") ?? args.unlabeledClosures.first {
+                    for (index, element) in array.enumerated()
+                    where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
+                        return .native(index)
+                    }
+                    return .nilValue
+                }
+                guard let target = args.labeled("of") else {
+                    throw RuntimeError(message: "firstIndex needs of: or where:")
+                }
+                for (index, element) in array.enumerated() where try Builtins.areEqual(element, target) {
+                    return .native(index)
+                }
+                return .nilValue
+            })
+        case "joined":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let separator = args.labeled("separator")?.stringValue ?? ""
+                let strings = array.map { $0.stringValue ?? $0.stringified }
+                return .native(strings.joined(separator: separator))
+            })
+        case "reversed":
+            return .hostFunction(HostFunction(name: name) { _, _ in .native(Array(array.reversed())) })
+        case "shuffled":
+            return .hostFunction(HostFunction(name: name) { _, _ in .native(array.shuffled()) })
+        case "prefix":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(Array(array.prefix(args.positional(0)?.intValue ?? array.count)))
+            })
+        case "suffix":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(Array(array.suffix(args.positional(0)?.intValue ?? array.count)))
+            })
+        case "dropFirst":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(Array(array.dropFirst(args.positional(0)?.intValue ?? 1)))
+            })
+        case "dropLast":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(Array(array.dropLast(args.positional(0)?.intValue ?? 1)))
+            })
+        case "enumerated":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                let tuples = array.enumerated().map { index, element in
+                    RuntimeValue.native(TupleValue(labels: ["offset", "element"], values: [.native(index), element]))
+                }
+                return .native(tuples)
+            })
+        case "min", "max":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                guard !array.isEmpty else { return .nilValue }
+                var best = array[0]
+                for element in array.dropFirst() {
+                    let better = try Builtins.binary(name == "min" ? "<" : ">", element, best)
+                    if better.boolValue == true { best = element }
+                }
+                return best
+            })
+        case "randomElement":
+            return .hostFunction(HostFunction(name: name) { _, _ in array.randomElement() ?? .nilValue })
+        default:
+            return nil
+        }
+    }
+
+    private func stringMember(_ name: String, _ string: String) -> RuntimeValue? {
+        switch name {
+        case "count": return .native(string.count)
+        case "isEmpty": return .native(string.isEmpty)
+        case "first": return string.first.map { .native(String($0)) } ?? .nilValue
+        case "last": return string.last.map { .native(String($0)) } ?? .nilValue
+        case "uppercased":
+            return .hostFunction(HostFunction(name: name) { _, _ in .native(string.uppercased()) })
+        case "lowercased":
+            return .hostFunction(HostFunction(name: name) { _, _ in .native(string.lowercased()) })
+        case "capitalized": return .native(string.capitalized)
+        case "hasPrefix":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(string.hasPrefix(args.positional(0)?.stringValue ?? ""))
+            })
+        case "hasSuffix":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(string.hasSuffix(args.positional(0)?.stringValue ?? ""))
+            })
+        case "contains":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(string.contains(args.positional(0)?.stringValue ?? ""))
+            })
+        case "split":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let separator = args.labeled("separator")?.stringValue ?? " "
+                let parts = string.components(separatedBy: separator).filter { !$0.isEmpty }
+                return .native(parts.map { RuntimeValue.native($0) })
+            })
+        case "replacingOccurrences":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let of = args.labeled("of")?.stringValue, let with = args.labeled("with")?.stringValue else {
+                    throw RuntimeError(message: "replacingOccurrences needs of: and with:")
+                }
+                return .native(string.replacingOccurrences(of: of, with: with))
+            })
+        case "trimmingCharacters":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native(string.trimmingCharacters(in: .whitespacesAndNewlines))
+            })
+        case "dropFirst":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(String(string.dropFirst(args.positional(0)?.intValue ?? 1)))
+            })
+        case "dropLast":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(String(string.dropLast(args.positional(0)?.intValue ?? 1)))
+            })
+        case "prefix":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(String(string.prefix(args.positional(0)?.intValue ?? string.count)))
+            })
+        case "suffix":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(String(string.suffix(args.positional(0)?.intValue ?? string.count)))
+            })
+        default:
+            return nil
+        }
+    }
+
+    private static func requiredClosure(_ args: CallArguments, _ name: String) throws -> ClosureValue {
+        guard let closure = args.unlabeledClosures.first ?? args.closure(labeled: "by") else {
+            throw RuntimeError(message: "\(name) needs a closure argument")
+        }
+        return closure
+    }
+}

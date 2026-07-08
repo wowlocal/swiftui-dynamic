@@ -26,6 +26,17 @@ extension Interpreter {
         if let array = expr.as(ArrayExprSyntax.self) {
             return .native(try array.elements.map { try evaluate($0.expression, in: env) })
         }
+        if let dict = expr.as(DictionaryExprSyntax.self) {
+            let value = DictValue()
+            if case .elements(let elements) = dict.content {
+                for element in elements {
+                    try relocating(element) {
+                        try value.update(try evaluate(element.key, in: env), to: try evaluate(element.value, in: env))
+                    }
+                }
+            }
+            return .native(value)
+        }
         if let ref = expr.as(DeclReferenceExprSyntax.self) {
             return try resolveIdentifier(ref.baseName.text, in: env, node: ref)
         }
@@ -54,13 +65,26 @@ extension Interpreter {
             return try evaluate(condition ? ternary.thenExpression : ternary.elseExpression, in: env)
         }
         if let tuple = expr.as(TupleExprSyntax.self) {
-            guard tuple.elements.count == 1, let only = tuple.elements.first else {
-                throw error(tuple, "tuples aren't supported")
+            if tuple.elements.count == 1, let only = tuple.elements.first, only.label == nil {
+                return try evaluate(only.expression, in: env)
             }
-            return try evaluate(only.expression, in: env)
+            let labels = tuple.elements.map { $0.label?.text }
+            let values = try tuple.elements.map { try evaluate($0.expression, in: env) }
+            return .native(TupleValue(labels: labels, values: values))
         }
         if let subscriptCall = expr.as(SubscriptCallExprSyntax.self) {
             return try evaluateSubscript(subscriptCall, in: env)
+        }
+        if let forceUnwrap = expr.as(ForceUnwrapExprSyntax.self) {
+            let value = try evaluate(forceUnwrap.expression, in: env)
+            guard !value.isNil else {
+                throw error(forceUnwrap, "unexpectedly found nil while force-unwrapping")
+            }
+            return value
+        }
+        if let chaining = expr.as(OptionalChainingExprSyntax.self) {
+            // Member/call/subscript on nil propagates nil (see accessMember/invoke).
+            return try evaluate(chaining.expression, in: env)
         }
         if expr.is(KeyPathExprSyntax.self) {
             return .native(KeyPathStub())
@@ -68,6 +92,10 @@ extension Interpreter {
         if let ifExpr = expr.as(IfExprSyntax.self) {
             if case .normal(let value) = try executeIf(ifExpr, in: env) { return value }
             throw error(ifExpr, "control flow can't escape an if-expression")
+        }
+        if let switchExpr = expr.as(SwitchExprSyntax.self) {
+            if case .normal(let value) = try executeSwitch(switchExpr, in: env) { return value }
+            throw error(switchExpr, "control flow can't escape a switch-expression")
         }
         if expr.is(SequenceExprSyntax.self) {
             throw error(expr, "internal error: unfolded operator sequence")
@@ -79,20 +107,20 @@ extension Interpreter {
 
     func resolveIdentifier(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
         if let value = env.lookup(name) { return value }
-        // `$count` — projected value of an @State property. (`$0`-style closure
-        // shorthands were already bound in the environment above.)
+        // `$count` — projected value of an @State or @Binding property.
+        // (`$0`-style closure shorthands were already bound in the environment.)
         if name.hasPrefix("$"), name.count > 1, !name.dropFirst().allSatisfy(\.isNumber) {
             let propertyName = String(name.dropFirst())
-            guard let instance = currentSelf(in: env) else {
+            guard case .instance(let instance)? = env.lookup("self") else {
                 throw error(node, "'\(name)' can only be used inside a View body")
             }
-            guard let box = instance.stateBoxes[propertyName] else {
-                throw error(node, "'\(name)' requires an @State property named '\(propertyName)'")
+            guard let box = instance.projectedBox(for: propertyName) else {
+                throw error(node, "'\(name)' requires an @State or @Binding property named '\(propertyName)'")
             }
             return .native(BindingStub(box: box))
         }
-        if let instance = currentSelf(in: env),
-           let value = try instanceMember(name, on: instance) {
+        if let selfValue = env.lookup("self"),
+           let value = try selfMember(name, on: selfValue) {
             return value
         }
         if let ctor = registry?.constructor(named: name) {
@@ -101,9 +129,16 @@ extension Interpreter {
         throw error(node, "unresolved identifier '\(name)'")
     }
 
-    func currentSelf(in env: Environment) -> Instance? {
-        if case .instance(let instance)? = env.lookup("self") { return instance }
-        return nil
+    /// Implicit-self member resolution (works for struct instances and enum values).
+    private func selfMember(_ name: String, on selfValue: RuntimeValue) throws -> RuntimeValue? {
+        switch selfValue {
+        case .instance(let instance):
+            return try instanceMember(name, on: instance)
+        case .enumCase(let value):
+            return try enumCaseMember(name, on: value)
+        default:
+            return nil
+        }
     }
 
     /// Property → method → computed property, or nil if the name is unknown.
@@ -111,20 +146,53 @@ extension Interpreter {
         if let box = instance.box(for: name) { return box.value }
         if let method = instance.symbol.methods[name] {
             guard let body = method.body else { return nil }
-            return .closure(makeFunctionClosure(method, body: body, captured: methodEnvironment(for: instance)))
+            return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.instance(instance))))
         }
-        if let accessor = instance.symbol.computedProperties[name] {
-            let result = try executeBlock(accessor, in: methodEnvironment(for: instance))
-            switch result {
-            case .normal(let value), .returnValue(let value): return value
-            default: throw RuntimeError(message: "control flow escaped computed property '\(name)'")
-            }
+        if let computed = instance.symbol.computedProperties[name] {
+            return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
         }
         return nil
     }
 
+    private func enumCaseMember(_ name: String, on value: EnumCaseValue) throws -> RuntimeValue? {
+        if name == "rawValue" { return value.rawValue }
+        if let method = value.symbol.methods[name] {
+            guard let body = method.body else { return nil }
+            return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumCase(value))))
+        }
+        if let computed = value.symbol.computedProperties[name] {
+            return try evaluateComputed(computed, selfValue: .enumCase(value), name: name)
+        }
+        return nil
+    }
+
+    func evaluateComputed(_ computed: ComputedProperty, selfValue: RuntimeValue, name: String) throws -> RuntimeValue {
+        let env = selfEnvironment(selfValue)
+        if computed.isBuilder {
+            let views = try collectBuilderViews(computed.accessor, in: env)
+            return try groupViews(views)
+        }
+        let result = try executeBlock(computed.accessor, in: env)
+        switch result {
+        case .normal(let value), .returnValue(let value): return value
+        default: throw RuntimeError(message: "control flow escaped computed property '\(name)'")
+        }
+    }
+
+    func groupViews(_ views: [RuntimeValue]) throws -> RuntimeValue {
+        if views.count == 1 { return views[0] }
+        guard let registry else {
+            throw RuntimeError(message: "no host registry configured")
+        }
+        return try registry.makeGroup(views)
+    }
+
     func accessMember(_ name: String, on baseValue: RuntimeValue, node: some SyntaxProtocol, env: Environment) throws -> RuntimeValue {
         switch baseValue {
+        case .nilValue:
+            // Optional chaining: member access on nil is nil.
+            return .nilValue
+
         case .instance(let instance):
             if let value = try instanceMember(name, on: instance) { return value }
             // A modifier applied to an interpreted View: wrap it renderable first.
@@ -137,27 +205,47 @@ extension Interpreter {
             }
             throw error(node, "'\(instance.symbol.name)' has no member '\(name)'")
 
-        case .native(let any):
-            if let array = any as? [RuntimeValue] {
-                switch name {
-                case "count": return .native(array.count)
-                case "isEmpty": return .native(array.isEmpty)
-                case "first": return array.first ?? .nilValue
-                case "last": return array.last ?? .nilValue
-                case "indices": return .native(0..<array.count)
-                default: break
+        case .enumCase(let value):
+            if let member = try enumCaseMember(name, on: value) { return member }
+            throw error(node, "'\(value.symbol.name).\(value.name)' has no member '\(name)'")
+
+        case .enumType(let symbol):
+            if let caseInfo = symbol.caseInfo(named: name) {
+                if caseInfo.hasAssociatedValues {
+                    return .hostFunction(HostFunction(name: name) { args, _ in
+                        .enumCase(EnumCaseValue(symbol: symbol, name: name, associated: args.arguments.map(\.value)))
+                    })
                 }
+                return .enumCase(EnumCaseValue(symbol: symbol, name: name))
             }
-            if let string = any as? String {
-                switch name {
-                case "count": return .native(string.count)
-                case "isEmpty": return .native(string.isEmpty)
-                case "uppercased":
-                    return .hostFunction(HostFunction(name: "uppercased") { _, _ in .native(string.uppercased()) })
-                case "lowercased":
-                    return .hostFunction(HostFunction(name: "lowercased") { _, _ in .native(string.lowercased()) })
-                default: break
+            if name == "allCases" {
+                let all = symbol.cases.filter { !$0.hasAssociatedValues }.map {
+                    RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name))
                 }
+                return .native(all)
+            }
+            if let value = try staticMember(name, properties: symbol.staticProperties, methods: symbol.staticMethods, cache: &symbol.staticCache) {
+                return value
+            }
+            throw error(node, "'\(symbol.name)' has no case or static member '\(name)'")
+
+        case .type(let symbol):
+            if let value = try staticMember(name, properties: symbol.staticProperties, methods: symbol.staticMethods, cache: &symbol.staticCache) {
+                return value
+            }
+            throw error(node, "'\(symbol.name)' has no static member '\(name)'")
+
+        case .implicitMember(let baseName):
+            // `.blue.opacity(0.2)` / `.blue.gradient` — keep the chain opaque
+            // for gateways. Calling the result refines the arguments.
+            return .native(ChainedImplicitCall(baseName: baseName, member: name, arguments: CallArguments()))
+
+        case .native(let any):
+            if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
+                return value
+            }
+            if let value = try nativeMember(name, on: any) {
+                return value
             }
             if let registry, registry.isViewValue(baseValue), let modifier = registry.modifier(named: name) {
                 return .hostFunction(HostFunction(name: name) { args, ctx in
@@ -166,12 +254,27 @@ extension Interpreter {
             }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")
 
-        case .type(let symbol):
-            throw error(node, "static members of '\(symbol.name)' aren't supported")
-
         default:
             throw error(node, "cannot access member '\(name)' on \(baseValue.stringified)")
         }
+    }
+
+    private func staticMember(
+        _ name: String,
+        properties: [String: ExprSyntax],
+        methods: [String: FunctionDeclSyntax],
+        cache: inout [String: RuntimeValue]
+    ) throws -> RuntimeValue? {
+        if let cached = cache[name] { return cached }
+        if let initializer = properties[name] {
+            let value = try evaluate(initializer, in: globals)
+            cache[name] = value
+            return value
+        }
+        if let method = methods[name], let body = method.body {
+            return .closure(makeFunctionClosure(method, body: body, captured: globals))
+        }
+        return nil
     }
 
     // MARK: - Calls
@@ -182,9 +285,99 @@ extension Interpreter {
             let args = try collectArguments(of: call, in: env)
             return .native(ImplicitMemberCall(name: member.declName.baseName.text, arguments: args))
         }
+        // Methods that mutate collections in place, and property/method pairs
+        // like `first` / `first(where:)`, need the base handled specially.
+        if let member = call.calledExpression.as(MemberAccessExprSyntax.self), let base = member.base {
+            if let result = try specialMemberCall(member.declName.baseName.text, base: base, call: call, in: env) {
+                return result
+            }
+        }
         let callee = try evaluate(call.calledExpression, in: env)
         let args = try collectArguments(of: call, in: env)
         return try invoke(callee, with: args, node: call)
+    }
+
+    /// Mutating collection methods (`items.append(x)`) resolve the base as an
+    /// lvalue; `first(where:)`/`last(where:)` collide with the same-named
+    /// properties. Returns nil to fall through to normal dispatch.
+    private func specialMemberCall(
+        _ name: String,
+        base: ExprSyntax,
+        call: FunctionCallExprSyntax,
+        in env: Environment
+    ) throws -> RuntimeValue? {
+        let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
+        if mutating.contains(name),
+           let target = try? resolveLValue(base, in: env),
+           var array = try target.read().arrayValue {
+            let args = try collectArguments(of: call, in: env)
+            switch name {
+            case "append":
+                guard let value = args.positional(0) else { throw error(call, "append needs a value") }
+                array.append(value)
+            case "insert":
+                guard let value = args.positional(0), let index = args.labeled("at")?.intValue,
+                      index >= 0, index <= array.count else {
+                    throw error(call, "insert needs a value and a valid at: index")
+                }
+                array.insert(value, at: index)
+            case "remove":
+                guard let index = args.labeled("at")?.intValue, array.indices.contains(index) else {
+                    throw error(call, "remove(at:) index out of range")
+                }
+                let removed = array.remove(at: index)
+                try relocating(call) { try target.write(.native(array)) }
+                return removed
+            case "removeAll":
+                if let closure = args.closure(labeled: "where") {
+                    var kept: [RuntimeValue] = []
+                    for element in array where try callClosure(closure, arguments: [element]).boolValue != true {
+                        kept.append(element)
+                    }
+                    array = kept
+                } else {
+                    array = []
+                }
+            case "removeFirst":
+                guard !array.isEmpty else { throw error(call, "removeFirst on an empty array") }
+                let removed = array.removeFirst()
+                try relocating(call) { try target.write(.native(array)) }
+                return removed
+            case "removeLast":
+                guard !array.isEmpty else { throw error(call, "removeLast on an empty array") }
+                let removed = array.removeLast()
+                try relocating(call) { try target.write(.native(array)) }
+                return removed
+            case "sort":
+                var failure: Error?
+                array.sort { a, b in
+                    if failure != nil { return false }
+                    do { return try Builtins.binary("<", a, b).boolValue == true }
+                    catch { failure = error; return false }
+                }
+                if let failure { throw failure }
+            default:
+                return nil
+            }
+            try relocating(call) { try target.write(.native(array)) }
+            return .void
+        }
+
+        if name == "first" || name == "last" {
+            let baseValue = try evaluate(base, in: env)
+            let array = baseValue.arrayValue ?? baseValue.rangeValue.map { range in range.map { RuntimeValue.native($0) } }
+            if let array {
+                let args = try collectArguments(of: call, in: env)
+                if let closure = args.closure(labeled: "where") ?? args.unlabeledClosures.first {
+                    let ordered = name == "last" ? Array(array.reversed()) : array
+                    for element in ordered where try callClosure(closure, arguments: [element]).boolValue == true {
+                        return element
+                    }
+                    return .nilValue
+                }
+            }
+        }
+        return nil
     }
 
     func collectArguments(of call: FunctionCallExprSyntax, in env: Environment) throws -> CallArguments {
@@ -203,6 +396,8 @@ extension Interpreter {
 
     func invoke(_ callee: RuntimeValue, with args: CallArguments, node: some SyntaxProtocol) throws -> RuntimeValue {
         switch callee {
+        case .nilValue:
+            return .nilValue // optional chaining through a nil method
         case .type(let symbol):
             return try instantiate(symbol, with: args, node: Syntax(node))
         case .closure(let closure):
@@ -216,6 +411,9 @@ extension Interpreter {
             }
         case .implicitMember(let name):
             return .native(ImplicitMemberCall(name: name, arguments: args))
+        case .native(let any) where any is ChainedImplicitCall:
+            let chained = any as! ChainedImplicitCall
+            return .native(ChainedImplicitCall(baseName: chained.baseName, member: chained.member, arguments: args))
         default:
             throw error(node, "\(callee.stringified) is not callable")
         }
@@ -237,10 +435,13 @@ extension Interpreter {
     func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {
         let env = Environment(parent: closure.captured)
         try bindParameters(of: closure, to: args, into: env, node: node)
+        if closure.isBuilder {
+            return try groupViews(try collectBuilderViews(closure.body, in: env))
+        }
         let result = try executeBlock(closure.body, in: env)
         switch result {
         case .normal(let value), .returnValue(let value):
-            return value
+            return resolveAnnotated(value, annotation: closure.returnType)
         case .breakLoop, .continueLoop:
             throw RuntimeError(message: "break/continue escaped a function body")
         }
@@ -257,7 +458,7 @@ extension Interpreter {
         }
         for (index, parameter) in closure.parameters.enumerated() {
             if index < args.arguments.count {
-                env.define(parameter.name, args.arguments[index].value)
+                env.define(parameter.name, resolveAnnotated(args.arguments[index].value, annotation: parameter.typeAnnotation))
             } else if let defaultValue = parameter.defaultValue {
                 env.define(parameter.name, try evaluate(defaultValue, in: closure.captured))
             } else if let node {
@@ -293,6 +494,9 @@ extension Interpreter {
                 return .native(true)
             }
             return .native(try expectBool(evaluate(infix.rightOperand, in: env), node: infix.rightOperand))
+        case "??":
+            let lhs = try evaluate(infix.leftOperand, in: env)
+            return lhs.isNil ? try evaluate(infix.rightOperand, in: env) : lhs
         case "+=", "-=", "*=", "/=", "%=":
             let target = try resolveLValue(infix.leftOperand, in: env)
             let rhs = try evaluate(infix.rightOperand, in: env)
@@ -310,17 +514,26 @@ extension Interpreter {
 
     enum LValue {
         case box(Box)
+        case instanceProperty(Instance, String)
         case element(Box, Int)
+        case dictElement(DictValue, RuntimeValue)
 
         func read() throws -> RuntimeValue {
             switch self {
             case .box(let box):
+                return box.value
+            case .instanceProperty(let instance, let name):
+                guard let box = instance.box(for: name) else {
+                    throw EvalMessage(text: "'\(instance.symbol.name)' has no stored property '\(name)'")
+                }
                 return box.value
             case .element(let box, let index):
                 guard let array = box.value.arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
                 return array[index]
+            case .dictElement(let dict, let key):
+                return try dict.lookup(key)
             }
         }
 
@@ -328,12 +541,26 @@ extension Interpreter {
             switch self {
             case .box(let box):
                 box.value = value
+            case .instanceProperty(let instance, let name):
+                // Assigning a $binding into an @Binding property shares the
+                // parent's box instead of copying the stub (custom inits).
+                if case .native(let any) = value, let stub = any as? BindingStub,
+                   instance.symbol.storedProperty(named: name)?.wrapper == .binding {
+                    instance.properties[name] = stub.box
+                    return
+                }
+                guard let box = instance.box(for: name) else {
+                    throw EvalMessage(text: "'\(instance.symbol.name)' has no stored property '\(name)'")
+                }
+                box.value = value
             case .element(let box, let index):
                 guard var array = box.value.arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
                 array[index] = value
                 box.value = .native(array)
+            case .dictElement(let dict, let key):
+                try dict.update(key, to: value)
             }
         }
     }
@@ -342,7 +569,9 @@ extension Interpreter {
         if let ref = expr.as(DeclReferenceExprSyntax.self) {
             let name = ref.baseName.text
             if let box = env.box(for: name) { return .box(box) }
-            if let instance = currentSelf(in: env), let box = instance.box(for: name) { return .box(box) }
+            if case .instance(let instance)? = env.lookup("self"), instance.box(for: name) != nil {
+                return .instanceProperty(instance, name)
+            }
             throw error(ref, "cannot assign to '\(name)'")
         }
         if let member = expr.as(MemberAccessExprSyntax.self), let base = member.base {
@@ -350,19 +579,21 @@ extension Interpreter {
             guard case .instance(let instance) = baseValue else {
                 throw error(member, "cannot assign to a member of \(baseValue.stringified)")
             }
-            let name = member.declName.baseName.text
-            guard let box = instance.box(for: name) else {
-                throw error(member, "'\(instance.symbol.name)' has no stored property '\(name)'")
-            }
-            return .box(box)
+            return .instanceProperty(instance, member.declName.baseName.text)
         }
         if let subscriptCall = expr.as(SubscriptCallExprSyntax.self) {
+            guard let indexExpr = subscriptCall.arguments.first?.expression else {
+                throw error(subscriptCall, "missing subscript index")
+            }
+            let baseValue = try? evaluate(subscriptCall.calledExpression, in: env)
+            if let dict = baseValue?.dictValue {
+                return .dictElement(dict, try evaluate(indexExpr, in: env))
+            }
             let base = try resolveLValue(subscriptCall.calledExpression, in: env)
             guard case .box(let box) = base else {
                 throw error(subscriptCall, "nested subscript assignment isn't supported")
             }
-            guard let indexExpr = subscriptCall.arguments.first?.expression,
-                  let index = try evaluate(indexExpr, in: env).intValue else {
+            guard let index = try evaluate(indexExpr, in: env).intValue else {
                 throw error(subscriptCall, "subscript assignment requires an Int index")
             }
             return .element(box, index)
@@ -429,6 +660,7 @@ extension Interpreter {
 
     private func evaluateSubscript(_ call: SubscriptCallExprSyntax, in env: Environment) throws -> RuntimeValue {
         let base = try evaluate(call.calledExpression, in: env)
+        if base.isNil { return .nilValue }
         guard let indexExpr = call.arguments.first?.expression else {
             throw error(call, "missing subscript index")
         }
@@ -439,7 +671,15 @@ extension Interpreter {
             }
             return array[i]
         }
-        throw error(call, "subscripting is only supported on arrays")
+        if let dict = base.dictValue {
+            return try relocating(call) { try dict.lookup(index) }
+        }
+        if let range = base.rangeValue, let i = index.intValue {
+            let materialized = Array(range)
+            guard materialized.indices.contains(i) else { throw error(call, "range index out of range") }
+            return .native(materialized[i])
+        }
+        throw error(call, "subscripting is only supported on arrays and dictionaries")
     }
 
     func expectBool(_ value: RuntimeValue, node: some SyntaxProtocol) throws -> Bool {
@@ -450,6 +690,7 @@ extension Interpreter {
     }
 
     /// Run a Builtins call, upgrading its unlocated `EvalMessage` to a located error.
+    @discardableResult
     func relocating<T>(_ node: some SyntaxProtocol, _ body: () throws -> T) throws -> T {
         do {
             return try body()

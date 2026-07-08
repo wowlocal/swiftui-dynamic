@@ -35,6 +35,9 @@ extension Interpreter {
             if let ifExpr = expr.as(IfExprSyntax.self) {
                 return try executeIf(ifExpr, in: env)
             }
+            if let switchExpr = expr.as(SwitchExprSyntax.self) {
+                return try executeSwitch(switchExpr, in: env)
+            }
             return .normal(try evaluate(expr, in: env))
         }
     }
@@ -46,12 +49,13 @@ extension Interpreter {
                     throw error(binding, "unsupported binding pattern")
                 }
                 guard binding.accessorBlock == nil else {
-                    throw error(binding, "computed properties are only supported inside structs")
+                    throw error(binding, "computed properties are only supported inside types")
                 }
                 guard let initializer = binding.initializer?.value else {
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
                 }
-                env.define(ident.identifier.text, try evaluate(initializer, in: env))
+                let value = try evaluate(initializer, in: env)
+                env.define(ident.identifier.text, resolveAnnotated(value, annotation: binding.typeAnnotation?.type))
             }
             return
         }
@@ -59,8 +63,8 @@ extension Interpreter {
             try defineFunction(funcDecl, in: env)
             return
         }
-        if decl.is(StructDeclSyntax.self) {
-            throw error(decl, "structs must be declared at the top level")
+        if decl.is(StructDeclSyntax.self) || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
+            throw error(decl, "types must be declared at the top level")
         }
         throw error(decl, "unsupported declaration (\(decl.kind))")
     }
@@ -70,11 +74,17 @@ extension Interpreter {
             if let ifExpr = exprStmt.expression.as(IfExprSyntax.self) {
                 return try executeIf(ifExpr, in: env)
             }
+            if let switchExpr = exprStmt.expression.as(SwitchExprSyntax.self) {
+                return try executeSwitch(switchExpr, in: env)
+            }
             return .normal(try evaluate(exprStmt.expression, in: env))
         }
         if let returnStmt = stmt.as(ReturnStmtSyntax.self) {
             let value = try returnStmt.expression.map { try evaluate($0, in: env) } ?? .void
             return .returnValue(value)
+        }
+        if let guardStmt = stmt.as(GuardStmtSyntax.self) {
+            return try executeGuard(guardStmt, in: env)
         }
         if let forStmt = stmt.as(ForStmtSyntax.self) {
             return try executeFor(forStmt, in: env)
@@ -84,15 +94,43 @@ extension Interpreter {
         }
         if stmt.is(BreakStmtSyntax.self) { return .breakLoop }
         if stmt.is(ContinueStmtSyntax.self) { return .continueLoop }
-        if stmt.is(GuardStmtSyntax.self) {
-            throw error(stmt, "'guard' isn't supported yet")
-        }
         throw error(stmt, "unsupported statement (\(stmt.kind))")
     }
 
+    // MARK: - Conditions (boolean + optional binding)
+
+    /// Evaluates a condition list. `if let`/`guard let` bindings are defined
+    /// into `bindings` (the success-branch scope) as they succeed.
+    func conditionsHold(_ conditions: ConditionElementListSyntax, in env: Environment, bindingInto bindings: Environment) throws -> Bool {
+        for element in conditions {
+            switch element.condition {
+            case .expression(let condition):
+                guard try expectBool(evaluate(condition, in: bindings), node: condition) else { return false }
+            case .optionalBinding(let optionalBinding):
+                guard let ident = optionalBinding.pattern.as(IdentifierPatternSyntax.self) else {
+                    throw error(optionalBinding, "unsupported optional-binding pattern")
+                }
+                let name = ident.identifier.text
+                let value: RuntimeValue
+                if let initializer = optionalBinding.initializer?.value {
+                    value = try evaluate(initializer, in: bindings)
+                } else {
+                    // `if let x` shorthand
+                    value = try resolveIdentifier(name, in: bindings, node: optionalBinding)
+                }
+                guard !value.isNil else { return false }
+                bindings.define(name, value)
+            default:
+                throw error(element, "unsupported condition (case patterns aren't supported)")
+            }
+        }
+        return true
+    }
+
     func executeIf(_ ifExpr: IfExprSyntax, in env: Environment) throws -> StatementResult {
-        if try conditionsHold(ifExpr.conditions, in: env) {
-            return try executeBlock(ifExpr.body.statements, in: Environment(parent: env))
+        let child = Environment(parent: env)
+        if try conditionsHold(ifExpr.conditions, in: env, bindingInto: child) {
+            return try executeBlock(ifExpr.body.statements, in: child)
         }
         switch ifExpr.elseBody {
         case .none:
@@ -104,14 +142,16 @@ extension Interpreter {
         }
     }
 
-    func conditionsHold(_ conditions: ConditionElementListSyntax, in env: Environment) throws -> Bool {
-        for element in conditions {
-            guard case .expression(let condition) = element.condition else {
-                throw error(element, "only boolean conditions are supported (no optional binding)")
-            }
-            guard try expectBool(evaluate(condition, in: env), node: condition) else { return false }
+    private func executeGuard(_ guardStmt: GuardStmtSyntax, in env: Environment) throws -> StatementResult {
+        // Guard bindings live in the ENCLOSING scope on success.
+        if try conditionsHold(guardStmt.conditions, in: env, bindingInto: env) {
+            return .normal(.void)
         }
-        return true
+        let result = try executeBlock(guardStmt.body.statements, in: Environment(parent: env))
+        if case .normal = result {
+            throw error(guardStmt, "guard else must exit (return, break, or continue)")
+        }
+        return result
     }
 
     private func executeFor(_ forStmt: ForStmtSyntax, in env: Environment) throws -> StatementResult {
@@ -122,7 +162,7 @@ extension Interpreter {
         let sequence = try evaluate(forStmt.sequence, in: env)
 
         let elements: [RuntimeValue]
-        if case .native(let any) = sequence, let range = any as? Range<Int> {
+        if let range = sequence.rangeValue {
             elements = range.map { .native($0) }
         } else if let array = sequence.arrayValue {
             elements = array
@@ -136,8 +176,7 @@ extension Interpreter {
             child.define(name, element)
             let result = try executeBlock(forStmt.body.statements, in: child)
             switch result {
-            case .normal: continue
-            case .continueLoop: continue
+            case .normal, .continueLoop: continue
             case .breakLoop: break loop
             case .returnValue: return result
             }
@@ -146,9 +185,11 @@ extension Interpreter {
     }
 
     private func executeWhile(_ whileStmt: WhileStmtSyntax, in env: Environment) throws -> StatementResult {
-        while try conditionsHold(whileStmt.conditions, in: env) {
+        while true {
             try tick(whileStmt)
-            let result = try executeBlock(whileStmt.body.statements, in: Environment(parent: env))
+            let child = Environment(parent: env)
+            guard try conditionsHold(whileStmt.conditions, in: env, bindingInto: child) else { break }
+            let result = try executeBlock(whileStmt.body.statements, in: child)
             switch result {
             case .normal, .continueLoop: continue
             case .breakLoop: return .normal(.void)
@@ -161,9 +202,9 @@ extension Interpreter {
     // MARK: - ViewBuilder mode
 
     /// Evaluate a block as ViewBuilder content: each item's view value is
-    /// collected instead of discarded; `if` contributes its branch's views;
-    /// `let` bindings are allowed. Interpreted View instances are wrapped
-    /// renderable on the way in.
+    /// collected instead of discarded; `if`/`switch` contribute the taken
+    /// branch's views; `let` bindings are allowed. Interpreted View instances
+    /// are wrapped renderable on the way in.
     func collectBuilderViews(_ items: CodeBlockItemListSyntax, in env: Environment) throws -> [RuntimeValue] {
         var views: [RuntimeValue] = []
         for item in items {
@@ -172,15 +213,29 @@ extension Interpreter {
             case .decl(let decl):
                 try executeDecl(decl, in: env)
             case .stmt(let stmt):
-                if let exprStmt = stmt.as(ExpressionStmtSyntax.self),
-                   let ifExpr = exprStmt.expression.as(IfExprSyntax.self) {
-                    views += try collectBuilderIf(ifExpr, in: env)
-                } else {
-                    throw error(stmt, "unsupported statement in a view builder (\(stmt.kind))")
+                if let exprStmt = stmt.as(ExpressionStmtSyntax.self) {
+                    if let ifExpr = exprStmt.expression.as(IfExprSyntax.self) {
+                        views += try collectBuilderIf(ifExpr, in: env)
+                        continue
+                    }
+                    if let switchExpr = exprStmt.expression.as(SwitchExprSyntax.self) {
+                        views += try collectBuilderSwitch(switchExpr, in: env)
+                        continue
+                    }
                 }
+                if let returnStmt = stmt.as(ReturnStmtSyntax.self) {
+                    // Explicit `return someView` inside a builder-ish body.
+                    if let expr = returnStmt.expression {
+                        appendViewValue(try evaluate(expr, in: env), to: &views)
+                    }
+                    continue
+                }
+                throw error(stmt, "unsupported statement in a view builder (\(stmt.kind))")
             case .expr(let expr):
                 if let ifExpr = expr.as(IfExprSyntax.self) {
                     views += try collectBuilderIf(ifExpr, in: env)
+                } else if let switchExpr = expr.as(SwitchExprSyntax.self) {
+                    views += try collectBuilderSwitch(switchExpr, in: env)
                 } else {
                     appendViewValue(try evaluate(expr, in: env), to: &views)
                 }
@@ -190,8 +245,9 @@ extension Interpreter {
     }
 
     private func collectBuilderIf(_ ifExpr: IfExprSyntax, in env: Environment) throws -> [RuntimeValue] {
-        if try conditionsHold(ifExpr.conditions, in: env) {
-            return try collectBuilderViews(ifExpr.body.statements, in: Environment(parent: env))
+        let child = Environment(parent: env)
+        if try conditionsHold(ifExpr.conditions, in: env, bindingInto: child) {
+            return try collectBuilderViews(ifExpr.body.statements, in: child)
         }
         switch ifExpr.elseBody {
         case .none:
@@ -203,7 +259,7 @@ extension Interpreter {
         }
     }
 
-    private func appendViewValue(_ value: RuntimeValue, to views: inout [RuntimeValue]) {
+    func appendViewValue(_ value: RuntimeValue, to views: inout [RuntimeValue]) {
         switch value {
         case .void:
             break

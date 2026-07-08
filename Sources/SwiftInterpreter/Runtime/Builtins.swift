@@ -1,7 +1,7 @@
 /// Binary and prefix operator implementations over `RuntimeValue`, with
-/// Int/Double promotion. `&&`/`||` are short-circuited in the evaluator and
-/// never reach this table. Errors are unlocated `EvalMessage`s; the evaluator
-/// re-throws them with the operator node's source location.
+/// Int/Double promotion. `&&`/`||`/`??` are short-circuited in the evaluator
+/// and never reach this table. Errors are unlocated `EvalMessage`s; the
+/// evaluator re-throws them with the operator node's source location.
 enum Builtins {
     static func binary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue {
         switch op {
@@ -85,14 +85,39 @@ enum Builtins {
         throw EvalMessage(text: "'\(op)' cannot combine \(lhs.stringified) and \(rhs.stringified)")
     }
 
-    private static func areEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
-        if case .nilValue = lhs { if case .nilValue = rhs { return true }; return false }
-        if case .nilValue = rhs { return false }
+    static func areEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
+        if lhs.isNil || rhs.isNil { return lhs.isNil && rhs.isNil }
         if let l = lhs.intValue, let r = rhs.intValue { return l == r }
         if let l = lhs.doubleValue, let r = rhs.doubleValue { return l == r }
         if let l = lhs.stringValue, let r = rhs.stringValue { return l == r }
         if let l = lhs.boolValue, let r = rhs.boolValue { return l == r }
-        throw EvalMessage(text: "cannot compare \(lhs.stringified) and \(rhs.stringified)")
+        if let l = lhs.arrayValue, let r = rhs.arrayValue {
+            guard l.count == r.count else { return false }
+            for (a, b) in zip(l, r) where try !areEqual(a, b) { return false }
+            return true
+        }
+        if let l = lhs.tupleValue, let r = rhs.tupleValue {
+            guard l.values.count == r.values.count else { return false }
+            for (a, b) in zip(l.values, r.values) where try !areEqual(a, b) { return false }
+            return true
+        }
+        if let l = lhs.rangeValue, let r = rhs.rangeValue { return l == r }
+        // Enum cases compare by name (+ associated values); a bare implicit
+        // member matches an enum case of the same name — the dynamic stand-in
+        // for `status == .active`.
+        switch (lhs, rhs) {
+        case (.enumCase(let l), .enumCase(let r)):
+            guard l.symbol === r.symbol || l.symbol.name == r.symbol.name, l.name == r.name,
+                  l.associated.count == r.associated.count else { return false }
+            for (a, b) in zip(l.associated, r.associated) where try !areEqual(a, b) { return false }
+            return true
+        case (.enumCase(let c), .implicitMember(let m)), (.implicitMember(let m), .enumCase(let c)):
+            return c.name == m && c.associated.isEmpty
+        case (.implicitMember(let l), .implicitMember(let r)):
+            return l == r
+        default:
+            throw EvalMessage(text: "cannot compare \(lhs.stringified) and \(rhs.stringified)")
+        }
     }
 
     private static func compare(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {

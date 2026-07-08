@@ -1,0 +1,52 @@
+import SwiftSyntax
+
+/// A user-defined enum: cases (with resolved raw values and associated-value
+/// arity), methods, computed properties, and statics.
+public final class EnumSymbol {
+    public struct Case {
+        public let name: String
+        public let associatedLabels: [String?]
+        /// Raw value resolved at collection time (literal or index/name default).
+        public let rawValue: RuntimeValue
+
+        public var hasAssociatedValues: Bool { !associatedLabels.isEmpty }
+    }
+
+    public let name: String
+    public internal(set) var cases: [Case] = []
+    public internal(set) var methods: [String: FunctionDeclSyntax] = [:]
+    public internal(set) var computedProperties: [String: ComputedProperty] = [:]
+    public internal(set) var staticProperties: [String: ExprSyntax] = [:]
+    public internal(set) var staticMethods: [String: FunctionDeclSyntax] = [:]
+    var staticCache: [String: RuntimeValue] = [:]
+
+    public init(name: String) {
+        self.name = name
+    }
+
+    public func caseInfo(named name: String) -> Case? {
+        cases.first { $0.name == name }
+    }
+}
+
+/// A value of an interpreted enum: the case name plus any associated values.
+public final class EnumCaseValue: CustomStringConvertible {
+    public let symbol: EnumSymbol
+    public let name: String
+    public let associated: [RuntimeValue]
+
+    public init(symbol: EnumSymbol, name: String, associated: [RuntimeValue] = []) {
+        self.symbol = symbol
+        self.name = name
+        self.associated = associated
+    }
+
+    public var rawValue: RuntimeValue {
+        symbol.caseInfo(named: name)?.rawValue ?? .nilValue
+    }
+
+    public var description: String {
+        if associated.isEmpty { return "\(symbol.name).\(name)" }
+        return "\(symbol.name).\(name)(" + associated.map(\.stringified).joined(separator: ", ") + ")"
+    }
+}

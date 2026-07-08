@@ -11,6 +11,8 @@ public enum RuntimeValue {
     case closure(ClosureValue)
     case hostFunction(HostFunction)
     case type(StructSymbol)
+    case enumType(EnumSymbol)
+    case enumCase(EnumCaseValue)
     case implicitMember(String)
 }
 
@@ -43,9 +45,29 @@ extension RuntimeValue {
         return nil
     }
 
+    public var rangeValue: Range<Int>? {
+        if case .native(let any) = self { return any as? Range<Int> }
+        return nil
+    }
+
+    public var dictValue: DictValue? {
+        if case .native(let any) = self { return any as? DictValue }
+        return nil
+    }
+
+    public var tupleValue: TupleValue? {
+        if case .native(let any) = self { return any as? TupleValue }
+        return nil
+    }
+
     public var closureValue: ClosureValue? {
         if case .closure(let c) = self { return c }
         return nil
+    }
+
+    public var isNil: Bool {
+        if case .nilValue = self { return true }
+        return false
     }
 
     /// String conversion matching Swift string-interpolation output closely
@@ -58,11 +80,15 @@ extension RuntimeValue {
             if let arr = any as? [RuntimeValue] {
                 return "[" + arr.map(\.stringified).joined(separator: ", ") + "]"
             }
+            if let dict = any as? DictValue { return dict.description }
+            if let tuple = any as? TupleValue { return tuple.description }
             return String(describing: any)
         case .instance(let instance): return instance.description
         case .closure: return "(closure)"
         case .hostFunction(let f): return "(function \(f.name))"
         case .type(let symbol): return symbol.name
+        case .enumType(let symbol): return symbol.name
+        case .enumCase(let value): return value.description
         case .implicitMember(let name): return ".\(name)"
         }
     }
@@ -76,6 +102,20 @@ public struct ImplicitMemberCall {
 
     public init(name: String, arguments: CallArguments) {
         self.name = name
+        self.arguments = arguments
+    }
+}
+
+/// A member (and optional call) chained onto an implicit member, e.g.
+/// `.blue.opacity(0.2)` or `.blue.gradient` — resolved at gateway boundaries.
+public struct ChainedImplicitCall {
+    public let baseName: String
+    public let member: String
+    public let arguments: CallArguments
+
+    public init(baseName: String, member: String, arguments: CallArguments) {
+        self.baseName = baseName
+        self.member = member
         self.arguments = arguments
     }
 }
