@@ -19,6 +19,17 @@ extension EnvironmentValues {
     }
 }
 
+/// `@Environment(\.key)` values for interpreted views. Headless harnesses use
+/// these defaults; InterpretedView overrides with real environment reads.
+public enum InterpretedEnvironment {
+    public static func defaults() -> [String: RuntimeValue] {
+        [
+            "colorScheme": .implicitMember("light"),
+            "dismiss": .hostFunction(HostFunction(name: "dismiss") { _, _ in .void }),
+        ]
+    }
+}
+
 /// Body-evaluation errors render inline (the view keeps working), but tests
 /// and tools need to observe them — hosted rendering is otherwise silent.
 public enum RenderDiagnostics {
@@ -82,6 +93,8 @@ public struct InterpretedView: View {
     @StateObject private var store = StateStore()
     // Qualified: the interpreter core also exports an `Environment` type.
     @SwiftUI.Environment(\.interpretedModels) private var modelEnvironment
+    @SwiftUI.Environment(\.colorScheme) private var colorScheme
+    @SwiftUI.Environment(\.dismiss) private var dismiss
 
     public init(instance: Instance, interpreter: Interpreter) {
         self.instance = instance
@@ -99,6 +112,14 @@ public struct InterpretedView: View {
             RenderDiagnostics.record(wrapped, in: instance.symbol.name)
             return AnyView(errorLabel(wrapped.description))
         }
+        var environmentValues = InterpretedEnvironment.defaults()
+        environmentValues["colorScheme"] = .implicitMember(colorScheme == .dark ? "dark" : "light")
+        let dismissAction = dismiss
+        environmentValues["dismiss"] = .hostFunction(HostFunction(name: "dismiss") { _, _ in
+            dismissAction()
+            return .void
+        })
+        interpreter.injectEnvironmentValues(into: instance, values: environmentValues)
         store.adopt(into: instance)
         return interpretedBody
     }

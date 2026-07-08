@@ -271,6 +271,14 @@ extension Interpreter {
         if hasAttribute(attributes, named: "StateObject") { return .stateObject }
         if hasAttribute(attributes, named: "ObservedObject") { return .observedObject }
         if hasAttribute(attributes, named: "EnvironmentObject") { return .environmentObject }
+        for attribute in attributes {
+            guard let attr = attribute.as(AttributeSyntax.self),
+                  attr.attributeName.trimmedDescription == "Environment",
+                  case .argumentList(let arguments)? = attr.arguments,
+                  let keyPath = arguments.first?.expression.as(KeyPathExprSyntax.self) else { continue }
+            let key = String(keyPath.trimmedDescription.dropFirst(2)) // strip "\."
+            return .environment(key)
+        }
         return .none
     }
 

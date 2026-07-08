@@ -46,6 +46,7 @@ struct SizedBox<Content: View>: View {
 
 struct ContentView: View {
     @State var score = 42
+    @Environment(\.colorScheme) var scheme
 
     var body: some View {
         VStack(spacing: 12) {
@@ -66,6 +67,10 @@ struct ContentView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+
+            Text(scheme == .dark ? "dark mode" : "light mode")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .frame(maxWidth: 320)

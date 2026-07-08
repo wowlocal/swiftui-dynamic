@@ -73,6 +73,44 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func environmentValuesInjectAndCompare() throws {
+        let source = """
+        struct ContentView: View {
+            @Environment(\\.colorScheme) var scheme
+            @Environment(\\.dismiss) var dismiss
+
+            var body: some View {
+                VStack {
+                    Text(scheme == .dark ? "dark" : "light")
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            Issue.record("expected an instance")
+            return
+        }
+
+        // Headless defaults: light + no-op dismiss.
+        interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+        var body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(body.findAll("Text").first?.args.first == "light")
+        _ = try interpreter.callClosure(
+            try #require(body.findAll("Button").first?.actions["action"]), arguments: []
+        ) // dismiss() must be callable
+
+        // Overriding (what InterpretedView does with real environment reads).
+        interpreter.injectEnvironmentValues(into: instance, values: ["colorScheme": .implicitMember("dark")])
+        body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        #expect(body.findAll("Text").first?.args.first == "dark")
+    }
+
     @Test func dispatchQueueMainAsyncRunsInterpretedClosures() async throws {
         let interpreter = Interpreter(registry: TraceRegistry())
         try interpreter.run(source: """

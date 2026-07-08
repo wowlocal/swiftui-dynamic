@@ -29,7 +29,7 @@ public struct ComputedProperty {
 /// initializer syntax and property-wrapper kind), computed properties, methods,
 /// custom initializers, statics, and whether the inheritance clause mentions `View`.
 public final class StructSymbol {
-    public enum Wrapper {
+    public enum Wrapper: Equatable {
         case none
         case state
         case binding
@@ -37,6 +37,8 @@ public final class StructSymbol {
         case stateObject
         case observedObject
         case environmentObject
+        /// `@Environment(\.colorScheme)` — payload is the key path (dots kept).
+        case environment(String)
     }
 
     public struct StoredProperty {

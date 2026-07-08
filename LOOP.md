@@ -140,3 +140,8 @@ Each iteration does exactly this:
   (`Color.black.ignoresSafeArea()`), while `opacity`/`gradient` stay style
   chains. **15/25 holds**; class eliminated — both projects advanced (`round`
   builtin, dynamic range bounds are next-up singletons).
+- 2026-07-09 iter 12: `@Environment(\.key)` values — the first known wall.
+  Wrapper carries the key path; InterpretedView injects real reads
+  (colorScheme, dismiss) before body; headless harnesses inject honest
+  defaults (light, no-op dismiss) via InterpretedEnvironment.defaults().
+  Table is extensible per-key. **15/25 → 16/25** (64%).

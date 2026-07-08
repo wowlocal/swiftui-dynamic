@@ -20,6 +20,7 @@ public enum HeadlessVerifier {
         guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
             throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
         }
+        interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
 
         var actions: [ClosureValue] = []
         let root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
@@ -62,6 +63,7 @@ public enum HeadlessVerifier {
         actions += node.actions.values
         if let instance = node.instance {
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
+            interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
             count += try deepRender(interpreter, body, actions: &actions, environment: environment, depth: depth + 1)
         }

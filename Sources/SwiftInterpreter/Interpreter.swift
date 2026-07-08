@@ -213,6 +213,17 @@ public final class Interpreter {
         }
     }
 
+    /// Fill `@Environment(\.key)` properties from a key→value table (the
+    /// bridge reads real values off SwiftUI's Environment; headless harnesses
+    /// inject honest defaults). Unknown keys are left untouched.
+    public func injectEnvironmentValues(into instance: Instance, values: [String: RuntimeValue]) {
+        for property in instance.symbol.storedProperties {
+            guard case .environment(let key) = property.wrapper,
+                  let value = values[key] else { continue }
+            instance.box(for: property.name)?.value = value
+        }
+    }
+
     /// The struct to render when the program doesn't end in an explicit view
     /// expression: `ContentView` if present, then `Main`, then the first
     /// View-conforming struct in declaration order.
