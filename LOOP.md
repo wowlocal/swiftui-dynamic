@@ -167,3 +167,9 @@ Each iteration does exactly this:
   which forced two more condition kinds in the same iteration: `if case`
   pattern conditions (rides the switch matcher) and `#available` (passes on
   latest-SDK host). **17/25 holds — more honestly than before.**
+- 2026-07-09 iter 16: writable host members — new hostSetMember/
+  hostObjectConstructor registry hooks + LValue.hostProperty, with
+  DateFormatterBox (real Foundation formatter: dateFormat get/set,
+  string(from:), date(from:)) as the first user, shared by both registries.
+  **17/25 holds**; the "cannot assign to host member" class is eliminated
+  (DateTextField advanced into its closure-argument plumbing).

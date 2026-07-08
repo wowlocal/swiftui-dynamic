@@ -73,6 +73,20 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func dateFormatterHostObject() throws {
+        let source = """
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy"
+        let year = formatter.string(from: Date())
+        let readBack = formatter.dateFormat
+        let parsed = formatter.date(from: "2001")
+        "\\(year.count) \\(readBack) \\(parsed == nil ? "no" : "yes")"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        let result = try interpreter.run(source: source)
+        #expect(result.stringValue == "4 yyyy yes")
+    }
+
     @Test func hostTypeExtensions() throws {
         let source = """
         extension View {

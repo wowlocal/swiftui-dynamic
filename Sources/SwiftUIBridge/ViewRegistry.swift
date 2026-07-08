@@ -14,7 +14,12 @@ public final class ViewRegistry: HostRegistry {
         registerGeometryViews()
     }
 
+    public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
+        hostObjectSetMember(name, on: value, to: newValue)
+    }
+
     public func constructor(named name: String) -> HostFunction? {
+        if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
         let hand = constructors[name]
         let generated = GeneratedConstructors.table[name]
         if hand == nil && generated == nil { return nil }

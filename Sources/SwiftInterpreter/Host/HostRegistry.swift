@@ -88,8 +88,16 @@ public protocol HostRegistry: AnyObject {
     /// Members on host-native values the core can't know (GeometryProxy.size,
     /// CGSize.width, …). Return nil for unknown names.
     func hostMember(_ name: String, on value: Any) -> RuntimeValue?
+    /// Writable members on host-native values (formatter.dateFormat = "…").
+    /// Return false when the member isn't settable.
+    func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool
+    /// Constructors for host object types (DateFormatter()) shared across
+    /// real and trace registries. Return nil for unknown names.
+    func hostObjectConstructor(named name: String) -> HostFunction?
 }
 
 extension HostRegistry {
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
+    public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool { false }
+    public func hostObjectConstructor(named name: String) -> HostFunction? { nil }
 }

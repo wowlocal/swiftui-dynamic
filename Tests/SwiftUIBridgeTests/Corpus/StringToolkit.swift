@@ -45,6 +45,12 @@ struct ContentView: View {
         return n
     }
 
+    var todayStamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd MMM yyyy"
+        return formatter.string(from: Date())
+    }
+
     var strictReport: String {
         do {
             let n = try strictParse("12x")
@@ -83,6 +89,9 @@ struct ContentView: View {
             Text(strictReport)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Text("stamp: \(todayStamp)")
+                .font(.caption2)
+                .monospaced()
         }
         .padding()
         .frame(maxWidth: 400)

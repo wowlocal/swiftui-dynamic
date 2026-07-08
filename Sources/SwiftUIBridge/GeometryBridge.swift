@@ -28,6 +28,9 @@ struct MainQueueStub {}
 /// via their `hostMember` hooks. Numbers come back as Double so interpreted
 /// arithmetic works on them.
 func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let member = hostObjectMember(name, on: value) {
+        return member
+    }
     if let marker = value as? HostTypeMarker {
         switch (marker.name, name) {
         case ("UIScreen", "main"), ("NSScreen", "main"):

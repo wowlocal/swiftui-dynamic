@@ -31,6 +31,7 @@ public final class TraceRegistry: HostRegistry {
     public init() {}
 
     public func constructor(named name: String) -> HostFunction? {
+        if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
         switch name {
         case "Text", "Image", "Spacer", "Divider", "Toggle", "TextField", "Slider":
             return HostFunction(name: name) { args, _ in
@@ -179,6 +180,10 @@ public final class TraceRegistry: HostRegistry {
 
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
         bridgeHostMember(name, on: value)
+    }
+
+    public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
+        hostObjectSetMember(name, on: value, to: newValue)
     }
 
     static func node(_ value: RuntimeValue) throws -> TraceNode {

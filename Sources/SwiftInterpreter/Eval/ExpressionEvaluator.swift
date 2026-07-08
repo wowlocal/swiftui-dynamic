@@ -630,6 +630,7 @@ extension Interpreter {
     indirect enum LValue {
         case box(Box)
         case instanceProperty(Instance, String)
+        case hostProperty(Any, String)
         case element(LValue, Int)
         case dictElement(DictValue, RuntimeValue)
 
@@ -643,6 +644,9 @@ extension Interpreter {
                     return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
                 }
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
+            case .hostProperty(let any, let name):
+                if let value = interpreter.registry?.hostMember(name, on: any) { return value }
+                throw EvalMessage(text: "no readable member '\(name)' on \(type(of: any))")
             case .element(let base, let index):
                 guard let array = try base.read(interpreter).arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
@@ -679,6 +683,10 @@ extension Interpreter {
                     return
                 }
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
+            case .hostProperty(let any, let name):
+                guard interpreter.registry?.hostSetMember(name, on: any, to: value) == true else {
+                    throw EvalMessage(text: "cannot assign to '\(name)' on \(type(of: any))")
+                }
             case .element(let base, let index):
                 // Read-modify-write through the base lvalue, so element writes
                 // propagate box/publisher notifications all the way up.
@@ -705,10 +713,14 @@ extension Interpreter {
         }
         if let member = expr.as(MemberAccessExprSyntax.self), let base = member.base {
             let baseValue = try evaluate(base, in: env)
-            guard case .instance(let instance) = baseValue else {
-                throw error(member, "cannot assign to a member of \(baseValue.stringified)")
+            if case .instance(let instance) = baseValue {
+                return .instanceProperty(instance, member.declName.baseName.text)
             }
-            return .instanceProperty(instance, member.declName.baseName.text)
+            if case .native(let any) = baseValue, registry != nil {
+                // Host objects with settable members (formatter.dateFormat = …).
+                return .hostProperty(any, member.declName.baseName.text)
+            }
+            throw error(member, "cannot assign to a member of \(baseValue.stringified)")
         }
         if let subscriptCall = expr.as(SubscriptCallExprSyntax.self) {
             guard let indexExpr = subscriptCall.arguments.first?.expression else {
