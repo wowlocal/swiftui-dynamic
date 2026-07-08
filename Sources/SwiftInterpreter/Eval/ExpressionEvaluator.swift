@@ -255,17 +255,24 @@ extension Interpreter {
             // for gateways. Calling the result refines the arguments.
             return .native(ChainedImplicitCall(baseName: baseName, member: name, arguments: CallArguments()))
 
-        case .hostFunction:
-            // Host TYPE names (Color, Font, …) resolve to constructor
-            // functions; their static members act like implicit members and
-            // get resolved against the expected type at the gateway boundary:
-            // `Color.black` ≡ `.black`.
+        case .hostFunction(let function):
+            // Host TYPE names (Color, UIScreen, …) resolve to constructor
+            // functions. The bridge may serve real statics (UIScreen.main);
+            // otherwise they act like implicit members resolved against the
+            // expected type at the gateway boundary: `Color.black` ≡ `.black`.
+            if let value = registry?.hostMember(name, on: HostTypeMarker(name: function.name)) {
+                return value
+            }
             return .implicitMember(name)
 
         case .native(let any):
-            if let marker = any as? HostTypeMarker {
+            // The bridge gets first refusal on host natives (GeometryProxy,
+            // CGRect, and static chains like UIScreen.main / DispatchQueue.main).
+            if let value = registry?.hostMember(name, on: any) {
+                return value
+            }
+            if any is HostTypeMarker {
                 // `Color.red` ≡ `.red` — resolved by expected type at gateways.
-                _ = marker
                 return .implicitMember(name)
             }
             if let projection = any as? ModelProjection {
@@ -278,9 +285,6 @@ extension Interpreter {
                 return value
             }
             if let value = try nativeMember(name, on: any) {
-                return value
-            }
-            if let value = registry?.hostMember(name, on: any) {
                 return value
             }
             if let registry, registry.isViewValue(baseValue), let modifier = registry.modifier(named: name) {

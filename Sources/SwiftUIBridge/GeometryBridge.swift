@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SwiftInterpreter
 
@@ -12,10 +13,48 @@ struct TimelineContextStub {
     let date = Date()
 }
 
+/// iOS code reads `UIScreen.main.bounds`; the honest macOS analog is the main
+/// screen's frame (fixed canvas headlessly).
+struct ScreenStub {
+    var bounds: CGRect {
+        CGRect(origin: .zero, size: NSScreen.main?.frame.size ?? CGSize(width: 390, height: 844))
+    }
+}
+
+/// `DispatchQueue.main` — async dispatches through the real main queue.
+struct MainQueueStub {}
+
 /// Members on host-native values — shared by the real and trace registries
 /// via their `hostMember` hooks. Numbers come back as Double so interpreted
 /// arithmetic works on them.
 func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let marker = value as? HostTypeMarker {
+        switch (marker.name, name) {
+        case ("UIScreen", "main"), ("NSScreen", "main"):
+            return .native(ScreenStub())
+        case ("DispatchQueue", "main"):
+            return .native(MainQueueStub())
+        default:
+            return nil
+        }
+    }
+    if value is ScreenStub {
+        if name == "bounds" { return .native(ScreenStub().bounds) }
+        return nil
+    }
+    if value is MainQueueStub {
+        if name == "async" {
+            return .hostFunction(HostFunction(name: "async") { args, ctx in
+                guard let closure = args.unlabeledClosures.first else { return .void }
+                // A main-actor Task hop matches DispatchQueue.main.async
+                // semantics and, unlike raw GCD, also drains under swift test.
+                let action = ActionValue(run: { _ = try? ctx.callClosure(closure, arguments: []) })
+                Task { @MainActor in action.run() }
+                return .void
+            })
+        }
+        return nil
+    }
     if let proxy = value as? GeometryProxy {
         switch name {
         case "size": return .native(proxy.size)

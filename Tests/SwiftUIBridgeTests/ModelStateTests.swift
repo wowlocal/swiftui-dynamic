@@ -73,6 +73,29 @@ import SwiftInterpreter
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
     }
 
+    @Test func dispatchQueueMainAsyncRunsInterpretedClosures() async throws {
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: """
+        class Model: ObservableObject {
+            @Published var n = 0
+            func bumpLater() {
+                DispatchQueue.main.async {
+                    n += 1
+                }
+            }
+        }
+        let m = Model()
+        m.bumpLater()
+        """)
+        guard case .instance(let model)? = interpreter.globals.lookup("m") else {
+            Issue.record("expected a model")
+            return
+        }
+        #expect(model.box(for: "n")?.value.intValue == 0) // deferred, not sync
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(model.box(for: "n")?.value.intValue == 1)
+    }
+
     @Test func observedObjectSharesModelBetweenViews() throws {
         let shared = """
         class Counter: ObservableObject {

@@ -105,3 +105,9 @@ Each iteration does exactly this:
   trace uses honest stubs (390×844). New `hostMember` registry hook serves
   GeometryProxy/CGSize/CGRect/CGPoint members as Doubles, frame(in:) coerces
   coordinate spaces. GeometryCard corpus program added. **9/25 → 10/25**.
+- 2026-07-09 iter 6: host static chains — the bridge intercepts type markers
+  AND host constructor functions via hostMember: `UIScreen.main.bounds` maps
+  to the real screen frame, `DispatchQueue.main.async` defers interpreted
+  closures via a main-actor Task (GCD's queue never drains under swift test).
+  **10/25 → 12/25**. Noted next: `.init()` in annotated positions (2 projects),
+  colorScheme `@Environment` comparison (1).

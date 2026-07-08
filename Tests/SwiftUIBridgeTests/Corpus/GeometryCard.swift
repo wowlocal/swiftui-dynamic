@@ -18,9 +18,11 @@ struct MeterBar: View {
 struct ContentView: View {
     @State var level = 0.7
 
+    let screenWidth = UIScreen.main.bounds.width
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Geometry")
+            Text("Geometry (screen \(Int(screenWidth))pt)")
                 .font(.headline)
 
             GeometryReader {
