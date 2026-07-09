@@ -969,6 +969,50 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Custom inits assign wrapper STORAGE directly: `self._name =
+    /// binding` and `self._viewModel = StateObject(wrappedValue: …)` —
+    /// the storage is the value, and `$viewModel.field` projects off it.
+    @Test func wrapperStorageInits() throws {
+        let source = """
+        class EditViewModel: ObservableObject {
+            @Published var name: String
+
+            init(name: String) {
+                self.name = name
+            }
+
+            var isModified: Bool { name != "Ada" }
+        }
+
+        struct EditView: View {
+            @Binding var name: String
+            @StateObject var viewModel: EditViewModel
+
+            init(name: Binding<String>) {
+                self._name = name
+                self._viewModel = StateObject(wrappedValue: EditViewModel(name: name.wrappedValue))
+            }
+
+            var body: some View {
+                Form {
+                    TextField("Enter your name", text: $viewModel.name)
+                    Text(viewModel.isModified ? "modified" : "fresh")
+                }
+            }
+        }
+
+        struct ContentView: View {
+            @State private var name = "Ada"
+
+            var body: some View {
+                EditView(name: $name)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

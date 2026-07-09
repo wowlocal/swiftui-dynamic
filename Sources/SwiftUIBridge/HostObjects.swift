@@ -61,8 +61,10 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { args, _ in
             args.labeled("value") ?? args.positional(0) ?? .native(0)
         }
-    case "State":
-        // `self._count = State(initialValue: 5)` — the storage IS the value.
+    case "State", "StateObject", "ObservedObject", "Published", "Bindable":
+        // `self._count = State(initialValue: 5)` /
+        // `self._viewModel = StateObject(wrappedValue: ViewModel(…))` —
+        // the storage IS the value.
         return HostFunction(name: name) { args, _ in
             args.labeled("initialValue") ?? args.labeled("wrappedValue") ?? args.positional(0) ?? .void
         }

@@ -894,3 +894,10 @@ Each iteration does exactly this:
   isNotEmpty }` dispatches on every conforming native.
   oss:ControlRoom passes (5 nodes). **595/597 (99.7%);
   queue: MakeItSo, IceCubesApp.**
+- 2026-07-09 iter 113: wrapper-storage inits — StateObject/ObservedObject/
+  Published/Bindable constructors join the State precedent: the storage IS
+  the wrapped value, so `self._viewModel = StateObject(wrappedValue:
+  ViewModel(…))` in custom inits stores the model instance and
+  `$viewModel.field` projects off it (`self._name = binding` already worked
+  via canonicalPropertyName). oss:MakeItSo passes (6 nodes, 1 action).
+  **596/597 (99.8%); queue: IceCubesApp only.**
