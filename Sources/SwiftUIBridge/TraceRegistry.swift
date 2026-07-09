@@ -93,7 +93,7 @@ public final class TraceRegistry: HostRegistry {
         case "VStack", "HStack", "ZStack":
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: name)
-                if let content = args.closure(labeled: "content") ?? args.unlabeledClosures.last {
+                if let content = args.closure(labeled: "content") ?? args.lastUnlabeledClosure {
                     node.children = try ctx.callBuilderClosure(content, arguments: []).map(Self.node)
                 }
                 return .native(node)
@@ -116,7 +116,7 @@ public final class TraceRegistry: HostRegistry {
             // honest stubs so the content still deep-renders.
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: name)
-                if let content = args.unlabeledClosures.first {
+                if let content = args.firstUnlabeledClosure {
                     let argument: RuntimeValue
                     switch name {
                     case "GeometryReader": argument = .native(GeometryProxyStub())
@@ -137,7 +137,7 @@ public final class TraceRegistry: HostRegistry {
                 let seed = (args.labeled("initialValue")
                     ?? args.positional(0)?.arrayValue?.first
                     ?? args.positional(0)) ?? .void
-                if let content = args.unlabeledClosures.first {
+                if let content = args.firstUnlabeledClosure {
                     node.children = try ctx.callBuilderClosure(content, arguments: [seed]).map(Self.node)
                 }
                 return .native(node)
@@ -149,7 +149,7 @@ public final class TraceRegistry: HostRegistry {
             // recursive retry loops (`func poll() { Task { poll() } }`)
             // terminate exactly like real async scheduling.
             return HostFunction(name: name) { [weak self] args, ctx in
-                if let body = args.unlabeledClosures.first ?? args.closure(labeled: "operation"),
+                if let body = args.firstUnlabeledClosure ?? args.closure(labeled: "operation"),
                    let self, self.taskDepth == 0 {
                     self.taskDepth += 1
                     defer { self.taskDepth -= 1 }
@@ -169,7 +169,7 @@ public final class TraceRegistry: HostRegistry {
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: name)
                 if let url = args.labeled("url") { node.args.append(url.stringified) }
-                if let content = args.unlabeledClosures.first {
+                if let content = args.firstUnlabeledClosure {
                     // The stub is what trace Image constructors produce, so
                     // every image modifier chains natively.
                     let stub = RuntimeValue.native(TraceNode(kind: "Image"))
@@ -191,7 +191,7 @@ public final class TraceRegistry: HostRegistry {
             // build children — run it with an inert context + canvas size.
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: "Canvas")
-                if let renderer = args.unlabeledClosures.first {
+                if let renderer = args.firstUnlabeledClosure {
                     _ = try ctx.callClosure(renderer, arguments: [
                         .native(GraphicsContextStub()),
                         .native(CGSize(width: 390, height: 844)),
@@ -202,7 +202,7 @@ public final class TraceRegistry: HostRegistry {
         case "Path":
             return HostFunction(name: name) { args, ctx in
                 let path = PathDrawStub()
-                if let builder = args.unlabeledClosures.first {
+                if let builder = args.firstUnlabeledClosure {
                     _ = try ctx.callClosure(builder, arguments: [.native(path)])
                 }
                 return .native(path)
@@ -214,14 +214,14 @@ public final class TraceRegistry: HostRegistry {
             }
         case "withAnimation":
             return HostFunction(name: name) { args, ctx in
-                guard let closure = args.unlabeledClosures.first else { return .void }
+                guard let closure = args.firstUnlabeledClosure else { return .void }
                 return try ctx.callClosure(closure, arguments: [])
             }
         case "ForEach":
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: "ForEach")
                 guard let data = args.positional(0),
-                      let content = args.closure(labeled: "content") ?? args.unlabeledClosures.last else {
+                      let content = args.closure(labeled: "content") ?? args.lastUnlabeledClosure else {
                     throw RuntimeError(message: "ForEach needs data and a content closure")
                 }
                 // `ForEach($items) { $item in … }` — element bindings.

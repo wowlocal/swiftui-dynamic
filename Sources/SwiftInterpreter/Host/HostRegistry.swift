@@ -27,18 +27,42 @@ public struct CallArguments {
 
     /// The n-th unlabeled, non-trailing argument (what a positional parameter binds).
     public func positional(_ index: Int) -> RuntimeValue? {
-        let positionals = arguments.filter { $0.label == nil && !$0.isTrailing }
-        guard index < positionals.count else { return nil }
-        return positionals[index].value
+        guard index >= 0 else { return nil }
+        var current = 0
+        for argument in arguments where argument.label == nil && !argument.isTrailing {
+            if current == index { return argument.value }
+            current += 1
+        }
+        return nil
     }
 
     public func closure(labeled label: String) -> ClosureValue? {
         labeled(label)?.closureValue
     }
 
+    /// First unlabeled closure without allocating an intermediate array.
+    public var firstUnlabeledClosure: ClosureValue? {
+        for argument in arguments where argument.label == nil {
+            if let closure = argument.value.closureValue { return closure }
+        }
+        return nil
+    }
+
+    /// Last unlabeled closure without allocating an intermediate array.
+    public var lastUnlabeledClosure: ClosureValue? {
+        for argument in arguments.reversed() where argument.label == nil {
+            if let closure = argument.value.closureValue { return closure }
+        }
+        return nil
+    }
+
     /// Unlabeled closures in order (explicit unlabeled args and the first trailing closure).
     public var unlabeledClosures: [ClosureValue] {
-        arguments.filter { $0.label == nil }.compactMap(\.value.closureValue)
+        var closures: [ClosureValue] = []
+        for argument in arguments where argument.label == nil {
+            if let closure = argument.value.closureValue { closures.append(closure) }
+        }
+        return closures
     }
 }
 

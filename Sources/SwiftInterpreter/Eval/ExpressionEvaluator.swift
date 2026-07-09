@@ -620,7 +620,7 @@ extension Interpreter {
         }
         let env = selfEnvironment(.instance(instance))
         for (parameter, argument) in zip(member.parameters, args.arguments) {
-            env.define(parameter.name, try resolveAnnotated(argument.value, annotation: parameter.typeAnnotation))
+            env.define(parameter.name, try resolveAnnotated(argument.value, parameter: parameter))
         }
         env.define(setter.parameterName, newValue)
         _ = try executeBlock(setter.body, in: env)
@@ -1039,7 +1039,7 @@ extension Interpreter {
                 // Function REFERENCES (`​.flatMap(Bundle.init(url:))`) apply
                 // like closures; unresolvable transforms absorb.
                 return .hostFunction(HostFunction(name: name) { args, ctx in
-                    if let closure = args.unlabeledClosures.first {
+                    if let closure = args.firstUnlabeledClosure {
                         return try ctx.callClosure(closure, arguments: [baseValue])
                     }
                     if case .hostFunction(let fn)? = args.positional(0) {
@@ -1518,7 +1518,7 @@ extension Interpreter {
             let array = baseValue.arrayValue ?? baseValue.rangeValue.map { range in range.map { RuntimeValue.native($0) } }
             if let array {
                 let args = try collectArguments(of: call, in: env)
-                if let closure = args.closure(labeled: "where") ?? args.unlabeledClosures.first {
+                if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
                     let ordered = name == "last" ? Array(array.reversed()) : array
                     for element in ordered where try callClosure(closure, arguments: [element]).boolValue == true {
                         return element
@@ -1612,15 +1612,7 @@ extension Interpreter {
                 }
                 let env = Environment(parent: globals)
                 env.define("self", .void)
-                let parameters = chosen.signature.parameterClause.parameters.map { param in
-                    ClosureValue.Parameter(
-                        name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                        label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                        defaultValue: param.defaultValue?.value,
-                        typeAnnotation: param.type,
-                        isVariadic: param.ellipsis != nil
-                    )
-                }
+                let parameters = initializerMetadata(for: chosen).parameters
                 let closure = ClosureValue(parameters: parameters, body: body.statements, captured: env)
                 _ = try callWithArguments(closure, args: args, node: Syntax(node))
                 let assigned = env.lookup("self") ?? .void
@@ -1713,7 +1705,7 @@ extension Interpreter {
             try applyInoutWriteBacks()
             // `[X]`-returning builders (custom @resultBuilders' buildBlock)
             // collect into an ARRAY; view-typed ones group as views.
-            if closure.returnType?.trimmedDescription.hasPrefix("[") == true {
+            if closure.builderReturnsArray {
                 return .native(items)
             }
             return try groupViews(items)
@@ -1722,7 +1714,10 @@ extension Interpreter {
         try applyInoutWriteBacks()
         switch result {
         case .normal(let value), .returnValue(let value):
-            return try resolveAnnotated(value, annotation: closure.returnType)
+            if let returnTypeName = closure.returnTypeName {
+                return try resolveAnnotated(value, typeName: returnTypeName)
+            }
+            return value
         case .breakLoop, .continueLoop:
             throw RuntimeError(message: "break/continue escaped a function body")
         }
@@ -1763,7 +1758,7 @@ extension Interpreter {
            let tuple = args.arguments[0].value.tupleValue,
            tuple.values.count == closure.parameters.count {
             for (parameter, value) in zip(closure.parameters, tuple.values) {
-                env.define(parameter.name, try resolveAnnotated(value, annotation: parameter.typeAnnotation))
+                env.define(parameter.name, try resolveAnnotated(value, parameter: parameter))
             }
             return []
         }
@@ -1834,7 +1829,7 @@ extension Interpreter {
                     }
                     continue
                 }
-                var resolved = try resolveAnnotated(value, annotation: parameter.typeAnnotation)
+                var resolved = try resolveAnnotated(value, parameter: parameter)
                 // The result-builder transform: a closure bound to a
                 // @…Builder parameter collects its block's items when
                 // called instead of returning the last expression.
@@ -1842,7 +1837,8 @@ extension Interpreter {
                     resolved = .closure(ClosureValue(
                         parameters: c.parameters, body: c.body, captured: c.captured,
                         isBuilder: true,
-                        returnType: ClosureValue.Parameter.functionReturnType(of: parameter.typeAnnotation) ?? c.returnType
+                        returnType: parameter.builderReturnType ?? c.returnType,
+                        returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName
                     ))
                 }
                 env.define(parameter.name, resolved)
@@ -1855,9 +1851,7 @@ extension Interpreter {
                 }
             } else if let defaultValue = parameter.defaultValue {
                 env.define(parameter.name, try resolveAnnotated(
-                    try evaluate(defaultValue, in: closure.captured),
-                    annotation: parameter.typeAnnotation
-                ))
+                    try evaluate(defaultValue, in: closure.captured), parameter: parameter))
             } else if let node {
                 throw error(node, "missing argument for parameter '\(parameter.name)'")
             } else {

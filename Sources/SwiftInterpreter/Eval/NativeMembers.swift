@@ -336,7 +336,7 @@ extension Interpreter {
             })
         case "contains":
             return .hostFunction(HostFunction(name: name) { args, ctx in
-                if let closure = args.closure(labeled: "where") ?? args.unlabeledClosures.first {
+                if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
                     for element in array where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
                         return .native(true)
                     }
@@ -352,7 +352,7 @@ extension Interpreter {
             })
         case "firstIndex":
             return .hostFunction(HostFunction(name: name) { args, ctx in
-                if let closure = args.closure(labeled: "where") ?? args.unlabeledClosures.first {
+                if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
                     for (index, element) in array.enumerated()
                     where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
                         return .native(index)
@@ -405,7 +405,7 @@ extension Interpreter {
                 guard !array.isEmpty else { return .nilValue }
                 // `max(by: { $0.downloads < $1.downloads })` — the closure is
                 // an areInIncreasingOrder predicate for BOTH min and max.
-                if let closure = args.closure(labeled: "by") ?? args.unlabeledClosures.first {
+                if let closure = args.closure(labeled: "by") ?? args.firstUnlabeledClosure {
                     var best = array[0]
                     for element in array.dropFirst() {
                         let replace: Bool = name == "max"
@@ -435,7 +435,7 @@ extension Interpreter {
         _ args: CallArguments, _ name: String, _ element: RuntimeValue,
         _ interpreter: Interpreter?, _ ctx: EvalContext
     ) throws -> RuntimeValue {
-        if let closure = (args.closure(labeled: "transform") ?? args.unlabeledClosures.first
+        if let closure = (args.closure(labeled: "transform") ?? args.firstUnlabeledClosure
                             ?? args.positional(0)?.closureValue) {
             return try ctx.callClosure(closure, arguments: [element])
         }
@@ -494,7 +494,7 @@ extension Interpreter {
             })
         case "forEach":
             return .hostFunction(HostFunction(name: name) { args, ctx in
-                guard let closure = args.unlabeledClosures.first ?? args.positional(0)?.closureValue else {
+                guard let closure = args.firstUnlabeledClosure ?? args.positional(0)?.closureValue else {
                     throw RuntimeError(message: "forEach needs a closure")
                 }
                 for character in string {
@@ -536,7 +536,7 @@ extension Interpreter {
             // closure receives the whole string; nil short-circuits
             // upstream via nil-member propagation.
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
-                if let closure = args.closure(labeled: "transform") ?? args.unlabeledClosures.first
+                if let closure = args.closure(labeled: "transform") ?? args.firstUnlabeledClosure
                     ?? args.positional(0)?.closureValue {
                     return try ctx.callClosure(closure, arguments: [.native(string)])
                 }
@@ -742,7 +742,7 @@ extension Interpreter {
     }
 
     private static func requiredClosure(_ args: CallArguments, _ name: String) throws -> ClosureValue {
-        guard let closure = args.unlabeledClosures.first ?? args.closure(labeled: "by") else {
+        guard let closure = args.firstUnlabeledClosure ?? args.closure(labeled: "by") else {
             throw RuntimeError(message: "\(name) needs a closure argument")
         }
         return closure
@@ -753,7 +753,7 @@ extension Interpreter {
     static func requiredCallable(
         _ args: CallArguments, _ name: String
     ) throws -> (EvalContext, [RuntimeValue]) throws -> RuntimeValue {
-        if let closure = args.unlabeledClosures.first ?? args.closure(labeled: "by") {
+        if let closure = args.firstUnlabeledClosure ?? args.closure(labeled: "by") {
             return { ctx, xs in try ctx.callClosure(closure, arguments: xs) }
         }
         for argument in args.arguments {

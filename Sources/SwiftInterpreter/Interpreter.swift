@@ -51,9 +51,147 @@ public final class Interpreter {
     /// `send(_:) -> Task?`, identical shapes, return-type disambiguated).
     var activeFunctionBodies: Set<SyntaxIdentifier> = []
 
+    /// Call-shape and closure metadata are properties of syntax declarations,
+    /// not of individual invocations. Cache them by SwiftSyntax identity so
+    /// overload dispatch never rebuilds syntax collections or descriptions.
+    struct CallableShape {
+        let parameterCount: Int
+        let labels: Set<String>
+        let wildcardCount: Int
+        let requiredLabels: [String]
+
+        func matches(_ arguments: ArgumentShape) -> Bool {
+            guard arguments.count <= parameterCount,
+                  arguments.labels.isSubset(of: labels),
+                  arguments.unlabeledCount <= wildcardCount else { return false }
+            var missingRequired = 0
+            for label in requiredLabels where !arguments.labels.contains(label) {
+                missingRequired += 1
+                if missingRequired > arguments.unlabeledTrailingCount { return false }
+            }
+            return true
+        }
+    }
+
+    struct ArgumentShape {
+        let count: Int
+        let labels: Set<String>
+        let unlabeledCount: Int
+        let unlabeledTrailingCount: Int
+
+        init(_ arguments: CallArguments) {
+            count = arguments.arguments.count
+            var labels: Set<String> = []
+            var unlabeledCount = 0
+            var unlabeledTrailingCount = 0
+            for argument in arguments.arguments {
+                if let label = argument.label {
+                    labels.insert(label)
+                } else if argument.isTrailing {
+                    unlabeledTrailingCount += 1
+                } else {
+                    unlabeledCount += 1
+                }
+            }
+            self.labels = labels
+            self.unlabeledCount = unlabeledCount
+            self.unlabeledTrailingCount = unlabeledTrailingCount
+        }
+    }
+
+    struct FunctionMetadata {
+        let parameters: [ClosureValue.Parameter]
+        let shape: CallableShape
+        let returnType: TypeSyntax?
+        let returnTypeName: String?
+        let isBuilder: Bool
+    }
+
+    struct InitializerMetadata {
+        let parameters: [ClosureValue.Parameter]
+        let shape: CallableShape
+    }
+
+    var functionMetadataCache: [SyntaxIdentifier: FunctionMetadata] = [:]
+    var initializerMetadataCache: [SyntaxIdentifier: InitializerMetadata] = [:]
+
     public init(registry: HostRegistry? = nil) {
         self.registry = registry
         defineGlobalBuiltins()
+    }
+
+    func functionMetadata(for node: FunctionDeclSyntax) -> FunctionMetadata {
+        let identifier = Syntax(node).id
+        if let cached = functionMetadataCache[identifier] { return cached }
+        let parameters = node.signature.parameterClause.parameters
+        let returnType = node.signature.returnClause?.type
+        let returnTypeName = returnType?.trimmedDescription
+        let returnsView = returnTypeName?.contains("some View") ?? false
+        let isBuilder = returnsView || node.attributes.contains {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+        }
+        let metadata = FunctionMetadata(
+            parameters: closureParameters(from: parameters),
+            shape: callableShape(from: parameters),
+            returnType: returnType,
+            returnTypeName: returnTypeName,
+            isBuilder: isBuilder)
+        functionMetadataCache[identifier] = metadata
+        return metadata
+    }
+
+    func initializerMetadata(for node: InitializerDeclSyntax) -> InitializerMetadata {
+        let identifier = Syntax(node).id
+        if let cached = initializerMetadataCache[identifier] { return cached }
+        let parameters = node.signature.parameterClause.parameters
+        let metadata = InitializerMetadata(
+            parameters: closureParameters(from: parameters),
+            shape: callableShape(from: parameters))
+        initializerMetadataCache[identifier] = metadata
+        return metadata
+    }
+
+    private func closureParameters(
+        from parameters: FunctionParameterListSyntax
+    ) -> [ClosureValue.Parameter] {
+        var result: [ClosureValue.Parameter] = []
+        result.reserveCapacity(parameters.count)
+        let backticks = CharacterSet(charactersIn: "`")
+        for parameter in parameters {
+            let firstName = parameter.firstName.text.trimmingCharacters(in: backticks)
+            result.append(ClosureValue.Parameter(
+                name: (parameter.secondName ?? parameter.firstName).text
+                    .trimmingCharacters(in: backticks),
+                label: firstName == "_" ? nil : firstName,
+                defaultValue: parameter.defaultValue?.value,
+                typeAnnotation: parameter.type,
+                isBuilderAttributed: parameter.attributes.contains {
+                    $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+                } || ClosureValue.Parameter.isBuilderAttributedType(parameter.type),
+                isVariadic: parameter.ellipsis != nil))
+        }
+        return result
+    }
+
+    private func callableShape(from parameters: FunctionParameterListSyntax) -> CallableShape {
+        var labels: Set<String> = []
+        var wildcardCount = 0
+        var requiredLabels: [String] = []
+        requiredLabels.reserveCapacity(parameters.count)
+        for parameter in parameters {
+            let label = parameter.firstName.text
+            labels.insert(label)
+            if label == "_" {
+                wildcardCount += 1
+            } else if parameter.defaultValue == nil {
+                requiredLabels.append(label)
+            }
+        }
+        return CallableShape(
+            parameterCount: parameters.count,
+            labels: labels,
+            wildcardCount: wildcardCount,
+            requiredLabels: requiredLabels)
     }
 
     // MARK: - Parsing
@@ -391,17 +529,7 @@ public final class Interpreter {
         }
         let inserted = activeInitializers.insert(chosen.id).inserted
         defer { if inserted { activeInitializers.remove(chosen.id) } }
-        let parameters = chosen.signature.parameterClause.parameters.map { param in
-            ClosureValue.Parameter(
-                name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                defaultValue: param.defaultValue?.value,
-                typeAnnotation: param.type,
-                isBuilderAttributed: param.attributes.contains {
-                    $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-                } || ClosureValue.Parameter.isBuilderAttributedType(param.type)
-            )
-        }
+        let parameters = initializerMetadata(for: chosen).parameters
         let initEnv = selfEnvironment(.instance(instance))
         let closure = ClosureValue(
             parameters: parameters,
@@ -425,25 +553,9 @@ public final class Interpreter {
 
     /// Overloaded methods pick by call shape; nil when nothing fits.
     func chooseFunction(from candidates: [FunctionDeclSyntax], for args: CallArguments) -> FunctionDeclSyntax? {
-        let argLabels = args.arguments.compactMap(\.label)
-        let unlabeled = args.arguments.filter { $0.label == nil && !$0.isTrailing }.count
+        let arguments = ArgumentShape(args)
         for candidate in candidates {
-            let params = candidate.signature.parameterClause.parameters
-            let labels = params.map { $0.firstName.text }
-            let wildcards = params.filter { $0.firstName.text == "_" }.count
-            let required = params
-                .filter { $0.defaultValue == nil && $0.firstName.text != "_" }
-                .map { $0.firstName.text }
-            // Only UNLABELED trailing closures can fill missing required
-            // labels (labeled trailings already matched by name) — the
-            // binder gives them to the LAST unbound slot, so selection
-            // must not over-promise (IceSection's 5-param designated init
-            // vs its 4-param delegation).
-            let unlabeledTrailing = args.arguments.filter { $0.isTrailing && $0.label == nil }.count
-            if args.arguments.count <= params.count,
-               argLabels.allSatisfy({ labels.contains($0) }),
-               required.filter({ !argLabels.contains($0) }).count <= unlabeledTrailing,
-               unlabeled <= wildcards {
+            if functionMetadata(for: candidate).shape.matches(arguments) {
                 return candidate
             }
         }
@@ -469,16 +581,9 @@ public final class Interpreter {
     /// Shape-matching only — nil when NO candidate fits (callers decide
     /// whether to fall back or treat the call as an inherited init).
     func chooseInitializerStrict(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax? {
-        let argLabels = args.arguments.compactMap(\.label)
-        let unlabeled = args.arguments.filter { $0.label == nil && !$0.isTrailing }.count
+        let arguments = ArgumentShape(args)
         var fits: [InitializerDeclSyntax] = []
         for candidate in initializers {
-            let params = candidate.signature.parameterClause.parameters
-            let labels = params.map { $0.firstName.text }
-            let wildcards = params.filter { $0.firstName.text == "_" }.count
-            let required = params
-                .filter { $0.defaultValue == nil && $0.firstName.text != "_" }
-                .map { $0.firstName.text }
             // Shape match: every arg label exists, every required label is
             // provided (trailing closures may fill one), and positional args
             // have `_` slots — `Pubkey(data)` must NOT pick init?(hex:).
@@ -487,11 +592,7 @@ public final class Interpreter {
             // binder gives them to the LAST unbound slot, so selection
             // must not over-promise (IceSection's 5-param designated init
             // vs its 4-param delegation).
-            let unlabeledTrailing = args.arguments.filter { $0.isTrailing && $0.label == nil }.count
-            if args.arguments.count <= params.count,
-               argLabels.allSatisfy({ labels.contains($0) }),
-               required.filter({ !argLabels.contains($0) }).count <= unlabeledTrailing,
-               unlabeled <= wildcards {
+            if initializerMetadata(for: candidate).shape.matches(arguments) {
                 fits.append(candidate)
             }
         }
@@ -503,20 +604,21 @@ public final class Interpreter {
         // resolution's type dimension, coarsely.
         func typeScore(_ candidate: InitializerDeclSyntax) -> Int {
             var score = 0
-            var positional = args.arguments.filter { $0.label == nil && !$0.isTrailing }.makeIterator()
-            for param in candidate.signature.parameterClause.parameters {
-                let argument: CallArguments.Argument?
-                if param.firstName.text == "_" {
-                    argument = positional.next()
+            var positionalIndex = 0
+            for parameter in initializerMetadata(for: candidate).parameters {
+                let value: RuntimeValue?
+                if let label = parameter.label {
+                    value = args.labeled(label)
                 } else {
-                    argument = args.arguments.first { $0.label == param.firstName.text }
+                    value = args.positional(positionalIndex)
+                    positionalIndex += 1
                 }
-                guard let argument else { continue }
-                let annotation = param.type.trimmedDescription
+                guard let value else { continue }
+                let annotation = parameter.typeName ?? ""
                 let wantsArray = annotation.hasPrefix("[") && !annotation.contains(":")
                 let wantsClosure = annotation.contains("->")
-                let isArray = argument.value.arrayValue != nil
-                let isClosure = argument.value.closureValue != nil
+                let isArray = value.arrayValue != nil
+                let isClosure = value.closureValue != nil
                 score += (wantsArray == isArray) ? 1 : -1
                 score += (wantsClosure == isClosure) ? 1 : -1
             }
@@ -802,6 +904,13 @@ public final class Interpreter {
     func resolveAnnotated(_ value: RuntimeValue, annotation: TypeSyntax?) throws -> RuntimeValue {
         guard let annotation else { return value }
         return try resolveAnnotated(value, typeName: annotation.trimmedDescription)
+    }
+
+    func resolveAnnotated(
+        _ value: RuntimeValue, parameter: ClosureValue.Parameter
+    ) throws -> RuntimeValue {
+        guard let typeName = parameter.typeName else { return value }
+        return try resolveAnnotated(value, typeName: typeName)
     }
 
     func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {

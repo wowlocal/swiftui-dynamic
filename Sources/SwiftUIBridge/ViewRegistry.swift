@@ -164,7 +164,7 @@ public final class ViewRegistry: HostRegistry {
     }
 
     static func builderContent(_ args: CallArguments, _ ctx: EvalContext) throws -> [AnyView] {
-        guard let closure = args.closure(labeled: "content") ?? args.unlabeledClosures.last else {
+        guard let closure = args.closure(labeled: "content") ?? args.lastUnlabeledClosure else {
             throw RuntimeError(message: "missing content closure")
         }
         return try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)

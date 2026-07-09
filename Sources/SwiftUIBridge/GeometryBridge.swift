@@ -381,7 +381,7 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if value is MainQueueStub {
         if name == "async" {
             return .hostFunction(HostFunction(name: "async") { args, ctx in
-                guard let closure = args.unlabeledClosures.first else { return .void }
+                guard let closure = args.firstUnlabeledClosure else { return .void }
                 // A main-actor Task hop matches DispatchQueue.main.async
                 // semantics and, unlike raw GCD, also drains under swift test.
                 let action = ActionValue(run: { _ = try? ctx.callClosure(closure, arguments: []) })
@@ -391,7 +391,7 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
         if name == "asyncAfter" {
             return .hostFunction(HostFunction(name: "asyncAfter") { args, ctx in
-                guard let closure = args.unlabeledClosures.first else { return .void }
+                guard let closure = args.firstUnlabeledClosure else { return .void }
                 // `.now() + delay` arithmetic already reduced to seconds.
                 let delay = (args.labeled("deadline") ?? args.labeled("wallDeadline"))?
                     .doubleValue ?? 0
@@ -596,7 +596,7 @@ extension ViewRegistry {
 
     func registerGeometryViews() {
         constructors["GeometryReader"] = HostFunction(name: "GeometryReader") { args, ctx in
-            guard let content = args.unlabeledClosures.first else {
+            guard let content = args.firstUnlabeledClosure else {
                 throw RuntimeError(message: "GeometryReader needs a content closure")
             }
             return .native(AnyView(GeometryReader { proxy in
@@ -609,7 +609,7 @@ extension ViewRegistry {
         // don't reach the real GraphicsContext — the closure's state math
         // still executes, the surface stays empty).
         constructors["Canvas"] = HostFunction(name: "Canvas") { args, ctx in
-            if let renderer = args.unlabeledClosures.first {
+            if let renderer = args.firstUnlabeledClosure {
                 _ = try ctx.callClosure(renderer, arguments: [
                     .native(GraphicsContextStub()),
                     .native(CGSize(width: 390, height: 844)),
@@ -620,14 +620,14 @@ extension ViewRegistry {
 
         constructors["Path"] = HostFunction(name: "Path") { args, ctx in
             let path = PathDrawStub()
-            if let builder = args.unlabeledClosures.first {
+            if let builder = args.firstUnlabeledClosure {
                 _ = try ctx.callClosure(builder, arguments: [.native(path)])
             }
             return .native(path)
         }
 
         constructors["ScrollViewReader"] = HostFunction(name: "ScrollViewReader") { args, ctx in
-            guard let content = args.unlabeledClosures.first else {
+            guard let content = args.firstUnlabeledClosure else {
                 throw RuntimeError(message: "ScrollViewReader needs a content closure")
             }
             return .native(AnyView(ScrollViewReader { proxy in
@@ -636,7 +636,7 @@ extension ViewRegistry {
         }
 
         constructors["TimelineView"] = HostFunction(name: "TimelineView") { args, ctx in
-            guard let content = args.unlabeledClosures.first else {
+            guard let content = args.firstUnlabeledClosure else {
                 throw RuntimeError(message: "TimelineView needs a content closure")
             }
             // Schedules beyond .animation collapse to it — honest enough for
