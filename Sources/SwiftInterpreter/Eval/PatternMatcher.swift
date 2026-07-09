@@ -119,6 +119,16 @@ extension Interpreter {
             return true
         }
 
+        // Case-shaped pattern (payload bindings inside) against a subject
+        // with no case shape — host markers, fresh-state stubs: it can't
+        // match, so the switch falls to `default` (the fresh-state read).
+        // Evaluating it as an expression would choke on the `let` bindings.
+        if let call = expr.as(FunctionCallExprSyntax.self),
+           call.calledExpression.is(MemberAccessExprSyntax.self),
+           call.arguments.contains(where: { $0.expression.is(PatternExprSyntax.self) }) {
+            return false
+        }
+
         let value = try evaluate(expr, in: env)
         if let range = value.rangeValue, let i = subject.intValue {
             return range.contains(i)

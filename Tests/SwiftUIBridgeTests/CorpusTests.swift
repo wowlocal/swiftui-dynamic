@@ -350,6 +350,44 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Case patterns with payload bindings against an unknowable host
+    /// subject fall to `default` (fresh-state), and String.Index ranges:
+    /// range(of:), bounds members, and string-by-range subscripting.
+    @Test func casePatternsOnMarkersAndStringRanges() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var selection: TextSelection? = .init(insertionPoint: "".startIndex)
+
+            var kind: String {
+                if let selection {
+                    switch selection.indices {
+                    case .selection(let range):
+                        return "sel \\(range)"
+                    default: return "other"
+                    }
+                }
+                return "nil"
+            }
+
+            var body: some View {
+                let text = "say Hello Guys"
+                VStack {
+                    Text(kind)
+                    if let range = text.range(of: "Hello") {
+                        Text(text[range])
+                        Text("at \\(range.isEmpty ? "empty" : "found")")
+                    }
+                    if text.range(of: "missing") == nil {
+                        Text("absent")
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

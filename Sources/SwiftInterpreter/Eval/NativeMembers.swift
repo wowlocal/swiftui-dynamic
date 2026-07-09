@@ -30,6 +30,14 @@ extension Interpreter {
         if let string = any as? String {
             return stringMember(name, string)
         }
+        if let indexRange = any as? Range<String.Index> {
+            switch name {
+            case "lowerBound": return .native(indexRange.lowerBound)
+            case "upperBound": return .native(indexRange.upperBound)
+            case "isEmpty": return .native(indexRange.isEmpty)
+            default: return nil
+            }
+        }
         if let dict = any as? DictValue {
             switch name {
             case "count": return .native(dict.count)
@@ -306,6 +314,14 @@ extension Interpreter {
             })
         case "startIndex": return .native(string.startIndex)
         case "endIndex": return .native(string.endIndex)
+        case "range":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let target = (args.labeled("of") ?? args.positional(0))?.stringValue else {
+                    throw RuntimeError(message: "range(of:) needs a string")
+                }
+                guard let found = string.range(of: target) else { return .nilValue }
+                return .native(found)
+            })
         case "index":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard case .native(let any)? = args.positional(0),

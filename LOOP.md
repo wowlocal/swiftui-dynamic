@@ -739,3 +739,9 @@ Each iteration does exactly this:
   body (`func OTPField()` vs `enum OTPField`), member properties shadow
   global constants. New Environment.box(for:before:) boundary walk.
   AutoOTP passes (44 nodes, 3 actions). **573 → 574/588 (97.4%).**
+- 2026-07-09 iter 92: case patterns vs unknowable subjects — `.selection(let
+  range)` against a host marker can't match, so the switch falls to
+  `default` (fresh-state) instead of choking on the `let` binding; plus
+  String.Index ranges (String.range(of:), Range<String.Index>
+  lowerBound/upperBound/isEmpty, `text[range]`/`text[i]` subscripts).
+  TextSelectionAPI passes (11 nodes, 4 actions). **574 → 575/588 (97.6%).**

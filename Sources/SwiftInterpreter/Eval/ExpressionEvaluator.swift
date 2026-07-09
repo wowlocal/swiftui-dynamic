@@ -1489,6 +1489,18 @@ extension Interpreter {
                 try callUserSubscriptGetter(on: instance, with: indexArgs)
             }
         }
+        if case .native(let stringAny) = base, let string = stringAny as? String,
+           case .native(let indexAny) = index {
+            // `text[range]` / `text[i]` with String.Index values.
+            if let indexRange = indexAny as? Range<String.Index>,
+               indexRange.lowerBound >= string.startIndex, indexRange.upperBound <= string.endIndex {
+                return .native(String(string[indexRange]))
+            }
+            if let position = indexAny as? String.Index, position >= string.startIndex,
+               position < string.endIndex {
+                return .native(String(string[position]))
+            }
+        }
         if case .native(let any) = base,
            case .hostFunction(let subscripting)? = registry?.hostMember("subscript", on: any) {
             // Host subscripts (AttributedString[range] styling proxies).
