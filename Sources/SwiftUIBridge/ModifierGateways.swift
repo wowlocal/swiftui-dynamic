@@ -110,7 +110,7 @@ extension ViewRegistry {
         register("foregroundColor", foreground)
 
         register("background") { [unowned self] view, args, ctx in
-            if let closure = args.unlabeledClosures.first {
+            if let closure = args.firstUnlabeledClosure {
                 let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
                 let content = views.count == 1 ? views[0] : AnyView(ZStack { Self.indexed(views) })
                 return AnyView(view.background(content))
@@ -129,7 +129,7 @@ extension ViewRegistry {
 
         register("overlay") { [unowned self] view, args, ctx in
             let alignment = try args.labeled("alignment").map(Coerce.alignment) ?? .center
-            if let closure = args.unlabeledClosures.first {
+            if let closure = args.firstUnlabeledClosure {
                 let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
                 let content = views.count == 1 ? views[0] : AnyView(ZStack { Self.indexed(views) })
                 return AnyView(view.overlay(alignment: alignment) { content })
@@ -216,15 +216,15 @@ extension ViewRegistry {
         // MARK: Events
 
         register("onAppear") { view, args, ctx in
-            guard let closure = args.unlabeledClosures.first else { return view }
+            guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.onAppear { _ = try? ctx.callClosure(closure, arguments: []) })
         }
         register("onDisappear") { view, args, ctx in
-            guard let closure = args.unlabeledClosures.first else { return view }
+            guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.onDisappear { _ = try? ctx.callClosure(closure, arguments: []) })
         }
         register("onTapGesture") { view, args, ctx in
-            guard let closure = args.unlabeledClosures.first else { return view }
+            guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.onTapGesture { _ = try? ctx.callClosure(closure, arguments: []) })
         }
         // Metal flattening with an explicit color mode (2048's board).
@@ -255,14 +255,14 @@ extension ViewRegistry {
             }
         }
         register("task") { view, args, ctx in
-            guard let closure = args.unlabeledClosures.first else { return view }
+            guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.task { _ = try? ctx.callClosure(closure, arguments: []) })
         }
         register("onReceive") { view, args, ctx in
             guard case .native(let any)? = args.positional(0), let box = any as? TimerPublisherBox else {
                 throw RuntimeError(message: ".onReceive supports Timer publishers (Timer.publish(...).autoconnect())")
             }
-            guard let closure = args.unlabeledClosures.first else { return view }
+            guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.onReceive(box.publisher) { date in
                 _ = try? ctx.callClosure(closure, arguments: [.native(date)])
             })
@@ -330,7 +330,7 @@ extension ViewRegistry {
             // with the then-current item.
             if let item = args.labeled("item"),
                case .native(let any) = item, let stub = any as? BindingStub {
-                guard let closure = args.closure(labeled: "content") ?? args.unlabeledClosures.first else {
+                guard let closure = args.closure(labeled: "content") ?? args.firstUnlabeledClosure else {
                     throw RuntimeError(message: ".sheet needs a content closure")
                 }
                 let isPresented = Binding<Bool>(
@@ -347,7 +347,7 @@ extension ViewRegistry {
                 throw RuntimeError(message: ".sheet needs isPresented:")
             }
             let binding = try Coerce.boolBinding(isPresented)
-            guard let closure = args.closure(labeled: "content") ?? args.unlabeledClosures.first else {
+            guard let closure = args.closure(labeled: "content") ?? args.firstUnlabeledClosure else {
                 throw RuntimeError(message: ".sheet needs a content closure")
             }
             let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
@@ -361,7 +361,7 @@ extension ViewRegistry {
                 throw RuntimeError(message: ".alert needs isPresented:")
             }
             let binding = try Coerce.boolBinding(isPresented)
-            let actionViews = try (args.closure(labeled: "actions") ?? args.unlabeledClosures.first)
+            let actionViews = try (args.closure(labeled: "actions") ?? args.firstUnlabeledClosure)
                 .map { try ctx.callBuilderClosure($0, arguments: []).map(Self.anyView) } ?? []
             let messageViews = try args.closure(labeled: "message")
                 .map { try ctx.callBuilderClosure($0, arguments: []).map(Self.anyView) } ?? []
@@ -379,13 +379,13 @@ extension ViewRegistry {
                 throw RuntimeError(message: ".confirmationDialog needs isPresented:")
             }
             let binding = try Coerce.boolBinding(isPresented)
-            let actionViews = try (args.closure(labeled: "actions") ?? args.unlabeledClosures.first)
+            let actionViews = try (args.closure(labeled: "actions") ?? args.firstUnlabeledClosure)
                 .map { try ctx.callBuilderClosure($0, arguments: []).map(Self.anyView) } ?? []
             return AnyView(view.confirmationDialog(title, isPresented: binding) { Self.indexed(actionViews) })
         }
 
         register("tabItem") { view, args, ctx in
-            guard let closure = args.unlabeledClosures.first else { return view }
+            guard let closure = args.firstUnlabeledClosure else { return view }
             let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
             let label = views.count == 1 ? views[0] : AnyView(VStack { Self.indexed(views) })
             return AnyView(view.tabItem { label })

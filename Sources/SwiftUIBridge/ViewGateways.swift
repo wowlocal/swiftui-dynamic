@@ -208,7 +208,7 @@ extension ViewRegistry {
                 } else {
                     destination = try self.anyViewResolving(value, ctx)
                 }
-            } else if let closure = args.unlabeledClosures.first, args.positional(0)?.stringValue != nil {
+            } else if let closure = args.firstUnlabeledClosure, args.positional(0)?.stringValue != nil {
                 let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
                 destination = views.count == 1 ? views[0] : AnyView(VStack { Self.indexed(views) })
             } else {
@@ -304,7 +304,7 @@ extension ViewRegistry {
                 throw RuntimeError(message: "Toggle needs an isOn: binding")
             }
             let binding = try Coerce.boolBinding(isOn)
-            if let labelClosure = args.unlabeledClosures.first ?? args.closure(labeled: "label") {
+            if let labelClosure = args.firstUnlabeledClosure ?? args.closure(labeled: "label") {
                 let views = try ctx.callBuilderClosure(labelClosure, arguments: []).map(Self.anyView)
                 let label = views.count == 1 ? views[0] : AnyView(HStack { Self.indexed(views) })
                 return .native(AnyView(Toggle(isOn: binding) { label }))
@@ -364,7 +364,7 @@ extension ViewRegistry {
             guard let data = args.positional(0) else {
                 throw RuntimeError(message: "ForEach needs a range or an array")
             }
-            guard let content = args.closure(labeled: "content") ?? args.unlabeledClosures.last else {
+            guard let content = args.closure(labeled: "content") ?? args.lastUnlabeledClosure else {
                 throw RuntimeError(message: "ForEach needs a content closure")
             }
             // `ForEach($items) { $item in … }` — element bindings write back.
@@ -383,7 +383,7 @@ extension ViewRegistry {
         }
 
         constructors["withAnimation"] = HostFunction(name: "withAnimation") { args, ctx in
-            guard let closure = args.unlabeledClosures.first else {
+            guard let closure = args.firstUnlabeledClosure else {
                 throw RuntimeError(message: "withAnimation needs a closure")
             }
             let animation = try args.positional(0).map(Coerce.animation) ?? .default
@@ -405,7 +405,7 @@ extension ViewRegistry {
             return .native(transaction)
         }
         constructors["withTransaction"] = HostFunction(name: "withTransaction") { args, ctx in
-            guard let closure = args.unlabeledClosures.first else {
+            guard let closure = args.firstUnlabeledClosure else {
                 throw RuntimeError(message: "withTransaction needs a closure")
             }
             guard case .native(let any)? = args.positional(0), let transaction = any as? Transaction else {
@@ -448,7 +448,7 @@ extension ViewRegistry {
 
     /// `List { … }` and `List(data) { item in … }` both funnel through here.
     static func dataOrPlainContent(_ args: CallArguments, _ ctx: EvalContext) throws -> [AnyView] {
-        guard let content = args.closure(labeled: "content") ?? args.unlabeledClosures.last else {
+        guard let content = args.closure(labeled: "content") ?? args.lastUnlabeledClosure else {
             throw RuntimeError(message: "missing content closure")
         }
         if let data = args.positional(0), let elements = try? forEachElements(data) {

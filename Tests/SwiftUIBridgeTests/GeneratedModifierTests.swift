@@ -12,6 +12,11 @@ import SwiftInterpreter
         #expect(GeneratedModifiers.table.count >= 100)
         let variants = GeneratedModifiers.table.values.map(\.count).reduce(0, +)
         #expect(variants >= 180)
+        for set in GeneratedModifiers.table.values {
+            for (arity, overloads) in set.byArity {
+                #expect(overloads.allSatisfy { $0.params.count == arity })
+            }
+        }
     }
 
     @Test func generatedModifiersDispatchThroughRealRendering() throws {
@@ -75,6 +80,11 @@ import SwiftInterpreter
 
     @Test func generatedConstructorsAreSubstantial() {
         #expect(GeneratedConstructors.table.count >= 12)
+        for set in GeneratedConstructors.table.values {
+            for (arity, overloads) in set.byArity {
+                #expect(overloads.allSatisfy { $0.params.count == arity })
+            }
+        }
     }
 
     @Test func generatedConstructorsDispatchThroughRealRendering() throws {

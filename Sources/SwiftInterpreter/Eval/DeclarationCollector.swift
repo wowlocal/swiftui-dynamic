@@ -579,30 +579,14 @@ extension Interpreter {
     }
 
     func makeFunctionClosure(_ node: FunctionDeclSyntax, body: CodeBlockSyntax, captured: Environment) -> ClosureValue {
-        let parameters = node.signature.parameterClause.parameters.map { param in
-            ClosureValue.Parameter(
-                name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                defaultValue: param.defaultValue?.value,
-                typeAnnotation: param.type,
-                isBuilderAttributed: param.attributes.contains {
-                        $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-                    } || ClosureValue.Parameter.isBuilderAttributedType(param.type),
-                isVariadic: param.ellipsis != nil
-            )
-        }
-        let returnType = node.signature.returnClause?.type
-        let returnsView = returnType?.trimmedDescription.contains("some View") ?? false
-        // Custom @resultBuilders (@ActionBuilder …) count, same as @ViewBuilder.
-        let isBuilder = returnsView || node.attributes.contains {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-        }
+        let metadata = functionMetadata(for: node)
         return ClosureValue(
-            parameters: parameters,
+            parameters: metadata.parameters,
             body: body.statements,
             captured: captured,
-            isBuilder: isBuilder,
-            returnType: returnType
+            isBuilder: metadata.isBuilder,
+            returnType: metadata.returnType,
+            returnTypeName: metadata.returnTypeName
         )
     }
 

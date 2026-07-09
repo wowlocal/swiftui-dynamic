@@ -868,6 +868,30 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "3x9 p2 t | 1x2 p2 x | 8hi | 1yo")
     }
 
+    @Test func repeatedOverloadMetadataPreservesSelection() throws {
+        let source = """
+        struct Picker {
+            var value = 0
+
+            init(text: String, enabled: Bool = false) { value = -1 }
+            init(left: Int, right: Int, scale: Int = 1) { value = (left + right) * scale }
+            init(value: Int, scale: Int = 1) { self.value = value * scale }
+
+            func select(text: String, fallback: Int = -1) -> Int { fallback }
+            func select(number: Int, scale: Int = 1) -> Int { number * scale }
+        }
+
+        var total = 0
+        for index in 0..<20 {
+            let picker = Picker(value: index, scale: 2)
+            total += picker.select(number: picker.value, scale: 3)
+            total += Picker(left: index, right: 1).value
+        }
+        total
+        """
+        #expect(try eval(source).intValue == 1350)
+    }
+
     @Test func trailingClosureBindsLastUnbound() throws {
         let source = """
         func retry(times: Int = 3, label: String = "op", work: (Int) -> Int) -> Int {

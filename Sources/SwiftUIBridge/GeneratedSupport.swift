@@ -47,6 +47,36 @@ struct GeneratedConstructor {
     let invoke: @MainActor ([Any]) throws -> AnyView
 }
 
+/// Generated overloads grouped once by the only arity that can match. This
+/// replaces sorting and scanning every generated candidate on every call.
+struct GeneratedOverloadSet {
+    let byArity: [Int: [GeneratedOverload]]
+    let count: Int
+
+    init(_ overloads: [GeneratedOverload]) {
+        var byArity: [Int: [GeneratedOverload]] = [:]
+        for overload in overloads {
+            byArity[overload.params.count, default: []].append(overload)
+        }
+        self.byArity = byArity
+        self.count = overloads.count
+    }
+}
+
+struct GeneratedConstructorSet {
+    let byArity: [Int: [GeneratedConstructor]]
+    let count: Int
+
+    init(_ overloads: [GeneratedConstructor]) {
+        var byArity: [Int: [GeneratedConstructor]] = [:]
+        for overload in overloads {
+            byArity[overload.params.count, default: []].append(overload)
+        }
+        self.byArity = byArity
+        self.count = overloads.count
+    }
+}
+
 enum GeneratedDispatch {
     static func coerce(_ tag: ParamTag, _ value: RuntimeValue, _ ctx: EvalContext) throws -> Any {
         switch tag {
@@ -148,13 +178,12 @@ enum GeneratedDispatch {
 
     static func dispatch(
         name: String,
-        overloads: [GeneratedOverload],
+        overloads: GeneratedOverloadSet,
         view: AnyView,
         args: CallArguments,
         ctx: EvalContext
     ) throws -> AnyView {
-        // Most specific first: full-signature variants before required-only.
-        for overload in overloads.sorted(by: { $0.params.count > $1.params.count }) {
+        for overload in overloads.byArity[args.arguments.count] ?? [] {
             guard let values = matches(overload.params, args, ctx) else { continue }
             return try overload.invoke(view, values)
         }
@@ -164,11 +193,11 @@ enum GeneratedDispatch {
 
     static func construct(
         name: String,
-        overloads: [GeneratedConstructor],
+        overloads: GeneratedConstructorSet,
         args: CallArguments,
         ctx: EvalContext
     ) throws -> AnyView {
-        for overload in overloads.sorted(by: { $0.params.count > $1.params.count }) {
+        for overload in overloads.byArity[args.arguments.count] ?? [] {
             guard let values = matches(overload.params, args, ctx) else { continue }
             return try overload.invoke(values)
         }
@@ -179,7 +208,13 @@ enum GeneratedDispatch {
 
 /// Namespace the generated file extends with `build()`.
 enum GeneratedModifiers {
-    static let table: [String: [GeneratedOverload]] = build()
+    static let table: [String: GeneratedOverloadSet] = {
+        var grouped: [String: GeneratedOverloadSet] = [:]
+        for (name, overloads) in build() {
+            grouped[name] = GeneratedOverloadSet(overloads)
+        }
+        return grouped
+    }()
 
     static func register(
         _ table: inout [String: [GeneratedOverload]],
@@ -193,7 +228,13 @@ enum GeneratedModifiers {
 
 /// Namespace the generated constructors file extends with `build()`.
 enum GeneratedConstructors {
-    static let table: [String: [GeneratedConstructor]] = build()
+    static let table: [String: GeneratedConstructorSet] = {
+        var grouped: [String: GeneratedConstructorSet] = [:]
+        for (name, overloads) in build() {
+            grouped[name] = GeneratedConstructorSet(overloads)
+        }
+        return grouped
+    }()
 
     static func register(
         _ table: inout [String: [GeneratedConstructor]],
