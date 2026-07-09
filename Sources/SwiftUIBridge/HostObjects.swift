@@ -45,6 +45,17 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                 y: try Coerce.cgFloat(args.labeled("y") ?? .native(0))
             ))
         }
+    case "DateComponents":
+        return HostFunction(name: name) { args, _ in
+            var components = DateComponents()
+            components.year = args.labeled("year")?.intValue
+            components.month = args.labeled("month")?.intValue
+            components.day = args.labeled("day")?.intValue
+            components.hour = args.labeled("hour")?.intValue
+            components.minute = args.labeled("minute")?.intValue
+            components.second = args.labeled("second")?.intValue
+            return .native(DateComponentsBox(components: components))
+        }
     case "AttributedString":
         return HostFunction(name: name) { args, _ in
             .native(AttributedStringBox(AttributedString(args.positional(0)?.stringValue ?? "")))
@@ -76,6 +87,16 @@ struct AppearanceStub {}
 /// `Calendar.current` — backed by the real Foundation calendar.
 struct CalendarBox {
     let calendar = Calendar.current
+}
+
+/// `calendar.dateComponents([.hour, .minute], from:to:)` results and
+/// `DateComponents()` builders — member reads AND writes hit real values.
+final class DateComponentsBox {
+    var components: DateComponents
+
+    init(components: DateComponents) {
+        self.components = components
+    }
 }
 
 /// `@Environment(\.modelContext)` — SwiftData persistence has no interpreter
@@ -192,6 +213,12 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         switch name {
         case "date":
             return .hostFunction(HostFunction(name: "date") { args, _ in
+                // `date(from: components)` — reconstitute from parts.
+                if case .native(let any)? = args.labeled("from"),
+                   let componentsBox = any as? DateComponentsBox {
+                    return box.calendar.date(from: componentsBox.components)
+                        .map { RuntimeValue.native($0) } ?? .nilValue
+                }
                 guard let component = calendarComponent(args.labeled("byAdding")),
                       let amount = intArg(args.labeled("value")),
                       let to = dateArg(args.labeled("to")) else {
@@ -215,8 +242,69 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 return .native(box.calendar.component(component, from: date))
             })
+        case "dateComponents":
+            return .hostFunction(HostFunction(name: "dateComponents") { args, _ in
+                let set = Set((args.positional(0)?.arrayValue ?? []).compactMap { calendarComponent($0) })
+                guard !set.isEmpty, let from = dateArg(args.labeled("from")) else {
+                    throw RuntimeError(message: "dateComponents needs components and a from: Date")
+                }
+                if let to = dateArg(args.labeled("to")) {
+                    return .native(DateComponentsBox(components: box.calendar.dateComponents(set, from: from, to: to)))
+                }
+                return .native(DateComponentsBox(components: box.calendar.dateComponents(set, from: from)))
+            })
+        case "range":
+            return .hostFunction(HostFunction(name: "range") { args, _ in
+                guard let smaller = calendarComponent(args.labeled("of") ?? args.positional(0)),
+                      let larger = calendarComponent(args.labeled("in")),
+                      let date = dateArg(args.labeled("for")) else {
+                    throw RuntimeError(message: "range(of:in:for:) needs two components and a Date")
+                }
+                return box.calendar.range(of: smaller, in: larger, for: date)
+                    .map { RuntimeValue.native($0) } ?? .nilValue
+            })
+        case "monthSymbols":
+            return .native(box.calendar.monthSymbols.map { RuntimeValue.native($0) })
+        case "shortMonthSymbols":
+            return .native(box.calendar.shortMonthSymbols.map { RuntimeValue.native($0) })
+        case "weekdaySymbols":
+            return .native(box.calendar.weekdaySymbols.map { RuntimeValue.native($0) })
+        case "shortWeekdaySymbols":
+            return .native(box.calendar.shortWeekdaySymbols.map { RuntimeValue.native($0) })
+        case "isDateInToday", "isDateInTomorrow", "isDateInYesterday", "isDateInWeekend":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let date = dateArg(args.positional(0)) else {
+                    throw RuntimeError(message: "\(name) needs a Date")
+                }
+                switch name {
+                case "isDateInTomorrow": return .native(box.calendar.isDateInTomorrow(date))
+                case "isDateInYesterday": return .native(box.calendar.isDateInYesterday(date))
+                case "isDateInWeekend": return .native(box.calendar.isDateInWeekend(date))
+                default: return .native(box.calendar.isDateInToday(date))
+                }
+            })
+        case "isDate":
+            return .hostFunction(HostFunction(name: "isDate") { args, _ in
+                guard let lhs = dateArg(args.positional(0)),
+                      let rhs = dateArg(args.labeled("inSameDayAs")) else {
+                    throw RuntimeError(message: "isDate(_:inSameDayAs:) needs two Dates")
+                }
+                return .native(box.calendar.isDate(lhs, inSameDayAs: rhs))
+            })
         default:
             return nil
+        }
+    }
+    if let box = value as? DateComponentsBox {
+        switch name {
+        case "hour": return box.components.hour.map { .native($0) } ?? .nilValue
+        case "minute": return box.components.minute.map { .native($0) } ?? .nilValue
+        case "second": return box.components.second.map { .native($0) } ?? .nilValue
+        case "day": return box.components.day.map { .native($0) } ?? .nilValue
+        case "month": return box.components.month.map { .native($0) } ?? .nilValue
+        case "year": return box.components.year.map { .native($0) } ?? .nilValue
+        case "weekday": return box.components.weekday.map { .native($0) } ?? .nilValue
+        default: return nil
         }
     }
     if let stub = value as? EnvironmentValuesStub {
@@ -306,6 +394,20 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
     }
     if value is GraphicsContextStub || value is PathDrawStub {
         return true // `context.opacity = 0.5` — draw state accepted, no surface
+    }
+    if let box = value as? DateComponentsBox {
+        guard let amount = newValue.intValue ?? newValue.doubleValue.map({ Int($0) }) else { return false }
+        switch name {
+        case "year": box.components.year = amount
+        case "month": box.components.month = amount
+        case "day": box.components.day = amount
+        case "hour": box.components.hour = amount
+        case "minute": box.components.minute = amount
+        case "second": box.components.second = amount
+        case "weekday": box.components.weekday = amount
+        default: return false
+        }
+        return true
     }
     if let box = value as? AttributedStringBox {
         switch name {

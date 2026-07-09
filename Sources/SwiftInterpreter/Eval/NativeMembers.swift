@@ -39,6 +39,11 @@ extension Interpreter {
             default: return nil
             }
         }
+        if let int = any as? Int, name == "truncatingRemainder" || name == "remainder" {
+            // Interpreted math sometimes lands on Int where the source had a
+            // floating value (bridge numbers are Doubles) — promote.
+            return try nativeMember(name, on: Double(int))
+        }
         if let double = any as? Double {
             switch name {
             case "rounded":

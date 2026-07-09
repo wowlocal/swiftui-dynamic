@@ -269,6 +269,19 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct StdlibTests {
+    @Test func staticComputedPropertiesEvaluate() throws {
+        let source = """
+        struct Config {
+            static let base = 21
+            static var doubledBase: Int {
+                return base * 2
+            }
+        }
+        Config.doubledBase
+        """
+        #expect(try eval(source).intValue == 42)
+    }
+
     @Test func stringIndexBasics() throws {
         let source = """
         let text = "hello"

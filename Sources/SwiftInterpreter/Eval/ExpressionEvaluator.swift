@@ -1,3 +1,4 @@
+import Foundation
 import SwiftSyntax
 
 /// Expression evaluation: the big dispatch over folded `ExprSyntax`.
@@ -193,6 +194,12 @@ extension Interpreter {
             return try instanceMember(name, on: instance)
         case .enumCase(let value):
             return try enumCaseMember(name, on: value)
+        case .type(let symbol):
+            // Static context: bare sibling-static references inside a
+            // `static var`/`static func` body.
+            return try staticMember(name, of: symbol)
+        case .enumType(let symbol):
+            return try staticMember(name, of: symbol)
         case .native(let any):
             // Bare `count`/`firstIndex(...)` inside a host-type extension body
             // is implicit self on the native value.
@@ -242,6 +249,7 @@ extension Interpreter {
         if any is Int { names.append("Int") }
         if any is Double { names.append("Double"); names.append("CGFloat") }
         if any is Bool { names.append("Bool") }
+        if any is Date { names.append("Date") }
         if any is DictValue { names.append("Dictionary") }
         if any is [RuntimeValue] {
             // `extension Array` and sugar-typed `extension [Item]` both apply.
@@ -332,7 +340,7 @@ extension Interpreter {
                 }
                 return .native(all)
             }
-            if let value = try staticMember(name, properties: symbol.staticProperties, methods: symbol.staticMethods, cache: &symbol.staticCache) {
+            if let value = try staticMember(name, of: symbol) {
                 return value
             }
             throw error(node, "'\(symbol.name)' has no case or static member '\(name)'")
@@ -341,7 +349,7 @@ extension Interpreter {
             if let nested = symbol.nestedTypes[name] {
                 return nested
             }
-            if let value = try staticMember(name, properties: symbol.staticProperties, methods: symbol.staticMethods, cache: &symbol.staticCache) {
+            if let value = try staticMember(name, of: symbol) {
                 return value
             }
             throw error(node, "'\(symbol.name)' has no static member '\(name)'")
@@ -448,20 +456,38 @@ extension Interpreter {
         }
     }
 
-    func staticMember(
-        _ name: String,
-        properties: [String: StructSymbol.StaticProperty],
-        methods: [String: FunctionDeclSyntax],
-        cache: inout [String: RuntimeValue]
-    ) throws -> RuntimeValue? {
-        if let cached = cache[name] { return cached }
-        if let property = properties[name] {
+    func staticMember(_ name: String, of symbol: StructSymbol) throws -> RuntimeValue? {
+        if let cached = symbol.staticCache[name] { return cached }
+        if let property = symbol.staticProperties[name] {
             let raw = try evaluate(property.initializer, in: globals)
             let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
-            cache[name] = value
+            symbol.staticCache[name] = value
             return value
         }
-        if let method = methods[name], let body = method.body {
+        if let computed = symbol.staticComputedProperties[name] {
+            // `static var currentMonth: Date { … }` — evaluated fresh each
+            // read (no caching: getters may depend on time or other state);
+            // self is the TYPE, so bare sibling statics resolve.
+            return try evaluateComputed(computed, selfValue: .type(symbol), name: name)
+        }
+        if let method = symbol.staticMethods[name], let body = method.body {
+            return .closure(makeFunctionClosure(method, body: body, captured: globals))
+        }
+        return nil
+    }
+
+    func staticMember(_ name: String, of symbol: EnumSymbol) throws -> RuntimeValue? {
+        if let cached = symbol.staticCache[name] { return cached }
+        if let property = symbol.staticProperties[name] {
+            let raw = try evaluate(property.initializer, in: globals)
+            let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+            symbol.staticCache[name] = value
+            return value
+        }
+        if let computed = symbol.staticComputedProperties[name] {
+            return try evaluateComputed(computed, selfValue: .enumType(symbol), name: name)
+        }
+        if let method = symbol.staticMethods[name], let body = method.body {
             return .closure(makeFunctionClosure(method, body: body, captured: globals))
         }
         return nil

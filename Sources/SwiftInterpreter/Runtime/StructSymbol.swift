@@ -64,6 +64,8 @@ public final class StructSymbol {
     /// `struct WaterWave: Shape` — the bridge wraps these in a real Shape
     /// whose `path(in:)` delegates to the interpreted method.
     public internal(set) var conformsToShape = false
+    /// `static var shared: X { … }` — computed statics, evaluated per read.
+    public var staticComputedProperties: [String: ComputedProperty] = [:]
     /// Declared with `class` — matters for observation; reference semantics
     /// are the default for ALL instances (the documented struct divergence).
     public internal(set) var isClass = false

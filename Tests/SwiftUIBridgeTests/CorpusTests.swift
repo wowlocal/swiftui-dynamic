@@ -41,6 +41,38 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Real-Calendar members: dateComponents(from:to:), range(of:in:for:),
+    /// symbols, isDateInToday — plus user Date-extension statics resolving
+    /// in annotated positions.
+    @Test func calendarMembersAndDateExtensionStatics() throws {
+        let source = """
+        extension Date {
+            static var anchor: Date {
+                return Date()
+            }
+        }
+
+        struct ContentView: View {
+            @State private var pinned: Date = .anchor
+
+            var body: some View {
+                let calendar = Calendar.current
+                let later = calendar.date(byAdding: .hour, value: 2, to: pinned) ?? pinned
+                let gap = calendar.dateComponents([.hour, .minute], from: pinned, to: later)
+                let days = calendar.range(of: .day, in: .month, for: pinned)?.count ?? 0
+                VStack {
+                    Text("gap \\(gap.hour ?? 0)h")
+                    Text(calendar.monthSymbols.first ?? "?")
+                    Text(calendar.isDateInToday(pinned) ? "today" : "past")
+                    Text("days \\(days)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     /// A typed env object with no ambient injection (the App shell that
     /// would provide it never runs) synthesizes one fresh instance per type.
     @Test func missingEnvironmentObjectSynthesizesFreshModel() throws {

@@ -335,7 +335,7 @@ public final class Interpreter {
                 }
             }
             if case .implicitMember(let name) = value,
-               let staticValue = try staticMember(name, properties: symbol.staticProperties, methods: symbol.staticMethods, cache: &symbol.staticCache) {
+               let staticValue = try staticMember(name, of: symbol) {
                 return staticValue
             }
             return value
@@ -362,6 +362,20 @@ public final class Interpreter {
         if case .implicitMember(let memberName) = value,
            let member = registry?.hostMember(memberName, on: HostTypeMarker(name: typeName)) {
             return member
+        }
+        // User extensions of host types add statics too:
+        // `extension Date { static var currentMonth: Date }` resolves
+        // `: Date = .currentMonth` (and `.createDate(…)` factories).
+        if let hostSymbol = hostExtensionSymbols[typeName] {
+            if case .implicitMember(let memberName) = value,
+               let staticValue = try staticMember(memberName, of: hostSymbol) {
+                return staticValue
+            }
+            if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+               let method = hostSymbol.staticMethods[call.name], let body = method.body {
+                let closure = makeFunctionClosure(method, body: body, captured: globals)
+                return try callWithArguments(closure, args: call.arguments, node: nil)
+            }
         }
         return value
     }

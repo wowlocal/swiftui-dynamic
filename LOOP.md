@@ -407,3 +407,17 @@ Each iteration does exactly this:
   context. PopupImagePicker + InteractiveToasts ×2 pass (+ripple); TaskApp →
   CalendarBox class, IconGenerator → marker-compare, SwiftUIRealm stays
   (ObjectId). **290/400 → 297/400**.
+- 2026-07-09 iter 51: the CalendarBox class (5) — real-Calendar breadth:
+  dateComponents(_:from:[to:]) → mutable DateComponentsBox (member reads AND
+  writes, plus a DateComponents() constructor), range(of:in:for:),
+  month/weekday symbols, isDateInToday/Tomorrow/Yesterday/Weekend,
+  isDate(_:inSameDayAs:), date(from: components). Fallout fixes with general
+  value: STATIC COMPUTED properties (`static var x: T { … }`) collect into
+  staticComputedProperties and evaluate with self = the TYPE (bare sibling
+  statics resolve; staticMember rewritten symbol-based — the old inout cache
+  caused an exclusivity crash on re-entry); user host-extension statics
+  (`extension Date { static var currentMonth }`) resolve in annotated
+  positions; Int gains promoting truncatingRemainder; Date joins
+  hostCandidates (user Date-extension instance methods). SleepTime ×2,
+  ElegantTaskApp, CustomScrollAnimation pass; TaskApp/AnimatedCharts
+  advanced. **297/400 → 301/400**.
