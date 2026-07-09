@@ -406,7 +406,7 @@ extension Interpreter {
         // body (each IceCubes package declares its own `enum Constants`).
         if let nested = instance.symbol.nestedTypes[name] { return nested }
         if let box = instance.box(for: name) { return box.value }
-        if let method = instance.symbol.methods[name] {
+        if let method = instance.symbol.methods[name]?.first {
             guard let body = method.body else { return nil }
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.instance(instance))))
         }
@@ -421,7 +421,7 @@ extension Interpreter {
         // serves conformers that don't define the member themselves.
         for conformance in instance.symbol.conformances {
             guard let proto = hostExtensionSymbols[conformance] else { continue }
-            if let method = proto.methods[name], let body = method.body {
+            if let method = proto.methods[name]?.first, let body = method.body {
                 return .closure(makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.instance(instance))))
             }
@@ -436,7 +436,7 @@ extension Interpreter {
     func hostExtensionMember(_ name: String, candidates: [String], selfValue: RuntimeValue) throws -> RuntimeValue? {
         for typeName in candidates {
             guard let symbol = hostExtensionSymbols[typeName] else { continue }
-            if let method = symbol.methods[name], let body = method.body {
+            if let method = symbol.methods[name]?.first, let body = method.body {
                 return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue)))
             }
             if let computed = symbol.computedProperties[name] {
@@ -485,7 +485,7 @@ extension Interpreter {
 
     private func enumCaseMember(_ name: String, on value: EnumCaseValue) throws -> RuntimeValue? {
         if name == "rawValue" { return value.rawValue }
-        if let method = value.symbol.methods[name] {
+        if let method = value.symbol.methods[name]?.first {
             guard let body = method.body else { return nil }
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumCase(value))))
         }
@@ -707,7 +707,7 @@ extension Interpreter {
                    case .type(let parent)? = globals.lookup(parentName) {
                     // Interpreted superclass: dispatch methods/computed with
                     // self bound to the SAME instance (super dispatch).
-                    if let method = parent.methods[name], let body = method.body {
+                    if let method = parent.methods[name]?.first, let body = method.body {
                         return .closure(makeFunctionClosure(
                             method, body: body,
                             captured: selfEnvironment(.instance(superRef.instance))))
@@ -872,7 +872,7 @@ extension Interpreter {
             // self is the TYPE, so bare sibling statics resolve.
             return try evaluateComputed(computed, selfValue: .type(symbol), name: name)
         }
-        if let method = symbol.staticMethods[name], let body = method.body {
+        if let method = symbol.staticMethods[name]?.first, let body = method.body {
             // Static context: `self`/`Self` and bare sibling statics resolve.
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol))))
         }
@@ -891,7 +891,7 @@ extension Interpreter {
         if let computed = symbol.staticComputedProperties[name] {
             return try evaluateComputed(computed, selfValue: .enumType(symbol), name: name)
         }
-        if let method = symbol.staticMethods[name], let body = method.body {
+        if let method = symbol.staticMethods[name]?.first, let body = method.body {
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumType(symbol))))
         }
         return nil
@@ -928,6 +928,18 @@ extension Interpreter {
                 return result
             }
             let baseValue = try evaluate(baseExpr, in: env)
+            // OVERLOADED methods pick by call shape ('func error(_: Error)'
+            // vs 'error(localized:args:)') — bare-name member access can't.
+            if case .instance(let instance) = baseValue,
+               let overloads = instance.symbol.methods[name], overloads.count > 1 {
+                let args = try collectArguments(of: call, in: env)
+                if let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.instance(instance)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
             let callee = try accessMember(name, on: baseValue, node: member, env: env)
             let args = try collectArguments(of: call, in: env)
             do {
@@ -950,6 +962,31 @@ extension Interpreter {
                     return try modifier.apply(target, args, self)
                 } catch let e as RuntimeError where e.line == 0 {
                     throw error(call, e.message)
+                }
+            }
+        }
+        // Unqualified overloaded calls inside the type's own body.
+        if let ref = call.calledExpression.as(DeclReferenceExprSyntax.self),
+           env.box(for: ref.baseName.text, before: globals) == nil {
+            let name = ref.baseName.text
+            if case .instance(let instance)? = env.lookup("self"),
+               let overloads = instance.symbol.methods[name], overloads.count > 1 {
+                let args = try collectArguments(of: call, in: env)
+                if let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.instance(instance)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
+            if case .type(let symbol)? = env.lookup("self"),
+               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+                let args = try collectArguments(of: call, in: env)
+                if let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.type(symbol)))
+                    return try invoke(.closure(closure), with: args, node: call)
                 }
             }
         }
@@ -1280,6 +1317,11 @@ extension Interpreter {
         callDepth += 1
         defer { callDepth -= 1 }
         guard callDepth < callDepthLimit else {
+            if let node {
+                let located = error(node, "call depth exceeded (possible infinite recursion)")
+                throw RuntimeError(
+                    message: located.message, line: located.line, column: located.column, fatal: true)
+            }
             throw RuntimeError(message: "call depth exceeded (possible infinite recursion)", fatal: true)
         }
         let env = Environment(parent: closure.captured)

@@ -1738,6 +1738,45 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// METHOD OVERLOADS pick by call shape — the Log idiom where
+    /// `error(localized:)` forwards to `error(_ msg:)` must not
+    /// self-recurse through a last-wins method table.
+    @Test func methodOverloadDispatch() throws {
+        let source = """
+        class Log {
+            static let shared = Log()
+            var lines: [String] = []
+
+            func error(_ msg: String) {
+                lines.append("plain: \\(msg)")
+            }
+
+            func error(localized str: String, args: [String] = []) {
+                error(String(format: str, arguments: args))
+            }
+
+            func error(code: Int) {
+                error("code \\(code)")
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let _ = {
+                    Log.shared.error(localized: "boom %@", args: ["now"])
+                    Log.shared.error(code: 7)
+                }()
+                VStack {
+                    Text("lines \\(Log.shared.lines.count)")
+                    Text(Log.shared.lines.first ?? "none")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

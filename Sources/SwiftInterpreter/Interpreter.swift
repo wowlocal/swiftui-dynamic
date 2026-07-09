@@ -340,6 +340,28 @@ public final class Interpreter {
         return .instance(instance)
     }
 
+    /// Overloaded methods pick by call shape; nil when nothing fits.
+    func chooseFunction(from candidates: [FunctionDeclSyntax], for args: CallArguments) -> FunctionDeclSyntax? {
+        let argLabels = args.arguments.compactMap(\.label)
+        let unlabeled = args.arguments.filter { $0.label == nil && !$0.isTrailing }.count
+        for candidate in candidates {
+            let params = candidate.signature.parameterClause.parameters
+            let labels = params.map { $0.firstName.text }
+            let wildcards = params.filter { $0.firstName.text == "_" }.count
+            let required = params
+                .filter { $0.defaultValue == nil && $0.firstName.text != "_" }
+                .map { $0.firstName.text }
+            let trailingCount = args.arguments.filter(\.isTrailing).count
+            if args.arguments.count <= params.count,
+               argLabels.allSatisfy({ labels.contains($0) }),
+               required.filter({ !argLabels.contains($0) }).count <= trailingCount,
+               unlabeled <= wildcards {
+                return candidate
+            }
+        }
+        return nil
+    }
+
     func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
         chooseInitializerStrict(from: initializers, for: args) ?? initializers[0]
     }
@@ -698,7 +720,9 @@ public final class Interpreter {
                 if call.name == "init" {
                     return try instantiate(symbol, with: call.arguments)
                 }
-                if let method = symbol.staticMethods[call.name], let body = method.body {
+                if let overloads = symbol.staticMethods[call.name],
+                   let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,
+                   let body = method.body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
                     return try callWithArguments(closure, args: call.arguments, node: nil)
@@ -766,7 +790,9 @@ public final class Interpreter {
                 return staticValue
             }
             if case .native(let any) = value, let call = any as? ImplicitMemberCall,
-               let method = hostSymbol.staticMethods[call.name], let body = method.body {
+               let overloads = hostSymbol.staticMethods[call.name],
+               let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,
+               let body = method.body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))
                 return try callWithArguments(closure, args: call.arguments, node: nil)

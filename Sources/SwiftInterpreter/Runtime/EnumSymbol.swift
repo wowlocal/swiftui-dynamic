@@ -14,10 +14,10 @@ public final class EnumSymbol {
 
     public let name: String
     public internal(set) var cases: [Case] = []
-    public internal(set) var methods: [String: FunctionDeclSyntax] = [:]
+    public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
     public internal(set) var staticProperties: [String: StructSymbol.StaticProperty] = [:]
-    public internal(set) var staticMethods: [String: FunctionDeclSyntax] = [:]
+    public internal(set) var staticMethods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var staticComputedProperties: [String: ComputedProperty] = [:]
     public internal(set) var initializers: [InitializerDeclSyntax] = []
     var staticCache: [String: RuntimeValue] = [:]

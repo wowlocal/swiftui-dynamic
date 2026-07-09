@@ -1110,3 +1110,12 @@ Each iteration does exactly this:
   unknowable path components chain; nested Task bodies SCHEDULE (never
   run synchronously — taskDepth). Mythic passes (48 nodes, 2 actions).
   **609/610; queue: PlayCover (direct recursion in action #18).**
+- 2026-07-09 iter 132: METHOD OVERLOADS — methods/staticMethods store
+  overload ARRAYS; chooseFunction picks by call shape at both call paths
+  (member calls + unqualified calls in the type's own body); value-position
+  reads keep the first overload. PlayCover's "infinite recursion" was
+  `error(localized:)` forwarding to `error(_ msg:)` through a last-wins
+  single-slot method table that dispatched back to itself. Depth-guard
+  errors now carry call-site locations (diagnostic keeper).
+  PlayCover passes (333 nodes, 21 actions). **610/610 counted — ZERO
+  failures (eighth saturation). 585 zips + 25 OSS repos green.**

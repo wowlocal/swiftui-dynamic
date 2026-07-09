@@ -255,9 +255,9 @@ extension Interpreter {
                 try collectProperties(varDecl, into: symbol)
             } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
                 if isStatic(funcDecl.modifiers) {
-                    symbol.staticMethods[funcDecl.name.text] = funcDecl
+                    symbol.staticMethods[funcDecl.name.text, default: []].append(funcDecl)
                 } else {
-                    symbol.methods[funcDecl.name.text] = funcDecl
+                    symbol.methods[funcDecl.name.text, default: []].append(funcDecl)
                 }
             } else if let initDecl = member.decl.as(InitializerDeclSyntax.self) {
                 symbol.initializers.append(initDecl)
@@ -496,9 +496,9 @@ extension Interpreter {
             }
         } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
             if isStatic(funcDecl.modifiers) {
-                symbol.staticMethods[funcDecl.name.text] = funcDecl
+                symbol.staticMethods[funcDecl.name.text, default: []].append(funcDecl)
             } else {
-                symbol.methods[funcDecl.name.text] = funcDecl
+                symbol.methods[funcDecl.name.text, default: []].append(funcDecl)
             }
         }
     }

@@ -111,10 +111,10 @@ public final class StructSymbol {
     public internal(set) var subscripts: [SubscriptMember] = []
     public internal(set) var storedProperties: [StoredProperty] = []
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
-    public internal(set) var methods: [String: FunctionDeclSyntax] = [:]
+    public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var initializers: [InitializerDeclSyntax] = []
     public internal(set) var staticProperties: [String: StaticProperty] = [:]
-    public internal(set) var staticMethods: [String: FunctionDeclSyntax] = [:]
+    public internal(set) var staticMethods: [String: [FunctionDeclSyntax]] = [:]
     /// Types declared inside this type (`Outer.Kind`) — `.enumType`/`.type` values.
     public internal(set) var nestedTypes: [String: RuntimeValue] = [:]
     var staticCache: [String: RuntimeValue] = [:]
