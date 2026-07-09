@@ -466,8 +466,11 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                    call.name == "init" {
                     value = call.arguments.labeled("value") ?? call.arguments.positional(0)
                 }
+                if case .implicitMember("zero")? = value {
+                    value = .native(0.0)
+                }
                 guard let number = value?.doubleValue else {
-                    throw RuntimeError(message: "string(from:) needs a number")
+                    throw RuntimeError(message: "string(from:) needs a number, got \(value?.stringified ?? "nothing")")
                 }
                 return .native(box.formatter.string(from: NSNumber(value: number)) ?? "\(number)")
             })

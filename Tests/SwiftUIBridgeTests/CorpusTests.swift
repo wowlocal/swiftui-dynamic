@@ -31,6 +31,34 @@ enum Corpus {
 }
 
 @Suite struct CorpusTests {
+
+
+    /// Numeric `.zero` statics resolve in annotated positions and window
+    /// frames read as the canvas rect — the responsive-layout genre.
+    @Test func numericZeroAndWindowFrame() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var total: Double = .zero
+
+            var body: some View {
+                let frame = UIApplication.shared.windows.first?.frame ?? .zero
+                VStack {
+                    Text(currencyString(total))
+                    Text(frame.width > 0 ? "sized" : "zero")
+                }
+            }
+
+            func currencyString(_ value: Double) -> String {
+                let formatter = NumberFormatter()
+                formatter.numberStyle = .currency
+                return formatter.string(from: .init(value: value)) ?? ""
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

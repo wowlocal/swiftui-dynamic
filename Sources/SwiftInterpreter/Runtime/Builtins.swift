@@ -135,6 +135,14 @@ enum Builtins {
         if let r = initCall(rhs), let scalar = lhs.doubleValue {
             return rewrap(r, try r.arguments.arguments.map { try double(scalar, $0.value.doubleValue!) })
         }
+        // `.zero + .init(degrees: 108)` — the bare zero marker is the init
+        // marker's elementwise zero.
+        if case .implicitMember("zero") = lhs, let r = initCall(rhs) {
+            return rewrap(r, try r.arguments.arguments.map { try double(0, $0.value.doubleValue!) })
+        }
+        if case .implicitMember("zero") = rhs, let l = initCall(lhs) {
+            return rewrap(l, try l.arguments.arguments.map { try double($0.value.doubleValue!, 0) })
+        }
         return nil
     }
 

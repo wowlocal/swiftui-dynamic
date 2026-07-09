@@ -601,3 +601,10 @@ Each iteration does exactly this:
   recorded above) — third-party ORM internals, the sanctioned last resort.
   Metric basis is now 585. **517 → 518 passing / 66 failing / 2 quarantined
   (88.5% of the metric).**
+- 2026-07-09 iter 73: the tied 3-classes — WindowStub.frame/bounds read as
+  the canvas rect (ResponsiveUI ×3, one advancing through `.zero + .init`
+  zero-marker arithmetic), and the Expense string(from:) chase ended at
+  numeric `.zero` statics: Double/CGFloat/Int/TimeInterval `.zero` (+
+  infinity/pi) resolve via the marker table, formatter belt-and-suspenders
+  included. The WHOLE Expense_Tracker series passes (EP2→Complete). +11
+  ripple. **518 → 529/585 (90.4% — past 90%).**

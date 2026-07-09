@@ -187,6 +187,14 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .native(CGPoint.zero)
         case ("CGRect", "zero"):
             return .native(CGRect.zero)
+        case ("Double", "zero"), ("CGFloat", "zero"), ("TimeInterval", "zero"):
+            return .native(0.0)
+        case ("Int", "zero"):
+            return .native(0)
+        case ("Double", "infinity"), ("CGFloat", "infinity"):
+            return .native(Double.infinity)
+        case ("Double", "pi"), ("CGFloat", "pi"):
+            return .native(Double.pi)
         case ("Double", "random"), ("CGFloat", "random"), ("Int", "random"):
             let wantsInt = marker.name == "Int"
             return .hostFunction(HostFunction(name: "random") { args, _ in
@@ -241,6 +249,7 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if value is WindowStub {
         if name == "safeAreaInsets" { return .native(EdgeInsets()) }
         if name == "isKeyWindow" { return .native(true) } // ours is the only window
+        if name == "frame" || name == "bounds" { return .native(ScreenStub().bounds) }
         if name == "rootViewController" || name == "rootController" {
             return .native(UIKitStub())
         }
