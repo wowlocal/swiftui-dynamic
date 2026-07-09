@@ -16,7 +16,8 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
-        hostObjectSetMember(name, on: value, to: newValue)
+        if networkHostSetMember(name, on: value, to: newValue) { return true }
+        return hostObjectSetMember(name, on: value, to: newValue)
     }
 
     public func absorbedCValue(named name: String) -> RuntimeValue? {

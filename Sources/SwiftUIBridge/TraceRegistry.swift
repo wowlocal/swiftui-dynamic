@@ -428,6 +428,7 @@ public final class TraceRegistry: HostRegistry {
             node.config[name] = newValue
             return true
         }
+        if networkHostSetMember(name, on: value, to: newValue) { return true }
         return hostObjectSetMember(name, on: value, to: newValue)
     }
 

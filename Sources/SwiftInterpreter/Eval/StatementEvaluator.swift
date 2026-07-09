@@ -61,16 +61,30 @@ extension Interpreter {
             if let switchExpr = expr.as(SwitchExprSyntax.self) {
                 return try executeSwitch(switchExpr, in: env)
             }
-            if expr.is(MacroExpansionExprSyntax.self) {
-                return .normal(.void) // statement-position #Preview {} is inert
+            if let macro = expr.as(MacroExpansionExprSyntax.self) {
+                // Registered macros (#expect/#require) execute for effect;
+                // statement-position #Preview {} stays inert.
+                _ = try invokeRegisteredMacro(
+                    named: macro.macroName.text, arguments: macro.arguments,
+                    trailingClosure: macro.trailingClosure,
+                    additionalTrailingClosures: macro.additionalTrailingClosures,
+                    node: macro, in: env)
+                return .normal(.void)
             }
             return .normal(try evaluate(expr, in: env))
         }
     }
 
     func executeDecl(_ decl: DeclSyntax, in env: Environment) throws {
-        if decl.is(MacroExpansionDeclSyntax.self) {
-            return // #Preview and friends are inert at runtime
+        if let macroDecl = decl.as(MacroExpansionDeclSyntax.self) {
+            // A bare `#expect(...)` in statement position parses as a DECL —
+            // registered macros execute; #Preview and friends stay inert.
+            _ = try invokeRegisteredMacro(
+                named: macroDecl.macroName.text, arguments: macroDecl.arguments,
+                trailingClosure: macroDecl.trailingClosure,
+                additionalTrailingClosures: macroDecl.additionalTrailingClosures,
+                node: macroDecl, in: env)
+            return
         }
         if let varDecl = decl.as(VariableDeclSyntax.self) {
             for binding in varDecl.bindings {

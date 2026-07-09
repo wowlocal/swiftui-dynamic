@@ -190,8 +190,15 @@ extension Interpreter {
             return try evaluate(inout_.expression, in: env)
         }
         if let macro = expr.as(MacroExpansionExprSyntax.self) {
-            // `#selector(...)`, `#Predicate {...}` — inert marker values;
-            // consumers (sendAction, flattened queries) ignore them.
+            // Registered macros (#expect/#require) execute; the rest stay
+            // inert markers (`#selector(...)`, `#Predicate {...}`).
+            if let result = try invokeRegisteredMacro(
+                named: macro.macroName.text, arguments: macro.arguments,
+                trailingClosure: macro.trailingClosure,
+                additionalTrailingClosures: macro.additionalTrailingClosures,
+                node: macro, in: env) {
+                return result
+            }
             return .native(HostTypeMarker(name: "#\(macro.macroName.text)"))
         }
         if let asExpr = expr.as(AsExprSyntax.self) {
@@ -458,21 +465,9 @@ extension Interpreter {
         // body (each IceCubes package declares its own `enum Constants`).
         if let nested = instance.symbol.nestedTypes[name] { return nested }
         if let box = instance.box(for: name) { return box.value }
-        // Interpreted-superclass members dispatch with self unchanged
-        // (inheritance: methods and computed properties walk the chain).
-        var parentName = instance.symbol.superclassName
-        while let superName = parentName {
-            guard case .type(let parent)? = globals.lookup(superName) else { break }
-            if let overloads = parent.methods[name], let method = overloads.first,
-               let body = method.body {
-                return .closure(makeFunctionClosure(
-                    method, body: body, captured: selfEnvironment(.instance(instance))))
-            }
-            if let computed = parent.computedProperties[name] {
-                return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
-            }
-            parentName = parent.superclassName
-        }
+        // Dynamic dispatch: the instance's OWN members win (overrides beat
+        // the inherited definition), THEN interpreted-superclass members
+        // dispatch with self unchanged, walking the chain.
         if let overloads = instance.symbol.methods[name], let first = overloads.first {
             // Within an OVERLOAD SET the running declaration never re-enters
             // itself: `send(_:) -> StoreTask` delegates to its identically-
@@ -492,6 +487,19 @@ extension Interpreter {
         }
         if let computed = instance.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
+        }
+        var parentName = instance.symbol.superclassName
+        while let superName = parentName {
+            guard case .type(let parent)? = globals.lookup(superName) else { break }
+            if let overloads = parent.methods[name], let method = overloads.first,
+               let body = method.body {
+                return .closure(makeFunctionClosure(
+                    method, body: body, captured: selfEnvironment(.instance(instance))))
+            }
+            if let computed = parent.computedProperties[name] {
+                return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
+            }
+            parentName = parent.superclassName
         }
         if instance.symbol.conformsToView,
            let value = try hostExtensionMember(name, candidates: ["View"], selfValue: .instance(instance)) {
