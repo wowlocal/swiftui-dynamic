@@ -1677,3 +1677,14 @@ without this.
   mastodon-ios ✅ (2 nodes). **653/657 counted — ZERO failures
   (TWENTY-EIGHTH saturation). 585 zips + 69 OSS repos green.
   Suite 331 → 332.**
+- 2026-07-10 iter 166: step 9 — boring.notch (123 files, arrival-pass
+  at 2056 NODES — the biggest render yet), Lunar (133, arrival-pass),
+  iina (223) cloned. iina's chain: a guard-else ending in an ABSORBED
+  Never-return (`exit(1)` in the bundled iina-cli tool) exits the scope
+  as the compiler proved (.returnValue instead of the must-exit throw);
+  STATIC-method overload sets never re-enter the running declaration
+  (Logger.log's @autoclosure convenience → closure-taking sibling — the
+  iter-157 instance rule extended to statics at all three pick sites).
+  iina ✅ (12 nodes, 3 actions). **656/660 counted — ZERO failures
+  (TWENTY-NINTH saturation). 585 zips + 72 OSS repos green. Suite
+  332 → 333.**

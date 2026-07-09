@@ -390,9 +390,31 @@ extension Interpreter {
         }
         let result = try executeBlock(guardStmt.body.statements, in: Environment(parent: env))
         if case .normal = result {
+            // The compiler PROVED the else exits — a block that ran to
+            // completion ended in an ABSORBED Never-return (`exit(1)` in
+            // merged helper-tool files stays inert per the cStdlib
+            // doctrine). The scope exits as the code intended.
+            if Self.endsInCall(guardStmt.body.statements) {
+                return .returnValue(.void)
+            }
             throw error(guardStmt, "guard else must exit (return, break, or continue)")
         }
         return result
+    }
+
+    /// True when the block's last statement is a bare function call —
+    /// compiled sources guarantee such a guard-else diverges (exit, abort,
+    /// a Never-returning helper).
+    private static func endsInCall(_ statements: CodeBlockItemListSyntax) -> Bool {
+        guard let last = statements.last else { return false }
+        if case .expr(let expr) = last.item {
+            return expr.is(FunctionCallExprSyntax.self)
+        }
+        if case .stmt(let stmt) = last.item,
+           let exprStmt = stmt.as(ExpressionStmtSyntax.self) {
+            return exprStmt.expression.is(FunctionCallExprSyntax.self)
+        }
+        return false
     }
 
     private func executeFor(_ forStmt: ForStmtSyntax, in env: Environment) throws -> StatementResult {

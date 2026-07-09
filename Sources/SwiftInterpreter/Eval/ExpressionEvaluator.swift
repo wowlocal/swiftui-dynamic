@@ -1118,9 +1118,17 @@ extension Interpreter {
             // self is the TYPE, so bare sibling statics resolve.
             return try evaluateComputed(computed, selfValue: .type(symbol), name: name)
         }
-        if let method = symbol.staticMethods[name]?.first, let body = method.body {
-            // Static context: `self`/`Self` and bare sibling statics resolve.
-            return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol))))
+        if let overloads = symbol.staticMethods[name], let first = overloads.first {
+            // Static context: `self`/`Self` and bare sibling statics
+            // resolve. Within an overload SET the running declaration never
+            // re-enters itself (Logger.log's autoclosure convenience
+            // delegating to its closure-taking sibling).
+            let method = overloads.count > 1
+                ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? first)
+                : first
+            if let body = method.body {
+                return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol))))
+            }
         }
         if symbol.staticUninitialized.contains(name) { return .nilValue }
         return nil
@@ -1140,7 +1148,11 @@ extension Interpreter {
         if let computed = symbol.staticComputedProperties[name] {
             return try evaluateComputed(computed, selfValue: .enumType(symbol), name: name)
         }
-        if let method = symbol.staticMethods[name]?.first, let body = method.body {
+        if let overloads = symbol.staticMethods[name], let first = overloads.first {
+            let method = overloads.count > 1
+                ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? first)
+                : first
+            guard let body = method.body else { return nil }
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumType(symbol))))
         }
         return nil
@@ -1271,7 +1283,12 @@ extension Interpreter {
             if case .type(let symbol)? = env.lookup("self"),
                let overloads = symbol.staticMethods[name], overloads.count > 1 {
                 let args = try collectArguments(of: call, in: env)
-                if let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: .type(symbol), member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
                    let body = method.body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))

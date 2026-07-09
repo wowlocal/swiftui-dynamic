@@ -2909,6 +2909,51 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// iina (iteration 166): a guard-else ending in an ABSORBED
+    /// Never-return (`exit(1)` in a merged helper tool) exits the scope as
+    /// the compiler proved; STATIC-method overload sets never re-enter the
+    /// running declaration (Logger.log's autoclosure convenience delegates
+    /// to its closure-taking sibling).
+    @Test func absorbedNeverReturnGuardsAndStaticDelegation() throws {
+        let source = """
+        struct Logger {
+            static var lines: [String] = []
+
+            static func log(_ message: @autoclosure () -> String, level: Int = 0) {
+                log(message, level: level)
+            }
+
+            static func log(_ message: () -> String, level: Int) {
+                lines.append(message())
+            }
+        }
+
+        var launched = false
+        func launcherMain() {
+            guard FileManager.default.fileExists(atPath: "/nonexistent/iina") else {
+                print("Cannot find IINA binary.")
+                exit(1)
+            }
+            launched = true
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                launcherMain()
+                Logger.log("hello iina")
+                let checks = [
+                    launched == false,
+                    Logger.lines.isEmpty == false,
+                ]
+                if checks.contains(false) { fatalError("iina classes broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// mastodon-ios (iteration 165): Sourcery inline-SCRATCH files hold
     /// bare method fragments meant for inlining elsewhere — hard parse
     /// errors prove a file is not a member of any compiling target, so the
