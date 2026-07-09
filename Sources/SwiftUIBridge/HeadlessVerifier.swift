@@ -11,9 +11,11 @@ public enum HeadlessVerifier {
     }
 
     @discardableResult
-    public static func verify(source: String, interactions: Bool = true) throws -> Report {
+    public static func verify(
+        source: String, interactions: Bool = true, lazyTopLevelGlobals: Bool = false
+    ) throws -> Report {
         let interpreter = Interpreter(registry: TraceRegistry())
-        try interpreter.run(source: source)
+        try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
         guard let symbol = interpreter.rootViewSymbol() else {
             throw RuntimeError(message: "no View-conforming struct found")
         }

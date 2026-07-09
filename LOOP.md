@@ -1013,3 +1013,13 @@ Each iteration does exactly this:
   args need `_` slots — Pubkey(data) no longer picks init?(hex:)).
   damus: 69257 → 76646 (.ptr on void — nostrdb C pointers, next class).
   **598/599. Suite 236.**
+- 2026-07-09 iter 124: init-delegation failure + lazy library globals —
+  a delegated `self.init(…)` that returns nil now fails the WHOLE init
+  (sentinel unwinds through runInitializer; no more half-built instances
+  reading void `note.ptr`); merged multi-file units treat top-level
+  globals as LAZY library globals (SwiftUI apps have no main.swift — real
+  Swift initializes them on first use), so damus's embedded test fixtures
+  (`NostrEvent(…)!` needing real secp256k1) never run unless referenced.
+  Single-source programs keep eager main-semantics (tests unchanged).
+  damus: 76646 → 35225 (void `environment` property — next class).
+  **598/599. Suite 237.**

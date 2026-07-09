@@ -1420,6 +1420,46 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Delegated failable inits fail the WHOLE init (`self.init(…)`
+    /// returning nil unwinds), and multi-file merges treat top-level
+    /// globals as LAZY library globals (fixtures that force-unwrap
+    /// device-only constructions never run unless referenced).
+    @Test func delegatedInitFailureAndLazyLibraryGlobals() throws {
+        let source = """
+        final class Event {
+            var content: String
+            var signature: Data
+
+            init?(content: String, sign: Bool) {
+                guard sign else { return nil }
+                self.content = content
+                self.signature = Data(repeating: 1, count: 4)
+            }
+
+            convenience init?(content: String) {
+                self.init(content: content, sign: false)
+            }
+        }
+
+        let fixture = Event(content: "gm")!
+
+        struct ContentView: View {
+            var body: some View {
+                let direct = Event(content: "hello", sign: true)
+                let delegated = Event(content: "hello")
+                VStack {
+                    Text(direct == nil ? "no direct" : "signed \\(direct!.signature.count)")
+                    Text(delegated == nil ? "delegated failed honestly" : "half-built!")
+                }
+            }
+        }
+        """
+        // Merged-unit semantics: the force-unwrapping fixture is a lazy
+        // library global — never referenced, never run.
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

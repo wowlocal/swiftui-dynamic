@@ -80,7 +80,11 @@ public final class Interpreter {
     /// last top-level expression (handy for tests and for `ContentView()` as
     /// an explicit root).
     @discardableResult
-    public func run(source: String) throws -> RuntimeValue {
+    /// `lazyTopLevelGlobals`: multi-file merges (ProjectCheck units) have
+    /// no main.swift — every top-level global is a LIBRARY global, which
+    /// real Swift initializes lazily on first use. Single-source programs
+    /// keep eager main.swift semantics (statement order matters in tests).
+    public func run(source: String, lazyTopLevelGlobals: Bool = false) throws -> RuntimeValue {
         let file = try parse(source: source)
         steps = 0
         try collectDeclarations(from: file)
@@ -96,6 +100,10 @@ public final class Interpreter {
                 || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
                 continue // already collected (protocols: requirements carry
                 // no bodies; defaults live in their extensions)
+            }
+            if lazyTopLevelGlobals, case .decl(let decl) = item.item,
+               let varDecl = decl.as(VariableDeclSyntax.self), isHoistableGlobal(varDecl) {
+                continue // library globals: initialize on first reference
             }
             if case .decl(let decl) = item.item,
                let varDecl = decl.as(VariableDeclSyntax.self), isHoistableGlobal(varDecl) {
@@ -263,6 +271,10 @@ public final class Interpreter {
         return .instance(instance)
     }
 
+    /// Sentinel unwound when a DELEGATED failable init returns nil: the
+    /// enclosing init fails too (real init-delegation semantics).
+    static let initFailedSentinel = "__delegated_init_failed__"
+
     /// Run one initializer body with `self` bound to the instance — used
     /// by instantiate and by `self.init(…)` delegation. Returns the FINAL
     /// self: struct inits may reassign it (`self = decoded`), and the
@@ -292,7 +304,12 @@ public final class Interpreter {
             body: body.statements,
             captured: initEnv
         )
-        let outcome = try callWithArguments(closure, args: args, node: node)
+        let outcome: RuntimeValue
+        do {
+            outcome = try callWithArguments(closure, args: args, node: node)
+        } catch let failure as RuntimeError where failure.message == Self.initFailedSentinel {
+            return .nilValue // a delegated failable init said no
+        }
         if chosen.optionalMark != nil, outcome.isNil {
             return .nilValue // failable init: `return nil` means NO value
         }

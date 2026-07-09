@@ -528,13 +528,18 @@ extension Interpreter {
 
         case .instance(let instance):
             // `self.init(…)` — delegating initializers run another init on
-            // the SAME instance (convenience inits).
+            // the SAME instance (convenience inits). A failable delegate
+            // that returns nil fails the WHOLE init (sentinel unwinds to
+            // runInitializer, which reports nil).
             if name == "init", !instance.symbol.initializers.isEmpty {
                 return .hostFunction(HostFunction(name: "init") { [weak self] args, _ in
                     guard let self else { throw RuntimeError(message: "interpreter gone") }
-                    try self.runInitializer(
+                    let outcome = try self.runInitializer(
                         self.chooseInitializer(from: instance.symbol.initializers, for: args),
                         on: instance, args: args, node: nil)
+                    if outcome.isNil {
+                        throw RuntimeError(message: Interpreter.initFailedSentinel)
+                    }
                     return .void
                 })
             }
