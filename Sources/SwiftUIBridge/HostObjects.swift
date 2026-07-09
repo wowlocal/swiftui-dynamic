@@ -44,6 +44,11 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { args, _ in
             args.labeled("initialValue") ?? args.labeled("wrappedValue") ?? args.positional(0) ?? .void
         }
+    case "Query", "FetchRequest", "SectionedFetchRequest", "ObservedResults":
+        // `_list = Query(descriptor, animation: .snappy)` in custom inits —
+        // the storage is fresh-store results: empty (same doctrine as the
+        // wrapper flatten).
+        return HostFunction(name: name) { _, _ in .native([RuntimeValue]()) }
     case "CGSize":
         return HostFunction(name: name) { args, _ in
             .native(CGSize(

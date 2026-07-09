@@ -41,6 +41,39 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Query-wrapper CONSTRUCTORS are fresh-store empty results, so custom
+    /// inits assigning backing storage (`_list = Query(descriptor)`) keep
+    /// ForEach iterable; unknown store-query objects act empty.
+    @Test func queryConstructorAssignsFreshStore() throws {
+        let source = """
+        struct Todo: Identifiable {
+            let id: Int
+            var title: String
+        }
+
+        struct ContentView: View {
+            @Query private var activeList: [Todo]
+
+            init() {
+                _activeList = Query(FetchDescriptor(), animation: .snappy)
+            }
+
+            var body: some View {
+                List {
+                    ForEach(activeList) { todo in
+                        Text(todo.title)
+                    }
+                    if activeList.isEmpty {
+                        Text("No todos yet")
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// Text concatenation (`Text + Text`) and real NumberFormatter output.
     @Test func textConcatAndNumberFormatter() throws {
         let source = """

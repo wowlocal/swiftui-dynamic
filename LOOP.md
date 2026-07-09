@@ -482,3 +482,10 @@ Each iteration does exactly this:
   byAdding + bySettingHour forms. Image_Viewer, MovieAppUI, Food_App_UI,
   Cart, Fitness_DashBoard pass; the Expense series advanced deep.
   **444/587 → 450/587**.
+- 2026-07-09 iter 59: query-wrapper CONSTRUCTORS are fresh-store empties —
+  `_list = Query(descriptor, animation:)` in custom inits assigned a
+  TraceNode over the flattened `[]` (Query/FetchRequest/SectionedFetch/
+  ObservedResults ctors now return empty results); unknown store-query
+  TraceNodes act empty for map/compactMap/filter/sorted/count/isEmpty (the
+  realm.objects(...) reading). MinimalTodo, NotesApp, Task_Management ×2 +
+  ripple pass; RealmDataBase/Expense EP5 advanced. **450/587 → 455/587**.

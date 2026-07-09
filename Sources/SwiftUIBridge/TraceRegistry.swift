@@ -262,6 +262,18 @@ public final class TraceRegistry: HostRegistry {
         if let node = value as? TraceNode, let stored = node.config[name] {
             return stored
         }
+        if value is TraceNode {
+            // Unknown store-query objects (realm.objects(...)) act like a
+            // fresh empty store when iterated — the same doctrine as the
+            // query-wrapper flatten.
+            switch name {
+            case "map", "compactMap", "filter", "sorted", "reversed":
+                return .hostFunction(HostFunction(name: name) { _, _ in .native([RuntimeValue]()) })
+            case "count": return .native(0)
+            case "isEmpty": return .native(true)
+            default: break
+            }
+        }
         return bridgeHostMember(name, on: value)
     }
 
