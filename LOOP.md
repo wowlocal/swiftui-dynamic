@@ -543,3 +543,11 @@ Each iteration does exactly this:
   .landscapeRight` → false). 3DGestureCard, FloatingWindow,
   Pomodoro_Timer_Part_1, CustomVideoPlayer_-_Part_2 pass (+ripple).
   **493/587 → 499/587**.
+- 2026-07-09 iter 66: CalendarBox round two — `dateInterval(of:for:)` with a
+  DateIntervalBox (start/end/duration), weekOfMonth/weekOfYear/quarter
+  components, and Foundation boxes gain host type names (CalendarBox →
+  "Calendar", DateFormatter/NumberFormatter/DateComponents likewise) so user
+  `extension Calendar { var hours … }` members dispatch on the real-backed
+  boxes. TaskManagement, TaskPlanner (162 nodes — its Calendar extension
+  evaluates for real), TaskManagementCoreData ×2 pass.
+  **499/587 → 503/587 (85.7%).**

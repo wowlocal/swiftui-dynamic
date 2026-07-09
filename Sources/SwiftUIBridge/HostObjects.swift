@@ -167,8 +167,16 @@ private func calendarComponent(_ value: RuntimeValue?) -> Calendar.Component? {
     case "minute": return .minute
     case "second": return .second
     case "weekday": return .weekday
+    case "weekOfMonth": return .weekOfMonth
+    case "weekOfYear": return .weekOfYear
+    case "quarter": return .quarter
     default: return nil
     }
+}
+
+/// `calendar.dateInterval(of:for:)` results — start/end/duration reads.
+struct DateIntervalBox {
+    let interval: DateInterval
 }
 
 /// `UIFont.systemFont(ofSize: 16, weight: .semibold)` and friends arrive as
@@ -336,6 +344,15 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 default: return .native(box.calendar.isDateInToday(date))
                 }
             })
+        case "dateInterval":
+            return .hostFunction(HostFunction(name: "dateInterval") { args, _ in
+                guard let component = calendarComponent(args.labeled("of")),
+                      let date = dateArg(args.labeled("for")) else {
+                    throw RuntimeError(message: "dateInterval(of:for:) needs a component and a Date")
+                }
+                return box.calendar.dateInterval(of: component, for: date)
+                    .map { RuntimeValue.native(DateIntervalBox(interval: $0)) } ?? .nilValue
+            })
         case "isDate":
             return .hostFunction(HostFunction(name: "isDate") { args, _ in
                 guard let lhs = dateArg(args.positional(0)),
@@ -346,6 +363,14 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         default:
             return nil
+        }
+    }
+    if let box = value as? DateIntervalBox {
+        switch name {
+        case "start": return .native(box.interval.start)
+        case "end": return .native(box.interval.end)
+        case "duration": return .native(box.interval.duration)
+        default: return nil
         }
     }
     if let box = value as? DateComponentsBox {

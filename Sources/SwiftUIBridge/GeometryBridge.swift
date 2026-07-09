@@ -550,6 +550,10 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is WindowStub: return "UIWindow"
     case is WindowSceneStub: return "UIWindowScene"
     case is ScreenStub: return "UIScreen"
+    case is CalendarBox: return "Calendar"
+    case is DateFormatterBox: return "DateFormatter"
+    case is NumberFormatterBox: return "NumberFormatter"
+    case is DateComponentsBox: return "DateComponents"
     default: return nil
     }
 }

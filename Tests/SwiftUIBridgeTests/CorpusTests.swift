@@ -283,6 +283,33 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// dateInterval(of:for:) with weekOfMonth + user `extension Calendar`
+    /// members dispatching on the real-backed box.
+    @Test func dateIntervalAndCalendarExtensions() throws {
+        let source = """
+        extension Calendar {
+            var workingHours: [Int] {
+                return [9, 12, 17]
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let calendar = Calendar.current
+                let week = calendar.dateInterval(of: .weekOfMonth, for: Date())
+                let hours = Calendar.current.workingHours
+                VStack {
+                    Text(week != nil ? "has week" : "no week")
+                    Text((week?.start ?? Date()).timeIntervalSince1970 > 0 ? "ok" : "bad")
+                    Text("\\(hours.count) hours")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// Real-Calendar members: dateComponents(from:to:), range(of:in:for:),
     /// symbols, isDateInToday — plus user Date-extension statics resolving
     /// in annotated positions.
