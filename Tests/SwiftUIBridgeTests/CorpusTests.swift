@@ -1977,6 +1977,50 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// Codable inits are decoder-only (never picked for construction or
+    /// synthesis; enum positional args try raw-value matching);
+    /// gateway numeric coercions absorb unresolved markers to zero.
+    @Test func codableInitExclusionAndMarkerCoercion() throws {
+        let source = """
+        enum Kind: String, Codable {
+            case logitechControl
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                self = Kind(rawValue: try container.decode(String.self)) ?? .logitechControl
+            }
+        }
+
+        struct Mapping: Codable {
+            var kind: Kind
+
+            init(kind: Kind) {
+                self.kind = kind
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.kind = try container.decode(Kind.self, forKey: .kind)
+            }
+        }
+
+        struct SettingsView: View {
+            let mapping: Mapping
+
+            var body: some View {
+                let window = ExternalWindow.shared
+                let origin = CGPoint(x: window.frame.maxX - 10, y: window.frame.minY)
+                VStack {
+                    Text(mapping.kind == .logitechControl ? "logi" : "other")
+                    Text("origin \\(origin.y)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

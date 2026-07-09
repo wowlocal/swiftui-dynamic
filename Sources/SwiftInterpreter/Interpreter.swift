@@ -399,8 +399,20 @@ public final class Interpreter {
         return nil
     }
 
+    /// `init(from decoder:)` / `init(coder:)` — only decoders reach these.
+    static func isCodableInit(_ initializer: InitializerDeclSyntax) -> Bool {
+        let params = initializer.signature.parameterClause.parameters
+        guard params.count == 1, let only = params.first else { return false }
+        let label = only.firstName.text
+        let type = only.type.trimmedDescription
+        return (label == "from" && type.contains("Decoder"))
+            || (label == "coder" && type.contains("Coder"))
+    }
+
     func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
-        chooseInitializerStrict(from: initializers, for: args) ?? initializers[0]
+        chooseInitializerStrict(from: initializers, for: args)
+            ?? initializers.first { !Self.isCodableInit($0) }
+            ?? initializers[0]
     }
 
     /// Shape-matching only — nil when NO candidate fits (callers decide
@@ -536,9 +548,12 @@ public final class Interpreter {
 
     private func synthesizedArguments(for symbol: StructSymbol, seen: inout Set<String>) throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
-        // Prefer a NON-failable init: synthesized fresh arguments rarely
-        // satisfy `init?` guards (hex parsing etc.), and nil poisons roots.
-        let preferred = symbol.initializers.first { $0.optionalMark == nil }
+        // Prefer a NON-failable, NON-Codable init: synthesized fresh
+        // arguments rarely satisfy `init?` guards, and `init(from:
+        // decoder)` is only ever reached through real decoders.
+        let preferred = symbol.initializers.first {
+            $0.optionalMark == nil && !Self.isCodableInit($0)
+        } ?? symbol.initializers.first { !Self.isCodableInit($0) }
             ?? symbol.initializers.first
         if let initializer = preferred {
             for param in initializer.signature.parameterClause.parameters

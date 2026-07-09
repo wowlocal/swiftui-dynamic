@@ -12,10 +12,14 @@ swift run DynamicSwiftUIDemo
 ```
 
 An editor opens on the left, the live interpreted view renders on the right.
-Four built-in samples (toolbar picker): **Counter** (`@State` + Button
-actions), **Form** (`$state` bindings driving `Toggle`/`Slider`/`TextField`),
-**Layout** (stacks, modifiers, `ForEach` chips), **List** (nested
-user-defined views).
+Built-in samples (toolbar picker): **Counter** (`@State` + Button
+actions), **Todo** (MVVM `ObservableObject` store shared by views), **Form**
+(`$state` bindings driving `Toggle`/`Slider`/`TextField`), **Weather** (enums
+with methods, `switch` in bodies, gradients), **Layout** (stacks, modifiers,
+`ForEach` chips), **List** (nested user-defined views), plus two lifted from
+the sample-projects corpus: **Segments** (Kavsoft's AnimatedSegmentedControl —
+generic view with a `@ViewBuilder` closure property, GeometryReader indicator
+math) and **Material** (Kavsoft's MaterialTF — floating-label text field).
 
 ```
 swift test

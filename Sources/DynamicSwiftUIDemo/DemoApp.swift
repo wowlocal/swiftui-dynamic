@@ -133,7 +133,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // SwiftUI layers don't draw via cacheDisplay without a window.
             let hosting = NSHostingView(rootView: view.padding(40).background(Color.white))
             hosting.layoutSubtreeIfNeeded()
-            hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
+            // Samples are components — size to fit. Projects are full-screen
+            // apps (scroll/GeometryReader roots collapse fittingSize to
+            // nothing); give them an iPhone-ish canvas instead.
+            let size = DemoApp.projectDirectory == nil
+                ? hosting.fittingSize
+                : NSSize(width: 470, height: 780)
+            hosting.frame = NSRect(origin: .zero, size: size)
             let window = NSWindow(contentRect: hosting.frame, styleMask: .borderless, backing: .buffered, defer: false)
             window.appearance = NSAppearance(named: .aqua)
             window.contentView = hosting

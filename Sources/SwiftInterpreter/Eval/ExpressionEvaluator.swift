@@ -1312,8 +1312,18 @@ extension Interpreter {
             }
             // Custom enum inits run with a WRITABLE `self` (`self = .primary`);
             // the final self resolves against the enum's own type context.
-            if !symbol.initializers.isEmpty {
-                let chosen = chooseInitializer(from: symbol.initializers, for: args)
+            // Codable inits (init(from: Decoder)) are decoder-only — a
+            // positional value tries RAW-VALUE matching instead.
+            let constructible = symbol.initializers.filter { !Interpreter.isCodableInit($0) }
+            if constructible.isEmpty, args.arguments.count == 1,
+               let raw = args.positional(0) {
+                if let matched = symbol.cases
+                    .first(where: { (try? Builtins.areEqual($0.rawValue, raw)) == true }) {
+                    return .enumCase(EnumCaseValue(symbol: symbol, name: matched.name))
+                }
+            }
+            if !constructible.isEmpty {
+                let chosen = chooseInitializer(from: constructible, for: args)
                 guard let body = chosen.body else {
                     throw error(node, "init of '\(symbol.name)' has no body")
                 }

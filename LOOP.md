@@ -1155,3 +1155,13 @@ Each iteration does exactly this:
   backtick-normalized property names. **616/618 counted; queue: Ice
   (void OptionSet default — deep init-overload chase), linearmouse
   (String.container).**
+- 2026-07-09 iter 136: linearmouse falls — Codable inits are DECODER-ONLY:
+  never picked by synthesis or shape-fallback for ordinary construction
+  (isCodableInit gates struct/class/enum paths; enum single positional
+  tries raw-value matching first); gateway numeric coercions absorb
+  markers (Coerce.cgFloat/double via public absorbedNumeric — whose early
+  `default: return nil` had made the bare-marker zero rule DEAD CODE;
+  window.frame.minY on inherited host frames now reads 0).
+  linearmouse passes (11 nodes, 2 actions). **617/618; queue: Ice (void
+  OptionSet in generic init overloads — probe-resistant, needs a fresh
+  angle).**

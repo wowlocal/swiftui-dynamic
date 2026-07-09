@@ -5,7 +5,7 @@ import Foundation
 /// Int/Double promotion. `&&`/`||`/`??` are short-circuited in the evaluator
 /// and never reach this table. Errors are unlocated `EvalMessage`s; the
 /// evaluator re-throws them with the operator node's source location.
-enum Builtins {
+public enum Builtins {
     static func binary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue {
         switch op {
         case "+":
@@ -133,7 +133,7 @@ enum Builtins {
     /// numeric markers (.pi/.zero/.infinity…) map to their constants; hosted
     /// objects and unresolved chains read ZERO (the fresh canvas). Returns
     /// nil for real values — callers keep their concrete coercions.
-    static func absorbedNumeric(_ value: RuntimeValue) -> Double? {
+    public static func absorbedNumeric(_ value: RuntimeValue) -> Double? {
         if case .implicitMember(let name) = value {
             switch name {
             case "pi": return Double.pi
@@ -141,7 +141,7 @@ enum Builtins {
             case "infinity": return .infinity
             case "leastNonzeroMagnitude": return .leastNonzeroMagnitude
             case "greatestFiniteMagnitude": return .greatestFiniteMagnitude
-            default: return nil
+            default: break // unresolved statics fall to the zero rule below
             }
         }
         if case .native(let any) = value,
@@ -149,6 +149,7 @@ enum Builtins {
             return 0.0
         }
         if case .hostFunction = value { return 0.0 } // bound stub member
+        if case .implicitMember = value { return 0.0 } // unresolved static
         return nil
     }
 

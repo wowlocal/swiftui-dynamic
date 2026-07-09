@@ -54,14 +54,14 @@ enum Coerce {
     static func cgFloat(_ value: RuntimeValue) throws -> CGFloat {
         if let d = value.doubleValue { return CGFloat(d) }
         if case .implicitMember("infinity") = value { return .infinity }
+        if let z = Builtins.absorbedNumeric(value) { return CGFloat(z) }
         throw RuntimeError(message: "expected a number, got \(value.stringified)")
     }
 
     static func double(_ value: RuntimeValue) throws -> Double {
-        guard let d = value.doubleValue else {
-            throw RuntimeError(message: "expected a number, got \(value.stringified)")
-        }
-        return d
+        if let d = value.doubleValue { return d }
+        if let z = Builtins.absorbedNumeric(value) { return z }
+        throw RuntimeError(message: "expected a number, got \(value.stringified)")
     }
 
     // MARK: - Colors & shape styles

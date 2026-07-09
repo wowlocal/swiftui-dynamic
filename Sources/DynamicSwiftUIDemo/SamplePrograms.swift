@@ -5,7 +5,7 @@ struct SampleProgram: Identifiable, Hashable {
 }
 
 enum SamplePrograms {
-    static let all = [counter, todoMVVM, form, weather, staticLayout, list]
+    static let all = [counter, todoMVVM, form, weather, staticLayout, list, segments, material]
 
     /// A real view-model app: ObservableObject store shared by three views.
     static let todoMVVM = SampleProgram(name: "Todo", source: """
@@ -289,6 +289,245 @@ enum SamplePrograms {
         }
     }
     """)
+
+    /// Real-world code from the sample-projects corpus: Kavsoft's
+    /// AnimatedSegmentedControl — a generic view with a @ViewBuilder closure
+    /// property, GeometryReader indicator math, and completion-chained
+    /// withAnimation. Adapted for the bridge: the preference-based initial
+    /// indicator offset is dropped (the indicator starts on the first tab
+    /// anyway) and the iOS-only `.toolbarBackground(for: .navigationBar)`
+    /// is removed.
+    static let segments = SampleProgram(name: "Segments", source: #"""
+    enum SegmentedTab: String, CaseIterable {
+        case home = "house.fill"
+        case favourites = "suit.heart.fill"
+        case notifications = "bell.fill"
+        case profile = "person.fill"
+    }
+
+    struct SegmentedControl<Indicator: View>: View {
+        var tabs: [SegmentedTab]
+        @Binding var activeTab: SegmentedTab
+        var height: CGFloat = 45
+        /// Customization Properties
+        var displayAsText: Bool = false
+        var font: Font = .title3
+        var activeTint: Color
+        var inActiveTint: Color
+        /// Indicator View
+        @ViewBuilder var indicatorView: (CGSize) -> Indicator
+        /// View Properties
+        @State private var excessTabWidth: CGFloat = .zero
+        @State private var minX: CGFloat = .zero
+        var body: some View {
+            GeometryReader {
+                let size = $0.size
+                let containerWidthForEachTab = size.width / CGFloat(tabs.count)
+
+                HStack(spacing: 0) {
+                    ForEach(tabs, id: \.rawValue) { tab in
+                        Group {
+                            if displayAsText {
+                                Text(tab.rawValue)
+                            } else {
+                                Image(systemName: tab.rawValue)
+                            }
+                        }
+                        .font(font)
+                        .foregroundStyle(activeTab == tab ? activeTint : inActiveTint)
+                        .animation(.snappy, value: activeTab)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(.rect)
+                        .onTapGesture {
+                            if let index = tabs.firstIndex(of: tab), let activeIndex = tabs.firstIndex(of: activeTab) {
+                                activeTab = tab
+
+                                withAnimation(.snappy(duration: 0.25, extraBounce: 0), completionCriteria: .logicallyComplete) {
+                                    excessTabWidth = containerWidthForEachTab * CGFloat(index - activeIndex)
+                                } completion: {
+                                    withAnimation(.snappy(duration: 0.25, extraBounce: 0)) {
+                                        minX = containerWidthForEachTab * CGFloat(index)
+                                        excessTabWidth = 0
+                                    }
+                                }
+                            }
+                        }
+                        .background(alignment: .leading) {
+                            if tabs.first == tab {
+                                GeometryReader {
+                                    let size = $0.size
+
+                                    indicatorView(size)
+                                        .frame(width: size.width + (excessTabWidth < 0 ? -excessTabWidth : excessTabWidth), height: size.height)
+                                        .frame(width: size.width, alignment: excessTabWidth < 0 ? .trailing : .leading)
+                                        .offset(x: minX)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(height: height)
+        }
+    }
+
+    struct ContentView: View {
+        /// View Properties
+        @State private var activeTab: SegmentedTab = .home
+        @State private var type2: Bool = false
+        var body: some View {
+            NavigationStack {
+                VStack(spacing: 15) {
+                    SegmentedControl(
+                        tabs: SegmentedTab.allCases,
+                        activeTab: $activeTab,
+                        height: 35,
+                        font: .body,
+                        activeTint: type2 ? .white : .primary,
+                        inActiveTint: .gray.opacity(0.5)
+                    ) { size in
+                        RoundedRectangle(cornerRadius: type2 ? 30 : 0)
+                            .fill(.blue)
+                            .frame(height: type2 ? size.height : 4)
+                            .padding(.horizontal, type2 ? 0 : 10)
+                            .offset(y: type2 ? 0 : 2)
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                    }
+                    .padding(.top, type2 ? 0 : 10)
+                    .background {
+                        RoundedRectangle(cornerRadius: type2 ? 30 : 0)
+                            .fill(.ultraThinMaterial)
+                            .ignoresSafeArea()
+                    }
+                    .padding(.horizontal, type2 ? 15 : 0)
+
+                    Toggle("Segmented Control Type - 2", isOn: $type2)
+                        .padding(10)
+                        .background(.regularMaterial, in: .rect(cornerRadius: 10))
+                        .padding(15)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, type2 ? 15 : 0)
+                .animation(.snappy, value: type2)
+                .navigationTitle("Segmented Control")
+            }
+        }
+    }
+    """#)
+
+    /// Real-world code from the sample-projects corpus: Kavsoft's MaterialTF —
+    /// a floating-label material text field whose ObservableObject manager
+    /// drives the character counter. Verbatim except for headers/previews.
+    static let material = SampleProgram(name: "Material", source: #"""
+    struct ContentView: View {
+        var body: some View {
+
+            NavigationView{
+
+                Home()
+                    .navigationTitle("Material Design")
+            }
+        }
+    }
+
+    struct Home: View {
+
+        @StateObject var manager = TFManager()
+        // Animation Properites...
+        @State var isTapped = false
+
+        var body: some View{
+
+            VStack{
+
+                VStack(alignment: .leading, spacing: 4, content: {
+
+                    HStack(spacing: 15){
+
+                        // were going to limit the textfiled length....
+
+                        TextField("", text: $manager.text) { (status) in
+                            // it will fire when textfield is clicked...
+                            if status{
+                                withAnimation(.easeIn){
+                                    // moving hint to top..
+                                    isTapped = true
+                                }
+                            }
+                        } onCommit: {
+                            // it will fire when return button is pressed...
+                            // only if no text typed..
+                            if manager.text == ""{
+                                withAnimation(.easeOut){
+                                    isTapped = false
+                                }
+                            }
+                        }
+
+                        // Trailing Icon Or Button...
+
+                        Button(action: {}, label: {
+                            Image(systemName: "suit.heart")
+                                .foregroundColor(.gray)
+                        })
+                    }
+                    // if tapped...
+                    .padding(.top,isTapped ? 15 : 0)
+                    // overlay will avoid clicking the textfiled...
+                    // so moving it below the textfield..
+                    .background(
+
+                        Text("UserName")
+                            .scaleEffect(isTapped ? 0.8 : 1)
+                            .offset(x: isTapped ? -7 : 0, y: isTapped ? -15 : 0)
+                            .foregroundColor(isTapped ? .accentColor : .gray)
+
+
+                        ,alignment: .leading
+                    )
+                    .padding(.horizontal)
+
+                    // Divider Color...
+                    Rectangle()
+                        .fill(isTapped ? Color.accentColor : Color.gray)
+                        .opacity(isTapped ? 1 : 0.5)
+                        .frame(height: 1)
+                        .padding(.top,10)
+                })
+                .padding(.top,12)
+                .background(Color.gray.opacity(0.09))
+                .cornerRadius(5)
+
+                // Displaying Count...
+                HStack{
+
+                    Spacer()
+
+                    Text("\(manager.text.count)/15")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .padding(.trailing)
+                        .padding(.top,4)
+                }
+            }
+            .padding()
+        }
+    }
+
+    class TFManager: ObservableObject{
+
+        @Published var text = ""{
+            // were going to use didSet Function before assigning the new value...
+            // so that we can check the count...
+            didSet{
+                if text.count > 15 && oldValue.count <= 15{
+                    text = oldValue
+                }
+            }
+        }
+    }
+    """#)
 
     static let list = SampleProgram(name: "List", source: """
     struct Row: View {
