@@ -1013,6 +1013,49 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Standalone roots synthesize @Binding parameters (fresh inner
+    /// value), missing env models instantiate with FRESH init arguments,
+    /// and unqualified modifiers inside View extensions bind implicit
+    /// self (`sheet(item:)`/`navigationDestination` without a receiver).
+    @Test func rootBindingsFreshModelsAndImplicitModifiers() throws {
+        let source = """
+        enum AppTab {
+            case timeline, explore
+        }
+
+        class Client: ObservableObject {
+            let server: String
+
+            init(server: String) {
+                self.server = server
+            }
+        }
+
+        extension View {
+            func withAppRouter() -> some View {
+                navigationDestination(for: String.self) { _ in
+                    Text("route")
+                }
+            }
+        }
+
+        struct AppView: View {
+            @Binding var selectedTab: AppTab
+            @EnvironmentObject var client: Client
+
+            var body: some View {
+                VStack {
+                    Text(selectedTab == .timeline ? "timeline" : "other")
+                    Text("server '\\(client.server)'")
+                }
+                .withAppRouter()
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

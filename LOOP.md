@@ -901,3 +901,14 @@ Each iteration does exactly this:
   `$viewModel.field` projects off it (`self._name = binding` already worked
   via canonicalPropertyName). oss:MakeItSo passes (6 nodes, 1 action).
   **596/597 (99.8%); queue: IceCubesApp only.**
+- 2026-07-09 iter 114: IceCubes layers — (1) standalone roots synthesize
+  @Binding parameters (fresh inner value: first payload-free case for
+  enums) and @ObservedObject models; (2) missing env-object synthesis
+  instantiates via instantiateRoot, so models with required init params
+  (Client(server:)) get fresh arguments; (3) unqualified modifier calls in
+  View-extension bodies (`sheet(item:)`, `navigationDestination`) bind
+  implicit view self as a LAST-resort resolution — first draft sat before
+  the constructor check and trace-land's catch-all modifier table hijacked
+  30 tests (caught by the suite, moved to pre-throw).
+  IceCubesApp: 215 → 39961 (ToolbarContent instances — next class).
+  **596/597 (99.8%); top class eliminated.**

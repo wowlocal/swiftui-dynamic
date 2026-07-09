@@ -302,6 +302,18 @@ extension Interpreter {
         if let first = name.first, first.isUppercase {
             return .native(HostTypeMarker(name: name))
         }
+        // LAST resort — unqualified MODIFIER calls inside View-extension
+        // bodies: `func withSheet(…) -> some View { sheet(item:…) { … } }`.
+        // Everything else resolved above (members, globals, constructors),
+        // so this only rescues would-be-unresolved lowercase names when
+        // implicit self is a view (native or interpreted instance).
+        if let selfValue = env.lookup("self"),
+           let modifier = registry?.modifier(named: name),
+           let target = modifierTarget(for: selfValue) {
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                try modifier.apply(target, args, ctx)
+            })
+        }
         throw error(node, "unresolved identifier '\(name)'")
     }
 

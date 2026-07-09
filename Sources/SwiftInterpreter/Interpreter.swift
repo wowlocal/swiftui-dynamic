@@ -318,7 +318,9 @@ public final class Interpreter {
             } else if let synthesized = synthesizedEnvironmentModels[typeName] {
                 model = synthesized
             } else if case .type(let symbol)? = globals.lookup(typeName),
-                      case .instance(let fresh) = try instantiate(symbol, with: CallArguments()) {
+                      case .instance(let fresh) = try instantiateRoot(symbol) {
+                // Fresh model with FRESH parameter values — the same
+                // synthesis roots get (inits with required params work).
                 synthesizedEnvironmentModels[typeName] = fresh
                 model = fresh
             } else {
@@ -364,12 +366,27 @@ public final class Interpreter {
             }
         } else {
             for property in symbol.storedProperties
-            where property.wrapper == .none && property.initializer == nil
-                && !property.isBuilderClosure {
+            where property.initializer == nil && !property.isBuilderClosure {
                 let typeName = property.typeAnnotation?.trimmedDescription ?? ""
-                arguments.append(.init(
-                    label: property.name,
-                    value: try synthesizedFreshValue(typeName: typeName, seen: &seen)))
+                switch property.wrapper {
+                case .none:
+                    arguments.append(.init(
+                        label: property.name,
+                        value: try synthesizedFreshValue(typeName: typeName, seen: &seen)))
+                case .binding:
+                    // A standalone root has no parent to pass bindings —
+                    // synthesize one over the inner type's fresh value.
+                    arguments.append(.init(
+                        label: property.name,
+                        value: try synthesizedFreshValue(typeName: "Binding<\(typeName)>", seen: &seen)))
+                case .observedObject:
+                    // Fresh model per the missing-environment-object doctrine.
+                    arguments.append(.init(
+                        label: property.name,
+                        value: try synthesizedFreshValue(typeName: typeName, seen: &seen)))
+                default:
+                    break // @State/@StateObject etc. default independently
+                }
             }
         }
         return CallArguments(arguments: arguments)
