@@ -786,3 +786,9 @@ Each iteration does exactly this:
   contentOffset → CGPoint.zero, contentSize → CGSize.zero) read REAL
   fresh-layout values so CGRect math works; AppearanceStub deleted.
   CustomHeader passes (18 nodes). **581 → 582/588 (99.0%).**
+- 2026-07-09 iter 99: Double-family annotation coercion — CGFloat/Double/
+  TimeInterval/Float-annotated storage coerces Int values to Double at
+  resolveAnnotated, so `20 / titleOffset` with a zero offset is IEEE
+  infinity (compiled-Swift behavior) instead of an Int-division trap.
+  TwitterProfileScrolling passes (242 nodes, 5 actions).
+  **582 → 583/588 (99.1%).**

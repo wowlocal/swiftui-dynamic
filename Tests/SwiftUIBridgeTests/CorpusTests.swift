@@ -532,6 +532,32 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Double-family annotations (CGFloat/Double/TimeInterval) store
+    /// doubles even from Int literals: division is IEEE (infinity), not
+    /// an Int-division trap.
+    @Test func doubleFamilyAnnotationsCoerceIntLiterals() throws {
+        let source = """
+        struct ContentView: View {
+            @State var titleOffset: CGFloat = 0
+            var interval: TimeInterval = 3
+
+            func slideProgress() -> CGFloat {
+                let progress = 20 / titleOffset
+                return 60 * (progress > 0 && progress <= 1 ? progress : 1)
+            }
+
+            var body: some View {
+                VStack {
+                    Text("offset \\(slideProgress())")
+                    Text(interval / 2 == 1.5 ? "halved" : "int-divided")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

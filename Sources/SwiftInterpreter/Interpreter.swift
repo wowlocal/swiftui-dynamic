@@ -356,6 +356,10 @@ public final class Interpreter {
         return false
     }
 
+    static let doubleFamilyTypeNames: Set<String> = [
+        "Double", "CGFloat", "Float", "TimeInterval", "Float32", "Float64",
+    ]
+
     func selfEnvironment(_ selfValue: RuntimeValue) -> Environment {
         let env = Environment(parent: globals)
         env.define("self", selfValue)
@@ -373,6 +377,13 @@ public final class Interpreter {
     func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {
         var typeName = rawName.trimmingCharacters(in: .whitespaces)
         if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+
+        // Double-family storage holds doubles: `var offset: CGFloat = 0`
+        // stores 0.0, so division/interpolation behave like compiled Swift
+        // (20 / offset is IEEE infinity, not an Int-division trap).
+        if Self.doubleFamilyTypeNames.contains(typeName), let i = value.intValue {
+            return .native(Double(i))
+        }
 
         // `[Item]` — resolve each element against the element type.
         if typeName.hasPrefix("["), typeName.hasSuffix("]"), !typeName.contains(":"),
