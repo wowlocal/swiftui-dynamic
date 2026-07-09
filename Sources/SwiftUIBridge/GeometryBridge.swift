@@ -649,6 +649,7 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is ScreenStub: return "UIScreen"
     case is Color: return "Color"
     case is CalendarBox: return "Calendar"
+    case is Locale: return "Locale"
     case is DateFormatterBox: return "DateFormatter"
     case is NumberFormatterBox: return "NumberFormatter"
     case is DateComponentsBox: return "DateComponents"

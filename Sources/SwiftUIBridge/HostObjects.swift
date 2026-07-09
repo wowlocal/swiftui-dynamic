@@ -35,6 +35,13 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { _, _ in .native(DateFormatterBox()) }
     case "NumberFormatter":
         return HostFunction(name: name) { _, _ in .native(NumberFormatterBox()) }
+    case "Locale":
+        return HostFunction(name: name) { args, _ in
+            guard let identifier = args.labeled("identifier")?.stringValue else {
+                return .native(Locale.current)
+            }
+            return .native(Locale(identifier: identifier))
+        }
     case "NSNumber":
         // Our numbers are already boxed RuntimeValues — pass through.
         return HostFunction(name: name) { args, _ in
@@ -289,6 +296,38 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if let marker = value as? HostTypeMarker, marker.name == "Calendar", name == "current" {
         return .native(CalendarBox())
+    }
+    // `Locale.current` — the real host locale (a device runs with one too).
+    if let marker = value as? HostTypeMarker, marker.name == "Locale",
+       name == "current" || name == "autoupdatingCurrent" {
+        return .native(Locale.current)
+    }
+    if let locale = value as? Locale {
+        switch name {
+        case "identifier": return .native(locale.identifier)
+        case "regionCode":
+            return locale.region.map { RuntimeValue.native($0.identifier) } ?? .nilValue
+        case "languageCode":
+            return locale.language.languageCode.map { RuntimeValue.native($0.identifier) } ?? .nilValue
+        case "currencyCode":
+            return locale.currency.map { RuntimeValue.native($0.identifier) } ?? .nilValue
+        case "currencySymbol":
+            return locale.currencySymbol.map { RuntimeValue.native($0) } ?? .nilValue
+        case "localizedString":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                if let code = args.labeled("forRegionCode")?.stringValue {
+                    return locale.localizedString(forRegionCode: code).map { .native($0) } ?? .nilValue
+                }
+                if let code = args.labeled("forIdentifier")?.stringValue {
+                    return locale.localizedString(forIdentifier: code).map { .native($0) } ?? .nilValue
+                }
+                if let code = args.labeled("forLanguageCode")?.stringValue {
+                    return locale.localizedString(forLanguageCode: code).map { .native($0) } ?? .nilValue
+                }
+                return .nilValue
+            })
+        default: return nil
+        }
     }
     if let box = value as? CalendarBox {
         switch name {

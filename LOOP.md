@@ -758,3 +758,10 @@ Each iteration does exactly this:
   instead of yielding nil that poisons downstream comparisons
   (`Int(player.currentTime.truncatingRemainder(…)) < 9`).
   Audio_Player passes (40 nodes, 9 actions). **576 → 577/588 (98.0%).**
+- 2026-07-09 iter 95: Locale host bridge — Locale.current/autoupdatingCurrent
+  return the REAL host locale (CalendarBox precedent); members regionCode/
+  identifier/languageCode/currencyCode/currencySymbol/localizedString(for…)
+  via modern non-deprecated APIs; Locale(identifier:) constructor;
+  hostTypeName "Locale" for extension dispatch.
+  PhoneAuth_Updated_Latest passes (35 nodes, 13 actions).
+  **577 → 578/588 (98.3%).**

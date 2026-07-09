@@ -436,6 +436,27 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Locale is bridged to the real host locale: `Locale.current`
+    /// chains (regionCode ?? "" into a dictionary lookup) behave like a
+    /// device instead of erroring on marker comparisons.
+    @Test func localeBridgesToHost() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let region = Locale.current.regionCode ?? ""
+                let codes = ["US": "+1", "IN": "+91"]
+                VStack {
+                    Text(Locale.current.identifier.isEmpty ? "none" : "have locale")
+                    Text(codes[region] ?? "unknown")
+                    Text(Locale(identifier: "en_US").identifier)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
