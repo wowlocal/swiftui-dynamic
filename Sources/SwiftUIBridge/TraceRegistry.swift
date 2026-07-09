@@ -459,9 +459,18 @@ public final class TraceRegistry: HostRegistry {
            call.name.first?.isUppercase == true {
             return TraceNode(kind: call.name)
         }
-        if case .native(let any) = value, let chain = any as? ChainedImplicitCall,
-           chain.member.first?.isUppercase == true {
-            return TraceNode(kind: chain.member)
+        if case .native(let any) = value, let chain = any as? ChainedImplicitCall {
+            // Modifier chains hanging off an unresolved root (an unmerged
+            // asset extension's `.atSymbol` with .aspectRatio/.blendMode
+            // chained) render as opaque leaf nodes named for the ROOT —
+            // the Lottie-degrade precedent.
+            var rootName = chain.member
+            var cursor: Any? = chain
+            while let c = cursor as? ChainedImplicitCall {
+                if case .implicitMember(let name) = c.base { rootName = name; break }
+                if case .native(let inner) = c.base { cursor = inner } else { break }
+            }
+            return TraceNode(kind: rootName)
         }
         throw RuntimeError(message: "expected a view, got \(value.stringified)")
     }

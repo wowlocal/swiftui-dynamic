@@ -1012,6 +1012,17 @@ extension Interpreter {
             }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")
 
+        case .void:
+            if assumesCompiledImports {
+                // A () in member position is a SYNTHESIS gap — a DI-wrapper
+                // property nothing injected (`@Dependency(\.analytics)` on a
+                // non-view class), a compiled call whose value we couldn't
+                // model. The device had something real there: absorb.
+                return .native(ChainedImplicitCall(
+                    base: .implicitMember(name), member: name, arguments: CallArguments()))
+            }
+            throw error(node, "cannot access member '\(name)' on \(baseValue.stringified)")
+
         default:
             throw error(node, "cannot access member '\(name)' on \(baseValue.stringified)")
         }

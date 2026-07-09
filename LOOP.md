@@ -1373,3 +1373,15 @@ Each iteration does exactly this:
   SwiftUI's) and nos (member on `()`) are the next classes. **633/639
   counted — strictly improved (632 → 633). 585 zips + 51 OSS repos.
   Suite 270 → 271.**
+- 2026-07-09 iter 154: nos (308 files) — two classes. `()` in member
+  position under compiled imports is a SYNTHESIS gap
+  (`@Dependency(\.analytics)` on a non-view class that nothing
+  injects — device DI had something real): absorbs. Modifier chains
+  hanging off an unresolved root (unmerged asset extension's
+  `.atSymbol` + .aspectRatio/.blendMode) render as OPAQUE leaf nodes
+  named for the root (Lottie-degrade precedent). nos ✅ (57 nodes,
+  2 actions). Note: the suite JUMPED 271 → 292 on a clean tree —
+  the stale-build gotcha had been silently SKIPPING seven committed
+  suites; all green once relinked. Meshtastic (protobuf `Link`
+  shadowing SwiftUI's) is the last new-material class. **634/639
+  counted — strictly improved (633 → 634). Suite 292 → 293.**

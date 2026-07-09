@@ -2909,6 +2909,39 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// nos (iteration 154): two classes — a () in member position under
+    /// compiled imports is a SYNTHESIS gap (a `@Dependency(\.analytics)`
+    /// property on a non-view class that nothing injected) and absorbs;
+    /// and modifier chains hanging off an unresolved root (an unmerged
+    /// asset extension's `.atSymbol` with view modifiers) render as
+    /// opaque leaf nodes named for the root.
+    @Test func voidMembersAbsorbAndMarkerChainsRenderOpaque() throws {
+        let source = """
+        @Observable class AppController {
+            @ObservationIgnored @Dependency(\\.analytics) private var analytics
+
+            init() {
+                analytics.trackInstallationSourceIfNeeded()
+            }
+        }
+
+        struct ContentView: View {
+            let controller = AppController()
+
+            var body: some View {
+                VStack {
+                    Image.atSymbol
+                        .aspectRatio(2, contentMode: .fit)
+                        .blendMode(.softLight)
+                    Text("nos")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// Harbour (iteration 153): two classes — an unknown member on a
     /// NATIVE in compiled mode is an UNMERGED-package extension
     /// (`query.isReallyEmpty` from a utility dependency) and absorbs like
