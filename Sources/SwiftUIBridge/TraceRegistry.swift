@@ -395,6 +395,7 @@ public final class TraceRegistry: HostRegistry {
             return []
         }
         if case .implicitMember = data { return [] }
+        if case .hostFunction = data { return [] } // unresolvable member read
         if case .native(let any) = data, let range = any as? Range<Int> {
             return range.map { .native($0) }
         }

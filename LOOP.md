@@ -878,3 +878,12 @@ Each iteration does exactly this:
   (first draft hid it behind a nil optional — caught in review).
   oss:MortyUI passes (37 nodes). **594/594 counted — ZERO failures.
   Ladder saturated again; step 9 governs next.**
+- 2026-07-09 iter 111: step 9 — cloned MakeItSo (17 files), ControlRoom (82),
+  IceCubesApp (424; units 594 → 597). Fixed the biggest new class: import
+  declarations (@_exported/@preconcurrency/#if-nested forms survive
+  ProjectCheck's line strip) are no-ops at the interpreter level (statement
+  + run skip); plus doctrine completion — .hostFunction values in sequence
+  position iterate empty (for-in + both ForEach helpers), peeling IceCubes
+  18k lines deeper. **594/597 (99.5%); queue: MakeItSo ($viewModel
+  synthesis), ControlRoom (Collection-extension members on natives),
+  IceCubesApp (.timeline vs void).**

@@ -375,6 +375,7 @@ extension ViewRegistry {
             return []
         }
         if case .implicitMember = data { return [] }
+        if case .hostFunction = data { return [] } // unresolvable member read
         if let range = data.rangeValue {
             return range.map { .native($0) }
         }

@@ -124,6 +124,9 @@ extension Interpreter {
             try defineFunction(funcDecl, in: env)
             return
         }
+        if decl.is(ImportDeclSyntax.self) {
+            return // imports are module directives — no-ops in the merged model
+        }
         if decl.is(StructDeclSyntax.self) || decl.is(ClassDeclSyntax.self)
             || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
             throw error(decl, "types must be declared at the top level")
@@ -334,6 +337,10 @@ extension Interpreter {
         } else if case .implicitMember = sequence {
             // Same doctrine: a bare `.member` in sequence position can only
             // be an unresolved host-static chain.
+            elements = []
+        } else if case .hostFunction = sequence {
+            // A bound host member in sequence position (stub.allKeys) is
+            // equally unknowable — real code can't iterate a function.
             elements = []
         } else {
             throw error(forStmt.sequence, "for-in requires a range or an array, got \(sequence.stringified)")

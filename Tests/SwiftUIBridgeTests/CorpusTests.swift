@@ -906,6 +906,39 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Import declarations in any form (@_exported, @preconcurrency,
+    /// inside #if) are no-ops; host-member function reads in sequence
+    /// position iterate empty (for-in and ForEach alike).
+    @Test func importsAreNoOpsAndFunctionSequencesAreEmpty() throws {
+        let source = """
+        #if canImport(UIKit)
+        @_exported import UIKit
+        @preconcurrency import Foundation
+        #endif
+
+        struct ContentView: View {
+            var body: some View {
+                let store = KeyValueStore()
+                var visited = 0
+                let _ = {
+                    for _ in store.allKeys {
+                        visited += 1
+                    }
+                }()
+                VStack {
+                    Text("visited \\(visited)")
+                    ForEach(store.allKeys, id: \\.self) { key in
+                        Text("\\(key)")
+                    }
+                    Text("done")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

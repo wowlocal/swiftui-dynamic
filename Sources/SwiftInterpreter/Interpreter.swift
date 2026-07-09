@@ -78,7 +78,7 @@ public final class Interpreter {
         for item in expandedTopLevelItems(file.statements) {
             if case .decl(let decl) = item.item,
                decl.is(StructDeclSyntax.self) || decl.is(ClassDeclSyntax.self)
-                || decl.is(ActorDeclSyntax.self)
+                || decl.is(ActorDeclSyntax.self) || decl.is(ImportDeclSyntax.self)
                 || decl.is(FunctionDeclSyntax.self) || decl.is(ProtocolDeclSyntax.self)
                 || decl.is(OperatorDeclSyntax.self) || decl.is(PrecedenceGroupDeclSyntax.self)
                 || decl.is(TypeAliasDeclSyntax.self)
