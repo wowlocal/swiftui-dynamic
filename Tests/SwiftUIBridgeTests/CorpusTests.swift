@@ -744,6 +744,44 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Multi-target repos redeclare views per platform (iOS/macOS
+    /// ContentView + PostList). Duplicate names resolve LAST-wins
+    /// consistently — the root-view pick and member resolution must
+    /// agree, or a 2-param body binds a 5-param symbol.
+    @Test func duplicateTypeNamesLastWins() throws {
+        let source = """
+        struct PostList: View {
+            let subreddit: String
+            var body: some View { Text("ios \\(subreddit)") }
+        }
+
+        struct ContentView: View {
+            var body: some View { PostList(subreddit: "swift") }
+        }
+
+        struct PostList: View {
+            let posts: [String]
+            let isLoading: Bool
+
+            var body: some View {
+                if isLoading {
+                    Text("loading")
+                } else {
+                    Text("posts \\(posts.count)")
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                PostList(posts: ["a"], isLoading: false)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

@@ -141,7 +141,19 @@ extension Interpreter {
 
     private func collectStruct(_ node: StructDeclSyntax) throws {
         let symbol = try makeStructSymbol(node)
-        structSymbols.append(symbol)
+        registerTypeSymbol(symbol)
+    }
+
+    /// Duplicate type names (multi-target repos declare ContentView per
+    /// platform) resolve LAST-wins consistently: the symbols list — which
+    /// picks the root view — must agree with `globals`, or a first-wins
+    /// root body binds against last-wins member symbols.
+    func registerTypeSymbol(_ symbol: StructSymbol) {
+        if let existing = structSymbols.firstIndex(where: { $0.name == symbol.name }) {
+            structSymbols[existing] = symbol
+        } else {
+            structSymbols.append(symbol)
+        }
         globals.define(symbol.name, .type(symbol))
     }
 
@@ -180,8 +192,7 @@ extension Interpreter {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Observable"
         }
         try collectStructMembers(node.memberBlock, into: symbol)
-        structSymbols.append(symbol)
-        globals.define(symbol.name, .type(symbol))
+        registerTypeSymbol(symbol)
     }
 
     private func collectStructMembers(_ block: MemberBlockSyntax, into symbol: StructSymbol) throws {

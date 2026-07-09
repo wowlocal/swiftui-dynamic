@@ -837,3 +837,10 @@ Each iteration does exactly this:
   Music+Filter, caught by the measure. MovieSwiftUI passes (3 nodes).
   **588/591 counted (99.5%); queue: oss:Weather, oss:SwiftUI,
   oss:reddit-swiftui.**
+- 2026-07-09 iter 105: duplicate type names last-wins — multi-target repos
+  (reddit-swiftui's iOS + macOS ContentView/PostList pairs) redeclare views
+  per platform; the symbols LIST (root-view pick) resolved first-wins while
+  globals resolved last-wins, pairing an iOS body with a macOS symbol
+  (`isLoading` void). registerTypeSymbol replaces in-place so both agree.
+  oss:reddit-swiftui passes (14 nodes, 1 action). **589/591 (99.7%);
+  queue: oss:Weather, oss:SwiftUI.**
