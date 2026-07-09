@@ -104,5 +104,39 @@ extension ViewRegistry {
             recorder.record("XCTAssertThrowsError failed: expression did not throw\(message(args, 1))")
             return .void
         }
+
+        // Swift Testing's macros, executed via the macro-host dispatch (the
+        // interpreter hands us evaluated arguments — no expansion involved).
+        constructors["#expect"] = HostFunction(name: "#expect") { args, ctx in
+            // `#expect(throws: E.self) { body }` — the closure must throw.
+            if args.labeled("throws") != nil {
+                guard case .closure(let closure)? = args.arguments.first(where: { $0.isTrailing })?.value else {
+                    return .void
+                }
+                do {
+                    _ = try ctx.callClosure(closure, arguments: [])
+                    recorder.record("#expect(throws:) failed: expression did not throw")
+                } catch {
+                    // threw as expected
+                }
+                return .void
+            }
+            if args.positional(0)?.boolValue != true {
+                let comment = args.positional(1)?.stringValue.map { " — \($0)" } ?? ""
+                recorder.record("#expect failed\(comment)")
+            }
+            return .void
+        }
+        constructors["#require"] = HostFunction(name: "#require") { args, _ in
+            guard let value = args.positional(0), !value.isNil else {
+                recorder.record("#require failed: found nil")
+                throw RuntimeError(message: "#require failed: found nil")
+            }
+            if value.boolValue == false {
+                recorder.record("#require failed: condition is false")
+                throw RuntimeError(message: "#require failed: condition is false")
+            }
+            return value
+        }
     }
 }

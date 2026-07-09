@@ -56,6 +56,11 @@ let package = Package(
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
+            name: "LiveCheck",
+            dependencies: ["SwiftUIBridge"],
+            swiftSettings: mainActorByDefault
+        ),
+        .executableTarget(
             name: "BridgeGen",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),

@@ -55,6 +55,35 @@ ControlRoom's subcommand argument arrays lose their static prefix and
 String-index / remove(at:) range traps and sort-comparator order;
 OnlineStoreTCA's missing synthesized `init(from: Decoder)`.
 
+**Third queue: `swift run LiveCheck` — live-data fidelity.** The road to "a
+real networked app shows real data" (MovieSwiftUI posters, IceCubes' public
+timeline). Scenarios run with the network in REPLAY mode: URLSession serves
+RECORDED real API responses from `Fixtures/` matched by URL path
+(host-independent), so the metric stays deterministic. `NetworkPolicy` has
+three modes and one hard rule:
+- `.absorbed` (default) — ProjectCheck/TestCheck always run here; nothing
+  about their doctrine changed.
+- `.replay(fixturesDirectory:)` — the ONLY mode LiveCheck's metric may use.
+- `.live` — real HTTP for interactive demo runs (a human at the window),
+  never in a metric, never in the loop.
+
+Fixture rules: fixtures are real responses captured once by a human (curl /
+a future `--record`), never edited by hand — they are the network's native
+baseline. Assertions derive expected content FROM the fixture (movie titles,
+status authors) and check it reaches decoded models and rendered trees.
+Structural JSON decode (JSONDecodeBridge) maps stored properties via
+CodingKeys → exact → snake_case and instantiates memberwise; custom
+`init(from:)` bodies do NOT run — a documented divergence to burn down with
+real Codable synthesis when the histogram demands it.
+
+Baseline (2026-07-09): **2/4 scenarios pass** (mastodon-fixture-decode,
+tmdb-fixture-decode — the full decoder pipeline works). Open classes:
+- movieswiftui-popular-ui: 0 strings rendered — the fetch path
+  (`.task`/onAppear closures) never fires during deep-render, so no data
+  reaches the tree.
+- icecubes-timeline-ui: renders 117 strings of chrome but no fixture
+  authors — the same async-fetch wall plus whatever hides behind it.
+
 ## TestCheck Ledger
 
 (upstream-broken or natively-unrunnable tests, with the native verdict —
@@ -1473,3 +1502,34 @@ Each iteration does exactly this:
   interpolation AND Text (marker dumps never render). Swiftfin ✅
   (14 nodes, 2 actions) + SCA ✅ held (390 nodes, 81 actions — real
   cores now). Sidekick next. **640/645 counted. Suite 301 → 302.**
+- 2026-07-09 iter 158: Sidekick (276 files) — three classes. BACKTICKED
+  statics on enums normalize (`static var \`default\`` — the
+  case/property rule extended to enum static members); static COMPUTED
+  setters are assignable via Self./TypeName. (the UserDefaults-backed
+  settings idiom — a Box whose onChange runs the setter; `Self` resolves
+  as the enclosing type in lvalue position); protocol-extension members
+  dispatch on ENUM CASES through recorded conformances (`extension
+  RawRepresentable where Self: NotificationName { var name }`), plus
+  bare static LVALUES inside enum static bodies write the static cache
+  (found by the regression test). Sidekick ✅ (115 nodes, 7 actions).
+  **641/645 counted — ZERO failures (TWENTY-FIRST saturation). 585 zips
+  + 57 OSS repos green. Suite 302 → 303.**
+- 2026-07-10 iter 159: step 9 — ACHNBrowserUI (208 files) + Bark (117,
+  arrival-pass) cloned (MovieSwiftUI/SwiftUI-Kit already aboard). One
+  class: `fallthrough` runs the NEXT case's body without re-matching —
+  selectCase exposes the case index; both the statement executor and
+  the view-builder collector loop while the trailing statement is
+  `fallthrough` (Swift requires it last, so trailing-drop is exact);
+  builder switches collect views across chained cases.
+  ACHNBrowserUI ✅ (90 nodes). **643/647 counted — ZERO failures
+  (TWENTY-SECOND saturation). 585 zips + 59 OSS repos green. Suite
+  322 → 323.**
+- 2026-07-10 iter 160: step 9 — mlem cloned (1171 files, the BIGGEST
+  unit yet; Lemmy client) — PASSED ON ARRIVAL (1 node: the root gates
+  on absorbed onboarding state, honestly minimal headlessly).
+  Vernissage's repo is README-only (dropped); Apple's Fruta isn't a
+  git clone. No failure class existed this iteration — the material
+  addition is the step-9 action, the second all-arrival iteration
+  (139 precedent). **644/648 counted — ZERO failures (TWENTY-THIRD
+  saturation). 585 zips + 60 OSS repos green. Suite 323 (unchanged —
+  no new capability, no new test).**

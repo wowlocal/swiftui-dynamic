@@ -182,9 +182,16 @@ extension Interpreter {
             }
             return try evaluate(inout_.expression, in: env)
         case .macroExpansionExpr:
-            // `#selector(...)`, `#Predicate {...}` — inert marker values;
-            // consumers (sendAction, flattened queries) ignore them.
+            // Registered macros (#expect/#require) execute; the rest stay
+            // inert markers (`#selector(...)`, `#Predicate {...}`).
             let macro = expr.cast(MacroExpansionExprSyntax.self)
+            if let result = try invokeRegisteredMacro(
+                named: macro.macroName.text, arguments: macro.arguments,
+                trailingClosure: macro.trailingClosure,
+                additionalTrailingClosures: macro.additionalTrailingClosures,
+                node: macro, in: env) {
+                return result
+            }
             return .native(HostTypeMarker(name: "#\(macro.macroName.text)"))
         case .asExpr:
             let asExpr = expr.cast(AsExprSyntax.self)
@@ -452,21 +459,9 @@ extension Interpreter {
         // body (each IceCubes package declares its own `enum Constants`).
         if let nested = instance.symbol.nestedTypes[name] { return nested }
         if let box = instance.box(for: name) { return box.value }
-        // Interpreted-superclass members dispatch with self unchanged
-        // (inheritance: methods and computed properties walk the chain).
-        var parentName = instance.symbol.superclassName
-        while let superName = parentName {
-            guard case .type(let parent)? = globals.lookup(superName) else { break }
-            if let overloads = parent.methods[name], let method = overloads.first,
-               let body = method.body {
-                return .closure(makeFunctionClosure(
-                    method, body: body, captured: selfEnvironment(.instance(instance))))
-            }
-            if let computed = parent.computedProperties[name] {
-                return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
-            }
-            parentName = parent.superclassName
-        }
+        // Dynamic dispatch: the instance's OWN members win (overrides beat
+        // the inherited definition), THEN interpreted-superclass members
+        // dispatch with self unchanged, walking the chain.
         if let overloads = instance.symbol.methods[name], let first = overloads.first {
             // Within an OVERLOAD SET the running declaration never re-enters
             // itself: `send(_:) -> StoreTask` delegates to its identically-
@@ -486,6 +481,19 @@ extension Interpreter {
         }
         if let computed = instance.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
+        }
+        var parentName = instance.symbol.superclassName
+        while let superName = parentName {
+            guard case .type(let parent)? = globals.lookup(superName) else { break }
+            if let overloads = parent.methods[name], let method = overloads.first,
+               let body = method.body {
+                return .closure(makeFunctionClosure(
+                    method, body: body, captured: selfEnvironment(.instance(instance))))
+            }
+            if let computed = parent.computedProperties[name] {
+                return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
+            }
+            parentName = parent.superclassName
         }
         if instance.symbol.conformsToView,
            let value = try hostExtensionMember(name, candidates: ["View"], selfValue: .instance(instance)) {
@@ -578,6 +586,14 @@ extension Interpreter {
         }
         if let computed = value.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .enumCase(value), name: name)
+        }
+        // Protocol-extension members (`extension RawRepresentable where
+        // Self: NotificationName { var name }`): the enum's conformances
+        // (plus RawRepresentable itself for raw-valued enums) dispatch.
+        var candidates = value.symbol.conformances + ["RawRepresentable"]
+        candidates.removeAll { ["String", "Int", "Double", "Codable", "Hashable", "Equatable"].contains($0) }
+        if let member = try hostExtensionMember(name, candidates: candidates, selfValue: .enumCase(value)) {
+            return member
         }
         if name == "localizedDescription" {
             // Every Error carries this on device. Foundation consults
@@ -2189,6 +2205,14 @@ extension Interpreter {
                 || symbol.staticCache[name] != nil {
                 return .staticProperty(symbol, name)
             }
+            // Enum namespaces hold mutable statics too (`storage.append(…)`
+            // inside a static setter): writes land in the static cache.
+            if case .enumType(let symbol)? = env.lookup("self"),
+               symbol.staticProperties[name] != nil || symbol.staticCache[name] != nil {
+                let box = Box((try? staticMember(name, of: symbol)) ?? .void)
+                box.onChange = { symbol.staticCache[name] = box.value }
+                return .box(box)
+            }
             throw error(ref, "cannot assign to '\(name)'")
         }
         if let member = expr.as(MemberAccessExprSyntax.self), let base = member.base {
@@ -2198,8 +2222,14 @@ extension Interpreter {
                env.box(for: baseRef.baseName.text, before: globals) == nil {
                 let typeName = baseRef.baseName.text
                 let memberName = member.declName.baseName.text
+                // `Self.useServer = …` inside a static body: Self IS the
+                // enclosing type.
+                var typeValue = globals.lookup(typeName)
+                if typeName == "Self", let selfValue = env.lookup("self") {
+                    typeValue = selfValue
+                }
                 var staticSymbol: StructSymbol?
-                if case .type(let symbol)? = globals.lookup(typeName) {
+                if case .type(let symbol)? = typeValue {
                     staticSymbol = symbol
                 } else if let hostSymbol = hostExtensionSymbols[typeName] {
                     staticSymbol = hostSymbol
@@ -2209,6 +2239,34 @@ extension Interpreter {
                     || symbol.staticUninitialized.contains(memberName)
                     || symbol.staticCache[memberName] != nil {
                     return .staticProperty(symbol, memberName)
+                }
+                // Static COMPUTED setters (`static var useServer { get set }`
+                // assigned via Self./TypeName.): a Box whose onChange runs
+                // the setter — the computed-binding precedent.
+                var setterRun: ((RuntimeValue) -> Void)?
+                if let symbol = staticSymbol,
+                   let computed = symbol.staticComputedProperties[memberName],
+                   let setter = computed.setter {
+                    setterRun = { [weak self] value in
+                        guard let self else { return }
+                        let env = self.selfEnvironment(.type(symbol))
+                        env.define(setter.parameterName, value)
+                        _ = try? self.executeBlock(setter.body, in: env)
+                    }
+                } else if case .enumType(let symbol)? = typeValue,
+                          let computed = symbol.staticComputedProperties[memberName],
+                          let setter = computed.setter {
+                    setterRun = { [weak self] value in
+                        guard let self else { return }
+                        let env = self.selfEnvironment(.enumType(symbol))
+                        env.define(setter.parameterName, value)
+                        _ = try? self.executeBlock(setter.body, in: env)
+                    }
+                }
+                if let setterRun {
+                    let box = Box(.void)
+                    box.onChange = { setterRun(box.value) }
+                    return .box(box)
                 }
             }
             let baseValue = try evaluate(base, in: env)
