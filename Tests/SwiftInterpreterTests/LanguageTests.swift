@@ -290,6 +290,40 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct StdlibTests {
+    /// Custom @resultBuilder properties (`@ActionBuilder var actions:
+    /// [Action]`) collect their block's items into an array.
+    @Test func customResultBuilderCollectsArray() throws {
+        let source = """
+        @resultBuilder
+        struct ActionBuilder {
+            static func buildBlock(_ components: Action...) -> [Action] {
+                return components
+            }
+        }
+
+        struct Action: Identifiable {
+            let id: Int
+            var isEnabled = true
+        }
+
+        struct SwipeRow {
+            @ActionBuilder var actions: [Action]
+
+            var enabledCount: Int {
+                return actions.filter { $0.isEnabled }.count
+            }
+        }
+
+        let row = SwipeRow {
+            Action(id: 1)
+            Action(id: 2, isEnabled: false)
+            Action(id: 3)
+        }
+        row.enabledCount
+        """
+        #expect(try eval(source).intValue == 2)
+    }
+
     /// Protocol declarations are inert; protocol-EXTENSION members serve as
     /// defaults for conformers, and a conformer's own definition wins.
     @Test func protocolExtensionDefaultsDispatch() throws {

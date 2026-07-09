@@ -114,6 +114,19 @@ public final class Interpreter {
 
     // MARK: - Instances
 
+    /// A builder-attributed stored property builds from its trailing closure:
+    /// `[X]`-annotated properties collect the block's items into an ARRAY
+    /// (custom @resultBuilders' buildBlock), view-typed ones group as views.
+    func builderValue(for property: StructSymbol.StoredProperty, closure: ClosureValue) throws -> RuntimeValue {
+        let items = try callBuilderClosure(closure, arguments: [])
+        let annotation = property.typeAnnotation?.trimmedDescription ?? ""
+        if annotation.hasPrefix("[") {
+            return .native(items)
+        }
+        return try groupViews(items)
+    }
+
+
     /// Custom `init`s run with `self` bound to a defaults-initialized instance;
     /// otherwise default + memberwise initialization applies. `$binding`
     /// arguments for `@Binding` properties share the parent's Box.
@@ -168,8 +181,8 @@ public final class Interpreter {
                 } else if let closure = argument.value.closureValue,
                           property.isBuilderClosure,
                           !(property.typeAnnotation?.trimmedDescription.contains("->") ?? false) {
-                    // Labeled trailing onto `@ViewBuilder var x: Content`.
-                    box.value = try groupViews(try callBuilderClosure(closure, arguments: []))
+                    // Labeled trailing onto a builder property.
+                    box.value = try builderValue(for: property, closure: closure)
                 } else {
                     box.value = try resolveAnnotated(argument.value, annotation: property.typeAnnotation)
                 }
@@ -190,9 +203,9 @@ public final class Interpreter {
                     assigned.insert(property.name)
                     let functionTyped = property.typeAnnotation?.trimmedDescription.contains("->") ?? false
                     if property.isBuilderClosure && !functionTyped {
-                        // `@ViewBuilder var content: Content` — build now.
+                        // Builder property — build now (array or grouped views).
                         let closure = argument.value.closureValue!
-                        box.value = try groupViews(try callBuilderClosure(closure, arguments: []))
+                        box.value = try builderValue(for: property, closure: closure)
                     } else {
                         // `var content: (CGSize) -> Content` (builder or not) —
                         // store the closure; the body calls it with arguments.

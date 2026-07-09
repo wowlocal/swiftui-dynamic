@@ -559,3 +559,9 @@ Each iteration does exactly this:
   operators). Quiz + Global_Chat (despite merged Firebase Pods!) pass;
   SplashScreen advanced deep into vendored lib internals.
   **503/587 → 505/587 (86.0%).**
+- 2026-07-09 iter 68: custom @resultBuilders — the member-on-closure class
+  (3). Builder detection widened from @ViewBuilder to any *Builder-suffixed
+  attribute; builder properties with `[X]` annotations collect their block's
+  items into an ARRAY (buildBlock semantics), view-typed ones keep grouping.
+  CustomSwipeActions_Updated + Expense_Tracker EP2/EP3 pass (146/138-node
+  renders — the Expense march ends). **505/587 → 508/587 (86.5%).**

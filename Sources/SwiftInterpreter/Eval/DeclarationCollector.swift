@@ -227,7 +227,10 @@ extension Interpreter {
                 .contains(where: { hasAttribute(varDecl.attributes, named: $0) })
             ? ExprSyntax(ArrayExprSyntax(elements: ArrayElementListSyntax([])))
             : nil
-        let hasBuilderAttribute = hasAttribute(varDecl.attributes, named: "ViewBuilder")
+        let hasBuilderAttribute = varDecl.attributes.contains {
+            // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+        }
         let isStaticDecl = isStatic(varDecl.modifiers)
 
         for binding in varDecl.bindings {
@@ -318,7 +321,10 @@ extension Interpreter {
 
     private func collectEnumMember(_ decl: DeclSyntax, into symbol: EnumSymbol) throws {
         if let varDecl = decl.as(VariableDeclSyntax.self) {
-            let hasBuilderAttribute = hasAttribute(varDecl.attributes, named: "ViewBuilder")
+            let hasBuilderAttribute = varDecl.attributes.contains {
+            // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+        }
             let isStaticDecl = isStatic(varDecl.modifiers)
             for binding in varDecl.bindings {
                 guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
