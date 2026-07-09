@@ -431,6 +431,9 @@ extension Interpreter {
             return .native(ChainedImplicitCall(base: baseValue, member: name, arguments: CallArguments()))
 
         case .hostFunction(let function):
+            if name == "init" {
+                return baseValue // `NSNumber.init(value:)` ≡ `NSNumber(value:)`
+            }
             // Host TYPE names (Color, UIScreen, …) resolve to constructor
             // functions. The bridge may serve real statics (UIScreen.main);
             // otherwise they act like implicit members resolved against the
@@ -919,6 +922,10 @@ extension Interpreter {
                 // the other operand's host type before comparing.
                 lhs = try adoptHostType(of: rhs, for: lhs)
                 rhs = try adoptHostType(of: lhs, for: rhs)
+            }
+            // Host-typed operators the core can't know (`Text("a") + Text("b")`).
+            if let registry, let combined = registry.combineValues(op, lhs, rhs) {
+                return combined
             }
             return try relocating(infix) { try Builtins.binary(op, lhs, rhs) }
         }

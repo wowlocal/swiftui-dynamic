@@ -469,3 +469,16 @@ Each iteration does exactly this:
   evaluate as inert markers, AppStub.sendAction inert (keyboard dismissal).
   CompositionalLayout, EmailLogin, SocialMedia ×2 pass (+ripple).
   **431/587 → 444/587**.
+- 2026-07-09 iter 58: the TraceNode-arithmetic class (7) — two big roots plus
+  a chain of Foundation gaps behind them. (1) `Text + Text` concatenation:
+  new HostRegistry.combineValues hook — trace records a TextConcat node,
+  real approximates with a zero-spacing HStack (documented). (2) Formatter
+  values leaking as nodes: real NumberFormatterBox (numberStyle/
+  fraction-digit writes, string(from:)/number(from:)), NSNumber passthrough,
+  Float builtin, String(format:) real formatting, `.init` on host
+  constructor functions calls them, marker-tolerant date/number formatters,
+  chained markers resolve in annotated positions (`.now.startOfMonth` runs
+  the user Date extension), Calendar date() gains DateComponents-marker
+  byAdding + bySettingHour forms. Image_Viewer, MovieAppUI, Food_App_UI,
+  Cart, Fitness_DashBoard pass; the Expense series advanced deep.
+  **444/587 → 450/587**.

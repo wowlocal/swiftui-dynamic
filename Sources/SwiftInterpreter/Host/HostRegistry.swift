@@ -94,9 +94,13 @@ public protocol HostRegistry: AnyObject {
     /// Constructors for host object types (DateFormatter()) shared across
     /// real and trace registries. Return nil for unknown names.
     func hostObjectConstructor(named name: String) -> HostFunction?
+    /// Host-typed operators the core can't know (`Text + Text`). Return nil
+    /// to fall through to the numeric/string builtins.
+    func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue?
 }
 
 extension HostRegistry {
+    public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool { false }
     public func hostObjectConstructor(named name: String) -> HostFunction? { nil }

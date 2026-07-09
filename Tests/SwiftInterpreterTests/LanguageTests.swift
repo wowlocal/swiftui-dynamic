@@ -269,6 +269,13 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct StdlibTests {
+    @Test func stringFormatAndFloat() throws {
+        #expect(try eval(#"String(format: "%.1f", 12.345)"#).stringValue == "12.3")
+        #expect(try eval(#"String(format: "%d items", 7)"#).stringValue == "7 items")
+        #expect(try eval(#"Float("2.5") ?? 0"#).doubleValue == 2.5)
+        #expect(try eval("Float(3)").doubleValue == 3.0)
+    }
+
     /// The harness identifies as an iOS-shaped canvas: os(iOS)/canImport/
     /// DEBUG hold, os(macOS) takes the #else branch.
     @Test func conditionalCompilationTakesIOSBranches() throws {

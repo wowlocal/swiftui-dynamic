@@ -265,6 +265,16 @@ public final class TraceRegistry: HostRegistry {
         return bridgeHostMember(name, on: value)
     }
 
+    /// `Text("a") + Text("b")` — concatenation records a combined node.
+    public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? {
+        guard op == "+",
+              case .native(let l) = lhs, let left = l as? TraceNode,
+              case .native(let r) = rhs, let right = r as? TraceNode else { return nil }
+        let node = TraceNode(kind: "TextConcat")
+        node.children = [left, right]
+        return .native(node)
+    }
+
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
         if let node = value as? TraceNode {
             node.config[name] = newValue

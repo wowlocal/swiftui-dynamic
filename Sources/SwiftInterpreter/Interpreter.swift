@@ -383,6 +383,30 @@ public final class Interpreter {
            let member = registry?.hostMember(memberName, on: HostTypeMarker(name: typeName)) {
             return member
         }
+        // `.now.startOfMonth` — chained markers resolve their base against
+        // the type, then the member (host natives and user extensions both).
+        if case .native(let any) = value, let chained = any as? ChainedImplicitCall {
+            let resolvedBase = try resolveAnnotated(chained.base, typeName: typeName)
+            let stillMarker: Bool = {
+                if case .implicitMember = resolvedBase { return true }
+                if case .native(let inner) = resolvedBase,
+                   inner is ImplicitMemberCall || inner is ChainedImplicitCall { return true }
+                return false
+            }()
+            if !stillMarker {
+                let anchor = ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier("resolvedChainBase")))
+                let member = try accessMember(chained.member, on: resolvedBase, node: anchor, env: globals)
+                switch member {
+                case .closure(let closure):
+                    return try callWithArguments(closure, args: chained.arguments, node: nil)
+                case .hostFunction(let function):
+                    return try function.invoke(chained.arguments, self)
+                default:
+                    return member
+                }
+            }
+        }
+
         // User extensions of host types add statics too:
         // `extension Date { static var currentMonth: Date }` resolves
         // `: Date = .currentMonth` (and `.createDate(…)` factories).
@@ -441,6 +465,17 @@ public final class Interpreter {
             try Self.extremum(args, op: ">")
         }
         define("String") { args, _ in
+            if let format = args.labeled("format")?.stringValue {
+                // `String(format: "%.1f", per)` — real formatting; remaining
+                // positionals map to CVarArgs.
+                let varargs: [CVarArg] = args.arguments.dropFirst().compactMap { argument in
+                    if let i = argument.value.intValue { return i }
+                    if let d = argument.value.doubleValue { return d }
+                    if let s = argument.value.stringValue { return s }
+                    return nil
+                }
+                return .native(Swift.String(format: format, arguments: varargs))
+            }
             if let repeating = args.labeled("repeating")?.stringValue, let count = args.labeled("count")?.intValue {
                 return .native(Swift.String(repeating: repeating, count: Swift.max(0, count)))
             }
@@ -455,6 +490,13 @@ public final class Interpreter {
             return .nilValue
         }
         define("Double") { args, _ in
+            guard let value = args.positional(0) else { return .nilValue }
+            if let d = value.doubleValue { return .native(d) }
+            if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            return .nilValue
+        }
+        define("Float") { args, _ in
+            // Our floating model is Double throughout.
             guard let value = args.positional(0) else { return .nilValue }
             if let d = value.doubleValue { return .native(d) }
             if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }

@@ -425,6 +425,18 @@ extension ViewRegistry {
         bridgeHostMember(name, on: value)
     }
 
+    /// `Text("a") + Text("b")` — both sides are AnyView-erased by the time
+    /// they meet, so concatenation approximates as an adjacent zero-spacing
+    /// HStack (documented divergence: no line-wrap continuity).
+    public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? {
+        guard op == "+", isViewValue(lhs), isViewValue(rhs),
+              let left = try? Self.anyView(lhs), let right = try? Self.anyView(rhs) else { return nil }
+        return .native(AnyView(HStack(spacing: 0) {
+            left
+            right
+        }))
+    }
+
     func registerGeometryViews() {
         constructors["GeometryReader"] = HostFunction(name: "GeometryReader") { args, ctx in
             guard let content = args.unlabeledClosures.first else {

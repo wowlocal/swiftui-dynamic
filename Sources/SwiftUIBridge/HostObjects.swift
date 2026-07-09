@@ -20,12 +20,25 @@ final class TimerPublisherBox {
     }
 }
 
+/// `NumberFormatter` — backed by the real Foundation formatter; numberStyle
+/// and fraction-digit writes configure it, string(from:) really formats.
+final class NumberFormatterBox {
+    let formatter = NumberFormatter()
+}
+
 /// Constructors for host object types, consulted by both registries before
 /// their own tables.
 func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     switch name {
     case "DateFormatter":
         return HostFunction(name: name) { _, _ in .native(DateFormatterBox()) }
+    case "NumberFormatter":
+        return HostFunction(name: name) { _, _ in .native(NumberFormatterBox()) }
+    case "NSNumber":
+        // Our numbers are already boxed RuntimeValues — pass through.
+        return HostFunction(name: name) { args, _ in
+            args.labeled("value") ?? args.positional(0) ?? .native(0)
+        }
     case "State":
         // `self._count = State(initialValue: 5)` — the storage IS the value.
         return HostFunction(name: name) { args, _ in
@@ -116,6 +129,25 @@ private func intArg(_ value: RuntimeValue?) -> Int? {
     if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "random",
        let range = (call.arguments.labeled("in") ?? call.arguments.positional(0))?.rangeValue {
         return Int.random(in: range)
+    }
+    return nil
+}
+
+/// DateComponents from a box OR an `.init(month: 1, minute: -1)` marker.
+private func dateComponentsArg(_ value: RuntimeValue?) -> DateComponents? {
+    if case .native(let any)? = value, let box = any as? DateComponentsBox {
+        return box.components
+    }
+    if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
+        var components = DateComponents()
+        components.year = call.arguments.labeled("year")?.intValue
+        components.month = call.arguments.labeled("month")?.intValue
+        components.day = call.arguments.labeled("day")?.intValue
+        components.hour = call.arguments.labeled("hour")?.intValue
+        components.minute = call.arguments.labeled("minute")?.intValue
+        components.second = call.arguments.labeled("second")?.intValue
+        components.weekday = call.arguments.labeled("weekday")?.intValue
+        return components
     }
     return nil
 }
@@ -214,10 +246,26 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "date":
             return .hostFunction(HostFunction(name: "date") { args, _ in
                 // `date(from: components)` — reconstitute from parts.
-                if case .native(let any)? = args.labeled("from"),
-                   let componentsBox = any as? DateComponentsBox {
-                    return box.calendar.date(from: componentsBox.components)
+                if let components = dateComponentsArg(args.labeled("from")) {
+                    return box.calendar.date(from: components)
                         .map { RuntimeValue.native($0) } ?? .nilValue
+                }
+                // `date(byAdding: .init(month: 1, minute: -1), to: d)` —
+                // components as a box or an .init marker.
+                if let components = dateComponentsArg(args.labeled("byAdding")),
+                   let to = dateArg(args.labeled("to")) {
+                    return box.calendar.date(byAdding: components, to: to)
+                        .map { RuntimeValue.native($0) } ?? .nilValue
+                }
+                // `date(bySettingHour:minute:second:of:)`.
+                if let hour = args.labeled("bySettingHour")?.intValue,
+                   let of = dateArg(args.labeled("of")) {
+                    return box.calendar.date(
+                        bySettingHour: hour,
+                        minute: args.labeled("minute")?.intValue ?? 0,
+                        second: args.labeled("second")?.intValue ?? 0,
+                        of: of
+                    ).map { RuntimeValue.native($0) } ?? .nilValue
                 }
                 guard let component = calendarComponent(args.labeled("byAdding")),
                       let amount = intArg(args.labeled("value")),
@@ -330,6 +378,31 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return nil
         }
     }
+    if let box = value as? NumberFormatterBox {
+        switch name {
+        case "string":
+            return .hostFunction(HostFunction(name: "string") { args, _ in
+                var value = args.labeled("from") ?? args.positional(0)
+                // `.init(value: x)` — the NSNumber marker unwraps to x.
+                if case .native(let any)? = value, let call = any as? ImplicitMemberCall,
+                   call.name == "init" {
+                    value = call.arguments.labeled("value") ?? call.arguments.positional(0)
+                }
+                guard let number = value?.doubleValue else {
+                    throw RuntimeError(message: "string(from:) needs a number")
+                }
+                return .native(box.formatter.string(from: NSNumber(value: number)) ?? "\(number)")
+            })
+        case "number":
+            return .hostFunction(HostFunction(name: "number") { args, _ in
+                guard let text = (args.labeled("from") ?? args.positional(0))?.stringValue,
+                      let parsed = box.formatter.number(from: text) else { return .nilValue }
+                return .native(parsed.doubleValue)
+            })
+        default:
+            return nil
+        }
+    }
     if value is ModelContextStub {
         switch name {
         case "insert", "delete", "save":
@@ -369,8 +442,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         return .native(box.formatter.dateFormat ?? "")
     case "string":
         return .hostFunction(HostFunction(name: "string") { args, _ in
-            guard case .native(let any)? = args.labeled("from") ?? args.positional(0),
-                  let date = any as? Date else {
+            guard let date = dateArg(args.labeled("from") ?? args.positional(0)) else {
                 throw RuntimeError(message: "string(from:) needs a Date")
             }
             return .native(box.formatter.string(from: date))
@@ -389,11 +461,61 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
 
 /// Writable members on host objects.
 func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
+    if let box = value as? NumberFormatterBox {
+        switch name {
+        case "numberStyle":
+            if case .implicitMember(let style) = newValue {
+                switch style {
+                case "decimal": box.formatter.numberStyle = .decimal
+                case "currency": box.formatter.numberStyle = .currency
+                case "percent": box.formatter.numberStyle = .percent
+                case "ordinal": box.formatter.numberStyle = .ordinal
+                default: break
+                }
+            }
+            return true
+        case "maximumFractionDigits":
+            if let digits = newValue.intValue { box.formatter.maximumFractionDigits = digits }
+            return true
+        case "minimumFractionDigits":
+            if let digits = newValue.intValue { box.formatter.minimumFractionDigits = digits }
+            return true
+        case "locale", "currencySymbol", "groupingSeparator", "allowsFloats":
+            return true // accepted; defaults suffice headlessly
+        default:
+            return false
+        }
+    }
     if value is AppearanceStub {
         return true // appearance configuration is accepted and ignored
     }
     if value is GraphicsContextStub || value is PathDrawStub {
         return true // `context.opacity = 0.5` — draw state accepted, no surface
+    }
+    if let box = value as? NumberFormatterBox {
+        switch name {
+        case "numberStyle":
+            if case .implicitMember(let style) = newValue {
+                switch style {
+                case "decimal": box.formatter.numberStyle = .decimal
+                case "currency": box.formatter.numberStyle = .currency
+                case "percent": box.formatter.numberStyle = .percent
+                case "ordinal": box.formatter.numberStyle = .ordinal
+                default: break
+                }
+            }
+            return true
+        case "maximumFractionDigits":
+            if let digits = newValue.intValue { box.formatter.maximumFractionDigits = digits }
+            return true
+        case "minimumFractionDigits":
+            if let digits = newValue.intValue { box.formatter.minimumFractionDigits = digits }
+            return true
+        case "locale", "currencySymbol", "groupingSeparator", "allowsFloats":
+            return true // accepted; defaults suffice headlessly
+        default:
+            return false
+        }
     }
     if let box = value as? DateComponentsBox {
         guard let amount = newValue.intValue ?? newValue.doubleValue.map({ Int($0) }) else { return false }

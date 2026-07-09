@@ -41,6 +41,30 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Text concatenation (`Text + Text`) and real NumberFormatter output.
+    @Test func textConcatAndNumberFormatter() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                Text("Steps: ")
+                    .foregroundColor(.gray)
+                +
+                Text(formatted(6521.5))
+                    .fontWeight(.bold)
+            }
+
+            func formatted(_ value: CGFloat) -> String {
+                let format = NumberFormatter()
+                format.numberStyle = .decimal
+                format.maximumFractionDigits = 1
+                return format.string(from: NSNumber(value: value)) ?? ""
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// Imperative statements inside builder-evaluated closures execute for
     /// effect — `do/catch` (the `.task { do { try await … } catch {} }`
     /// idiom), plus `#selector` staying an inert marker.
