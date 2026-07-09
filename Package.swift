@@ -36,6 +36,11 @@ let package = Package(
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
+            name: "SpeedBench",
+            dependencies: ["SwiftInterpreter"],
+            swiftSettings: mainActorByDefault
+        ),
+        .executableTarget(
             name: "ProjectCheck",
             dependencies: ["SwiftUIBridge"],
             swiftSettings: mainActorByDefault
