@@ -2909,6 +2909,52 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// home-assistant-ios (iteration 168): top-level `defer` runs at
+    /// process exit on device — invisible to rendering, honestly skipped;
+    /// an interpreted enum SHADOWING a host type crosses the module
+    /// boundary for statics it doesn't declare (design-token `Color` vs
+    /// SwiftUI.Color); and the protocol-defaults walk never re-enters the
+    /// running overload (IconDrawable's image(ofSize:color:) delegating to
+    /// the edgeInsets form).
+    @Test func homeAssistantClasses() throws {
+        let source = """
+        defer { print("process exit cleanup") }
+
+        enum Color {
+            case brand
+            static var tokens: [String] { ["brand"] }
+        }
+
+        protocol IconDrawable {}
+
+        extension IconDrawable {
+            func image(size: Int) -> Int {
+                image(size: size, inset: 0)
+            }
+
+            func image(size: Int, inset: Int) -> Int {
+                size + inset
+            }
+        }
+
+        struct Icon: IconDrawable {}
+
+        struct ContentView: View {
+            var body: some View {
+                let rendered = Icon().image(size: 24)
+                let checks = [
+                    rendered == 24,
+                    Color.tokens.count == 1,
+                ]
+                if checks.contains(false) { fatalError("home-assistant classes broken") }
+                return Text("ok").foregroundStyle(Color.secondary)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// iina (iteration 166): a guard-else ending in an ABSORBED
     /// Never-return (`exit(1)` in a merged helper tool) exits the scope as
     /// the compiler proved; STATIC-method overload sets never re-enter the

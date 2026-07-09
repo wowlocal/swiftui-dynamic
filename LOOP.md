@@ -1695,3 +1695,16 @@ without this.
   iteration (139, 160 precedents). **658/662 counted — ZERO failures
   (THIRTIETH saturation). 585 zips + 74 OSS repos green. Suite 333
   (unchanged — no new capability, no new test).**
+- 2026-07-10 iter 168: step 9 — element-x-ios (1161 files,
+  arrival-pass) + home-assistant-ios (893) cloned. home-assistant's
+  chain: top-level `defer` runs at PROCESS exit on device — invisible
+  to rendering, honestly skipped (block-level defer already existed
+  via the parallel session); an interpreted enum SHADOWING a host type
+  crosses the module boundary for statics it doesn't declare (design-
+  token `Color` vs SwiftUI.Color — the registry marker path); and the
+  PROTOCOL-DEFAULTS walk never re-enters the running overload
+  (IconDrawable's image(ofSize:color:) → edgeInsets form — the FIFTH
+  .first pick site, found after three instrumentation rounds; the
+  superclass walk hardened alongside). home-assistant ✅ (27 nodes,
+  3 actions). **660/664 counted — ZERO failures (THIRTY-FIRST
+  saturation). 585 zips + 76 OSS repos green. Suite 333 → 334.**

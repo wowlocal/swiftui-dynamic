@@ -485,10 +485,14 @@ extension Interpreter {
         var parentName = instance.symbol.superclassName
         while let superName = parentName {
             guard case .type(let parent)? = globals.lookup(superName) else { break }
-            if let overloads = parent.methods[name], let method = overloads.first,
-               let body = method.body {
-                return .closure(makeFunctionClosure(
-                    method, body: body, captured: selfEnvironment(.instance(instance))))
+            if let overloads = parent.methods[name], let firstMethod = overloads.first {
+                let method = overloads.count > 1
+                    ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? firstMethod)
+                    : firstMethod
+                if let body = method.body {
+                    return .closure(makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.instance(instance))))
+                }
             }
             if let computed = parent.computedProperties[name] {
                 return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
@@ -503,9 +507,17 @@ extension Interpreter {
         // serves conformers that don't define the member themselves.
         for conformance in instance.symbol.conformances {
             guard let proto = hostExtensionSymbols[conformance] else { continue }
-            if let method = proto.methods[name]?.first, let body = method.body {
-                return .closure(makeFunctionClosure(
-                    method, body: body, captured: selfEnvironment(.instance(instance))))
+            if let overloads = proto.methods[name], let firstMethod = overloads.first {
+                // Overload sets never re-enter the running declaration
+                // (IconDrawable's image(ofSize:color:) → edgeInsets form,
+                // served to conformers through the protocol-defaults walk).
+                let method = overloads.count > 1
+                    ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? firstMethod)
+                    : firstMethod
+                if let body = method.body {
+                    return .closure(makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.instance(instance))))
+                }
             }
             if let computed = proto.computedProperties[name] {
                 return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
@@ -518,7 +530,14 @@ extension Interpreter {
     func hostExtensionMember(_ name: String, candidates: [String], selfValue: RuntimeValue) throws -> RuntimeValue? {
         for typeName in candidates {
             guard let symbol = hostExtensionSymbols[typeName] else { continue }
-            if let method = symbol.methods[name]?.first, let body = method.body {
+            if let overloads = symbol.methods[name], let firstOverload = overloads.first {
+                // Overload sets never re-enter the running declaration
+                // (IconDrawable's image(ofSize:color:) delegating to the
+                // edgeInsets form).
+                let method = overloads.count > 1
+                    ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? firstOverload)
+                    : firstOverload
+                guard let body = method.body else { return nil }
                 let frame = ExtensionFrame(typeName: typeName, member: name)
                 // A same-named self-call INSIDE this method's own body is
                 // the other overload (UTM: onReceive(Notification.Name…)
@@ -532,6 +551,7 @@ extension Interpreter {
                 }
                 let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
                 closure.extensionFrame = frame
+                closure.functionDeclID = method.id
                 return .closure(closure)
             }
             if let computed = symbol.computedProperties[name] {
@@ -580,9 +600,17 @@ extension Interpreter {
 
     private func enumCaseMember(_ name: String, on value: EnumCaseValue) throws -> RuntimeValue? {
         if name == "rawValue" { return value.rawValue }
-        if let method = value.symbol.methods[name]?.first {
+        if let overloads = value.symbol.methods[name], let first = overloads.first {
+            // Overload sets never re-enter the running declaration
+            // (IconDrawable's image(ofSize:color:) → edgeInsets form,
+            // merged into the enum via its conformance extension).
+            let method = overloads.count > 1
+                ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? first)
+                : first
             guard let body = method.body else { return nil }
-            return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumCase(value))))
+            let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumCase(value)))
+            closure.functionDeclID = method.id
+            return .closure(closure)
         }
         if let computed = value.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .enumCase(value), name: name)
@@ -793,6 +821,12 @@ extension Interpreter {
             }
             if let value = try staticMember(name, of: symbol) {
                 return value
+            }
+            // An interpreted enum SHADOWING a host type (home-assistant's
+            // design-token `Color` vs SwiftUI.Color): statics the enum
+            // doesn't declare cross the module boundary to the host.
+            if let member = registry?.hostMember(name, on: HostTypeMarker(name: symbol.name)) {
+                return member
             }
             throw error(node, "'\(symbol.name)' has no case or static member '\(name)'")
 
@@ -1718,6 +1752,7 @@ extension Interpreter {
             insertedBody = declID
         }
         defer { if let insertedBody { activeFunctionBodies.remove(insertedBody) } }
+
         guard callDepth < callDepthLimit else {
             if let node {
                 let located = error(node, "call depth exceeded (possible infinite recursion)")

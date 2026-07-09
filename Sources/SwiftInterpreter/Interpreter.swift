@@ -266,6 +266,12 @@ public final class Interpreter {
 
         var last: RuntimeValue = .void
         for item in expandedTopLevelItems(file.statements) {
+            if case .stmt(let stmt) = item.item, stmt.is(DeferStmtSyntax.self) {
+                // Top-level `defer` runs at PROCESS exit on device — the
+                // harness has no such moment; cleanup-at-exit is invisible
+                // to rendering, so the body is honestly skipped.
+                continue
+            }
             if case .decl(let decl) = item.item,
                decl.is(StructDeclSyntax.self) || decl.is(ClassDeclSyntax.self)
                 || decl.is(ActorDeclSyntax.self) || decl.is(ImportDeclSyntax.self)
