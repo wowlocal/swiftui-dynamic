@@ -1023,3 +1023,14 @@ Each iteration does exactly this:
   Single-source programs keep eager main-semantics (tests unchanged).
   damus: 76646 → 35225 (void `environment` property — next class).
   **598/599. Suite 237.**
+- 2026-07-09 iter 125: damus FALLS — custom property wrappers read their
+  attribute defaults (@Setting(key:, default_value: .production) — a fresh
+  store has nothing persisted, the declared default IS the value); Task
+  bodies swallow unhandled interpreted throws (device semantics: errors
+  end the task silently); throwing property DEFAULTS read unknowable
+  (real resources exist on device); synthesis falls to unknowable on
+  throwing inits; UUID uuidString/description; phase-labeled verifier
+  diagnostics (top-level/root-init/root-body/action #n) kept permanently.
+  oss:damus passes (9 nodes, 5 actions — 641 files, four iterations).
+  **599/599 counted — ZERO failures. Ladder saturated (fourth time);
+  step 9 governs next.**

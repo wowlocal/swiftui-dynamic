@@ -162,10 +162,18 @@ public final class Interpreter {
                 // Static context: property initializers may reference the
                 // type's own statics bare (`= Timer.publish(every:
                 // autoScrollDuration, …)`).
-                value = try resolveAnnotated(
-                    try evaluate(initializer, in: selfEnvironment(.type(symbol))),
-                    annotation: property.typeAnnotation
-                )
+                do {
+                    value = try resolveAnnotated(
+                        try evaluate(initializer, in: selfEnvironment(.type(symbol))),
+                        annotation: property.typeAnnotation
+                    )
+                } catch is InterpretedThrow {
+                    // A default whose construction THROWS headlessly (real
+                    // resources exist on device) reads unknowable.
+                    value = .native(ChainedImplicitCall(
+                        base: .implicitMember("default"), member: property.name,
+                        arguments: CallArguments()))
+                }
             }
             let box = Box(value)
             if notifying.contains(property.name) {
@@ -510,8 +518,14 @@ public final class Interpreter {
             seen.insert(typeName)
             defer { seen.remove(typeName) }
             if case .type(let nested)? = globals.lookup(typeName) {
-                let args = try synthesizedArguments(for: nested, seen: &seen)
-                return try instantiate(nested, with: args)
+                // A throwing/guarded init that rejects fresh inputs means
+                // the value is unobtainable headlessly — fall through to
+                // the unknowable chain instead of failing the whole unit.
+                if let args = try? synthesizedArguments(for: nested, seen: &seen),
+                   let built = try? instantiate(nested, with: args),
+                   !built.isNil {
+                    return built
+                }
             }
             if let enumSymbol = enumSymbols[typeName],
                let first = enumSymbol.cases.first(where: { !$0.hasAssociatedValues }) {

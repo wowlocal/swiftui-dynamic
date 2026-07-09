@@ -102,6 +102,20 @@ public final class TraceRegistry: HostRegistry {
                 }
                 return .native(node)
             }
+        case "Task", "MainActor":
+            // `Task { try await … }` — the body runs (our async is
+            // synchronous), and UNHANDLED errors end the task silently,
+            // exactly as on device.
+            return HostFunction(name: name) { args, ctx in
+                if let body = args.unlabeledClosures.first ?? args.closure(labeled: "operation") {
+                    do {
+                        _ = try ctx.callClosure(body, arguments: [])
+                    } catch let error as RuntimeError where !error.fatal {
+                        // unhandled task error: logged on device, silent here
+                    }
+                }
+                return .native(TraceNode(kind: name))
+            }
         case "AsyncImage":
             // Headlessly there's no network: the CONTENT closure still
             // verifies against a stub image (GeometryReader-proxy

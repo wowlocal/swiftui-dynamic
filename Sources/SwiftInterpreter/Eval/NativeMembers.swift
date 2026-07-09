@@ -50,6 +50,12 @@ extension Interpreter {
             default: return nil
             }
         }
+        if let uuid = any as? UUID {
+            switch name {
+            case "uuidString", "description": return .native(uuid.uuidString)
+            default: return nil
+            }
+        }
         if let url = any as? URL {
             switch name {
             case "path": return .native(url.path)

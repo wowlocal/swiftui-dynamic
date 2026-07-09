@@ -316,11 +316,27 @@ extension Interpreter {
             TypeSyntax(IdentifierTypeSyntax(name: .identifier($0)))
         }
         // Query wrappers usually have no initializer; a fresh store is empty.
-        let queryDefault: ExprSyntax? =
+        var queryDefault: ExprSyntax? =
             ["Query", "ObservedResults", "FetchRequest", "SectionedFetchRequest"]
                 .contains(where: { hasAttribute(varDecl.attributes, named: $0) })
             ? ExprSyntax(ArrayExprSyntax(elements: ArrayElementListSyntax([])))
             : nil
+        // CUSTOM property wrappers carrying their default in the attribute
+        // (`@Setting(key:, default_value: .production)`): a fresh store has
+        // nothing persisted, so the declared default IS the value.
+        if queryDefault == nil {
+            for attribute in varDecl.attributes {
+                guard let attr = attribute.as(AttributeSyntax.self),
+                      case .argumentList(let arguments)? = attr.arguments else { continue }
+                for label in ["default_value", "defaultValue", "wrappedValue"] {
+                    if let match = arguments.first(where: { $0.label?.text == label }) {
+                        queryDefault = match.expression
+                        break
+                    }
+                }
+                if queryDefault != nil { break }
+            }
+        }
         let hasBuilderAttribute = varDecl.attributes.contains {
             // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true

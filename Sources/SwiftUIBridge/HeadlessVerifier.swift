@@ -15,18 +15,33 @@ public enum HeadlessVerifier {
         source: String, interactions: Bool = true, lazyTopLevelGlobals: Bool = false
     ) throws -> Report {
         let interpreter = Interpreter(registry: TraceRegistry())
-        try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+        do {
+            try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+        } catch {
+            throw RuntimeError(message: "top-level threw: \(error)")
+        }
         guard let symbol = interpreter.rootViewSymbol() else {
             throw RuntimeError(message: "no View-conforming struct found")
         }
-        guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
+        let rootValue: RuntimeValue
+        do {
+            rootValue = try interpreter.instantiateRoot(symbol)
+        } catch {
+            throw RuntimeError(message: "root init threw: \(error)")
+        }
+        guard case .instance(let instance) = rootValue else {
             throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
         }
         try interpreter.injectEnvironmentObjects(into: instance, models: [:])
         interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
 
         var actions: [ClosureValue] = []
-        let root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        let root: TraceNode
+        do {
+            root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+        } catch let e {
+            throw RuntimeError(message: "root body threw: \(e)")
+        }
         let nodeCount = try deepRender(interpreter, root, actions: &actions)
 
         var invoked = 0
@@ -39,7 +54,11 @@ public enum HeadlessVerifier {
                 let tree = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
                 _ = try deepRender(interpreter, tree, actions: &current)
                 guard position < current.count else { break }
-                _ = try interpreter.callClosure(current[position], arguments: [])
+                do {
+                    _ = try interpreter.callClosure(current[position], arguments: [])
+                } catch {
+                    throw RuntimeError(message: "action #\(position) threw: \(error)")
+                }
                 invoked += 1
             }
             var ignored: [ClosureValue] = []

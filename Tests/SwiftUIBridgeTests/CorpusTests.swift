@@ -1460,6 +1460,60 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Custom property wrappers carry defaults in attribute arguments
+    /// (@Setting(default_value:)); Task bodies swallow unhandled throws;
+    /// property defaults that throw read unknowable; UUID members.
+    @Test func wrapperDefaultsTaskThrowsAndUUIDs() throws {
+        let source = """
+        @propertyWrapper struct Setting<T> {
+            var wrappedValue: T
+
+            init(key: String, default_value: T) {
+                self.wrappedValue = default_value
+            }
+        }
+
+        enum Backend {
+            case staging, production
+
+            func url() -> String {
+                self == .production ? "https://api.example.com" : "https://staging.example.com"
+            }
+        }
+
+        class Settings {
+            @Setting(key: "backend", default_value: Backend.production)
+            var backend: Backend
+        }
+
+        struct SignedBlob {
+            init() throws {
+                throw CryptoError.needsDevice
+            }
+        }
+
+        struct ContentView: View {
+            let session = UUID()
+
+            var body: some View {
+                let settings = Settings()
+                VStack {
+                    Text(settings.backend.url())
+                    Text("session \\(session.uuidString.count)")
+                }
+                .onAppear {
+                    Task {
+                        let blob = try SignedBlob()
+                        _ = blob
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
