@@ -887,3 +887,10 @@ Each iteration does exactly this:
   18k lines deeper. **594/597 (99.5%); queue: MakeItSo ($viewModel
   synthesis), ControlRoom (Collection-extension members on natives),
   IceCubesApp (.timeline vs void).**
+- 2026-07-09 iter 112: protocol-extension members on natives — hostCandidates
+  gains protocol umbrellas (Collection/Sequence for arrays+strings+dicts+
+  ranges; RandomAccess/Mutable/Bidirectional for arrays; StringProtocol;
+  BinaryInteger/Numeric; FloatingPoint), so `extension Collection { var
+  isNotEmpty }` dispatches on every conforming native.
+  oss:ControlRoom passes (5 nodes). **595/597 (99.7%);
+  queue: MakeItSo, IceCubesApp.**

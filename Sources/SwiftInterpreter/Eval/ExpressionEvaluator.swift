@@ -390,6 +390,21 @@ extension Interpreter {
             names.append("Array")
             names.append(contentsOf: hostExtensionSymbols.keys.filter { $0.hasPrefix("[") })
         }
+        // Protocol umbrellas: `extension Collection { var isNotEmpty }`
+        // applies to every conforming native (twostraws idiom).
+        if any is [RuntimeValue] || any is String || any is DictValue
+            || any is Range<Int> || any is ClosedRange<Double> {
+            names.append("Collection")
+            names.append("Sequence")
+        }
+        if any is [RuntimeValue] {
+            names.append("RandomAccessCollection")
+            names.append("MutableCollection")
+            names.append("BidirectionalCollection")
+        }
+        if any is String { names.append("StringProtocol") }
+        if any is Int { names.append("BinaryInteger"); names.append("Numeric") }
+        if any is Double { names.append("FloatingPoint"); names.append("BinaryFloatingPoint") }
         return names
     }
 

@@ -939,6 +939,36 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Protocol-extension members apply to conforming natives:
+    /// `extension Collection { var isNotEmpty }` works on arrays,
+    /// strings, and dictionaries; BinaryInteger extensions on Int.
+    @Test func protocolExtensionsOnNatives() throws {
+        let source = """
+        extension Collection {
+            var isNotEmpty: Bool { isEmpty == false }
+        }
+
+        extension BinaryInteger {
+            var isPositive: Bool { self > 0 }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let names = ["a", "b"]
+                let ages = ["ann": 3]
+                VStack {
+                    Text(names.isNotEmpty ? "have names" : "none")
+                    Text("word".isNotEmpty ? "have word" : "none")
+                    Text(ages.isNotEmpty ? "have ages" : "none")
+                    Text(7.isPositive ? "positive" : "negative")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
