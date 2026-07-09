@@ -15,6 +15,51 @@ runner extracts them (into gitignored `External/`), merges each project's
 `.swift` files, interprets, deep-renders every View body, and clicks every
 action. Its failure-class histogram is the priority queue.
 
+**Second queue: `swift run TestCheck [root] --limit N` — semantic fidelity.**
+Runs each OSS project's OWN unit tests over the interpreted code (TestHarness
+merges app + test sources; XCTAssert* are recording host functions; fresh
+instance per test, setUp/tearDown honored). ProjectCheck proves code RENDERS;
+TestCheck proves it COMPUTES — author-written assertions catch divergences no
+render can (inout write-back and the $0/$1 tuple splat shipped exactly this
+way: tiles slid, never merged, zero render diagnostics). Consult this queue
+when ProjectCheck's histogram is all-singletons or its top class is a known
+wall; a genuine TestCheck class then outranks singleton render classes.
+
+**The native-baseline rule (never skip it):** an interpreted test failure is
+an interpreter bug ONLY if the same expectation holds under the real
+compiler. Before queueing any TestCheck class:
+
+1. Reproduce natively. SPM-based projects (Package.swift in the repo): run
+   the exact test inside `External/oss/<name>` with
+   `swift test --filter TestClass/testName`. Xcode-only projects: distill
+   the failing assertion into a minimal native snippet and run it (scratch
+   package — the Examples/ExpenseTrackerNative pattern).
+2. Classify by the native verdict:
+   - passes natively, fails interpreted → GENUINE class: queue it, fix it,
+     pin it with a unit test whose expectation is the NATIVE output (copy
+     the value the compiler produced, never what the interpreter says).
+   - fails natively too → upstream-broken: record it in the TestCheck
+     Ledger below and never count it against the metric.
+   - can't run natively headlessly (device, keychain, network, UI) →
+     environmental; deprioritize below any genuine class.
+3. `UIKitStub`-vs-`UIKitStub` comparisons inside failure messages are the
+   absorbed environment talking (Date/Calendar/NSImage stubs), not
+   semantics — environmental by default.
+
+Scoreboard: per-suite `passed/failed/errored`; passed counts on touched
+suites are strictly-improving, and tests are never skipped to go green.
+First pilot baseline (8 smallest OSS suites, 2026-07-09): 6 ran — 75
+passed / 51 failed / 18 errored. Seed classes awaiting native baselines:
+ControlRoom's subcommand argument arrays lose their static prefix and
+`.arguments` on payload-carrying enum cases resolves as a marker; Maccy's
+String-index / remove(at:) range traps and sort-comparator order;
+OnlineStoreTCA's missing synthesized `init(from: Decoder)`.
+
+## TestCheck Ledger
+
+(upstream-broken or natively-unrunnable tests, with the native verdict —
+keep short; these never count against the metric)
+
 ## The iteration algorithm (never invent the next step)
 
 Each iteration does exactly this:
