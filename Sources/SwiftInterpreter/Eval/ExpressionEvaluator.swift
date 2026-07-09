@@ -488,6 +488,24 @@ extension Interpreter {
             return .void
         }
 
+        // `str.size(withAttributes:)` — the NSString measurement API, served
+        // by the bridge (real font metrics). Dispatch is call-label-aware
+        // because user extensions commonly define their own `size(_ font:)`
+        // wrapper around it, and plain member access must keep resolving to
+        // that extension.
+        if name == "size", call.arguments.first?.label?.text == "withAttributes" {
+            let baseValue = try evaluate(base, in: env)
+            if let string = baseValue.stringValue,
+               case .hostFunction(let measure)? = registry?.hostMember("sizeWithAttributes", on: string as Any) {
+                let args = try collectArguments(of: call, in: env)
+                do {
+                    return try measure.invoke(args, self)
+                } catch let e as RuntimeError where e.line == 0 {
+                    throw error(call, e.message)
+                }
+            }
+        }
+
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
         if mutating.contains(name),
            let target = try? resolveLValue(base, in: env),

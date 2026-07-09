@@ -177,6 +177,31 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         }
     }
 
+    /// The Chips pattern: a user String extension named `size` wrapping the
+    /// NSString measurement API. The extension must win plain member access
+    /// while the inner labeled call reaches real font metrics.
+    @Test func textMeasurementCoexistsWithUserSizeExtension() throws {
+        let source = """
+        extension String {
+            func size(_ font: UIFont) -> CGSize {
+                let attributes = [NSAttributedString.Key.font: font]
+                return self.size(withAttributes: attributes)
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let width = "Chip".size(.preferredFont(forTextStyle: .body)).width
+                Text(width > 5 ? "measured" : "empty")
+            }
+        }
+        """
+        let outcome = InterpreterHost().render(source: source)
+        if case .failure(let error) = outcome {
+            Issue.record("render failed: \(error)")
+        }
+    }
+
     @Test func unknownModifierIsLocatedError() throws {
         let outcome = InterpreterHost().render(source: #"Text("x").wobble()"#)
         switch outcome {

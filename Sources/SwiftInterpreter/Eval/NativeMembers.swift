@@ -234,6 +234,29 @@ extension Interpreter {
         case "count": return .native(string.count)
         case "isEmpty": return .native(string.isEmpty)
         case "localizedDescription": return .native(string) // caught host errors are strings
+        case "startIndex": return .native(string.startIndex)
+        case "endIndex": return .native(string.endIndex)
+        case "index":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard case .native(let any)? = args.positional(0),
+                      let base = any as? String.Index else {
+                    throw RuntimeError(message: "index(_:offsetBy:) needs a String.Index")
+                }
+                let offset = (args.labeled("offsetBy") ?? args.positional(1))?.intValue ?? 0
+                let limit = offset >= 0 ? string.endIndex : string.startIndex
+                guard let moved = string.index(base, offsetBy: offset, limitedBy: limit) else {
+                    throw RuntimeError(message: "String index offset out of bounds")
+                }
+                return .native(moved)
+            })
+        case "distance":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard case .native(let fromAny)? = args.labeled("from"), let from = fromAny as? String.Index,
+                      case .native(let toAny)? = args.labeled("to"), let to = toAny as? String.Index else {
+                    throw RuntimeError(message: "distance(from:to:) needs String.Index bounds")
+                }
+                return .native(string.distance(from: from, to: to))
+            })
         case "first": return string.first.map { .native(String($0)) } ?? .nilValue
         case "last": return string.last.map { .native(String($0)) } ?? .nilValue
         case "uppercased":

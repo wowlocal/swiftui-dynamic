@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 import SwiftInterpreter
@@ -94,8 +95,75 @@ private func calendarComponent(_ value: RuntimeValue?) -> Calendar.Component? {
     }
 }
 
+/// `UIFont.systemFont(ofSize: 16, weight: .semibold)` and friends arrive as
+/// implicit-member-call markers; map them onto real NSFonts so text
+/// measurement uses actual metrics. Unresolvable markers fall back to the
+/// system font.
+private func nsFont(from value: RuntimeValue) -> NSFont? {
+    if case .native(let any) = value, let font = any as? NSFont { return font }
+    guard case .native(let any) = value, let call = any as? ImplicitMemberCall else { return nil }
+    let size = call.arguments.labeled("ofSize")?.doubleValue.map { CGFloat($0) }
+        ?? NSFont.systemFontSize
+    switch call.name {
+    case "systemFont":
+        var weight = NSFont.Weight.regular
+        if case .implicitMember(let name)? = call.arguments.labeled("weight") {
+            switch name {
+            case "ultraLight": weight = .ultraLight
+            case "thin": weight = .thin
+            case "light": weight = .light
+            case "medium": weight = .medium
+            case "semibold": weight = .semibold
+            case "bold": weight = .bold
+            case "heavy": weight = .heavy
+            case "black": weight = .black
+            default: break
+            }
+        }
+        return NSFont.systemFont(ofSize: size, weight: weight)
+    case "boldSystemFont":
+        return NSFont.boldSystemFont(ofSize: size)
+    case "italicSystemFont":
+        return NSFont.systemFont(ofSize: size)
+    case "monospacedSystemFont":
+        return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    case "preferredFont":
+        guard case .implicitMember(let styleName)? = call.arguments.labeled("forTextStyle") else {
+            return NSFont.preferredFont(forTextStyle: .body, options: [:])
+        }
+        let style: NSFont.TextStyle
+        switch styleName {
+        case "largeTitle": style = .largeTitle
+        case "title", "title1": style = .title1
+        case "title2": style = .title2
+        case "title3": style = .title3
+        case "headline": style = .headline
+        case "subheadline": style = .subheadline
+        case "callout": style = .callout
+        case "footnote": style = .footnote
+        case "caption", "caption1": style = .caption1
+        case "caption2": style = .caption2
+        default: style = .body
+        }
+        return NSFont.preferredFont(forTextStyle: style, options: [:])
+    default:
+        return nil
+    }
+}
+
 /// Readable members on host objects (extends bridgeHostMember's coverage).
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
+    // Text measurement, dispatched by the evaluator's label-aware member-call
+    // hook (never by plain member access — user `size` extensions win there).
+    if let string = value as? String, name == "sizeWithAttributes" {
+        return .hostFunction(HostFunction(name: "size") { args, _ in
+            let attributes = (args.labeled("withAttributes") ?? args.positional(0))?.dictValue
+            let font = attributes?.values.lazy.compactMap(nsFont(from:)).first
+                ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
+            let measured = (string as NSString).size(withAttributes: [.font: font])
+            return .native(CGSize(width: measured.width, height: measured.height))
+        })
+    }
     if let marker = value as? HostTypeMarker, marker.name == "Date", name == "now" {
         return .native(Date())
     }

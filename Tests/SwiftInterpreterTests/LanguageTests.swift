@@ -269,6 +269,19 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct StdlibTests {
+    @Test func stringIndexBasics() throws {
+        let source = """
+        let text = "hello"
+        let third = text.index(text.startIndex, offsetBy: 2)
+        text.distance(from: text.startIndex, to: third)
+        """
+        #expect(try eval(source).intValue == 2)
+        #expect(try eval(#""abc".distance(from: "abc".startIndex, to: "abc".endIndex)"#).intValue == 3)
+        #expect(throws: RuntimeError.self) {
+            try eval(#""ab".index("ab".startIndex, offsetBy: 99)"#)
+        }
+    }
+
     @Test func mapFilterReduce() throws {
         #expect(try eval("[1, 2, 3, 4].map { $0 * 2 }.reduce(0) { $0 + $1 }").intValue == 20)
         #expect(try eval("[1, 2, 3, 4].filter { $0 % 2 == 0 }.count").intValue == 2)

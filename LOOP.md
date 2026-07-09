@@ -286,3 +286,12 @@ Each iteration does exactly this:
   argument" class shrinks 3 → 2 (Canvas = the GraphicsContext wall, Chips_UI =
   String text-measurement overload vs user extension — both single-project
   roots). **73/100 → 74/100**.
+- 2026-07-09 iter 37: the String-member class — real text measurement +
+  String.Index basics. `str.size(withAttributes:)` dispatches through a
+  call-label-aware hook in specialMemberCall (user `size(_ font:)` extensions
+  keep winning plain member access — the Chips pattern), measured bridge-side
+  with real NSFonts mapped from UIFont markers (systemFont/weight/
+  preferredFont(forTextStyle:)); startIndex/endIndex/index(_:offsetBy:)/
+  distance(from:to:) join the String natives. Class eliminated: MarqueeText
+  passes, Chips_UI advanced to a custom-Layout blocker, TextSelectionAPI
+  advanced to a Bool-operand singleton. **74/100 → 75/100**.
