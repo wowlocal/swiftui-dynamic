@@ -19,7 +19,15 @@ private func eval(_ source: String) throws -> RuntimeValue {
     }
 
     @Test func divisionByZeroThrows() throws {
-        #expect(throws: RuntimeError.self) { try eval("1 / 0") }
+        #expect(throws: RuntimeError.self) { try eval("1 / 0") } // Int traps, like Swift
+    }
+
+    /// Double division follows IEEE 754 exactly like real Swift.
+    @Test func doubleDivisionByZeroIsIEEE() throws {
+        #expect(try eval("(1.0 / 0.0) > 1000000").boolValue == true)
+        #expect(try eval("(-1.0 / 0.0) < -1000000").boolValue == true)
+        #expect(try eval("(0.0 / 0.0) == (0.0 / 0.0)").boolValue == false) // NaN != NaN
+        #expect(try eval("let w = 390.0\n20 / (w - 390) > 0").boolValue == true)
     }
 
     @Test func tupleElementsAreAssignable() throws {

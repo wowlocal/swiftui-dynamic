@@ -33,8 +33,8 @@ enum Builtins {
                 guard r != 0 else { throw EvalMessage(text: "division by zero") }
                 return l / r
             }, double: { l, r in
-                guard r != 0 else { throw EvalMessage(text: "division by zero") }
-                return l / r
+                // IEEE 754, exactly like real Swift: x/0 is ±inf, 0/0 is NaN.
+                l / r
             })
         case "%":
             guard let l = lhs.intValue, let r = rhs.intValue else {

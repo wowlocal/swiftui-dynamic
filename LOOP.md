@@ -517,3 +517,10 @@ Each iteration does exactly this:
   or expression-pattern tuples of unresolved names/pattern exprs).
   ImageRenderer-PDF, MapRoutes, 3DCardAnimation, HabitTracker pass;
   ImageDrawing advanced. **481/587 → 485/587**.
+- 2026-07-09 iter 63: Double division follows IEEE 754 — x/0 is ±inf, 0/0 is
+  NaN, exactly like real Swift (the old always-throw was WRONG for doubles;
+  Int division still traps). The stub canvas width 390 was cancelling
+  hardcoded 390s in scroll-geometry ratios (`width / (width - 390)`).
+  Filled, ScrollDetection, AppleWalletScroll, PinterestGridAnimation pass;
+  TwitterProfileScrolling remains (honest Int-division trap fed a stub
+  zero). **485/587 → 489/587**.
