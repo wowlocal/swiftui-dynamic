@@ -279,6 +279,7 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if value is WindowSceneStub {
         switch name {
+        case "activationState": return .implicitMember("foregroundActive")
         case "screen": return .native(ScreenStub())
         case "keyWindow", "windows": return name == "windows"
             ? .native([RuntimeValue.native(WindowStub())])

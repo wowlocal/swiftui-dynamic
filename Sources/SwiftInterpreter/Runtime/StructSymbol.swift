@@ -76,6 +76,10 @@ public final class StructSymbol {
     /// `class Recognizer: NSObject, …` — the (non-protocol) superclass name;
     /// host superclasses make `super.*` inert, interpreted ones dispatch.
     public internal(set) var superclassName: String?
+    /// `<Content: View, Style>` → ["Content": "View", "Style": ""] — used
+    /// so properties typed by a GENERIC PARAMETER never synthesize as a
+    /// same-named concrete type from elsewhere in the merge.
+    public internal(set) var genericParameters: [String: String] = [:]
     /// The full inheritance clause — protocol-extension defaults dispatch
     /// through these names.
     public internal(set) var conformances: [String] = []

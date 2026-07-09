@@ -146,6 +146,7 @@ enum Builtins {
            any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             return 0.0
         }
+        if case .hostFunction = value { return 0.0 } // bound stub member
         return nil
     }
 

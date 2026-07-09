@@ -282,7 +282,14 @@ extension Interpreter {
             if let property = instance.symbol.storedProperty(named: propertyName),
                property.wrapper == .stateObject || property.wrapper == .observedObject
                 || property.wrapper == .environmentObject {
-                guard case .instance(let model)? = instance.box(for: propertyName)?.value else {
+                let boxValue = instance.box(for: propertyName)?.value
+                guard case .instance(let model)? = boxValue else {
+                    // External-package models synthesize as unknowables —
+                    // their projection is equally unknowable (absorbs).
+                    if case .native(let any)? = boxValue,
+                       any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+                        return boxValue ?? .nilValue
+                    }
                     throw error(node, "'\(name)' has no model instance assigned")
                 }
                 return .native(ModelProjection(model: model))
@@ -827,6 +834,9 @@ extension Interpreter {
     static let cStdlibNames: Set<String> = [
         "malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset",
         "strlen", "strcmp", "strncmp", "strcpy", "strdup",
+        // Process-control calls in merged helper-tool files: interpreted
+        // execution continues (the app target never runs them at launch).
+        "exit", "abort", "usleep", "sleep",
     ]
 
     func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {

@@ -1034,3 +1034,15 @@ Each iteration does exactly this:
   oss:damus passes (9 nodes, 5 actions — 641 files, four iterations).
   **599/599 counted — ZERO failures. Ladder saturated (fourth time);
   step 9 governs next.**
+- 2026-07-09 iter 126: step 9 — cloned EhPanda (192 files), VirtualBuddy
+  (250, PASSED on arrival), Planet (263); units 599 → 602. Biggest new
+  class: GENERIC-PARAMETER synthesis — properties typed by a struct's own
+  generic params (`content: Content` in AlertHost<Content: View>) never
+  synthesize as same-named concrete types (EhPanda's GalleryState.Content
+  model had claimed the bare name); View-constrained params become fresh
+  EmptyViews via the registry. Same climb: external-model $projections
+  absorb (AlertKit manager), WindowSceneStub.activationState
+  (foregroundActive), exit/abort/sleep C absorbers, String.description,
+  CGFloat + static absorbedNumeric learn unknowables (.hostFunction).
+  All three repos pass. **602/602 counted — ZERO failures (fifth
+  saturation).**

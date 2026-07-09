@@ -515,6 +515,8 @@ extension Interpreter {
             // Scalars as single-char strings (our character model): count,
             // iteration, and allSatisfy work through array machinery.
             return .native(string.unicodeScalars.map { RuntimeValue.native(String($0)) })
+        case "description", "debugDescription", "localizedDescription":
+            return .native(string)
         case "startIndex": return .native(string.startIndex)
         case "endIndex": return .native(string.endIndex)
         case "range":

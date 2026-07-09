@@ -159,9 +159,18 @@ extension Interpreter {
         globals.define(symbol.name, .type(symbol))
     }
 
+    private func recordGenericParameters(_ clause: GenericParameterClauseSyntax?, into symbol: StructSymbol) {
+        guard let clause else { return }
+        for parameter in clause.parameters {
+            symbol.genericParameters[parameter.name.text] =
+                parameter.inheritedType?.trimmedDescription ?? ""
+        }
+    }
+
     private func makeStructSymbol(_ node: StructDeclSyntax) throws -> StructSymbol {
         let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
         let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
+        recordGenericParameters(node.genericParameterClause, into: symbol)
         symbol.isRepresentable = inherited.contains { $0.hasSuffix("Representable") }
         symbol.conformsToShape = inherited.contains("Shape") || inherited.contains("InsettableShape")
         symbol.conformances = inherited

@@ -1514,6 +1514,37 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Properties typed by GENERIC PARAMETERS never synthesize as
+    /// same-named concrete types (View-constrained params become fresh
+    /// empty views); external-model projections absorb; CGFloat(marker)
+    /// reads zero.
+    @Test func genericParameterSynthesis() throws {
+        let source = """
+        struct Content: Codable {
+            var pages: Int
+        }
+
+        struct AlertHost<Content: View>: View {
+            let content: Content
+            @StateObject var manager: ExternalAlertManager
+
+            var body: some View {
+                content
+                    .opacity(manager.isPresented ? 0.5 : 1)
+                    .offset(y: CGFloat(manager.offset))
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                AlertHost(content: Text("hosted"), manager: ExternalAlertManager())
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 2)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

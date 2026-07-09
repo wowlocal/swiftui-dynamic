@@ -441,6 +441,18 @@ public final class Interpreter {
         return try instantiate(symbol, with: args)
     }
 
+    /// A property typed by one of the OWNER's generic parameters: fresh
+    /// empty view for View-constrained params (registry-backed), otherwise
+    /// an unknowable chain — never a same-named concrete type.
+    private func synthesizedGenericValue(constraint: String, parameter: String) -> RuntimeValue {
+        if constraint.contains("View"), let ctor = registry?.constructor(named: "EmptyView"),
+           let view = try? ctor.invoke(CallArguments(arguments: []), self) {
+            return view
+        }
+        return .native(ChainedImplicitCall(
+            base: .implicitMember("generic"), member: parameter, arguments: CallArguments()))
+    }
+
     private func synthesizedArguments(for symbol: StructSymbol, seen: inout Set<String>) throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
         // Prefer a NON-failable init: synthesized fresh arguments rarely
@@ -451,8 +463,13 @@ public final class Interpreter {
             for param in initializer.signature.parameterClause.parameters
             where param.defaultValue == nil {
                 let label = param.firstName.text
-                let value = try synthesizedFreshValue(
-                    typeName: param.type.trimmedDescription, seen: &seen)
+                let typeName = param.type.trimmedDescription
+                let value: RuntimeValue
+                if let constraint = symbol.genericParameters[typeName] {
+                    value = synthesizedGenericValue(constraint: constraint, parameter: typeName)
+                } else {
+                    value = try synthesizedFreshValue(typeName: typeName, seen: &seen)
+                }
                 arguments.append(.init(label: label == "_" ? nil : label, value: value))
             }
         } else {
@@ -461,6 +478,12 @@ public final class Interpreter {
                 let typeName = property.typeAnnotation?.trimmedDescription ?? ""
                 switch property.wrapper {
                 case .none:
+                    if let constraint = symbol.genericParameters[typeName] {
+                        arguments.append(.init(
+                            label: property.name,
+                            value: synthesizedGenericValue(constraint: constraint, parameter: typeName)))
+                        continue
+                    }
                     arguments.append(.init(
                         label: property.name,
                         value: try synthesizedFreshValue(typeName: typeName, seen: &seen)))
@@ -833,10 +856,11 @@ public final class Interpreter {
         }
         define("CGFloat") { args, _ in
             // Our CGFloat model IS Double.
-            guard let d = args.positional(0)?.doubleValue else {
-                throw RuntimeError(message: "CGFloat needs a number")
+            if let d = args.positional(0)?.doubleValue { return .native(d) }
+            if let value = args.positional(0), let z = Builtins.absorbedNumeric(value) {
+                return .native(z) // unknowables read fresh zero (iter-94 rule)
             }
-            return .native(d)
+            throw RuntimeError(message: "CGFloat needs a number")
         }
         define("Array") { args, _ in
             if let element = args.labeled("repeating"), let count = args.labeled("count")?.intValue {
