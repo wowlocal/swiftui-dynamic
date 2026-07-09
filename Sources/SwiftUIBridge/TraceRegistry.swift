@@ -211,6 +211,14 @@ public final class TraceRegistry: HostRegistry {
             // No body to deep-render; recorded inert.
             return .native(TraceNode(kind: "Representable:\(instance.symbol.name)"))
         }
+        if instance.symbol.conformsToShape {
+            // No body — execute the geometry math against the standard
+            // canvas rect so errors in path(in:) still surface.
+            _ = try? interpreter.callMethod(
+                named: "path", on: instance,
+                arguments: [.native(CGRect(x: 0, y: 0, width: 390, height: 844))])
+            return .native(TraceNode(kind: "Shape:\(instance.symbol.name)"))
+        }
         let node = TraceNode(kind: "View:\(instance.symbol.name)")
         node.instance = instance
         return .native(node)

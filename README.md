@@ -81,7 +81,9 @@ no inference engine, just annotations.
 roles), `Toggle`, `Slider`, `TextField`/`SecureField`, `Picker` (String
 selection), `ForEach`, `ProgressView`, `Spacer`/`Divider`, shapes (`Circle`,
 `Capsule`, `Rectangle`, `RoundedRectangle`, `Ellipse`) with `.fill`/`.stroke`,
-`LinearGradient`, `withAnimation`; presentation — `.sheet(isPresented:)`,
+`LinearGradient`, `withAnimation`, **user `Shape` structs** (`func path(in:)
+-> Path` runs interpreted and draws real geometry; `.fill`/`.stroke`/`.trim`
+apply); presentation — `.sheet(isPresented:)`,
 `.alert(_:isPresented:actions:message:)`, `.confirmationDialog`; environment —
 `.environmentObject(_:)` + `@EnvironmentObject` (carried on SwiftUI's real
 Environment, so scoping and propagation into sheets come for free); `UUID()`

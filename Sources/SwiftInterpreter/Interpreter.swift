@@ -223,6 +223,16 @@ public final class Interpreter {
         return try groupViews(views)
     }
 
+    /// Call an instance method with positional arguments — the bridge's entry
+    /// point for protocol requirements it hosts (a Shape's `path(in:)`).
+    public func callMethod(named name: String, on instance: Instance, arguments: [RuntimeValue]) throws -> RuntimeValue {
+        guard let member = try instanceMember(name, on: instance),
+              let closure = member.closureValue else {
+            throw RuntimeError(message: "'\(instance.symbol.name)' has no method '\(name)'")
+        }
+        return try callClosure(closure, arguments: arguments)
+    }
+
     /// Fill `@EnvironmentObject` properties from ambient models (keyed by type
     /// name). The SwiftUI bridge reads the models off the real Environment;
     /// headless harnesses thread them down the trace tree.

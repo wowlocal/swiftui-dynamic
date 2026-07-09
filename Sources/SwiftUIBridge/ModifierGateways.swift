@@ -400,6 +400,14 @@ extension ViewRegistry {
             let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
             return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
         }
+        modifiers["trim"] = HostModifier(name: "trim") { value, args, _ in
+            guard case .native(let any) = value, let box = any as? ShapeBox else {
+                throw RuntimeError(message: ".trim applies to shapes")
+            }
+            let from = try Coerce.cgFloat(args.labeled("from") ?? .native(0.0))
+            let to = try Coerce.cgFloat(args.labeled("to") ?? .native(1.0))
+            return .native(ShapeBox(box.shape.trim(from: from, to: to)))
+        }
         modifiers["resizable"] = HostModifier(name: "resizable") { value, _, _ in
             guard case .native(let any) = value, let box = any as? ImageBox else {
                 throw RuntimeError(message: ".resizable applies to Image")

@@ -67,6 +67,11 @@ public final class ViewRegistry: HostRegistry {
             // the honest stand-in is an inert empty view.
             return .native(AnyView(EmptyView()))
         }
+        if instance.symbol.conformsToShape {
+            // Shape-typed so .fill/.stroke/.trim apply; the real path comes
+            // from the interpreted path(in:).
+            return .native(ShapeBox(InterpretedShape(instance: instance, interpreter: interpreter)))
+        }
         return .native(AnyView(InterpretedView(instance: instance, interpreter: interpreter)))
     }
 

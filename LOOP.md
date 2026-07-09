@@ -327,3 +327,17 @@ Each iteration does exactly this:
   truncatingRemainder(dividingBy:). WaveCanvas corpus program (Canvas + Path
   + Slider, real-hosted). Canvas passes; the class's other member (Chips_UI)
   is the Layout-protocol wall. **81/100 → 82/100**.
+- 2026-07-09 iter 42: window raised 100 → 200 (82% ≥ 80%). New baseline
+  142/200 (71%). Top class "has no member" (8) = user Shape structs hitting
+  .fill/.stroke/.trim. StructSymbol.conformsToShape; instance member access
+  falls back to modifiers for shapes; makeRenderable wraps them shape-typed —
+  real side ShapeBox(InterpretedShape) whose nonisolated path(in:) calls the
+  interpreted method via MainActor.assumeIsolated, PathDrawStub now
+  accumulates a REAL Path (move/addLine/addCurve/addQuadCurve/addArc/addRect/
+  addEllipse/closeSubpath), so user shapes draw actual geometry; trace side
+  executes path(in:) against the standard rect and records inert. New public
+  Interpreter.callMethod(named:on:arguments:). `.trim(from:to:)` hand
+  modifier. CustomShapes corpus (fill/stroke/trim + state-driven redraw,
+  real-hosted). 7 shape projects pass (WaterWave, SplashsAnimation, Glass,
+  SegmentedControlAnimation, ScratchCard, Custom_Tab_Bar, Device_MockUp);
+  the 8th (Tags) is a Layout — the protocols wall. **142/200 → 149/200**.

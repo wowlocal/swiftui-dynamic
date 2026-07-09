@@ -295,8 +295,11 @@ extension Interpreter {
 
         case .instance(let instance):
             if let value = try instanceMember(name, on: instance) { return value }
-            // A modifier applied to an interpreted View: wrap it renderable first.
-            if instance.symbol.conformsToView || instance.symbol.isRepresentable, let registry,
+            // A modifier applied to an interpreted View (or Shape — the
+            // registry wraps those shape-typed, so .fill/.stroke/.trim see a
+            // shape): wrap it renderable first.
+            if instance.symbol.conformsToView || instance.symbol.isRepresentable
+                || instance.symbol.conformsToShape, let registry,
                let modifier = registry.modifier(named: name) {
                 let wrapped = registry.makeRenderable(instance: instance, interpreter: self)
                 return .hostFunction(HostFunction(name: name) { args, ctx in

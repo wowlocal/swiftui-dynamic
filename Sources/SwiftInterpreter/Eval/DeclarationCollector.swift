@@ -37,6 +37,7 @@ extension Interpreter {
         let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
         let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
         symbol.isRepresentable = inherited.contains { $0.hasSuffix("Representable") }
+        symbol.conformsToShape = inherited.contains("Shape") || inherited.contains("InsettableShape")
         try collectStructMembers(node.memberBlock, into: symbol)
         return symbol
     }

@@ -25,8 +25,99 @@ struct MapProxyStub {}
 /// execute their math without a GPU.
 struct GraphicsContextStub {}
 
-/// `Path { path in … }` headlessly: move/addLine/addCurve accepted inertly.
-struct PathDrawStub {}
+/// `Path { path in … }` — accumulates a REAL Path from interpreted draw
+/// commands, so user Shape structs (`func path(in:) -> Path`) render their
+/// actual geometry. Unknown commands are accepted inertly.
+final class PathDrawStub {
+    var path = Path()
+
+    func apply(_ command: String, _ args: CallArguments) {
+        func point(_ value: RuntimeValue?) -> CGPoint? {
+            if case .native(let any)? = value { return any as? CGPoint }
+            return nil
+        }
+        func rect(_ value: RuntimeValue?) -> CGRect? {
+            if case .native(let any)? = value { return any as? CGRect }
+            return nil
+        }
+        switch command {
+        case "move":
+            if let to = point(args.labeled("to")) { path.move(to: to) }
+        case "addLine":
+            if let to = point(args.labeled("to")) { path.addLine(to: to) }
+        case "addCurve":
+            if let to = point(args.labeled("to")),
+               let c1 = point(args.labeled("control1")),
+               let c2 = point(args.labeled("control2")) {
+                path.addCurve(to: to, control1: c1, control2: c2)
+            }
+        case "addQuadCurve":
+            if let to = point(args.labeled("to")), let control = point(args.labeled("control")) {
+                path.addQuadCurve(to: to, control: control)
+            }
+        case "addArc":
+            if let center = point(args.labeled("center")),
+               let radius = try? Coerce.cgFloat(args.labeled("radius") ?? .native(0.0)),
+               let start = try? Coerce.angle(args.labeled("startAngle") ?? .native(0.0)),
+               let end = try? Coerce.angle(args.labeled("endAngle") ?? .native(0.0)) {
+                path.addArc(center: center, radius: radius, startAngle: start, endAngle: end,
+                            clockwise: args.labeled("clockwise")?.boolValue ?? false)
+            }
+        case "addRect":
+            if let r = rect(args.labeled("in") ?? args.positional(0)) { path.addRect(r) }
+        case "addEllipse":
+            if let r = rect(args.labeled("in") ?? args.positional(0)) { path.addEllipse(in: r) }
+        case "closeSubpath":
+            path.closeSubpath()
+        default:
+            break // other draw commands accepted inertly
+        }
+    }
+}
+
+/// A real SwiftUI Shape whose `path(in:)` delegates to the interpreted
+/// method — user `struct WaterWave: Shape` draws its actual geometry.
+/// The carrier keeps non-Sendable interpreter refs behind an @unchecked
+/// wall; path(in:) is a nonisolated requirement but SwiftUI calls it on
+/// the main thread during layout, so assumeIsolated holds.
+private final class ShapeCarrier: @unchecked Sendable {
+    let instance: Instance
+    let interpreter: Interpreter
+
+    nonisolated init(instance: Instance, interpreter: Interpreter) {
+        self.instance = instance
+        self.interpreter = interpreter
+    }
+}
+
+struct InterpretedShape: Shape {
+    private let carrier: ShapeCarrier
+
+    init(instance: Instance, interpreter: Interpreter) {
+        carrier = ShapeCarrier(instance: instance, interpreter: interpreter)
+    }
+
+    nonisolated func path(in rect: CGRect) -> Path {
+        MainActor.assumeIsolated {
+            do {
+                let result = try carrier.interpreter.callMethod(
+                    named: "path", on: carrier.instance, arguments: [.native(rect)])
+                if case .native(let any) = result, let stub = any as? PathDrawStub {
+                    return stub.path
+                }
+                if case .native(let any) = result, let real = any as? Path {
+                    return real
+                }
+                return Path()
+            } catch let error as RuntimeError {
+                RenderDiagnostics.record(error, in: carrier.instance.symbol.name)
+                return Path()
+            } catch {
+                return Path()
+            }
+        }
+    }
+}
 
 /// iOS code reads `UIScreen.main.bounds`; the honest macOS analog is the main
 /// screen's frame (fixed canvas headlessly).
@@ -187,10 +278,16 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
         return nil
     }
-    if value is GraphicsContextStub || value is PathDrawStub {
-        // Every draw command is accepted and ignored — fill/stroke/translateBy/
-        // move(to:)/addLine/addCurve… execute inertly with no surface.
+    if value is GraphicsContextStub {
+        // Every draw command is accepted and ignored — fill/stroke/
+        // translateBy… execute inertly with no surface.
         return .hostFunction(HostFunction(name: name) { _, _ in .void })
+    }
+    if let stub = value as? PathDrawStub {
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            stub.apply(name, args)
+            return .void
+        })
     }
     if let context = value as? TimelineViewDefaultContext {
         if name == "date" { return .native(context.date) }
