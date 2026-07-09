@@ -92,6 +92,30 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// UIKit-ish constructed objects get property-bag member semantics —
+    /// nested writes round-trip, calls absorb (views keep modifier chains).
+    @Test func hostObjectNodesChainBagsAndAbsorbCalls() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var status = "idle"
+
+            var body: some View {
+                Text(status)
+                Button("Configure") {
+                    let engine = AVAudioEngine()
+                    engine.mainMixerNode.outputVolume = 0.5
+                    engine.prepare()
+                    engine.start()
+                    status = engine.mainMixerNode.outputVolume == 0.5 ? "wired" : "lost"
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+        #expect(report.actionsInvoked == 1)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

@@ -620,3 +620,11 @@ Each iteration does exactly this:
   never run — documented). Clears the TagLayout pair AND the long-standing
   wall pair: TagView, TagTextField, Chips_UI (blocked since iter 36),
   LoopingCards. **531 → 534/585 (91.3%).**
+- 2026-07-09 iter 76: hosted-object nodes act like objects — TraceNodes with
+  UIKit-ish constructor prefixes (UI/NS/CA/AV/CL/MK/WK/SK/PH) serve members
+  as memoized chained bags (`engine.mainMixerNode.outputVolume = 0.5`
+  round-trips) instead of falling into the view-modifier catch-all, and
+  TraceNode is InertCallable (calls absorb, clearing the "not callable"
+  class too). Canvas_Editor, ImageDrawing, InteractiveToasts,
+  Responsive_UI_New (218 nodes) pass — two classes, one stroke.
+  **534 → 538/585 (92.0%).**

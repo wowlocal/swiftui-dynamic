@@ -3,7 +3,7 @@ import SwiftInterpreter
 
 /// A recorded render-tree node — what the trace registry produces instead of
 /// real SwiftUI views, so tests can assert structure headlessly.
-public final class TraceNode {
+public final class TraceNode: InertCallable {
     public let kind: String
     public var args: [String] = []
     public var children: [TraceNode] = []
@@ -264,9 +264,27 @@ public final class TraceRegistry: HostRegistry {
         return .native(node)
     }
 
+    /// Constructed host OBJECTS (UIPanGestureRecognizer(), AVPlayer(), …)
+    /// vs recorded views: UIKit-ish constructor prefixes get property-bag
+    /// member semantics; view kinds keep modifier chaining.
+    static func isHostObjectKind(_ kind: String) -> Bool {
+        for prefix in ["UI", "NS", "CA", "AV", "CL", "MK", "WK", "SK", "PH"]
+        where kind.hasPrefix(prefix) && kind.count > 2 {
+            return true
+        }
+        return false
+    }
+
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
         if let node = value as? TraceNode, let stored = node.config[name] {
             return stored
+        }
+        if let node = value as? TraceNode, Self.isHostObjectKind(node.kind) {
+            // Members of hosted objects read as memoized chained bags, so
+            // `context.view.frame = x` round-trips and calls absorb.
+            let fresh = RuntimeValue.native(TraceNode(kind: "\(node.kind).\(name)"))
+            node.config[name] = fresh
+            return fresh
         }
         if value is TraceNode {
             // Unknown store-query objects (realm.objects(...)) act like a
