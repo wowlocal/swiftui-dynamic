@@ -210,6 +210,16 @@ enum Builtins {
     }
 
     private static func compare(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
+        // Dates compare by time interval (`$0.creationDate < $1.creationDate`).
+        if case .native(let la) = lhs, let l = la as? Date,
+           case .native(let ra) = rhs, let r = ra as? Date {
+            switch op {
+            case "<": return l < r
+            case "<=": return l <= r
+            case ">": return l > r
+            default: return l >= r
+            }
+        }
         if let l = lhs.stringValue, let r = rhs.stringValue {
             switch op {
             case "<": return l < r

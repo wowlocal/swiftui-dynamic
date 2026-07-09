@@ -125,6 +125,16 @@ struct ModelContextStub {}
 private func dateArg(_ value: RuntimeValue?) -> Date? {
     if case .native(let any)? = value, let date = any as? Date { return date }
     if case .implicitMember("now")? = value { return Date() }
+    // `to: .init()` — a bare Date construction in date position.
+    if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
+        if let interval = call.arguments.labeled("timeIntervalSince1970")?.doubleValue {
+            return Date(timeIntervalSince1970: interval)
+        }
+        if let interval = call.arguments.labeled("timeIntervalSinceNow")?.doubleValue {
+            return Date(timeIntervalSinceNow: interval)
+        }
+        if call.arguments.arguments.isEmpty { return Date() }
+    }
     return nil
 }
 
@@ -342,6 +352,19 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 case "isDateInYesterday": return .native(box.calendar.isDateInYesterday(date))
                 case "isDateInWeekend": return .native(box.calendar.isDateInWeekend(date))
                 default: return .native(box.calendar.isDateInToday(date))
+                }
+            })
+        case "compare":
+            return .hostFunction(HostFunction(name: "compare") { args, _ in
+                guard let lhs = dateArg(args.positional(0)),
+                      let rhs = dateArg(args.labeled("to")),
+                      let granularity = calendarComponent(args.labeled("toGranularity")) else {
+                    throw RuntimeError(message: "compare(_:to:toGranularity:) needs two Dates and a component")
+                }
+                switch box.calendar.compare(lhs, to: rhs, toGranularity: granularity) {
+                case .orderedAscending: return .implicitMember("orderedAscending")
+                case .orderedDescending: return .implicitMember("orderedDescending")
+                case .orderedSame: return .implicitMember("orderedSame")
                 }
             })
         case "dateInterval":

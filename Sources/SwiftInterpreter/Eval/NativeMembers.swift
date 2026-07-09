@@ -147,7 +147,7 @@ extension Interpreter {
             })
         case "sorted":
             return .hostFunction(HostFunction(name: name) { args, ctx in
-                if let closure = args.unlabeledClosures.first {
+                if let closure = args.closure(labeled: "by") ?? args.unlabeledClosures.first {
                     var failure: Error?
                     let out = array.sorted { a, b in
                         if failure != nil { return false }

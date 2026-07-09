@@ -316,6 +316,28 @@ enum Corpus {
         #expect(report.actionsInvoked == 2)
     }
 
+    /// Bare `.init()` dates in Calendar args, Date comparison operators,
+    /// sorted(by:) labeled closures, calendar.compare(to:toGranularity:).
+    @Test func dateComparisonAndCalendarCompare() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let calendar = Calendar.current
+                let now = Date()
+                let later = calendar.date(byAdding: .hour, value: 2, to: .init()) ?? now
+                let ordered = [later, now].sorted(by: { $0 < $1 })
+                let ordering = calendar.compare(now, to: later, toGranularity: .hour)
+                VStack {
+                    Text(ordered[0] <= ordered[1] ? "sorted" : "unsorted")
+                    Text(ordering == .orderedAscending ? "ascending" : "other")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// dateInterval(of:for:) with weekOfMonth + user `extension Calendar`
     /// members dispatching on the real-backed box.
     @Test func dateIntervalAndCalendarExtensions() throws {

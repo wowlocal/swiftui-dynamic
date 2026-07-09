@@ -572,3 +572,9 @@ Each iteration does exactly this:
   `selectedMenu == title` read the constant. Custom_Side_Menu, Drawer,
   Instagram_Desktop (266 nodes / 29 actions — the largest render yet) pass.
   **508/587 → 511/587 (87.1%).**
+- 2026-07-09 iter 70: the date(byAdding:) remainder — bare `.init()` markers
+  construct Dates in date positions (timeIntervalSince1970/Now labeled forms
+  included); Dates compare with </<=/>/>=; sorted accepts by:-labeled
+  closures; calendar.compare(_:to:toGranularity:) returns marker-comparable
+  ComparisonResults. Task_Management ×2 (92 nodes) + CardAnimation pass.
+  **511/587 → 514/587 (87.6%).**
