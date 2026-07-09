@@ -1327,4 +1327,6 @@ Each iteration does exactly this:
   map/flatMap accept function REFERENCES (`.flatMap(Bundle.init(url:))`).
   Copilot ✅ (3 nodes, 1 action). Maccy still ❌ (`'>' cannot compare
   nil and 200.0` — Defaults[.windowSize] subscript) — next class.
-  **629/634 counted; Suite 268 → 271 (all green).**
+  **629/634 counted; Suite 266 → 268 (all green — the cycle-guard limit
+  needed tightening to 350 nestings post-commit: 2000 × large evaluate
+  frames still overflowed the test stack; corpus unaffected at 350).**

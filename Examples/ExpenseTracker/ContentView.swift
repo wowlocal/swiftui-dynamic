@@ -5,7 +5,7 @@ struct ContentView: View {
     @State private var showAdd = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 VStack(spacing: 12) {
                     Text("Expenses")

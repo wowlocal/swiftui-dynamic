@@ -11,7 +11,7 @@ extension Interpreter {
         // frames, so bound nesting well before the real stack dies.
         evaluationDepth += 1
         defer { evaluationDepth -= 1 }
-        guard evaluationDepth < 2_000 else {
+        guard evaluationDepth < 350 else {
             let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
             throw RuntimeError(
                 message: located.message, line: located.line, column: located.column, fatal: true)
