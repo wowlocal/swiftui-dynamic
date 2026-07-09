@@ -192,6 +192,43 @@ Each iteration does exactly this:
   shell → Foundation breadth (Date formatting, Timer, URLSession stubs).
   Don't start one preemptively; wait until it's the top failure class.
 
+## Mission ladder (functional parity with Xcode builds)
+
+The end state: any GitHub SwiftUI project launches and FULLY functions as
+if compiled in Xcode. Milestones, each with its measuring queue:
+
+- **M0 Renders** — ProjectCheck (deep-render + clicks). [~97%: keep gated
+  window raises as before]
+- **M1 Computes** — TestCheck: the project's own tests pass interpreted,
+  native-baseline verified.
+- **M2 Live data** — LiveCheck rungs: fetch → decode → strings in tree →
+  nonblank pixels.
+- **M3 Interactive persistence** — in-session data is REAL: insert →
+  query returns it, tap a row → its detail renders that row's data, state
+  survives navigation. (LiveCheck interaction rungs + doctrine below.)
+- **M4 App-shell parity** — the real `@main App`/Scene body runs: its env
+  objects seed the tree (no synthesized stand-ins), the App's own root
+  replaces root-selection, onOpenURL/WindowGroup semantics.
+- **M5 Semantic parity** — the documented divergences burn down (value
+  semantics for structs first); TestCheck failure classes against native
+  baselines trend to zero.
+
+**Milestone weighting (amends step 3 "pick the single biggest class"):**
+within a queue, size wins as before. ACROSS queues, a class that unblocks
+the LOWEST-numbered unfinished milestone outranks a bigger class that only
+polishes an already-saturated one — e.g. the async-fetch class (M2)
+outranks five M0 render singletons. M0 saturation sweeps remain the health
+backstop, not the main line, once its histogram is all-singletons.
+
+**Doctrine upgrade — live fresh stores (M3, replaces fresh-EMPTY):**
+@Query/@FetchRequest/@ObservedResults-shaped wrappers and ModelContext
+insert/delete/save now back onto a LIVE per-run in-memory store: what the
+interpreted UI writes, its queries read back. Determinism holds (every run
+starts empty); ProjectCheck click-through becomes MORE honest (an added
+row appears and can be clicked). Implement bridge-side; document in README
+as fresh-store doctrine v2. Todo/notes-genre apps are not "functional"
+without this.
+
 ## Quarantine
 
 (projects excluded from the metric, with reasons — keep short)
