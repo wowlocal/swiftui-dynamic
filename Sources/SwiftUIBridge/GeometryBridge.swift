@@ -173,6 +173,28 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let member = hostObjectMember(name, on: value) {
         return member
     }
+    // Gesture chains: `.onChanged {}` / `.onEnded {}` accumulate interpreted
+    // closures on the stub; `.gesture` later attaches the real gesture.
+    if let gesture = value as? GestureBox, name == "onChanged" || name == "onEnded" {
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            guard case .closure(let closure)? = args.arguments.first?.value else {
+                return .native(gesture)
+            }
+            return .native(gesture.chained(name, closure))
+        })
+    }
+    if let drag = value as? DragGesture.Value {
+        switch name {
+        case "translation": return .native(drag.translation)
+        case "location": return .native(drag.location)
+        case "startLocation": return .native(drag.startLocation)
+        case "predictedEndTranslation": return .native(drag.predictedEndTranslation)
+        case "predictedEndLocation": return .native(drag.predictedEndLocation)
+        case "velocity": return .native(drag.velocity)
+        case "time": return .native(drag.time)
+        default: break
+        }
+    }
     if let gradient = value as? AnyGradient {
         if name == "opacity" {
             return .hostFunction(HostFunction(name: "opacity") { args, _ in
