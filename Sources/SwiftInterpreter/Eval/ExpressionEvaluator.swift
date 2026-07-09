@@ -1016,7 +1016,13 @@ extension Interpreter {
         let env = Environment(parent: closure.captured)
         try bindParameters(of: closure, to: args, into: env, node: node)
         if closure.isBuilder {
-            return try groupViews(try collectBuilderViews(closure.body, in: env))
+            let items = try collectBuilderViews(closure.body, in: env)
+            // `[X]`-returning builders (custom @resultBuilders' buildBlock)
+            // collect into an ARRAY; view-typed ones group as views.
+            if closure.returnType?.trimmedDescription.hasPrefix("[") == true {
+                return .native(items)
+            }
+            return try groupViews(items)
         }
         let result = try executeBlock(closure.body, in: env)
         switch result {
@@ -1088,7 +1094,17 @@ extension Interpreter {
 
         for (index, parameter) in closure.parameters.enumerated() {
             if let value = bound[index] {
-                let resolved = try resolveAnnotated(value, annotation: parameter.typeAnnotation)
+                var resolved = try resolveAnnotated(value, annotation: parameter.typeAnnotation)
+                // The result-builder transform: a closure bound to a
+                // @…Builder parameter collects its block's items when
+                // called instead of returning the last expression.
+                if parameter.isBuilderAttributed, case .closure(let c) = resolved, !c.isBuilder {
+                    resolved = .closure(ClosureValue(
+                        parameters: c.parameters, body: c.body, captured: c.captured,
+                        isBuilder: true,
+                        returnType: ClosureValue.Parameter.functionReturnType(of: parameter.typeAnnotation) ?? c.returnType
+                    ))
+                }
                 env.define(parameter.name, resolved)
                 // `{ $item in … }` — the binding parameter also exposes its
                 // wrapped value: `item` shares the binding's box, so reads

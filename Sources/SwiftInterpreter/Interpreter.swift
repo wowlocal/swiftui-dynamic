@@ -244,7 +244,10 @@ public final class Interpreter {
                     name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                     label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                     defaultValue: param.defaultValue?.value,
-                    typeAnnotation: param.type
+                    typeAnnotation: param.type,
+                    isBuilderAttributed: param.attributes.contains {
+                        $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+                    } || ClosureValue.Parameter.isBuilderAttributedType(param.type)
                 )
             }
             let closure = ClosureValue(

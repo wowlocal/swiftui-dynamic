@@ -726,3 +726,10 @@ Each iteration does exactly this:
   `let _ = …` wildcard locals evaluate for effect. CustomScrollView (184
   nodes/34 actions) + Sticky_Header (152/18) pass.
   **571 → 572/588 (97.3%).**
+- 2026-07-09 iter 90: custom @resultBuilder parameters — closures bound to
+  `@…Builder` params undergo the builder transform (collect items, not
+  last-expression); `[X]`-returning builder closures/functions collect into
+  ARRAYS (view-typed still group). Attribute lives on
+  FunctionParameterSyntax.attributes, not the type node.
+  InteractiveFloatingButton passes (31 nodes, 4 actions).
+  **572 → 573/588 (97.4%).**

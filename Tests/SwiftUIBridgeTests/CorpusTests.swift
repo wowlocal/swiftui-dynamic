@@ -279,6 +279,47 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Custom @resultBuilder closure parameters undergo the builder
+    /// transform: the block's items collect into an array.
+    @Test func customResultBuilderParameters() throws {
+        let source = """
+        @resultBuilder
+        struct ItemBuilder {
+            static func buildBlock(_ items: Item...) -> [Item] { items }
+        }
+
+        struct Item: Identifiable {
+            var id: Int
+            var name: String
+        }
+
+        struct Menu {
+            var items: [Item]
+            init(@ItemBuilder items: () -> [Item]) {
+                self.items = items()
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let menu = Menu {
+                    Item(id: 1, name: "a")
+                    Item(id: 2, name: "b")
+                    Item(id: 3, name: "c")
+                }
+                VStack {
+                    ForEach(menu.items) { item in
+                        Text(item.name)
+                    }
+                    Text("count \\(menu.items.count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

@@ -441,12 +441,18 @@ extension Interpreter {
                 name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                 label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                 defaultValue: param.defaultValue?.value,
-                typeAnnotation: param.type
+                typeAnnotation: param.type,
+                isBuilderAttributed: param.attributes.contains {
+                        $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+                    } || ClosureValue.Parameter.isBuilderAttributedType(param.type)
             )
         }
         let returnType = node.signature.returnClause?.type
         let returnsView = returnType?.trimmedDescription.contains("some View") ?? false
-        let isBuilder = returnsView || hasAttribute(node.attributes, named: "ViewBuilder")
+        // Custom @resultBuilders (@ActionBuilder …) count, same as @ViewBuilder.
+        let isBuilder = returnsView || node.attributes.contains {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+        }
         return ClosureValue(
             parameters: parameters,
             body: body.statements,
