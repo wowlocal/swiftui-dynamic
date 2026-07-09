@@ -6,6 +6,58 @@ import Foundation
 /// and never reach this table. Errors are unlocated `EvalMessage`s; the
 /// evaluator re-throws them with the operator node's source location.
 public enum Builtins {
+    /// Direct arithmetic/comparison on pure numeric operands — the hot path
+    /// for loop counters and recursion, where the general path's marker
+    /// adoption, registry consult, and absorption checks are all no-ops.
+    /// Returns nil for anything that isn't a plain Int/Double pair (markers,
+    /// Dates, strings, ranges) so the general path keeps its semantics.
+    /// Int/Int overflow and division by zero throw exactly like `binary`.
+    static func fastNumericBinary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue? {
+        if let l = lhs.intValue, let r = rhs.intValue {
+            switch op {
+            case "+":
+                let (v, overflow) = l.addingReportingOverflow(r)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return .native(v)
+            case "-":
+                let (v, overflow) = l.subtractingReportingOverflow(r)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return .native(v)
+            case "*":
+                let (v, overflow) = l.multipliedReportingOverflow(by: r)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return .native(v)
+            case "/":
+                guard r != 0 else { throw EvalMessage(text: "division by zero") }
+                return .native(l / r)
+            case "%":
+                guard r != 0 else { throw EvalMessage(text: "division by zero") }
+                return .native(l % r)
+            case "==": return .native(l == r)
+            case "!=": return .native(l != r)
+            case "<": return .native(l < r)
+            case "<=": return .native(l <= r)
+            case ">": return .native(l > r)
+            case ">=": return .native(l >= r)
+            default: return nil
+            }
+        }
+        guard let l = lhs.doubleValue, let r = rhs.doubleValue else { return nil }
+        switch op {
+        case "+": return .native(l + r)
+        case "-": return .native(l - r)
+        case "*": return .native(l * r)
+        case "/": return .native(l / r) // IEEE 754: x/0 is ±inf, 0/0 is NaN
+        case "==": return .native(l == r)
+        case "!=": return .native(l != r)
+        case "<": return .native(l < r)
+        case "<=": return .native(l <= r)
+        case ">": return .native(l > r)
+        case ">=": return .native(l >= r)
+        default: return nil // `%` on doubles errors in the general path
+        }
+    }
+
     static func binary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue {
         switch op {
         case "+":

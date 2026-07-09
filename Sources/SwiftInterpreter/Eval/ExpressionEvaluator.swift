@@ -1896,6 +1896,11 @@ extension Interpreter {
         default:
             var lhs = try evaluate(infix.leftOperand, in: env)
             var rhs = try evaluate(infix.rightOperand, in: env)
+            // Pure numeric pairs skip the marker/registry machinery below —
+            // all of it is a no-op for concrete Int/Double operands.
+            if let fast = try relocating(infix, { try Builtins.fastNumericBinary(op, lhs, rhs) }) {
+                return fast
+            }
             // `dragOffset == .zero` / `40 + .statusColumnsSpacing` — an
             // unresolved implicit member adopts the other operand's host
             // type before combining (static constants in user extensions
