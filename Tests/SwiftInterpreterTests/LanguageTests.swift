@@ -505,6 +505,16 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "1234- 5678 1 2")
     }
 
+    @Test func appendContentsOfSplices() throws {
+        let source = """
+        var downloads: [Int] = [1]
+        downloads.append(contentsOf: [2, 3])
+        downloads.append(4)
+        downloads.count
+        """
+        #expect(try eval(source).intValue == 4)
+    }
+
     @Test func stringIndexBasics() throws {
         let source = """
         let text = "hello"

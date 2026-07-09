@@ -788,8 +788,13 @@ extension Interpreter {
             }
             switch name {
             case "append":
-                guard let value = args.positional(0) else { throw error(call, "append needs a value") }
-                array.append(try resolved(value))
+                if let contents = args.labeled("contentsOf")?.arrayValue {
+                    array.append(contentsOf: try contents.map(resolved))
+                } else if let value = args.positional(0) {
+                    array.append(try resolved(value))
+                } else {
+                    throw error(call, "append needs a value")
+                }
             case "insert":
                 guard let value = args.positional(0), let index = args.labeled("at")?.intValue,
                       index >= 0, index <= array.count else {

@@ -648,3 +648,6 @@ Each iteration does exactly this:
   dynamicTypeSize/.scenePhase defaults; Query-shaped `.init(filter:sort:)`
   markers act as fresh empty stores in ForEach. AdaptiveLayoutDesign +
   Notes_App_Complete pass. **545 → 547/585 (93.5%).**
+- 2026-07-09 iter 80: array `append(contentsOf:)` splices through the
+  mutating-lvalue path (both AnimatedCharts units pass — their multi-
+  iteration march ends). **547 → 549/585 (93.8%).**
