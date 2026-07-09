@@ -1056,6 +1056,57 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Five capabilities from the IceCubes climb: ToolbarContent
+    /// instances render (body duck-typing), a type's own nested types
+    /// shadow same-named globals, wrapper-storage `.init(initialValue:)`
+    /// markers dispatch members onto the wrapped value, and Date
+    /// arithmetic (Date ± TimeInterval, Date − Date).
+    @Test func toolbarContentNestedShadowingAndDateMath() throws {
+        let source = """
+        struct TitleToolbar: ToolbarContent {
+            let title: String
+
+            var body: some ToolbarContent {
+                ToolbarItem(placement: .principal) {
+                    Text(title)
+                }
+            }
+        }
+
+        enum Constants {
+            static let label = "global"
+        }
+
+        class Model: ObservableObject {
+            var state: String = "loaded"
+        }
+
+        struct Host {
+            var storage: CustomStorage = .init(initialValue: Model())
+        }
+
+        struct ContentView: View {
+            enum Constants {
+                static let spacing: CGFloat = 12
+            }
+
+            var body: some View {
+                let seconds = Date() - (Date() - 100)
+                VStack(spacing: Constants.spacing) {
+                    Text(Host().storage.state)
+                    Text(seconds >= 99 ? "minute-ish" : "off")
+                    Text(Date() - 100 < Date() ? "past" : "future")
+                }
+                .toolbar {
+                    TitleToolbar(title: "Feed")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

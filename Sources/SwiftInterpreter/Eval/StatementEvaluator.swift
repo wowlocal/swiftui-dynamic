@@ -468,7 +468,7 @@ extension Interpreter {
         switch value {
         case .void:
             break
-        case .instance(let instance) where instance.symbol.conformsToView || instance.symbol.isRepresentable:
+        case .instance(let instance) where instance.symbol.rendersLikeView:
             if let registry {
                 views.append(registry.makeRenderable(instance: instance, interpreter: self))
             } else {

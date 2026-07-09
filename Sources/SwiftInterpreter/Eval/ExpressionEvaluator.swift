@@ -342,9 +342,13 @@ extension Interpreter {
         }
     }
 
-    /// Property → method → computed property, or nil if the name is unknown.
+    /// Property → method → computed property → own nested types, or nil
+    /// if the name is unknown.
     func instanceMember(_ rawName: String, on instance: Instance) throws -> RuntimeValue? {
         let name = instance.symbol.canonicalPropertyName(rawName)
+        // A type's OWN nested types shadow same-named globals inside its
+        // body (each IceCubes package declares its own `enum Constants`).
+        if let nested = instance.symbol.nestedTypes[name] { return nested }
         if let box = instance.box(for: name) { return box.value }
         if let method = instance.symbol.methods[name] {
             guard let body = method.body else { return nil }
@@ -500,7 +504,7 @@ extension Interpreter {
             // A modifier applied to an interpreted View (or Shape — the
             // registry wraps those shape-typed, so .fill/.stroke/.trim see a
             // shape): wrap it renderable first.
-            if instance.symbol.conformsToView || instance.symbol.isRepresentable
+            if instance.symbol.rendersLikeView
                 || instance.symbol.conformsToShape || instance.symbol.conformsToLayout,
                let registry,
                let modifier = registry.modifier(named: name) {
@@ -713,6 +717,14 @@ extension Interpreter {
                    let argument = call.arguments.labeled(name) {
                     return argument
                 }
+                // Wrapper-storage markers behave as their wrapped value:
+                // `.init(initialValue: Model(…)).statusesState` dispatches
+                // onto the model (the storage IS the value doctrine).
+                if let call = any as? ImplicitMemberCall, call.name == "init",
+                   let wrapped = call.arguments.labeled("initialValue")
+                    ?? call.arguments.labeled("wrappedValue") {
+                    return try accessMember(name, on: wrapped, node: node, env: env)
+                }
                 return .native(ChainedImplicitCall(base: baseValue, member: name, arguments: CallArguments()))
             }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")
@@ -723,6 +735,7 @@ extension Interpreter {
     }
 
     func staticMember(_ name: String, of symbol: StructSymbol) throws -> RuntimeValue? {
+        if let nested = symbol.nestedTypes[name] { return nested }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
             let raw = try evaluate(property.initializer, in: globals)
@@ -820,7 +833,7 @@ extension Interpreter {
         guard let registry else { return nil }
         if registry.isViewValue(value) { return value }
         if case .instance(let instance) = value,
-           instance.symbol.conformsToView || instance.symbol.isRepresentable
+           instance.symbol.rendersLikeView
             || instance.symbol.conformsToShape || instance.symbol.conformsToLayout {
             return registry.makeRenderable(instance: instance, interpreter: self)
         }

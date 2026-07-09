@@ -165,6 +165,22 @@ enum Builtins {
         let rhs = absorbed(rhs)
         if let l = lhs.intValue, let r = rhs.intValue { return .native(try int(l, r)) }
         if let l = lhs.doubleValue, let r = rhs.doubleValue { return .native(try double(l, r)) }
+        // Real Foundation Date arithmetic: Date ± TimeInterval → Date,
+        // Date − Date → TimeInterval.
+        if op == "+" || op == "-" {
+            if case .native(let la) = lhs, let anchor = la as? Date {
+                if let offset = rhs.doubleValue {
+                    return .native(anchor.addingTimeInterval(op == "+" ? offset : -offset))
+                }
+                if op == "-", case .native(let ra) = rhs, let other = ra as? Date {
+                    return .native(anchor.timeIntervalSince(other))
+                }
+            }
+            if op == "+", case .native(let ra) = rhs, let anchor = ra as? Date,
+               let offset = lhs.doubleValue {
+                return .native(anchor.addingTimeInterval(offset))
+            }
+        }
         // `.now() + 0.5` (DispatchTime deadlines) — the time anchor absorbs
         // into the numeric offset; delay-taking gateways (asyncAfter) read
         // the seconds directly.

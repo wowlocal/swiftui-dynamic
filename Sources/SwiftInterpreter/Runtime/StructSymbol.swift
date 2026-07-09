@@ -58,6 +58,13 @@ public final class StructSymbol {
 
     public let name: String
     public let conformsToView: Bool
+
+    /// Renderable duck-typing: View conformers, representables, and any
+    /// protocol-with-body shape (ToolbarContent, Commands, custom Scene
+    /// content) — if it has a `body`, the render pipeline can evaluate it.
+    public var rendersLikeView: Bool {
+        conformsToView || isRepresentable || computedProperties["body"] != nil
+    }
     /// UIViewRepresentable / NSViewRepresentable / …ControllerRepresentable —
     /// accepted in view position but rendered inert (documented divergence).
     public internal(set) var isRepresentable = false

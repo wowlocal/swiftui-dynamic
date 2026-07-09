@@ -912,3 +912,13 @@ Each iteration does exactly this:
   30 tests (caught by the suite, moved to pre-throw).
   IceCubesApp: 215 → 39961 (ToolbarContent instances — next class).
   **596/597 (99.8%); top class eliminated.**
+- 2026-07-09 iter 115: IceCubes climb, five layers — (1) rendersLikeView
+  duck-typing: instances with a `body` render (ToolbarContent/Commands),
+  wraps at builder + modifier seams; (2) a type's OWN nested types shadow
+  same-named globals (per-package `enum Constants`); (3) wrapper-storage
+  `.init(initialValue:/wrappedValue:)` markers dispatch members onto the
+  wrapped value (first patch landed in the wrong accessMember case — SIMD
+  `any()` compile error exposed it); (4) real Date arithmetic (Date ±
+  TimeInterval → Date, Date − Date → TimeInterval); (5) suite caught
+  nothing else. IceCubes: 39961 → 19181 (bag member in Bool position —
+  next class). **596/597; ToolbarContent class eliminated. Suite 228.**
