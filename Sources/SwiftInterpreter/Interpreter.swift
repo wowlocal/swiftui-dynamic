@@ -897,6 +897,14 @@ public final class Interpreter {
 
     public func rootViewSymbol() -> StructSymbol? {
         let candidates = structSymbols.filter(\.conformsToView)
+        // The app's OWN declared root wins: the first View constructed in an
+        // @main App body, or the one a delegate hosts via
+        // UIHostingController(rootView:)/NSHostingController — name-based
+        // heuristics are the fallback, not the first resort.
+        if let declared = declaredRootViewName(),
+           let symbol = candidates.first(where: { $0.name == declared }) {
+            return symbol
+        }
         return candidates.first { $0.name == "ContentView" }
             ?? candidates.first { $0.name == "Main" }
             ?? candidates.first
