@@ -797,3 +797,11 @@ Each iteration does exactly this:
   `Array(constant)[getRandomIndex(…)]` indexes real characters instead of
   a one-element wrap. MatrixRainEffect passes (711 nodes — full grid).
   **583 → 584/588 (99.3%). Only the three SDK/Pods walls remain.**
+- 2026-07-09 iter 101: static stored property WRITES — `ChatClient.shared =
+  ChatClient(config:…)` (extension statics on host types, declared without
+  initializers → nil until written) and `Palette.accent = "red"` (interpreted
+  types) write through new LValue.staticProperty into the symbol's static
+  cache; reads serve extension statics off host constructor functions;
+  locals shadow via the before-globals walk. Stream_Tutorials passes
+  (12 nodes). **584 → 585/588 (99.5%). Remaining: Milestones (TCA),
+  SplashScreen (Pods).**

@@ -104,6 +104,9 @@ public final class StructSymbol {
     /// Types declared inside this type (`Outer.Kind`) — `.enumType`/`.type` values.
     public internal(set) var nestedTypes: [String: RuntimeValue] = [:]
     var staticCache: [String: RuntimeValue] = [:]
+    /// `static var shared: ChatClient!` — declared without an initializer
+    /// (extension statics): reads are nil until written (IUO fresh state).
+    public var staticUninitialized: Set<String> = []
 
     public init(name: String, conformsToView: Bool) {
         self.name = name

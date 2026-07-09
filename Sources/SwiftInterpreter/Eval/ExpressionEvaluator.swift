@@ -534,9 +534,14 @@ extension Interpreter {
             }
             // Host TYPE names (Color, UIScreen, …) resolve to constructor
             // functions. The bridge may serve real statics (UIScreen.main);
-            // otherwise they act like implicit members resolved against the
-            // expected type at the gateway boundary: `Color.black` ≡ `.black`.
+            // user extensions add more (`extension ChatClient { static var
+            // shared }`); otherwise they act like implicit members resolved
+            // against the expected type at the gateway boundary.
             if let value = registry?.hostMember(name, on: HostTypeMarker(name: function.name)) {
+                return value
+            }
+            if let symbol = hostExtensionSymbols[function.name],
+               let value = try staticMember(name, of: symbol) {
                 return value
             }
             return .implicitMember(name)
@@ -692,6 +697,7 @@ extension Interpreter {
             // Static context: `self`/`Self` and bare sibling statics resolve.
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol))))
         }
+        if symbol.staticUninitialized.contains(name) { return .nilValue }
         return nil
     }
 
@@ -1210,6 +1216,9 @@ extension Interpreter {
         /// `size.width = 300` — value-type member write-through: mutate a
         /// copy via the registry, re-write the base (state boxes notify).
         case hostValueMember(LValue, String)
+        /// `ChatClient.shared = …` — static stored properties (including
+        /// host-type extension statics) write to the symbol's static cache.
+        case staticProperty(StructSymbol, String)
 
         /// The element type of an `[X]`-annotated instance property, if known.
         func annotatedElementType() -> String? {
@@ -1250,6 +1259,8 @@ extension Interpreter {
                 return tuple.values[index]
             case .instanceSubscript(let instance, let args):
                 return try interpreter.callUserSubscriptGetter(on: instance, with: args)
+            case .staticProperty(let symbol, let name):
+                return try interpreter.staticMember(name, of: symbol) ?? .nilValue
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
                 guard case .native(let any) = baseValue,
@@ -1314,6 +1325,8 @@ extension Interpreter {
                 try base.write(.native(tuple), interpreter)
             case .instanceSubscript(let instance, let args):
                 try interpreter.callUserSubscriptSetter(on: instance, with: args, newValue: value)
+            case .staticProperty(let symbol, let name):
+                symbol.staticCache[name] = value
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
                 guard case .native(let any) = baseValue,
@@ -1339,6 +1352,25 @@ extension Interpreter {
             throw error(ref, "cannot assign to '\(name)'")
         }
         if let member = expr.as(MemberAccessExprSyntax.self), let base = member.base {
+            // `ChatClient.shared = …` — static stored properties, including
+            // host-type extension statics. Locals shadow type names.
+            if let baseRef = base.as(DeclReferenceExprSyntax.self),
+               env.box(for: baseRef.baseName.text, before: globals) == nil {
+                let typeName = baseRef.baseName.text
+                let memberName = member.declName.baseName.text
+                var staticSymbol: StructSymbol?
+                if case .type(let symbol)? = globals.lookup(typeName) {
+                    staticSymbol = symbol
+                } else if let hostSymbol = hostExtensionSymbols[typeName] {
+                    staticSymbol = hostSymbol
+                }
+                if let symbol = staticSymbol,
+                   symbol.staticProperties[memberName] != nil
+                    || symbol.staticUninitialized.contains(memberName)
+                    || symbol.staticCache[memberName] != nil {
+                    return .staticProperty(symbol, memberName)
+                }
+            }
             let baseValue = try evaluate(base, in: env)
             if case .instance(let instance) = baseValue {
                 return .instanceProperty(instance, instance.symbol.canonicalPropertyName(member.declName.baseName.text))

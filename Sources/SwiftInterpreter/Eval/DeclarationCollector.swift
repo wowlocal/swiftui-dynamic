@@ -305,6 +305,9 @@ extension Interpreter {
                         initializer: initializer,
                         typeAnnotation: binding.typeAnnotation?.type
                     )
+                } else {
+                    // `static var shared: ChatClient!` — nil until written.
+                    symbol.staticUninitialized.insert(name)
                 }
             } else {
                 // `@FocusState var focused: Bool` carries no initializer —

@@ -584,6 +584,38 @@ enum Corpus {
         #expect(report.nodeCount >= 7)
     }
 
+    /// Static stored properties write and read back — including
+    /// host-type extension statics declared without initializers
+    /// (`extension ChatClient { static var shared: ChatClient! }`).
+    @Test func staticStoredPropertyWrites() throws {
+        let source = """
+        extension ChatClient {
+            static var shared: ChatClient!
+        }
+
+        struct Palette {
+            static var accent = "blue"
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let before = ChatClient.shared == nil ? "fresh" : "set"
+                let _ = {
+                    ChatClient.shared = ChatClient(config: "demo")
+                    Palette.accent = "red"
+                }()
+                VStack {
+                    Text(before)
+                    Text(ChatClient.shared == nil ? "still nil" : "assigned")
+                    Text(Palette.accent == "red" ? "recolored" : "stale")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
