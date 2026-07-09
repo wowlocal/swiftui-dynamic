@@ -608,3 +608,9 @@ Each iteration does exactly this:
   infinity/pi) resolve via the marker table, formatter belt-and-suspenders
   included. The WHOLE Expense_Tracker series passes (EP2→Complete). +11
   ripple. **518 → 529/585 (90.4% — past 90%).**
+- 2026-07-09 iter 74: enum static computed properties (the iter-51 struct fix
+  applied to the enum collector — `static var count: CGFloat` on a
+  CaseIterable Tab), trig/math builtins (sin/cos/tan/asin/acos/atan/atan2/
+  log/log2/exp/hypot), and bare numeric markers absorb in arithmetic
+  (`x / .pi`, `.infinity`). PS_TabBar + Interactive_Header pass.
+  **529 → 531/585 (90.8%).**

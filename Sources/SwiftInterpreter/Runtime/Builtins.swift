@@ -83,6 +83,20 @@ enum Builtins {
         int: (Int, Int) throws -> Int,
         double: (Double, Double) throws -> Double
     ) throws -> RuntimeValue {
+        // Well-known numeric markers absorb in arithmetic: `x / .pi`.
+        func numericMarker(_ value: RuntimeValue) -> Double? {
+            guard case .implicitMember(let name) = value else { return nil }
+            switch name {
+            case "pi": return Double.pi
+            case "zero": return 0
+            case "infinity": return .infinity
+            case "leastNonzeroMagnitude": return .leastNonzeroMagnitude
+            case "greatestFiniteMagnitude": return .greatestFiniteMagnitude
+            default: return nil
+            }
+        }
+        let lhs = numericMarker(lhs).map { RuntimeValue.native($0) } ?? lhs
+        let rhs = numericMarker(rhs).map { RuntimeValue.native($0) } ?? rhs
         if let l = lhs.intValue, let r = rhs.intValue { return .native(try int(l, r)) }
         if let l = lhs.doubleValue, let r = rhs.doubleValue { return .native(try double(l, r)) }
         // `.now() + 0.5` (DispatchTime deadlines) — the time anchor absorbs

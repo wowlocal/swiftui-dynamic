@@ -451,6 +451,25 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).doubleValue == 3.0)
     }
 
+    /// Enum static computed properties + trig builtins + bare numeric markers.
+    @Test func enumStaticComputedAndTrig() throws {
+        let source = """
+        enum Tab: String, CaseIterable {
+            case play
+            case store
+            case search
+
+            static var count: CGFloat {
+                return CGFloat(Tab.allCases.count)
+            }
+        }
+        let width = 390.0 / Tab.count
+        let angle = atan2(1.0, 1.0) / .pi
+        "\\(width) \\(angle == 0.25)"
+        """
+        #expect(try eval(source).stringValue == "130.0 true")
+    }
+
     @Test func staticComputedPropertiesEvaluate() throws {
         let source = """
         struct Config {

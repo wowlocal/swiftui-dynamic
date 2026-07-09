@@ -331,6 +331,14 @@ extension Interpreter {
                 if let accessorBlock = binding.accessorBlock,
                    let accessors = parseAccessors(of: accessorBlock) {
                     let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
+                    if isStaticDecl {
+                        symbol.staticComputedProperties[ident.identifier.text] = ComputedProperty(
+                            accessor: accessors.getter,
+                            isBuilder: hasBuilderAttribute || returnsView,
+                            setter: accessors.setter
+                        )
+                        continue
+                    }
                     symbol.computedProperties[ident.identifier.text] = ComputedProperty(
                         accessor: accessors.getter,
                         isBuilder: hasBuilderAttribute || returnsView,

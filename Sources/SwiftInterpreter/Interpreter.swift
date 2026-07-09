@@ -476,6 +476,27 @@ public final class Interpreter {
         defineUnaryMath("floor") { $0.rounded(.down) }
         defineUnaryMath("ceil") { $0.rounded(.up) }
         defineUnaryMath("sqrt") { $0.squareRoot() }
+        defineUnaryMath("sin") { Foundation.sin($0) }
+        defineUnaryMath("cos") { Foundation.cos($0) }
+        defineUnaryMath("tan") { Foundation.tan($0) }
+        defineUnaryMath("asin") { Foundation.asin($0) }
+        defineUnaryMath("acos") { Foundation.acos($0) }
+        defineUnaryMath("atan") { Foundation.atan($0) }
+        defineUnaryMath("log") { Foundation.log($0) }
+        defineUnaryMath("log2") { Foundation.log2($0) }
+        defineUnaryMath("exp") { Foundation.exp($0) }
+        define("atan2") { args, _ in
+            guard let y = args.positional(0)?.doubleValue, let x = args.positional(1)?.doubleValue else {
+                throw RuntimeError(message: "atan2 needs two numbers")
+            }
+            return .native(Foundation.atan2(y, x))
+        }
+        define("hypot") { args, _ in
+            guard let x = args.positional(0)?.doubleValue, let y = args.positional(1)?.doubleValue else {
+                throw RuntimeError(message: "hypot needs two numbers")
+            }
+            return .native(Foundation.hypot(x, y))
+        }
         define("pow") { args, _ in
             guard let base = args.positional(0)?.doubleValue, let exponent = args.positional(1)?.doubleValue else {
                 throw RuntimeError(message: "pow needs two numbers")
