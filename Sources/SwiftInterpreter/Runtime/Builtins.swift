@@ -65,7 +65,10 @@ public enum Builtins {
             }
             return .native(op == "&<<" ? l &<< r : l &>> r)
         case "&", "|", "^", "<<", ">>":
-            guard let l = lhs.intValue, let r = rhs.intValue else {
+            // Unknowable flags read ZERO (kFSEventStreamCreateFlag… C
+            // constants from unmerged frameworks) — the arithmetic doctrine.
+            guard let l = lhs.intValue ?? absorbedNumeric(lhs).map({ Int($0) }),
+                  let r = rhs.intValue ?? absorbedNumeric(rhs).map({ Int($0) }) else {
                 throw EvalMessage(text: "'\(op)' requires integer operands")
             }
             switch op {

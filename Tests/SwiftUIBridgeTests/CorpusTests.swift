@@ -2909,6 +2909,32 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Pearcleaner + Applite (iteration 156): bitwise operators absorb
+    /// unknowable flags to zero (kFSEventStreamCreateFlag… C constants
+    /// from unmerged frameworks), and creating a directory at an
+    /// UNKNOWABLE location is accepted inertly (fresh-sandbox analog) so
+    /// DB-bootstrap chains don't fatalError where the device succeeds.
+    @Test func bitwiseAbsorbAndInertDirectoryCreation() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let flags = UInt32(kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagFileEvents)
+                if flags != 0 { fatalError("unknowable flags must read zero") }
+
+                do {
+                    let dbDir = LibraryPaths.databaseDirectory
+                    try FileManager.default.createDirectory(at: dbDir, withIntermediateDirectories: true)
+                } catch {
+                    fatalError("Failed to open database: \\(error)")
+                }
+                return Text("booted")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// Meshtastic-Apple (iteration 155): three classes — a protobuf
     /// `struct Link` shadows SwiftUI's Link, but no init fits
     /// `Link(destination:label:)`, so overload resolution crosses the

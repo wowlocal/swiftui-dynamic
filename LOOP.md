@@ -1442,3 +1442,12 @@ Each iteration does exactly this:
   backtrace). Meshtastic ✅. **635/639 counted — ZERO failures
   (NINETEENTH saturation). 585 zips + 51 OSS repos green. Suite
   296 → 297.**
+- 2026-07-09 iter 156: step 9 — Pearcleaner (109 files), Applite (111),
+  FreeChat (40, arrival-pass) cloned. Two classes: BITWISE operators
+  absorb unknowable flags to zero (`kFSEventStreamCreateFlagUseCFTypes |
+  …` — lowercase-k C constants from unmerged frameworks; the arithmetic
+  doctrine extended); creating a directory at an UNKNOWABLE location is
+  accepted inertly (fresh-sandbox analog — Applite's SQLite bootstrap
+  fatalError'd where the device succeeds). Pearcleaner ✅, Applite ✅
+  (32 nodes, 2 actions). **638/642 counted — ZERO failures (TWENTIETH
+  saturation). 585 zips + 54 OSS repos green. Suite 300 → 301.**

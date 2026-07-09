@@ -492,7 +492,13 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .hostFunction(HostFunction(name: name) { args, _ in
                 let url = urlArg(args.labeled("at"))
                     ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
-                guard let url else { throw RuntimeError(message: "createDirectory needs a URL") }
+                guard let url else {
+                    // An UNKNOWABLE location (a path built from unmerged
+                    // APIs): creating it is accepted inertly — the fresh
+                    // sandbox analog, so DB-bootstrap chains don't
+                    // fatalError where the device succeeds.
+                    return .void
+                }
                 try box.requireSandboxed(url)
                 try? box.manager.createDirectory(at: url, withIntermediateDirectories: true)
                 return .void
