@@ -421,3 +421,11 @@ Each iteration does exactly this:
   hostCandidates (user Date-extension instance methods). SleepTime ×2,
   ElegantTaskApp, CustomScrollAnimation pass; TaskApp/AnimatedCharts
   advanced. **297/400 → 301/400**.
+- 2026-07-09 iter 52: the "expected a Bool" class — @FocusState defaults.
+  Uninitialized non-optional `@FocusState var x: Bool` synthesizes `false`
+  (real SwiftUI semantics; optionals stay nil), and BindingStub joins
+  hostCandidates so user `extension Binding { … }` members dispatch on
+  projections ($otpText.limit(6)). AutoOtpTF, ExpandableSearchBar,
+  Custom_Header pass (+ripple); ImageColorPicker ×2 remain (marker-typed
+  extension dispatch on Color values — deferred), FaceID_Login is
+  LocalAuthentication. **301/400 → 306/400**.

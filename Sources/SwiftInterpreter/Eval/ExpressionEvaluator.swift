@@ -250,6 +250,7 @@ extension Interpreter {
         if any is Double { names.append("Double"); names.append("CGFloat") }
         if any is Bool { names.append("Bool") }
         if any is Date { names.append("Date") }
+        if any is BindingStub { names.append("Binding") }
         if any is DictValue { names.append("Dictionary") }
         if any is [RuntimeValue] {
             // `extension Array` and sugar-typed `extension [Item]` both apply.

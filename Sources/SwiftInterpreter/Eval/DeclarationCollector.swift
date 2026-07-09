@@ -139,10 +139,19 @@ extension Interpreter {
                     )
                 }
             } else {
+                // `@FocusState var focused: Bool` carries no initializer —
+                // real SwiftUI defaults it false (optionals stay nil via the
+                // uninitialized-optional rule).
+                var stateLikeDefault: ExprSyntax?
+                if binding.initializer == nil,
+                   hasAttribute(varDecl.attributes, named: "FocusState"),
+                   binding.typeAnnotation?.type.trimmedDescription.hasSuffix("?") != true {
+                    stateLikeDefault = ExprSyntax(BooleanLiteralExprSyntax(literal: .keyword(.false)))
+                }
                 symbol.storedProperties.append(.init(
                     name: name,
                     wrapper: wrapper,
-                    initializer: binding.initializer?.value ?? queryDefault,
+                    initializer: binding.initializer?.value ?? queryDefault ?? stateLikeDefault,
                     typeAnnotation: binding.typeAnnotation?.type ?? syntheticAnnotation,
                     isBuilderClosure: hasBuilderAttribute
                 ))

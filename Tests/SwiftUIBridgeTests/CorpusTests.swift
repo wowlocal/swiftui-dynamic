@@ -41,6 +41,49 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Uninitialized `@FocusState var x: Bool` defaults false (real SwiftUI
+    /// semantics), so it works in Bool positions immediately.
+    @Test func focusStateDefaultsFalse() throws {
+        let source = """
+        struct ContentView: View {
+            @FocusState private var isKeyboardShowing: Bool
+            @State private var text = ""
+
+            var body: some View {
+                VStack {
+                    TextField("code", text: $text)
+                        .focused($isKeyboardShowing)
+                    let status = (isKeyboardShowing && text.count == 0)
+                    Text(status ? "active" : "idle")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
+    /// User `extension Binding { … }` members dispatch on projections.
+    @Test func bindingExtensionMembersDispatch() throws {
+        let source = """
+        extension Binding where Value == String {
+            func isLong(_ length: Int) -> Bool {
+                return self.wrappedValue.count > length
+            }
+        }
+
+        struct ContentView: View {
+            @State private var text = "hello"
+
+            var body: some View {
+                Text($text.isLong(3) ? "long" : "short")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// Real-Calendar members: dateComponents(from:to:), range(of:in:for:),
     /// symbols, isDateInToday — plus user Date-extension statics resolving
     /// in annotated positions.
