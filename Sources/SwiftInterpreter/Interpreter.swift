@@ -241,8 +241,8 @@ public final class Interpreter {
             }
             let parameters = chosen.signature.parameterClause.parameters.map { param in
                 ClosureValue.Parameter(
-                    name: (param.secondName ?? param.firstName).text,
-                    label: param.firstName.text == "_" ? nil : param.firstName.text,
+                    name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                    label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                     defaultValue: param.defaultValue?.value,
                     typeAnnotation: param.type
                 )

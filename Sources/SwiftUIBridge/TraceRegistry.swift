@@ -123,6 +123,11 @@ public final class TraceRegistry: HostRegistry {
                 }
                 return .native(path)
             }
+        case "AnyView":
+            // Identity: interpreted views are already type-erased.
+            return HostFunction(name: name) { args, _ in
+                args.positional(0) ?? .void
+            }
         case "withAnimation":
             return HostFunction(name: name) { args, ctx in
                 guard let closure = args.unlabeledClosures.first else { return .void }

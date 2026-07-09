@@ -505,6 +505,37 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "1234- 5678 1 2")
     }
 
+    /// Custom postfix/prefix operator functions, backticked labels, and
+    /// deferred-init locals — the second 2048 batch.
+    @Test func customOperatorsBacktickLabelsDeferredInit() throws {
+        let source = """
+        postfix operator >*
+        postfix func >*(lhs: Int) -> Int {
+            return lhs * 10
+        }
+
+        prefix operator √
+        prefix func √(value: Double) -> Double {
+            return sqrt(value)
+        }
+
+        func pick(`for` kind: String) -> Int {
+            return kind == "big" ? 100 : 1
+        }
+
+        let scaled = 4>*
+        let root = √16.0
+        let chosen: Int
+        if scaled > 20 {
+            chosen = pick(for: "big")
+        } else {
+            chosen = pick(for: "small")
+        }
+        "\\(scaled) \\(root) \\(chosen)"
+        """
+        #expect(try eval(source).stringValue == "40 4.0 100")
+    }
+
     /// User subscripts (get + set, tuple indices), typed empty containers,
     /// member typealiases, and defer LIFO semantics — the 2048 quartet.
     @Test func userSubscriptsTypealiasesAndDefer() throws {

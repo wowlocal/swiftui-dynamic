@@ -31,6 +31,13 @@ extension ViewRegistry {
             return .native(AnyView(Label(title.stringValue ?? title.stringified, systemImage: icon)))
         }
 
+        constructors["AnyView"] = HostFunction(name: "AnyView") { [unowned self] args, ctx in
+            guard let value = args.positional(0) else {
+                throw RuntimeError(message: "AnyView needs a view")
+            }
+            return .native(try self.anyViewResolving(value, ctx))
+        }
+
         constructors["Spacer"] = HostFunction(name: "Spacer") { _, _ in
             .native(AnyView(Spacer()))
         }

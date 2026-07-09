@@ -681,3 +681,17 @@ Each iteration does exactly this:
   oss:SwiftUI-2048 advanced four walls deep (now at custom postfix
   operators); the zip corpus holds. **555/588 steady, four language
   features banked.**
+- 2026-07-09 iter 85: the second 2048 batch — custom PREFIX/POSTFIX operator
+  functions dispatch by name (`postfix func >*` — the AnyView-erasure
+  operator; builtins keep priority for -/!), AnyView(x) is identity in both
+  registries, backtick-escaped parameter labels normalize (`` `for` ``),
+  and deferred-init locals (`let x: T` assigned in branches) hold void
+  until first assignment. +1 zip ripple; 2048 now at capture-list self.
+  **555 → 556/588 (94.6%).**
+- 2026-07-09 iter 85: the second 2048 batch — custom PREFIX/POSTFIX operator
+  functions dispatch by name (postfix func >* — the AnyView-erasure
+  operator; builtins keep priority for -/!), AnyView(x) is identity in both
+  registries, backtick-escaped parameter labels normalize, and
+  deferred-init locals (let x: T assigned in branches) hold void until
+  first assignment. +1 zip ripple; 2048 now at capture-list self.
+  **555 → 556/588 (94.6%).**

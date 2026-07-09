@@ -59,7 +59,30 @@ extension Interpreter {
         }
         if let prefix = expr.as(PrefixOperatorExprSyntax.self) {
             let operand = try evaluate(prefix.expression, in: env)
-            return try relocating(prefix) { try Builtins.prefix(prefix.operator.text, operand) }
+            do {
+                return try relocating(prefix) { try Builtins.prefix(prefix.operator.text, operand) }
+            } catch let builtinError as RuntimeError where !builtinError.fatal {
+                // User-defined prefix operators (`prefix func √`).
+                if case .closure(let closure)? = globals.lookup(prefix.operator.text) {
+                    return try callWithArguments(
+                        closure,
+                        args: CallArguments(arguments: [.init(label: nil, value: operand)]),
+                        node: nil)
+                }
+                throw builtinError
+            }
+        }
+        if let postfix = expr.as(PostfixOperatorExprSyntax.self) {
+            // User-defined postfix operators (`postfix func >*` — 2048's
+            // AnyView-erasure operator).
+            let operand = try evaluate(postfix.expression, in: env)
+            if case .closure(let closure)? = globals.lookup(postfix.operator.text) {
+                return try callWithArguments(
+                    closure,
+                    args: CallArguments(arguments: [.init(label: nil, value: operand)]),
+                    node: nil)
+            }
+            throw error(postfix, "unsupported postfix operator '\(postfix.operator.text)'")
         }
         if let ternary = expr.as(TernaryExprSyntax.self) {
             let condition = try expectBool(evaluate(ternary.condition, in: env), node: ternary.condition)

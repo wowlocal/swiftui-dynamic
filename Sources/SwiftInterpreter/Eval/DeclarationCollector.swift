@@ -1,3 +1,4 @@
+import Foundation
 import SwiftSyntax
 
 /// Pass 1: hoist struct/enum/function declarations from a parsed file into the
@@ -226,8 +227,8 @@ extension Interpreter {
                       let accessors = parseAccessors(of: accessorBlock) {
                 let parameters = subscriptDecl.parameterClause.parameters.map { param in
                     ClosureValue.Parameter(
-                        name: (param.secondName ?? param.firstName).text,
-                        label: param.firstName.text == "_" ? nil : param.firstName.text,
+                        name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                        label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                         defaultValue: param.defaultValue?.value,
                         typeAnnotation: param.type
                     )
@@ -437,8 +438,8 @@ extension Interpreter {
     func makeFunctionClosure(_ node: FunctionDeclSyntax, body: CodeBlockSyntax, captured: Environment) -> ClosureValue {
         let parameters = node.signature.parameterClause.parameters.map { param in
             ClosureValue.Parameter(
-                name: (param.secondName ?? param.firstName).text,
-                label: param.firstName.text == "_" ? nil : param.firstName.text,
+                name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                 defaultValue: param.defaultValue?.value,
                 typeAnnotation: param.type
             )

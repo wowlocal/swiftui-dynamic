@@ -100,6 +100,12 @@ extension Interpreter {
                         env.define(ident.identifier.text, .nilValue) // `var x: T?`/`T!` is nil
                         continue
                     }
+                    if !annotationText.isEmpty {
+                        // Deferred initialization: `let x: T` assigned in
+                        // branches — definite-init is the compiler's job.
+                        env.define(ident.identifier.text, .void)
+                        continue
+                    }
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
                 }
                 let value = try evaluate(initializer, in: env)
