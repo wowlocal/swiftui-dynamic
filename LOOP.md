@@ -718,3 +718,11 @@ Each iteration does exactly this:
   SWITCH (not the enclosing function). StretchySlider, Game, IconGenerator,
   CustomTabView, CustomHUDs, CustomHeader, CardCreation_Updated + ripple.
   **564 → 571/588 (97.1%).**
+- 2026-07-09 iter 89: value-type member writes — `size.width = 300` and
+  nested `rect.origin`/`rect.size` swaps write through mutated copies (new
+  registry hostMutatedCopy hook + LValue.hostValueMember; structs with
+  readable members route there, class-backed boxes keep reference writes);
+  `$tuple.0`/`$point.x` binding projections write through the parent box;
+  `let _ = …` wildcard locals evaluate for effect. CustomScrollView (184
+  nodes/34 actions) + Sticky_Header (152/18) pass.
+  **571 → 572/588 (97.3%).**

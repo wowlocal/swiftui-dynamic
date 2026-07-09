@@ -257,6 +257,28 @@ enum Corpus {
         }
     }
 
+    /// Value-type member writes (`size.width = 300`, nested
+    /// `rect.origin` swaps) and `$tuple.0` element bindings.
+    @Test func valueMemberWritesAndTupleBindings() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var card: (CGFloat, Bool) = (0, false)
+
+            var body: some View {
+                var size = CGSize(width: 100, height: 40)
+                let _ = { size.width = 300 }()
+                VStack {
+                    Slider(value: $card.0, in: 0...100)
+                    Toggle("flip", isOn: $card.1)
+                    Text("w \\(size.width > 200 ? "wide" : "narrow")")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

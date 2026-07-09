@@ -506,6 +506,10 @@ extension ViewRegistry {
         bridgeHostTypeName(of: value)
     }
 
+    public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? {
+        bridgeHostMutatedCopy(settingMember: name, on: value, to: newValue)
+    }
+
     /// `Text("a") + Text("b")` — both sides are AnyView-erased by the time
     /// they meet, so concatenation approximates as an adjacent zero-spacing
     /// HStack (documented divergence: no line-wrap continuity).
@@ -593,6 +597,47 @@ private func renderProxyContent(
     }
 }
 
+
+/// CG value-type member writes: mutate a copy, hand it back for the
+/// lvalue write-through (`size.width = 300`, `rect.origin.y = 10`).
+func bridgeHostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? {
+    if var size = value as? CGSize {
+        guard let amount = newValue.doubleValue else { return nil }
+        switch name {
+        case "width": size.width = amount
+        case "height": size.height = amount
+        default: return nil
+        }
+        return size
+    }
+    if var point = value as? CGPoint {
+        guard let amount = newValue.doubleValue else { return nil }
+        switch name {
+        case "x": point.x = amount
+        case "y": point.y = amount
+        default: return nil
+        }
+        return point
+    }
+    if var rect = value as? CGRect {
+        switch name {
+        case "origin":
+            if case .native(let any) = newValue, let origin = any as? CGPoint {
+                rect.origin = origin
+                return rect
+            }
+        case "size":
+            if case .native(let any) = newValue, let size = any as? CGSize {
+                rect.size = size
+                return rect
+            }
+        default:
+            return nil
+        }
+        return nil
+    }
+    return nil
+}
 
 /// Stub → host type names, so user `extension UIApplication { … }` members
 /// dispatch on the stubs standing in for those objects.

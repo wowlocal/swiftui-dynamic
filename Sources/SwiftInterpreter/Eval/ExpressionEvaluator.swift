@@ -572,10 +572,25 @@ extension Interpreter {
                 default:
                     // Binding is @dynamicMemberLookup: `$item.field` projects
                     // a binding to the field. Instance fields bind their own
-                    // box (reference-backed); other members read through.
+                    // box (reference-backed); tuple elements write through
+                    // the parent box; other members read through.
                     if case .instance(let inner) = stub.box.value,
                        let box = inner.box(for: inner.symbol.canonicalPropertyName(name)) {
                         return .native(BindingStub(box: box))
+                    }
+                    if let tuple = stub.box.value.tupleValue {
+                        let index = Int(name) ?? tuple.labels.firstIndex(of: name) ?? -1
+                        if tuple.values.indices.contains(index) {
+                            let parent = stub.box
+                            let element = Box(tuple.values[index])
+                            element.onChange = {
+                                guard let current = parent.value.tupleValue,
+                                      current.values.indices.contains(index) else { return }
+                                current.values[index] = element.value
+                                parent.value = .native(current)
+                            }
+                            return .native(BindingStub(box: element))
+                        }
                     }
                 }
                 switch name {
@@ -1173,6 +1188,9 @@ extension Interpreter {
         case tupleElement(LValue, Int)
         /// `matrix[index] = block` — user subscript get/set.
         case instanceSubscript(Instance, CallArguments)
+        /// `size.width = 300` — value-type member write-through: mutate a
+        /// copy via the registry, re-write the base (state boxes notify).
+        case hostValueMember(LValue, String)
 
         /// The element type of an `[X]`-annotated instance property, if known.
         func annotatedElementType() -> String? {
@@ -1213,6 +1231,13 @@ extension Interpreter {
                 return tuple.values[index]
             case .instanceSubscript(let instance, let args):
                 return try interpreter.callUserSubscriptGetter(on: instance, with: args)
+            case .hostValueMember(let base, let name):
+                let baseValue = try base.read(interpreter)
+                guard case .native(let any) = baseValue,
+                      let member = interpreter.registry?.hostMember(name, on: any) else {
+                    throw EvalMessage(text: "no readable member '\(name)'")
+                }
+                return member
             }
         }
 
@@ -1270,6 +1295,14 @@ extension Interpreter {
                 try base.write(.native(tuple), interpreter)
             case .instanceSubscript(let instance, let args):
                 try interpreter.callUserSubscriptSetter(on: instance, with: args, newValue: value)
+            case .hostValueMember(let base, let name):
+                let baseValue = try base.read(interpreter)
+                guard case .native(let any) = baseValue,
+                      let mutated = interpreter.registry?.hostMutatedCopy(
+                        settingMember: name, on: any, to: value) else {
+                    throw EvalMessage(text: "cannot assign to '\(name)' on \(baseValue.stringified)")
+                }
+                try base.write(.native(mutated), interpreter)
             }
         }
     }
@@ -1304,8 +1337,18 @@ extension Interpreter {
                     }
                 }
                 if registry != nil {
+                    // VALUE types (CGSize/CGPoint/CGRect…) write through a
+                    // mutated copy so the base re-writes and notifies. Only
+                    // structs with a readable same-named member route here;
+                    // class-backed boxes keep hostProperty reference writes.
+                    let memberName = member.declName.baseName.text
+                    if !(type(of: any) is AnyClass),
+                       registry?.hostMember(memberName, on: any) != nil,
+                       let baseLValue = try? resolveLValue(base, in: env) {
+                        return .hostValueMember(baseLValue, memberName)
+                    }
                     // Host objects with settable members (formatter.dateFormat = …).
-                    return .hostProperty(any, member.declName.baseName.text)
+                    return .hostProperty(any, memberName)
                 }
             }
             throw error(member, "cannot assign to a member of \(baseValue.stringified)")

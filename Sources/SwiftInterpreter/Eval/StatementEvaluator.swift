@@ -73,6 +73,13 @@ extension Interpreter {
         }
         if let varDecl = decl.as(VariableDeclSyntax.self) {
             for binding in varDecl.bindings {
+                // `let _ = sideEffect()` — evaluate for effect, no binding.
+                if binding.pattern.is(WildcardPatternSyntax.self) {
+                    if let initializer = binding.initializer?.value {
+                        _ = try evaluate(initializer, in: env)
+                    }
+                    continue
+                }
                 // `var (r, g, b, a) = (0, 0, 0, 0)` — tuple destructuring.
                 if let tuplePattern = binding.pattern.as(TuplePatternSyntax.self),
                    let initializer = binding.initializer?.value {

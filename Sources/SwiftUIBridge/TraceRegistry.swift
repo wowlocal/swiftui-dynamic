@@ -324,6 +324,10 @@ public final class TraceRegistry: HostRegistry {
         return hostObjectSetMember(name, on: value, to: newValue)
     }
 
+    public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? {
+        bridgeHostMutatedCopy(settingMember: name, on: value, to: newValue)
+    }
+
     /// Recorded nodes stand for their constructor's type (UIColor(...) →
     /// "UIColor"), so user extensions of host types dispatch on them.
     public func hostTypeName(of value: Any) -> String? {
