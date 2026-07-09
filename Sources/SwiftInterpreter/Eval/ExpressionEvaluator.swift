@@ -678,6 +678,58 @@ extension Interpreter {
             }
         }
 
+        // `text.count(where: { … })` — count-as-function (the property wins
+        // for plain `.count`; the call form is label-dispatched here).
+        if name == "count", call.arguments.first?.label?.text == "where" {
+            let baseValue = try evaluate(base, in: env)
+            let args = try collectArguments(of: call, in: env)
+            guard let closure = args.closure(labeled: "where") else {
+                throw error(call, "count(where:) needs a closure")
+            }
+            var elements: [RuntimeValue] = []
+            if let string = baseValue.stringValue {
+                elements = string.map { .native(String($0)) }
+            } else if let array = baseValue.arrayValue {
+                elements = array
+            }
+            var matched = 0
+            for element in elements where try callClosure(closure, arguments: [element]).boolValue == true {
+                matched += 1
+            }
+            return .native(matched)
+        }
+
+        // `code.append("7")` / `append(contentsOf:)` — mutating String
+        // append through the lvalue.
+        if name == "append",
+           let target = try? resolveLValue(base, in: env),
+           let current = try target.read(self).stringValue {
+            let args = try collectArguments(of: call, in: env)
+            guard let argument = args.labeled("contentsOf") ?? args.positional(0), !argument.isNil else {
+                throw error(call, "String.append needs a value")
+            }
+            let suffix = argument.stringValue ?? argument.stringified
+            try relocating(call) { try target.write(.native(current + suffix), self) }
+            return .void
+        }
+        // `text.insert(char, at: index)` — String insertion at a String.Index.
+        if name == "insert",
+           call.arguments.contains(where: { $0.label?.text == "at" }),
+           let target = try? resolveLValue(base, in: env),
+           let current = try target.read(self).stringValue {
+            let args = try collectArguments(of: call, in: env)
+            guard let element = args.positional(0), !element.isNil,
+                  case .native(let idxAny)? = args.labeled("at"),
+                  let index = idxAny as? Swift.String.Index else {
+                throw error(call, "String.insert needs a value and an at: String.Index")
+            }
+            var copy = current
+            let clamped = min(index, copy.endIndex)
+            copy.insert(contentsOf: element.stringValue ?? element.stringified, at: clamped)
+            try relocating(call) { try target.write(.native(copy), self) }
+            return .void
+        }
+
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
         if mutating.contains(name),
            let target = try? resolveLValue(base, in: env),
@@ -845,6 +897,17 @@ extension Interpreter {
         if closure.parameters.isEmpty {
             for (index, argument) in args.arguments.enumerated() {
                 env.define("$\(index)", argument.value)
+            }
+            return
+        }
+
+        // `{ index, char in … }` over enumerated() — one tuple argument
+        // splats across multiple parameters.
+        if closure.parameters.count > 1, args.arguments.count == 1,
+           let tuple = args.arguments[0].value.tupleValue,
+           tuple.values.count == closure.parameters.count {
+            for (parameter, value) in zip(closure.parameters, tuple.values) {
+                env.define(parameter.name, try resolveAnnotated(value, annotation: parameter.typeAnnotation))
             }
             return
         }

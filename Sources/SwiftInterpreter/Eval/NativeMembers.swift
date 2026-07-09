@@ -254,6 +254,30 @@ extension Interpreter {
         case "count": return .native(string.count)
         case "isEmpty": return .native(string.isEmpty)
         case "localizedDescription": return .native(string) // caught host errors are strings
+        case "enumerated":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native(string.enumerated().map { offset, character in
+                    RuntimeValue.native(TupleValue(
+                        labels: ["offset", "element"],
+                        values: [.native(offset), .native(Swift.String(character))]
+                    ))
+                })
+            })
+        case "forEach":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                guard let closure = args.unlabeledClosures.first ?? args.positional(0)?.closureValue else {
+                    throw RuntimeError(message: "forEach needs a closure")
+                }
+                for character in string {
+                    _ = try ctx.callClosure(closure, arguments: [.native(Swift.String(character))])
+                }
+                return .void
+            })
+        case "components":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let separator = (args.labeled("separatedBy") ?? args.positional(0))?.stringValue ?? " "
+                return .native(string.components(separatedBy: separator).map { RuntimeValue.native($0) })
+            })
         case "startIndex": return .native(string.startIndex)
         case "endIndex": return .native(string.endIndex)
         case "index":

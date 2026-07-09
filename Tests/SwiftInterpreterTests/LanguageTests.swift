@@ -399,6 +399,28 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 42)
     }
 
+    /// The card-formatting genre: mutating String append/insert, enumerated
+    /// tuples with (offset, element) labels + closure splat, count(where:),
+    /// components(separatedBy:).
+    @Test func stringMutationAndEnumeration() throws {
+        let source = """
+        var grouped = ""
+        let digits = "12345678"
+        for (index, digit) in digits.enumerated() {
+            if index % 4 == 0 && index != 0 {
+                grouped.append(contentsOf: " ")
+            }
+            grouped.append(digit)
+        }
+        let spaces = grouped.count(where: { $0 == " " })
+        let idx = grouped.index(grouped.startIndex, offsetBy: 4)
+        grouped.insert("-", at: idx)
+        let parts = grouped.components(separatedBy: " ")
+        "\\(grouped) \\(spaces) \\(parts.count)"
+        """
+        #expect(try eval(source).stringValue == "1234- 5678 1 2")
+    }
+
     @Test func stringIndexBasics() throws {
         let source = """
         let text = "hello"

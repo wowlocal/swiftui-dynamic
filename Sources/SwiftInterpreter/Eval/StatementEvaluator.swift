@@ -264,10 +264,17 @@ extension Interpreter {
 
     private func executeFor(_ forStmt: ForStmtSyntax, in env: Environment) throws -> StatementResult {
         let name: String?
+        var tupleNames: [String?]?
         if let ident = forStmt.pattern.as(IdentifierPatternSyntax.self) {
             name = ident.identifier.text
         } else if forStmt.pattern.is(WildcardPatternSyntax.self) {
             name = nil // `for _ in …`
+        } else if let tuplePattern = forStmt.pattern.as(TuplePatternSyntax.self) {
+            // `for (index, digit) in text.enumerated()` — destructure tuples.
+            name = nil
+            tupleNames = tuplePattern.elements.map {
+                $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+            }
         } else {
             throw error(forStmt.pattern, "only simple for-in patterns are supported")
         }
@@ -286,6 +293,14 @@ extension Interpreter {
             try tick(forStmt)
             let child = Environment(parent: env)
             if let name { child.define(name, element) }
+            if let tupleNames {
+                guard let tuple = element.tupleValue, tuple.values.count == tupleNames.count else {
+                    throw error(forStmt.pattern, "for-in tuple pattern doesn't match the element shape")
+                }
+                for (elementName, value) in zip(tupleNames, tuple.values) {
+                    if let elementName { child.define(elementName, value) }
+                }
+            }
             let result = try executeBlock(forStmt.body.statements, in: child)
             switch result {
             case .normal, .continueLoop: continue

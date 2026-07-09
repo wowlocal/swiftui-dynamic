@@ -524,3 +524,12 @@ Each iteration does exactly this:
   Filled, ScrollDetection, AppleWalletScroll, PinterestGridAnimation pass;
   TwitterProfileScrolling remains (honest Int-division trap fed a stub
   zero). **485/587 → 489/587**.
+- 2026-07-09 iter 64: the String-member class (4) — the card-formatting
+  genre. Mutating append (positional + contentsOf:) and insert(_:at:
+  String.Index) through lvalues; enumerated() with (offset, element)-labeled
+  tuples; count(where:) via the call-aware hook (the property keeps winning
+  plain .count); components(separatedBy:); forEach over characters. Two
+  language companions: one tuple argument SPLATS across multi-parameter
+  closures ({ index, char in } over enumerated()), and for-in destructures
+  tuple patterns (`for (index, digit) in text.enumerated()`). PaymentCard,
+  WalletAnimation, QuizGame, SequencedAnimation pass. **489/587 → 493/587**.
