@@ -26,6 +26,51 @@ extension Interpreter {
         }
     }
 
+    /// The full EXPRESSION the app declares as its root — the first
+    /// statement inside an @main App scene's builder (wrappers like
+    /// `StoreProvider(store:) { Tabbar() }` included, so the app's own
+    /// environment seeding evaluates), or the delegate-hosted
+    /// `rootView:` expression. Probes evaluate this in the global scope
+    /// instead of instantiating a bare symbol.
+    public func declaredRootViewExpression() -> ExprSyntax? {
+        for symbol in structSymbols where symbol.conformances.contains("App") {
+            guard let body = symbol.computedProperties["body"] else { continue }
+            if let sceneCall = Self.firstSceneBuilderCall(in: Syntax(body.accessor)),
+               let trailing = sceneCall.trailingClosure,
+               let first = trailing.statements.first,
+               let expr = first.item.as(ExprSyntax.self) {
+                return expr
+            }
+        }
+        for symbol in structSymbols {
+            for decls in symbol.methods.values {
+                for decl in decls where decl.description.contains("HostingController") {
+                    if let hosted = Self.hostedRootExpression(in: Syntax(decl)) {
+                        return hosted
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private static let sceneContainers: Set<String> = ["WindowGroup", "Window", "DocumentGroup"]
+
+    private static func firstSceneBuilderCall(in node: Syntax) -> FunctionCallExprSyntax? {
+        if let call = node.as(FunctionCallExprSyntax.self),
+           let reference = call.calledExpression.as(DeclReferenceExprSyntax.self),
+           sceneContainers.contains(reference.baseName.text),
+           call.trailingClosure != nil {
+            return call
+        }
+        for child in node.children(viewMode: .sourceAccurate) {
+            if let found = firstSceneBuilderCall(in: child) {
+                return found
+            }
+        }
+        return nil
+    }
+
     /// The root view the APP declares — the first View-typed constructor in
     /// an @main App body's scene, or the expression a delegate hosts via
     /// UIHostingController(rootView:)/NSHostingController(rootView:).

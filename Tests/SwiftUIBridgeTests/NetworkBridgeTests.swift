@@ -180,3 +180,49 @@ import SwiftInterpreter
         #expect(!strings.contains("before") || strings.contains("after"))
     }
 }
+
+/// The probe evaluates the app's DECLARED composition root — wrappers and
+/// their environment seeding run for real.
+@Suite struct DeclaredRootProbeTests {
+    @Test func appSceneExpressionEvaluatesWithWrapper() throws {
+        let source = """
+        final class Catalog: ObservableObject {
+            @Published var featured = "Featured: Dune"
+        }
+
+        let catalog = Catalog()
+
+        struct Provider<Content: View>: View {
+            let catalog: Catalog
+            @ViewBuilder var content: () -> Content
+
+            var body: some View {
+                content()
+                    .environmentObject(catalog)
+            }
+        }
+
+        struct Shelf: View {
+            @EnvironmentObject var catalog: Catalog
+
+            var body: some View {
+                Text(catalog.featured)
+            }
+        }
+
+        @main
+        struct ShopApp: App {
+            var body: some Scene {
+                WindowGroup {
+                    Provider(catalog: catalog) {
+                        Shelf()
+                    }
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("Featured: Dune"),
+                "the wrapper's environment seeding should reach the child, got \(strings)")
+    }
+}

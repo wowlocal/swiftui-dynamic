@@ -28,16 +28,41 @@ public enum LiveCheckSupport {
             _ = try? interpreter.callMethod(
                 named: "applicationDidFinishLaunching", on: delegate, arguments: [hook])
         }
-        guard let symbol = interpreter.rootViewSymbol() else {
-            throw RuntimeError(message: "no View-conforming struct found")
+        // Prefer the app's own composition-root EXPRESSION (wrappers +
+        // environment seeding evaluate for real, e.g. StoreProvider(store:)
+        // around the tab view); fall back to instantiating the root symbol.
+        var renderRoot: (() throws -> TraceNode)?
+        if let rootExpression = interpreter.declaredRootViewExpression(),
+           let value = try? interpreter.evaluateGlobalExpression(rootExpression) {
+            if case .instance(let instance) = value {
+                lastRootSymbol = "app:" + instance.symbol.name
+                try interpreter.injectEnvironmentObjects(into: instance, models: [:])
+                interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+                renderRoot = {
+                    try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                }
+            } else if (try? TraceRegistry.node(value)) != nil {
+                lastRootSymbol = "expr:" + rootExpression.trimmedDescription.prefix(40)
+                renderRoot = {
+                    try TraceRegistry.node(interpreter.evaluateGlobalExpression(rootExpression))
+                }
+            }
         }
-        lastRootSymbol = symbol.name
+        if renderRoot == nil {
+            guard let symbol = interpreter.rootViewSymbol() else {
+                throw RuntimeError(message: "no View-conforming struct found")
+            }
+            lastRootSymbol = symbol.name
+            guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
+                throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
+            }
+            try interpreter.injectEnvironmentObjects(into: instance, models: [:])
+            interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+            renderRoot = {
+                try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            }
+        }
         lastLifecycleFired = 0
-        guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
-            throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
-        }
-        try interpreter.injectEnvironmentObjects(into: instance, models: [:])
-        interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
 
         // The async-fetch pass (M2): render, FIRE retained `.task`/
         // `.onAppear` closures (fetched data lands in state), re-render and
@@ -46,7 +71,7 @@ public enum LiveCheckSupport {
         var strings: [String] = []
         var firedCount = 0
         for _ in 0..<3 {
-            let root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            let root = try renderRoot!()
             var passStrings: [String] = []
             var lifecycle: [ClosureValue] = []
             try collect(interpreter, root, into: &passStrings, lifecycle: &lifecycle)

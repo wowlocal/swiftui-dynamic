@@ -119,7 +119,15 @@ tmdb-fixture-decode — the full decoder pipeline works). Open classes:
   authors — the same async-fetch wall plus whatever hides behind it.
 - replay wildcards: parameterized paths (`/api/v1/statuses/:id`,
   `/3/movie/:id`) must match fixtures with `_` wildcard segments — needed
-  for every detail-view rung.
+  for every detail-view rung. [DONE]
+- movieswiftui-popular-ui: the probe now evaluates the app's DECLARED
+  composition root (StoreProvider(store:) { Tabbar… }); the blocker is the
+  EXTERNAL state container — SwiftUIFlux's Store/StoreProvider/dispatch
+  absorb, so no state flows. Class: vendored-library gateway for the
+  Redux-store shape (Store.state + dispatch → reducer → objectWillChange).
+- icecubes-timeline-ui: root AppView correct, 9 lifecycle closures fire;
+  the timeline fetch dies in the Client-actor path — actor methods must
+  execute (inline-async semantics) for the fetch to land.
 
 ## TestCheck Ledger
 
