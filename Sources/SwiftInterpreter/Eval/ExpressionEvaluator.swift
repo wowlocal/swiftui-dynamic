@@ -585,6 +585,14 @@ extension Interpreter {
         if let computed = value.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .enumCase(value), name: name)
         }
+        // Protocol-extension members (`extension RawRepresentable where
+        // Self: NotificationName { var name }`): the enum's conformances
+        // (plus RawRepresentable itself for raw-valued enums) dispatch.
+        var candidates = value.symbol.conformances + ["RawRepresentable"]
+        candidates.removeAll { ["String", "Int", "Double", "Codable", "Hashable", "Equatable"].contains($0) }
+        if let member = try hostExtensionMember(name, candidates: candidates, selfValue: .enumCase(value)) {
+            return member
+        }
         if name == "localizedDescription" {
             // Every Error carries this on device. Foundation consults
             // LocalizedError's errorDescription first, then falls back to
@@ -2187,6 +2195,14 @@ extension Interpreter {
                 || symbol.staticCache[name] != nil {
                 return .staticProperty(symbol, name)
             }
+            // Enum namespaces hold mutable statics too (`storage.append(…)`
+            // inside a static setter): writes land in the static cache.
+            if case .enumType(let symbol)? = env.lookup("self"),
+               symbol.staticProperties[name] != nil || symbol.staticCache[name] != nil {
+                let box = Box((try? staticMember(name, of: symbol)) ?? .void)
+                box.onChange = { symbol.staticCache[name] = box.value }
+                return .box(box)
+            }
             throw error(ref, "cannot assign to '\(name)'")
         }
         if let member = expr.as(MemberAccessExprSyntax.self), let base = member.base {
@@ -2196,8 +2212,14 @@ extension Interpreter {
                env.box(for: baseRef.baseName.text, before: globals) == nil {
                 let typeName = baseRef.baseName.text
                 let memberName = member.declName.baseName.text
+                // `Self.useServer = …` inside a static body: Self IS the
+                // enclosing type.
+                var typeValue = globals.lookup(typeName)
+                if typeName == "Self", let selfValue = env.lookup("self") {
+                    typeValue = selfValue
+                }
                 var staticSymbol: StructSymbol?
-                if case .type(let symbol)? = globals.lookup(typeName) {
+                if case .type(let symbol)? = typeValue {
                     staticSymbol = symbol
                 } else if let hostSymbol = hostExtensionSymbols[typeName] {
                     staticSymbol = hostSymbol
@@ -2207,6 +2229,34 @@ extension Interpreter {
                     || symbol.staticUninitialized.contains(memberName)
                     || symbol.staticCache[memberName] != nil {
                     return .staticProperty(symbol, memberName)
+                }
+                // Static COMPUTED setters (`static var useServer { get set }`
+                // assigned via Self./TypeName.): a Box whose onChange runs
+                // the setter — the computed-binding precedent.
+                var setterRun: ((RuntimeValue) -> Void)?
+                if let symbol = staticSymbol,
+                   let computed = symbol.staticComputedProperties[memberName],
+                   let setter = computed.setter {
+                    setterRun = { [weak self] value in
+                        guard let self else { return }
+                        let env = self.selfEnvironment(.type(symbol))
+                        env.define(setter.parameterName, value)
+                        _ = try? self.executeBlock(setter.body, in: env)
+                    }
+                } else if case .enumType(let symbol)? = typeValue,
+                          let computed = symbol.staticComputedProperties[memberName],
+                          let setter = computed.setter {
+                    setterRun = { [weak self] value in
+                        guard let self else { return }
+                        let env = self.selfEnvironment(.enumType(symbol))
+                        env.define(setter.parameterName, value)
+                        _ = try? self.executeBlock(setter.body, in: env)
+                    }
+                }
+                if let setterRun {
+                    let box = Box(.void)
+                    box.onChange = { setterRun(box.value) }
+                    return .box(box)
                 }
             }
             let baseValue = try evaluate(base, in: env)

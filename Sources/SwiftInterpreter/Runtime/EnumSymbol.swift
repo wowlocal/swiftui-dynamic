@@ -13,6 +13,9 @@ public final class EnumSymbol {
     }
 
     public let name: String
+    /// Inheritance-clause entries (raw type + protocols): protocol-extension
+    /// members dispatch through these.
+    public internal(set) var conformances: [String] = []
     public internal(set) var cases: [Case] = []
     public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]

@@ -2909,6 +2909,62 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Sidekick (iteration 158): three classes — BACKTICKED statics on
+    /// enums normalize (`static var \`default\``); static COMPUTED setters
+    /// are assignable via Self./TypeName. (the UserDefaults-backed settings
+    /// idiom); and protocol-extension members dispatch on enum cases
+    /// (`extension RawRepresentable where Self: NotificationName`).
+    @Test func sidekickClasses() throws {
+        let source = """
+        protocol NotificationName {
+            var name: Notification.Name { get }
+        }
+
+        extension RawRepresentable where RawValue == String, Self: NotificationName {
+            var name: Notification.Name {
+                Notification.Name(self.rawValue)
+            }
+        }
+
+        public enum Notifications: String, NotificationName {
+            case changedInferenceConfig
+        }
+
+        enum ExpertManager {
+            static var storage: [String] = []
+            public static var `default`: String? { storage.first ?? "fresh" }
+
+            public static var useServer: Bool {
+                get {
+                    if storage.isEmpty {
+                        Self.useServer = false
+                    }
+                    return storage.contains("on")
+                }
+                set {
+                    storage.append(newValue ? "on" : "off")
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let name = Notifications.changedInferenceConfig.name
+                // Statics persist across the verifier's re-renders: only
+                // the FIRST body evaluation asserts the fresh sequence.
+                if ExpertManager.storage.isEmpty {
+                    if ExpertManager.default != "fresh" { fatalError("default broke") }
+                    if ExpertManager.useServer != false { fatalError("useServer broke") }
+                    if ExpertManager.storage.count != 1 { fatalError("static write lost") }
+                }
+                return Text("\\(name)")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// Swiftfin (iteration 157): four classes from the 817-file Jellyfin
     /// client — `for case let x as T` patterns; `[keyPath:]` subscripts
     /// read AND write; same-labeled overloads disambiguate by the

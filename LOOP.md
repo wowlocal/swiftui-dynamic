@@ -1473,3 +1473,15 @@ Each iteration does exactly this:
   interpolation AND Text (marker dumps never render). Swiftfin ✅
   (14 nodes, 2 actions) + SCA ✅ held (390 nodes, 81 actions — real
   cores now). Sidekick next. **640/645 counted. Suite 301 → 302.**
+- 2026-07-09 iter 158: Sidekick (276 files) — three classes. BACKTICKED
+  statics on enums normalize (`static var \`default\`` — the
+  case/property rule extended to enum static members); static COMPUTED
+  setters are assignable via Self./TypeName. (the UserDefaults-backed
+  settings idiom — a Box whose onChange runs the setter; `Self` resolves
+  as the enclosing type in lvalue position); protocol-extension members
+  dispatch on ENUM CASES through recorded conformances (`extension
+  RawRepresentable where Self: NotificationName { var name }`), plus
+  bare static LVALUES inside enum static bodies write the static cache
+  (found by the regression test). Sidekick ✅ (115 nodes, 7 actions).
+  **641/645 counted — ZERO failures (TWENTY-FIRST saturation). 585 zips
+  + 57 OSS repos green. Suite 302 → 303.**

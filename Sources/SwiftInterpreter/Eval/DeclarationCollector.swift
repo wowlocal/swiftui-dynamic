@@ -435,9 +435,10 @@ extension Interpreter {
 
     private func makeEnumSymbol(_ node: EnumDeclSyntax) throws -> EnumSymbol {
         let symbol = EnumSymbol(name: node.name.text)
-        let rawIsString = node.inheritanceClause?.inheritedTypes.contains {
-            $0.type.trimmedDescription == "String"
-        } ?? false
+        symbol.conformances = node.inheritanceClause?.inheritedTypes.map {
+            $0.type.trimmedDescription
+        } ?? []
+        let rawIsString = symbol.conformances.contains("String")
 
         var nextIntRaw = 0
         for member in node.memberBlock.members {
@@ -478,24 +479,27 @@ extension Interpreter {
             let isStaticDecl = isStatic(varDecl.modifiers)
             for binding in varDecl.bindings {
                 guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
+                // Backticked members (`static var \`default\``) normalize,
+                // like cases and struct properties everywhere else.
+                let memberName = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
                 if let accessorBlock = binding.accessorBlock,
                    let accessors = parseAccessors(of: accessorBlock) {
                     let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
                     if isStaticDecl {
-                        symbol.staticComputedProperties[ident.identifier.text] = ComputedProperty(
+                        symbol.staticComputedProperties[memberName] = ComputedProperty(
                             accessor: accessors.getter,
                             isBuilder: hasBuilderAttribute || returnsView,
                             setter: accessors.setter
                         )
                         continue
                     }
-                    symbol.computedProperties[ident.identifier.text] = ComputedProperty(
+                    symbol.computedProperties[memberName] = ComputedProperty(
                         accessor: accessors.getter,
                         isBuilder: hasBuilderAttribute || returnsView,
                         setter: accessors.setter
                     )
                 } else if isStaticDecl, let initializer = binding.initializer?.value {
-                    symbol.staticProperties[ident.identifier.text] = .init(
+                    symbol.staticProperties[memberName] = .init(
                         initializer: initializer,
                         typeAnnotation: binding.typeAnnotation?.type
                     )
