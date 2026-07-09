@@ -930,3 +930,14 @@ Each iteration does exactly this:
   arithmetic + compare, "" in concat, false in Bool). IceCubes:
   19181 → 35507 (String.unicodeScalars — next class). **596/597;
   picked class eliminated. Suite 229.**
+- 2026-07-09 iter 117: env-key defaults + static adoption — String.
+  unicodeScalars (scalar array, char model); CUSTOM @Environment keys read
+  their @Entry-declared defaults from the EnvironmentValues extension
+  (undeclared keys read fresh identities); range bounds absorb unknowables
+  (0..<chain = empty); bare `.member` statics adopt the OTHER operand's
+  host type in binary ops (40 + .statusColumnsSpacing resolves the CGFloat
+  extension constant; Double tries CGFloat/TimeInterval names) — call-
+  shaped markers keep equality-only adoption (init-marker elementwise
+  arithmetic broke once mid-iteration, suite caught it); bare markers
+  absorb to 0 as last resort. IceCubes: 35507 → 35527 (String.flatMap).
+  **596/597; picked class eliminated. Suite 230.**

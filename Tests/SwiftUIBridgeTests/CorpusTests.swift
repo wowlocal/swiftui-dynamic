@@ -1142,6 +1142,41 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// Custom environment keys read their @Entry defaults (undeclared
+    /// ones read fresh identities); bare static markers adopt the other
+    /// operand's type in arithmetic; unknowable range bounds read zero;
+    /// String.unicodeScalars counts real scalars.
+    @Test func customEnvKeysStaticAdoptionAndScalars() throws {
+        let source = """
+        extension EnvironmentValues {
+            @Entry var indentationLevel: UInt = 2
+        }
+
+        extension CGFloat {
+            static let statusColumnsSpacing: CGFloat = 8
+        }
+
+        struct ContentView: View {
+            @Environment(\\.indentationLevel) private var indentationLevel
+            @Environment(\\.isCompactRow) private var isCompact: Bool
+
+            var body: some View {
+                VStack {
+                    if !isCompact {
+                        ForEach(0..<indentationLevel, id: \\.self) { level in
+                            Text("indent \\(level)")
+                        }
+                    }
+                    Text("pad \\(40 + .statusColumnsSpacing)")
+                    Text("scalars \\("héllo".unicodeScalars.count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

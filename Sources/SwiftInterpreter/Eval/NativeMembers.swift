@@ -377,6 +377,10 @@ extension Interpreter {
             })
         case "removingPercentEncoding":
             return string.removingPercentEncoding.map { RuntimeValue.native($0) } ?? .nilValue
+        case "unicodeScalars":
+            // Scalars as single-char strings (our character model): count,
+            // iteration, and allSatisfy work through array machinery.
+            return .native(string.unicodeScalars.map { RuntimeValue.native(String($0)) })
         case "startIndex": return .native(string.startIndex)
         case "endIndex": return .native(string.endIndex)
         case "range":

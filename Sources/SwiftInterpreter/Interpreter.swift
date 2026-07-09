@@ -335,9 +335,27 @@ public final class Interpreter {
     /// inject honest defaults). Unknown keys are left untouched.
     public func injectEnvironmentValues(into instance: Instance, values: [String: RuntimeValue]) {
         for property in instance.symbol.storedProperties {
-            guard case .environment(let key) = property.wrapper,
-                  let value = values[key] else { continue }
-            instance.box(for: property.name)?.value = value
+            guard case .environment(let key) = property.wrapper else { continue }
+            if let value = values[key] {
+                instance.box(for: property.name)?.value = value
+                continue
+            }
+            // CUSTOM environment keys (extension EnvironmentValues { @Entry
+            // var indentationLevel: UInt = 0 }): read the extension's OWN
+            // declared default when present; otherwise the fresh identity
+            // of the annotation (false/0/""/nil) — the fresh-canvas reading.
+            if let box = instance.box(for: property.name), case .void = box.value {
+                if let envExtension = hostExtensionSymbols["EnvironmentValues"],
+                   let declared = envExtension.storedProperty(named: key),
+                   let initializer = declared.initializer,
+                   let value = try? evaluate(initializer, in: globals) {
+                    box.value = (try? resolveAnnotated(value, annotation: declared.typeAnnotation)) ?? value
+                    continue
+                }
+                let typeName = property.typeAnnotation?.trimmedDescription ?? ""
+                var seen: Set<String> = []
+                box.value = (try? synthesizedFreshValue(typeName: typeName, seen: &seen)) ?? .nilValue
+            }
         }
     }
 

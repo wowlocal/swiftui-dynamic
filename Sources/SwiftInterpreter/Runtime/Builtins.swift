@@ -48,8 +48,18 @@ enum Builtins {
         case "<", "<=", ">", ">=":
             return .native(try compare(op, lhs, rhs))
         case "..<":
+            // Unknowable bounds read ZERO (fresh identity): 0..<chain is
+            // the empty range, not an error.
+            let lhs = absorbedNumeric(lhs).map { RuntimeValue.native($0) } ?? lhs
+            let rhs = absorbedNumeric(rhs).map { RuntimeValue.native($0) } ?? rhs
             if let l = lhs.intValue, let r = rhs.intValue, l <= r {
                 return .native(l..<r)
+            }
+            if let l = lhs.intValue, let r = rhs.doubleValue, Double(l) <= r {
+                return .native(l..<Int(r))
+            }
+            if let l = lhs.doubleValue, let r = rhs.intValue, l <= Double(r) {
+                return .native(Int(l)..<r)
             }
             if let l = lhs.doubleValue, let r = rhs.doubleValue, l <= r {
                 return .native(l...r) // half-open doubles: iteration never materializes these
@@ -61,6 +71,8 @@ enum Builtins {
             }
             throw EvalMessage(text: "invalid range bounds")
         case "...":
+            let lhs = absorbedNumeric(lhs).map { RuntimeValue.native($0) } ?? lhs
+            let rhs = absorbedNumeric(rhs).map { RuntimeValue.native($0) } ?? rhs
             if let l = lhs.intValue, let r = rhs.intValue, l <= r {
                 return .native(l..<(r + 1))
             }
@@ -148,6 +160,9 @@ enum Builtins {
                 return .native(0.0)
             }
             if case .hostFunction = value { return .native(0.0) }
+            // A bare `.member` no type context could resolve is an
+            // unmerged-module static: fresh identity, zero.
+            if case .implicitMember = value { return .native(0.0) }
             return value
         }
         // String concat with an unknowable operand: the unknowable reads
@@ -350,6 +365,9 @@ enum Builtins {
             }
             if case .native(let any) = value, any is InertCallable { return .native(0.0) }
             if case .hostFunction = value { return .native(0.0) }
+            // A bare `.member` no type context could resolve is an
+            // unmerged-module static: fresh identity, zero.
+            if case .implicitMember = value { return .native(0.0) }
             return value
         }
         let lhs = absorbed(lhs)

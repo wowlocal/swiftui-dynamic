@@ -1249,12 +1249,14 @@ extension Interpreter {
         default:
             var lhs = try evaluate(infix.leftOperand, in: env)
             var rhs = try evaluate(infix.rightOperand, in: env)
-            if op == "==" || op == "!=" {
-                // `dragOffset == .zero` — an unresolved implicit member adopts
-                // the other operand's host type before comparing.
-                lhs = try adoptHostType(of: rhs, for: lhs)
-                rhs = try adoptHostType(of: lhs, for: rhs)
-            }
+            // `dragOffset == .zero` / `40 + .statusColumnsSpacing` — an
+            // unresolved implicit member adopts the other operand's host
+            // type before combining (static constants in user extensions
+            // resolve to their real values). Call-shaped markers
+            // (.init(…) elementwise arithmetic) only adopt for equality.
+            let allowCalls = op == "==" || op == "!="
+            lhs = try adoptHostType(of: rhs, for: lhs, allowCalls: allowCalls)
+            rhs = try adoptHostType(of: lhs, for: rhs, allowCalls: allowCalls)
             // Host-typed operators the core can't know (`Text("a") + Text("b")`).
             if let registry, let combined = registry.combineValues(op, lhs, rhs) {
                 return combined
@@ -1263,18 +1265,34 @@ extension Interpreter {
         }
     }
 
-    private func adoptHostType(of other: RuntimeValue, for value: RuntimeValue) throws -> RuntimeValue {
+    private func adoptHostType(of other: RuntimeValue, for value: RuntimeValue, allowCalls: Bool = true) throws -> RuntimeValue {
         let unresolved: Bool
         switch value {
         case .implicitMember:
             unresolved = true
         case .native(let any):
-            unresolved = any is ImplicitMemberCall || any is ChainedImplicitCall
+            unresolved = allowCalls && (any is ImplicitMemberCall || any is ChainedImplicitCall)
         default:
             unresolved = false
         }
         guard unresolved, case .native(let otherAny) = other else { return value }
-        return try resolveAnnotated(value, typeName: String(describing: type(of: otherAny)))
+        // Our CGFloat/TimeInterval model IS Double — statics declared on
+        // either name apply to Double operands.
+        var candidates = [String(describing: type(of: otherAny))]
+        if otherAny is Double { candidates += ["CGFloat", "TimeInterval"] }
+        for typeName in candidates {
+            let resolved = try resolveAnnotated(value, typeName: typeName)
+            let stillUnresolved: Bool
+            switch resolved {
+            case .implicitMember: stillUnresolved = true
+            case .nilValue: stillUnresolved = true // a nil never beats the marker
+            case .native(let any):
+                stillUnresolved = any is ImplicitMemberCall || any is ChainedImplicitCall
+            default: stillUnresolved = false
+            }
+            if !stillUnresolved { return resolved }
+        }
+        return value
     }
 
     indirect enum LValue {
