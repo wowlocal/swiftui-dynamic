@@ -45,6 +45,10 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                 y: try Coerce.cgFloat(args.labeled("y") ?? .native(0))
             ))
         }
+    case "AttributedString":
+        return HostFunction(name: name) { args, _ in
+            .native(AttributedStringBox(AttributedString(args.positional(0)?.stringValue ?? "")))
+        }
     case "Binding":
         // `Binding(get:set:)` — a computed binding. The box snapshots get()
         // now (bindings are reconstructed every render pass, so the snapshot
@@ -215,6 +219,26 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return nil
         }
     }
+    if let box = value as? AttributedStringBox {
+        switch name {
+        case "range":
+            return .hostFunction(HostFunction(name: "range") { args, _ in
+                guard let text = (args.labeled("of") ?? args.positional(0))?.stringValue,
+                      let range = box.attributed.range(of: text) else { return .nilValue }
+                return .native(AttributedRangeBox(range))
+            })
+        case "subscript":
+            return .hostFunction(HostFunction(name: "subscript") { args, _ in
+                guard case .native(let any)? = args.positional(0),
+                      let rangeBox = any as? AttributedRangeBox else {
+                    throw RuntimeError(message: "AttributedString subscripting needs a range from range(of:)")
+                }
+                return .native(AttributedRangeProxy(box: box, range: rangeBox.range))
+            })
+        default:
+            return nil
+        }
+    }
     if value is ModelContextStub {
         switch name {
         case "insert", "delete", "save":
@@ -279,6 +303,38 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
     }
     if value is GraphicsContextStub || value is PathDrawStub {
         return true // `context.opacity = 0.5` — draw state accepted, no surface
+    }
+    if let box = value as? AttributedStringBox {
+        switch name {
+        case "foregroundColor":
+            if let color = Coerce.colorLike(newValue) { box.attributed.foregroundColor = color }
+            return true
+        case "font":
+            if let font = try? Coerce.font(newValue) { box.attributed.font = font }
+            return true
+        case "underlineStyle", "underlineColor", "backgroundColor", "link":
+            return true
+        default:
+            return false
+        }
+    }
+    if let proxy = value as? AttributedRangeProxy {
+        switch name {
+        case "foregroundColor":
+            if let color = Coerce.colorLike(newValue) {
+                proxy.box.attributed[proxy.range].foregroundColor = color
+            }
+            return true
+        case "font":
+            if let font = try? Coerce.font(newValue) {
+                proxy.box.attributed[proxy.range].font = font
+            }
+            return true
+        case "underlineStyle", "underlineColor", "backgroundColor", "link":
+            return true // accepted; not yet rendered
+        default:
+            return false
+        }
     }
     guard let box = value as? DateFormatterBox else { return false }
     switch name {

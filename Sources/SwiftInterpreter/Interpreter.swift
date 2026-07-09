@@ -419,6 +419,9 @@ public final class Interpreter {
             return .native(d)
         }
         define("Array") { args, _ in
+            if let element = args.labeled("repeating"), let count = args.labeled("count")?.intValue {
+                return .native([RuntimeValue](repeating: element, count: max(0, count)))
+            }
             guard let value = args.positional(0) else { return .native([RuntimeValue]()) }
             if let range = value.rangeValue { return .native(range.map { RuntimeValue.native($0) }) }
             if let array = value.arrayValue { return .native(array) }

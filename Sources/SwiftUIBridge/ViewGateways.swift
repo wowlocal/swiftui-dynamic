@@ -11,6 +11,9 @@ extension ViewRegistry {
             guard let value = args.positional(0) else {
                 throw RuntimeError(message: "Text needs a string argument")
             }
+            if case .native(let any) = value, let box = any as? AttributedStringBox {
+                return .native(AnyView(Text(box.attributed)))
+            }
             return .native(AnyView(Text(value.stringValue ?? value.stringified)))
         }
 

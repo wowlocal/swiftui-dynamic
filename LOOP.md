@@ -383,3 +383,16 @@ Each iteration does exactly this:
   whose box snapshots get() per render pass and calls set(newValue) on
   writes. JSONWithPagination + HorizontalWheelPicker_Updated pass (the
   latter a 359-node render). **162/200 → 164/200**.
+- 2026-07-09 iter 49: window raised 200 → 400 (82% ≥ 80%), new baseline
+  283/400 (71%). Top class: subscripting (9) — two roots. (1) `$items[index]`
+  → BindingStub.elementBinding(at:) write-through element bindings in the
+  subscript evaluator; Array(repeating:count:) builtin joined (DarkMode's
+  empty-toggles root). (2) AttributedString styling — real Foundation-backed
+  AttributedStringBox: range(of:), s[range] proxies via a new host-subscript
+  hook (registry hostMember "subscript"), foregroundColor/font attribute
+  writes on ranges AND whole strings, Text(attributed) renders styled.
+  WindowStub.isKeyWindow = true. StyledConsent corpus. LottieRatingBar,
+  GlassMorphism, Split, LikedAnimation + ripple pass; GSignin/
+  DarkModeAnimation advanced into UIKit window introspection, DownloadTask
+  opaque, Cart/AnimationChallenge4 into marker-arithmetic.
+  **283/400 → 290/400**.

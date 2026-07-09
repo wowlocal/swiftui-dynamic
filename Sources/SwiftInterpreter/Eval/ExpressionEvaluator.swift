@@ -1088,6 +1088,19 @@ extension Interpreter {
             guard materialized.indices.contains(i) else { throw error(call, "range index out of range") }
             return .native(materialized[i])
         }
+        if case .native(let any) = base, let stub = any as? BindingStub, let i = index.intValue {
+            // `$items[index]` — a write-through element binding.
+            guard let element = stub.elementBinding(at: i) else {
+                throw error(call, "binding index out of range")
+            }
+            return element
+        }
+        if case .native(let any) = base,
+           case .hostFunction(let subscripting)? = registry?.hostMember("subscript", on: any) {
+            // Host subscripts (AttributedString[range] styling proxies).
+            let args = CallArguments(arguments: [.init(label: nil, value: index)])
+            return try relocating(call) { try subscripting.invoke(args, self) }
+        }
         throw error(call, "subscripting is only supported on arrays and dictionaries")
     }
 

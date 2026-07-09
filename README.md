@@ -88,7 +88,9 @@ binding collections — element bindings write back into the array, and
 apply); presentation — `.sheet(isPresented:)`,
 `.alert(_:isPresented:actions:message:)`, `.confirmationDialog`; environment —
 `.environmentObject(_:)` + `@EnvironmentObject` (carried on SwiftUI's real
-Environment, so scoping and propagation into sheets come for free); `UUID()`
+Environment, so scoping and propagation into sheets come for free); **AttributedString styling** (`range(of:)` + `text[range].foregroundColor =`
+applied to the real Foundation type, rendered by `Text`); `$items[index]`
+element bindings; `UUID()`
 and `Date()` basics; ~50 modifiers including `padding`/`frame`/`font`/
 `foregroundStyle` (colors, materials, hierarchicals, `.color.opacity`/
 `.gradient` chains)/`background`/`overlay`/`shadow`/`clipShape`/`offset`/

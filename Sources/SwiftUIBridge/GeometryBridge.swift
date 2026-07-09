@@ -202,6 +202,7 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if value is WindowStub {
         if name == "safeAreaInsets" { return .native(EdgeInsets()) }
+        if name == "isKeyWindow" { return .native(true) } // ours is the only window
         if name == "close" {
             return .hostFunction(HostFunction(name: "close") { _, _ in .void })
         }
