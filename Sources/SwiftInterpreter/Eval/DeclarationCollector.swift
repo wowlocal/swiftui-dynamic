@@ -16,12 +16,31 @@ extension Interpreter {
                 try collectEnum(enumDecl)
             } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
                 try defineFunction(funcDecl, in: globals)
+            } else if let varDecl = decl.as(VariableDeclSyntax.self), isHoistableGlobal(varDecl) {
+                // Top-level globals are LAZY (real Swift semantics for
+                // non-main files): forward and cross-file references work,
+                // initializers run on first read.
+                for binding in varDecl.bindings {
+                    guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
+                    globals.define(ident.identifier.text, .native(LazyGlobal(
+                        initializer: binding.initializer?.value,
+                        annotation: binding.typeAnnotation?.type
+                    )))
+                }
             }
         }
         for item in file.statements {
             guard case .decl(let decl) = item.item,
                   let extensionDecl = decl.as(ExtensionDeclSyntax.self) else { continue }
             try collectExtension(extensionDecl)
+        }
+    }
+
+    /// Only plain identifier bindings hoist; tuple/computed bindings run
+    /// in statement order.
+    func isHoistableGlobal(_ varDecl: VariableDeclSyntax) -> Bool {
+        varDecl.bindings.allSatisfy {
+            $0.pattern.is(IdentifierPatternSyntax.self) && $0.accessorBlock == nil
         }
     }
 

@@ -1,3 +1,5 @@
+import SwiftSyntax
+
 /// A mutable binding. Environments hand out Boxes rather than values so that
 /// closures capturing an environment see later mutations — matching Swift's
 /// capture-by-reference semantics for `var`s. `@State` storage is also a Box;
@@ -10,6 +12,19 @@ public final class Box {
 
     public init(_ value: RuntimeValue) {
         self.value = value
+    }
+}
+
+/// A top-level global not yet initialized — real Swift globals are lazy, so
+/// forward/cross-file references work. Forced (evaluated + replaced) on
+/// first read.
+public final class LazyGlobal {
+    public let initializer: ExprSyntax?
+    public let annotation: TypeSyntax?
+
+    public init(initializer: ExprSyntax?, annotation: TypeSyntax?) {
+        self.initializer = initializer
+        self.annotation = annotation
     }
 }
 

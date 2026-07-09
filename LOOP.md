@@ -436,3 +436,12 @@ Each iteration does exactly this:
   AppleSignIn, CustomContentMenu pass (+ripple). The "missing argument"
   class is now purely the Layout-protocol wall (Chips_UI, LoopingCards).
   **306/400 → 311/400**.
+- 2026-07-09 iter 54: lazy-forceable globals + static context in property
+  initializers — the "unresolved identifier" class. Top-level identifier
+  bindings hoist as LazyGlobal thunks (forward/cross-file references force
+  on first read) while STILL executing eagerly in statement order unless
+  already forced (main.swift sequential semantics preserved — first attempt
+  broke 6 tests by going fully lazy). Property initializers evaluate with
+  self = the type, so bare statics resolve (`Timer.publish(every:
+  autoScrollDuration…)`). FacebookGradientMask, HeroNavigationStack,
+  AutoScrollCarousel, WidgetsDemo pass. **311/400 → 315/400**.

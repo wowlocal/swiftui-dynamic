@@ -269,6 +269,32 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct StdlibTests {
+    /// Globals are lazily forceable, so forward references work (real Swift
+    /// non-main-file semantics) while statement order still executes eagerly.
+    @Test func globalsSupportForwardReferences() throws {
+        let source = """
+        let combined = [first, second].joined(separator: "-")
+        let first = "a"
+        let second = "b"
+        combined
+        """
+        #expect(try eval(source).stringValue == "a-b")
+    }
+
+    /// Property initializers see the type's own statics bare.
+    @Test func propertyInitializersSeeOwnStatics() throws {
+        let source = """
+        struct Carousel {
+            var duration = defaultDuration * 2
+            static var defaultDuration: Double {
+                return 1.5
+            }
+        }
+        Carousel().duration
+        """
+        #expect(try eval(source).doubleValue == 3.0)
+    }
+
     @Test func staticComputedPropertiesEvaluate() throws {
         let source = """
         struct Config {

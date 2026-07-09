@@ -82,6 +82,20 @@ public final class Interpreter {
                 || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
                 continue // already collected
             }
+            if case .decl(let decl) = item.item,
+               let varDecl = decl.as(VariableDeclSyntax.self), isHoistableGlobal(varDecl) {
+                // Hoisted as lazy for FORWARD references; still executed
+                // eagerly in statement order (main.swift semantics) unless a
+                // forward reference already forced it — then re-running would
+                // clobber mutations and repeat side effects.
+                let alreadyForced = varDecl.bindings.contains { binding in
+                    guard let ident = binding.pattern.as(IdentifierPatternSyntax.self),
+                          let box = globals.box(for: ident.identifier.text) else { return false }
+                    if case .native(let any) = box.value, any is LazyGlobal { return false }
+                    return true
+                }
+                if alreadyForced { continue }
+            }
             let result = try execute(item, in: globals)
             switch result {
             case .normal(let value):
@@ -108,7 +122,13 @@ public final class Interpreter {
             var value: RuntimeValue = property.typeAnnotation?.trimmedDescription.hasSuffix("?") == true
                 ? .nilValue : .void
             if let initializer = property.initializer {
-                value = try resolveAnnotated(try evaluate(initializer, in: globals), annotation: property.typeAnnotation)
+                // Static context: property initializers may reference the
+                // type's own statics bare (`= Timer.publish(every:
+                // autoScrollDuration, …)`).
+                value = try resolveAnnotated(
+                    try evaluate(initializer, in: selfEnvironment(.type(symbol))),
+                    annotation: property.typeAnnotation
+                )
             }
             let box = Box(value)
             if notifying.contains(property.name) {

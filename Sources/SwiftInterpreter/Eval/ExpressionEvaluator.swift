@@ -147,8 +147,22 @@ extension Interpreter {
 
     // MARK: - Identifiers & members
 
+    /// Lazy globals evaluate their initializer on first read (memoized).
+    func force(_ box: Box) throws -> RuntimeValue {
+        guard case .native(let any) = box.value, let lazy = any as? LazyGlobal else {
+            return box.value
+        }
+        var value: RuntimeValue = lazy.annotation?.trimmedDescription.hasSuffix("?") == true
+            ? .nilValue : .void
+        if let initializer = lazy.initializer {
+            value = try resolveAnnotated(try evaluate(initializer, in: globals), annotation: lazy.annotation)
+        }
+        box.value = value
+        return value
+    }
+
     func resolveIdentifier(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
-        if let value = env.lookup(name) { return value }
+        if let box = env.box(for: name) { return try force(box) }
         // `$count` — projected value of an @State or @Binding property.
         // (`$0`-style closure shorthands were already bound in the environment.)
         if name.hasPrefix("$"), name.count > 1, !name.dropFirst().allSatisfy(\.isNumber) {
@@ -902,7 +916,7 @@ extension Interpreter {
         func read(_ interpreter: Interpreter) throws -> RuntimeValue {
             switch self {
             case .box(let box):
-                return box.value
+                return try interpreter.force(box)
             case .instanceProperty(let instance, let name):
                 if let box = instance.box(for: name) { return box.value }
                 if let computed = instance.symbol.computedProperties[name] {
