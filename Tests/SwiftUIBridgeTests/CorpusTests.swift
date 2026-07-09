@@ -41,6 +41,35 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Imperative statements inside builder-evaluated closures execute for
+    /// effect — `do/catch` (the `.task { do { try await … } catch {} }`
+    /// idiom), plus `#selector` staying an inert marker.
+    @Test func doCatchInBuilderPositionsExecutes() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var status = "loading"
+
+            var body: some View {
+                do {
+                    status = try checked("ready")
+                } catch {
+                }
+                Text(status)
+                Button("Dismiss keyboard") {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+            }
+
+            func checked(_ value: String) throws -> String {
+                return value
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+        #expect(report.actionsInvoked == 1)
+    }
+
     /// `@Bindable var x = model` as a body-local: `$x.field` projects a
     /// binding into the observable model's own storage.
     @Test func bindableLocalProjectsModelBindings() throws {

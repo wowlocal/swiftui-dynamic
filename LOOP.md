@@ -460,3 +460,12 @@ Each iteration does exactly this:
   itself. `@Bindable var x = model; $x.activeTab` — the Observation binding
   idiom. TabBarSheet, CustomNavigationPopItems, ZoomTransitions pass.
   **318/400 → 321/400 (80.25% — next iteration raises the window to --all).**
+- 2026-07-09 iter 57: window raised 400 → --all (80.25% ≥ 80%). Full-corpus
+  baseline **431/587 (73.4%)**. Top class: doStmt in view builders (13) —
+  imperative statements inside builder-evaluated closures (`.task { do { try
+  await fetch() } catch {} }`) now execute for effect via executeStatement
+  (explicit returns contribute views); do/guard/for/while all covered.
+  Ride-alongs the class projects needed: `#selector(...)`/macro expressions
+  evaluate as inert markers, AppStub.sendAction inert (keyboard dismissal).
+  CompositionalLayout, EmailLogin, SocialMedia ×2 pass (+ripple).
+  **431/587 → 444/587**.

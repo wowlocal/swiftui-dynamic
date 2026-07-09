@@ -312,6 +312,17 @@ extension Interpreter {
                     }
                     continue
                 }
+                if stmt.is(DoStmtSyntax.self) || stmt.is(GuardStmtSyntax.self)
+                    || stmt.is(ForStmtSyntax.self) || stmt.is(WhileStmtSyntax.self) {
+                    // Imperative statements inside builder-evaluated closures
+                    // (`.task { do { try await fetch() } catch {} }`) execute
+                    // for effect; an explicit return contributes its view.
+                    let result = try executeStatement(stmt, in: env)
+                    if case .returnValue(let value) = result {
+                        appendViewValue(value, to: &views)
+                    }
+                    continue
+                }
                 throw error(stmt, "unsupported statement in a view builder (\(stmt.kind))")
             case .expr(let expr):
                 if let ifExpr = expr.as(IfExprSyntax.self) {

@@ -188,6 +188,10 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "terminate":
             // Quitting the host would kill the verifier/demo — inert.
             return .hostFunction(HostFunction(name: "terminate") { _, _ in .void })
+        case "sendAction":
+            // Keyboard dismissal (`sendAction(#selector(resignFirstResponder)…)`)
+            // and responder-chain pokes — no responder chain exists; inert.
+            return .hostFunction(HostFunction(name: "sendAction") { _, _ in .void })
         default: return nil
         }
     }

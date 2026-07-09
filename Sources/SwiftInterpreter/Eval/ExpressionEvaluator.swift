@@ -106,6 +106,11 @@ extension Interpreter {
         if expr.is(KeyPathExprSyntax.self) {
             return .native(KeyPathStub())
         }
+        if let macro = expr.as(MacroExpansionExprSyntax.self) {
+            // `#selector(...)`, `#Predicate {...}` — inert marker values;
+            // consumers (sendAction, flattened queries) ignore them.
+            return .native(HostTypeMarker(name: "#\(macro.macroName.text)"))
+        }
         if let asExpr = expr.as(AsExprSyntax.self) {
             // Dynamic casts: give the target type a chance to resolve markers,
             // bridge numerics, and otherwise pass the value through
