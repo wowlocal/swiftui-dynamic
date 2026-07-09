@@ -59,6 +59,39 @@ enum Corpus {
         #expect(report.nodeCount >= 2)
     }
 
+    /// Custom Layout containers take trailing content and modifiers;
+    /// children render in a default flow (the layout math doesn't run).
+    @Test func layoutContainersRenderChildren() throws {
+        let source = """
+        struct TagLayout: Layout {
+            var alignment: Alignment = .center
+            var spacing: CGFloat = 10
+
+            func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+                return proposal.replacingUnspecifiedDimensions()
+            }
+
+            func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+            }
+        }
+
+        struct ContentView: View {
+            let tags = ["swift", "ui", "layout"]
+
+            var body: some View {
+                TagLayout(alignment: .center, spacing: 10) {
+                    ForEach(tags, id: \\.self) { tag in
+                        Text(tag)
+                    }
+                }
+                .padding()
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

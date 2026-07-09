@@ -68,6 +68,13 @@ public final class ViewRegistry: HostRegistry {
             // the honest stand-in is an inert empty view.
             return .native(AnyView(EmptyView()))
         }
+        if instance.symbol.conformsToLayout {
+            // Children in a default flow; the interpreted sizeThatFits/
+            // placeSubviews never run (documented divergence).
+            let children = instance.properties[StructSymbol.layoutChildrenKey]?.value.arrayValue ?? []
+            let views = (try? children.map(Self.anyView)) ?? []
+            return .native(AnyView(VStack(alignment: .leading) { Self.indexed(views) }))
+        }
         if instance.symbol.conformsToShape {
             // Shape-typed so .fill/.stroke/.trim apply; the real path comes
             // from the interpreted path(in:).

@@ -200,6 +200,16 @@ public final class Interpreter {
                     // closure-shaped stored property (SE-0286 forward scan);
                     // @ViewBuilder properties store the BUILT view (matching
                     // Swift's synthesized memberwise + builder init).
+                    // `TagLayout(spacing: 10) { … }` — Layout containers
+                    // take trailing content; children stash for rendering
+                    // (the custom layout math doesn't run — documented).
+                    if symbol.conformsToLayout,
+                       !symbol.storedProperties.contains(where: { !assigned.contains($0.name) && $0.acceptsTrailingClosure }) {
+                        let closure = argument.value.closureValue!
+                        let children = try callBuilderClosure(closure, arguments: [])
+                        instance.properties[StructSymbol.layoutChildrenKey] = Box(.native(children))
+                        continue
+                    }
                     guard let property = symbol.storedProperties.first(where: {
                         !assigned.contains($0.name) && $0.acceptsTrailingClosure
                     }), let box = instance.box(for: property.name) else {

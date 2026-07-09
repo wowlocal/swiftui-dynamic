@@ -162,6 +162,9 @@ coverage.
   the `#else` branch — consistent with the iOS-shaped platform stubs.
   Works in declaration, statement, builder, and postfix (modifier-chain)
   positions.
+- **Custom `Layout` containers flow.** `TagLayout(spacing:) { … }` renders
+  its children in a default vertical flow; the interpreted
+  `sizeThatFits`/`placeSubviews` never run.
 - **Canvas drawing is inert.** `Canvas { context, size in … }` runs the
   renderer once against a no-op context (390×844) — the closure's math
   executes, but fill/stroke/translate commands never reach a real

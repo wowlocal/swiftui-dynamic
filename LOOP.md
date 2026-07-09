@@ -614,3 +614,9 @@ Each iteration does exactly this:
   log/log2/exp/hypot), and bare numeric markers absorb in arithmetic
   (`x / .pi`, `.infinity`). PS_TabBar + Interactive_Header pass.
   **529 → 531/585 (90.8%).**
+- 2026-07-09 iter 75: the Layout wall, taken as containers — Layout
+  conformers accept trailing content (children stash at init) and modifiers,
+  rendering as a default flow in both registries (sizeThatFits/placeSubviews
+  never run — documented). Clears the TagLayout pair AND the long-standing
+  wall pair: TagView, TagTextField, Chips_UI (blocked since iter 36),
+  LoopingCards. **531 → 534/585 (91.3%).**

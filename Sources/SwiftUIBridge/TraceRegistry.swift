@@ -239,6 +239,12 @@ public final class TraceRegistry: HostRegistry {
             // No body to deep-render; recorded inert.
             return .native(TraceNode(kind: "Representable:\(instance.symbol.name)"))
         }
+        if instance.symbol.conformsToLayout {
+            let node = TraceNode(kind: "Layout:\(instance.symbol.name)")
+            let children = instance.properties[StructSymbol.layoutChildrenKey]?.value.arrayValue ?? []
+            node.children = children.compactMap { try? Self.node($0) }
+            return .native(node)
+        }
         if instance.symbol.conformsToShape {
             // No body — execute the geometry math against the standard
             // canvas rect so errors in path(in:) still surface.

@@ -72,6 +72,11 @@ public final class StructSymbol {
     /// The full inheritance clause — protocol-extension defaults dispatch
     /// through these names.
     public internal(set) var conformances: [String] = []
+    /// `struct TagLayout: Layout` — containers whose custom layout math
+    /// can't run; children render in a default flow (documented).
+    public var conformsToLayout: Bool { conformances.contains("Layout") }
+    /// Trailing-closure children of a Layout container, stashed at init.
+    public static let layoutChildrenKey = "__layoutChildren"
     /// Declared with `class` — matters for observation; reference semantics
     /// are the default for ALL instances (the documented struct divergence).
     public internal(set) var isClass = false
