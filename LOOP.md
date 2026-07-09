@@ -708,3 +708,13 @@ Each iteration does exactly this:
   areInIncreasingOrder semantics). A 6-project class had been hiding as
   stringified-singleton histogram entries. InteractiveCharts ×2, DashBoards,
   BankingMacApp, SwiftCharts + ripple pass. **557 → 564/588 (95.9%).**
+- 2026-07-09 iter 88: fresh-state numerics — the compare/combine family (10
+  projects hiding across stringified messages). Unresolved markers/hosted
+  objects read ZERO in arithmetic and FALSE in ordered comparisons;
+  marker-vs-concrete equality is false; hosted objects compare by identity;
+  numeric markers (.zero/.pi/.infinity) absorb in compare like arithmetic.
+  Companions the chain exposed: FocusState false-synthesis is Bool-only,
+  nil-optional switches match `.none`/`nil` cases, and `break` exits a
+  SWITCH (not the enclosing function). StretchySlider, Game, IconGenerator,
+  CustomTabView, CustomHUDs, CustomHeader, CardCreation_Updated + ripple.
+  **564 → 571/588 (97.1%).**

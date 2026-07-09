@@ -7,7 +7,11 @@ import SwiftSyntax
 extension Interpreter {
     func executeSwitch(_ switchExpr: SwitchExprSyntax, in env: Environment) throws -> StatementResult {
         let selected = try selectCase(switchExpr, in: env)
-        return try executeBlock(selected.statements, in: selected.env)
+        let result = try executeBlock(selected.statements, in: selected.env)
+        if case .breakLoop = result {
+            return .normal(.void) // `break` inside a case exits the SWITCH
+        }
+        return result
     }
 
     func collectBuilderSwitch(_ switchExpr: SwitchExprSyntax, in env: Environment) throws -> [RuntimeValue] {
@@ -53,6 +57,17 @@ extension Interpreter {
         env: Environment
     ) throws -> Bool {
         if pattern.is(WildcardPatternSyntax.self) { return true }
+
+        // Switching over a nil optional: `case .none` / `case nil` match,
+        // any other case shape doesn't.
+        if subject.isNil, let expr = pattern.as(ExpressionPatternSyntax.self) {
+            if expr.expression.is(NilLiteralExprSyntax.self) { return true }
+            if let member = expr.expression.as(MemberAccessExprSyntax.self),
+               member.base == nil, member.declName.baseName.text == "none" {
+                return true
+            }
+            return false
+        }
 
         if let binding = pattern.as(ValueBindingPatternSyntax.self) {
             return try matches(binding.pattern, subject: subject, bindingInto: bindings, env: env)

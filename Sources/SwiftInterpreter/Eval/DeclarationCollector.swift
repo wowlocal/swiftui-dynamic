@@ -313,7 +313,7 @@ extension Interpreter {
                 var stateLikeDefault: ExprSyntax?
                 if binding.initializer == nil,
                    hasAttribute(varDecl.attributes, named: "FocusState"),
-                   binding.typeAnnotation?.type.trimmedDescription.hasSuffix("?") != true {
+                   binding.typeAnnotation?.type.trimmedDescription == "Bool" {
                     stateLikeDefault = ExprSyntax(BooleanLiteralExprSyntax(literal: .keyword(.false)))
                 }
                 symbol.storedProperties.append(.init(

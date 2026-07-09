@@ -596,6 +596,32 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "cell=20 empty=0")
     }
 
+    /// Fresh-state numerics: markers/hosted objects read 0 in arithmetic and
+    /// false in ordered comparisons; nil-optional switches match .none/nil;
+    /// break exits a switch.
+    @Test func freshStateNumericsAndSwitchNil() throws {
+        let source = """
+        enum Field {
+            case number
+            case name
+        }
+        let active: Field? = nil
+        var log = ""
+        switch active {
+        case .number:
+            log = "number"
+            break
+        case .name:
+            log = "name"
+        case .none:
+            log = "inactive"
+        }
+        let comparisons = "\\(.zero > 0.0) \\(false == .cardHolderName)"
+        log + " " + comparisons
+        """
+        #expect(try eval(source).stringValue == "inactive false false")
+    }
+
     @Test func minMaxWithPredicates() throws {
         let source = """
         struct Sale {

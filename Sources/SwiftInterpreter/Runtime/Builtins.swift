@@ -107,8 +107,18 @@ enum Builtins {
             default: return nil
             }
         }
-        let lhs = numericMarker(lhs).map { RuntimeValue.native($0) } ?? lhs
-        let rhs = numericMarker(rhs).map { RuntimeValue.native($0) } ?? rhs
+        func absorbed(_ value: RuntimeValue) -> RuntimeValue {
+            if let numeric = numericMarker(value) { return .native(numeric) }
+            // Hosted-object quantities and unresolved CHAINS read ZERO —
+            // the fresh canvas (consistent with hosted truths reading false).
+            if case .native(let any) = value,
+               any is InertCallable || any is ChainedImplicitCall {
+                return .native(0.0)
+            }
+            return value
+        }
+        let lhs = absorbed(lhs)
+        let rhs = absorbed(rhs)
         if let l = lhs.intValue, let r = rhs.intValue { return .native(try int(l, r)) }
         if let l = lhs.doubleValue, let r = rhs.doubleValue { return .native(try double(l, r)) }
         // `.now() + 0.5` (DispatchTime deadlines) — the time anchor absorbs
@@ -186,6 +196,24 @@ enum Builtins {
            case .implicitMember(let name) = lhs {
             return chain.member == name
         }
+        // Hosted objects compare by identity; against anything else, false.
+        if case .native(let la) = lhs, la is InertCallable {
+            if case .native(let ra) = rhs, ra is InertCallable {
+                return (la as AnyObject) === (ra as AnyObject)
+            }
+            return false
+        }
+        if case .native(let ra) = rhs, ra is InertCallable { return false }
+        // A bare marker against a CONCRETE non-marker value is unknowable —
+        // false (`false == .cardHolderName`, `0 == .count`).
+        if case .implicitMember = lhs,
+           rhs.boolValue != nil || rhs.doubleValue != nil || rhs.stringValue != nil {
+            return false
+        }
+        if case .implicitMember = rhs,
+           lhs.boolValue != nil || lhs.doubleValue != nil || lhs.stringValue != nil {
+            return false
+        }
         // A marker CALL against a bare marker compares by name — honestly
         // false for `authorizationStatus(for: .video) == .authorized` (fresh
         // system state), true only for same-named markers.
@@ -245,6 +273,31 @@ enum Builtins {
     }
 
     private static func compare(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
+        // `.zero > 0.0` — well-known numeric markers absorb; hosted objects
+        // read zero; remaining unresolved markers are unknowable and every
+        // ordered comparison on them reads FALSE (fresh-state doctrine).
+        func absorbed(_ value: RuntimeValue) -> RuntimeValue {
+            if case .implicitMember(let name) = value {
+                switch name {
+                case "pi": return .native(Double.pi)
+                case "zero": return .native(0.0)
+                case "infinity": return .native(Double.infinity)
+                default: break
+                }
+            }
+            if case .native(let any) = value, any is InertCallable { return .native(0.0) }
+            return value
+        }
+        let lhs = absorbed(lhs)
+        let rhs = absorbed(rhs)
+        func isUnknowable(_ value: RuntimeValue) -> Bool {
+            if case .implicitMember = value { return true }
+            if case .native(let any) = value {
+                return any is ImplicitMemberCall || any is ChainedImplicitCall
+            }
+            return false
+        }
+        if isUnknowable(lhs) || isUnknowable(rhs) { return false }
         // Dates compare by time interval (`$0.creationDate < $1.creationDate`).
         if case .native(let la) = lhs, let l = la as? Date,
            case .native(let ra) = rhs, let r = ra as? Date {
