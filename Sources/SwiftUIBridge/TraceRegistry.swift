@@ -407,6 +407,9 @@ public final class TraceRegistry: HostRegistry {
         }
         if case .implicitMember = data { return [] }
         if case .hostFunction = data { return [] } // unresolvable member read
+        if case .native(let dataAny) = data, let bytes = dataAny as? Data {
+            return bytes.map { .native(Int($0)) } // Data IS a byte collection
+        }
         if case .native(let any) = data, let range = any as? Range<Int> {
             return range.map { .native($0) }
         }

@@ -989,3 +989,14 @@ Each iteration does exactly this:
   wall is the SERVER half (NIO/Prelude/EitherIO — client+server monorepo
   the merged-module model can't split; recorded in ProjectCheck).
   damus: 8262 → 11978. **598/599 counted; queue: oss:damus.**
+- 2026-07-09 iter 122: failable-init semantics — `init?` bodies that
+  `return nil` yield NIL (not a half-built instance with void lets — the
+  damus Pubkey/IdType chase, found via temporary instrumentation); struct
+  init self-reassignment (`self = decoded`) propagates through
+  runInitializer; root synthesis prefers NON-failable inits and knows
+  Data/UInt8-64 fresh values; Data(repeating:count:) real; pointer-interop
+  members (withCString/withUnsafeBytes…) absorb without invoking closures;
+  Data iterates as its byte collection (ForEach/for-in — a mid-iteration
+  RedditOS regression from the new Data fresh value, caught + fixed).
+  damus: 11978 → 69257 (force-unwrap — next class). **598/599; queue:
+  oss:damus.**

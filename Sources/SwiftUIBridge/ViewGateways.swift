@@ -376,6 +376,9 @@ extension ViewRegistry {
         }
         if case .implicitMember = data { return [] }
         if case .hostFunction = data { return [] } // unresolvable member read
+        if case .native(let dataAny) = data, let bytes = dataAny as? Data {
+            return bytes.map { .native(Int($0)) } // Data IS a byte collection
+        }
         if let range = data.rangeValue {
             return range.map { .native($0) }
         }

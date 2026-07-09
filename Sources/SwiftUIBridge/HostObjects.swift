@@ -54,6 +54,10 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             if let bytes = args.positional(0)?.arrayValue {
                 return .native(Data(bytes.compactMap { $0.intValue.map { UInt8(truncatingIfNeeded: $0) } }))
             }
+            if let repeating = args.labeled("repeating")?.intValue,
+               let count = args.labeled("count")?.intValue {
+                return .native(Data(repeating: UInt8(truncatingIfNeeded: repeating), count: Swift.max(0, count)))
+            }
             return .native(Data())
         }
     case "Locale":

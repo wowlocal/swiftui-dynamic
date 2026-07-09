@@ -32,6 +32,11 @@ extension Interpreter {
         }
         if let data = any as? Data {
             switch name {
+            case "withUnsafeBytes", "withUnsafeMutableBytes":
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    .native(ChainedImplicitCall(
+                        base: .implicitMember(name), member: "result", arguments: CallArguments()))
+                })
             case "utf8", "bytes":
                 // Byte view (damus reads .utf8.count off values that are
                 // Data by the time they arrive) — Int array.
@@ -472,6 +477,14 @@ extension Interpreter {
                     throw RuntimeError(message: "replacing(_:with:) needs strings")
                 }
                 return .native(string.replacingOccurrences(of: target, with: replacement))
+            })
+        case "withCString", "withUnsafeBytes", "withUnsafeBufferPointer",
+             "withUnsafeMutableBytes", "withContiguousStorageIfAvailable":
+            // Pointer-based C interop: the closure needs a raw pointer we
+            // can't provide — the result is unknowable (absorbs downstream).
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native(ChainedImplicitCall(
+                    base: .implicitMember(name), member: "result", arguments: CallArguments()))
             })
         case "utf8", "utf16":
             // Byte/code-unit views as Int arrays: .count and iteration work.

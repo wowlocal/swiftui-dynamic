@@ -1,3 +1,4 @@
+import Foundation
 import SwiftSyntax
 
 /// How a statement finished. Control flow propagates as values instead of
@@ -342,6 +343,8 @@ extension Interpreter {
             // A bound host member in sequence position (stub.allKeys) is
             // equally unknowable — real code can't iterate a function.
             elements = []
+        } else if case .native(let dataAny) = sequence, let bytes = dataAny as? Data {
+            elements = bytes.map { .native(Int($0)) } // byte collection
         } else {
             throw error(forStmt.sequence, "for-in requires a range or an array, got \(sequence.stringified)")
         }

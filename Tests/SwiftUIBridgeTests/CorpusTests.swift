@@ -1327,6 +1327,43 @@ enum Corpus {
         #expect(report.nodeCount >= 6)
     }
 
+    /// Failable inits returning nil yield NIL (not a half-built
+    /// instance); struct inits may reassign self; root synthesis prefers
+    /// non-failable inits; Data(repeating:count:) is real.
+    @Test func failableInitsAndSelfReassignment() throws {
+        let source = """
+        struct Pubkey {
+            let id: Data
+
+            init(_ data: Data) {
+                self.id = data
+            }
+
+            init?(hex: String) {
+                guard hex.count == 4 else { return nil }
+                self = Pubkey(Data(repeating: 7, count: 2))
+            }
+        }
+
+        struct RowView: View {
+            let author: Pubkey
+
+            var body: some View {
+                let missing = Pubkey(hex: "")
+                let reassigned = Pubkey(hex: "abcd")
+                VStack {
+                    Text("author bytes \\(author.id.count)")
+                    Text(missing == nil ? "nil pubkey" : "have")
+                    Text("reassigned \\(reassigned?.id.count ?? -1)")
+                    Text("blob \\(Data(repeating: 0, count: 32).count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

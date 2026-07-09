@@ -256,7 +256,7 @@ public final class Interpreter {
                 }
             }
         } else {
-            try runInitializer(
+            return try runInitializer(
                 chooseInitializer(from: symbol.initializers, for: args),
                 on: instance, args: args, node: node)
         }
@@ -264,11 +264,14 @@ public final class Interpreter {
     }
 
     /// Run one initializer body with `self` bound to the instance — used
-    /// by instantiate and by `self.init(…)` delegation.
+    /// by instantiate and by `self.init(…)` delegation. Returns the FINAL
+    /// self: struct inits may reassign it (`self = decoded`), and the
+    /// caller must hand back that value, not the seed instance.
+    @discardableResult
     func runInitializer(
         _ chosen: InitializerDeclSyntax, on instance: Instance,
         args: CallArguments, node: Syntax?
-    ) throws {
+    ) throws -> RuntimeValue {
         guard let body = chosen.body else {
             throw RuntimeError(message: "init of '\(instance.symbol.name)' has no body")
         }
@@ -283,12 +286,20 @@ public final class Interpreter {
                 } || ClosureValue.Parameter.isBuilderAttributedType(param.type)
             )
         }
+        let initEnv = selfEnvironment(.instance(instance))
         let closure = ClosureValue(
             parameters: parameters,
             body: body.statements,
-            captured: selfEnvironment(.instance(instance))
+            captured: initEnv
         )
-        _ = try callWithArguments(closure, args: args, node: node)
+        let outcome = try callWithArguments(closure, args: args, node: node)
+        if chosen.optionalMark != nil, outcome.isNil {
+            return .nilValue // failable init: `return nil` means NO value
+        }
+        if case .instance(let final)? = initEnv.lookup("self"), final !== instance {
+            return .instance(final) // `self = other` reassigned the value
+        }
+        return .instance(instance)
     }
 
     func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
@@ -395,7 +406,11 @@ public final class Interpreter {
 
     private func synthesizedArguments(for symbol: StructSymbol, seen: inout Set<String>) throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
-        if let initializer = symbol.initializers.first {
+        // Prefer a NON-failable init: synthesized fresh arguments rarely
+        // satisfy `init?` guards (hex parsing etc.), and nil poisons roots.
+        let preferred = symbol.initializers.first { $0.optionalMark == nil }
+            ?? symbol.initializers.first
+        if let initializer = preferred {
             for param in initializer.signature.parameterClause.parameters
             where param.defaultValue == nil {
                 let label = param.firstName.text
@@ -450,10 +465,12 @@ public final class Interpreter {
             return .native(BindingStub(box: Box(value)))
         }
         switch typeName {
-        case "Int", "Int8", "Int16", "Int32", "Int64", "UInt": return .native(0)
+        case "Int", "Int8", "Int16", "Int32", "Int64", "UInt", "UInt8",
+             "UInt16", "UInt32", "UInt64": return .native(0)
         case "String", "Character": return .native("")
         case "Bool": return .native(false)
         case "Date": return .native(Date())
+        case "Data": return .native(Data())
         default: break
         }
         if Self.doubleFamilyTypeNames.contains(typeName) { return .native(0.0) }
