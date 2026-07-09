@@ -183,3 +183,68 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("Int(log2(Double(8)))").intValue == 3)
     }
 }
+
+@Suite struct RootSelectionTests {
+    @Test func appBodyRootBeatsFirstStruct() throws {
+        let source = """
+        struct DecoyBanner: View {
+            var body: some View { Text("decoy") }
+        }
+
+        struct RealRoot: View {
+            var body: some View { Text("real") }
+        }
+
+        @main
+        struct DemoApp: App {
+            var body: some Scene {
+                WindowGroup {
+                    RealRoot()
+                }
+            }
+        }
+        """
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: source)
+        #expect(interpreter.rootViewSymbol()?.name == "RealRoot")
+    }
+
+    @Test func hostingControllerRootBeatsFirstStruct() throws {
+        let source = """
+        struct BottomBar: View {
+            var body: some View { Text("bar") }
+        }
+
+        struct Wrapper: View {
+            var body: some View { Text("wrapped") }
+        }
+
+        class SceneDelegate {
+            func scene() {
+                let controller = UIHostingController(rootView:
+                    Wrapper()
+                )
+                _ = controller
+            }
+        }
+        """
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: source)
+        #expect(interpreter.rootViewSymbol()?.name == "Wrapper")
+    }
+
+    @Test func contentViewFallbackUnchanged() throws {
+        let source = """
+        struct Sidebar: View {
+            var body: some View { Text("side") }
+        }
+
+        struct ContentView: View {
+            var body: some View { Text("content") }
+        }
+        """
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: source)
+        #expect(interpreter.rootViewSymbol()?.name == "ContentView")
+    }
+}
