@@ -884,6 +884,28 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// ForEach over an unknowable host collection (GraphQL fragment
+    /// chains) renders ZERO rows — the fresh-store reading, matching the
+    /// for-in doctrine; sibling views still render.
+    @Test func forEachOverUnknowableChains() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let character = GraphQLStore.current.character
+                VStack {
+                    Text("Episodes")
+                    ForEach(character.fragments.characterFull.episode.compactMap { $0 }, id: \\.self) { episode in
+                        Text(episode.name ?? "")
+                    }
+                    Text("footer")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

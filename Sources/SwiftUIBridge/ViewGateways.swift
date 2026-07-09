@@ -368,6 +368,13 @@ extension ViewRegistry {
             || call.arguments.labeled("sortDescriptors") != nil {
             return [] // Query-shaped marker: fresh store
         }
+        // Unknowable host collections (GraphQL fragment chains, unresolved
+        // statics) iterate EMPTY — the fresh-store reading, same as for-in.
+        if case .native(let any) = data,
+           any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+            return []
+        }
+        if case .implicitMember = data { return [] }
         if let range = data.rangeValue {
             return range.map { .native($0) }
         }

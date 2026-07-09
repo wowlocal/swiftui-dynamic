@@ -388,6 +388,13 @@ public final class TraceRegistry: HostRegistry {
             || call.arguments.labeled("sortDescriptors") != nil {
             return []
         }
+        // Unknowable host collections (GraphQL fragment chains, unresolved
+        // statics) iterate EMPTY — the fresh-store reading, same as for-in.
+        if case .native(let any) = data,
+           any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+            return []
+        }
+        if case .implicitMember = data { return [] }
         if case .native(let any) = data, let range = any as? Range<Int> {
             return range.map { .native($0) }
         }

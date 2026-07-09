@@ -871,3 +871,10 @@ Each iteration does exactly this:
   had called `{ $0… }` shorthand closures with zero args ($0 unbound).
   oss:OnlineStoreTCA passes (19 nodes, 1 action). **593/594 (99.8%);
   queue: oss:MortyUI.**
+- 2026-07-09 iter 110: ForEach over unknowables — both registries' ForEach
+  elements extraction reads unknowable host collections (GraphQL fragment
+  chains, InertCallable/chain/bare-marker kinds) as EMPTY, matching the
+  for-in doctrine (iter 97); regression test drives the chain directly
+  (first draft hid it behind a nil optional — caught in review).
+  oss:MortyUI passes (37 nodes). **594/594 counted — ZERO failures.
+  Ladder saturated again; step 9 governs next.**
