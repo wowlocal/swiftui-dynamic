@@ -1902,6 +1902,33 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// AppKit-shell top-level programs: NSApp.delegate writes accepted,
+    /// NSApp.run() no-ops (the render pipeline is the run loop), and
+    /// `_ = expr` discard assignments evaluate for effect.
+    @Test func appKitShellTopLevel() throws {
+        let source = """
+        class AppDelegate: NSObject {
+            var launched = false
+        }
+
+        let delegate = AppDelegate()
+        let _ = NSApplication.shared
+
+        struct ContentView: View {
+            var body: some View {
+                let _ = {
+                    NSApplication.shared.delegate = delegate
+                    NSApplication.shared.run()
+                    _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
+                }()
+                Text(delegate.launched ? "launched" : "shell ready")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

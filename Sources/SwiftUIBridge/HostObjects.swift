@@ -800,6 +800,9 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
             return false
         }
     }
+    if value is AppStub || value is WindowStub || value is WindowSceneStub || value is ScreenStub {
+        return true // app/window shell config (delegate, activationPolicy…) — accepted
+    }
     if value is GraphicsContextStub || value is PathDrawStub {
         return true // `context.opacity = 0.5` — draw state accepted, no surface
     }

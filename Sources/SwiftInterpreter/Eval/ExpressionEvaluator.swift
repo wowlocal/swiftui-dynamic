@@ -571,6 +571,21 @@ extension Interpreter {
         }
         switch baseValue {
         case .nilValue:
+            // Ecosystem Optional truths (swift-extras): nil knows it's nil.
+            if name == "isNil" { return .native(true) }
+            if name == "isSome" || name == "isNotNil" { return .native(false) }
+            // User extensions on Optional (`var isNil: Bool { self == nil }`)
+            // dispatch with self = nil before nil-propagation.
+            if let optionalExtension = hostExtensionSymbols["Optional"] {
+                if let computed = optionalExtension.computedProperties[name] {
+                    return try evaluateComputed(computed, selfValue: .nilValue, name: name)
+                }
+                if let overloads = optionalExtension.methods[name], let method = overloads.first,
+                   let body = method.body {
+                    return .closure(makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.nilValue)))
+                }
+            }
             // Optional chaining: member access on nil is nil.
             return .nilValue
 
@@ -1474,6 +1489,10 @@ extension Interpreter {
     func evaluateInfix(_ infix: InfixOperatorExprSyntax, in env: Environment) throws -> RuntimeValue {
         if infix.operator.is(AssignmentExprSyntax.self) {
             let value = try evaluate(infix.rightOperand, in: env)
+            if infix.leftOperand.is(DiscardAssignmentExprSyntax.self) {
+                _ = value // `_ = expr` — evaluate for effect, discard
+                return .void
+            }
             let target = try resolveLValue(infix.leftOperand, in: env)
             try relocating(infix) { try target.write(value, self) }
             return .void

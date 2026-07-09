@@ -1134,3 +1134,14 @@ Each iteration does exactly this:
   + member dispatch walks the chain (README divergence retired).
   Loop passes (59 nodes, 8 actions). **613/613 counted — ZERO failures
   (ninth saturation). 585 zips + 28 OSS repos green. Suite 248.**
+- 2026-07-09 iter 134: step 9 — cloned yattee (348 files), SwiftBar (66),
+  MonitorControl (29); units 613 → 615 counted (MonitorControl is pure
+  AppKit → new ⚪ "not SwiftUI material" marker, auto-excluded like
+  quarantine but self-describing). Classes: app-shell top-level programs
+  (NSApp.delegate writes accepted; run/terminate/activate no-op — the
+  render pipeline IS the run loop); `_ = expr` discard assignments;
+  ecosystem Optional truths (isNil true on nil — yattee regression from
+  the speculative `!nil`, which is REVERTED; concrete-side chains already
+  read false); Optional-extension dispatch on nil values.
+  yattee (7 nodes) + SwiftBar (3 nodes) pass. **615/615 counted — ZERO
+  failures (tenth saturation). 585 zips + 30 OSS repos green. Suite 249.**

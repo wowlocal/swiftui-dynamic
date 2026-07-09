@@ -272,6 +272,9 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if value is AppStub {
         switch name {
+        case "run", "terminate", "activate", "deactivate", "stop", "finishLaunching":
+            // The render pipeline IS the run loop — lifecycle calls no-op.
+            return .hostFunction(HostFunction(name: name) { _, _ in .void })
         case "alternateIconName": return .nilValue // fresh install: primary icon
         case "setAlternateIconName":
             return .hostFunction(HostFunction(name: name) { _, _ in .void })

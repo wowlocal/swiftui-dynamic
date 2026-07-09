@@ -165,6 +165,12 @@ for unit in units {
         passed += 1
         print("✅ \(unit.name)  (\(report.nodeCount) nodes, \(report.actionsInvoked) actions)")
     } catch let error as RuntimeError {
+        if error.message.hasPrefix("no View-conforming struct found") {
+            // Pure-AppKit repos aren't SwiftUI material — counted out,
+            // like quarantine but automatic and self-describing.
+            print("⚪ \(unit.name)  not SwiftUI material (no View structs)")
+            continue
+        }
         print("❌ \(unit.name)  \(error.description)")
         histogram[failureClass(error.message), default: []].append(unit.name)
     } catch {

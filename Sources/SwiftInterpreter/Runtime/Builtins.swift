@@ -123,7 +123,6 @@ enum Builtins {
             }
             if case .hostFunction = value { return .native(true) }
             if case .implicitMember = value { return .native(true) }
-            if value.isNil { return .native(true) }
             throw EvalMessage(text: "'!' requires a Bool operand, got \(value.stringified)")
         default:
             throw EvalMessage(text: "unsupported prefix operator '\(op)'")
