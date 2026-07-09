@@ -1255,3 +1255,13 @@ Each iteration does exactly this:
   advances to `'$store' requires an @State or @Binding property`
   (@Perception.Bindable — dotted wrapper attribute) — next class.
   **624/630 counted (description class eliminated). Suite 260 → 261.**
+- 2026-07-09 iter 145: swift-composable-architecture — `'$store'
+  requires an @State or @Binding property`: `@Perception.Bindable var
+  store`. Two gaps: @Bindable wasn't a wrapper kind at all (now
+  @ObservedObject-shaped — `$model.field` projects into the model's box;
+  README notes it), and hasAttribute only matched bare spellings —
+  MODULE-QUALIFIED attributes (`@Perception.Bindable` ≡ `@Bindable`,
+  `@SwiftUI.State` ≡ `@State`) now match by last component. SCA advances
+  to `expected a view, got ImplicitMemberCall(buildEither)` — result-
+  builder statics, next class. **624/630 counted ($store class
+  eliminated). Suite 261 → 262.**

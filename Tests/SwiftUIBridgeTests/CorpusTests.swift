@@ -2909,6 +2909,35 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// swift-composable-architecture (iteration 145): `@Perception.Bindable
+    /// var store` — @Bindable (module-qualified or bare) wraps an observable
+    /// reference type; `$store.field` projects a binding into the model's
+    /// own box, and writes through it notify.
+    @Test func bindableProjectsModelBindings() throws {
+        let source = """
+        @Observable
+        class CounterModel {
+            var count = 0
+            var name = "counter"
+        }
+
+        struct ContentView: View {
+            @Perception.Bindable var model = CounterModel()
+
+            var body: some View {
+                VStack {
+                    Text("\\(model.count)")
+                    TextField("Name", text: $model.name)
+                    Button("Bump") { model.count += 1 }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+        #expect(report.actionsInvoked >= 1)
+    }
+
     /// swift-composable-architecture (iteration 144): `store.count
     /// .description` — CustomStringConvertible is universal; every stdlib
     /// value prints (Int, Double, Bool). String's own member still wins.

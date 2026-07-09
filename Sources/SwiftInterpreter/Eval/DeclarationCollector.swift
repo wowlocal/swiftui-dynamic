@@ -657,6 +657,10 @@ extension Interpreter {
         if hasAttribute(attributes, named: "Published") { return (.published, nil) }
         if hasAttribute(attributes, named: "StateObject") { return (.stateObject, nil) }
         if hasAttribute(attributes, named: "ObservedObject") { return (.observedObject, nil) }
+        // @Bindable wraps an observable reference type; `$store.field`
+        // projects bindings into the model — @ObservedObject-shaped in our
+        // box-level notification model.
+        if hasAttribute(attributes, named: "Bindable") { return (.observedObject, nil) }
         if hasAttribute(attributes, named: "EnvironmentObject") { return (.environmentObject, nil) }
         // DI-container wrappers (FactoryKit's @InjectedObservable/@Injected):
         // a container provides shared instances — environment-object shaped,
@@ -698,7 +702,14 @@ extension Interpreter {
     }
 
     private func hasAttribute(_ attributes: AttributeListSyntax, named name: String) -> Bool {
-        attributes.contains { $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == name }
+        attributes.contains {
+            guard let text = $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription else {
+                return false
+            }
+            // Module-qualified spellings resolve to the same wrapper:
+            // @Perception.Bindable ≡ @Bindable, @SwiftUI.State ≡ @State.
+            return text == name || text.hasSuffix("." + name)
+        }
     }
 
     private func isStatic(_ modifiers: DeclModifierListSyntax) -> Bool {

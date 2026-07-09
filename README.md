@@ -194,7 +194,9 @@ coverage.
 - **State-like wrappers flatten to @State.** `@AppStorage`, `@SceneStorage`,
   `@GestureState`, and `@FocusState` bind and project like `@State` but skip
   their special semantics (no UserDefaults persistence, no gesture reset, no
-  focus plumbing).
+  focus plumbing). `@Bindable` (bare or module-qualified, e.g.
+  `@Perception.Bindable`) rides `@ObservedObject` semantics: `$model.field`
+  projects a binding into the model's box.
 - **Store-query wrappers act on a fresh empty store.** `@Query` (SwiftData),
   `@ObservedResults` (Realm), and `@FetchRequest` (CoreData) flatten to
   `@State` defaulting to `[]`; `@Environment(\.modelContext)` and
