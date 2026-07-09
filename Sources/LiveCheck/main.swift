@@ -120,7 +120,7 @@ let scenarios: [Scenario] = [
         if found.count >= 3 {
             return []
         }
-        return ["only \(found.count)/10 fixture titles reached the tree (\(strings.count) strings total)"]
+        return ["only \(found.count)/10 fixture titles reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"]
     },
     Scenario(name: "icecubes-timeline-ui", fixturesDirectory: fixtures + "/mastodon-public-timeline") {
         guard let json = fixtureJSON(fixtures + "/mastodon-public-timeline/api_v1_timelines_public.json") as? [[String: Any]] else {
@@ -134,7 +134,7 @@ let scenarios: [Scenario] = [
         if found.count >= 3 {
             return []
         }
-        return ["only \(found.count)/10 fixture authors reached the tree (\(strings.count) strings total)"]
+        return ["only \(found.count)/10 fixture authors reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"]
     },
 ]
 

@@ -13,6 +13,8 @@ public final class TraceNode: InertCallable {
     public var bindings: [String: BindingStub] = [:]
     public var environmentModels: [String: Instance] = [:]
     public var instance: Instance?
+    /// `.task`/`.onAppear` closures, retained for LiveCheck's probe to fire.
+    public var lifecycle: [ClosureValue] = []
     /// Opaque host objects (`UIPanGestureRecognizer()`, …) are recorded as
     /// nodes but behave like the mutable objects they stand for: property
     /// writes land here and read back (`gesture.name = id … gesture.name`).
@@ -309,6 +311,15 @@ public final class TraceRegistry: HostRegistry {
                let first = args.positional(0),
                case .instance(let model) = first {
                 node.environmentModels[model.symbol.name] = model
+            }
+            // Lifecycle closures are RETAINED (not run): LiveCheck's probe
+            // fires them and re-renders, so `.task`-fetched data reaches the
+            // tree. ProjectCheck/HeadlessVerifier never invoke them —
+            // M0 behavior is unchanged.
+            if name == "task" || name == "onAppear",
+               let closure = args.arguments.compactMap({ $0.value.closureValue }).first,
+               closure.parameters.isEmpty {
+                node.lifecycle.append(closure)
             }
             if Self.builderModifiers.contains(name) {
                 for argument in args.arguments {

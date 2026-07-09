@@ -110,3 +110,73 @@ import SwiftInterpreter
         #expect(tuple.values[4].boolValue == true)
     }
 }
+
+/// The M2 async-fetch pass: LiveCheck's probe fires retained `.task`/
+/// `.onAppear` closures and re-renders, so fetched data reaches the tree.
+@Suite struct AsyncFetchProbeTests {
+    @Test func taskFetchedDataReachesTheTree() throws {
+        NetworkBridge.policy = .replay(
+            fixturesDirectory: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("Fixtures/tmdb-popular").path)
+        defer { NetworkBridge.policy = .absorbed }
+        let source = """
+        struct Movie: Codable {
+            let id: Int
+            let title: String
+        }
+
+        struct MovieResponse: Codable {
+            let results: [Movie]
+        }
+
+        final class Library: ObservableObject {
+            @Published var titles: [String] = []
+
+            func load() {
+                let url = URL(string: "https://api.themoviedb.org/3/movie/popular?api_key=x")!
+                let (data, _) = try! URLSession.shared.data(from: url)
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                let response = try! decoder.decode(MovieResponse.self, from: data)
+                titles = response.results.map { $0.title }
+            }
+        }
+
+        struct ContentView: View {
+            @StateObject var library = Library()
+
+            var body: some View {
+                List {
+                    ForEach(library.titles, id: \\.self) { title in
+                        Text(title)
+                    }
+                }
+                .task {
+                    library.load()
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.count >= 10, "fetched titles should reach the tree, got \(strings.count) strings")
+    }
+
+    @Test func onAppearStateChangeReachesTheTree() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var label = "before"
+
+            var body: some View {
+                Text(label)
+                    .onAppear {
+                        label = "after"
+                    }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("after"))
+        #expect(!strings.contains("before") || strings.contains("after"))
+    }
+}
