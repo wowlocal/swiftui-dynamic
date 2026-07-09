@@ -2909,6 +2909,36 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Harbour (iteration 153): two classes — an unknown member on a
+    /// NATIVE in compiled mode is an UNMERGED-package extension
+    /// (`query.isReallyEmpty` from a utility dependency) and absorbs like
+    /// the interpreted-instance rule; and LOCAL computed vars evaluate
+    /// their getter once at declaration, in the current scope.
+    @Test func nativeMemberAbsorbAndLocalComputedVars() throws {
+        let source = """
+        struct StacksView: View {
+            var query = "portainer"
+
+            var body: some View {
+                var placement: String {
+                    #if os(iOS)
+                    "navigation"
+                    #else
+                    "primaryAction"
+                    #endif
+                }
+                let filtered = query.isReallyEmpty ? "all" : query
+                return VStack {
+                    Text(placement)
+                    Text(filtered)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// reminders-menubar (iteration 152): five classes — VARIADIC
     /// parameters (`arguments: CVarArg...` binds present-or-empty);
     /// force-unwrap LVALUES (`components.hour! += 1`); a nil STORED

@@ -994,6 +994,15 @@ extension Interpreter {
                         base: baseValue, member: name, arguments: args))
                 })
             }
+            if assumesCompiledImports {
+                // Compiled sources: an unknown member on a NATIVE that
+                // survived every dispatch (host members, extensions, stdlib)
+                // is an UNMERGED-package extension (`query.isReallyEmpty`
+                // from a utility dependency) — absorbs, exactly like the
+                // interpreted-instance rule.
+                return .native(ChainedImplicitCall(
+                    base: baseValue, member: name, arguments: CallArguments()))
+            }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")
 
         default:

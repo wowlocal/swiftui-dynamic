@@ -99,8 +99,22 @@ extension Interpreter {
                 guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
                     throw error(binding, "unsupported binding pattern")
                 }
-                guard binding.accessorBlock == nil else {
-                    throw error(binding, "computed properties are only supported inside types")
+                if let accessorBlock = binding.accessorBlock {
+                    // LOCAL computed vars (`var placement: ToolbarItemPlacement
+                    // { #if os(iOS) .navigation … }`): the getter evaluates
+                    // once at declaration, in the CURRENT scope (locals are
+                    // in reach; there's no self mutation to track).
+                    guard let accessors = parseAccessors(of: accessorBlock) else {
+                        throw error(binding, "unsupported accessor block on local binding")
+                    }
+                    let result = try executeBlock(accessors.getter, in: Environment(parent: env))
+                    switch result {
+                    case .normal(let value), .returnValue(let value):
+                        env.define(ident.identifier.text, try resolveAnnotated(value, annotation: binding.typeAnnotation?.type))
+                    default:
+                        throw error(binding, "control flow escaped local computed var")
+                    }
+                    continue
                 }
                 guard let initializer = binding.initializer?.value else {
                     // Local DI-wrapper declarations (`@Dependency(\.workspacePool)

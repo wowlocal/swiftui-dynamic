@@ -1361,3 +1361,15 @@ Each iteration does exactly this:
   honestly nil). reminders-menubar ✅ (109 nodes, 16 actions).
   **632/636 counted — ZERO failures (EIGHTEENTH saturation). 585 zips
   + 48 OSS repos green. Suite 269 → 270.**
+- 2026-07-09 iter 153: step 9 — Meshtastic-Apple (458 files), nos (308),
+  Harbour (211) cloned. Harbour's chain fixed: unknown members on
+  NATIVES in compiled mode are UNMERGED-package extensions
+  (`query.isReallyEmpty` from a utility dependency) and absorb like the
+  interpreted-instance rule (placed LAST, after description/map — the
+  first placement shadowed real members); LOCAL computed vars
+  (`var placement: ToolbarItemPlacement { #if os(iOS) … }`) evaluate
+  their getter once at declaration in the current scope. Harbour ✅
+  (172 nodes, 9 actions). Meshtastic (protobuf `Link` shadowing
+  SwiftUI's) and nos (member on `()`) are the next classes. **633/639
+  counted — strictly improved (632 → 633). 585 zips + 51 OSS repos.
+  Suite 270 → 271.**

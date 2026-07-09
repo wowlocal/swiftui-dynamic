@@ -609,7 +609,7 @@ extension Interpreter {
     // MARK: - Helpers
 
     /// nil ⇒ no getter (willSet/didSet observers only): treat as stored.
-    private func parseAccessors(
+    func parseAccessors(
         of accessorBlock: AccessorBlockSyntax
     ) -> (getter: CodeBlockItemListSyntax, setter: ComputedProperty.Setter?)? {
         switch accessorBlock.accessors {
