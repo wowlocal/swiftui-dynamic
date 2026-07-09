@@ -227,6 +227,33 @@ extension ViewRegistry {
             guard let closure = args.unlabeledClosures.first else { return view }
             return AnyView(view.onTapGesture { _ = try? ctx.callClosure(closure, arguments: []) })
         }
+        // Metal flattening with an explicit color mode (2048's board).
+        register("drawingGroup") { view, args, _ in
+            let opaque = args.labeled("opaque")?.boolValue ?? false
+            let colorMode: ColorRenderingMode = switch args.labeled("colorMode") {
+            case .implicitMember("linear"): .linear
+            case .implicitMember("extendedLinear"): .extendedLinear
+            default: .nonLinear
+            }
+            return AnyView(view.drawingGroup(opaque: opaque, colorMode: colorMode))
+        }
+        // Deprecated alias of ignoresSafeArea(edges:) — pervasive in
+        // pre-iOS-14 corpus projects (Filled, damus).
+        register("edgesIgnoringSafeArea") { view, args, _ in
+            let edges = try args.positional(0).map(Coerce.edgeSet) ?? .all
+            return AnyView(view.ignoresSafeArea(.all, edges: edges))
+        }
+        // `.gesture(drag, including: .all)` — the `including:` mask is
+        // accepted and ignored; unknown gesture kinds attach nothing.
+        for gestureModifier in ["gesture", "simultaneousGesture", "highPriorityGesture"] {
+            register(gestureModifier) { view, args, ctx in
+                guard case .native(let any)? = args.positional(0),
+                      let gesture = any as? GestureBox else {
+                    return view
+                }
+                return gesture.attach(to: view, ctx: ctx)
+            }
+        }
         register("task") { view, args, ctx in
             guard let closure = args.unlabeledClosures.first else { return view }
             return AnyView(view.task { _ = try? ctx.callClosure(closure, arguments: []) })

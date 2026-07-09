@@ -224,6 +224,40 @@ extension ViewRegistry {
             return .native(AnyView(NavigationLink(title, destination: destination)))
         }
 
+        // Component colors — the custom-palette idiom (2048's tiles, most
+        // Kavsoft backgrounds). A real Color, so it works in view position,
+        // .fill/.background, and .opacity chains alike.
+        constructors["Color"] = HostFunction(name: "Color") { args, _ in
+            let component: (String) -> Double? = { args.labeled($0)?.doubleValue }
+            let opacity = component("opacity") ?? 1.0
+            if let red = component("red"), let green = component("green"), let blue = component("blue") {
+                return .native(Color(red: red, green: green, blue: blue, opacity: opacity))
+            }
+            if let white = component("white") {
+                return .native(Color(white: white, opacity: opacity))
+            }
+            if let hue = component("hue"), let saturation = component("saturation"),
+               let brightness = component("brightness") {
+                return .native(Color(hue: hue, saturation: saturation, brightness: brightness, opacity: opacity))
+            }
+            // `Color("AssetName")` — real SwiftUI semantics: missing catalog
+            // entries resolve to clear (with a console warning), present ones
+            // would need the app bundle we don't have.
+            if let name = args.positional(0)?.stringValue {
+                return .native(Color(name))
+            }
+            throw RuntimeError(message: "no matching initializer for Color(…) — argument types or labels don't fit")
+        }
+
+        // Gestures: interpreted chains applied for real by `.gesture`.
+        constructors["DragGesture"] = HostFunction(name: "DragGesture") { args, _ in
+            .native(GestureBox(kind: .drag(
+                minimumDistance: args.labeled("minimumDistance")?.doubleValue ?? 10)))
+        }
+        constructors["TapGesture"] = HostFunction(name: "TapGesture") { _, _ in
+            .native(GestureBox(kind: .tap))
+        }
+
         // MARK: Controls
 
         constructors["Button"] = HostFunction(name: "Button") { args, ctx in
@@ -354,6 +388,30 @@ extension ViewRegistry {
             }
             let animation = try args.positional(0).map(Coerce.animation) ?? .default
             return try withAnimation(animation) {
+                try ctx.callClosure(closure, arguments: [])
+            }
+        }
+
+        // `withTransaction(Transaction(animation: .spring())) { … }` — how
+        // 2048 wraps every move.
+        constructors["Transaction"] = HostFunction(name: "Transaction") { args, _ in
+            var transaction = Transaction()
+            if let animation = args.labeled("animation") {
+                transaction.animation = try Coerce.animation(animation)
+            }
+            if let disables = args.labeled("disablesAnimations")?.boolValue {
+                transaction.disablesAnimations = disables
+            }
+            return .native(transaction)
+        }
+        constructors["withTransaction"] = HostFunction(name: "withTransaction") { args, ctx in
+            guard let closure = args.unlabeledClosures.first else {
+                throw RuntimeError(message: "withTransaction needs a closure")
+            }
+            guard case .native(let any)? = args.positional(0), let transaction = any as? Transaction else {
+                return try ctx.callClosure(closure, arguments: [])
+            }
+            return try withTransaction(transaction) {
                 try ctx.callClosure(closure, arguments: [])
             }
         }

@@ -179,12 +179,37 @@ enum Coerce {
             default: throw RuntimeError(message: "unknown font '.\(name)'")
             }
         }
+        if case .native(let any) = value, let font = any as? Font {
+            return font
+        }
         if case .native(let any) = value, let call = any as? ImplicitMemberCall, call.name == "system" {
             let size = try cgFloat(call.arguments.labeled("size") ?? .native(13))
-            if let weight = call.arguments.labeled("weight") {
-                return .system(size: size, weight: try fontWeight(weight))
+            let design: Font.Design = switch call.arguments.labeled("design") {
+            case .implicitMember("serif"): .serif
+            case .implicitMember("rounded"): .rounded
+            case .implicitMember("monospaced"): .monospaced
+            default: .default
             }
-            return .system(size: size)
+            if let weight = call.arguments.labeled("weight") {
+                return .system(size: size, weight: try fontWeight(weight), design: design)
+            }
+            return .system(size: size, design: design)
+        }
+        // Font-returning chains — `.largeTitle.bold()`, `Font.system(size:
+        // 48).weight(.black)` — apply members to the recursively-coerced base.
+        if case .native(let any) = value, let chained = any as? ChainedImplicitCall {
+            let base = try font(chained.base)
+            switch chained.member {
+            case "bold": return base.bold()
+            case "italic": return base.italic()
+            case "monospaced": return base.monospaced()
+            case "monospacedDigit": return base.monospacedDigit()
+            case "smallCaps": return base.smallCaps()
+            case "weight":
+                return base.weight(try fontWeight(chained.arguments.positional(0) ?? .implicitMember("regular")))
+            default:
+                throw RuntimeError(message: "unsupported font member '.\(chained.member)'")
+            }
         }
         throw RuntimeError(message: "expected a font like .title, got \(value.stringified)")
     }
@@ -359,9 +384,26 @@ enum Coerce {
             case "easeOut": return .easeOut(duration: duration ?? 0.35)
             case "easeInOut": return .easeInOut(duration: duration ?? 0.35)
             case "linear": return .linear(duration: duration ?? 0.35)
-            case "spring": return duration.map { .spring(duration: $0) } ?? .spring()
+            case "spring", "interactiveSpring", "interpolatingSpring":
+                // The response/dampingFraction family; interactiveSpring is
+                // a lower-response spring, close enough via the same params.
+                if let response = call.arguments.labeled("response")?.doubleValue {
+                    let damping = call.arguments.labeled("dampingFraction")?.doubleValue ?? 0.825
+                    let blend = call.arguments.labeled("blendDuration")?.doubleValue ?? 0
+                    return .spring(response: response, dampingFraction: damping, blendDuration: blend)
+                }
+                if let damping = call.arguments.labeled("dampingFraction")?.doubleValue {
+                    return .spring(response: call.name == "interactiveSpring" ? 0.15 : 0.5, dampingFraction: damping)
+                }
+                return duration.map { .spring(duration: $0) }
+                    ?? (call.name == "interactiveSpring" ? .interactiveSpring() : .spring())
             case "bouncy": return .bouncy
             case "smooth": return .smooth
+            case "snappy":
+                if let extraBounce = call.arguments.labeled("extraBounce")?.doubleValue {
+                    return .snappy(duration: duration ?? 0.5, extraBounce: extraBounce)
+                }
+                return .snappy(duration: duration ?? 0.5)
             default: throw RuntimeError(message: "unknown animation '.\(call.name)'")
             }
         }

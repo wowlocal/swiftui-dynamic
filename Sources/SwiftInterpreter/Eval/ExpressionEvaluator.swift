@@ -167,7 +167,14 @@ extension Interpreter {
             return .native(SuperReference(instance: instance))
         }
         if let inout_ = expr.as(InOutExprSyntax.self) {
-            // `&cancellables` — reference semantics make inout moot here.
+            // `&value` — capture the lvalue so user `inout` parameters can
+            // write back; non-closure consumers unwrap to the current value.
+            if let target = try? resolveLValue(inout_.expression, in: env) {
+                if case .box(let box) = target {
+                    return .native(InoutSlot(box: box, target: nil, current: box.value))
+                }
+                return .native(InoutSlot(box: nil, target: target, current: try target.read(self)))
+            }
             return try evaluate(inout_.expression, in: env)
         }
         if let macro = expr.as(MacroExpansionExprSyntax.self) {
@@ -1462,6 +1469,13 @@ extension Interpreter {
     }
 
     func invoke(_ callee: RuntimeValue, with args: CallArguments, node: some SyntaxProtocol) throws -> RuntimeValue {
+        var args = args
+        switch callee {
+        case .closure, .type:
+            break // user code: `inout` slots flow through to bindParameters
+        default:
+            args = args.unwrappingInoutSlots()
+        }
         switch callee {
         case .nilValue:
             return .nilValue // optional chaining through a nil method
@@ -1588,9 +1602,20 @@ extension Interpreter {
             throw RuntimeError(message: "call depth exceeded (possible infinite recursion)", fatal: true)
         }
         let env = Environment(parent: closure.captured)
-        try bindParameters(of: closure, to: args, into: env, node: node)
+        let writeBacks = try bindParameters(of: closure, to: args, into: env, node: node)
+        // Copy-out for `inout` parameters whose argument wasn't a plain
+        // variable (member/subscript lvalues) — applied on normal exit,
+        // mirroring Swift's copy-in/copy-out.
+        func applyInoutWriteBacks() throws {
+            for entry in writeBacks {
+                if let target = entry.slot.target, let box = env.box(for: entry.name) {
+                    try target.write(box.value, self)
+                }
+            }
+        }
         if closure.isBuilder {
             let items = try collectBuilderViews(closure.body, in: env)
+            try applyInoutWriteBacks()
             // `[X]`-returning builders (custom @resultBuilders' buildBlock)
             // collect into an ARRAY; view-typed ones group as views.
             if closure.returnType?.trimmedDescription.hasPrefix("[") == true {
@@ -1599,6 +1624,7 @@ extension Interpreter {
             return try groupViews(items)
         }
         let result = try executeBlock(closure.body, in: env)
+        try applyInoutWriteBacks()
         switch result {
         case .normal(let value), .returnValue(let value):
             return try resolveAnnotated(value, annotation: closure.returnType)
@@ -1612,12 +1638,28 @@ extension Interpreter {
     /// defaults, positional arguments fill unlabeled parameters in order, and
     /// the unlabeled trailing closure binds to the LAST unbound parameter.
     /// No-parameter closures get `$0`, `$1`, … shorthand bindings.
-    func bindParameters(of closure: ClosureValue, to args: CallArguments, into env: Environment, node: Syntax?) throws {
+    /// Returns the copy-out list for `inout` arguments that need a write-back
+    /// on return (box-backed ones alias live and need none).
+    @discardableResult
+    func bindParameters(
+        of closure: ClosureValue, to args: CallArguments, into env: Environment, node: Syntax?
+    ) throws -> [(name: String, slot: InoutSlot)] {
         if closure.parameters.isEmpty {
-            for (index, argument) in args.arguments.enumerated() {
-                env.define("$\(index)", argument.value)
+            let values = args.arguments.map { $0.value.unwrappingInoutSlot }
+            // A single tuple argument splats across $0/$1/… when the body
+            // references $1 (enumerated().forEach { … $0 … $1 … }); a
+            // $0-only body keeps the whole tuple in $0.
+            if values.count == 1, let tuple = values[0].tupleValue, tuple.values.count > 1,
+               ShorthandTupleScanner.splats(closure.body) {
+                for (index, element) in tuple.values.enumerated() {
+                    env.define("$\(index)", element)
+                }
+                return []
             }
-            return
+            for (index, value) in values.enumerated() {
+                env.define("$\(index)", value)
+            }
+            return []
         }
 
         // `{ index, char in … }` over enumerated() — one tuple argument
@@ -1628,7 +1670,7 @@ extension Interpreter {
             for (parameter, value) in zip(closure.parameters, tuple.values) {
                 env.define(parameter.name, try resolveAnnotated(value, annotation: parameter.typeAnnotation))
             }
-            return
+            return []
         }
 
         var labeled: [String: RuntimeValue] = [:]
@@ -1682,8 +1724,21 @@ extension Interpreter {
             }
         }
 
+        var writeBacks: [(name: String, slot: InoutSlot)] = []
         for (index, parameter) in closure.parameters.enumerated() {
             if let value = bound[index] {
+                // `inout` argument: alias the caller's box when the argument
+                // was a plain variable; otherwise copy in and register the
+                // lvalue for copy-out on return.
+                if let slot = value.inoutSlot {
+                    if let box = slot.box {
+                        env.define(parameter.name, sharing: box)
+                    } else {
+                        env.define(parameter.name, slot.current)
+                        writeBacks.append((parameter.name, slot))
+                    }
+                    continue
+                }
                 var resolved = try resolveAnnotated(value, annotation: parameter.typeAnnotation)
                 // The result-builder transform: a closure bound to a
                 // @…Builder parameter collects its block's items when
@@ -1714,6 +1769,7 @@ extension Interpreter {
                 throw RuntimeError(message: "missing argument for parameter '\(parameter.name)'")
             }
         }
+        return writeBacks
     }
 
     // MARK: - Operators & assignment
