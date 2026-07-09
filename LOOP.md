@@ -429,3 +429,10 @@ Each iteration does exactly this:
   Custom_Header pass (+ripple); ImageColorPicker ×2 remain (marker-typed
   extension dispatch on Color values — deferred), FaceID_Login is
   LocalAuthentication. **301/400 → 306/400**.
+- 2026-07-09 iter 53: parameterized closures on unknown constructors are
+  callbacks, not builders — recorded as configuration and never invoked
+  (`SignInWithAppleButton { request in }`, `UIAction(…) { _ in }`); the
+  generic recorder previously called them argument-less. Apple_Signin,
+  AppleSignIn, CustomContentMenu pass (+ripple). The "missing argument"
+  class is now purely the Layout-protocol wall (Chips_UI, LoopingCards).
+  **306/400 → 311/400**.

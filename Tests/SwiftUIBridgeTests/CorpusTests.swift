@@ -41,6 +41,30 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Parameterized closures on unknown constructors are callbacks we
+    /// can't honestly drive (SignInWithAppleButton's onRequest, UIAction
+    /// handlers) — recorded as configuration, never invoked.
+    @Test func callbackClosuresOnUnknownConstructorsAreNotInvoked() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var status = "idle"
+
+            var body: some View {
+                VStack {
+                    SignInWithAppleButton { request in
+                        request.requestedScopes = [.fullName]
+                    } onCompletion: { result in
+                        status = "done"
+                    }
+                    Text(status)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// Uninitialized `@FocusState var x: Bool` defaults false (real SwiftUI
     /// semantics), so it works in Bool positions immediately.
     @Test func focusStateDefaultsFalse() throws {

@@ -170,7 +170,7 @@ public final class TraceRegistry: HostRegistry {
                             for element in elements {
                                 node.children += try ctx.callBuilderClosure(closure, arguments: [element]).map(Self.node)
                             }
-                        } else {
+                        } else if closure.parameters.isEmpty {
                             do {
                                 node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
                             } catch let error as RuntimeError
@@ -181,6 +181,12 @@ public final class TraceRegistry: HostRegistry {
                                 // data. Record it as configuration.
                                 node.args.append("closure")
                             }
+                        } else {
+                            // Parameterized closures on unknown APIs are
+                            // callbacks we can't honestly drive —
+                            // `SignInWithAppleButton { request in }`,
+                            // `UIAction(…) { _ in }`. Record, never invoke.
+                            node.args.append("closure")
                         }
                     } else {
                         if argument.label == nil { data = argument.value }
