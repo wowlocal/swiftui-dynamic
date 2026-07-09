@@ -960,3 +960,15 @@ Each iteration does exactly this:
   oss:IceCubesApp passes (197 nodes, 10 actions — the 424-file marathon
   rung, six iterations of layers). **597/597 counted — ZERO failures.
   Ladder saturated; step 9 governs next.**
+- 2026-07-09 iter 120: step 9 — cloned RedditOS (103 files, PASSED on
+  arrival), damus (641), isowords (388); units 597 → 600. Fixed the biggest
+  new class: custom-operator FOLDING — user operator/precedencegroup decls
+  join the fold table (OperatorTable.addSourceFile); operators from
+  EXTERNAL modules recover with default precedence and get ecosystem
+  semantics at eval (|> / <| pipes, >>> / <<< composition; user operator
+  FUNCTIONS retry first). Same climb: stub-member lvalue reads chain,
+  bitwise & | ^ << >>, String HOFs via char array (min/max excluded —
+  shadowed the global two-arg forms, PaymentCard regressed and was caught
+  by the measure), reduce(into:), Data(contentsOf:) marker flow,
+  unsafeBitCast passthrough. isowords: line 1 → 28146 (sqlite3 C interop —
+  next class/scope decision). **598/600 (99.7%); queue: isowords, damus.**

@@ -197,6 +197,15 @@ extension Interpreter {
             })
         case "reduce":
             return .hostFunction(HostFunction(name: name) { args, ctx in
+                // `reduce(into: [:]) { acc, el in … }` — the accumulator is
+                // reference-backed (DictValue) so mutations stick.
+                if let into = args.labeled("into") {
+                    let closure = try Self.requiredClosure(args, name)
+                    for element in array {
+                        _ = try ctx.callClosure(closure, arguments: [into, element])
+                    }
+                    return into
+                }
                 guard let initial = args.positional(0) else {
                     throw RuntimeError(message: "reduce needs an initial value")
                 }
@@ -444,6 +453,12 @@ extension Interpreter {
                 }
                 throw RuntimeError(message: "flatMap needs a closure or key path")
             })
+        case "reduce", "allSatisfy", "sorted":
+            // Collection HOFs delegate to the character array (single-char
+            // strings) — `word.reduce(0) { $0 + points[$1] }`. min/max stay
+            // out: inside String-extension bodies they'd shadow the GLOBAL
+            // two-argument forms via implicit self.
+            return try? arrayMember(name, string.map { .native(String($0)) })
         case "replacing":
             // The modern replacing(_:with:) — same semantics as
             // replacingOccurrences(of:with:).

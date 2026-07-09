@@ -52,8 +52,19 @@ public final class Interpreter {
         }
 
         var operatorErrors: [OperatorError] = []
-        let folded = OperatorTable.standardOperators.foldAll(tree) { operatorErrors.append($0) }
-        if let first = operatorErrors.first {
+        // User-declared operators and precedence groups (Point-Free's
+        // `|>` pipe) join the fold table; conflicts with the standard set
+        // are tolerated (last declaration wins inside addSourceFile).
+        var table = OperatorTable.standardOperators
+        try? table.addSourceFile(tree) { _ in }
+        let folded = table.foldAll(tree) { operatorErrors.append($0) }
+        if let first = operatorErrors.first(where: {
+            // Operators declared in EXTERNAL modules (Overture's `|>`)
+            // recover with default precedence — the evaluator gives them
+            // meaning (or absorbs). Other fold errors stay fatal.
+            if case .missingOperator = $0 { return false }
+            return true
+        }) {
             throw RuntimeError(message: "operator error: \(first)", line: 1, column: 1)
         }
         guard let foldedFile = folded.as(SourceFileSyntax.self) else {
@@ -775,6 +786,11 @@ public final class Interpreter {
                 }
                 return .void
             }
+        }
+        define("unsafeBitCast") { args, _ in
+            // Bit-identity cast: the value passes through (casts are
+            // optimistic everywhere in the interpreter).
+            args.positional(0) ?? .void
         }
         define("UUID") { _, _ in .native(UUID()) }
         define("URL") { args, _ in

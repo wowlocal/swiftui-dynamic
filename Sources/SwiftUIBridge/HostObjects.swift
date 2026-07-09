@@ -40,12 +40,15 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             // Real semantics: reading a file that isn't there throws (a
             // fresh sandbox is empty), so `try?` honestly yields nil.
             if let value = args.labeled("contentsOf") {
-                guard case .native(let any) = value, let url = any as? URL else {
-                    throw RuntimeError(message: "Data(contentsOf:) needs a URL")
+                if case .native(let any) = value, let url = any as? URL {
+                    do { return .native(try Data(contentsOf: url)) } catch {
+                        throw RuntimeError(message: "Data(contentsOf:): \(error.localizedDescription)")
+                    }
                 }
-                do { return .native(try Data(contentsOf: url)) } catch {
-                    throw RuntimeError(message: "Data(contentsOf:): \(error.localizedDescription)")
-                }
+                // Unknowable source (an unbridged Bundle resource URL): the
+                // bytes exist on device — the marker flows through.
+                if !value.isNil { return value }
+                throw RuntimeError(message: "Data(contentsOf:) needs a URL")
             }
             return .native(Data())
         }

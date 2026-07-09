@@ -47,6 +47,17 @@ enum Builtins {
             return .native(op == "==" ? equal : !equal)
         case "<", "<=", ">", ">=":
             return .native(try compare(op, lhs, rhs))
+        case "&", "|", "^", "<<", ">>":
+            guard let l = lhs.intValue, let r = rhs.intValue else {
+                throw EvalMessage(text: "'\(op)' requires integer operands")
+            }
+            switch op {
+            case "&": return .native(l & r)
+            case "|": return .native(l | r)
+            case "^": return .native(l ^ r)
+            case "<<": return .native(l << r)
+            default: return .native(l >> r)
+            }
         case "..<":
             // Unknowable bounds read ZERO (fresh identity): 0..<chain is
             // the empty range, not an error.

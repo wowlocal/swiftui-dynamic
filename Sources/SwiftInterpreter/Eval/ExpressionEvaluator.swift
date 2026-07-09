@@ -1297,7 +1297,49 @@ extension Interpreter {
             if let registry, let combined = registry.combineValues(op, lhs, rhs) {
                 return combined
             }
-            return try relocating(infix) { try Builtins.binary(op, lhs, rhs) }
+            do {
+                return try relocating(infix) { try Builtins.binary(op, lhs, rhs) }
+            } catch let builtinError as RuntimeError where !builtinError.fatal {
+                // User-defined infix operators (`|>` pipe-forward, `~=`
+                // overloads) — top-level operator functions.
+                if case .closure(let closure)? = globals.lookup(op) {
+                    return try callWithArguments(
+                        closure,
+                        args: CallArguments(arguments: [
+                            .init(label: nil, value: lhs), .init(label: nil, value: rhs),
+                        ]),
+                        node: nil)
+                }
+                // Ecosystem operators from EXTERNAL modules: `|>` is
+                // pipe-forward everywhere it exists (Overture/Point-Free);
+                // `>>>`/`<<<` are function composition.
+                if op == "|>" {
+                    return try invoke(rhs, with: CallArguments(arguments: [
+                        .init(label: nil, value: lhs),
+                    ]), node: infix)
+                }
+                if op == "<|" {
+                    return try invoke(lhs, with: CallArguments(arguments: [
+                        .init(label: nil, value: rhs),
+                    ]), node: infix)
+                }
+                if op == ">>>" || op == "<<<" {
+                    let first = op == ">>>" ? lhs : rhs
+                    let second = op == ">>>" ? rhs : lhs
+                    let capturedNode = infix
+                    return .hostFunction(HostFunction(name: op) { [weak self] args, _ in
+                        guard let self else { throw RuntimeError(message: "interpreter gone") }
+                        let x = args.positional(0) ?? .void
+                        let mid = try self.invoke(first, with: CallArguments(arguments: [
+                            .init(label: nil, value: x),
+                        ]), node: capturedNode)
+                        return try self.invoke(second, with: CallArguments(arguments: [
+                            .init(label: nil, value: mid),
+                        ]), node: capturedNode)
+                    })
+                }
+                throw builtinError
+            }
         }
     }
 
@@ -1372,6 +1414,12 @@ extension Interpreter {
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
             case .hostProperty(let any, let name):
                 if let value = interpreter.registry?.hostMember(name, on: any) { return value }
+                if any is InertCallable {
+                    // Mutating an unknown stub member (`store.products += …`)
+                    // reads an unknowable chain — the write absorbs.
+                    return .native(ChainedImplicitCall(
+                        base: .native(any), member: name, arguments: CallArguments()))
+                }
                 throw EvalMessage(text: "no readable member '\(name)' on \(type(of: any))")
             case .element(let base, let index):
                 guard let array = try base.read(interpreter).arrayValue, array.indices.contains(index) else {

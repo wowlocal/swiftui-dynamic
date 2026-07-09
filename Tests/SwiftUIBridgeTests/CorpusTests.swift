@@ -1243,6 +1243,45 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Point-Free ecosystem operators: user-DECLARED operators fold and
+    /// evaluate; EXTERNAL ones (Overture) recover with default precedence
+    /// and get their universal semantics — |> / <| pipes, >>> / <<<
+    /// composition. Plus bitwise ops, reduce(into:), and String HOFs.
+    @Test func ecosystemOperatorsAndCollectionBreadth() throws {
+        let source = """
+        precedencegroup ForwardApplication {
+            associativity: left
+        }
+
+        infix operator |>: ForwardApplication
+
+        func |> <A, B>(a: A, f: (A) -> B) -> B {
+            f(a)
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let doubled = 21 |> { $0 * 2 }
+                let piped = { (n: Int) in n + 1 } <| 9
+                let composed = { $0 + 1 } >>> { $0 * 10 }
+                let masked = 0b1100 & 0b1010
+                let counts = ["ab", "a"].reduce(into: [:]) { acc, word in
+                    acc[word] = word.count
+                }
+                let score = "abc".reduce(0) { $0 + $1.count }
+                VStack {
+                    Text("doubled \\(doubled) piped \\(piped)")
+                    Text("composed \\(composed(3))")
+                    Text("masked \\(masked) score \\(score)")
+                    Text("counts \\(counts.count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
