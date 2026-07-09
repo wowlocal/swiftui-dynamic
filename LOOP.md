@@ -815,3 +815,12 @@ Each iteration does exactly this:
   inits included), Binding stubs, unknowable chains for host generics
   (Store<A,B>). oss:Milestones passes. **585 → 586/588 (99.7%).
   Remaining: SplashScreen (vendored Pods).**
+- 2026-07-09 iter 103: vendored type-name collisions — Lottie's `struct
+  Color` (12.8k lines of vendored Pods) shadowed SwiftUI.Color under our
+  merged-module model. Two fallthroughs, both binding-safe: constructor
+  binding failures on interpreted types retry the same-named registry
+  constructor (Color("bg") → asset color); static-member misses on
+  registry-known type names fall through to bridge statics/implicit
+  members (Color.black). SplashScreen passes (33 nodes, 3 actions).
+  **586 → 587/587 counted units — ZERO failures. The local ladder + OSS
+  rung are saturated; step 9 (new OSS material) applies next.**

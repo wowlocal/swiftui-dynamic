@@ -661,6 +661,40 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// A vendored type sharing a host type's name (Lottie's `struct
+    /// Color`) must not shadow the framework: constructor binding
+    /// failures and static-member misses fall through to the registry.
+    @Test func vendoredTypeNameCollision() throws {
+        let source = """
+        struct Color {
+            var r: Double
+            var g: Double
+            var b: Double
+
+            init(r: Double, g: Double, b: Double) {
+                self.r = r
+                self.g = g
+                self.b = b
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let lottie = Color(r: 0.1, g: 0.2, b: 0.3)
+                ZStack {
+                    Color("bg").ignoresSafeArea()
+                    VStack {
+                        Text("vendored g \\(lottie.g)")
+                            .foregroundColor(Color.black)
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

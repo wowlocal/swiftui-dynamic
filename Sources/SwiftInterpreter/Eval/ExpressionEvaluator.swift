@@ -518,6 +518,15 @@ extension Interpreter {
             if let value = try staticMember(name, of: symbol) {
                 return value
             }
+            // Vendored types sharing a host type's name (Lottie's `struct
+            // Color`): the miss falls through to the bridge's statics
+            // (Color.black) or the gateway-boundary implicit member.
+            if registry?.constructor(named: symbol.name) != nil {
+                if let value = registry?.hostMember(name, on: HostTypeMarker(name: symbol.name)) {
+                    return value
+                }
+                return .implicitMember(name)
+            }
             throw error(node, "'\(symbol.name)' has no static member '\(name)'")
 
         case .implicitMember(let baseName):
@@ -985,7 +994,26 @@ extension Interpreter {
         case .nilValue:
             return .nilValue // optional chaining through a nil method
         case .type(let symbol):
-            return try instantiate(symbol, with: args, node: Syntax(node))
+            do {
+                return try instantiate(symbol, with: args, node: Syntax(node))
+            } catch let bindingError as RuntimeError
+                where !bindingError.fatal
+                    && (bindingError.message.contains("missing argument")
+                        || bindingError.message.contains("doesn't match a stored property")
+                        || bindingError.message.contains("trailing closure doesn't match")) {
+                // A vendored type sharing a host type's name (Lottie's
+                // `struct Color` vs SwiftUI.Color): binding fails before any
+                // init body runs, so retrying the registry constructor is
+                // safe — real Swift overload-resolves across modules.
+                guard let ctor = registry?.constructor(named: symbol.name) else {
+                    throw bindingError
+                }
+                do {
+                    return try ctor.invoke(args, self)
+                } catch {
+                    throw bindingError
+                }
+            }
         case .closure(let closure):
             return try callWithArguments(closure, args: args, node: Syntax(node))
         case .hostFunction(let function):
