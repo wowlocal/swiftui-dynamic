@@ -55,6 +55,35 @@ ControlRoom's subcommand argument arrays lose their static prefix and
 String-index / remove(at:) range traps and sort-comparator order;
 OnlineStoreTCA's missing synthesized `init(from: Decoder)`.
 
+**Third queue: `swift run LiveCheck` — live-data fidelity.** The road to "a
+real networked app shows real data" (MovieSwiftUI posters, IceCubes' public
+timeline). Scenarios run with the network in REPLAY mode: URLSession serves
+RECORDED real API responses from `Fixtures/` matched by URL path
+(host-independent), so the metric stays deterministic. `NetworkPolicy` has
+three modes and one hard rule:
+- `.absorbed` (default) — ProjectCheck/TestCheck always run here; nothing
+  about their doctrine changed.
+- `.replay(fixturesDirectory:)` — the ONLY mode LiveCheck's metric may use.
+- `.live` — real HTTP for interactive demo runs (a human at the window),
+  never in a metric, never in the loop.
+
+Fixture rules: fixtures are real responses captured once by a human (curl /
+a future `--record`), never edited by hand — they are the network's native
+baseline. Assertions derive expected content FROM the fixture (movie titles,
+status authors) and check it reaches decoded models and rendered trees.
+Structural JSON decode (JSONDecodeBridge) maps stored properties via
+CodingKeys → exact → snake_case and instantiates memberwise; custom
+`init(from:)` bodies do NOT run — a documented divergence to burn down with
+real Codable synthesis when the histogram demands it.
+
+Baseline (2026-07-09): **2/4 scenarios pass** (mastodon-fixture-decode,
+tmdb-fixture-decode — the full decoder pipeline works). Open classes:
+- movieswiftui-popular-ui: 0 strings rendered — the fetch path
+  (`.task`/onAppear closures) never fires during deep-render, so no data
+  reaches the tree.
+- icecubes-timeline-ui: renders 117 strings of chrome but no fixture
+  authors — the same async-fetch wall plus whatever hides behind it.
+
 ## TestCheck Ledger
 
 (upstream-broken or natively-unrunnable tests, with the native verdict —

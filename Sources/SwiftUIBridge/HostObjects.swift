@@ -37,6 +37,7 @@ final class BundleBox {
 }
 
 func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
+    if let network = networkHostObjectConstructor(named: name) { return network }
     switch name {
     case "Bundle":
         return HostFunction(name: name) { args, _ in
