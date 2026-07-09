@@ -650,12 +650,15 @@ extension Interpreter {
             do {
                 return try invoke(callee, with: args, node: call)
             } catch let bindingError as RuntimeError
-                where !bindingError.fatal && bindingError.message.hasPrefix("missing argument") {
-                // A user extension can shadow a built-in modifier under the
-                // same name with different labels (`extension View { func
-                // offset(coordinateSpace:…) }` vs the built-in `.offset(x:)`).
-                // Binding fails before the body runs, so retrying through the
-                // modifier table is safe.
+                where !bindingError.fatal
+                    && (bindingError.message.hasPrefix("missing argument")
+                        || bindingError.message.hasSuffix("is not callable")) {
+                // A user extension OR a same-named PROPERTY can shadow a
+                // built-in modifier (`extension View { func offset(
+                // coordinateSpace:…) }`; `var offset: CGFloat` on a view
+                // struct vs `.offset(y:)`). Binding/invocation fails before
+                // any body runs, so retrying through the modifier table is
+                // safe.
                 guard let registry, let modifier = registry.modifier(named: name),
                       let target = modifierTarget(for: baseValue) else {
                     throw bindingError

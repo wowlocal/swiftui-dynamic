@@ -657,3 +657,10 @@ Each iteration does exactly this:
   Int-context random over double bounds. HackerTextEffect passes;
   MatrixRainEffect advanced to stub-fed index math.
   **549 → 550/585 (94.0%).**
+- 2026-07-09 iter 82: property-shadowed modifiers — the modifier-retry
+  (iter 46) extends to "is not callable" failures: `var offset: CGFloat` on
+  a view struct no longer shadows `.offset(y:)` at call sites (invocation
+  fails before any body runs → the retry is safe). BottomSheet,
+  CustomCarouselSlider, CompositionalGridLayout pass (+ripple); the LAST
+  2-class is gone — the histogram is all singletons.
+  **550 → 554/585 (94.7%).**

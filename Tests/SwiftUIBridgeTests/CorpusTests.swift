@@ -228,6 +228,35 @@ enum Corpus {
         }
     }
 
+    /// A property named like a modifier (`var offset`) must not shadow the
+    /// modifier at CALL sites — `.offset(y:)` retries the modifier table.
+    @Test func propertyShadowedModifierRetries() throws {
+        let source = """
+        struct SheetCard: View {
+            @Binding var offset: CGFloat
+
+            var body: some View {
+                Text("sheet")
+            }
+        }
+
+        struct ContentView: View {
+            @State private var offset: CGFloat = 0
+
+            var body: some View {
+                SheetCard(offset: $offset)
+                    .offset(y: 140)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+        let real = InterpreterHost().render(source: source)
+        if case .failure(let error) = real {
+            Issue.record("real render failed: \(error)")
+        }
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
