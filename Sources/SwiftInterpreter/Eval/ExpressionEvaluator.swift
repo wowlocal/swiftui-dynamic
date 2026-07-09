@@ -1068,6 +1068,37 @@ extension Interpreter {
                 // Gateways throw unlocated errors; pin them to the call site.
                 throw error(node, e.message)
             }
+        case .enumType(let symbol):
+            // `Icon(rawValue: 3)` — the raw-value initializer.
+            if args.arguments.count == 1, let raw = args.labeled("rawValue") {
+                return symbol.cases
+                    .first { (try? Builtins.areEqual($0.rawValue, raw)) == true }
+                    .map { RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name)) }
+                    ?? .nilValue
+            }
+            // Custom enum inits run with a WRITABLE `self` (`self = .primary`);
+            // the final self resolves against the enum's own type context.
+            if !symbol.initializers.isEmpty {
+                let chosen = chooseInitializer(from: symbol.initializers, for: args)
+                guard let body = chosen.body else {
+                    throw error(node, "init of '\(symbol.name)' has no body")
+                }
+                let env = Environment(parent: globals)
+                env.define("self", .void)
+                let parameters = chosen.signature.parameterClause.parameters.map { param in
+                    ClosureValue.Parameter(
+                        name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                        label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                        defaultValue: param.defaultValue?.value,
+                        typeAnnotation: param.type
+                    )
+                }
+                let closure = ClosureValue(parameters: parameters, body: body.statements, captured: env)
+                _ = try callWithArguments(closure, args: args, node: Syntax(node))
+                let assigned = env.lookup("self") ?? .void
+                return try resolveAnnotated(assigned, typeName: symbol.name)
+            }
+            throw error(node, "'\(symbol.name)' has no matching initializer")
         case .implicitMember(let name):
             return .native(ImplicitMemberCall(name: name, arguments: args))
         case .native(let any) where any is ChainedImplicitCall:
@@ -1637,6 +1668,15 @@ extension Interpreter {
             let args = CallArguments(arguments: [.init(label: nil, value: index)])
             return try relocating(call) { try subscripting.invoke(args, self) }
         }
+        // Subscripting an unknowable host collection (Bundle.main
+        // .infoDictionary?[…]) reads nil — the empty fresh store; the
+        // caller's ?? fallback applies, as on a device without that key.
+        if case .native(let any) = base,
+           any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+            return .nilValue
+        }
+        if case .implicitMember = base { return .nilValue }
+        if case .hostFunction = base { return .nilValue }
         throw error(call, "subscripting is only supported on arrays and dictionaries, got \(base.stringified)")
     }
 

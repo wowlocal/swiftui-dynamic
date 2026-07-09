@@ -444,6 +444,16 @@ extension Interpreter {
                 }
                 throw RuntimeError(message: "flatMap needs a closure or key path")
             })
+        case "replacing":
+            // The modern replacing(_:with:) — same semantics as
+            // replacingOccurrences(of:with:).
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let target = args.positional(0)?.stringValue,
+                      let replacement = (args.labeled("with") ?? args.positional(1))?.stringValue else {
+                    throw RuntimeError(message: "replacing(_:with:) needs strings")
+                }
+                return .native(string.replacingOccurrences(of: target, with: replacement))
+            })
         case "unicodeScalars":
             // Scalars as single-char strings (our character model): count,
             // iteration, and allSatisfy work through array machinery.

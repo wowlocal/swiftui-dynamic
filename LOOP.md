@@ -950,3 +950,13 @@ Each iteration does exactly this:
   .language/.languageCode/.characterDirection bridged; UIApplication
   alternateIconName reads nil (fresh install). IceCubes: 35527 → 3407
   ("Icon is not callable" — next class). **596/597. Suite 231.**
+- 2026-07-09 iter 119: IceCubesApp FALLS — enum custom inits (writable
+  `self`, `self = .init(rawValue:)!` resolves in own type context;
+  Icon(rawValue:) raw-value initializer; EnumSymbol.initializers collected);
+  unknowable subscripts read nil (Bundle.main.infoDictionary?[…] → ??
+  fallback); unknown SDK member views render opaque (WishKit.
+  FeedbackListView() — Lottie-degrade precedent); String.replacing(_:with:)
+  (test-driven find: fresh state never ran the else branch in the corpus).
+  oss:IceCubesApp passes (197 nodes, 10 actions — the 424-file marathon
+  rung, six iterations of layers). **597/597 counted — ZERO failures.
+  Ladder saturated; step 9 governs next.**

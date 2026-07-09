@@ -1206,6 +1206,43 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Enum custom inits run with a writable self (`self = .primary`,
+    /// `self = .init(rawValue:)!`), Icon(rawValue:) works directly,
+    /// unknowable subscripts read nil (Bundle info lookups), and
+    /// SDK member views render opaquely.
+    @Test func enumInitsUnknowableSubscriptsAndSDKViews() throws {
+        let source = """
+        enum Icon: Int, CaseIterable {
+            case primary = 0
+            case alt1, alt2
+
+            init(string: String) {
+                if string == "AppIcon" {
+                    self = .primary
+                } else {
+                    self = .init(rawValue: Int(String(string.replacing("AppIconAlternate", with: "")))!)!
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let current = Icon(string: "AppIconAlternate2")
+                let missing = Icon(rawValue: 99)
+                let version = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+                VStack {
+                    Text("icon \\(current.rawValue)")
+                    Text(missing == nil ? "no icon" : "found")
+                    Text(version ?? "Unknown")
+                    WishKit.FeedbackListView()
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

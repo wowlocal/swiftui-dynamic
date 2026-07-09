@@ -417,6 +417,10 @@ extension Interpreter {
     }
 
     private func collectEnumMember(_ decl: DeclSyntax, into symbol: EnumSymbol) throws {
+        if let initDecl = decl.as(InitializerDeclSyntax.self) {
+            symbol.initializers.append(initDecl)
+            return
+        }
         if let varDecl = decl.as(VariableDeclSyntax.self) {
             let hasBuilderAttribute = varDecl.attributes.contains {
             // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).

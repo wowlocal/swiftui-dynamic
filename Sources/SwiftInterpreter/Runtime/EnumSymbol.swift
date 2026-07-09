@@ -19,6 +19,7 @@ public final class EnumSymbol {
     public internal(set) var staticProperties: [String: StructSymbol.StaticProperty] = [:]
     public internal(set) var staticMethods: [String: FunctionDeclSyntax] = [:]
     public internal(set) var staticComputedProperties: [String: ComputedProperty] = [:]
+    public internal(set) var initializers: [InitializerDeclSyntax] = []
     var staticCache: [String: RuntimeValue] = [:]
 
     public init(name: String) {

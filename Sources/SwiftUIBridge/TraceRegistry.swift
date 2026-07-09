@@ -377,6 +377,17 @@ public final class TraceRegistry: HostRegistry {
             node.args = [value.stringified]
             return node
         }
+        // Unknown host views reached via member calls (WishKit.
+        // FeedbackListView()) render as opaque nodes — the Lottie-degrade
+        // precedent for external SDK views.
+        if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+           call.name.first?.isUppercase == true {
+            return TraceNode(kind: call.name)
+        }
+        if case .native(let any) = value, let chain = any as? ChainedImplicitCall,
+           chain.member.first?.isUppercase == true {
+            return TraceNode(kind: chain.member)
+        }
         throw RuntimeError(message: "expected a view, got \(value.stringified)")
     }
 

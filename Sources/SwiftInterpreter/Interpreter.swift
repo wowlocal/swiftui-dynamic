@@ -270,7 +270,7 @@ public final class Interpreter {
         return .instance(instance)
     }
 
-    private func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
+    func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
         let argLabels = args.arguments.compactMap(\.label)
         for candidate in initializers {
             let params = candidate.signature.parameterClause.parameters
@@ -512,6 +512,16 @@ public final class Interpreter {
             if case .implicitMember(let name) = value,
                let info = symbol.caseInfo(named: name), !info.hasAssociatedValues {
                 return .enumCase(EnumCaseValue(symbol: symbol, name: name))
+            }
+            // `self = .init(rawValue: n)!` inside enum inits — the marker
+            // resolves through the raw-value initializer in type context.
+            if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+               call.name == "init", call.arguments.arguments.count == 1,
+               let raw = call.arguments.labeled("rawValue") {
+                return symbol.cases
+                    .first { (try? Builtins.areEqual($0.rawValue, raw)) == true }
+                    .map { RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name)) }
+                    ?? .nilValue
             }
             if case .native(let any) = value, let call = any as? ImplicitMemberCall,
                let info = symbol.caseInfo(named: call.name), info.hasAssociatedValues {
