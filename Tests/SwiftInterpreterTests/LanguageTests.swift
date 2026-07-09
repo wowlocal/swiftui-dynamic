@@ -6,6 +6,27 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct OptionalTests {
+    @Test func wildcardAndTupleOptionalBindings() throws {
+        let source = """
+        let maybe: Int? = 5
+        let missing: Int? = nil
+        var status = "none"
+        if let _ = maybe {
+            status = "present"
+        }
+        if let _ = missing {
+            status = "wrong"
+        }
+        let pair: (Int, Int)? = (1, 2)
+        if let (a, b) = pair {
+            status += " \\(a + b)"
+        }
+        status
+        """
+        #expect(try eval(source).stringValue == "present 3")
+    }
+
+
     @Test func nilCoalescing() throws {
         #expect(try eval("nil ?? 5").intValue == 5)
         #expect(try eval("let x = 3\nx ?? 5").intValue == 3)

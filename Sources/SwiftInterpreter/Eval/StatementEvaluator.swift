@@ -134,8 +134,46 @@ extension Interpreter {
             case .expression(let condition):
                 guard try expectBool(evaluate(condition, in: bindings), node: condition) else { return false }
             case .optionalBinding(let optionalBinding):
+                // `if let _ = someOptional` — presence check, no binding.
+                // (`_` arrives as a wildcard OR an expression pattern
+                // wrapping the discard expression, depending on context.)
+                let isDiscard = optionalBinding.pattern.is(WildcardPatternSyntax.self)
+                    || optionalBinding.pattern.as(ExpressionPatternSyntax.self)?
+                        .expression.is(DiscardAssignmentExprSyntax.self) == true
+                if isDiscard {
+                    guard let initializer = optionalBinding.initializer?.value else {
+                        throw error(optionalBinding, "'let _' needs an initializer")
+                    }
+                    guard try !evaluate(initializer, in: bindings).isNil else { return false }
+                    continue
+                }
+                // `if let (a, b) = pair` — tuple destructuring. The pattern
+                // arrives as a TuplePattern or an expression pattern wrapping
+                // a tuple of unresolved names.
+                var tupleNames: [String?]?
+                if let tuplePattern = optionalBinding.pattern.as(TuplePatternSyntax.self) {
+                    tupleNames = tuplePattern.elements.map {
+                        $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                    }
+                } else if let exprPattern = optionalBinding.pattern.as(ExpressionPatternSyntax.self),
+                          let tupleExpr = exprPattern.expression.as(TupleExprSyntax.self) {
+                    tupleNames = tupleExpr.elements.map {
+                        $0.expression.as(DeclReferenceExprSyntax.self)?.baseName.text
+                            ?? $0.expression.as(PatternExprSyntax.self)?
+                                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                    }
+                }
+                if let names = tupleNames, let initializer = optionalBinding.initializer?.value {
+                    let value = try evaluate(initializer, in: bindings)
+                    guard !value.isNil, let tuple = value.tupleValue,
+                          tuple.values.count == names.count else { return false }
+                    for (name, elementValue) in zip(names, tuple.values) {
+                        if let name { bindings.define(name, elementValue) }
+                    }
+                    continue
+                }
                 guard let ident = optionalBinding.pattern.as(IdentifierPatternSyntax.self) else {
-                    throw error(optionalBinding, "unsupported optional-binding pattern")
+                    throw error(optionalBinding, "unsupported optional-binding pattern (\(optionalBinding.pattern.kind))")
                 }
                 let name = ident.identifier.text
                 let value: RuntimeValue

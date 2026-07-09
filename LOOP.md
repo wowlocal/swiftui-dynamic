@@ -511,3 +511,9 @@ Each iteration does exactly this:
   devices) + open (inert). GSignin, DarkModeAnimation, MultiLogin ×2,
   InAppNotifications, LinkPreview ×2, Signal_ImagePicker, DLogin,
   DynamicProgressView pass. **470/587 → 481/587 (81.9%)**.
+- 2026-07-09 iter 62: optional-binding pattern breadth — `if let _ = x`
+  (wildcard AND expression-pattern-wrapped discard: presence check, no
+  binding) and `if let (a, b) = pair` (tuple destructuring via TuplePattern
+  or expression-pattern tuples of unresolved names/pattern exprs).
+  ImageRenderer-PDF, MapRoutes, 3DCardAnimation, HabitTracker pass;
+  ImageDrawing advanced. **481/587 → 485/587**.
