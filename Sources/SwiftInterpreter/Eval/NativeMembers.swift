@@ -62,6 +62,14 @@ extension Interpreter {
             case "absoluteString": return .native(url.absoluteString)
             case "lastPathComponent": return .native(url.lastPathComponent)
             case "pathExtension": return .native(url.pathExtension)
+            case "appending":
+                // Modern forms: appending(path:) / appending(component:).
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    if let path = (args.labeled("path") ?? args.labeled("component"))?.stringValue {
+                        return .native(url.appendingPathComponent(path))
+                    }
+                    return .native(url) // queryItems etc. — unchanged base
+                })
             case "appendingPathComponent":
                 return .hostFunction(HostFunction(name: name) { args, _ in
                     guard let component = args.positional(0)?.stringValue else {

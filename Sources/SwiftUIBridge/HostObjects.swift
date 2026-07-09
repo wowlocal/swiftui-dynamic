@@ -375,6 +375,13 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 // create:)` — the sandbox documents dir, like urls(for:in:).
                 return .native(box.documentsDirectory())
             })
+        case "homeDirectoryForCurrentUser":
+            // The app's "home" is its container — the sandbox root.
+            return .native(FileManagerBox.sandboxRoot)
+        case "temporaryDirectory":
+            let tmp = FileManagerBox.sandboxRoot.appendingPathComponent("tmp", isDirectory: true)
+            try? box.manager.createDirectory(at: tmp, withIntermediateDirectories: true)
+            return .native(tmp)
         case "startDownloadingUbiquitousItem", "setUbiquitous":
             return .hostFunction(HostFunction(name: name) { _, _ in .void })
         case "fileExists":

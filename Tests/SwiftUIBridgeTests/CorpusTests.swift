@@ -1581,6 +1581,26 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// FileManager home/tmp map into the sandbox; URL.appending(path:)
+    /// is the modern appendingPathComponent.
+    @Test func sandboxHomeAndModernURLAppending() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let home = FileManager.default.homeDirectoryForCurrentUser
+                let bottle = home.appending(path: "Bottles/win10")
+                VStack {
+                    Text(bottle.lastPathComponent)
+                    Text(FileManager.default.fileExists(atPath: bottle.path) ? "exists" : "fresh")
+                    Text(FileManager.default.temporaryDirectory.lastPathComponent)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

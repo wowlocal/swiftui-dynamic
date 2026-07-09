@@ -1069,3 +1069,9 @@ Each iteration does exactly this:
   existing missing-env-object synthesis provides fresh instances.
   Cork passes (35 nodes, 7 actions). **604/605 (99.8%); queue: Whisky
   (FileManagerBox.homeDirectoryForCurrentUser).**
+- 2026-07-09 iter 128: Whisky falls — FileManager.homeDirectoryForCurrentUser
+  reads the SANDBOX root (the app's home is its container) +
+  temporaryDirectory (sandbox tmp); URL.appending(path:/component:) is the
+  modern appendingPathComponent. Whisky passes (59 nodes, 5 actions).
+  **605/605 counted — ZERO failures (sixth saturation). 585 zips + 20 OSS
+  repos green; quarantines: Realm pair + isowords.**
