@@ -701,3 +701,10 @@ Each iteration does exactly this:
   static bodies), `Self` resolves to the enclosing type, `Type.init(...)` ≡
   `Type(...)`, and Array.flatMap. A real GitHub game app runs end to end
   after 3 iterations / 11 language features. **556 → 557/588 (94.7%).**
+- 2026-07-09 iter 87: min/max with predicates — the charts genre's
+  `analytics.max { $0.value < $1.value }` compared whole instances via the
+  no-closure path; by:-labeled and trailing predicates now drive both (min
+  probes closure(element, best), max closure(best, element) — Swift's exact
+  areInIncreasingOrder semantics). A 6-project class had been hiding as
+  stringified-singleton histogram entries. InteractiveCharts ×2, DashBoards,
+  BankingMacApp, SwiftCharts + ripple pass. **557 → 564/588 (95.9%).**

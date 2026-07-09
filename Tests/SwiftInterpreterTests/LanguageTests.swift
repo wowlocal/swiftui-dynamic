@@ -596,6 +596,19 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "cell=20 empty=0")
     }
 
+    @Test func minMaxWithPredicates() throws {
+        let source = """
+        struct Sale {
+            var value: Int
+        }
+        let sales = [Sale(value: 200), Sale(value: 710), Sale(value: 90)]
+        let biggest = sales.max { a, b in a.value < b.value }
+        let smallest = sales.min(by: { $0.value < $1.value })
+        "\\(biggest?.value ?? 0) \\(smallest?.value ?? 0)"
+        """
+        #expect(try eval(source).stringValue == "710 90")
+    }
+
     @Test func appendContentsOfSplices() throws {
         let source = """
         var downloads: [Int] = [1]

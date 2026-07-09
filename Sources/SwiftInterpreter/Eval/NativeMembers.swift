@@ -247,8 +247,20 @@ extension Interpreter {
                 return .native(tuples)
             })
         case "min", "max":
-            return .hostFunction(HostFunction(name: name) { _, _ in
+            return .hostFunction(HostFunction(name: name) { args, ctx in
                 guard !array.isEmpty else { return .nilValue }
+                // `max(by: { $0.downloads < $1.downloads })` — the closure is
+                // an areInIncreasingOrder predicate for BOTH min and max.
+                if let closure = args.closure(labeled: "by") ?? args.unlabeledClosures.first {
+                    var best = array[0]
+                    for element in array.dropFirst() {
+                        let replace: Bool = name == "max"
+                            ? try ctx.callClosure(closure, arguments: [best, element]).boolValue == true
+                            : try ctx.callClosure(closure, arguments: [element, best]).boolValue == true
+                        if replace { best = element }
+                    }
+                    return best
+                }
                 var best = array[0]
                 for element in array.dropFirst() {
                     let better = try Builtins.binary(name == "min" ? "<" : ">", element, best)
