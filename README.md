@@ -267,6 +267,13 @@ coverage.
   `machineHardwareName`) resolve to the machine's actual identity. Inside
   host-type extension bodies these names resolve as C imports before any
   view-modifier rescue.
+- **Bundle identity is real; bundle contents absorb.** `Bundle.main`
+  carries the actual host process's `bundleURL`/`bundlePath` (so
+  path-climbing idioms terminate), and `bundleIdentifier` answers the
+  real one or a stable stand-in when the harness runs unbundled (a
+  device app always has one). Resource and metadata lookups
+  (`path(forResource:)`, `infoDictionary`, `object(forInfoDictionaryKey:)`)
+  absorb — nothing is bundled headlessly.
 - **App-delegate launch hooks run.** `applicationDidFinishLaunching` on
   NS/UIApplicationDelegate conformers executes before the root view
   renders (singleton seeding happens as on device); non-fatal errors

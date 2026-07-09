@@ -33,9 +33,16 @@ public final class Interpreter {
     /// budget can trip. Fatal — never catchable by interpreted code.
     var callDepth = 0
     let callDepthLimit = 200
+    var evaluationDepth = 0
+    var resolveAnnotatedDepth = 0
     /// Host-extension method frames currently executing (recursion guard:
     /// re-entrant same-name dispatch prefers the registry gateway).
     var activeExtensionFrames: Set<ExtensionFrame> = []
+    /// DI-container resolution (`@Dependency(\.pool)`): instances are SHARED
+    /// per type, and circular graphs break with an absorbing marker (real
+    /// containers resolve cycles lazily).
+    var dependencyCache: [String: RuntimeValue] = [:]
+    var dependencyInFlight: Set<String> = []
 
     public init(registry: HostRegistry? = nil) {
         self.registry = registry
@@ -728,6 +735,12 @@ public final class Interpreter {
     }
 
     func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {
+        // Cyclic marker graphs (lazy-global cycles can weave a chain whose
+        // base reaches itself) must not recurse the native stack to death:
+        // past any plausible nesting the value stays an absorbing marker.
+        resolveAnnotatedDepth += 1
+        defer { resolveAnnotatedDepth -= 1 }
+        guard resolveAnnotatedDepth < 64 else { return value }
         var typeName = rawName.trimmingCharacters(in: .whitespaces)
         if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
 

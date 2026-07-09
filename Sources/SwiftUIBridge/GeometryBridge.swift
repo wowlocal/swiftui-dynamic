@@ -230,6 +230,11 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 if views.count == 1 { return views[0] }
                 return .native(views) // builder-content shape ([views])
             })
+        case ("Bundle", "main"):
+            // The host process IS real (the uname doctrine): path-walking
+            // idioms (locateHostBundleURL's climb to "/") terminate on a
+            // real bundle URL. Resource lookups on the box absorb.
+            return .native(BundleBox(bundle: .main))
         case ("UIScreen", "main"), ("NSScreen", "main"):
             return .native(ScreenStub())
         case ("DispatchQueue", "main"):
@@ -689,6 +694,7 @@ func bridgeHostMutatedCopy(settingMember name: String, on value: Any, to newValu
 func bridgeHostTypeName(of value: Any) -> String? {
     switch value {
     case is AppStub: return "UIApplication"
+    case is BundleBox: return "Bundle"
     case is WindowStub: return "UIWindow"
     case is WindowSceneStub: return "UIWindowScene"
     case is ScreenStub: return "UIScreen"

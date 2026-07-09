@@ -103,6 +103,15 @@ extension Interpreter {
                     throw error(binding, "computed properties are only supported inside types")
                 }
                 guard let initializer = binding.initializer?.value else {
+                    // Local DI-wrapper declarations (`@Dependency(\.workspacePool)
+                    // var workspacePool`): the container provides a shared
+                    // instance — the missing-environment synthesis doctrine
+                    // gives a fresh model of the keypath'd type; unknown
+                    // types absorb.
+                    if let injected = try localDependencyValue(varDecl, in: env) {
+                        env.define(ident.identifier.text, injected)
+                        continue
+                    }
                     let annotationText = binding.typeAnnotation?.type.trimmedDescription ?? ""
                     if annotationText.hasSuffix("?") || annotationText.hasSuffix("!") {
                         env.define(ident.identifier.text, .nilValue) // `var x: T?`/`T!` is nil
@@ -155,6 +164,35 @@ extension Interpreter {
             throw error(decl, "types must be declared at the top level")
         }
         throw error(decl, "unsupported declaration (\(decl.kind))")
+    }
+
+    /// `@Dependency(\.workspacePool) var pool` in statement position: the
+    /// capitalized keypath component names the type; a collected type yields
+    /// a fresh instance, anything else an absorbing marker.
+    private func localDependencyValue(
+        _ varDecl: VariableDeclSyntax, in env: Environment
+    ) throws -> RuntimeValue? {
+        for attribute in varDecl.attributes {
+            guard let attr = attribute.as(AttributeSyntax.self),
+                  case .argumentList(let arguments)? = attr.arguments,
+                  let keyPath = arguments.first?.expression.as(KeyPathExprSyntax.self),
+                  let component = keyPath.components.last?.trimmedDescription
+                      .split(separator: ".").last.map(String.init),
+                  let first = component.first else { continue }
+            let typeName = String(first).uppercased() + component.dropFirst()
+            if let cached = dependencyCache[typeName] { return cached }
+            if case .type(let symbol)? = globals.lookup(typeName),
+               !dependencyInFlight.contains(typeName) {
+                dependencyInFlight.insert(typeName)
+                defer { dependencyInFlight.remove(typeName) }
+                if let instance = try? instantiateRoot(symbol) {
+                    dependencyCache[typeName] = instance
+                    return instance
+                }
+            }
+            return .implicitMember(typeName)
+        }
+        return nil
     }
 
     private func executeStatement(_ stmt: StmtSyntax, in env: Environment) throws -> StatementResult {

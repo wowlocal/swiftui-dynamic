@@ -29,8 +29,30 @@ final class NumberFormatterBox {
 
 /// Constructors for host object types, consulted by both registries before
 /// their own tables.
+/// Real bundle identity (URL/path — path-climbing idioms terminate) with
+/// ABSORBING resource lookups (nothing is bundled headlessly).
+final class BundleBox {
+    let bundle: Foundation.Bundle
+    init(bundle: Foundation.Bundle) { self.bundle = bundle }
+}
+
 func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     switch name {
+    case "Bundle":
+        return HostFunction(name: name) { args, _ in
+            // The host process is real: Bundle(url:)/(path:)/(identifier:)
+            // resolve against the actual filesystem; no argument = main.
+            if case .native(let any)? = args.labeled("url"), let url = any as? URL {
+                return Foundation.Bundle(url: url).map { .native(BundleBox(bundle: $0)) } ?? .nilValue
+            }
+            if let path = args.labeled("path")?.stringValue {
+                return Foundation.Bundle(path: path).map { .native(BundleBox(bundle: $0)) } ?? .nilValue
+            }
+            if let identifier = args.labeled("identifier")?.stringValue {
+                return Foundation.Bundle(identifier: identifier).map { .native(BundleBox(bundle: $0)) } ?? .nilValue
+            }
+            return .native(BundleBox(bundle: .main))
+        }
     case "DateFormatter":
         return HostFunction(name: name) { _, _ in .native(DateFormatterBox()) }
     case "NumberFormatter":
@@ -353,6 +375,27 @@ private func nsFont(from value: RuntimeValue) -> NSFont? {
 
 /// Readable members on host objects (extends bridgeHostMember's coverage).
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let box = value as? BundleBox {
+        switch name {
+        case "bundleURL": return .native(box.bundle.bundleURL)
+        case "bundlePath": return .native(box.bundle.bundlePath)
+        case "resourceURL": return box.bundle.resourceURL.map { .native($0) } ?? .nilValue
+        case "bundleIdentifier":
+            // Real when the host process is bundled; a device app ALWAYS
+            // has one, so the unbundled harness answers a stable stand-in
+            // (the ScreenStub representative-default doctrine).
+            return .native(box.bundle.bundleIdentifier ?? "interpreted.host.app")
+        default:
+            // Identity is real; RESOURCES and METADATA aren't (nothing is
+            // bundled headlessly): path(forResource:)/infoDictionary/
+            // object(forInfoDictionaryKey:) and unmerged extensions absorb
+            // exactly as the old marker did.
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(ChainedImplicitCall(
+                    base: .implicitMember("Bundle"), member: name, arguments: args))
+            })
+        }
+    }
     // Text measurement, dispatched by the evaluator's label-aware member-call
     // hook (never by plain member access — user `size` extensions win there).
     if let string = value as? String, name == "sizeWithAttributes" {

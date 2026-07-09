@@ -1312,3 +1312,19 @@ Each iteration does exactly this:
   Pulse ✅ (110 nodes, 15 actions). **628/632 counted — ZERO failures
   (sixteenth saturation). 585 zips + 44 OSS repos green. Suite
   265 → 266.**
+- 2026-07-09 iter 150: step 9 — Maccy (106 files) + CopilotForXcode
+  (405 files) cloned. Copilot's chain: LOCAL DI-wrapper declarations
+  (`@Dependency(\.workspacePool) var pool` in an init — fresh shared
+  instance per type, cycle-guarded cache); TWO native-stack cycle guards
+  (evaluationDepth in evaluate(), resolveAnnotatedDepth for cyclic
+  marker graphs — lazy-global cycles used to SIGSEGV with no output,
+  now located errors); Bundle.main is REAL identity (bundleURL/path —
+  locateHostBundleURL's climb to "/" terminates) via BundleBox whose
+  resource/metadata lookups ABSORB (first real-Bundle draft broke 21
+  units on path(forResource:)/infoDictionary/bundleIdentifier — real
+  nil where markers flowed; healed with the box + representative
+  bundleIdentifier stand-in, README documents it); Optional
+  map/flatMap accept function REFERENCES (`.flatMap(Bundle.init(url:))`).
+  Copilot ✅ (3 nodes, 1 action). Maccy still ❌ (`'>' cannot compare
+  nil and 200.0` — Defaults[.windowSize] subscript) — next class.
+  **629/634 counted; Suite 268 → 271 (all green).**

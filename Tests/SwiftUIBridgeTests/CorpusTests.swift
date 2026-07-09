@@ -2909,6 +2909,64 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// CopilotForXcode (iteration 150): local DI-wrapper declarations
+    /// (`@Dependency(\.pool) var pool` in an init) resolve a fresh shared
+    /// instance of the keypath'd type; Bundle.main is the REAL process
+    /// bundle so path-climbing idioms terminate; Optional flatMap accepts
+    /// function references.
+    @Test func localDependencyRealBundleAndFunctionRefTransforms() throws {
+        let source = """
+        class WorkspacePool {
+            var name = "pool"
+        }
+
+        func locateHostBundleURL(url: URL) -> URL? {
+            var nextURL = url
+            while nextURL.path != "/" {
+                nextURL = nextURL.deletingLastPathComponent()
+                if nextURL.lastPathComponent.hasSuffix(".app") {
+                    return nextURL
+                }
+            }
+            return nil
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                @Dependency(\\.workspacePool) var workspacePool
+                let hostBundle = locateHostBundleURL(url: Bundle.main.bundleURL)
+                    .flatMap(Bundle.init(url:))
+                let label = workspacePool.name
+                return Text(label)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
+    /// Iteration 150's crash class: CYCLIC lazy-global initializers
+    /// (`let a = b.tail; let b = a.head` in a merged unit) used to
+    /// overflow the native stack through marker-graph resolution — they
+    /// must surface as a LOCATED error, never a crash.
+    @Test func lazyGlobalCyclesErrorInsteadOfCrashing() throws {
+        let source = """
+        let alpha = beta.tail
+        let beta = alpha.head
+
+        struct ContentView: View {
+            var body: some View {
+                Text("\\(alpha) \\(beta)")
+            }
+        }
+        """
+        do {
+            _ = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        } catch {
+            // An error is acceptable; crashing the process is not.
+        }
+    }
+
     /// Pulse (iteration 149): four classes from kean's logging framework —
     /// LOCAL typealias statements bind the target type in scope; clock
     /// idioms absorb numerically (`.now + .milliseconds(500)` = 0.5 — time

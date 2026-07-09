@@ -5,6 +5,17 @@ import SwiftSyntax
 extension Interpreter {
     func evaluate(_ expr: ExprSyntax, in env: Environment) throws -> RuntimeValue {
         try tick(expr)
+        // Native-stack guard for resolution CYCLES that never pass
+        // callWithArguments (lazy-global force loops, member-dispatch
+        // cycles): each interpreted expression is a handful of native
+        // frames, so bound nesting well before the real stack dies.
+        evaluationDepth += 1
+        defer { evaluationDepth -= 1 }
+        guard evaluationDepth < 2_000 else {
+            let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
+            throw RuntimeError(
+                message: located.message, line: located.line, column: located.column, fatal: true)
+        }
 
         if let lit = expr.as(IntegerLiteralExprSyntax.self) {
             return .native(try integerValue(of: lit))
@@ -949,13 +960,23 @@ extension Interpreter {
             }
             if name == "map" || name == "flatMap" {
                 // Optional.map on a non-nil value — optionals ARE the value
-                // here, so `url.map { … }` applies the closure to it
+                // here, so `url.map { … }` applies the transform to it
                 // (collections and strings matched their own map earlier).
+                // Function REFERENCES (`​.flatMap(Bundle.init(url:))`) apply
+                // like closures; unresolvable transforms absorb.
                 return .hostFunction(HostFunction(name: name) { args, ctx in
-                    guard let closure = args.unlabeledClosures.first else {
-                        throw RuntimeError(message: "\(name) needs a closure")
+                    if let closure = args.unlabeledClosures.first {
+                        return try ctx.callClosure(closure, arguments: [baseValue])
                     }
-                    return try ctx.callClosure(closure, arguments: [baseValue])
+                    if case .hostFunction(let fn)? = args.positional(0) {
+                        return try fn.invoke(
+                            CallArguments(arguments: [.init(label: nil, value: baseValue)]), ctx)
+                    }
+                    if case .closure(let closure)? = args.positional(0) {
+                        return try ctx.callClosure(closure, arguments: [baseValue])
+                    }
+                    return .native(ChainedImplicitCall(
+                        base: baseValue, member: name, arguments: args))
                 })
             }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")
