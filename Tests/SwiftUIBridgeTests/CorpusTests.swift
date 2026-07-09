@@ -2909,6 +2909,44 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// MochiDiffusion (iteration 148): three URL/Observation classes —
+    /// mutating `url.append(path:directoryHint:)` writes through the lvalue;
+    /// `url.path(percentEncoded:)` (METHOD) collides with the legacy `path`
+    /// property and resolves by call shape; `$store.computed` binds through
+    /// the accessors (Observation's access/withMutation idiom) and writes
+    /// reach the backing storage.
+    @Test func urlMutationAndComputedModelBindings() throws {
+        let source = """
+        @Observable
+        final class Gallery {
+            var _sort: String = "oldest"
+            var sortType: String {
+                get { _sort }
+                set { _sort = newValue }
+            }
+        }
+
+        struct ContentView: View {
+            @Bindable var store = Gallery()
+
+            var body: some View {
+                var url = FileManager.default.homeDirectoryForCurrentUser
+                url.append(path: "mochi/images", directoryHint: .isDirectory)
+                let raw = url.path(percentEncoded: false)
+                if !raw.hasSuffix("mochi/images") { fatalError("append/path broken: \\(raw)") }
+
+                let binding = $store.sortType
+                binding.wrappedValue = "newest"
+                if store._sort != "newest" { fatalError("computed binding write lost") }
+
+                return Text(store.sortType)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// UTM (iteration 147): a user View-extension OVERLOAD of a SwiftUI
     /// modifier delegates to the framework form — `onReceive(_ name:
     /// Notification.Name…)` calling `self.onReceive(publisher…)`. Real

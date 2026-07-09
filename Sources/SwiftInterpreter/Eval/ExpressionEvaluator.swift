@@ -886,10 +886,26 @@ extension Interpreter {
                 return .implicitMember(name)
             }
             if let projection = any as? ModelProjection {
-                guard let box = projection.model.box(for: name) else {
-                    throw error(node, "'$\(projection.model.symbol.name)' has no stored property '\(name)'")
+                if let box = projection.model.box(for: name) {
+                    return .native(BindingStub(box: box))
                 }
-                return .native(BindingStub(box: box))
+                // Computed properties with setters bind through their
+                // accessors (Observation's access/withMutation idiom:
+                // `$store.sortType` where sortType wraps _sortType).
+                if let computed = projection.model.symbol.computedProperties[name],
+                   let setter = computed.setter {
+                    let model = projection.model
+                    let seed = try evaluateComputed(computed, selfValue: .instance(model), name: name)
+                    let box = Box(seed)
+                    box.onChange = { [weak self] in
+                        guard let self else { return }
+                        let env = self.selfEnvironment(.instance(model))
+                        env.define(setter.parameterName, box.value)
+                        _ = try? self.executeBlock(setter.body, in: env)
+                    }
+                    return .native(BindingStub(box: box))
+                }
+                throw error(node, "'$\(projection.model.symbol.name)' has no stored property '\(name)'")
             }
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
                 return value
@@ -1137,6 +1153,36 @@ extension Interpreter {
            let current = try target.read(self).boolValue {
             _ = try collectArguments(of: call, in: env) // evaluate (empty) args for side effects
             try relocating(call) { try target.write(.native(!current), self) }
+            return .void
+        }
+
+        // `url.path(percentEncoded:)` — the modern METHOD collides with the
+        // legacy `path` PROPERTY; the call shape resolves here (the
+        // first(where:) precedent). Only URL bases match; the labeled-arg
+        // guard keeps other `path(…)` calls off this route.
+        if name == "path",
+           call.arguments.contains(where: { $0.label?.text == "percentEncoded" }),
+           case .native(let any) = try evaluate(base, in: env),
+           let url = any as? URL {
+            let args = try collectArguments(of: call, in: env)
+            let encoded = args.labeled("percentEncoded")?.boolValue ?? true
+            return .native(url.path(percentEncoded: encoded))
+        }
+
+        // Mutating URL members write through the lvalue (value semantics):
+        // `url.append(path:)` / `url.appendPathComponent(_:)`.
+        if name == "append" || name == "appendPathComponent",
+           let target = try? resolveLValue(base, in: env),
+           case .native(let existingAny) = try target.read(self),
+           let url = existingAny as? URL {
+            let args = try collectArguments(of: call, in: env)
+            guard let component = (args.labeled("path") ?? args.labeled("component")
+                ?? args.positional(0))?.stringValue else {
+                throw error(call, "append needs a path component")
+            }
+            var updated = url
+            updated.append(path: component)
+            try relocating(call) { try target.write(.native(updated), self) }
             return .void
         }
 

@@ -1289,3 +1289,14 @@ Each iteration does exactly this:
   (iter-114 lesson re-learned) — gated by isViewValue(self). UTM ✅ (47
   nodes, 6 actions). **626/630 counted — ZERO failures (FOURTEENTH
   saturation). 585 zips + 42 OSS repos green. Suite 263 → 264.**
+- 2026-07-09 iter 148: step 9 — MochiDiffusion cloned (58 files, Stable
+  Diffusion UI; Whisky/Loop/ControlRoom were already aboard). Three
+  classes on arrival, all URL/Observation surface: mutating
+  `url.append(path:directoryHint:)` writes through the lvalue (Data
+  precedent); `url.path(percentEncoded:)` METHOD vs legacy `path`
+  property resolves by call shape (first(where:) precedent);
+  `$store.computed` binds through accessors — Observation's
+  access/withMutation idiom (`sortType` wrapping `_sortType`) — via a
+  Box whose onChange runs the setter. MochiDiffusion ✅ (39 nodes, 4
+  actions). **627/631 counted — ZERO failures (fifteenth saturation).
+  585 zips + 43 OSS repos green. Suite 264 → 265.**
