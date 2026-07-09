@@ -59,6 +59,11 @@ struct CalendarBox {
     let calendar = Calendar.current
 }
 
+/// `@Environment(\.modelContext)` — SwiftData persistence has no interpreter
+/// analog; the stub behaves like a fresh in-memory store: writes accepted
+/// and ignored, fetches return empty.
+struct ModelContextStub {}
+
 private func dateArg(_ value: RuntimeValue?) -> Date? {
     if case .native(let any)? = value, let date = any as? Date { return date }
     if case .implicitMember("now")? = value { return Date() }
@@ -124,6 +129,20 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 return .native(box.calendar.component(component, from: date))
             })
+        default:
+            return nil
+        }
+    }
+    if value is ModelContextStub {
+        switch name {
+        case "insert", "delete", "save":
+            return .hostFunction(HostFunction(name: name) { _, _ in .void })
+        case "fetch":
+            return .hostFunction(HostFunction(name: name) { _, _ in .native([RuntimeValue]()) })
+        case "fetchCount":
+            return .hostFunction(HostFunction(name: name) { _, _ in .native(0) })
+        case "autosaveEnabled":
+            return .native(true)
         default:
             return nil
         }

@@ -26,6 +26,9 @@ public enum InterpretedEnvironment {
         [
             "colorScheme": .implicitMember("light"),
             "dismiss": .hostFunction(HostFunction(name: "dismiss") { _, _ in .void }),
+            // SwiftData's context — a fresh-in-memory-store stub everywhere
+            // (real hosting included): persistence is a platform side-channel.
+            "modelContext": .native(ModelContextStub()),
         ]
     }
 }

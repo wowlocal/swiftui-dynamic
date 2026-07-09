@@ -270,3 +270,13 @@ Each iteration does exactly this:
   on ImplicitMemberCall" class: CustomTabBar + ScrollParallax pass,
   3DGestureCard shifts to arithmetic-on-marker, MoreTabBar (.init-as-view)
   remains. **68/100 → 71/100**.
+- 2026-07-09 iter 35: the member-on-void class (4) — store-shaped roots.
+  `@Environment(Type.self)` ≡ @EnvironmentObject keyed by a synthesized type
+  annotation + `.environment(model)` gateway in both registries (Observation
+  idiom); `@Query`/`@ObservedResults` flatten to @State over a fresh-store
+  `[]`; `@Environment(\.modelContext)` yields an inert ModelContextStub
+  (insert/delete/save no-op, fetch empty); `$results.append/remove` write
+  through the binding box. ObservationEnv + NotesStore corpus programs.
+  PaginatingSwiftData + SwiftTransformer pass; NetflixUI pair advanced past
+  env into a view-position marker class; SwiftUIRealm advanced to Realm
+  ObjectId internals (quarantine candidate if it tops). **71/100 → 73/100**.

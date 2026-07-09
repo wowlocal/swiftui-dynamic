@@ -258,6 +258,18 @@ extension ViewRegistry {
             })
         }
 
+        // Observation's `.environment(model)` — same carrier as
+        // .environmentObject, keyed by type name for @Environment(Type.self).
+        register("environment") { view, args, _ in
+            guard case .instance(let model)? = args.positional(0), args.arguments.count == 1 else {
+                throw RuntimeError(
+                    message: ".environment supports the (model) form; \\.keyPath writes aren't supported yet")
+            }
+            return AnyView(view.transformEnvironment(\.interpretedModels) { environment in
+                environment.models[model.symbol.name] = model
+            })
+        }
+
         register("sheet") { view, args, ctx in
             guard let isPresented = args.labeled("isPresented") else {
                 throw RuntimeError(message: ".sheet needs isPresented:")

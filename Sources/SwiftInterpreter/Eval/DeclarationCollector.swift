@@ -89,7 +89,19 @@ extension Interpreter {
     }
 
     private func collectProperties(_ varDecl: VariableDeclSyntax, into symbol: StructSymbol) throws {
-        let wrapper = propertyWrapper(of: varDecl.attributes)
+        let (wrapper, environmentObjectType) = propertyWrapper(of: varDecl.attributes)
+        // `@Environment(AppData.self) var appData` carries its type in the
+        // attribute, not an annotation — synthesize one so injection-by-type
+        // works.
+        let syntheticAnnotation = environmentObjectType.map {
+            TypeSyntax(IdentifierTypeSyntax(name: .identifier($0)))
+        }
+        // Query wrappers usually have no initializer; a fresh store is empty.
+        let queryDefault: ExprSyntax? =
+            hasAttribute(varDecl.attributes, named: "Query")
+                || hasAttribute(varDecl.attributes, named: "ObservedResults")
+            ? ExprSyntax(ArrayExprSyntax(elements: ArrayElementListSyntax([])))
+            : nil
         let hasBuilderAttribute = hasAttribute(varDecl.attributes, named: "ViewBuilder")
         let isStaticDecl = isStatic(varDecl.modifiers)
 
@@ -120,8 +132,8 @@ extension Interpreter {
                 symbol.storedProperties.append(.init(
                     name: name,
                     wrapper: wrapper,
-                    initializer: binding.initializer?.value,
-                    typeAnnotation: binding.typeAnnotation?.type,
+                    initializer: binding.initializer?.value ?? queryDefault,
+                    typeAnnotation: binding.typeAnnotation?.type ?? syntheticAnnotation,
                     isBuilderClosure: hasBuilderAttribute
                 ))
             }
@@ -274,28 +286,49 @@ extension Interpreter {
         }
     }
 
-    private func propertyWrapper(of attributes: AttributeListSyntax) -> StructSymbol.Wrapper {
-        if hasAttribute(attributes, named: "State") { return .state }
-        if hasAttribute(attributes, named: "Binding") { return .binding }
+    /// Wrapper kind plus, for `@Environment(Type.self)`, the type name that
+    /// stands in for the (usually absent) property annotation.
+    private func propertyWrapper(
+        of attributes: AttributeListSyntax
+    ) -> (wrapper: StructSymbol.Wrapper, environmentObjectType: String?) {
+        if hasAttribute(attributes, named: "State") { return (.state, nil) }
+        if hasAttribute(attributes, named: "Binding") { return (.binding, nil) }
         // State-like wrappers behave as plain @State (documented divergence:
         // no UserDefaults persistence, no gesture-reset, no focus plumbing).
         for stateLike in ["AppStorage", "SceneStorage", "GestureState", "FocusState"]
         where hasAttribute(attributes, named: stateLike) {
-            return .state
+            return (.state, nil)
         }
-        if hasAttribute(attributes, named: "Published") { return .published }
-        if hasAttribute(attributes, named: "StateObject") { return .stateObject }
-        if hasAttribute(attributes, named: "ObservedObject") { return .observedObject }
-        if hasAttribute(attributes, named: "EnvironmentObject") { return .environmentObject }
+        // Store-query wrappers (@Query — SwiftData, @ObservedResults — Realm)
+        // flatten to @State over a fresh-store default: empty results
+        // (documented divergence — no persistence, like the state-like list).
+        for queryLike in ["Query", "ObservedResults"]
+        where hasAttribute(attributes, named: queryLike) {
+            return (.state, nil)
+        }
+        if hasAttribute(attributes, named: "Published") { return (.published, nil) }
+        if hasAttribute(attributes, named: "StateObject") { return (.stateObject, nil) }
+        if hasAttribute(attributes, named: "ObservedObject") { return (.observedObject, nil) }
+        if hasAttribute(attributes, named: "EnvironmentObject") { return (.environmentObject, nil) }
         for attribute in attributes {
             guard let attr = attribute.as(AttributeSyntax.self),
                   attr.attributeName.trimmedDescription == "Environment",
                   case .argumentList(let arguments)? = attr.arguments,
-                  let keyPath = arguments.first?.expression.as(KeyPathExprSyntax.self) else { continue }
-            let key = String(keyPath.trimmedDescription.dropFirst(2)) // strip "\."
-            return .environment(key)
+                  let expr = arguments.first?.expression else { continue }
+            if let keyPath = expr.as(KeyPathExprSyntax.self) {
+                let key = String(keyPath.trimmedDescription.dropFirst(2)) // strip "\."
+                return (.environment(key), nil)
+            }
+            // `@Environment(AppData.self)` — Observation's typed environment,
+            // ≡ @EnvironmentObject keyed by type name (injected via
+            // `.environment(model)`).
+            if let member = expr.as(MemberAccessExprSyntax.self),
+               member.declName.baseName.text == "self",
+               let base = member.base {
+                return (.environmentObject, base.trimmedDescription)
+            }
         }
-        return .none
+        return (.none, nil)
     }
 
     private func hasAttribute(_ attributes: AttributeListSyntax, named name: String) -> Bool {

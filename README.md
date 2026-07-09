@@ -154,6 +154,14 @@ coverage.
   `@GestureState`, and `@FocusState` bind and project like `@State` but skip
   their special semantics (no UserDefaults persistence, no gesture reset, no
   focus plumbing).
+- **Store-query wrappers act on a fresh empty store.** `@Query` (SwiftData)
+  and `@ObservedResults` (Realm) flatten to `@State` defaulting to `[]`;
+  `@Environment(\.modelContext)` yields an inert context (insert/delete/save
+  accepted and ignored, fetch returns empty); `$results.append/remove`
+  mutate the flattened state array. Nothing persists.
+- **Typed environment rides the model environment.**
+  `@Environment(Type.self)` + `.environment(model)` behave exactly like
+  `@EnvironmentObject` + `.environmentObject(_:)`, keyed by type name.
 - **Property observers are inert.** `willSet`/`didSet` bindings parse as plain
   stored properties; the observer bodies never run.
 - **Model notification is box-level.** Writing a `@Published` property (or any

@@ -145,7 +145,8 @@ public final class TraceRegistry: HostRegistry {
     public func modifier(named name: String) -> HostModifier? {
         HostModifier(name: name) { value, args, ctx in
             let node = try Self.node(value)
-            if name == "environmentObject", let first = args.positional(0),
+            if name == "environmentObject" || name == "environment",
+               let first = args.positional(0),
                case .instance(let model) = first {
                 node.environmentModels[model.symbol.name] = model
             }

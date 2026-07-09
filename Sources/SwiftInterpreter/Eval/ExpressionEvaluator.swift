@@ -368,6 +368,23 @@ extension Interpreter {
                 switch name {
                 case "wrappedValue": return stub.box.value
                 case "projectedValue": return baseValue
+                case "append", "remove" where stub.box.value.arrayValue != nil:
+                    // Projected-collection writes (`$results.append(x)` —
+                    // the Realm/SwiftData binding idiom) mutate through the
+                    // box, notifying like any state write.
+                    let box = stub.box
+                    let member = name
+                    return .hostFunction(HostFunction(name: name) { args, _ in
+                        guard var array = box.value.arrayValue,
+                              let element = args.positional(0) else { return .void }
+                        if member == "append" {
+                            array.append(element)
+                        } else {
+                            array.removeAll { (try? Builtins.areEqual($0, element)) ?? false }
+                        }
+                        box.value = .native(array)
+                        return .void
+                    })
                 default: break
                 }
             }
