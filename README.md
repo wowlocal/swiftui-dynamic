@@ -13,7 +13,11 @@ swift run DynamicSwiftUIDemo
 
 An editor opens on the left, the live interpreted view renders on the right.
 Built-in samples (toolbar picker): **Counter** (`@State` + Button
-actions), **Todo** (MVVM `ObservableObject` store shared by views), **Form**
+actions), **Calculator** (an iOS-style calculator — a real immediate-execution
+state machine with chained operators, repeat-equals, percent and
+divide-by-zero handling), **Tic-Tac-Toe** (play against a rule-based AI that
+takes wins, blocks threats and prefers center/corners, with win-line
+highlighting), **Todo** (MVVM `ObservableObject` store shared by views), **Form**
 (`$state` bindings driving `Toggle`/`Slider`/`TextField`), **Weather** (enums
 with methods, `switch` in bodies, gradients), **Layout** (stacks, modifiers,
 `ForEach` chips), **List** (nested user-defined views), plus four lifted from

@@ -5,7 +5,7 @@ struct SampleProgram: Identifiable, Hashable {
 }
 
 enum SamplePrograms {
-    static let all = [counter, todoMVVM, form, weather, staticLayout, list, segments, material, popup, albums]
+    static let all = [counter, calculator, tictactoe, todoMVVM, form, weather, staticLayout, list, segments, material, popup, albums]
 
     /// A real view-model app: ObservableObject store shared by three views.
     static let todoMVVM = SampleProgram(name: "Todo", source: """
@@ -815,4 +815,398 @@ enum SamplePrograms {
         }
     }
     """)
+
+    /// iOS-style calculator: an immediate-execution state machine (chained
+    /// operators, operator replacement, repeat-equals, percent, sign toggle,
+    /// divide-by-zero -> Error) — logic-heavy, not just layout.
+    static let calculator = SampleProgram(name: "Calculator", source: #"""
+    class CalcEngine: ObservableObject {
+        @Published var display = "0"
+        @Published var activeOp: String? = nil
+        var accumulator: Double? = nil
+        var pendingOp: String? = nil
+        var typing = false
+        var lastOp: String? = nil
+        var lastOperand: Double? = nil
+
+        func tap(_ key: String) {
+            switch key {
+            case "AC":
+                clear()
+            case "±":
+                negate()
+            case "%":
+                percent()
+            case "+", "−", "×", "÷":
+                operate(key)
+            case "=":
+                equals()
+            case ".":
+                dot()
+            default:
+                digit(key)
+            }
+        }
+
+        func clear() {
+            display = "0"
+            accumulator = nil
+            pendingOp = nil
+            activeOp = nil
+            typing = false
+            lastOp = nil
+            lastOperand = nil
+        }
+
+        func digit(_ d: String) {
+            if display == "Error" {
+                clear()
+            }
+            if typing {
+                if display.count >= 12 {
+                    return
+                }
+                display = display == "0" ? d : display + d
+            } else {
+                display = d
+                typing = true
+            }
+            activeOp = nil
+        }
+
+        func dot() {
+            if display == "Error" {
+                clear()
+            }
+            if !typing {
+                display = "0."
+                typing = true
+            } else if !display.contains(".") {
+                display = display + "."
+            }
+            activeOp = nil
+        }
+
+        func negate() {
+            if display == "Error" || display == "0" {
+                return
+            }
+            if display.hasPrefix("-") {
+                display = String(display.dropFirst())
+            } else {
+                display = "-" + display
+            }
+        }
+
+        func percent() {
+            if display == "Error" {
+                return
+            }
+            display = format(value() / 100)
+            typing = false
+        }
+
+        func operate(_ op: String) {
+            if display == "Error" {
+                return
+            }
+            if !typing && pendingOp != nil {
+                pendingOp = op
+                activeOp = op
+                return
+            }
+            commit()
+            pendingOp = op
+            activeOp = op
+            typing = false
+        }
+
+        func equals() {
+            if display == "Error" {
+                return
+            }
+            if let op = pendingOp {
+                lastOp = op
+                lastOperand = value()
+                commit()
+                pendingOp = nil
+                activeOp = nil
+                typing = false
+            } else if let op = lastOp, let operand = lastOperand {
+                apply(op, value(), operand)
+                typing = false
+            }
+        }
+
+        func commit() {
+            let current = value()
+            if let a = accumulator, let op = pendingOp {
+                apply(op, a, current)
+            } else {
+                accumulator = current
+            }
+        }
+
+        func apply(_ op: String, _ a: Double, _ b: Double) {
+            if op == "÷" && b == 0 {
+                display = "Error"
+                accumulator = nil
+                pendingOp = nil
+                activeOp = nil
+                typing = false
+                return
+            }
+            var result = 0.0
+            switch op {
+            case "+":
+                result = a + b
+            case "−":
+                result = a - b
+            case "×":
+                result = a * b
+            default:
+                result = a / b
+            }
+            accumulator = result
+            display = format(result)
+        }
+
+        /// Current display as a number; tolerates a trailing "." while typing.
+        func value() -> Double {
+            Double(display) ?? (Double(display + "0") ?? 0)
+        }
+
+        func format(_ number: Double) -> String {
+            String(format: "%.10g", number)
+        }
+    }
+
+    struct CalcKey: View {
+        var label: String
+        var background: Color
+        var foreground = Color.white
+        var wide = false
+        var action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                Text(label)
+                    .font(.system(size: 28, weight: .medium))
+                    .frame(width: wide ? 148 : 68, height: 68)
+                    .background(background)
+                    .foregroundColor(foreground)
+                    .cornerRadius(34)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    struct ContentView: View {
+        @StateObject var engine = CalcEngine()
+
+        let dark = Color.gray.opacity(0.4)
+        let light = Color.gray
+
+        var body: some View {
+            VStack(spacing: 12) {
+                Text(engine.display)
+                    .font(.system(size: 56, weight: .light))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 8)
+                HStack(spacing: 12) {
+                    CalcKey(label: "AC", background: light, foreground: .black) { engine.tap("AC") }
+                    CalcKey(label: "±", background: light, foreground: .black) { engine.tap("±") }
+                    CalcKey(label: "%", background: light, foreground: .black) { engine.tap("%") }
+                    opKey("÷")
+                }
+                HStack(spacing: 12) {
+                    digitKey("7")
+                    digitKey("8")
+                    digitKey("9")
+                    opKey("×")
+                }
+                HStack(spacing: 12) {
+                    digitKey("4")
+                    digitKey("5")
+                    digitKey("6")
+                    opKey("−")
+                }
+                HStack(spacing: 12) {
+                    digitKey("1")
+                    digitKey("2")
+                    digitKey("3")
+                    opKey("+")
+                }
+                HStack(spacing: 12) {
+                    CalcKey(label: "0", background: dark, wide: true) { engine.tap("0") }
+                    digitKey(".")
+                    opKey("=")
+                }
+            }
+            .padding(20)
+            .background(Color.black)
+            .cornerRadius(32)
+        }
+
+        func digitKey(_ d: String) -> some View {
+            CalcKey(label: d, background: dark) { engine.tap(d) }
+        }
+
+        func opKey(_ op: String) -> some View {
+            CalcKey(
+                label: op,
+                background: engine.activeOp == op ? Color.white : Color.orange,
+                foreground: engine.activeOp == op ? Color.orange : Color.white
+            ) { engine.tap(op) }
+        }
+    }
+    """#)
+
+    /// Tic-tac-toe against a rule-based AI (take the win, block the threat,
+    /// center, corners, sides) with win/draw detection and line highlighting.
+    static let tictactoe = SampleProgram(name: "Tic-Tac-Toe", source: #"""
+    class TicTacToe: ObservableObject {
+        @Published var board = ["", "", "", "", "", "", "", "", ""]
+        @Published var status = "Your move — you are X"
+        @Published var winningLine: [Int] = []
+        var gameOver = false
+
+        let lines = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6],
+        ]
+
+        func tap(_ index: Int) {
+            if gameOver || !board[index].isEmpty {
+                return
+            }
+            board[index] = "X"
+            if settle() {
+                return
+            }
+            aiMove()
+            _ = settle()
+        }
+
+        func aiMove() {
+            let move = bestMove()
+            if move >= 0 {
+                board[move] = "O"
+            }
+        }
+
+        func bestMove() -> Int {
+            if let winning = completingMove(for: "O") {
+                return winning
+            }
+            if let block = completingMove(for: "X") {
+                return block
+            }
+            if board[4].isEmpty {
+                return 4
+            }
+            for corner in [0, 2, 6, 8] {
+                if board[corner].isEmpty {
+                    return corner
+                }
+            }
+            for index in 0..<9 {
+                if board[index].isEmpty {
+                    return index
+                }
+            }
+            return -1
+        }
+
+        func completingMove(for player: String) -> Int? {
+            for line in lines {
+                var owned = 0
+                var empty = -1
+                for index in line {
+                    if board[index] == player {
+                        owned += 1
+                    }
+                    if board[index].isEmpty {
+                        empty = index
+                    }
+                }
+                if owned == 2 && empty >= 0 {
+                    return empty
+                }
+            }
+            return nil
+        }
+
+        func settle() -> Bool {
+            for line in lines {
+                let mark = board[line[0]]
+                if !mark.isEmpty && mark == board[line[1]] && mark == board[line[2]] {
+                    winningLine = line
+                    status = mark == "X" ? "You win!" : "The machine wins"
+                    gameOver = true
+                    return true
+                }
+            }
+            if !board.contains("") {
+                status = "Draw"
+                gameOver = true
+                return true
+            }
+            return false
+        }
+
+        func reset() {
+            board = ["", "", "", "", "", "", "", "", ""]
+            status = "Your move — you are X"
+            winningLine = []
+            gameOver = false
+        }
+    }
+
+    struct ContentView: View {
+        @StateObject var game = TicTacToe()
+
+        var body: some View {
+            VStack(spacing: 16) {
+                Text("Tic-Tac-Toe")
+                    .font(.title2)
+                    .bold()
+                Text(game.status)
+                    .foregroundColor(.secondary)
+                VStack(spacing: 8) {
+                    ForEach(0..<3) { row in
+                        HStack(spacing: 8) {
+                            ForEach(0..<3) { column in
+                                cell(row * 3 + column)
+                            }
+                        }
+                    }
+                }
+                Button("New game") {
+                    game.reset()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(24)
+        }
+
+        func cell(_ index: Int) -> some View {
+            Button {
+                game.tap(index)
+            } label: {
+                Text(game.board[index])
+                    .font(.system(size: 34, weight: .bold))
+                    .frame(width: 72, height: 72)
+                    .background(game.winningLine.contains(index) ? Color.green.opacity(0.35) : Color.gray.opacity(0.15))
+                    .foregroundColor(game.board[index] == "X" ? .blue : .red)
+                    .cornerRadius(12)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    """#)
 }
