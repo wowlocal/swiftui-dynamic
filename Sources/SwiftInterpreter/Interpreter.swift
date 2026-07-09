@@ -170,6 +170,15 @@ public final class Interpreter {
                 guard let label = argument.label else { continue }
                 guard let property = symbol.storedProperty(named: label),
                       let box = instance.box(for: label) else {
+                    // Host-superclass classes (class RainFall: SKScene)
+                    // inherit their initializers: unmatched labeled
+                    // arguments bind as properties so later reads
+                    // (`size` in sceneDidLoad) see the passed values.
+                    if let superName = symbol.superclassName, !isInterpretedType(superName) {
+                        instance.properties[label] = Box(argument.value)
+                        assigned.insert(label)
+                        continue
+                    }
                     let message = "argument '\(label)' doesn't match a stored property of '\(symbol.name)'"
                     if let node { throw error(node, message) }
                     throw RuntimeError(message: message)
@@ -337,6 +346,14 @@ public final class Interpreter {
         return candidates.first { $0.name == "ContentView" }
             ?? candidates.first { $0.name == "Main" }
             ?? candidates.first
+    }
+
+    /// Whether a name resolves to an interpreted struct/class/enum symbol
+    /// (as opposed to a host framework type like SKScene).
+    func isInterpretedType(_ name: String) -> Bool {
+        if case .type? = globals.lookup(name) { return true }
+        if case .enumType? = globals.lookup(name) { return true }
+        return false
     }
 
     func selfEnvironment(_ selfValue: RuntimeValue) -> Environment {

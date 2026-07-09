@@ -388,6 +388,31 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Host-superclass classes inherit their initializers: unmatched
+    /// labeled init arguments bind as properties (SKScene(size:)-style),
+    /// readable from methods (implicit self) and from outside.
+    @Test func hostSuperclassInheritedInit() throws {
+        let source = """
+        class Emitter: SKScene {
+            func summary() -> String {
+                "w \\(size.width)"
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let scene = Emitter(size: CGSize(width: 320, height: 200))
+                VStack {
+                    Text(scene.summary())
+                    Text(scene.size.height > 100 ? "tall" : "short")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

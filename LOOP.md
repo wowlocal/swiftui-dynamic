@@ -745,3 +745,10 @@ Each iteration does exactly this:
   String.Index ranges (String.range(of:), Range<String.Index>
   lowerBound/upperBound/isEmpty, `text[range]`/`text[i]` subscripts).
   TextSelectionAPI passes (11 nodes, 4 actions). **574 → 575/588 (97.6%).**
+- 2026-07-09 iter 93: inherited host-superclass initializers — classes whose
+  superclass is a host type (class RainFall: SKScene) accept inherited-init
+  labeled arguments as instance properties (readable later: `size` in
+  sceneDidLoad); interpreted-superclass/protocol shapes keep the strict
+  memberwise error (new isInterpretedType gate).
+  WeatherAppScrolling_Rain_Effect_Updated passes (199 nodes).
+  **575 → 576/588 (97.8%).**
