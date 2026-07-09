@@ -44,6 +44,20 @@ extension Interpreter {
             case "rounded":
                 return .hostFunction(HostFunction(name: name) { _, _ in .native(double.rounded()) })
             case "isZero": return .native(double.isZero)
+            case "remainder":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let divisor = (args.labeled("dividingBy") ?? args.positional(0))?.doubleValue else {
+                        throw RuntimeError(message: "remainder(dividingBy:) needs a number")
+                    }
+                    return .native(double.remainder(dividingBy: divisor))
+                })
+            case "truncatingRemainder":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let divisor = (args.labeled("dividingBy") ?? args.positional(0))?.doubleValue else {
+                        throw RuntimeError(message: "truncatingRemainder(dividingBy:) needs a number")
+                    }
+                    return .native(double.truncatingRemainder(dividingBy: divisor))
+                })
             default: return nil
             }
         }
@@ -64,6 +78,7 @@ extension Interpreter {
                     ))
                 })
             case "timeIntervalSince1970": return .native(date.timeIntervalSince1970)
+            case "timeIntervalSinceReferenceDate": return .native(date.timeIntervalSinceReferenceDate)
             case "addingTimeInterval":
                 return .hostFunction(HostFunction(name: name) { args, _ in
                     guard let interval = args.positional(0)?.doubleValue else {

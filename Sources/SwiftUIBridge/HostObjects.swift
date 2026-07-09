@@ -263,6 +263,9 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
     if value is AppearanceStub {
         return true // appearance configuration is accepted and ignored
     }
+    if value is GraphicsContextStub || value is PathDrawStub {
+        return true // `context.opacity = 0.5` — draw state accepted, no surface
+    }
     guard let box = value as? DateFormatterBox else { return false }
     switch name {
     case "dateFormat":

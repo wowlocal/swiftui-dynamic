@@ -20,6 +20,14 @@ struct ScrollViewProxyStub {}
 /// MapKit); coordinate conversions honestly return nil.
 struct MapProxyStub {}
 
+/// `Canvas { context, size in … }` headlessly: draw commands are accepted
+/// and ignored (there is no surface to draw on), so wave/particle renderers
+/// execute their math without a GPU.
+struct GraphicsContextStub {}
+
+/// `Path { path in … }` headlessly: move/addLine/addCurve accepted inertly.
+struct PathDrawStub {}
+
 /// iOS code reads `UIScreen.main.bounds`; the honest macOS analog is the main
 /// screen's frame (fixed canvas headlessly).
 struct ScreenStub {
@@ -179,6 +187,11 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
         return nil
     }
+    if value is GraphicsContextStub || value is PathDrawStub {
+        // Every draw command is accepted and ignored — fill/stroke/translateBy/
+        // move(to:)/addLine/addCurve… execute inertly with no surface.
+        return .hostFunction(HostFunction(name: name) { _, _ in .void })
+    }
     if let context = value as? TimelineViewDefaultContext {
         if name == "date" { return .native(context.date) }
         return nil
@@ -290,6 +303,28 @@ extension ViewRegistry {
             return .native(AnyView(GeometryReader { proxy in
                 renderProxyContent(content, argument: .native(proxy), ctx: ctx, in: "GeometryReader")
             }))
+        }
+
+        // Real-side Canvas renders its area with the interpreted renderer run
+        // once against an inert context (documented divergence: draw commands
+        // don't reach the real GraphicsContext — the closure's state math
+        // still executes, the surface stays empty).
+        constructors["Canvas"] = HostFunction(name: "Canvas") { args, ctx in
+            if let renderer = args.unlabeledClosures.first {
+                _ = try ctx.callClosure(renderer, arguments: [
+                    .native(GraphicsContextStub()),
+                    .native(CGSize(width: 390, height: 844)),
+                ])
+            }
+            return .native(AnyView(Canvas { _, _ in }))
+        }
+
+        constructors["Path"] = HostFunction(name: "Path") { args, ctx in
+            let path = PathDrawStub()
+            if let builder = args.unlabeledClosures.first {
+                _ = try ctx.callClosure(builder, arguments: [.native(path)])
+            }
+            return .native(path)
         }
 
         constructors["ScrollViewReader"] = HostFunction(name: "ScrollViewReader") { args, ctx in

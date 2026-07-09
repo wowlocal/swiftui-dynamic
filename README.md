@@ -147,6 +147,11 @@ coverage.
   `NSViewRepresentable` structs are accepted in view position but render
   inert (their make/update methods never run); `X.appearance()` proxies accept
   all configuration inertly (writes ignored, config calls chain).
+- **Canvas drawing is inert.** `Canvas { context, size in … }` runs the
+  renderer once against a no-op context (390×844) — the closure's math
+  executes, but fill/stroke/translate commands never reach a real
+  `GraphicsContext`; the canvas area renders empty. `Path { … }` builders
+  execute the same way.
 - **Casts are optimistic.** `as`/`as!` pass the value through; `as?` only
   yields nil for nil inputs. The target type does resolve implicit-member
   markers and bridges Int/Double.

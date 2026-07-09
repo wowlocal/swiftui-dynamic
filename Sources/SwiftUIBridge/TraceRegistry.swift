@@ -1,3 +1,4 @@
+import Foundation
 import SwiftInterpreter
 
 /// A recorded render-tree node — what the trace registry produces instead of
@@ -86,6 +87,27 @@ public final class TraceRegistry: HostRegistry {
                     node.children = try ctx.callBuilderClosure(content, arguments: [argument]).map(Self.node)
                 }
                 return .native(node)
+            }
+        case "Canvas":
+            // The renderer draws (side effects on the context), it doesn't
+            // build children — run it with an inert context + canvas size.
+            return HostFunction(name: name) { args, ctx in
+                let node = TraceNode(kind: "Canvas")
+                if let renderer = args.unlabeledClosures.first {
+                    _ = try ctx.callClosure(renderer, arguments: [
+                        .native(GraphicsContextStub()),
+                        .native(CGSize(width: 390, height: 844)),
+                    ])
+                }
+                return .native(node)
+            }
+        case "Path":
+            return HostFunction(name: name) { args, ctx in
+                let path = PathDrawStub()
+                if let builder = args.unlabeledClosures.first {
+                    _ = try ctx.callClosure(builder, arguments: [.native(path)])
+                }
+                return .native(path)
             }
         case "withAnimation":
             return HostFunction(name: name) { args, ctx in

@@ -319,3 +319,11 @@ Each iteration does exactly this:
   MoreTabBar's `.init(value:)-as-view` rode the same shape. Only known walls
   (Canvas GraphicsContext, Chips_UI Layout) + singletons remain.
   **78/100 → 81/100**.
+- 2026-07-09 iter 41: the Canvas wall, taken inert — `Canvas { context, size
+  in }` runs the renderer with a no-op GraphicsContextStub + 390×844 size in
+  BOTH registries (drawing never reaches a surface — documented divergence);
+  `Path { path in }` builders execute against an inert PathDrawStub; Date
+  gains timeIntervalSinceReferenceDate, Double gains remainder/
+  truncatingRemainder(dividingBy:). WaveCanvas corpus program (Canvas + Path
+  + Slider, real-hosted). Canvas passes; the class's other member (Chips_UI)
+  is the Layout-protocol wall. **81/100 → 82/100**.
