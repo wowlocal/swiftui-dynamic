@@ -1119,3 +1119,18 @@ Each iteration does exactly this:
   errors now carry call-site locations (diagnostic keeper).
   PlayCover passes (333 nodes, 21 actions). **610/610 counted — ZERO
   failures (eighth saturation). 585 zips + 25 OSS repos green.**
+- 2026-07-09 iter 133: step 9 — cloned Loop (150 files), Aidoku (408, passed
+  on arrival), Clop (64, passed on arrival); units 610 → 613. Loop's climb
+  + fallout fixes: bodyless extern declarations absorb (@_silgen_name
+  Carbon privates); marker member writes accepted; sysctl/getenv family;
+  typed-array ctors ([CChar](repeating:count:)); @Default is state-like
+  with fresh-identity values; observer-only GLOBALS are stored (iter-130
+  fallout — Clop); shadowed-enum registry fallthrough (Aidoku State);
+  prefix ! completes the truthiness table; COMPILED-IMPORTS mode
+  (merged units compile on device — unresolved identifiers absorb);
+  in-run persistence ROUND-TRIP (encode→write→read→decode returns the
+  original value, chain-keyed URLs — PlayCover's config-reset loop
+  terminates with real semantics); INTERPRETED-superclass storage MERGES
+  + member dispatch walks the chain (README divergence retired).
+  Loop passes (59 nodes, 8 actions). **613/613 counted — ZERO failures
+  (ninth saturation). 585 zips + 28 OSS repos green. Suite 248.**

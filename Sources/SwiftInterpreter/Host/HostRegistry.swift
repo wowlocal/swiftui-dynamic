@@ -78,6 +78,7 @@ public protocol EvalContext: AnyObject {
 /// The interpreter core never imports SwiftUI; view values flow through it
 /// opaquely and all rendering decisions happen behind this protocol.
 public protocol HostRegistry: AnyObject {
+    func storeBlob(_ value: RuntimeValue, at path: String)
     func constructor(named name: String) -> HostFunction?
     func modifier(named name: String) -> HostModifier?
     func isViewValue(_ value: RuntimeValue) -> Bool

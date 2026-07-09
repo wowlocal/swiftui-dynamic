@@ -22,6 +22,7 @@ public final class Interpreter {
     /// Interpreted `extension View { … }` / `extension String { … }` members,
     /// keyed by the extended host type's name.
     var hostExtensionSymbols: [String: StructSymbol] = [:]
+    var assumesCompiledImports = false
 
     var locationConverter: SourceLocationConverter?
     var steps = 0
@@ -87,6 +88,9 @@ public final class Interpreter {
     public func run(source: String, lazyTopLevelGlobals: Bool = false) throws -> RuntimeValue {
         let file = try parse(source: source)
         steps = 0
+        // Merged multi-file units COMPILE on device: an unresolved
+        // identifier there is an unmerged import, never a typo.
+        assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: file)
 
         var last: RuntimeValue = .void
@@ -155,10 +159,35 @@ public final class Interpreter {
     /// Custom `init`s run with `self` bound to a defaults-initialized instance;
     /// otherwise default + memberwise initialization applies. `$binding`
     /// arguments for `@Binding` properties share the parent's Box.
+    /// The symbol's stored properties plus its INTERPRETED superclass
+    /// chain's (base-first, child names win) — inherited storage is real.
+    func inheritedStoredProperties(of symbol: StructSymbol) -> [StructSymbol.StoredProperty] {
+        var chain: [StructSymbol] = []
+        var current: StructSymbol? = symbol
+        var guardSet: Set<ObjectIdentifier> = []
+        while let symbol = current, guardSet.insert(ObjectIdentifier(symbol)).inserted {
+            chain.append(symbol)
+            if let superName = symbol.superclassName,
+               case .type(let parent)? = globals.lookup(superName) {
+                current = parent
+            } else {
+                current = nil
+            }
+        }
+        var seen: Set<String> = []
+        var merged: [StructSymbol.StoredProperty] = []
+        for symbol in chain { // child first: child declarations win
+            for property in symbol.storedProperties where seen.insert(property.name).inserted {
+                merged.append(property)
+            }
+        }
+        return merged
+    }
+
     public func instantiate(_ symbol: StructSymbol, with args: CallArguments, node: Syntax? = nil) throws -> RuntimeValue {
         let instance = Instance(symbol: symbol)
         let notifying = Set(symbol.notifyingPropertyNames)
-        for property in symbol.storedProperties {
+        for property in inheritedStoredProperties(of: symbol) {
             // Optional-typed properties without initializers are nil in Swift.
             let annotationText = property.typeAnnotation?.trimmedDescription ?? ""
             var value: RuntimeValue = annotationText.hasSuffix("?") || annotationText.hasSuffix("!")
@@ -187,6 +216,14 @@ public final class Interpreter {
                         base: .implicitMember("default"), member: property.name,
                         arguments: CallArguments()))
                 }
+            }
+            if case .void = value, property.wrapper == .state {
+                // State-like wrappers whose default lives elsewhere
+                // (@Default(.key) — Defaults package): fresh identity.
+                var seen: Set<String> = []
+                value = (try? synthesizedFreshValue(
+                    typeName: property.typeAnnotation?.trimmedDescription ?? "",
+                    seen: &seen)) ?? .nilValue
             }
             let box = Box(value)
             if notifying.contains(property.name) {

@@ -18,6 +18,10 @@ public final class ViewRegistry: HostRegistry {
         hostObjectSetMember(name, on: value, to: newValue)
     }
 
+    public func storeBlob(_ value: RuntimeValue, at path: String) {
+        FileManagerBox.blobStore[path] = value
+    }
+
     public func constructor(named name: String) -> HostFunction? {
         if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
         let hand = constructors[name]

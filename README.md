@@ -213,9 +213,11 @@ coverage.
   enforced — calls run synchronously on the caller, which is faithful in
   practice: the interpreter is single-threaded.
 - **`super` is inheritance-lite.** Interpreted superclasses dispatch
-  methods/computed properties with `self` unchanged; host superclasses
+  methods/computed properties with `self` unchanged (plain member access
+  walks the chain too), and stored properties MERGE down the interpreted
+  chain at instantiation (child declarations win). Host superclasses
   (NSObject, UIViewController…) make `super.init()` and lifecycle calls
-  inert. Stored properties don't merge across class hierarchies yet.
+  inert.
   Member writes on unresolvable host markers (`manager.delegate = self`)
   are accepted and ignored; marker comparisons are name-based
   (`authorizationStatus(for: .video) == .authorized` is false — fresh

@@ -1777,6 +1777,131 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Bodyless extern declarations absorb; marker member writes are
+    /// accepted; typed-array ctors take repeating/count; @Default is
+    /// state-like with fresh-identity values; sysctl family absorbs.
+    @Test func externDeclsTypedArraysAndDefaults() throws {
+        let source = """
+        func GetProcessForPID(_ pid: Int, _ psn: Int) -> Int
+
+        struct UpdaterView: View {
+            @Default(.includeDevelopmentVersions) var includeDevelopmentVersions
+
+            var body: some View {
+                var size = 0
+                let _ = sysctlbyname("kern.osproductversion", nil, &size, nil, 0)
+                let buffer = [CChar](repeating: 0, count: 8)
+                let _ = { NSWorkspace.shared.presentationOptions.someFlag = true }()
+                let status = GetProcessForPID(1, 2)
+                VStack {
+                    Toggle("dev versions", isOn: $includeDevelopmentVersions)
+                    Text("buf \\(buffer.count)")
+                    Text(status == 0 ? "ok" : "fresh status")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 4)
+    }
+
+    /// Compiled-source mode (merged units): unresolved identifiers are
+    /// unmerged imports and absorb; observer-only globals are stored;
+    /// shadowing enum names fall through to registry constructors.
+    @Test func compiledImportsObserverGlobalsAndShadowedState() throws {
+        let source = """
+        enum State {
+            case downloaded, downloading
+        }
+
+        var hoveredID: String? = nil {
+            didSet {
+                scheduleHoverEffect(ms: 200)
+            }
+        }
+
+        struct ContentView: View {
+            @State private var fileInfo = State(initialValue: "manga.cbz")
+
+            var body: some View {
+                let _ = { hoveredID = "opt-1" }()
+                let item = mainAsyncAfter(ms: 100) { }
+                VStack {
+                    Text(hoveredID ?? "none")
+                    Text(fileInfo)
+                    Text(item == nil ? "nil item" : "scheduled")
+                    Text(State.downloaded == .downloaded ? "enum intact" : "clobbered")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 5)
+    }
+
+    /// Interpreted-superclass storage merges (BaseApp.url on PlayApp)
+    /// and the in-run persistence round-trip: encode → write → read →
+    /// decode returns the ORIGINAL value (config-reset loops terminate).
+    @Test func inheritanceStorageAndPersistenceRoundTrip() throws {
+        let source = """
+        class BaseApp {
+            let url: URL
+            var name: String { url.lastPathComponent }
+
+            init(url: URL) {
+                self.url = url
+            }
+        }
+
+        class PlayApp: BaseApp {
+            var starred = false
+        }
+
+        struct Config: Codable {
+            var order: [String]
+        }
+
+        class Store {
+            let configURL = FileManager.default.temporaryDirectory.appendingPathComponent("config.plist")
+
+            var config: Config {
+                get {
+                    do {
+                        let data = try Data(contentsOf: configURL)
+                        return try PropertyListDecoder().decode(Config.self, from: data)
+                    } catch {
+                        return reset()
+                    }
+                }
+                set {
+                    if let data = try? PropertyListEncoder().encode(newValue) {
+                        try? data.write(to: configURL)
+                    }
+                }
+            }
+
+            func reset() -> Config {
+                config = Config(order: ["default"])
+                return config
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let app = PlayApp(url: URL(fileURLWithPath: "/apps/Genshin.app"))
+                let store = Store()
+                VStack {
+                    Text(app.name)
+                    Text(app.starred ? "starred" : "plain")
+                    Text("order \\(store.config.order.count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

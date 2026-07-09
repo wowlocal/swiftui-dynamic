@@ -38,6 +38,10 @@ public final class TraceRegistry: HostRegistry {
 
     public init() {}
 
+    public func storeBlob(_ value: RuntimeValue, at path: String) {
+        FileManagerBox.blobStore[path] = value
+    }
+
     public func constructor(named name: String) -> HostFunction? {
         if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
         switch name {
@@ -348,11 +352,20 @@ public final class TraceRegistry: HostRegistry {
             case "count": return .native(0)
             case "isEmpty": return .native(true)
             case "decode":
-                // Decoding through a stub decoder (JSONDecoder over marker
-                // data) fails like a fresh store: nothing was persisted.
-                // `try?` lands in the caller's else/catch path.
-                return .hostFunction(HostFunction(name: name) { _, _ in
+                // Decoding a blob that came from an interpreted encode
+                // round-trips the ORIGINAL value; anything else fails like
+                // a fresh store (nothing persisted).
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    if case .native(let blobAny)? = args.labeled("from") ?? args.positional(1) ?? args.positional(0),
+                       let blob = blobAny as? EncodedValueBlob {
+                        return blob.value
+                    }
                     throw RuntimeError(message: "nothing to decode (fresh store)")
+                })
+            case "encode":
+                // `encoder.encode(value)` captures the value as a blob.
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    .native(EncodedValueBlob(value: args.positional(0) ?? .void))
                 })
             default: break
             }

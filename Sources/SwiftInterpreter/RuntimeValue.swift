@@ -211,6 +211,18 @@ public final class LazyMemberSeed {
     }
 }
 
+/// The product of an interpreted `encoder.encode(value)`: written via
+/// `data.write(to:)` it lands in the in-run blob store; `Data(contentsOf:)`
+/// returns it and `decoder.decode(_:from:)` unwraps the ORIGINAL value —
+/// real persistence semantics within a run.
+public final class EncodedValueBlob {
+    public let value: RuntimeValue
+
+    public init(value: RuntimeValue) {
+        self.value = value
+    }
+}
+
 public struct KeyPathStub {
     /// `\.account.emojis` → ["account", "emojis"]; `\.self` → ["self"].
     public var components: [String] = []

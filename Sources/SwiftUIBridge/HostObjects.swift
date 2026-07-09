@@ -40,7 +40,9 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             // Real semantics: reading a file that isn't there throws (a
             // fresh sandbox is empty), so `try?` honestly yields nil.
             if let value = args.labeled("contentsOf") {
+                if let stored = FileManagerBox.blobStore[value.stringified] { return stored }
                 if case .native(let any) = value, let url = any as? URL {
+                    if let stored = FileManagerBox.blobStore[url.path] { return stored }
                     do { return .native(try Data(contentsOf: url)) } catch {
                         throw RuntimeError(message: "Data(contentsOf:): \(error.localizedDescription)")
                     }
@@ -168,6 +170,9 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
 /// sandbox, the analog of an app's fresh container: documents start empty,
 /// writes/copies/removals genuinely happen (inside the sandbox only).
 public final class FileManagerBox {
+    /// In-run persistence for interpreted encode→write→read→decode cycles.
+    static var blobStore: [String: RuntimeValue] = [:]
+
     static let sandboxRoot: URL = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "DynamicSwiftUI-Sandbox-\(ProcessInfo.processInfo.processIdentifier)",

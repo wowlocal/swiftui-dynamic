@@ -49,15 +49,22 @@ extension Interpreter {
                 }
             } else if let varDecl = decl.as(VariableDeclSyntax.self) {
                 // `var uptime: String { … }` at file scope — a computed
-                // global; the accessor runs on every read.
+                // global; the accessor runs on every read. Observer-only
+                // globals (didSet) are STORED (observers inert).
                 for binding in varDecl.bindings {
                     guard let ident = binding.pattern.as(IdentifierPatternSyntax.self),
-                          let accessorBlock = binding.accessorBlock,
-                          let accessors = parseAccessors(of: accessorBlock) else { continue }
-                    globals.define(ident.identifier.text, .native(ComputedGlobal(
-                        accessor: accessors.getter,
-                        annotation: binding.typeAnnotation?.type
-                    )))
+                          let accessorBlock = binding.accessorBlock else { continue }
+                    if let accessors = parseAccessors(of: accessorBlock) {
+                        globals.define(ident.identifier.text, .native(ComputedGlobal(
+                            accessor: accessors.getter,
+                            annotation: binding.typeAnnotation?.type
+                        )))
+                    } else {
+                        globals.define(ident.identifier.text, .native(LazyGlobal(
+                            initializer: binding.initializer?.value,
+                            annotation: binding.typeAnnotation?.type
+                        )))
+                    }
                 }
             }
         }
@@ -528,7 +535,14 @@ extension Interpreter {
 
     func defineFunction(_ node: FunctionDeclSyntax, in env: Environment) throws {
         guard let body = node.body else {
-            throw error(node, "function '\(node.name.text)' has no body")
+            // Bodyless declarations are extern/C bridges (@_silgen_name
+            // Carbon privates): inert absorbers, like the C-interop family.
+            let name = node.name.text
+            env.define(name, .hostFunction(HostFunction(name: name) { _, _ in
+                .native(ChainedImplicitCall(
+                    base: .implicitMember(name), member: "call", arguments: CallArguments()))
+            }))
+            return
         }
         env.define(node.name.text, .closure(makeFunctionClosure(node, body: body, captured: env)))
     }
@@ -597,7 +611,7 @@ extension Interpreter {
         if hasAttribute(attributes, named: "Binding") { return (.binding, nil) }
         // State-like wrappers behave as plain @State (documented divergence:
         // no UserDefaults persistence, no gesture-reset, no focus plumbing).
-        for stateLike in ["AppStorage", "SceneStorage", "GestureState", "FocusState"]
+        for stateLike in ["AppStorage", "SceneStorage", "GestureState", "FocusState", "Default"]
         where hasAttribute(attributes, named: stateLike) {
             return (.state, nil)
         }

@@ -351,7 +351,8 @@ extension Interpreter {
         // absorbing functions, values chain per the fresh-state doctrine.
         if Self.cStdlibNames.contains(name)
             || (name.contains("_") && name.first?.isLowercase == true)
-            || (name.hasPrefix("_") && name.dropFirst().first?.isLowercase == true) {
+            || (name.hasPrefix("_") && name.dropFirst().first?.isLowercase == true)
+            || assumesCompiledImports {
             return .hostFunction(HostFunction(name: name) { _, _ in
                 .native(ChainedImplicitCall(
                     base: .implicitMember(name), member: "call", arguments: CallArguments()))
@@ -406,6 +407,21 @@ extension Interpreter {
         // body (each IceCubes package declares its own `enum Constants`).
         if let nested = instance.symbol.nestedTypes[name] { return nested }
         if let box = instance.box(for: name) { return box.value }
+        // Interpreted-superclass members dispatch with self unchanged
+        // (inheritance: methods and computed properties walk the chain).
+        var parentName = instance.symbol.superclassName
+        while let superName = parentName {
+            guard case .type(let parent)? = globals.lookup(superName) else { break }
+            if let overloads = parent.methods[name], let method = overloads.first,
+               let body = method.body {
+                return .closure(makeFunctionClosure(
+                    method, body: body, captured: selfEnvironment(.instance(instance))))
+            }
+            if let computed = parent.computedProperties[name] {
+                return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
+            }
+            parentName = parent.superclassName
+        }
         if let method = instance.symbol.methods[name]?.first {
             guard let body = method.body else { return nil }
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.instance(instance))))
@@ -905,11 +921,21 @@ extension Interpreter {
         // Process-control calls in merged helper-tool files: interpreted
         // execution continues (the app target never runs them at launch).
         "exit", "abort", "usleep", "sleep",
+        // sysctl/process-info family.
+        "sysctl", "sysctlbyname", "getpid", "getppid", "getenv", "setenv",
+        "unsetenv", "getuid", "geteuid",
     ]
 
     func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
         // `[Index]()` / `[String: Int]()` — typed empty containers.
-        if call.calledExpression.is(ArrayExprSyntax.self), call.arguments.isEmpty {
+        if call.calledExpression.is(ArrayExprSyntax.self) {
+            if call.arguments.isEmpty { return .native([RuntimeValue]()) }
+            // `[CChar](repeating: 0, count: n)` — the typed-array ctor.
+            let args = try collectArguments(of: call, in: env)
+            if let element = args.labeled("repeating"), let count = args.labeled("count")?.intValue {
+                return .native([RuntimeValue](repeating: element, count: max(0, count)))
+            }
+            if let array = args.positional(0)?.arrayValue { return .native(array) }
             return .native([RuntimeValue]())
         }
         if call.calledExpression.is(DictionaryExprSyntax.self), call.arguments.isEmpty {
@@ -1284,6 +1310,12 @@ extension Interpreter {
                 let assigned = env.lookup("self") ?? .void
                 return try resolveAnnotated(assigned, typeName: symbol.name)
             }
+            // Shadowed host-type names (Aidoku's nested `enum State` vs
+            // SwiftUI State(initialValue:)): fall through to the registry
+            // constructor, the iteration-103 rule for enums.
+            if let ctor = registry?.constructor(named: symbol.name) {
+                return try ctor.invoke(args, self)
+            }
             throw error(node, "'\(symbol.name)' has no matching initializer")
         case .implicitMember(let name):
             return .native(ImplicitMemberCall(name: name, arguments: args))
@@ -1608,7 +1640,7 @@ extension Interpreter {
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
             case .hostProperty(let any, let name):
                 if let value = interpreter.registry?.hostMember(name, on: any) { return value }
-                if any is InertCallable {
+                if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
                     // Mutating an unknown stub member (`store.products += …`)
                     // reads an unknowable chain — the write absorbs.
                     return .native(ChainedImplicitCall(
@@ -1793,6 +1825,13 @@ extension Interpreter {
                     // Host objects with settable members (formatter.dateFormat = …).
                     return .hostProperty(any, memberName)
                 }
+            }
+            if case .implicitMember(let markerName) = baseValue {
+                // Config writes on unresolved host statics are accepted and
+                // ignored (the marker-write doctrine).
+                return .hostProperty(
+                    ImplicitMemberCall(name: markerName, arguments: CallArguments()),
+                    member.declName.baseName.text)
             }
             throw error(member, "cannot assign to a member of \(baseValue.stringified)")
         }

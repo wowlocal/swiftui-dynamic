@@ -30,6 +30,25 @@ extension Interpreter {
         if let string = any as? String {
             return stringMember(name, string)
         }
+        if let blob = any as? EncodedValueBlob {
+            switch name {
+            case "write":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    if let target = args.labeled("to") ?? args.positional(0) {
+                        // Real URLs key by path; unknowable chain-URLs key
+                        // by their stable stringified form.
+                        if case .native(let urlAny) = target, let url = urlAny as? URL {
+                            self.registry?.storeBlob(.native(blob), at: url.path)
+                        } else {
+                            self.registry?.storeBlob(.native(blob), at: target.stringified)
+                        }
+                    }
+                    return .void
+                })
+            case "count": return .native(1)
+            default: return nil
+            }
+        }
         if let data = any as? Data {
             switch name {
             case "withUnsafeBytes", "withUnsafeMutableBytes":
