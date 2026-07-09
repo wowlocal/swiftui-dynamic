@@ -41,12 +41,39 @@ public enum TestHarness {
             throw RuntimeError(message: "top-level threw: \(error)")
         }
 
+        // Transitive discovery: a subclass of a test class is a test class,
+        // and real XCTest runs INHERITED test methods in the subclass too
+        // (against its overrides) — collect names up the superclass chain.
+        var byName: [String: StructSymbol] = [:]
+        for symbol in interpreter.structSymbols {
+            byName[symbol.name] = symbol
+        }
+        var testClassNames = Set<String>()
+        var grew = true
+        while grew {
+            grew = false
+            for symbol in interpreter.structSymbols where !testClassNames.contains(symbol.name) {
+                if symbol.conformances.contains("XCTestCase")
+                    || symbol.conformances.contains(where: { testClassNames.contains($0) }) {
+                    testClassNames.insert(symbol.name)
+                    grew = true
+                }
+            }
+        }
+
         var results: [TestResult] = []
-        for symbol in interpreter.structSymbols where symbol.conformances.contains("XCTestCase") {
-            let testNames = symbol.methods.keys
-                .filter { $0.hasPrefix("test") }
-                .sorted()
-            for testName in testNames {
+        for symbol in interpreter.structSymbols where testClassNames.contains(symbol.name) {
+            var testNames = Set<String>()
+            var cursor: StructSymbol? = symbol
+            var hops = 0
+            while let current = cursor, hops < 16 {
+                for name in current.methods.keys where name.hasPrefix("test") {
+                    testNames.insert(name)
+                }
+                cursor = current.superclassName.flatMap { byName[$0] }
+                hops += 1
+            }
+            for testName in testNames.sorted() {
                 results.append(runSingle(testName, of: symbol, interpreter: interpreter, recorder: recorder))
             }
         }
