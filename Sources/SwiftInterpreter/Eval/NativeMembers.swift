@@ -156,11 +156,10 @@ extension Interpreter {
         case "indices": return .native(0..<array.count)
 
         case "flatMap":
-            return .hostFunction(HostFunction(name: name) { args, ctx in
-                let closure = try Self.requiredClosure(args, name)
+            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 var out: [RuntimeValue] = []
                 for element in array {
-                    let mapped = try ctx.callClosure(closure, arguments: [element])
+                    let mapped = try Self.mapStep(args, name, element, self, ctx)
                     if let nested = mapped.arrayValue {
                         out.append(contentsOf: nested)
                     } else if !mapped.isNil {
@@ -170,11 +169,10 @@ extension Interpreter {
                 return .native(out)
             })
         case "map", "compactMap":
-            return .hostFunction(HostFunction(name: name) { args, ctx in
-                let closure = try Self.requiredClosure(args, name)
+            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 var out: [RuntimeValue] = []
                 for element in array {
-                    let mapped = try ctx.callClosure(closure, arguments: [element])
+                    let mapped = try Self.mapStep(args, name, element, self, ctx)
                     if name == "compactMap" && mapped.isNil { continue }
                     out.append(mapped)
                 }
@@ -325,6 +323,55 @@ extension Interpreter {
         }
     }
 
+    /// One map/flatMap element step: a closure invokes; a key path
+    /// (`.flatMap(\\.windows)`) walks its components.
+    private static func mapStep(
+        _ args: CallArguments, _ name: String, _ element: RuntimeValue,
+        _ interpreter: Interpreter?, _ ctx: EvalContext
+    ) throws -> RuntimeValue {
+        if let closure = (args.closure(labeled: "transform") ?? args.unlabeledClosures.first
+                            ?? args.positional(0)?.closureValue) {
+            return try ctx.callClosure(closure, arguments: [element])
+        }
+        if case .native(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
+           let interpreter {
+            return try interpreter.applyKeyPath(path, to: element)
+        }
+        // Unapplied function references: `.flatMap(URL.init(string:))`.
+        if case .hostFunction(let fn)? = args.positional(0) {
+            return try fn.invoke(CallArguments(arguments: [.init(label: nil, value: element)]), ctx)
+        }
+        throw RuntimeError(message: "\(name) needs a closure or key path")
+    }
+
+    /// Walk a key path's components off a value: instance properties,
+    /// native members, host members; unknown hops become chains (absorb).
+    func applyKeyPath(_ path: KeyPathStub, to start: RuntimeValue) throws -> RuntimeValue {
+        var current = start
+        for component in path.components where component != "self" {
+            if current.isNil { return .nilValue }
+            switch current {
+            case .instance(let instance):
+                guard let value = try instanceMember(component, on: instance) else {
+                    throw RuntimeError(message: "'\(instance.symbol.name)' has no member '\(component)'")
+                }
+                current = value
+            case .native(let any):
+                if let value = try nativeMember(component, on: any)
+                    ?? registry?.hostMember(component, on: any) {
+                    current = value
+                } else {
+                    current = .native(ChainedImplicitCall(
+                        base: current, member: component, arguments: CallArguments()))
+                }
+            default:
+                current = .native(ChainedImplicitCall(
+                    base: current, member: component, arguments: CallArguments()))
+            }
+        }
+        return current
+    }
+
     private func stringMember(_ name: String, _ string: String) -> RuntimeValue? {
         switch name {
         case "count": return .native(string.count)
@@ -377,6 +424,26 @@ extension Interpreter {
             })
         case "removingPercentEncoding":
             return string.removingPercentEncoding.map { RuntimeValue.native($0) } ?? .nilValue
+        case "flatMap":
+            // On a string value this is Optional.flatMap in practice
+            // (`displayName.flatMap { … }` guards non-nil text): the
+            // closure receives the whole string; nil short-circuits
+            // upstream via nil-member propagation.
+            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
+                if let closure = args.closure(labeled: "transform") ?? args.unlabeledClosures.first
+                    ?? args.positional(0)?.closureValue {
+                    return try ctx.callClosure(closure, arguments: [.native(string)])
+                }
+                if case .native(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
+                   let self {
+                    return try self.applyKeyPath(path, to: .native(string))
+                }
+                if case .hostFunction(let fn)? = args.positional(0) {
+                    return try fn.invoke(
+                        CallArguments(arguments: [.init(label: nil, value: .native(string))]), ctx)
+                }
+                throw RuntimeError(message: "flatMap needs a closure or key path")
+            })
         case "unicodeScalars":
             // Scalars as single-char strings (our character model): count,
             // iteration, and allSatisfy work through array machinery.

@@ -1177,6 +1177,35 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// The map family accepts closures, KEY PATHS (\\.emojis), and
+    /// unapplied function references (URL.init(string:)); Optional-style
+    /// flatMap on strings; Locale.language chains.
+    @Test func mapFamilyArgumentShapes() throws {
+        let source = """
+        struct Account {
+            var emojis: [String]
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let accounts = [Account(emojis: ["a", "b"]), Account(emojis: ["c"])]
+                let merged = accounts.flatMap(\\.emojis)
+                let name: String? = "ice cubes"
+                let url = name.flatMap(URL.init(string:))
+                let upper = name.flatMap { $0.uppercased() }
+                VStack {
+                    Text("emojis \\(merged.count)")
+                    Text(url == nil ? "no url" : "url")
+                    Text(upper ?? "none")
+                    Text(Locale.current.language.languageCode?.identifier ?? "und")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

@@ -941,3 +941,12 @@ Each iteration does exactly this:
   arithmetic broke once mid-iteration, suite caught it); bare markers
   absorb to 0 as last resort. IceCubes: 35507 → 35527 (String.flatMap).
   **596/597; picked class eliminated. Suite 230.**
+- 2026-07-09 iter 118: map-family argument shapes — flatMap/map/compactMap
+  accept closures (incl. trailing — first string draft missed those, own
+  test caught it), KEY PATHS (KeyPathStub now carries components;
+  applyKeyPath walks instance/native/host members, unknown hops chain),
+  and unapplied function references (URL.init(string:) invokes); string
+  flatMap is Optional-flavored (closure gets the whole string); Locale
+  .language/.languageCode/.characterDirection bridged; UIApplication
+  alternateIconName reads nil (fresh install). IceCubes: 35527 → 3407
+  ("Icon is not callable" — next class). **596/597. Suite 231.**

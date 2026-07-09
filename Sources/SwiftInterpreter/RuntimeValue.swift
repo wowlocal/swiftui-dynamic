@@ -175,7 +175,12 @@ public struct SuperReference {
 
 /// Marker for key-path literals like `\.self`; gateways that take `id:` ignore it.
 public struct KeyPathStub {
-    public init() {}
+    /// `\.account.emojis` → ["account", "emojis"]; `\.self` → ["self"].
+    public var components: [String] = []
+
+    public init(components: [String] = []) {
+        self.components = components
+    }
 }
 
 /// An uppercase identifier that resolved to no known type or constructor —

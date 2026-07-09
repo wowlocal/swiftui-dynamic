@@ -133,8 +133,13 @@ extension Interpreter {
             // Synchronous stand-in: async work evaluates inline (documented).
             return try evaluate(awaitExpr.expression, in: env)
         }
-        if expr.is(KeyPathExprSyntax.self) {
-            return .native(KeyPathStub())
+        if let keyPath = expr.as(KeyPathExprSyntax.self) {
+            let components = keyPath.components.map {
+                $0.trimmedDescription.hasPrefix(".")
+                    ? String($0.trimmedDescription.dropFirst())
+                    : $0.trimmedDescription
+            }
+            return .native(KeyPathStub(components: components))
         }
         if expr.is(SuperExprSyntax.self) {
             guard case .instance(let instance)? = env.lookup("self") else {

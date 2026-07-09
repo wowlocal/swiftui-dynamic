@@ -424,8 +424,31 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
        name == "current" || name == "autoupdatingCurrent" {
         return .native(Locale.current)
     }
+    if let language = value as? Locale.Language {
+        switch name {
+        case "languageCode":
+            return language.languageCode.map { RuntimeValue.native($0) } ?? .nilValue
+        case "minimalIdentifier": return .native(language.minimalIdentifier)
+        case "maximalIdentifier": return .native(language.maximalIdentifier)
+        case "characterDirection":
+            // .leftToRight / .rightToLeft as implicit members so case
+            // comparisons (`== .rightToLeft`) match by name.
+            switch language.characterDirection {
+            case .rightToLeft: return .implicitMember("rightToLeft")
+            case .topToBottom: return .implicitMember("topToBottom")
+            case .bottomToTop: return .implicitMember("bottomToTop")
+            default: return .implicitMember("leftToRight")
+            }
+        default: return nil
+        }
+    }
+    if let code = value as? Locale.LanguageCode {
+        if name == "identifier" { return .native(code.identifier) }
+        return nil
+    }
     if let locale = value as? Locale {
         switch name {
+        case "language": return .native(locale.language)
         case "identifier": return .native(locale.identifier)
         case "regionCode":
             return locale.region.map { RuntimeValue.native($0.identifier) } ?? .nilValue

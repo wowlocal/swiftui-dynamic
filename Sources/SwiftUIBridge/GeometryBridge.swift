@@ -256,6 +256,9 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if value is AppStub {
         switch name {
+        case "alternateIconName": return .nilValue // fresh install: primary icon
+        case "setAlternateIconName":
+            return .hostFunction(HostFunction(name: name) { _, _ in .void })
         case "windows": return .native([RuntimeValue.native(WindowStub())])
         case "connectedScenes": return .native([RuntimeValue.native(WindowSceneStub())])
         case "mainWindow", "keyWindow": return .native(WindowStub())
