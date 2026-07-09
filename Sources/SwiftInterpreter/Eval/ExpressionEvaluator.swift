@@ -362,6 +362,34 @@ extension Interpreter {
         return nil
     }
 
+    /// Runs the best-matching user subscript getter (picked by arity).
+    func callUserSubscriptGetter(on instance: Instance, with args: CallArguments) throws -> RuntimeValue {
+        guard let member = instance.symbol.subscripts.first(where: { $0.parameters.count == args.arguments.count })
+            ?? instance.symbol.subscripts.first else {
+            throw RuntimeError(message: "'\(instance.symbol.name)' has no subscript")
+        }
+        let env = selfEnvironment(.instance(instance))
+        let closure = ClosureValue(parameters: member.parameters, body: member.getter, captured: env)
+        return try callWithArguments(closure, args: args, node: nil)
+    }
+
+    /// Runs the user subscript setter with `newValue` and the index bound.
+    func callUserSubscriptSetter(on instance: Instance, with args: CallArguments, newValue: RuntimeValue) throws {
+        guard let member = instance.symbol.subscripts.first(where: { $0.parameters.count == args.arguments.count })
+            ?? instance.symbol.subscripts.first else {
+            throw RuntimeError(message: "'\(instance.symbol.name)' has no subscript")
+        }
+        guard let setter = member.setter else {
+            throw RuntimeError(message: "subscript on '\(instance.symbol.name)' is get-only")
+        }
+        let env = selfEnvironment(.instance(instance))
+        for (parameter, argument) in zip(member.parameters, args.arguments) {
+            env.define(parameter.name, try resolveAnnotated(argument.value, annotation: parameter.typeAnnotation))
+        }
+        env.define(setter.parameterName, newValue)
+        _ = try executeBlock(setter.body, in: env)
+    }
+
     func evaluateComputed(_ computed: ComputedProperty, selfValue: RuntimeValue, name: String) throws -> RuntimeValue {
         callDepth += 1
         defer { callDepth -= 1 }
@@ -632,6 +660,13 @@ extension Interpreter {
     // MARK: - Calls
 
     func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
+        // `[Index]()` / `[String: Int]()` — typed empty containers.
+        if call.calledExpression.is(ArrayExprSyntax.self), call.arguments.isEmpty {
+            return .native([RuntimeValue]())
+        }
+        if call.calledExpression.is(DictionaryExprSyntax.self), call.arguments.isEmpty {
+            return .native(DictValue())
+        }
         // `.system(size: 40)` — implicit member call, resolved later by a gateway.
         if let member = call.calledExpression.as(MemberAccessExprSyntax.self), member.base == nil {
             let args = try collectArguments(of: call, in: env)
@@ -1099,6 +1134,8 @@ extension Interpreter {
         /// `trigger.0 = …` / `pair.label = …` — writes mutate the tuple and
         /// re-write the base, so state boxes still notify.
         case tupleElement(LValue, Int)
+        /// `matrix[index] = block` — user subscript get/set.
+        case instanceSubscript(Instance, CallArguments)
 
         /// The element type of an `[X]`-annotated instance property, if known.
         func annotatedElementType() -> String? {
@@ -1137,6 +1174,8 @@ extension Interpreter {
                     throw EvalMessage(text: "tuple element \(index) out of range")
                 }
                 return tuple.values[index]
+            case .instanceSubscript(let instance, let args):
+                return try interpreter.callUserSubscriptGetter(on: instance, with: args)
             }
         }
 
@@ -1192,6 +1231,8 @@ extension Interpreter {
                 tuple.values[index] = value
                 // Re-write the base so state boxes notify.
                 try base.write(.native(tuple), interpreter)
+            case .instanceSubscript(let instance, let args):
+                try interpreter.callUserSubscriptSetter(on: instance, with: args, newValue: value)
             }
         }
     }
@@ -1237,6 +1278,12 @@ extension Interpreter {
                 throw error(subscriptCall, "missing subscript index")
             }
             let baseValue = try? evaluate(subscriptCall.calledExpression, in: env)
+            if case .instance(let instance)? = baseValue, !instance.symbol.subscripts.isEmpty {
+                let indexArgs = CallArguments(arguments: try subscriptCall.arguments.map {
+                    .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
+                })
+                return .instanceSubscript(instance, indexArgs)
+            }
             if let dict = baseValue?.dictValue {
                 return .dictElement(dict, try evaluate(indexExpr, in: env))
             }
@@ -1334,13 +1381,22 @@ extension Interpreter {
             }
             return element
         }
+        if case .instance(let instance) = base, !instance.symbol.subscripts.isEmpty {
+            // User subscript getter: `matrix[index]` / `grid[x, y]`.
+            let indexArgs = CallArguments(arguments: try call.arguments.map {
+                .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
+            })
+            return try relocating(call) {
+                try callUserSubscriptGetter(on: instance, with: indexArgs)
+            }
+        }
         if case .native(let any) = base,
            case .hostFunction(let subscripting)? = registry?.hostMember("subscript", on: any) {
             // Host subscripts (AttributedString[range] styling proxies).
             let args = CallArguments(arguments: [.init(label: nil, value: index)])
             return try relocating(call) { try subscripting.invoke(args, self) }
         }
-        throw error(call, "subscripting is only supported on arrays and dictionaries")
+        throw error(call, "subscripting is only supported on arrays and dictionaries, got \(base.stringified)")
     }
 
     func expectBool(_ value: RuntimeValue, node: some SyntaxProtocol) throws -> Bool {

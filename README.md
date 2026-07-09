@@ -63,7 +63,9 @@ bodies), closures (`$0` shorthand, capture-by-reference), structs (stored/
 computed properties, methods, custom `init`s, memberwise init, statics),
 enums (raw + associated values, methods, computed properties, `CaseIterable`),
 **classes** (reference semantics, custom inits, statics, `super`
-inheritance-lite), **protocols** (declarations inert — conformance is duck
+inheritance-lite), **user subscripts** (get/set, tuple and multi-arg
+indices), `defer` (LIFO, all exit paths), typealiases (target types,
+generic args dropped), **protocols** (declarations inert — conformance is duck
 typing; protocol-EXTENSION members serve as defaults, conformers' own
 definitions win), extensions,
 **view models** — `ObservableObject`/`@Observable` with `@Published`,

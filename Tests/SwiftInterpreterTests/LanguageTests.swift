@@ -505,6 +505,43 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "1234- 5678 1 2")
     }
 
+    /// User subscripts (get + set, tuple indices), typed empty containers,
+    /// member typealiases, and defer LIFO semantics — the 2048 quartet.
+    @Test func userSubscriptsTypealiasesAndDefer() throws {
+        let source = """
+        struct Grid {
+            typealias Index = (Int, Int)
+            var cells: [[Int]] = [[1, 2], [3, 4]]
+
+            subscript(index: Index) -> Int {
+                get {
+                    return cells[index.1][index.0]
+                }
+                set {
+                    cells[index.1][index.0] = newValue
+                }
+            }
+        }
+
+        typealias Board = Grid
+
+        func trace() -> String {
+            var log = [String]()
+            defer {
+                log.append("outer")
+            }
+            var board = Board()
+            board[(1, 0)] = 20
+            let picked = [Board.Index]()
+            log.append("cell=\\(board[(1, 0)]) empty=\\(picked.count)")
+            return log.joined(separator: "/")
+        }
+        trace()
+        """
+        // The deferred append runs AFTER the return value is built.
+        #expect(try eval(source).stringValue == "cell=20 empty=0")
+    }
+
     @Test func appendContentsOfSplices() throws {
         let source = """
         var downloads: [Int] = [1]

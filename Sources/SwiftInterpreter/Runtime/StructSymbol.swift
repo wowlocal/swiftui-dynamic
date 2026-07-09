@@ -87,6 +87,14 @@ public final class StructSymbol {
         public let typeAnnotation: TypeSyntax?
     }
 
+    /// `subscript(index: Index) -> T? { get set }` — user subscripts.
+    public struct SubscriptMember {
+        public let parameters: [ClosureValue.Parameter]
+        public let getter: CodeBlockItemListSyntax
+        public let setter: ComputedProperty.Setter?
+    }
+
+    public internal(set) var subscripts: [SubscriptMember] = []
     public internal(set) var storedProperties: [StoredProperty] = []
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
     public internal(set) var methods: [String: FunctionDeclSyntax] = [:]

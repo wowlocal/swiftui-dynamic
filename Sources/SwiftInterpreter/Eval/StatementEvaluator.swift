@@ -15,7 +15,20 @@ extension Interpreter {
     /// expression statement (which is what gives closures implicit returns).
     func executeBlock(_ items: CodeBlockItemListSyntax, in env: Environment) throws -> StatementResult {
         var last: RuntimeValue = .void
+        var deferredBodies: [CodeBlockItemListSyntax] = []
+        // Interpreted `defer` bodies run LIFO on every exit path (normal,
+        // return/break/continue, interpreted throw). Like real Swift, a
+        // defer body itself cannot redirect control flow outward.
+        defer {
+            for body in deferredBodies.reversed() {
+                _ = try? executeBlock(body, in: env)
+            }
+        }
         for item in items {
+            if case .stmt(let stmt) = item.item, let deferStmt = stmt.as(DeferStmtSyntax.self) {
+                deferredBodies.append(deferStmt.body.statements)
+                continue
+            }
             let result = try execute(item, in: env)
             guard case .normal(let value) = result else { return result }
             last = value

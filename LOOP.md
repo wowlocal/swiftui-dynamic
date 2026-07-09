@@ -673,3 +673,11 @@ Each iteration does exactly this:
   call shapes and Milestones on the `/` case-path prefix operator — new
   class material the zip corpus never produced. Metric basis 588.
   **554 → 555/588 (94.4%).**
+- 2026-07-09 iter 84: the 2048 quartet (first OSS-driven fixes) — USER
+  SUBSCRIPTS (get/set, tuple indices, arity-matched, lvalue writes through
+  setters), typed empty containers (`[Index]()`, `[String: Int]()`),
+  typealiases resolve to their target types (top-level AND member-level,
+  generic args dropped), and `defer` runs LIFO on every exit path.
+  oss:SwiftUI-2048 advanced four walls deep (now at custom postfix
+  operators); the zip corpus holds. **555/588 steady, four language
+  features banked.**

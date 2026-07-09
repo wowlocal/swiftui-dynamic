@@ -51,6 +51,22 @@ extension Interpreter {
                   let extensionDecl = decl.as(ExtensionDeclSyntax.self) else { continue }
             try collectExtension(extensionDecl)
         }
+        // `typealias BlockMatrixType = BlockMatrix<IdentifiedBlock>` — the
+        // alias resolves to the target TYPE (generic arguments dropped, like
+        // everywhere else). Tuple/function aliases stay inert.
+        for item in expandedTopLevelItems(file.statements) {
+            guard case .decl(let decl) = item.item,
+                  let alias = decl.as(TypeAliasDeclSyntax.self) else { continue }
+            var target = alias.initializer.value.trimmedDescription
+            if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
+            target = target.trimmingCharacters(in: .whitespaces)
+            if globals.lookup(alias.name.text) == nil, let value = globals.lookup(target) {
+                globals.define(alias.name.text, value)
+            }
+            if enumSymbols[alias.name.text] == nil, let enumSymbol = enumSymbols[target] {
+                enumSymbols[alias.name.text] = enumSymbol
+            }
+        }
     }
 
     /// Only plain identifier bindings hoist; tuple/computed bindings run
@@ -190,6 +206,34 @@ extension Interpreter {
                 }
             } else if let initDecl = member.decl.as(InitializerDeclSyntax.self) {
                 symbol.initializers.append(initDecl)
+            } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
+                // Member typealiases resolve like nested types (bare name
+                // when unclaimed); generic arguments drop.
+                var target = alias.initializer.value.trimmedDescription
+                if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
+                target = target.trimmingCharacters(in: .whitespaces)
+                if let value = globals.lookup(target) {
+                    symbol.nestedTypes[alias.name.text] = value
+                    if globals.lookup(alias.name.text) == nil {
+                        globals.define(alias.name.text, value)
+                    }
+                }
+                if enumSymbols[alias.name.text] == nil, let enumSymbol = enumSymbols[target] {
+                    enumSymbols[alias.name.text] = enumSymbol
+                }
+            } else if let subscriptDecl = member.decl.as(SubscriptDeclSyntax.self),
+                      let accessorBlock = subscriptDecl.accessorBlock,
+                      let accessors = parseAccessors(of: accessorBlock) {
+                let parameters = subscriptDecl.parameterClause.parameters.map { param in
+                    ClosureValue.Parameter(
+                        name: (param.secondName ?? param.firstName).text,
+                        label: param.firstName.text == "_" ? nil : param.firstName.text,
+                        defaultValue: param.defaultValue?.value,
+                        typeAnnotation: param.type
+                    )
+                }
+                symbol.subscripts.append(.init(
+                    parameters: parameters, getter: accessors.getter, setter: accessors.setter))
             } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
                 // Nested types register under `Outer.Name` (for annotations)
                 // and the bare name when unclaimed (for in-scope references).
