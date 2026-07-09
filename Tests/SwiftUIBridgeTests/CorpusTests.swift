@@ -2021,6 +2021,69 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Overload selection promises only what binding can deliver: missing
+    /// required labels are covered by UNLABELED trailing closures alone
+    /// (IceSection's 4-param delegation must not pick the 5-param
+    /// designated init); both-unknowable equality compares names.
+    @Test func trailingClosureSelectionAndUnknowableEquality() throws {
+        let source = """
+        struct Section2<Header: View, Content: View, Footer: View>: View {
+            let header: Header
+            let content: Content
+            let footer: Footer
+            let spacing: CGFloat
+
+            init(
+                spacing: CGFloat = 10,
+                @ViewBuilder header: () -> Header,
+                @ViewBuilder content: () -> Content,
+                @ViewBuilder footer: () -> Footer
+            ) {
+                self.spacing = spacing
+                self.header = header()
+                self.content = content()
+                self.footer = footer()
+            }
+
+            init(
+                _ title: String,
+                spacing: CGFloat = 10,
+                @ViewBuilder content: () -> Content
+            ) where Header == Text, Footer == EmptyView {
+                self.init(spacing: spacing) {
+                    Text(title)
+                } content: {
+                    content()
+                } footer: {
+                    EmptyView()
+                }
+            }
+
+            var body: some View {
+                VStack(spacing: spacing) {
+                    header
+                    content
+                    footer
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let probe = ExternalService.current
+                VStack {
+                    Section2("Permissions") {
+                        Text("row")
+                    }
+                    Text(probe.shapeKind == .none ? "matched none" : "differs")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

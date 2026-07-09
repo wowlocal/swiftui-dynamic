@@ -388,10 +388,15 @@ public final class Interpreter {
             let required = params
                 .filter { $0.defaultValue == nil && $0.firstName.text != "_" }
                 .map { $0.firstName.text }
-            let trailingCount = args.arguments.filter(\.isTrailing).count
+            // Only UNLABELED trailing closures can fill missing required
+            // labels (labeled trailings already matched by name) — the
+            // binder gives them to the LAST unbound slot, so selection
+            // must not over-promise (IceSection's 5-param designated init
+            // vs its 4-param delegation).
+            let unlabeledTrailing = args.arguments.filter { $0.isTrailing && $0.label == nil }.count
             if args.arguments.count <= params.count,
                argLabels.allSatisfy({ labels.contains($0) }),
-               required.filter({ !argLabels.contains($0) }).count <= trailingCount,
+               required.filter({ !argLabels.contains($0) }).count <= unlabeledTrailing,
                unlabeled <= wildcards {
                 return candidate
             }
@@ -430,10 +435,15 @@ public final class Interpreter {
             // Shape match: every arg label exists, every required label is
             // provided (trailing closures may fill one), and positional args
             // have `_` slots — `Pubkey(data)` must NOT pick init?(hex:).
-            let trailingCount = args.arguments.filter(\.isTrailing).count
+            // Only UNLABELED trailing closures can fill missing required
+            // labels (labeled trailings already matched by name) — the
+            // binder gives them to the LAST unbound slot, so selection
+            // must not over-promise (IceSection's 5-param designated init
+            // vs its 4-param delegation).
+            let unlabeledTrailing = args.arguments.filter { $0.isTrailing && $0.label == nil }.count
             if args.arguments.count <= params.count,
                argLabels.allSatisfy({ labels.contains($0) }),
-               required.filter({ !argLabels.contains($0) }).count <= trailingCount,
+               required.filter({ !argLabels.contains($0) }).count <= unlabeledTrailing,
                unlabeled <= wildcards {
                 return candidate
             }

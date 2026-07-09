@@ -1165,3 +1165,13 @@ Each iteration does exactly this:
   linearmouse passes (11 nodes, 2 actions). **617/618; queue: Ice (void
   OptionSet in generic init overloads — probe-resistant, needs a fresh
   angle).**
+- 2026-07-09 iter 137: Ice falls — the probe-resistant void was an OVERLOAD-
+  SELECTION over-promise: missing required labels may be covered by
+  UNLABELED trailing closures only (the binder hands them to the LAST
+  unbound slot; total-trailing counting let the 5-param designated init
+  beat the 4-param delegation target, leaving header unbound → the
+  binding-retry discarded the half-init). Diagnosed via staged
+  instrumentation (args-shape log → runInitializer failure log). Plus
+  both-unknowable equality compares marker NAMES ((function shapeKind)
+  vs .none → false). Ice passes (56 nodes). **618/618 counted — ZERO
+  failures (eleventh saturation). 585 zips + 33 OSS repos green.**

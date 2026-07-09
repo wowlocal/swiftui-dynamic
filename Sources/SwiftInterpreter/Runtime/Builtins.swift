@@ -383,6 +383,21 @@ public enum Builtins {
                 return false
             }
             if isUnknowable(lhs) != isUnknowable(rhs) { return false }
+            if isUnknowable(lhs), isUnknowable(rhs) {
+                // Both unknowable: name equality is the best truth
+                // ((function shapeKind) vs .none — different names differ).
+                func markerName(_ value: RuntimeValue) -> String? {
+                    if case .implicitMember(let name) = value { return name }
+                    if case .hostFunction(let fn) = value { return fn.name }
+                    if case .native(let any) = value {
+                        if let call = any as? ImplicitMemberCall { return call.name }
+                        if let chain = any as? ChainedImplicitCall { return chain.member }
+                    }
+                    return nil
+                }
+                if let l = markerName(lhs), let r = markerName(rhs) { return l == r }
+                return false
+            }
             throw EvalMessage(text: "cannot compare \(lhs.stringified) and \(rhs.stringified)")
         }
     }
