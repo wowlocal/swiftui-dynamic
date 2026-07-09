@@ -41,6 +41,34 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// MapKit views can't real-host (the bridge never imports MapKit), so the
+    /// reader-family stub is verified trace-only: content deep-renders with a
+    /// MapProxyStub whose conversions are honestly nil.
+    @Test func mapReaderContentRendersWithProxyStub() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var status = "unresolved"
+
+            var body: some View {
+                MapReader { proxy in
+                    VStack {
+                        Text(status)
+                        Button("Locate") {
+                            if let point = proxy.convert(CGPoint(x: 10, y: 10), from: .global) {
+                                status = "converted \\(point)"
+                            } else {
+                                status = "no map"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount > 2)
+    }
+
     @Test(arguments: corpusFiles)
     func hostedRealRender(file: String) throws {
         RenderDiagnostics.reset()

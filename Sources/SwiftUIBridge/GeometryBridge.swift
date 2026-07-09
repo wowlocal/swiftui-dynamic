@@ -16,6 +16,10 @@ struct TimelineContextStub {
 /// Trace-mode stand-in for ScrollViewProxy (scrollTo is a no-op headlessly).
 struct ScrollViewProxyStub {}
 
+/// `MapReader { proxy in … }` — no map exists headlessly (or without
+/// MapKit); coordinate conversions honestly return nil.
+struct MapProxyStub {}
+
 /// iOS code reads `UIScreen.main.bounds`; the honest macOS analog is the main
 /// screen's frame (fixed canvas headlessly).
 struct ScreenStub {
@@ -159,6 +163,12 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if value is ScrollViewProxyStub {
         if name == "scrollTo" {
             return .hostFunction(HostFunction(name: "scrollTo") { _, _ in .void })
+        }
+        return nil
+    }
+    if value is MapProxyStub {
+        if name == "convert" {
+            return .hostFunction(HostFunction(name: "convert") { _, _ in .nilValue })
         }
         return nil
     }

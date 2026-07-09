@@ -280,3 +280,9 @@ Each iteration does exactly this:
   PaginatingSwiftData + SwiftTransformer pass; NetflixUI pair advanced past
   env into a view-position marker class; SwiftUIRealm advanced to Realm
   ObjectId internals (quarantine candidate if it tops). **71/100 → 73/100**.
+- 2026-07-09 iter 36: MapReader joins the reader family — content deep-renders
+  with a MapProxyStub whose `convert(_:from:)` is honestly nil (no map exists
+  headlessly; MapKit never imports). DraggableMapPin passes; the "missing
+  argument" class shrinks 3 → 2 (Canvas = the GraphicsContext wall, Chips_UI =
+  String text-measurement overload vs user extension — both single-project
+  roots). **73/100 → 74/100**.

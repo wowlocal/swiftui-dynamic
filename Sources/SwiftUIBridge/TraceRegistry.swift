@@ -66,9 +66,9 @@ public final class TraceRegistry: HostRegistry {
                 }
                 return .native(node)
             }
-        case "GeometryReader", "TimelineView", "ScrollViewReader":
-            // Layout/time/scroll proxies don't exist headlessly; bind honest
-            // stubs so the content still deep-renders.
+        case "GeometryReader", "TimelineView", "ScrollViewReader", "MapReader":
+            // Layout/time/scroll/map proxies don't exist headlessly; bind
+            // honest stubs so the content still deep-renders.
             return HostFunction(name: name) { args, ctx in
                 let node = TraceNode(kind: name)
                 if let content = args.unlabeledClosures.first {
@@ -76,6 +76,7 @@ public final class TraceRegistry: HostRegistry {
                     switch name {
                     case "GeometryReader": argument = .native(GeometryProxyStub())
                     case "ScrollViewReader": argument = .native(ScrollViewProxyStub())
+                    case "MapReader": argument = .native(MapProxyStub())
                     default: argument = .native(TimelineContextStub())
                     }
                     node.children = try ctx.callBuilderClosure(content, arguments: [argument]).map(Self.node)
