@@ -97,10 +97,15 @@ public protocol HostRegistry: AnyObject {
     /// Host-typed operators the core can't know (`Text + Text`). Return nil
     /// to fall through to the numeric/string builtins.
     func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue?
+    /// The host TYPE a native value stands for (AppStub → "UIApplication",
+    /// a recorded node → its constructor name) so user extensions of host
+    /// types dispatch on stubs. Nil when unknown.
+    func hostTypeName(of value: Any) -> String?
 }
 
 extension HostRegistry {
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
+    public func hostTypeName(of value: Any) -> String? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool { false }
     public func hostObjectConstructor(named name: String) -> HostFunction? { nil }

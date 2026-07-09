@@ -500,3 +500,14 @@ Each iteration does exactly this:
   ShazamKitApp, CameraControlAPI, PomodoroTimer pass; LocationSearch pair →
   Combine $published pipelines, HeaderAnimation → window wall.
   **455/587 → 470/587 (+15 — the marker fixes rippled corpus-wide).**
+- 2026-07-09 iter 61: the UIKit window/app surface (WindowStub 6 + AppStub 6,
+  sibling classes). New HostRegistry.hostTypeName hook: stubs name the host
+  type they stand for (AppStub → UIApplication, trace nodes → their
+  constructor kind), so user `extension UIApplication { … }` members dispatch
+  on stubs; bare host members resolve as implicit self inside those extension
+  bodies. window.rootViewController opens a UIKitStub island — memoized
+  chainable reads, round-tripping writes, InertCallable calls (present/
+  dismiss inert). AppStub gains canOpenURL (true — schemes resolve on real
+  devices) + open (inert). GSignin, DarkModeAnimation, MultiLogin ×2,
+  InAppNotifications, LinkPreview ×2, Signal_ImagePicker, DLogin,
+  DynamicProgressView pass. **470/587 → 481/587 (81.9%)**.

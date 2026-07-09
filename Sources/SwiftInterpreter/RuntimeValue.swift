@@ -128,6 +128,10 @@ public struct ChainedImplicitCall {
     }
 }
 
+/// Bridge stub types conform so calling them is inert-chainable
+/// (`vc.present(alert, animated: true)` on a UIKit hosting stub).
+public protocol InertCallable {}
+
 /// `super` inside a class body: member access dispatches to the interpreted
 /// superclass when one exists, and is inert for host superclasses (NSObject,
 /// UIViewController, …) whose initializers have no interpreter analog.

@@ -143,6 +143,13 @@ struct AppStub {}
 struct WindowStub {}
 struct WindowSceneStub {}
 
+/// UIKit hosting island (`window.rootViewController`, its `.view`, …):
+/// property writes round-trip, unknown reads/calls chain more stubs — the
+/// hosted view-controller machinery is inert but configurable.
+final class UIKitStub: InertCallable {
+    var config: [String: RuntimeValue] = [:]
+}
+
 /// `DispatchQueue.main` — async dispatches through the real main queue.
 struct MainQueueStub {}
 
@@ -180,11 +187,25 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return nil
         }
     }
+    if let stub = value as? UIKitStub {
+        if let stored = stub.config[name] { return stored }
+        // Unknown members read as fresh stubs, memoized so writes persist
+        // (`vc.view.tag = 7` then `vc.view.tag`); calling a stub is also
+        // inert (see the evaluator's invoke fallback).
+        let fresh = RuntimeValue.native(UIKitStub())
+        stub.config[name] = fresh
+        return fresh
+    }
     if value is AppStub {
         switch name {
         case "windows": return .native([RuntimeValue.native(WindowStub())])
         case "connectedScenes": return .native([RuntimeValue.native(WindowSceneStub())])
         case "mainWindow", "keyWindow": return .native(WindowStub())
+        case "canOpenURL":
+            // URL schemes resolve on real devices; the richer branch renders.
+            return .hostFunction(HostFunction(name: "canOpenURL") { _, _ in .native(true) })
+        case "open":
+            return .hostFunction(HostFunction(name: "open") { _, _ in .void })
         case "terminate":
             // Quitting the host would kill the verifier/demo — inert.
             return .hostFunction(HostFunction(name: "terminate") { _, _ in .void })
@@ -207,6 +228,10 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if value is WindowStub {
         if name == "safeAreaInsets" { return .native(EdgeInsets()) }
         if name == "isKeyWindow" { return .native(true) } // ours is the only window
+        if name == "rootViewController" || name == "rootController" {
+            return .native(UIKitStub())
+        }
+        if name == "tag" { return .native(0) }
         if name == "close" {
             return .hostFunction(HostFunction(name: "close") { _, _ in .void })
         }
@@ -425,6 +450,10 @@ extension ViewRegistry {
         bridgeHostMember(name, on: value)
     }
 
+    public func hostTypeName(of value: Any) -> String? {
+        bridgeHostTypeName(of: value)
+    }
+
     /// `Text("a") + Text("b")` — both sides are AnyView-erased by the time
     /// they meet, so concatenation approximates as an adjacent zero-spacing
     /// HStack (documented divergence: no line-wrap continuity).
@@ -509,5 +538,18 @@ private func renderProxyContent(
     } catch {
         RenderDiagnostics.record(RuntimeError(message: String(describing: error)), in: container)
         return AnyView(EmptyView())
+    }
+}
+
+
+/// Stub → host type names, so user `extension UIApplication { … }` members
+/// dispatch on the stubs standing in for those objects.
+func bridgeHostTypeName(of value: Any) -> String? {
+    switch value {
+    case is AppStub: return "UIApplication"
+    case is WindowStub: return "UIWindow"
+    case is WindowSceneStub: return "UIWindowScene"
+    case is ScreenStub: return "UIScreen"
+    default: return nil
     }
 }

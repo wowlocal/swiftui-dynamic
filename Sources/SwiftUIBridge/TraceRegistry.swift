@@ -295,6 +295,13 @@ public final class TraceRegistry: HostRegistry {
         return hostObjectSetMember(name, on: value, to: newValue)
     }
 
+    /// Recorded nodes stand for their constructor's type (UIColor(...) →
+    /// "UIColor"), so user extensions of host types dispatch on them.
+    public func hostTypeName(of value: Any) -> String? {
+        if let node = value as? TraceNode { return node.kind }
+        return bridgeHostTypeName(of: value)
+    }
+
     static func node(_ value: RuntimeValue) throws -> TraceNode {
         if case .native(let any) = value, let node = any as? TraceNode { return node }
         if Coerce.colorLike(value) != nil {

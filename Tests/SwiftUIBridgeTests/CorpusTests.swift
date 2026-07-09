@@ -41,6 +41,41 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// User extensions of UIKit types dispatch on the stubs standing in for
+    /// them, with bare host members as implicit self; the window/VC island
+    /// is inert-chainable with round-tripping writes.
+    @Test func uiApplicationExtensionsDispatchOnStubs() throws {
+        let source = """
+        extension UIApplication {
+            func closeKeyboard() {
+                sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
+
+            func rootController() -> UIViewController {
+                return (windows.first?.rootViewController)!
+            }
+        }
+
+        struct ContentView: View {
+            @State private var status = "editing"
+
+            var body: some View {
+                VStack {
+                    Text(status)
+                    Button("Done") {
+                        UIApplication.shared.closeKeyboard()
+                        UIApplication.shared.rootController().view.tag = 7
+                        status = UIApplication.shared.canOpenURL("https://x.co") ? "openable" : "sandboxed"
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+        #expect(report.actionsInvoked == 1)
+    }
+
     /// Query-wrapper CONSTRUCTORS are fresh-store empty results, so custom
     /// inits assigning backing storage (`_list = Query(descriptor)`) keep
     /// ForEach iterable; unknown store-query objects act empty.

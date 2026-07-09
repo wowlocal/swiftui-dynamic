@@ -471,6 +471,10 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
         // CLLocationManager) — config writes are dead machinery headlessly.
         return true
     }
+    if let stub = value as? UIKitStub {
+        stub.config[name] = newValue
+        return true
+    }
     if let box = value as? NumberFormatterBox {
         switch name {
         case "numberStyle":

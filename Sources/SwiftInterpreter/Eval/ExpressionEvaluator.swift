@@ -270,6 +270,7 @@ extension Interpreter {
             // Bare `count`/`firstIndex(...)` inside a host-type extension body
             // is implicit self on the native value.
             if let value = try nativeMember(name, on: any) { return value }
+            if let value = registry?.hostMember(name, on: any) { return value }
             return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
         default:
             return nil
@@ -311,6 +312,7 @@ extension Interpreter {
     func hostCandidates(for any: Any) -> [String] {
         var names: [String] = []
         if let registry, registry.isViewValue(.native(any)) { names.append("View") }
+        if let typeName = registry?.hostTypeName(of: any) { names.append(typeName) }
         if any is String { names.append("String") }
         if any is Int { names.append("Int") }
         if any is Double { names.append("Double"); names.append("CGFloat") }
@@ -794,6 +796,8 @@ extension Interpreter {
         case .native(let any) where any is HostTypeMarker:
             let marker = any as! HostTypeMarker
             throw error(node, "'\(marker.name)' has no interpreter constructor — only its static members (like \(marker.name).something) are supported")
+        case .native(let any) where any is InertCallable:
+            return callee // inert-chainable host stub call
         default:
             throw error(node, "\(callee.stringified) is not callable")
         }
