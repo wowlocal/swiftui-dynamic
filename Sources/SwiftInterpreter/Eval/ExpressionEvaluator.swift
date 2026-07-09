@@ -193,6 +193,13 @@ extension Interpreter {
                 return result
             }
             return .native(HostTypeMarker(name: "#\(macro.macroName.text)"))
+        case .isExpr:
+            // `value is Type` — checkable shapes really check (primitives,
+            // interpreted symbols, host type names); unknowables read FALSE
+            // (fresh state: nothing persisted IS anything yet).
+            let isExpr = expr.cast(IsExprSyntax.self)
+            let subject = try evaluate(isExpr.expression, in: env)
+            return .native(valueIsType(subject, isExpr.type.trimmedDescription))
         case .asExpr:
             let asExpr = expr.cast(AsExprSyntax.self)
             // Dynamic casts: give the target type a chance to resolve markers,
@@ -1212,6 +1219,46 @@ extension Interpreter {
         cStdlibNames.contains(name)
             || (name.contains("_") && name.first?.isLowercase == true)
             || (name.hasPrefix("_") && name.dropFirst().first?.isLowercase == true)
+    }
+
+    /// Runtime type test for `is`: primitives and interpreted symbols check
+    /// truly; host natives match the registry's type name; markers and nil
+    /// read false.
+    func valueIsType(_ value: RuntimeValue, _ rawType: String) -> Bool {
+        var typeName = rawType.trimmingCharacters(in: .whitespaces)
+        if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+        if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
+        if typeName == "Any" || typeName == "AnyObject" { return !value.isNil }
+        if value.isNil { return false }
+        switch value {
+        case .int: return ["Int", "Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
+        case .double: return ["Double", "CGFloat", "TimeInterval", "Float", "NSNumber"].contains(typeName)
+        case .bool: return typeName == "Bool" || typeName == "NSNumber"
+        case .instance(let instance):
+            var symbol: StructSymbol? = instance.symbol
+            while let current = symbol {
+                if current.name == typeName || current.conformances.contains(typeName) { return true }
+                guard let superName = current.superclassName,
+                      case .type(let parent)? = globals.lookup(superName) else { break }
+                symbol = parent
+            }
+            return false
+        case .enumCase(let caseValue):
+            return caseValue.symbol.name == typeName || caseValue.symbol.conformances.contains(typeName)
+        case .host(let any):
+            if any is String || any is NSString { return ["String", "NSString"].contains(typeName) }
+            if any is Date { return ["Date", "NSDate"].contains(typeName) }
+            if any is URL { return ["URL", "NSURL"].contains(typeName) }
+            if any is Data { return ["Data", "NSData"].contains(typeName) }
+            if any is [RuntimeValue] { return ["Array", "NSArray"].contains(typeName) || typeName.hasPrefix("[") }
+            if any is DictValue { return ["Dictionary", "NSDictionary"].contains(typeName) || typeName.hasPrefix("[") }
+            if any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+                return false // unknowable: fresh state IS nothing yet
+            }
+            return registry?.hostTypeName(of: any) == typeName
+        default:
+            return false
+        }
     }
 
     func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
@@ -2306,6 +2353,21 @@ extension Interpreter {
                 || symbol.staticUninitialized.contains(name)
                 || symbol.staticCache[name] != nil {
                 return .staticProperty(symbol, name)
+            }
+            // Bare static COMPUTED setters under a type self
+            // (`firstRunDate = Date()` inside a property-initializer
+            // closure, the setter living in a private extension).
+            if case .type(let symbol)? = env.lookup("self"),
+               let computed = symbol.staticComputedProperties[name],
+               let setter = computed.setter {
+                let box = Box(.void)
+                box.onChange = { [weak self] in
+                    guard let self else { return }
+                    let setterEnv = self.selfEnvironment(.type(symbol))
+                    setterEnv.define(setter.parameterName, box.value)
+                    _ = try? self.executeBlock(setter.body, in: setterEnv)
+                }
+                return .box(box)
             }
             // Enum namespaces hold mutable statics too (`storage.append(…)`
             // inside a static setter): writes land in the static cache.

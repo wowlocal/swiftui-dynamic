@@ -1732,3 +1732,13 @@ without this.
   FALSE (fresh-state ordering). MakeItSo ✅, Mythic ✅. Ten singleton
   classes remain at the honest roots — the next iterations' queue.
   **652/666 counted (650 → 652 strictly improved). Suite 340 → 341.**
+- 2026-07-10 iter 171: honest-roots queue — NetNewsWire. Two classes:
+  `value is Type` EXPRESSIONS (checkable shapes really check —
+  primitives, interpreted symbols through the superclass walk, host
+  natives by registry type name; unknowables read FALSE: fresh
+  UserDefaults.object is nothing yet); bare static COMPUTED setters
+  assign under a `.type` self (`firstRunDate = Date()` inside a
+  property-initializer closure, the setter living in a private
+  extension — the iter-158 member-form rule, bare flavor).
+  NetNewsWire ✅ (22 nodes, 9 actions — richer than the heuristic
+  root ever reached). **653/666 counted (652 → 653). Suite 341 → 342.**

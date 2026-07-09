@@ -2909,6 +2909,50 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// NetNewsWire at its honest root (iteration 171): `value is Type`
+    /// really checks checkable shapes (primitives, interpreted symbols,
+    /// host natives) and reads FALSE for unknowables (fresh
+    /// UserDefaults.object is nothing yet); bare static COMPUTED setters
+    /// assign under a type self (`firstRunDate = Date()` inside a
+    /// property-initializer closure, the setter in a private extension).
+    @Test func isExpressionsAndBareStaticSetters() throws {
+        let source = """
+        struct AppDefaults {
+            static var stored: [String: Date] = [:]
+
+            let isFirstRun: Bool = {
+                if UserDefaults.standard.object(forKey: "firstRunDate") is Date {
+                    return false
+                }
+                firstRunDate = Date()
+                return true
+            }()
+
+            static var firstRunDate: Date? {
+                get { stored["firstRunDate"] }
+                set { stored["firstRunDate"] = newValue }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let defaults = AppDefaults()
+                let checks = [
+                    defaults.isFirstRun == true,
+                    AppDefaults.firstRunDate != nil,
+                    ("text" is String) == true,
+                    (42 is Date) == false,
+                    (Date() is Date) == true,
+                ]
+                if checks.contains(false) { fatalError("is/static-setter broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// MakeItSo + Mythic (iteration 170): enum-case ORDERED comparisons —
     /// synthesized Comparable orders by DECLARATION position (ignoring raw
     /// values); a bare unresolved `.member` on either side names a case of
