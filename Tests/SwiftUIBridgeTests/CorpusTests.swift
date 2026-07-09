@@ -41,6 +41,32 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// A CaseIterable enum nested in the very view that iterates it:
+    /// `ForEach(ChartType.allCases, id: \.rawValue)`.
+    @Test func nestedEnumAllCasesDrivesForEach() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var chartType: ChartType = .bar
+
+            var body: some View {
+                VStack {
+                    ForEach(ChartType.allCases, id: \\.rawValue) { type in
+                        Text(type.rawValue)
+                    }
+                }
+            }
+
+            enum ChartType: String, CaseIterable {
+                case bar = "Bar"
+                case line = "Line"
+                case pie = "Pie"
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     /// KeyframeAnimator/PhaseAnimator content receives the animated value —
     /// headlessly the initialValue (or first phase) seeds it.
     @Test func keyframeAnimatorContentReceivesInitialValue() throws {

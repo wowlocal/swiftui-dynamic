@@ -77,6 +77,10 @@ extension Interpreter {
                 symbol.nestedTypes[nested.name] = .enumType(nested)
                 enumSymbols["\(symbol.name).\(nested.name)"] = nested
                 if enumSymbols[nested.name] == nil { enumSymbols[nested.name] = nested }
+                globals.define("\(symbol.name).\(nested.name)", .enumType(nested))
+                if globals.lookup(nested.name) == nil {
+                    globals.define(nested.name, .enumType(nested))
+                }
             } else if let nestedStruct = member.decl.as(StructDeclSyntax.self) {
                 let nestedSymbol = try makeStructSymbol(nestedStruct)
                 symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)

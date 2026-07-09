@@ -370,3 +370,10 @@ Each iteration does exactly this:
   `@State var trigger: (Bool, Bool, Bool)` + `trigger.0.toggle()` — added
   LValue.tupleElement with write-through-base (state notifies). Chips_UI
   (Layout protocol) remains the wall. **160/200 → 162/200**.
+- 2026-07-09 iter 47: nested enums resolve as bare identifiers — nested
+  STRUCTS defined globals but nested ENUMS only landed in the annotation map,
+  so `enum ChartType` inside ContentView fell to HostTypeMarker and
+  `ForEach(ChartType.allCases)` got a marker. Registration now mirrors the
+  struct path (Outer.Name + unclaimed bare name). Class eliminated; both
+  AnimatedCharts advanced to `Date.createDate` extension statics in annotated
+  positions (new class). **162/200 holds — top class eliminated.**
