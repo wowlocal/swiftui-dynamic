@@ -332,6 +332,17 @@ public final class Interpreter {
                 }
             }
         } else {
+            if chooseInitializerStrict(from: symbol.initializers, for: args) == nil,
+               !args.arguments.isEmpty,
+               registry?.constructor(named: symbol.name) != nil {
+                // No init fits and a HOST type shares the name (protobuf's
+                // `struct Link` vs SwiftUI.Link): real Swift overload-
+                // resolves across modules — the binding error routes the
+                // caller's registry retry.
+                let message = "argument '\(args.arguments.first?.label ?? "_")' doesn't match a stored property of '\(symbol.name)'"
+                if let node { throw error(node, message) }
+                throw RuntimeError(message: message)
+            }
             return try runInitializer(
                 chooseInitializer(from: symbol.initializers, for: args),
                 on: instance, args: args, node: node)

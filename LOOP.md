@@ -1385,3 +1385,15 @@ Each iteration does exactly this:
   suites; all green once relinked. Meshtastic (protobuf `Link`
   shadowing SwiftUI's) is the last new-material class. **634/639
   counted — strictly improved (633 → 634). Suite 292 → 293.**
+- 2026-07-09 iter 155: Meshtastic-Apple (458 files) — three classes.
+  Protobuf's `struct Link` shadows SwiftUI's Link: when NO initializer
+  fits the arguments and a registry constructor shares the name, the
+  binding error now routes the existing cross-module retry (the
+  `?? overloads.first` tolerance had silently picked protobuf's `init()`
+  and dropped every argument). Overflow operators `&+ &- &* &<< &>>`
+  wrap like real Swift (protobuf hashing). Instance.description is
+  cycle-safe (depth-elided — protobuf parent/child links recursed
+  describe-to-death, third guard-bypassing SIGSEGV found by pty
+  backtrace). Meshtastic ✅. **635/639 counted — ZERO failures
+  (NINETEENTH saturation). 585 zips + 51 OSS repos green. Suite
+  296 → 297.**

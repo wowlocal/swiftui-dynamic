@@ -2909,6 +2909,46 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Meshtastic-Apple (iteration 155): three classes — a protobuf
+    /// `struct Link` shadows SwiftUI's Link, but no init fits
+    /// `Link(destination:label:)`, so overload resolution crosses the
+    /// module boundary to the registry constructor; overflow operators
+    /// (`&*`, `&+`, `&-`) wrap like real Swift; and CYCLIC object graphs
+    /// (protobuf parent/child links) describe with elision instead of
+    /// recursing to death.
+    @Test func crossModuleLinkOverflowOpsAndCyclicDescribe() throws {
+        let source = """
+        struct Link {
+            var uid: String = ""
+            var callsign: String = ""
+            var next: [Link] = []
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                var hash = 1_469_598_103_934_665_603
+                hash = (hash &* 1_099_511_628_211) &+ 7
+                if hash == 0 { fatalError("wrapping arithmetic broke") }
+
+                var a = Link(uid: "a")
+                let b = Link(uid: "b", next: [a])
+                a.next = [b]
+                let text = "\\(a)"
+                if text.isEmpty { fatalError("describe broke") }
+
+                return VStack {
+                    Link(destination: URL(string: "meshtastic:///settings/about")!) {
+                        Text("About")
+                    }
+                    Text(String(hash))
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// nos (iteration 154): two classes — a () in member position under
     /// compiled imports is a SYNTHESIS gap (a `@Dependency(\.analytics)`
     /// property on a non-view class that nothing injected) and absorbs;

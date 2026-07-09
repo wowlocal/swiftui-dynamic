@@ -47,6 +47,23 @@ public enum Builtins {
             return .native(op == "==" ? equal : !equal)
         case "<", "<=", ">", ">=":
             return .native(try compare(op, lhs, rhs))
+        case "&+", "&-", "&*":
+            // Overflow operators (protobuf hashing, bit mixers): true
+            // wrapping arithmetic on our Int model.
+            guard let l = absorbedNumeric(lhs).map({ Int($0) }) ?? lhs.intValue,
+                  let r = absorbedNumeric(rhs).map({ Int($0) }) ?? rhs.intValue else {
+                throw EvalMessage(text: "'\(op)' needs integers")
+            }
+            switch op {
+            case "&+": return .native(l &+ r)
+            case "&-": return .native(l &- r)
+            default: return .native(l &* r)
+            }
+        case "&<<", "&>>":
+            guard let l = lhs.intValue, let r = rhs.intValue else {
+                throw EvalMessage(text: "'\(op)' needs integers")
+            }
+            return .native(op == "&<<" ? l &<< r : l &>> r)
         case "&", "|", "^", "<<", ">>":
             guard let l = lhs.intValue, let r = rhs.intValue else {
                 throw EvalMessage(text: "'\(op)' requires integer operands")

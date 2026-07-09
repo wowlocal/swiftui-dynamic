@@ -46,7 +46,15 @@ public final class Instance: CustomStringConvertible {
         return nil
     }
 
+    /// CYCLIC object graphs (protobuf parent/child links, shared DI
+    /// instances) must not recurse describe-to-death: past a shallow
+    /// nesting the description elides.
+    private static var descriptionDepth = 0
+
     public var description: String {
+        Self.descriptionDepth += 1
+        defer { Self.descriptionDepth -= 1 }
+        guard Self.descriptionDepth <= 3 else { return "\(symbol.name)(…)" }
         let props = symbol.storedProperties
             .compactMap { prop in box(for: prop.name).map { "\(prop.name): \($0.value.stringified)" } }
             .joined(separator: ", ")
