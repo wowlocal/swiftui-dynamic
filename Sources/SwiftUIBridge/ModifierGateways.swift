@@ -261,6 +261,12 @@ extension ViewRegistry {
         // Observation's `.environment(model)` — same carrier as
         // .environmentObject, keyed by type name for @Environment(Type.self).
         register("environment") { view, args, _ in
+            // `.environment(\\.isCompact, true)` — custom-key writes pass
+            // through for now: subtrees read their @Entry defaults (the
+            // fresh-canvas reading). Model injection below stays live.
+            if case .native(let any)? = args.positional(0), any is KeyPathStub {
+                return AnyView(view)
+            }
             guard case .instance(let model)? = args.positional(0), args.arguments.count == 1 else {
                 throw RuntimeError(
                     message: ".environment supports the (model) form; \\.keyPath writes aren't supported yet")
@@ -270,7 +276,46 @@ extension ViewRegistry {
             })
         }
 
+        register("tabViewStyle") { view, args, _ in
+            // macOS knows automatic/sidebarAdaptable/grouped; iOS-only
+            // styles (.page) pass through unchanged.
+            if case .implicitMember(let style)? = args.positional(0) {
+                switch style {
+                case "sidebarAdaptable":
+                    if #available(macOS 15.0, *) {
+                        return AnyView(view.tabViewStyle(.sidebarAdaptable))
+                    }
+                case "grouped":
+                    if #available(macOS 15.0, *) {
+                        return AnyView(view.tabViewStyle(.grouped))
+                    }
+                case "automatic":
+                    return AnyView(view.tabViewStyle(.automatic))
+                default: break
+                }
+            }
+            return AnyView(view)
+        }
+
         register("sheet") { view, args, ctx in
+            // `sheet(item: $selection) { item in … }` — presents while the
+            // item binding is non-nil; content builds at presentation time
+            // with the then-current item.
+            if let item = args.labeled("item"),
+               case .native(let any) = item, let stub = any as? BindingStub {
+                guard let closure = args.closure(labeled: "content") ?? args.unlabeledClosures.first else {
+                    throw RuntimeError(message: ".sheet needs a content closure")
+                }
+                let isPresented = Binding<Bool>(
+                    get: { !stub.box.value.isNil },
+                    set: { presented in if !presented { stub.box.value = .nilValue } }
+                )
+                return AnyView(view.sheet(isPresented: isPresented) {
+                    if let views = try? ctx.callBuilderClosure(closure, arguments: [stub.box.value]).map(Self.anyView) {
+                        if views.count == 1 { views[0] } else { AnyView(VStack { Self.indexed(views) }) }
+                    }
+                })
+            }
             guard let isPresented = args.labeled("isPresented") else {
                 throw RuntimeError(message: ".sheet needs isPresented:")
             }

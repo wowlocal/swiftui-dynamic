@@ -1046,3 +1046,15 @@ Each iteration does exactly this:
   CGFloat + static absorbedNumeric learn unknowables (.hostFunction).
   All three repos pass. **602/602 counted — ZERO failures (fifth
   saturation).**
+- 2026-07-09 iter 126b (user request): LIVE project rendering — the demo
+  gains `--project <dir>` (ProjectCheck-style merge → real-registry render
+  in a window; --render-png composes for headless snapshots). Real-registry
+  parity fixes driven by IceCubesApp live: unknown SDK constructors build
+  absorbing UIKitStubs (trace-recorder analog) and unknown SDK views render
+  EmptyView; Color.resolve(in:)/Color.Resolved components; sheet(item:)
+  presents on non-nil bindings with presentation-time content;
+  tabViewStyle (sidebarAdaptable/grouped/automatic); keypath
+  .environment writes pass through (@Entry defaults apply);
+  InterpreterHost uses lazy globals + root synthesis. Verified: PNG
+  snapshot renders error-free; windowed app alive 12s with the project
+  loaded. `swift run DynamicSwiftUIDemo --project External/oss/IceCubesApp`.

@@ -7,11 +7,11 @@ import SwiftInterpreter
 public struct InterpreterHost {
     public init() {}
 
-    public func render(source: String) -> Result<AnyView, RuntimeError> {
+    public func render(source: String, lazyTopLevelGlobals: Bool = false) -> Result<AnyView, RuntimeError> {
         let registry = ViewRegistry()
         let interpreter = Interpreter(registry: registry)
         do {
-            let last = try interpreter.run(source: source)
+            let last = try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
 
             // A trailing view expression (e.g. `ContentView()`) is an explicit root.
             if case .native(let any) = last, let view = any as? AnyView {
@@ -27,7 +27,7 @@ public struct InterpreterHost {
             guard let symbol = interpreter.rootViewSymbol() else {
                 return .failure(RuntimeError(message: "no View struct found — declare one conforming to View", line: 1, column: 1))
             }
-            guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+            guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
                 return .failure(RuntimeError(message: "could not instantiate '\(symbol.name)'", line: 1, column: 1))
             }
             return .success(try ViewRegistry.anyView(

@@ -180,8 +180,24 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         }
     }
+    if let resolved = value as? Color.Resolved {
+        switch name {
+        case "red": return .native(Double(resolved.red))
+        case "green": return .native(Double(resolved.green))
+        case "blue": return .native(Double(resolved.blue))
+        case "opacity": return .native(Double(resolved.opacity))
+        case "cgColor": return .native(resolved.cgColor)
+        default: return nil
+        }
+    }
     if let color = value as? Color {
         switch name {
+        case "resolve":
+            // The modern resolution API — real components in a default
+            // environment.
+            return .hostFunction(HostFunction(name: "resolve") { _, _ in
+                .native(color.resolve(in: EnvironmentValues()))
+            })
         case "opacity":
             return .hostFunction(HostFunction(name: "opacity") { args, _ in
                 .native(color.opacity(args.positional(0)?.doubleValue ?? 1))

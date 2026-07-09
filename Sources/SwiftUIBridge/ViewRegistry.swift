@@ -22,7 +22,14 @@ public final class ViewRegistry: HostRegistry {
         if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
         let hand = constructors[name]
         let generated = GeneratedConstructors.table[name]
-        if hand == nil && generated == nil { return nil }
+        if hand == nil && generated == nil {
+            // Unknown TYPE-looking constructors (external SDKs: KeychainSwift,
+            // ChatClient) build absorbing bags, the live-render analog of the
+            // trace registry's opaque recorder. Lowercase names stay
+            // unresolved so genuine errors surface.
+            guard name.first?.isUppercase == true else { return nil }
+            return HostFunction(name: name) { _, _ in .native(UIKitStub()) }
+        }
         // Hand-written first; if it rejects this call shape and a generated
         // table exists, fall through — so e.g. Text(verbatim:) can come from
         // codegen while Text("x") stays hand-written.
@@ -93,6 +100,11 @@ public final class ViewRegistry: HostRegistry {
     static func anyView(_ value: RuntimeValue) throws -> AnyView {
         if case .native(let any) = value {
             if let view = any as? AnyView { return view }
+            if any is UIKitStub || any is ImplicitMemberCall || any is ChainedImplicitCall {
+                // Unknown SDK views render empty — the documented inert
+                // degrade (Lottie precedent), live-render edition.
+                return AnyView(EmptyView())
+            }
             if let box = any as? ImageBox { return AnyView(box.image) }
             if let box = any as? ShapeBox { return AnyView(box.shape) }
             if let stub = any as? PathDrawStub { return AnyView(stub.path) }
