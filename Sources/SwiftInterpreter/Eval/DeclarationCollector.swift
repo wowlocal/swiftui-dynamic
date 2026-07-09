@@ -375,7 +375,7 @@ extension Interpreter {
             guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
                 throw error(binding, "unsupported property pattern")
             }
-            let name = ident.identifier.text
+            let name = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
             // A binding with an accessor block is computed only if it has a
             // getter; willSet/didSet-only observers mean a stored property
             // (observers are inert — documented divergence).

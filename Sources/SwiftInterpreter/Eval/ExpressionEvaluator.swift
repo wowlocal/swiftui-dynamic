@@ -630,6 +630,13 @@ extension Interpreter {
                     try modifier.apply(wrapped, args, ctx)
                 })
             }
+            if assumesCompiledImports {
+                // Compiled sources: an unknown member that survived every
+                // dispatch (own, inherited, protocol extensions) is an
+                // UNMERGED extension — absorbs.
+                return .native(ChainedImplicitCall(
+                    base: baseValue, member: name, arguments: CallArguments()))
+            }
             throw error(node, "'\(instance.symbol.name)' has no member '\(name)'")
 
         case .enumCase(let value):
@@ -1656,6 +1663,11 @@ extension Interpreter {
                 if let computed = instance.symbol.computedProperties[name] {
                     return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
                 }
+                if let superName = instance.symbol.superclassName,
+                   !interpreter.isInterpretedType(superName) {
+                    return .native(ChainedImplicitCall(
+                        base: .implicitMember(superName), member: name, arguments: CallArguments()))
+                }
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
             case .hostProperty(let any, let name):
                 if let value = interpreter.registry?.hostMember(name, on: any) { return value }
@@ -1728,6 +1740,13 @@ extension Interpreter {
                     _ = try interpreter.executeBlock(setter.body, in: env)
                     return
                 }
+                if let superName = instance.symbol.superclassName,
+                   !interpreter.isInterpretedType(superName) {
+                    // Inherited HOST-superclass properties (NSPanel.title):
+                    // writes create the box, later reads see the value.
+                    instance.properties[name] = Box(value)
+                    return
+                }
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
             case .hostProperty(let any, let name):
                 guard interpreter.registry?.hostSetMember(name, on: any, to: value) == true else {
@@ -1781,6 +1800,12 @@ extension Interpreter {
             if case .instance(let instance)? = env.lookup("self") {
                 let canonical = instance.symbol.canonicalPropertyName(name)
                 if instance.box(for: canonical) != nil || instance.symbol.computedProperties[canonical] != nil {
+                    return .instanceProperty(instance, canonical)
+                }
+                if let superName = instance.symbol.superclassName,
+                   !isInterpretedType(superName) {
+                    // Inherited host-superclass property (`title = …` in an
+                    // NSPanel subclass) — the write absorbs into a box.
                     return .instanceProperty(instance, canonical)
                 }
             }

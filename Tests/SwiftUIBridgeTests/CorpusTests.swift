@@ -1929,6 +1929,54 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// Host-superclass instance properties write/read (NSPanel.title);
+    /// owner-scoped annotations pick the OWN nested enum over same-named
+    /// globals; compiled-mode unknown members absorb after all dispatch.
+    @Test func hostSuperclassPropsAndOwnerScopedAnnotations() throws {
+        let source = """
+        class EventTap {
+            enum Location {
+                case hidEventTap, sessionEventTap
+            }
+        }
+
+        class IceBarPanel: NSPanel {
+            func configure() {
+                title = "Ice Bar"
+                level = 3
+            }
+
+            var label: String {
+                "\\(title)"
+            }
+        }
+
+        struct EditorView: View {
+            enum Location {
+                case settings
+                case popover
+            }
+
+            let location: Location
+
+            var body: some View {
+                let panel = IceBarPanel()
+                let _ = panel.configure()
+                VStack {
+                    switch location {
+                    case .settings: Text("settings pane")
+                    case .popover: Text("popover pane")
+                    }
+                    Text(panel.label)
+                    Text(panel.appearanceProxy.isDark ? "dark" : "fresh look")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

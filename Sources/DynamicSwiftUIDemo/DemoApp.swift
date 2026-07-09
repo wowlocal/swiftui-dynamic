@@ -154,6 +154,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 FileHandle.standardError.write(Data("write failed: \(error)\n".utf8))
                 exit(1)
             }
+            // Body-evaluation errors render inline and don't fail the
+            // snapshot; surface them so scripts can tell clean from broken.
+            for (view, error) in RenderDiagnostics.errors {
+                FileHandle.standardError.write(Data("diagnostic [\(view)]: \(error)\n".utf8))
+            }
         case .failure(let error):
             FileHandle.standardError.write(Data("render error: \(error)\n".utf8))
             exit(1)

@@ -1145,3 +1145,13 @@ Each iteration does exactly this:
   read false); Optional-extension dispatch on nil values.
   yattee (7 nodes) + SwiftBar (3 nodes) pass. **615/615 counted — ZERO
   failures (tenth saturation). 585 zips + 30 OSS repos green. Suite 249.**
+- 2026-07-09 iter 135: step 9 — cloned Ice (116 files), linearmouse (233),
+  KeyboardCowboy (673, PASSED ON ARRIVAL — ties CodeEdit for biggest
+  single-pass). Classes: HOST-superclass instance properties (NSPanel
+  .title — writes create boxes, reads chain, qualified AND unqualified
+  paths); owner-scoped annotation synthesis (each view's own nested enum
+  Location wins over same-named globals); compiled-mode unknown MEMBERS
+  absorb after every dispatch (own → inherited → protocol extensions);
+  backtick-normalized property names. **616/618 counted; queue: Ice
+  (void OptionSet default — deep init-overload chase), linearmouse
+  (String.container).**

@@ -549,7 +549,7 @@ public final class Interpreter {
                 if let constraint = symbol.genericParameters[typeName] {
                     value = synthesizedGenericValue(constraint: constraint, parameter: typeName)
                 } else {
-                    value = try synthesizedFreshValue(typeName: typeName, seen: &seen)
+                    value = try synthesizedFreshValue(typeName: typeName, owner: symbol, seen: &seen)
                 }
                 arguments.append(.init(label: label == "_" ? nil : label, value: value))
             }
@@ -567,7 +567,7 @@ public final class Interpreter {
                     }
                     arguments.append(.init(
                         label: property.name,
-                        value: try synthesizedFreshValue(typeName: typeName, seen: &seen)))
+                        value: try synthesizedFreshValue(typeName: typeName, owner: symbol, seen: &seen)))
                 case .binding:
                     // A standalone root has no parent to pass bindings —
                     // synthesize one over the inner type's fresh value.
@@ -579,13 +579,36 @@ public final class Interpreter {
                     // (initializer-less wrappers only — the where clause).
                     arguments.append(.init(
                         label: property.name,
-                        value: try synthesizedFreshValue(typeName: typeName, seen: &seen)))
+                        value: try synthesizedFreshValue(typeName: typeName, owner: symbol, seen: &seen)))
                 default:
                     break // @State/@StateObject etc. default independently
                 }
             }
         }
         return CallArguments(arguments: arguments)
+    }
+
+    /// Owner-scoped fresh value: the OWNER's nested types win over
+    /// same-named globals (each view's `enum Location` is its own).
+    func synthesizedFreshValue(
+        typeName rawName: String, owner: StructSymbol, seen: inout Set<String>
+    ) throws -> RuntimeValue {
+        let typeName = rawName.trimmingCharacters(in: .whitespaces)
+        if !typeName.hasSuffix("?"), !typeName.hasSuffix("!") {
+            if let enumSymbol = enumSymbols["\(owner.name).\(typeName)"],
+               let first = enumSymbol.cases.first(where: { !$0.hasAssociatedValues }) {
+                return .enumCase(EnumCaseValue(symbol: enumSymbol, name: first.name))
+            }
+            if case .type(let nested)? = owner.nestedTypes[typeName], !seen.contains(nested.name) {
+                seen.insert(nested.name)
+                defer { seen.remove(nested.name) }
+                if let args = try? synthesizedArguments(for: nested, seen: &seen),
+                   let built = try? instantiate(nested, with: args), !built.isNil {
+                    return built
+                }
+            }
+        }
+        return try synthesizedFreshValue(typeName: rawName, seen: &seen)
     }
 
     /// The fresh value of a type: identity for primitives, empty for
