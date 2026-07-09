@@ -947,6 +947,17 @@ extension Interpreter {
                 // (`store.count.description` — Int, Double, Bool, …).
                 return .native(baseValue.stringValue ?? baseValue.stringified)
             }
+            if name == "map" || name == "flatMap" {
+                // Optional.map on a non-nil value — optionals ARE the value
+                // here, so `url.map { … }` applies the closure to it
+                // (collections and strings matched their own map earlier).
+                return .hostFunction(HostFunction(name: name) { args, ctx in
+                    guard let closure = args.unlabeledClosures.first else {
+                        throw RuntimeError(message: "\(name) needs a closure")
+                    }
+                    return try ctx.callClosure(closure, arguments: [baseValue])
+                })
+            }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")
 
         default:

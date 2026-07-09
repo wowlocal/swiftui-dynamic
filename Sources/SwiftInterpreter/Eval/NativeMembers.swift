@@ -201,6 +201,29 @@ extension Interpreter {
         case "indices": return .native(0..<array.count)
         case "startIndex": return .native(0)
         case "endIndex": return .native(array.count)
+        case "subtracting", "union", "intersection", "symmetricDifference":
+            // Set algebra on the array-backed model (Sets flatten to arrays;
+            // membership by areEqual since RuntimeValue isn't Hashable).
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let other = args.positional(0)?.arrayValue ?? []
+                let contains: ([RuntimeValue], RuntimeValue) -> Bool = { xs, v in
+                    xs.contains { (try? Builtins.areEqual($0, v)) == true }
+                }
+                switch name {
+                case "subtracting":
+                    return .native(array.filter { !contains(other, $0) })
+                case "union":
+                    var out = array
+                    for v in other where !contains(out, v) { out.append(v) }
+                    return .native(out)
+                case "intersection":
+                    return .native(array.filter { contains(other, $0) })
+                default:
+                    let left = array.filter { !contains(other, $0) }
+                    let right = other.filter { !contains(array, $0) }
+                    return .native(left + right)
+                }
+            })
         case "elementsEqual":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let other = args.positional(0)?.arrayValue, other.count == array.count else {

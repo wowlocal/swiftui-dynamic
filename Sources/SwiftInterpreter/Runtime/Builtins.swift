@@ -162,10 +162,29 @@ public enum Builtins {
     ) throws -> RuntimeValue {
         // Well-known numeric markers absorb in arithmetic: `x / .pi`.
         func numericMarker(_ value: RuntimeValue) -> Double? {
+            // Clock idioms: time ANCHORS read the fresh epoch (0), DURATION
+            // statics read their seconds — `.now + .milliseconds(500)` is
+            // 0.5, exactly like the DispatchTime `.now() + 0.5` rule.
+            if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+                if call.name == "now", call.arguments.arguments.isEmpty { return 0 }
+                if let quantity = (call.arguments.positional(0)?.doubleValue) {
+                    switch call.name {
+                    case "seconds": return quantity
+                    case "milliseconds": return quantity / 1_000
+                    case "microseconds": return quantity / 1_000_000
+                    case "nanoseconds": return quantity / 1_000_000_000
+                    case "minutes": return quantity * 60
+                    case "hours": return quantity * 3_600
+                    default: return nil
+                    }
+                }
+                return nil
+            }
             guard case .implicitMember(let name) = value else { return nil }
             switch name {
             case "pi": return Double.pi
             case "zero": return 0
+            case "now": return 0
             case "infinity": return .infinity
             case "leastNonzeroMagnitude": return .leastNonzeroMagnitude
             case "greatestFiniteMagnitude": return .greatestFiniteMagnitude

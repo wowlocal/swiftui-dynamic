@@ -128,6 +128,21 @@ extension Interpreter {
         if decl.is(ImportDeclSyntax.self) {
             return // imports are module directives — no-ops in the merged model
         }
+        if let alias = decl.as(TypeAliasDeclSyntax.self) {
+            // Local `typealias Entity = NSEntityDescription` binds the name
+            // to the target type in this scope (generic arguments dropped,
+            // like everywhere else). Unknown host targets bind a type
+            // marker; tuple/function aliases stay inert.
+            var target = alias.initializer.value.trimmedDescription
+            if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
+            target = target.trimmingCharacters(in: .whitespaces)
+            if let value = globals.lookup(target) ?? env.lookup(target) {
+                env.define(alias.name.text, value)
+            } else if let first = target.first, first.isUppercase, !target.contains("(") {
+                env.define(alias.name.text, try resolveIdentifier(target, in: env, node: alias))
+            }
+            return
+        }
         if decl.is(MacroDeclSyntax.self) {
             // `macro Reducer(…) = #externalMacro(…)` — a compile-time
             // construct; the runtime image holds no entity for it. USES are

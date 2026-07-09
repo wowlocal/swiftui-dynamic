@@ -2909,6 +2909,43 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Pulse (iteration 149): four classes from kean's logging framework —
+    /// LOCAL typealias statements bind the target type in scope; clock
+    /// idioms absorb numerically (`.now + .milliseconds(500)` = 0.5 — time
+    /// anchors read the fresh epoch, durations read their seconds); Set
+    /// algebra on the array-backed model; Optional.map applies the closure
+    /// to a non-nil native (`url.map { … }`).
+    @Test func typealiasClockSetAlgebraAndOptionalMap() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                typealias Numbers = Array
+                let evens = [2, 4, 6]
+                let odds = [1, 3]
+
+                let deadline = .now + .milliseconds(500)
+                let url = URL(string: "https://kean.blog/pulse")!
+                let doubled = 21.map { $0 * 2 }
+                let mapped = url.map { _ in "mapped" }
+
+                let checks = [
+                    evens.subtracting([4]).count == 2,
+                    evens.union(odds).count == 5,
+                    evens.intersection([4, 6, 8]).count == 2,
+                    evens.symmetricDifference([6, 8]).count == 3,
+                    deadline == 0.5,
+                    doubled == 42,
+                    mapped == "mapped",
+                ]
+                if checks.contains(false) { fatalError("pulse classes broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// MochiDiffusion (iteration 148): three URL/Observation classes —
     /// mutating `url.append(path:directoryHint:)` writes through the lvalue;
     /// `url.path(percentEncoded:)` (METHOD) collides with the legacy `path`
