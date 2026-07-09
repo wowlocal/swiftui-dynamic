@@ -30,6 +30,8 @@ extension Interpreter {
                 try collectStruct(structDecl)
             } else if let classDecl = decl.as(ClassDeclSyntax.self) {
                 try collectClass(classDecl)
+            } else if let actorDecl = decl.as(ActorDeclSyntax.self) {
+                try collectActor(actorDecl)
             } else if let enumDecl = decl.as(EnumDeclSyntax.self) {
                 try collectEnum(enumDecl)
             } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
@@ -178,8 +180,26 @@ extension Interpreter {
     ]
 
     private func collectClass(_ node: ClassDeclSyntax) throws {
-        let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
-        let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
+        try collectClassLike(name: node.name.text, inheritanceClause: node.inheritanceClause,
+                             memberBlock: node.memberBlock, attributes: node.attributes)
+    }
+
+    /// `actor Store { … }` — collected as a reference-typed class. Isolation
+    /// is not enforced: methods run synchronously on the caller (documented
+    /// divergence — the interpreter is single-threaded anyway).
+    private func collectActor(_ node: ActorDeclSyntax) throws {
+        try collectClassLike(name: node.name.text, inheritanceClause: node.inheritanceClause,
+                             memberBlock: node.memberBlock, attributes: node.attributes)
+    }
+
+    private func collectClassLike(
+        name: String,
+        inheritanceClause: InheritanceClauseSyntax?,
+        memberBlock: MemberBlockSyntax,
+        attributes: AttributeListSyntax
+    ) throws {
+        let inherited = inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
+        let symbol = StructSymbol(name: name, conformsToView: inherited.contains("View"))
         symbol.isClass = true
         symbol.conformances = inherited
         // A superclass, if present, is first in the clause; protocols follow.
@@ -188,10 +208,10 @@ extension Interpreter {
             symbol.superclassName = first
         }
         symbol.conformsToObservableObject = inherited.contains("ObservableObject")
-        symbol.observableViaMacro = node.attributes.contains {
+        symbol.observableViaMacro = attributes.contains {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Observable"
         }
-        try collectStructMembers(node.memberBlock, into: symbol)
+        try collectStructMembers(memberBlock, into: symbol)
         registerTypeSymbol(symbol)
     }
 

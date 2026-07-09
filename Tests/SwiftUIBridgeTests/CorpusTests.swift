@@ -826,6 +826,39 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// `actor` declarations collect as reference-typed classes: state
+    /// mutates through methods, reads see the shared instance.
+    @Test func actorDeclarations() throws {
+        let source = """
+        actor ImageCache {
+            var stored: [String: String] = [:]
+
+            func insert(_ value: String, forKey key: String) {
+                stored[key] = value
+            }
+
+            func lookup(_ key: String) -> String? {
+                stored[key]
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let cache = ImageCache()
+                let _ = {
+                    cache.insert("hero.png", forKey: "hero")
+                }()
+                VStack {
+                    Text(cache.lookup("hero") ?? "miss")
+                    Text("count \\(cache.stored.count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

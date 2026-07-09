@@ -208,6 +208,10 @@ coverage.
 - **Typed environment rides the model environment.**
   `@Environment(Type.self)` + `.environment(model)` behave exactly like
   `@EnvironmentObject` + `.environmentObject(_:)`, keyed by type name.
+- **Actors are reference-typed classes.** `actor` declarations collect like
+  classes (reference semantics, methods, properties); isolation is not
+  enforced — calls run synchronously on the caller, which is faithful in
+  practice: the interpreter is single-threaded.
 - **`super` is inheritance-lite.** Interpreted superclasses dispatch
   methods/computed properties with `self` unchanged; host superclasses
   (NSObject, UIViewController…) make `super.init()` and lifecycle calls

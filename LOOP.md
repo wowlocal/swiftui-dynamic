@@ -855,3 +855,11 @@ Each iteration does exactly this:
   real Foundation semantics. oss:Weather passes (6 nodes).
   **591/591 counted — ZERO failures again. Ladder saturated; step 9
   (more OSS material) governs the next iteration.**
+- 2026-07-09 iter 108: step 9 again — cloned clean-architecture-swiftui (63
+  files), MortyUI (26), OnlineStoreTCA (27); units 591 → 594. Fixed the
+  biggest new class: `actor` declarations — collected as reference-typed
+  classes via a shared class-like collector (isolation not enforced,
+  documented in README; the interpreter is single-threaded). run() skip
+  list includes actors. oss:clean-architecture-swiftui passes (5 nodes).
+  **592/594 (99.7%); queue: oss:OnlineStoreTCA ($0), oss:MortyUI
+  (ForEach over chain).**
