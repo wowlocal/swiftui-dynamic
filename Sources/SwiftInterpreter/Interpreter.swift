@@ -304,10 +304,22 @@ public final class Interpreter {
 
     func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
         let argLabels = args.arguments.compactMap(\.label)
+        let unlabeled = args.arguments.filter { $0.label == nil && !$0.isTrailing }.count
         for candidate in initializers {
             let params = candidate.signature.parameterClause.parameters
             let labels = params.map { $0.firstName.text }
-            if args.arguments.count <= params.count, argLabels.allSatisfy({ labels.contains($0) }) {
+            let wildcards = params.filter { $0.firstName.text == "_" }.count
+            let required = params
+                .filter { $0.defaultValue == nil && $0.firstName.text != "_" }
+                .map { $0.firstName.text }
+            // Shape match: every arg label exists, every required label is
+            // provided (trailing closures may fill one), and positional args
+            // have `_` slots — `Pubkey(data)` must NOT pick init?(hex:).
+            let trailingCount = args.arguments.filter(\.isTrailing).count
+            if args.arguments.count <= params.count,
+               argLabels.allSatisfy({ labels.contains($0) }),
+               required.filter({ !argLabels.contains($0) }).count <= trailingCount,
+               unlabeled <= wildcards {
                 return candidate
             }
         }
@@ -531,6 +543,37 @@ public final class Interpreter {
     func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {
         var typeName = rawName.trimmingCharacters(in: .whitespaces)
         if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+
+        // `(hrp: String, data: Data)` annotations LABEL positional tuple
+        // literals so `decoded.hrp` member reads work.
+        if typeName.hasPrefix("("), typeName.hasSuffix(")"), typeName.contains(":"),
+           let tuple = value.tupleValue, tuple.labels.allSatisfy({ $0 == nil }) {
+            let inner = String(typeName.dropFirst().dropLast())
+            var depth = 0
+            var parts: [String] = []
+            var current = ""
+            for ch in inner {
+                if ch == "(" || ch == "<" || ch == "[" { depth += 1 }
+                if ch == ")" || ch == ">" || ch == "]" { depth -= 1 }
+                if ch == ",", depth == 0 {
+                    parts.append(current)
+                    current = ""
+                } else {
+                    current.append(ch)
+                }
+            }
+            parts.append(current)
+            if parts.count == tuple.values.count {
+                let labels = parts.map { part -> String? in
+                    guard let colon = part.firstIndex(of: ":") else { return nil }
+                    let label = part[..<colon].trimmingCharacters(in: .whitespaces)
+                    return label.isEmpty || label.contains(" ") ? nil : label
+                }
+                if labels.contains(where: { $0 != nil }) {
+                    return .native(TupleValue(labels: labels, values: tuple.values))
+                }
+            }
+        }
 
         // Double-family storage holds doubles: `var offset: CGFloat = 0`
         // stores 0.0, so division/interpolation behave like compiled Swift
@@ -812,6 +855,18 @@ public final class Interpreter {
                     throw RuntimeError(message: "\(trap) failed: \(message)", fatal: true)
                 }
                 return .void
+            }
+        }
+        for intType in ["UInt8", "UInt16", "UInt32", "UInt64", "Int8", "Int16", "Int32", "Int64"] {
+            define(intType) { args, _ in
+                // Fixed-width conversions: our integer model is Int.
+                let value = args.labeled("truncatingIfNeeded") ?? args.labeled("clamping")
+                    ?? args.labeled("bitPattern") ?? args.positional(0)
+                if let i = value?.intValue { return .native(i) }
+                if let d = value?.doubleValue { return .native(Int(d)) }
+                if let s = value?.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }
+                if let value, let z = Builtins.absorbedNumeric(value) { return .native(Int(z.isFinite ? z : 0)) }
+                return .native(0)
             }
         }
         define("unsafeBitCast") { args, _ in

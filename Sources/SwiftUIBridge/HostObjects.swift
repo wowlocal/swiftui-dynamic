@@ -50,6 +50,10 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                 if !value.isNil { return value }
                 throw RuntimeError(message: "Data(contentsOf:) needs a URL")
             }
+            // `Data(otherData)` — copy construction passes through.
+            if case .native(let existing)? = args.positional(0), let d = existing as? Data {
+                return .native(d)
+            }
             // `Data(bytes)` — a real byte buffer from an Int array.
             if let bytes = args.positional(0)?.arrayValue {
                 return .native(Data(bytes.compactMap { $0.intValue.map { UInt8(truncatingIfNeeded: $0) } }))

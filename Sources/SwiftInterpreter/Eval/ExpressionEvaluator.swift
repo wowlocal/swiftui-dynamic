@@ -58,6 +58,10 @@ extension Interpreter {
             return try evaluateInfix(infix, in: env)
         }
         if let prefix = expr.as(PrefixOperatorExprSyntax.self) {
+            if prefix.operator.text == "..<" || prefix.operator.text == "..." {
+                let bound = try evaluate(prefix.expression, in: env)
+                return .native(PartialRangeValue(upper: bound, closed: prefix.operator.text == "..."))
+            }
             if prefix.operator.text == "/",
                globals.lookup(prefix.operator.text) == nil {
                 // The CasePaths case-path operator: `/AppAction.milestone`.
@@ -80,6 +84,10 @@ extension Interpreter {
             }
         }
         if let postfix = expr.as(PostfixOperatorExprSyntax.self) {
+            if postfix.operator.text == "..." {
+                let bound = try evaluate(postfix.expression, in: env)
+                return .native(PartialRangeValue(lower: bound))
+            }
             // User-defined postfix operators (`postfix func >*` — 2048's
             // AnyView-erasure operator).
             let operand = try evaluate(postfix.expression, in: env)
@@ -630,6 +638,11 @@ extension Interpreter {
                     .native(PublishedProjection())
                 })
             }
+            if let tuple = any as? TupleValue {
+                // `(hrp: String, data: Data)` — member by label or index.
+                let idx = Int(name) ?? tuple.labels.firstIndex(of: name) ?? -1
+                if tuple.values.indices.contains(idx) { return tuple.values[idx] }
+            }
             if let superRef = any as? SuperReference {
                 let symbol = superRef.instance.symbol
                 if let parentName = symbol.superclassName,
@@ -891,6 +904,29 @@ extension Interpreter {
            let current = try target.read(self).boolValue {
             _ = try collectArguments(of: call, in: env) // evaluate (empty) args for side effects
             try relocating(call) { try target.write(.native(!current), self) }
+            return .void
+        }
+
+        // Data mutations write through the lvalue (value semantics):
+        // `data.append(other)` / `data.append(byte)`.
+        if name == "append",
+           let target = try? resolveLValue(base, in: env),
+           case .native(let existingAny) = try target.read(self),
+           var bytes = existingAny as? Data {
+            let args = try collectArguments(of: call, in: env)
+            guard let value = args.positional(0) else {
+                throw error(call, "append needs a value")
+            }
+            if case .native(let addAny) = value, let more = addAny as? Data {
+                bytes.append(more)
+            } else if let byte = value.intValue {
+                bytes.append(UInt8(truncatingIfNeeded: byte))
+            } else if let array = value.arrayValue {
+                bytes.append(contentsOf: array.compactMap { $0.intValue.map { UInt8(truncatingIfNeeded: $0) } })
+            } else {
+                throw error(call, "cannot append \(value.stringified) to Data")
+            }
+            try relocating(call) { try target.write(.native(bytes), self) }
             return .void
         }
 
@@ -1304,7 +1340,7 @@ extension Interpreter {
         case "??":
             let lhs = try evaluate(infix.leftOperand, in: env)
             return lhs.isNil ? try evaluate(infix.rightOperand, in: env) : lhs
-        case "+=", "-=", "*=", "/=", "%=":
+        case "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=":
             let target = try resolveLValue(infix.leftOperand, in: env)
             let rhs = try evaluate(infix.rightOperand, in: env)
             try relocating(infix) {
@@ -1420,6 +1456,9 @@ extension Interpreter {
         /// `ChatClient.shared = …` — static stored properties (including
         /// host-type extension statics) write to the symbol's static cache.
         case staticProperty(StructSymbol, String)
+        /// `values[i] = UInt8(x)` — Data byte write-through: mutate a copy,
+        /// re-write the base (value semantics).
+        case dataElement(LValue, Int)
 
         /// The element type of an `[X]`-annotated instance property, if known.
         func annotatedElementType() -> String? {
@@ -1468,6 +1507,12 @@ extension Interpreter {
                 return try interpreter.callUserSubscriptGetter(on: instance, with: args)
             case .staticProperty(let symbol, let name):
                 return try interpreter.staticMember(name, of: symbol) ?? .nilValue
+            case .dataElement(let base, let index):
+                guard case .native(let any) = try base.read(interpreter), let bytes = any as? Data,
+                      index >= 0, index < bytes.count else {
+                    throw EvalMessage(text: "Data index \(index) out of range")
+                }
+                return .native(Int(bytes[bytes.index(bytes.startIndex, offsetBy: index)]))
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
                 guard case .native(let any) = baseValue,
@@ -1534,6 +1579,13 @@ extension Interpreter {
                 try interpreter.callUserSubscriptSetter(on: instance, with: args, newValue: value)
             case .staticProperty(let symbol, let name):
                 symbol.staticCache[name] = value
+            case .dataElement(let base, let index):
+                guard case .native(let any) = try base.read(interpreter), var bytes = any as? Data,
+                      index >= 0, index < bytes.count, let byte = value.intValue else {
+                    throw EvalMessage(text: "Data byte write out of range")
+                }
+                bytes[bytes.index(bytes.startIndex, offsetBy: index)] = UInt8(truncatingIfNeeded: byte)
+                try base.write(.native(bytes), interpreter)
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
                 guard case .native(let any) = baseValue,
@@ -1628,6 +1680,9 @@ extension Interpreter {
             let base = try resolveLValue(subscriptCall.calledExpression, in: env)
             guard let index = try evaluate(indexExpr, in: env).intValue else {
                 throw error(subscriptCall, "subscript assignment requires an Int index")
+            }
+            if case .native(let any)? = baseValue, any is Data {
+                return .dataElement(base, index) // byte write-through
             }
             return .element(base, index)
         }
@@ -1745,6 +1800,60 @@ extension Interpreter {
             // Host subscripts (AttributedString[range] styling proxies).
             let args = CallArguments(arguments: [.init(label: nil, value: index)])
             return try relocating(call) { try subscripting.invoke(args, self) }
+        }
+        if case .native(let partAny) = index, let part = partAny as? PartialRangeValue {
+            // Partial-range slices: str[..<pos], bytes[pos...], array[..<n].
+            if case .native(let strAny) = base, let string = strAny as? String {
+                let lower = (part.lower.flatMap { if case .native(let a) = $0 { return a as? String.Index } else { return nil } }) ?? string.startIndex
+                var upper = (part.upper.flatMap { if case .native(let a) = $0 { return a as? String.Index } else { return nil } }) ?? string.endIndex
+                if let lowInt = part.lower?.intValue { return .native(String(string.dropFirst(lowInt))) }
+                if let upInt = part.upper?.intValue {
+                    let count = part.closed ? upInt + 1 : upInt
+                    return .native(String(string.prefix(count)))
+                }
+                if part.closed, upper < string.endIndex { upper = string.index(after: upper) }
+                guard lower >= string.startIndex, upper <= string.endIndex, lower <= upper else {
+                    throw error(call, "string slice out of bounds")
+                }
+                return .native(String(string[lower..<upper]))
+            }
+            if case .native(let dataAny) = base, let bytes = dataAny as? Data {
+                let lower = part.lower?.intValue ?? 0
+                var upper = part.upper?.intValue ?? bytes.count
+                if part.closed, part.upper != nil { upper += 1 }
+                guard lower >= 0, upper <= bytes.count, lower <= upper else {
+                    throw error(call, "Data slice out of bounds")
+                }
+                let start = bytes.index(bytes.startIndex, offsetBy: lower)
+                let end = bytes.index(bytes.startIndex, offsetBy: upper)
+                return .native(Data(bytes[start..<end]))
+            }
+            if let array = base.arrayValue {
+                let lower = part.lower?.intValue ?? 0
+                var upper = part.upper?.intValue ?? array.count
+                if part.closed, part.upper != nil { upper += 1 }
+                guard lower >= 0, upper <= array.count, lower <= upper else {
+                    throw error(call, "array slice out of bounds")
+                }
+                return .native(Array(array[lower..<upper]))
+            }
+        }
+        if case .native(let dataAny) = base, let bytes = dataAny as? Data {
+            // Byte access and slices (bech32 decoders index raw buffers).
+            if let i = index.intValue {
+                guard i >= 0, i < bytes.count else {
+                    throw error(call, "Data index \(i) out of range")
+                }
+                return .native(Int(bytes[bytes.index(bytes.startIndex, offsetBy: i)]))
+            }
+            if let range = index.rangeValue {
+                guard range.lowerBound >= 0, range.upperBound <= bytes.count else {
+                    throw error(call, "Data range out of bounds")
+                }
+                let start = bytes.index(bytes.startIndex, offsetBy: range.lowerBound)
+                let end = bytes.index(bytes.startIndex, offsetBy: range.upperBound)
+                return .native(Data(bytes[start..<end]))
+            }
         }
         // Subscripting an unknowable host collection (Bundle.main
         // .infoDictionary?[…]) reads nil — the empty fresh store; the

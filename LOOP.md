@@ -1000,3 +1000,16 @@ Each iteration does exactly this:
   RedditOS regression from the new Data fresh value, caught + fixed).
   damus: 11978 → 69257 (force-unwrap — next class). **598/599; queue:
   oss:damus.**
+- 2026-07-09 iter 123: bech32 runs REAL — the probe-driven chase made damus's
+  pure-Swift decoder interpret bit-perfectly (hrp=npub, 32 bytes): String
+  data(using:)/range(of:options:) (.backwards), Data subscript reads AND
+  byte writes (LValue.dataElement), Data.append write-through, Data copy
+  ctor (Data(values[..<n]) was returning empty!), partial ranges
+  (PartialRangeValue: prefix ..</... + postfix ..., slicing String/Data/
+  arrays), scalar .value/.asciiValue/isNumber on single-char strings,
+  compound bitwise assigns (&= |= ^= <<= >>=), array start/endIndex,
+  Int-family ctors (UInt8…Int64), annotation-labeled tuples ((hrp:,data:)
+  labels positional returns), and SHAPE-AWARE chooseInitializer (positional
+  args need `_` slots — Pubkey(data) no longer picks init?(hex:)).
+  damus: 69257 → 76646 (.ptr on void — nostrdb C pointers, next class).
+  **598/599. Suite 236.**

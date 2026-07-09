@@ -174,6 +174,19 @@ public struct SuperReference {
 }
 
 /// Marker for key-path literals like `\.self`; gateways that take `id:` ignore it.
+/// `..<pos` / `pos...` — partial ranges; subscripts slice with them.
+public struct PartialRangeValue {
+    public let lower: RuntimeValue?
+    public let upper: RuntimeValue?
+    public let closed: Bool
+
+    public init(lower: RuntimeValue? = nil, upper: RuntimeValue? = nil, closed: Bool = false) {
+        self.lower = lower
+        self.upper = upper
+        self.closed = closed
+    }
+}
+
 public struct KeyPathStub {
     /// `\.account.emojis` → ["account", "emojis"]; `\.self` → ["self"].
     public var components: [String] = []

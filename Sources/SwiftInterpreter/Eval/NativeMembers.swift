@@ -163,6 +163,8 @@ extension Interpreter {
         case "first": return array.first ?? .nilValue
         case "last": return array.last ?? .nilValue
         case "indices": return .native(0..<array.count)
+        case "startIndex": return .native(0)
+        case "endIndex": return .native(array.count)
 
         case "flatMap":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
@@ -492,6 +494,17 @@ extension Interpreter {
                 return .native(Array(string.utf8).map { RuntimeValue.native(Int($0)) })
             }
             return .native(Array(string.utf16).map { RuntimeValue.native(Int($0)) })
+        case "value" where string.unicodeScalars.count == 1:
+            // Unicode.Scalar.value in the single-char-string model.
+            return .native(Int(string.unicodeScalars.first!.value))
+        case "asciiValue" where string.count == 1:
+            return string.first!.asciiValue.map { RuntimeValue.native(Int($0)) } ?? .nilValue
+        case "isNumber" where string.count == 1:
+            return .native(string.first!.isNumber)
+        case "isLetter" where string.count == 1:
+            return .native(string.first!.isLetter)
+        case "isWhitespace" where string.count == 1:
+            return .native(string.first!.isWhitespace)
         case "unicodeScalars":
             // Scalars as single-char strings (our character model): count,
             // iteration, and allSatisfy work through array machinery.
@@ -503,8 +516,32 @@ extension Interpreter {
                 guard let target = (args.labeled("of") ?? args.positional(0))?.stringValue else {
                     throw RuntimeError(message: "range(of:) needs a string")
                 }
-                guard let found = string.range(of: target) else { return .nilValue }
+                var options: String.CompareOptions = []
+                if let optionValue = args.labeled("options") {
+                    func fold(_ name: String) {
+                        switch name {
+                        case "backwards": options.insert(.backwards)
+                        case "caseInsensitive": options.insert(.caseInsensitive)
+                        case "anchored": options.insert(.anchored)
+                        case "regularExpression": options.insert(.regularExpression)
+                        default: break
+                        }
+                    }
+                    if case .implicitMember(let name) = optionValue { fold(name) }
+                    if let array = optionValue.arrayValue {
+                        for element in array {
+                            if case .implicitMember(let name) = element { fold(name) }
+                        }
+                    }
+                }
+                guard let found = string.range(of: target, options: options) else { return .nilValue }
                 return .native(found)
+            })
+        case "data":
+            // `str.data(using: .utf8)` — real bytes (encodings beyond utf8
+            // fall back to utf8, the corpus's only ask).
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                string.data(using: .utf8).map { RuntimeValue.native($0) } ?? .nilValue
             })
         case "index":
             return .hostFunction(HostFunction(name: name) { args, _ in

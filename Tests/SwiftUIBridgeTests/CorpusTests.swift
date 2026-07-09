@@ -1364,6 +1364,62 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// The bech32-decoder machinery, self-contained: data(using:),
+    /// Data(repeating:)/copy/subscript reads+writes/append, partial-range
+    /// slices, scalar .value, compound ^=, annotation-labeled tuples, and
+    /// shape-aware initializer choice (positional args never pick
+    /// init?(hex:)).
+    @Test func byteDecoderMachinery() throws {
+        let source = """
+        struct Wrapper {
+            let id: Data
+
+            init(_ data: Data) {
+                self.id = data
+            }
+
+            init?(hex: String) {
+                return nil
+            }
+        }
+
+        func expand(_ s: String) -> Data {
+            var left: [UInt8] = []
+            for x in Array(s) {
+                let scalars = String(x).unicodeScalars
+                left.append(UInt8(scalars[scalars.startIndex].value) >> 5)
+            }
+            return Data(left)
+        }
+
+        func decode(_ str: String) -> (hrp: String, data: Data)? {
+            guard let strBytes = str.data(using: .utf8) else { return nil }
+            var values = Data(repeating: 0, count: 4)
+            var chk = 1
+            for i in 0..<4 {
+                values[i] = UInt8(strBytes[i + 2])
+                chk ^= Int(values[i])
+            }
+            var out = expand(String(str[..<str.index(str.startIndex, offsetBy: 2)]))
+            out.append(Data(values[..<3]))
+            return (String(str.prefix(2)), out)
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let decoded = decode("np1abcd")
+                let wrapped = Wrapper(decoded!.data)
+                VStack {
+                    Text("hrp \\(decoded!.hrp)")
+                    Text("bytes \\(decoded!.data.count) id \\(wrapped.id.count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
