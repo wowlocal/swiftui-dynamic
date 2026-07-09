@@ -85,6 +85,14 @@ enum Builtins {
     ) throws -> RuntimeValue {
         if let l = lhs.intValue, let r = rhs.intValue { return .native(try int(l, r)) }
         if let l = lhs.doubleValue, let r = rhs.doubleValue { return .native(try double(l, r)) }
+        // `.now() + 0.5` (DispatchTime deadlines) — the time anchor absorbs
+        // into the numeric offset; delay-taking gateways (asyncAfter) read
+        // the seconds directly.
+        if op == "+" || op == "-",
+           case .native(let any) = lhs, let call = any as? ImplicitMemberCall,
+           call.name == "now", let offset = rhs.doubleValue {
+            return .native(op == "+" ? offset : -offset)
+        }
         throw EvalMessage(text: "'\(op)' cannot combine \(lhs.stringified) and \(rhs.stringified)")
     }
 

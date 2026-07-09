@@ -349,3 +349,9 @@ Each iteration does exactly this:
   box (Binding's @dynamicMemberLookup semantics). ChoreBoard corpus
   (Toggle(isOn: $chore.done) + reset click-through). All 5 in-window class
   projects pass. **149/200 → 155/200**.
+- 2026-07-09 iter 44: DispatchQueue.main.asyncAfter — the deadline anchor
+  `.now()` absorbs into its numeric offset in +/- arithmetic (the seconds the
+  gateway needs), and MainQueueStub.asyncAfter schedules the interpreted
+  closure via a delayed main-actor Task (real firing, like async). All three
+  class projects pass (ParticleEmission, RepeatButton, LiquidTransition).
+  **155/200 → 158/200**.

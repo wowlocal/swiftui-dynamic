@@ -41,6 +41,29 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// `DispatchQueue.main.asyncAfter(deadline: .now() + delay)` schedules
+    /// the interpreted closure without error (click-through fires it).
+    @Test func asyncAfterSchedulesInertly() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var fired = false
+
+            var body: some View {
+                VStack {
+                    Text(fired ? "fired" : "waiting")
+                    Button("Later") {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                            fired = true
+                        }
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// Unknown-API trailing closures that don't yield views (the Lottie
     /// idiom: `LottieView { await LottieAnimation.loadedFrom(url:) }`) are
     /// recorded as configuration instead of failing the builder.

@@ -221,6 +221,20 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .void
             })
         }
+        if name == "asyncAfter" {
+            return .hostFunction(HostFunction(name: "asyncAfter") { args, ctx in
+                guard let closure = args.unlabeledClosures.first else { return .void }
+                // `.now() + delay` arithmetic already reduced to seconds.
+                let delay = (args.labeled("deadline") ?? args.labeled("wallDeadline"))?
+                    .doubleValue ?? 0
+                let action = ActionValue(run: { _ = try? ctx.callClosure(closure, arguments: []) })
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: UInt64(max(0, delay) * 1_000_000_000))
+                    action.run()
+                }
+                return .void
+            })
+        }
         return nil
     }
     if let proxy = value as? GeometryProxy {

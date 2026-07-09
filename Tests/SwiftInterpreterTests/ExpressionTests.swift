@@ -22,6 +22,13 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(throws: RuntimeError.self) { try eval("1 / 0") }
     }
 
+    /// DispatchTime deadlines: the `.now()` anchor absorbs into the offset.
+    @Test func nowAnchorArithmeticYieldsOffsetSeconds() throws {
+        #expect(try eval(".now() + 0.5").doubleValue == 0.5)
+        #expect(try eval(".now() + 3").doubleValue == 3)
+        #expect(try eval(".now() - 2").doubleValue == -2)
+    }
+
     @Test func stringConcatAndInterpolation() throws {
         #expect(try eval(#""a" + "b""#).stringValue == "ab")
         #expect(try eval(#""n=\(2 + 3)""#).stringValue == "n=5")
