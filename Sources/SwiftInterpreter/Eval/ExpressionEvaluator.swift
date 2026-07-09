@@ -1677,6 +1677,16 @@ extension Interpreter {
                     return .enumCase(EnumCaseValue(symbol: symbol, name: matched.name))
                 }
             }
+            // Generated NAMESPACE enums claim ubiquitous names (SwiftGen's
+            // Loc.Text registering bare `Text`): when nothing enum-shaped
+            // fits and a host constructor shares the name, real overload
+            // resolution crosses the module boundary — Text(verbatim:) is
+            // SwiftUI's.
+            if chooseInitializerStrict(from: constructible, for: args) == nil,
+               !args.arguments.isEmpty,
+               let ctor = registry?.constructor(named: symbol.name) {
+                return try ctor.invoke(args, self)
+            }
             if !constructible.isEmpty {
                 let chosen = chooseInitializer(from: constructible, for: args)
                 guard let body = chosen.body else {
@@ -2406,10 +2416,12 @@ extension Interpreter {
                     ImplicitMemberCall(name: fn.name, arguments: CallArguments()),
                     member.declName.baseName.text)
             }
-            if baseValue.isNil, assumesCompiledImports {
-                // A nil base from absorbed collections (`sequencer.tracks[1]`
-                // on a fresh store): the write is accepted and ignored, the
-                // marker-write doctrine.
+            if assumesCompiledImports, baseValue.isNil || {
+                if case .void = baseValue { return true } else { return false }
+            }() {
+                // A nil/void base from absorbed chains (`sequencer.tracks[1]`
+                // on a fresh store; a DI property nothing injected): the
+                // write is accepted and ignored, the marker-write doctrine.
                 return .hostProperty(
                     ImplicitMemberCall(name: "nil", arguments: CallArguments()),
                     member.declName.baseName.text)

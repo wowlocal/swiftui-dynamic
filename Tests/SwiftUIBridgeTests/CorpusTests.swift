@@ -2909,6 +2909,35 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// anytype-swift (iteration 169): generated NAMESPACE enums claim
+    /// ubiquitous bare names (SwiftGen's Loc.Text) — when nothing
+    /// enum-shaped fits the call, real overload resolution crosses the
+    /// module boundary to SwiftUI's constructor. Void bases from absorbed
+    /// chains accept member writes (the marker-write doctrine).
+    @Test func namespaceEnumShadowsAndVoidWrites() throws {
+        let source = """
+        public enum Loc {
+            public enum Text {
+                public static var placeholder: String { "Untitled" }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                var absorbedTrack = unmergedSequencer.tracks
+                absorbedTrack.length = 4.0
+
+                return VStack {
+                    Text(verbatim: Loc.Text.placeholder)
+                    Text("plain shadowed text")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// home-assistant-ios (iteration 168): top-level `defer` runs at
     /// process exit on device — invisible to rendering, honestly skipped;
     /// an interpreted enum SHADOWING a host type crosses the module

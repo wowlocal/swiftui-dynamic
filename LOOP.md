@@ -1708,3 +1708,16 @@ without this.
   superclass walk hardened alongside). home-assistant ✅ (27 nodes,
   3 actions). **660/664 counted — ZERO failures (THIRTY-FIRST
   saturation). 585 zips + 76 OSS repos green. Suite 333 → 334.**
+- 2026-07-10 iter 169: step 9 — anytype-swift (3196 files, the NEW
+  biggest unit by a factor of 1.7) + pocket-casts-ios (1631,
+  arrival-pass) cloned. anytype's chain: generated NAMESPACE enums
+  claim ubiquitous bare names (SwiftGen's Loc.Text registering bare
+  `Text` — found via three-stage instrumentation: the shadow never hit
+  invoke(.type), the alert-builder resolveIdentifier served
+  .enumType(Loc.Text), and a protobuf extension's init(data:) got the
+  tolerant pick) — the .enumType invoke path now carries the iter-155
+  cross-module retry (strict-miss + host constructor → registry); VOID
+  bases from absorbed chains accept member writes (the nil-base rule
+  widened). anytype ✅ (6 nodes, 1 action). **662/666 counted — ZERO
+  failures (THIRTY-SECOND saturation). 585 zips + 78 OSS repos green.
+  Suite 336 → 337.**
