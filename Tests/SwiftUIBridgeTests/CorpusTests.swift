@@ -782,6 +782,30 @@ enum Corpus {
         #expect(report.nodeCount >= 2)
     }
 
+    /// Date bounds form ranges (`soon..<later`, `soon...later`) and feed
+    /// DatePicker's `in:` — the DatePickerPage idiom.
+    @Test func dateRanges() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var picked = Date()
+
+            var body: some View {
+                let soon = Date()
+                let later = Calendar.current.date(byAdding: .year, value: 1, to: soon) ?? Date()
+                let window = soon..<later
+                let full = soon...later
+                VStack {
+                    DatePicker("half-open", selection: $picked, in: window)
+                    DatePicker("closed", selection: $picked, in: full)
+                    Text("windowed")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

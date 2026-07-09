@@ -54,6 +54,11 @@ enum Builtins {
             if let l = lhs.doubleValue, let r = rhs.doubleValue, l <= r {
                 return .native(l...r) // half-open doubles: iteration never materializes these
             }
+            // `soon..<later` — Date ranges (DatePicker in:).
+            if case .native(let la) = lhs, let l = la as? Date,
+               case .native(let ra) = rhs, let r = ra as? Date, l <= r {
+                return .native(l..<r)
+            }
             throw EvalMessage(text: "invalid range bounds")
         case "...":
             if let l = lhs.intValue, let r = rhs.intValue, l <= r {
@@ -61,6 +66,10 @@ enum Builtins {
             }
             // `0.01...0.1` — fractional bounds (Slider ranges, random(in:)).
             if let l = lhs.doubleValue, let r = rhs.doubleValue, l <= r {
+                return .native(l...r)
+            }
+            if case .native(let la) = lhs, let l = la as? Date,
+               case .native(let ra) = rhs, let r = ra as? Date, l <= r {
                 return .native(l...r)
             }
             throw EvalMessage(text: "invalid range bounds")

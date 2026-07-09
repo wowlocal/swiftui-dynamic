@@ -844,3 +844,8 @@ Each iteration does exactly this:
   (`isLoading` void). registerTypeSymbol replaces in-place so both agree.
   oss:reddit-swiftui passes (14 nodes, 1 action). **589/591 (99.7%);
   queue: oss:Weather, oss:SwiftUI.**
+- 2026-07-09 iter 106: Date ranges — `soon..<later` / `soon...later` with
+  Date bounds construct Range<Date>/ClosedRange<Date> in the ..< and ...
+  builtins (DatePicker `in:` windows — Jinxiansen DatePickerPage idiom).
+  oss:SwiftUI passes (175 nodes — the whole examples collection).
+  **590/591 (99.8%); queue: oss:Weather.**
