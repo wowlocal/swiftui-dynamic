@@ -597,13 +597,15 @@ extension Interpreter {
         let isBuilder = returnsView || node.attributes.contains {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
         }
-        return ClosureValue(
+        let closure = ClosureValue(
             parameters: parameters,
             body: body.statements,
             captured: captured,
             isBuilder: isBuilder,
             returnType: returnType
         )
+        closure.functionDeclID = node.id
+        return closure
     }
 
     // MARK: - Helpers

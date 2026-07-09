@@ -43,6 +43,13 @@ public final class Interpreter {
     /// containers resolve cycles lazily).
     var dependencyCache: [String: RuntimeValue] = [:]
     var dependencyInFlight: Set<String> = []
+    /// Initializer bodies currently executing — self-delegation must not
+    /// re-enter the same init (extension convenience → memberwise).
+    var activeInitializers: Set<SyntaxIdentifier> = []
+    /// Function bodies currently executing — overload dispatch excludes the
+    /// running declaration (`send(_:) -> StoreTask` delegating to
+    /// `send(_:) -> Task?`, identical shapes, return-type disambiguated).
+    var activeFunctionBodies: Set<SyntaxIdentifier> = []
 
     public init(registry: HostRegistry? = nil) {
         self.registry = registry
@@ -249,7 +256,23 @@ public final class Interpreter {
             }
         }
 
-        if symbol.initializers.isEmpty {
+        // Declared inits win when one FITS and isn't already running (a
+        // convenience init delegating to itself would recurse forever);
+        // otherwise property-shaped labels bind MEMBERWISE — extension
+        // inits don't suppress the memberwise init (SeparatorHStack's
+        // closure-taking convenience delegates to the synthesized
+        // value-taking form).
+        let available = symbol.initializers.filter { !activeInitializers.contains($0.id) }
+        let strictChoice = chooseInitializerStrict(from: available, for: args)
+        var memberwise = symbol.initializers.isEmpty
+        if !memberwise, strictChoice == nil {
+            let propertyNames = Set(inheritedStoredProperties(of: symbol).map(\.name))
+            let labels = args.arguments.compactMap(\.label)
+            if !labels.isEmpty, labels.allSatisfy({ propertyNames.contains($0) }) {
+                memberwise = true
+            }
+        }
+        if memberwise {
             var assigned = Set<String>()
             // Labeled arguments claim their properties FIRST, so an unlabeled
             // trailing closure can't steal a property that a later labeled
@@ -332,7 +355,7 @@ public final class Interpreter {
                 }
             }
         } else {
-            if chooseInitializerStrict(from: symbol.initializers, for: args) == nil,
+            if strictChoice == nil,
                !args.arguments.isEmpty,
                registry?.constructor(named: symbol.name) != nil {
                 // No init fits and a HOST type shares the name (protobuf's
@@ -344,7 +367,7 @@ public final class Interpreter {
                 throw RuntimeError(message: message)
             }
             return try runInitializer(
-                chooseInitializer(from: symbol.initializers, for: args),
+                strictChoice ?? chooseInitializer(from: symbol.initializers, for: args),
                 on: instance, args: args, node: node)
         }
         return .instance(instance)
@@ -366,6 +389,8 @@ public final class Interpreter {
         guard let body = chosen.body else {
             throw RuntimeError(message: "init of '\(instance.symbol.name)' has no body")
         }
+        let inserted = activeInitializers.insert(chosen.id).inserted
+        defer { if inserted { activeInitializers.remove(chosen.id) } }
         let parameters = chosen.signature.parameterClause.parameters.map { param in
             ClosureValue.Parameter(
                 name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
@@ -446,6 +471,7 @@ public final class Interpreter {
     func chooseInitializerStrict(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax? {
         let argLabels = args.arguments.compactMap(\.label)
         let unlabeled = args.arguments.filter { $0.label == nil && !$0.isTrailing }.count
+        var fits: [InitializerDeclSyntax] = []
         for candidate in initializers {
             let params = candidate.signature.parameterClause.parameters
             let labels = params.map { $0.firstName.text }
@@ -466,10 +492,43 @@ public final class Interpreter {
                argLabels.allSatisfy({ labels.contains($0) }),
                required.filter({ !argLabels.contains($0) }).count <= unlabeledTrailing,
                unlabeled <= wildcards {
-                return candidate
+                fits.append(candidate)
             }
         }
-        return nil
+        guard fits.count > 1 else { return fits.first }
+        // Same-labeled overloads (`init(_ source:)` vs `init(_ sources:
+        // [X])`; closure-taking convenience inits delegating to
+        // value-taking designated ones): the argument's ARRAY-ness and
+        // CLOSURE-ness pick the matching annotations — real overload
+        // resolution's type dimension, coarsely.
+        func typeScore(_ candidate: InitializerDeclSyntax) -> Int {
+            var score = 0
+            var positional = args.arguments.filter { $0.label == nil && !$0.isTrailing }.makeIterator()
+            for param in candidate.signature.parameterClause.parameters {
+                let argument: CallArguments.Argument?
+                if param.firstName.text == "_" {
+                    argument = positional.next()
+                } else {
+                    argument = args.arguments.first { $0.label == param.firstName.text }
+                }
+                guard let argument else { continue }
+                let annotation = param.type.trimmedDescription
+                let wantsArray = annotation.hasPrefix("[") && !annotation.contains(":")
+                let wantsClosure = annotation.contains("->")
+                let isArray = argument.value.arrayValue != nil
+                let isClosure = argument.value.closureValue != nil
+                score += (wantsArray == isArray) ? 1 : -1
+                score += (wantsClosure == isClosure) ? 1 : -1
+            }
+            return score
+        }
+        var best = fits[0]
+        var bestScore = typeScore(best)
+        for candidate in fits.dropFirst() {
+            let score = typeScore(candidate)
+            if score > bestScore { best = candidate; bestScore = score }
+        }
+        return best
     }
 
     /// Evaluate an instance's `body` computed property in ViewBuilder mode.

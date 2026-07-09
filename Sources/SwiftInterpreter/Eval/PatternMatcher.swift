@@ -136,12 +136,65 @@ extension Interpreter {
         throw error(pattern, "unsupported pattern (\(pattern.kind))")
     }
 
+    /// `let file as String` inside a pattern parses as an UNFOLDED
+    /// sequence — the cast is optimistic (nil never matches), the name
+    /// binds to the subject.
+    private func matchCastSequence(
+        _ expr: ExprSyntax, subject: RuntimeValue, bindingInto bindings: Environment
+    ) -> Bool? {
+        // Folded (`AsExpr(PatternExpr(text), String)`) and unfolded
+        // sequences both appear depending on the folder's reach.
+        var target: ExprSyntax?
+        var castType: String?
+        if let asExpr = expr.as(AsExprSyntax.self) {
+            target = asExpr.expression
+            castType = asExpr.type.trimmedDescription
+        } else if let seq = expr.as(SequenceExprSyntax.self) {
+            let items = Array(seq.elements)
+            guard items.count == 3, items[1].is(UnresolvedAsExprSyntax.self) else { return nil }
+            target = items[0]
+            castType = items[2].as(TypeExprSyntax.self)?.type.trimmedDescription
+        }
+        guard let target else { return nil }
+        if subject.isNil { return false }
+        // Casts stay optimistic for interpreted/host types, but PRIMITIVES
+        // are checkable: `for case let text as String` over [Any] must
+        // skip the Ints.
+        if let castType, case .native(let any) = subject {
+            switch castType {
+            case "String": guard any is String else { return false }
+            case "Int": guard any is Int else { return false }
+            case "Double", "CGFloat", "TimeInterval": guard any is Double || any is Int else { return false }
+            case "Bool": guard any is Bool else { return false }
+            default: break
+            }
+        }
+        if let ref = target.as(DeclReferenceExprSyntax.self) {
+            bindings.define(ref.baseName.text, subject)
+            return true
+        }
+        if let patternExpr = target.as(PatternExprSyntax.self) {
+            var inner = patternExpr.pattern
+            if let binding = inner.as(ValueBindingPatternSyntax.self) { inner = binding.pattern }
+            if let ident = inner.as(IdentifierPatternSyntax.self) {
+                bindings.define(ident.identifier.text, subject)
+                return true
+            }
+            if inner.is(WildcardPatternSyntax.self) { return true }
+        }
+        if target.is(DiscardAssignmentExprSyntax.self) { return true }
+        return nil
+    }
+
     private func matchExpression(
         _ expr: ExprSyntax,
         subject: RuntimeValue,
         bindingInto bindings: Environment,
         env: Environment
     ) throws -> Bool {
+        if let cast = matchCastSequence(expr, subject: subject, bindingInto: bindings) {
+            return cast
+        }
         // `.finished(let message)` / `Status.finished(let message)` — enum
         // payload patterns arrive as call expressions whose arguments may be
         // nested patterns. Subjects that never got type context arrive as

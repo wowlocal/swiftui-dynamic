@@ -7,11 +7,23 @@ extension Interpreter {
         try tick(expr)
         // Native-stack guard for resolution CYCLES that never pass
         // callWithArguments (lazy-global force loops, member-dispatch
-        // cycles): each interpreted expression is a handful of native
-        // frames, so bound nesting well before the real stack dies.
+        // cycles). A fixed nesting count can't fit both TCA's legitimate
+        // depth and small test-thread stacks, so probe the REAL bounds:
+        // when under 1MB of headroom remains, stop with a located error.
         evaluationDepth += 1
         defer { evaluationDepth -= 1 }
-        guard evaluationDepth < 350 else {
+        if evaluationDepth & 63 == 0 {
+            let top = UInt(bitPattern: pthread_get_stackaddr_np(pthread_self()))
+            let size = UInt(pthread_get_stacksize_np(pthread_self()))
+            var probe: UInt8 = 0
+            let current = withUnsafePointer(to: &probe) { UInt(bitPattern: $0) }
+            if current > top - size, current - (top - size) < 1_048_576 {
+                let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
+                throw RuntimeError(
+                    message: located.message, line: located.line, column: located.column, fatal: true)
+            }
+        }
+        guard evaluationDepth < 20_000 else {
             let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
             throw RuntimeError(
                 message: located.message, line: located.line, column: located.column, fatal: true)
@@ -461,7 +473,20 @@ extension Interpreter {
             }
             parentName = parent.superclassName
         }
-        if let method = instance.symbol.methods[name]?.first {
+        if let overloads = instance.symbol.methods[name], let first = overloads.first {
+            // Within an OVERLOAD SET the running declaration never re-enters
+            // itself: `send(_:) -> StoreTask` delegates to its identically-
+            // shaped sibling (return-type disambiguation). A set exhausted
+            // by recursion absorbs — but a UNIQUE decl recursing (fib) is
+            // legitimate and stays.
+            var method = first
+            if overloads.count > 1 {
+                guard let candidate = overloads.first(where: { !activeFunctionBodies.contains($0.id) }) else {
+                    return .native(ChainedImplicitCall(
+                        base: .instance(instance), member: name, arguments: CallArguments()))
+                }
+                method = candidate
+            }
             guard let body = method.body else { return nil }
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.instance(instance))))
         }
@@ -659,8 +684,29 @@ extension Interpreter {
             if name == "init", !instance.symbol.initializers.isEmpty {
                 return .hostFunction(HostFunction(name: "init") { [weak self] args, _ in
                     guard let self else { throw RuntimeError(message: "interpreter gone") }
+                    // The RUNNING init never re-enters itself: extension
+                    // convenience inits delegate to the memberwise form.
+                    let available = instance.symbol.initializers.filter {
+                        !self.activeInitializers.contains($0.id)
+                    }
+                    if self.chooseInitializerStrict(from: available, for: args) == nil,
+                       available.count < instance.symbol.initializers.count {
+                        let propertyNames = Set(self.inheritedStoredProperties(of: instance.symbol).map(\.name))
+                        let labels = args.arguments.compactMap(\.label)
+                        if !labels.isEmpty, labels.allSatisfy({ propertyNames.contains($0) }) {
+                            for argument in args.arguments {
+                                guard let label = argument.label else { continue }
+                                if let box = instance.box(for: label) {
+                                    box.value = argument.value
+                                } else {
+                                    instance.properties[label] = Box(argument.value)
+                                }
+                            }
+                            return .void
+                        }
+                    }
                     guard let chosen = self.chooseInitializerStrict(
-                        from: instance.symbol.initializers, for: args) else {
+                        from: available, for: args) else {
                         // No interpreted candidate: `self.init(window:)`
                         // delegates to a HOST superclass's designated init —
                         // labeled args bind as properties (iter-93 rule).
@@ -938,6 +984,12 @@ extension Interpreter {
                     }
                     return .native(BindingStub(box: box))
                 }
+                // `$store.scope(state:action:)` — TCA's bindable scoping:
+                // the model's own MEMBER dispatches (the projection's
+                // binding-ness only matters for write-back, which absorbs).
+                if let member = try instanceMember(name, on: projection.model) {
+                    return member
+                }
                 throw error(node, "'$\(projection.model.symbol.name)' has no stored property '\(name)'")
             }
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
@@ -1136,7 +1188,15 @@ extension Interpreter {
             if case .instance(let instance) = baseValue,
                let overloads = instance.symbol.methods[name], overloads.count > 1 {
                 let args = try collectArguments(of: call, in: env)
-                if let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    // Every overload is already running (send#StoreTask ↔
+                    // send#Task mutual delegation): the device's return-type
+                    // dispatch found a runtime path we can't — absorb.
+                    return .native(ChainedImplicitCall(
+                        base: baseValue, member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
                    let body = method.body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.instance(instance)))
@@ -1175,7 +1235,12 @@ extension Interpreter {
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instance.symbol.methods[name], overloads.count > 1 {
                 let args = try collectArguments(of: call, in: env)
-                if let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: .instance(instance), member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
                    let body = method.body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.instance(instance)))
@@ -1576,9 +1641,23 @@ extension Interpreter {
         case .native(let any) where any is HostTypeMarker:
             let marker = any as! HostTypeMarker
             throw error(node, "'\(marker.name)' has no interpreter constructor — only its static members (like \(marker.name).something) are supported")
+        case .native(let any) where any is KeyPathStub:
+            // SE-0249 keypath-as-function: `(\.feature1)(subject)` reads the
+            // property off the argument (TCA's case-keypath action mapping).
+            if let subject = args.positional(0) {
+                return try applyKeyPath(any as! KeyPathStub, to: subject)
+            }
+            return callee
         case .native(let any) where any is InertCallable:
             return callee // inert-chainable host stub call
         default:
+            if args.arguments.isEmpty {
+                // `childCore()` on an @autoclosure parameter bound to a
+                // plain value: calling the deferred expression yields the
+                // value (compiled sources only call callables, so a
+                // zero-arg call on data is always this shape).
+                return callee
+            }
             throw error(node, "\(callee.stringified) is not callable")
         }
     }
@@ -1604,6 +1683,11 @@ extension Interpreter {
             insertedFrame = frame
         }
         defer { if let insertedFrame { activeExtensionFrames.remove(insertedFrame) } }
+        var insertedBody: SyntaxIdentifier?
+        if let declID = closure.functionDeclID, activeFunctionBodies.insert(declID).inserted {
+            insertedBody = declID
+        }
+        defer { if let insertedBody { activeFunctionBodies.remove(insertedBody) } }
         guard callDepth < callDepthLimit else {
             if let node {
                 let located = error(node, "call depth exceeded (possible infinite recursion)")
@@ -2192,6 +2276,22 @@ extension Interpreter {
             if let dict = baseValue?.dictValue {
                 return .dictElement(dict, try evaluate(indexExpr, in: env))
             }
+            // `element[keyPath: kp] = value` — keypath writes walk to the
+            // last component's owner and assign the property.
+            if subscriptCall.arguments.first?.label?.text == "keyPath" {
+                let keyValue = try evaluate(indexExpr, in: env)
+                if case .native(let any) = keyValue, let stub = any as? KeyPathStub,
+                   let last = stub.components.last, last != "self" {
+                    var owner = try evaluate(subscriptCall.calledExpression, in: env)
+                    for component in stub.components.dropLast() where component != "self" {
+                        owner = try accessMember(component, on: owner, node: subscriptCall, env: env)
+                    }
+                    if case .instance(let instance) = owner {
+                        return .instanceProperty(instance, instance.symbol.canonicalPropertyName(last))
+                    }
+                }
+                throw error(subscriptCall, "unsupported keyPath assignment target")
+            }
             // Store WRITES remember (`Defaults[.previewWidth] = w`): the
             // key bag's declared default updates, so later reads round-trip
             // within the run — fresh-store bag semantics.
@@ -2245,7 +2345,18 @@ extension Interpreter {
                 out += unescape(s.content.text)
             case .expressionSegment(let e):
                 for labeled in e.expressions {
-                    out += try evaluate(labeled.expression, in: env).stringified
+                    let value = try evaluate(labeled.expression, in: env)
+                    // Unknowables read "" in string interpolation — the
+                    // fresh-string doctrine; internal marker dumps must
+                    // never reach rendered Text.
+                    if case .native(let any) = value,
+                       any is InertCallable || any is ChainedImplicitCall
+                        || any is ImplicitMemberCall {
+                        continue
+                    }
+                    if case .implicitMember = value { continue }
+                    if case .hostFunction = value { continue }
+                    out += value.stringified
                 }
             }
         }
@@ -2310,6 +2421,13 @@ extension Interpreter {
             throw error(call, "missing subscript index")
         }
         let index = try evaluate(indexExpr, in: env)
+        if call.arguments.first?.label?.text == "keyPath" {
+            // `element[keyPath: kp]` — apply the stub's components.
+            if case .native(let any) = index, let stub = any as? KeyPathStub {
+                return try applyKeyPath(stub, to: base)
+            }
+            return .nilValue // unknowable keypath: fresh read
+        }
         if let array = base.arrayValue {
             guard let i = index.intValue, array.indices.contains(i) else {
                 throw error(call, "array index out of range")

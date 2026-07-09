@@ -384,6 +384,7 @@ extension Interpreter {
     private func executeFor(_ forStmt: ForStmtSyntax, in env: Environment) throws -> StatementResult {
         let name: String?
         var tupleNames: [String?]?
+        var casePattern: PatternSyntax?
         if let ident = forStmt.pattern.as(IdentifierPatternSyntax.self) {
             name = ident.identifier.text
         } else if forStmt.pattern.is(WildcardPatternSyntax.self) {
@@ -395,7 +396,12 @@ extension Interpreter {
                 $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
             }
         } else {
-            throw error(forStmt.pattern, "only simple for-in patterns are supported")
+            // `for case let file as String in enumerator` and case-shaped
+            // patterns: each element runs through the switch matcher;
+            // non-matching elements skip.
+            name = nil
+            tupleNames = nil
+            casePattern = forStmt.pattern
         }
         let sequence = try evaluate(forStmt.sequence, in: env)
 
@@ -426,6 +432,11 @@ extension Interpreter {
         loop: for element in elements {
             try tick(forStmt)
             let child = Environment(parent: env)
+            if let casePattern {
+                guard try matches(casePattern, subject: element, bindingInto: child, env: env) else {
+                    continue
+                }
+            }
             if let name { child.define(name, element) }
             if let tupleNames {
                 guard let tuple = element.tupleValue, tuple.values.count == tupleNames.count else {

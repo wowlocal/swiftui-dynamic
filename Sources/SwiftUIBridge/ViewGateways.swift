@@ -14,6 +14,14 @@ extension ViewRegistry {
             if case .native(let any) = value, let box = any as? AttributedStringBox {
                 return .native(AnyView(Text(box.attributed)))
             }
+            // Unknowables read "" (fresh-string doctrine) — marker dumps
+            // must never reach rendered Text.
+            if case .native(let any) = value,
+               any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+                return .native(AnyView(Text("")))
+            }
+            if case .hostFunction = value { return .native(AnyView(Text(""))) }
+            if case .implicitMember = value { return .native(AnyView(Text(""))) }
             return .native(AnyView(Text(value.stringValue ?? value.stringified)))
         }
 
@@ -60,6 +68,14 @@ extension ViewRegistry {
         // MARK: Shapes & gradients
 
         constructors["Circle"] = HostFunction(name: "Circle") { _, _ in .native(ShapeBox(Circle())) }
+        constructors["UnevenRoundedRectangle"] = HostFunction(name: "UnevenRoundedRectangle") { args, _ in
+            .native(ShapeBox(UnevenRoundedRectangle(
+                topLeadingRadius: (try? Coerce.cgFloat(args.labeled("topLeadingRadius") ?? .native(0))) ?? 0,
+                bottomLeadingRadius: (try? Coerce.cgFloat(args.labeled("bottomLeadingRadius") ?? .native(0))) ?? 0,
+                bottomTrailingRadius: (try? Coerce.cgFloat(args.labeled("bottomTrailingRadius") ?? .native(0))) ?? 0,
+                topTrailingRadius: (try? Coerce.cgFloat(args.labeled("topTrailingRadius") ?? .native(0))) ?? 0
+            )))
+        }
         constructors["Ellipse"] = HostFunction(name: "Ellipse") { _, _ in .native(ShapeBox(Ellipse())) }
         constructors["Rectangle"] = HostFunction(name: "Rectangle") { _, _ in .native(ShapeBox(Rectangle())) }
         constructors["Capsule"] = HostFunction(name: "Capsule") { _, _ in .native(ShapeBox(Capsule())) }

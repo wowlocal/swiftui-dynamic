@@ -455,6 +455,13 @@ enum Coerce {
             let radius = try cgFloat(call.arguments.labeled("cornerRadius") ?? .native(0))
             return AnyShape(RoundedRectangle(cornerRadius: radius))
         }
+        if case .native(let any) = value,
+           any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+            // Unknowable shapes (external-SDK shape builders) degrade to the
+            // bounding rectangle — clipping to bounds is the honest no-op.
+            return AnyShape(Rectangle())
+        }
+        if case .hostFunction = value { return AnyShape(Rectangle()) }
         throw RuntimeError(message: "expected a shape like Circle() or .capsule")
     }
 

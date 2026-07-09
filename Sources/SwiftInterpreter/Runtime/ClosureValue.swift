@@ -60,6 +60,9 @@ public final class ClosureValue {
     /// registry gateway — real overload resolution for the ubiquitous
     /// "convenience overload of a SwiftUI modifier" pattern.
     public var extensionFrame: ExtensionFrame?
+    /// The FunctionDecl this closure wraps (method/function bodies):
+    /// self-delegating overload calls exclude the RUNNING declaration.
+    public var functionDeclID: SyntaxIdentifier?
 
     public init(
         parameters: [Parameter],

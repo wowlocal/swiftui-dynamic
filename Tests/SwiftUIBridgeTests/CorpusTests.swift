@@ -2909,6 +2909,69 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Swiftfin (iteration 157): four classes from the 817-file Jellyfin
+    /// client — `for case let x as T` patterns; `[keyPath:]` subscripts
+    /// read AND write; same-labeled overloads disambiguate by the
+    /// argument's array-ness/closure-ness; and a running init never
+    /// re-enters itself (extension convenience inits delegate to the
+    /// memberwise form — extension inits don't suppress it).
+    @Test func swiftfinClasses() throws {
+        let source = """
+        struct ImageSource {
+            var url: String? = nil
+        }
+
+        struct SeparatorHStack: View {
+            var content: AnyView?
+            var separator: AnyView?
+
+            var body: some View {
+                Text("stack")
+            }
+        }
+
+        extension SeparatorHStack {
+            init(
+                @ViewBuilder separator: @escaping () -> some View,
+                @ViewBuilder content: @escaping () -> some View
+            ) {
+                self.init(content: AnyView(content()), separator: AnyView(separator()))
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                var element = ImageSource()
+                element[keyPath: \\.url] = element[keyPath: \\.url] ?? "https://jellyfin.org"
+                let sources = [ImageSource(url: "a"), ImageSource(), element]
+                    .filter { $0[keyPath: \\.url] != nil }
+
+                let mixed: [Any] = ["one", 2, "three"]
+                var strings: [String] = []
+                for case let text as String in mixed {
+                    strings.append(text)
+                }
+
+                let checks = [
+                    sources.count == 2,
+                    strings.count == 2,
+                    element.url == "https://jellyfin.org",
+                ]
+                if checks.contains(false) { fatalError("swiftfin classes broken") }
+                return VStack {
+                    SeparatorHStack {
+                        Divider()
+                    } content: {
+                        Text("row")
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// Pearcleaner + Applite (iteration 156): bitwise operators absorb
     /// unknowable flags to zero (kFSEventStreamCreateFlag… C constants
     /// from unmerged frameworks), and creating a directory at an

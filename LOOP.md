@@ -1451,3 +1451,25 @@ Each iteration does exactly this:
   fatalError'd where the device succeeds). Pearcleaner ✅, Applite ✅
   (32 nodes, 2 actions). **638/642 counted — ZERO failures (TWENTIETH
   saturation). 585 zips + 54 OSS repos green. Suite 300 → 301.**
+- 2026-07-09 iter 157: step 9 — Swiftfin (817 files, the BIGGEST unit),
+  Sidekick (276), Basic-Car-Maintenance (58, arrival-pass) cloned.
+  Swiftfin's chain: `for case let x as T` patterns (primitives really
+  type-check — String skips Ints); `[keyPath:]` subscripts read AND
+  write; same-labeled overloads disambiguate by argument ARRAY-ness/
+  CLOSURE-ness; a RUNNING declaration never re-enters itself — inits
+  (extension convenience → memberwise; extension inits don't suppress
+  memberwise) AND methods (TCA's `send#StoreTask ↔ send#Task`
+  return-type siblings; exhausted sets absorb). The send fix initially
+  no-oped — the callWithArguments bracket patch had silently not
+  landed (caught by DEPTH/DISPATCH instrumentation: active=0 at depth
+  199). SCA collateral healed same-iteration: @autoclosure zero-arg
+  calls yield the value; ForEach iterates instance collections
+  (elements-shaped property or fresh-empty); $store.scope dispatches
+  the model's member; keypath-as-function (SE-0249); the fixed nesting
+  guard became a REAL pthread stack probe (<1MB headroom → located
+  error) after 350 undersized TCA and 1000 overflowed test threads.
+  USER-reported live-render fixes: UnevenRoundedRectangle real ctor,
+  unknowable shapes degrade to Rectangle, unknowables read "" in
+  interpolation AND Text (marker dumps never render). Swiftfin ✅
+  (14 nodes, 2 actions) + SCA ✅ held (390 nodes, 81 actions — real
+  cores now). Sidekick next. **640/645 counted. Suite 301 → 302.**

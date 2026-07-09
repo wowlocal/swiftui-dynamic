@@ -498,6 +498,18 @@ public final class TraceRegistry: HostRegistry {
             return range.map { .native($0) }
         }
         if let array = data.arrayValue { return array }
+        if case .instance(let instance) = data {
+            // Library collection WRAPPERS (TCA's Store-of-IdentifiedArray,
+            // IdentifiedArray itself): the conformance lives in the
+            // unmerged runtime. An elements-shaped property iterates;
+            // otherwise the fresh store reads EMPTY.
+            for candidate in ["elements", "_elements", "items", "rows"] {
+                if let box = instance.box(for: candidate), let array = box.value.arrayValue {
+                    return array
+                }
+            }
+            return []
+        }
         throw RuntimeError(message: "ForEach needs a range or an array, got \(data.stringified)")
     }
 }
