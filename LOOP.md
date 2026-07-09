@@ -1184,3 +1184,12 @@ Each iteration does exactly this:
   carries through). CotEditor passes (25 nodes); Secretive (98 nodes,
   13 actions). **620/620 counted — ZERO failures (twelfth saturation).
   585 zips + 35 OSS repos green. Suite 253.**
+- 2026-07-09 iter 139: step 9 — cloned Apple's OWN samples: sample-food-truck
+  (82 files, 34 nodes), sample-backyard-birds (114, SwiftData-heavy),
+  mlx-swift-examples (101); units 620 → 623. ALL THREE PASSED ON ARRIVAL —
+  no failure class existed this iteration; the material addition is the
+  step-9 action. **623/623 counted — ZERO failures (thirteenth saturation).
+  585 zips + 38 OSS repos green. The arrival-green streak (Secretive,
+  KeyboardCowboy, CodeEdit, Aidoku, Clop, Rayon, VirtualBuddy, now Apple's
+  flagship samples) marks the long-tail regime: classes surface as API
+  breadth, not language gaps.**
