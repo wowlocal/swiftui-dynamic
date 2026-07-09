@@ -66,6 +66,9 @@ public final class StructSymbol {
     public internal(set) var conformsToShape = false
     /// `static var shared: X { … }` — computed statics, evaluated per read.
     public var staticComputedProperties: [String: ComputedProperty] = [:]
+    /// `class Recognizer: NSObject, …` — the (non-protocol) superclass name;
+    /// host superclasses make `super.*` inert, interpreted ones dispatch.
+    public internal(set) var superclassName: String?
     /// Declared with `class` — matters for observation; reference semantics
     /// are the default for ALL instances (the documented struct divergence).
     public internal(set) var isClass = false

@@ -489,3 +489,14 @@ Each iteration does exactly this:
   TraceNodes act empty for map/compactMap/filter/sorted/count/isEmpty (the
   realm.objects(...) reading). MinimalTodo, NotesApp, Task_Management ×2 +
   ripple pass; RealmDataBase/Expense EP5 advanced. **450/587 → 455/587**.
+- 2026-07-09 iter 60: the superExpr wall, taken as inheritance-lite —
+  StructSymbol.superclassName (first non-protocol inherited type); `super`
+  evaluates to a SuperReference: interpreted parents dispatch methods/
+  computed with self unchanged, host parents (NSObject…) make super.* inert.
+  Ride-along general gaps the same chains hit: IUO annotations (`Track!`)
+  seed nil; marker comparisons are name-based (authorization checks read as
+  fresh-system-state false); member WRITES on markers are inert
+  (`manager.delegate = self`); break/continue execute in builder position.
+  ShazamKitApp, CameraControlAPI, PomodoroTimer pass; LocationSearch pair →
+  Combine $published pipelines, HeaderAnimation → window wall.
+  **455/587 → 470/587 (+15 — the marker fixes rippled corpus-wide).**

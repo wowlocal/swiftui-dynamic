@@ -67,8 +67,9 @@ extension Interpreter {
                     throw error(binding, "computed properties are only supported inside types")
                 }
                 guard let initializer = binding.initializer?.value else {
-                    if binding.typeAnnotation?.type.trimmedDescription.hasSuffix("?") == true {
-                        env.define(ident.identifier.text, .nilValue) // `var x: T?` is nil
+                    let annotationText = binding.typeAnnotation?.type.trimmedDescription ?? ""
+                    if annotationText.hasSuffix("?") || annotationText.hasSuffix("!") {
+                        env.define(ident.identifier.text, .nilValue) // `var x: T?`/`T!` is nil
                         continue
                     }
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
@@ -313,7 +314,8 @@ extension Interpreter {
                     continue
                 }
                 if stmt.is(DoStmtSyntax.self) || stmt.is(GuardStmtSyntax.self)
-                    || stmt.is(ForStmtSyntax.self) || stmt.is(WhileStmtSyntax.self) {
+                    || stmt.is(ForStmtSyntax.self) || stmt.is(WhileStmtSyntax.self)
+                    || stmt.is(BreakStmtSyntax.self) || stmt.is(ContinueStmtSyntax.self) {
                     // Imperative statements inside builder-evaluated closures
                     // (`.task { do { try await fetch() } catch {} }`) execute
                     // for effect; an explicit return contributes its view.

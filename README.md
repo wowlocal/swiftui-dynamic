@@ -185,6 +185,14 @@ coverage.
 - **Typed environment rides the model environment.**
   `@Environment(Type.self)` + `.environment(model)` behave exactly like
   `@EnvironmentObject` + `.environmentObject(_:)`, keyed by type name.
+- **`super` is inheritance-lite.** Interpreted superclasses dispatch
+  methods/computed properties with `self` unchanged; host superclasses
+  (NSObject, UIViewController…) make `super.init()` and lifecycle calls
+  inert. Stored properties don't merge across class hierarchies yet.
+  Member writes on unresolvable host markers (`manager.delegate = self`)
+  are accepted and ignored; marker comparisons are name-based
+  (`authorizationStatus(for: .video) == .authorized` is false — fresh
+  system state).
 - **Property observers are inert.** `willSet`/`didSet` bindings parse as plain
   stored properties; the observer bodies never run.
 - **Model notification is box-level.** Writing a `@Published` property (or any

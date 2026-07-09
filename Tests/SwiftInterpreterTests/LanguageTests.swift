@@ -269,6 +269,47 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct StdlibTests {
+    /// `super.method()` dispatches to the interpreted superclass with self
+    /// unchanged; host superclasses (NSObject) make super.* inert.
+    @Test func superDispatchesToInterpretedParent() throws {
+        let source = """
+        class Base {
+            func greeting() -> String {
+                return "base"
+            }
+        }
+        class Child: Base {
+            func combined() -> String {
+                return super.greeting() + "+child"
+            }
+        }
+        Child().combined()
+        """
+        #expect(try eval(source).stringValue == "base+child")
+    }
+
+    @Test func hostSuperclassInitIsInertAndIUOIsNil() throws {
+        let source = """
+        class Recognizer: NSObject, ObservableObject {
+            @Published var found: String!
+            var configured = false
+
+            override init() {
+                super.init()
+                configured = true
+            }
+        }
+        let r = Recognizer()
+        "\\(r.configured) \\(r.found == nil)"
+        """
+        #expect(try eval(source).stringValue == "true true")
+    }
+
+    @Test func markerComparisonsAreNameBased() throws {
+        #expect(try eval(".authorized(for: 1) == .denied").boolValue == false)
+        #expect(try eval(".video(a: 1) == .video").boolValue == true)
+    }
+
     @Test func stringFormatAndFloat() throws {
         #expect(try eval(#"String(format: "%.1f", 12.345)"#).stringValue == "12.3")
         #expect(try eval(#"String(format: "%d items", 7)"#).stringValue == "7 items")

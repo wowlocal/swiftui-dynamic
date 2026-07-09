@@ -466,6 +466,11 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
 
 /// Writable members on host objects.
 func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
+    if value is ImplicitMemberCall || value is ChainedImplicitCall {
+        // Unresolvable host objects (`manager.delegate = self` on a marker
+        // CLLocationManager) — config writes are dead machinery headlessly.
+        return true
+    }
     if let box = value as? NumberFormatterBox {
         switch name {
         case "numberStyle":

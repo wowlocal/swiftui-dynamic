@@ -128,6 +128,17 @@ public struct ChainedImplicitCall {
     }
 }
 
+/// `super` inside a class body: member access dispatches to the interpreted
+/// superclass when one exists, and is inert for host superclasses (NSObject,
+/// UIViewController, …) whose initializers have no interpreter analog.
+public struct SuperReference {
+    public let instance: Instance
+
+    public init(instance: Instance) {
+        self.instance = instance
+    }
+}
+
 /// Marker for key-path literals like `\.self`; gateways that take `id:` ignore it.
 public struct KeyPathStub {
     public init() {}

@@ -140,10 +140,22 @@ extension Interpreter {
     /// Classes ride the same symbol machinery — Instance is already
     /// reference-backed, which is exactly class semantics. The extra flags
     /// drive observation (`ObservableObject` conformance / `@Observable`).
+    private static let knownProtocols: Set<String> = [
+        "View", "ObservableObject", "Identifiable", "Codable", "Decodable",
+        "Encodable", "Hashable", "Equatable", "Comparable", "CaseIterable",
+        "Shape", "InsettableShape", "ViewModifier", "App", "Scene", "Sendable",
+        "Error", "CustomStringConvertible", "RandomAccessCollection",
+    ]
+
     private func collectClass(_ node: ClassDeclSyntax) throws {
         let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
         let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
         symbol.isClass = true
+        // A superclass, if present, is first in the clause; protocols follow.
+        if let first = inherited.first, !Self.knownProtocols.contains(first),
+           !first.hasSuffix("Delegate"), !first.hasSuffix("DataSource") {
+            symbol.superclassName = first
+        }
         symbol.conformsToObservableObject = inherited.contains("ObservableObject")
         symbol.observableViaMacro = node.attributes.contains {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Observable"

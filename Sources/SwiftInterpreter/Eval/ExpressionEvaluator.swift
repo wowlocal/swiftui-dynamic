@@ -106,6 +106,12 @@ extension Interpreter {
         if expr.is(KeyPathExprSyntax.self) {
             return .native(KeyPathStub())
         }
+        if expr.is(SuperExprSyntax.self) {
+            guard case .instance(let instance)? = env.lookup("self") else {
+                throw error(expr, "'super' can only be used inside a class body")
+            }
+            return .native(SuperReference(instance: instance))
+        }
         if let macro = expr.as(MacroExpansionExprSyntax.self) {
             // `#selector(...)`, `#Predicate {...}` — inert marker values;
             // consumers (sendAction, flattened queries) ignore them.
@@ -444,6 +450,26 @@ extension Interpreter {
             return .implicitMember(name)
 
         case .native(let any):
+            if let superRef = any as? SuperReference {
+                let symbol = superRef.instance.symbol
+                if let parentName = symbol.superclassName,
+                   case .type(let parent)? = globals.lookup(parentName) {
+                    // Interpreted superclass: dispatch methods/computed with
+                    // self bound to the SAME instance (super dispatch).
+                    if let method = parent.methods[name], let body = method.body {
+                        return .closure(makeFunctionClosure(
+                            method, body: body,
+                            captured: selfEnvironment(.instance(superRef.instance))))
+                    }
+                    if let computed = parent.computedProperties[name] {
+                        return try evaluateComputed(
+                            computed, selfValue: .instance(superRef.instance), name: name)
+                    }
+                }
+                // Host superclass (NSObject, UIViewController, …): super.init()
+                // and lifecycle calls are inert — no interpreter analog.
+                return .hostFunction(HostFunction(name: name) { _, _ in .void })
+            }
             if let stub = any as? BindingStub {
                 switch name {
                 case "wrappedValue": return stub.box.value

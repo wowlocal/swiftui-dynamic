@@ -119,7 +119,8 @@ public final class Interpreter {
         let notifying = Set(symbol.notifyingPropertyNames)
         for property in symbol.storedProperties {
             // Optional-typed properties without initializers are nil in Swift.
-            var value: RuntimeValue = property.typeAnnotation?.trimmedDescription.hasSuffix("?") == true
+            let annotationText = property.typeAnnotation?.trimmedDescription ?? ""
+            var value: RuntimeValue = annotationText.hasSuffix("?") || annotationText.hasSuffix("!")
                 ? .nilValue : .void
             if let initializer = property.initializer {
                 // Static context: property initializers may reference the

@@ -98,6 +98,17 @@ enum Builtins {
 
     static func areEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
         if lhs.isNil || rhs.isNil { return lhs.isNil && rhs.isNil }
+        // A marker CALL against a bare marker compares by name — honestly
+        // false for `authorizationStatus(for: .video) == .authorized` (fresh
+        // system state), true only for same-named markers.
+        if case .native(let any) = lhs, let call = any as? ImplicitMemberCall,
+           case .implicitMember(let name) = rhs {
+            return call.name == name
+        }
+        if case .native(let any) = rhs, let call = any as? ImplicitMemberCall,
+           case .implicitMember(let name) = lhs {
+            return call.name == name
+        }
         if let l = lhs.intValue, let r = rhs.intValue { return l == r }
         if let l = lhs.doubleValue, let r = rhs.doubleValue { return l == r }
         if let l = lhs.stringValue, let r = rhs.stringValue { return l == r }
@@ -114,6 +125,11 @@ enum Builtins {
         }
         if let l = lhs.rangeValue, let r = rhs.rangeValue { return l == r }
         if case .native(let la) = lhs, case .native(let ra) = rhs {
+            // Marker-call vs marker-call: name equality is the best truth
+            // available (`.video == .video`); differing names are unequal.
+            if let l = la as? ImplicitMemberCall, let r = ra as? ImplicitMemberCall {
+                return l.name == r.name
+            }
             if let l = la as? UUID, let r = ra as? UUID { return l == r }
             if let l = la as? Date, let r = ra as? Date { return l == r }
             if let l = la as? CGSize, let r = ra as? CGSize { return l == r }
