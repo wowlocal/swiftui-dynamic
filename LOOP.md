@@ -695,3 +695,9 @@ Each iteration does exactly this:
   deferred-init locals (let x: T assigned in branches) hold void until
   first assignment. +1 zip ripple; 2048 now at capture-list self.
   **555 → 556/588 (94.6%).**
+- 2026-07-09 iter 86: **oss:SwiftUI-2048 PASSES — 7,445 nodes, the largest
+  render ever** (the full game-board matrix deep-rendered). The final batch:
+  static METHODS bind self = the type (statics/`self`/`Self` resolve in
+  static bodies), `Self` resolves to the enclosing type, `Type.init(...)` ≡
+  `Type(...)`, and Array.flatMap. A real GitHub game app runs end to end
+  after 3 iterations / 11 language features. **556 → 557/588 (94.7%).**

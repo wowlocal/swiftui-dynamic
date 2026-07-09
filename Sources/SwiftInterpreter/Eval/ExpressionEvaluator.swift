@@ -274,6 +274,16 @@ extension Interpreter {
            let value = try selfMember(name, on: selfValue) {
             return value
         }
+        if name == "Self", let selfValue = env.lookup("self") {
+            switch selfValue {
+            case .instance(let instance):
+                return globals.lookup(instance.symbol.name) ?? .type(instance.symbol)
+            case .type, .enumType:
+                return selfValue
+            default:
+                break
+            }
+        }
         if let ctor = registry?.constructor(named: name) {
             return .hostFunction(ctor)
         }
@@ -489,6 +499,9 @@ extension Interpreter {
             throw error(node, "'\(symbol.name)' has no case or static member '\(name)'")
 
         case .type(let symbol):
+            if name == "init" {
+                return baseValue // `Self.init(...)` ≡ `Self(...)`
+            }
             if let nested = symbol.nestedTypes[name] {
                 return nested
             }
@@ -658,7 +671,8 @@ extension Interpreter {
             return try evaluateComputed(computed, selfValue: .type(symbol), name: name)
         }
         if let method = symbol.staticMethods[name], let body = method.body {
-            return .closure(makeFunctionClosure(method, body: body, captured: globals))
+            // Static context: `self`/`Self` and bare sibling statics resolve.
+            return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol))))
         }
         return nil
     }
@@ -675,7 +689,7 @@ extension Interpreter {
             return try evaluateComputed(computed, selfValue: .enumType(symbol), name: name)
         }
         if let method = symbol.staticMethods[name], let body = method.body {
-            return .closure(makeFunctionClosure(method, body: body, captured: globals))
+            return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumType(symbol))))
         }
         return nil
     }

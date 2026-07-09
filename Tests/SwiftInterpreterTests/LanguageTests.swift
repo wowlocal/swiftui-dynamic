@@ -505,6 +505,29 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "1234- 5678 1 2")
     }
 
+    /// Static-context self/Self, Type.init, and flatMap — the batch that
+    /// carried oss:SwiftUI-2048 to a full pass.
+    @Test func staticSelfTypeInitFlatMap() throws {
+        let source = """
+        struct Block {
+            var value: Int
+
+            static func blank() -> Block {
+                return Self.init(value: 0)
+            }
+
+            static func pair() -> [Block] {
+                return [self.blank(), Self(value: 2)]
+            }
+        }
+        let rows = [[1, 2], [3], []]
+        let flat = rows.flatMap { $0 }
+        let blocks = Block.pair()
+        "\\(flat.count) \\(blocks[1].value) \\(Block.blank().value)"
+        """
+        #expect(try eval(source).stringValue == "3 2 0")
+    }
+
     /// Custom postfix/prefix operator functions, backticked labels, and
     /// deferred-init locals — the second 2048 batch.
     @Test func customOperatorsBacktickLabelsDeferredInit() throws {

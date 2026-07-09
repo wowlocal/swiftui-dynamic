@@ -105,6 +105,20 @@ extension Interpreter {
         case "last": return array.last ?? .nilValue
         case "indices": return .native(0..<array.count)
 
+        case "flatMap":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                let closure = try Self.requiredClosure(args, name)
+                var out: [RuntimeValue] = []
+                for element in array {
+                    let mapped = try ctx.callClosure(closure, arguments: [element])
+                    if let nested = mapped.arrayValue {
+                        out.append(contentsOf: nested)
+                    } else if !mapped.isNil {
+                        out.append(mapped)
+                    }
+                }
+                return .native(out)
+            })
         case "map", "compactMap":
             return .hostFunction(HostFunction(name: name) { args, ctx in
                 let closure = try Self.requiredClosure(args, name)
