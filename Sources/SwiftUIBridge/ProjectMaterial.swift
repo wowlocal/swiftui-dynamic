@@ -45,4 +45,18 @@ public enum ProjectMaterial {
     public static func mergedSource(at root: String) -> String {
         mergedSource(files: swiftFiles(under: root))
     }
+
+    /// TestCheck's merge: app sources PLUS unit-test sources (UITests stay
+    /// out — XCUITest drives a real process we don't have).
+    public static func testMergedSource(at root: String) -> String {
+        let excluded = ["UITests", "Preview Content", "__MACOSX", ".build", "DerivedData", ".docc"]
+        guard let enumerator = FileManager.default.enumerator(atPath: root) else { return "" }
+        var files: [String] = []
+        for case let path as String in enumerator {
+            guard path.hasSuffix(".swift") else { continue }
+            guard !excluded.contains(where: { path.contains($0) }) else { continue }
+            files.append(root + "/" + path)
+        }
+        return mergedSource(files: files.sorted())
+    }
 }
