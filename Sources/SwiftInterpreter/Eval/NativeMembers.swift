@@ -354,6 +354,29 @@ extension Interpreter {
                 let separator = (args.labeled("separatedBy") ?? args.positional(0))?.stringValue ?? " "
                 return .native(string.components(separatedBy: separator).map { RuntimeValue.native($0) })
             })
+        case "addingPercentEncoding":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                var allowed = CharacterSet.urlQueryAllowed
+                if case .implicitMember(let setName)? = args.labeled("withAllowedCharacters") {
+                    switch setName {
+                    case "urlQueryAllowed": allowed = .urlQueryAllowed
+                    case "urlHostAllowed": allowed = .urlHostAllowed
+                    case "urlPathAllowed": allowed = .urlPathAllowed
+                    case "urlUserAllowed": allowed = .urlUserAllowed
+                    case "urlPasswordAllowed": allowed = .urlPasswordAllowed
+                    case "urlFragmentAllowed": allowed = .urlFragmentAllowed
+                    case "alphanumerics": allowed = .alphanumerics
+                    case "letters": allowed = .letters
+                    case "decimalDigits": allowed = .decimalDigits
+                    case "whitespaces": allowed = .whitespaces
+                    default: break
+                    }
+                }
+                return string.addingPercentEncoding(withAllowedCharacters: allowed)
+                    .map { RuntimeValue.native($0) } ?? .nilValue
+            })
+        case "removingPercentEncoding":
+            return string.removingPercentEncoding.map { RuntimeValue.native($0) } ?? .nilValue
         case "startIndex": return .native(string.startIndex)
         case "endIndex": return .native(string.endIndex)
         case "range":

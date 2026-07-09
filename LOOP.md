@@ -849,3 +849,9 @@ Each iteration does exactly this:
   builtins (DatePicker `in:` windows — Jinxiansen DatePickerPage idiom).
   oss:SwiftUI passes (175 nodes — the whole examples collection).
   **590/591 (99.8%); queue: oss:Weather.**
+- 2026-07-09 iter 107: percent-encoding — String.addingPercentEncoding
+  (withAllowedCharacters:) with CharacterSet markers (.urlQueryAllowed +
+  url*/alphanumerics/letters/digits/whitespaces) and removingPercentEncoding,
+  real Foundation semantics. oss:Weather passes (6 nodes).
+  **591/591 counted — ZERO failures again. Ladder saturated; step 9
+  (more OSS material) governs the next iteration.**

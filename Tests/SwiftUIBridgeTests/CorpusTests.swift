@@ -806,6 +806,26 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// Percent-encoding with CharacterSet markers: the API-URL-building
+    /// idiom (addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed))
+    /// and its removing inverse.
+    @Test func percentEncoding() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let query = "forecast/48.85,2.35?units=ca&lang=fr résumé"
+                let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                VStack {
+                    Text(encoded.contains("%20") ? "encoded" : "raw")
+                    Text(encoded.removingPercentEncoding ?? "lost")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
