@@ -88,6 +88,22 @@ for entry in rootEntries.sorted() {
     units.append(Unit(name: name, sources: files, totalBytes: bytes))
 }
 
+// Real open-source apps cloned into External/oss/<name> (LOOP.md step 9:
+// harder material once the zip ladder saturates). Named oss:<repo> so the
+// two corpora stay distinguishable in the histogram.
+let ossRoot = extractionRoot + "/oss"
+for entry in ((try? fm.contentsOfDirectory(atPath: ossRoot)) ?? []).sorted() {
+    let directory = ossRoot + "/" + entry
+    var isDir: ObjCBool = false
+    guard fm.fileExists(atPath: directory, isDirectory: &isDir), isDir.boolValue else { continue }
+    let files = swiftFiles(under: directory)
+    guard !files.isEmpty else { continue }
+    let bytes = files.compactMap { try? fm.attributesOfItem(atPath: $0)[.size] as? Int }.reduce(0, +)
+    let name = "oss:" + entry
+    if let filter, !name.localizedCaseInsensitiveContains(filter) { continue }
+    units.append(Unit(name: name, sources: files, totalBytes: bytes))
+}
+
 // Smallest first: the ladder climbs from simple to challenging.
 units.sort { $0.totalBytes < $1.totalBytes }
 if units.count > limit { units = Array(units.prefix(limit)) }

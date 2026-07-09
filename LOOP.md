@@ -664,3 +664,12 @@ Each iteration does exactly this:
   CustomCarouselSlider, CompositionalGridLayout pass (+ripple); the LAST
   2-class is gone — the histogram is all singletons.
   **550 → 554/585 (94.7%).**
+- 2026-07-09 iter 83: the OSS rung (step 9) — the zip histogram went
+  all-singletons, so the ladder gains real GitHub material: SwiftUI-Kit
+  (jordansinger, 18 files), SwiftUI-2048 (unixzii, 11), Milestones (jpsim,
+  21) cloned into External/oss/ (gitignored); ProjectCheck scans oss/
+  directories as `oss:<name>` units. First contact: **SwiftUI-Kit passes
+  immediately** (37-node catalog render); 2048 fails on `[.Index]`-typed
+  call shapes and Milestones on the `/` case-path prefix operator — new
+  class material the zip corpus never produced. Metric basis 588.
+  **554 → 555/588 (94.4%).**
