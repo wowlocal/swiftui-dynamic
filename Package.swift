@@ -26,8 +26,11 @@ let package = Package(
             swiftSettings: mainActorByDefault
         ),
         .target(
+            name: "ObjCExceptionShim"
+        ),
+        .target(
             name: "SwiftUIBridge",
-            dependencies: ["SwiftInterpreter"],
+            dependencies: ["SwiftInterpreter", "ObjCExceptionShim"],
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(

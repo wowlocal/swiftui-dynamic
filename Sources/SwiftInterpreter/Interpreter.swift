@@ -202,7 +202,13 @@ public final class Interpreter {
         locationConverter = converter
 
         let diagnostics = ParseDiagnosticsGenerator.diagnostics(for: tree)
-        if let firstError = diagnostics.first(where: { $0.diagMessage.severity == .error }) {
+        if let firstError = diagnostics.first(where: {
+            $0.diagMessage.severity == .error
+                // Formatting recoveries parse to a CORRECT tree — the
+                // compiler accepts them too (`@Environment (\.colorScheme)`
+                // with a stray space builds in Xcode).
+                && !$0.message.contains("extraneous whitespace")
+        }) {
             let location = converter.location(for: firstError.position)
             throw RuntimeError(message: firstError.message, line: location.line, column: location.column)
         }
@@ -1309,7 +1315,19 @@ public final class Interpreter {
             }
             return .nilValue
         }
-        define("Date") { _, _ in .native(Date()) }
+        define("Date") { args, _ in
+            // Interval inits construct for real; the argless form is `now`.
+            if let interval = args.labeled("timeIntervalSince1970")?.doubleValue {
+                return .native(Date(timeIntervalSince1970: interval))
+            }
+            if let interval = args.labeled("timeIntervalSinceNow")?.doubleValue {
+                return .native(Date(timeIntervalSinceNow: interval))
+            }
+            if let interval = args.labeled("timeIntervalSinceReferenceDate")?.doubleValue {
+                return .native(Date(timeIntervalSinceReferenceDate: interval))
+            }
+            return .native(Date())
+        }
     }
 
     private static func extremum(_ args: CallArguments, op: String) throws -> RuntimeValue {

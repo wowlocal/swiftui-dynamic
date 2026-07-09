@@ -176,6 +176,9 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let member = networkBridgeMember(name, on: value) {
         return member
     }
+    if let member = objcTrampolineMember(name, on: value) {
+        return member
+    }
     // Gesture chains: `.onChanged {}` / `.onEnded {}` accumulate interpreted
     // closures on the stub; `.gesture` later attaches the real gesture.
     if let gesture = value as? GestureBox, name == "onChanged" || name == "onEnded" {

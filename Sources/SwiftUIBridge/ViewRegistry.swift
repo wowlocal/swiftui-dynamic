@@ -17,6 +17,7 @@ public final class ViewRegistry: HostRegistry {
 
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
         if networkHostSetMember(name, on: value, to: newValue) { return true }
+        if objcTrampolineSetMember(name, on: value, to: newValue) { return true }
         return hostObjectSetMember(name, on: value, to: newValue)
     }
 
@@ -61,6 +62,11 @@ public final class ViewRegistry: HostRegistry {
         let hand = constructors[name]
         let generated = GeneratedConstructors.table[name]
         if hand == nil && generated == nil {
+            // The automatic ObjC tier constructs allowlisted NSObject types
+            // for REAL before anything absorbs.
+            if let trampoline = ObjCTrampoline.constructor(named: name) {
+                return trampoline
+            }
             // Unknown TYPE-looking constructors (external SDKs: KeychainSwift,
             // ChatClient) build absorbing bags, the live-render analog of the
             // trace registry's opaque recorder. Lowercase names stay

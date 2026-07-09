@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftInterpreter
 
@@ -21,16 +22,60 @@ public enum NetworkBridge {
 
     /// Fixture lookup: `/api/v1/timelines/public` → `api_v1_timelines_public.json`
     /// (host-independent, so any Mastodon instance an app picks matches).
+    /// Parameterized paths fall back to `_` wildcard segments:
+    /// `/3/movie/1311031` matches `3_movie__.json` — one recorded detail
+    /// serves every id.
     static func fixtureData(forPath path: String, in directory: String) -> Data? {
-        let sanitized = path.split(separator: "/").joined(separator: "_")
-        return FileManager.default.contents(atPath: directory + "/" + sanitized + ".json")
+        let segments = path.split(separator: "/").map(String.init)
+        let exact = segments.joined(separator: "_")
+        if let data = FileManager.default.contents(atPath: directory + "/" + exact + ".json") {
+            return data
+        }
+        var wildcarded = segments
+        for index in segments.indices.reversed() where looksLikeID(segments[index]) {
+            wildcarded[index] = "_"
+            let name = wildcarded.joined(separator: "_")
+            if let data = FileManager.default.contents(atPath: directory + "/" + name + ".json") {
+                return data
+            }
+        }
+        return nil
     }
+
+    private static func looksLikeID(_ segment: String) -> Bool {
+        if !segment.isEmpty, segment.allSatisfy(\.isNumber) { return true }
+        return segment.count >= 12 && segment.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" }
+    }
+
+    /// Image requests replay as a DETERMINISTIC placeholder (a solid PNG) —
+    /// posters and avatars render without recording binary fixtures.
+    static func isImageRequest(_ url: URL) -> Bool {
+        ["png", "jpg", "jpeg", "gif", "webp", "avif", "heic"]
+            .contains(url.pathExtension.lowercased())
+    }
+
+    static let placeholderPNG: Data = {
+        let size = NSSize(width: 8, height: 8)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor(calibratedRed: 0.55, green: 0.63, blue: 0.75, alpha: 1).setFill()
+        NSRect(origin: .zero, size: size).fill()
+        image.unlockFocus()
+        let rep = NSBitmapImageRep(data: image.tiffRepresentation!)!
+        return rep.representation(using: .png, properties: [:])!
+    }()
 
     static func respond(to url: URL) throws -> (Data, HTTPURLResponse) {
         switch policy {
         case .absorbed:
             throw RuntimeError(message: "network is absorbed in this mode (URLSession)")
         case .replay(let directory):
+            if isImageRequest(url) {
+                let response = HTTPURLResponse(
+                    url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "image/png"])!
+                return (Self.placeholderPNG, response)
+            }
             guard let data = fixtureData(forPath: url.path, in: directory) else {
                 throw RuntimeError(message: "no fixture recorded for \(url.host ?? "?")\(url.path)")
             }

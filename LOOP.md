@@ -76,6 +76,40 @@ CodingKeys → exact → snake_case and instantiates memberwise; custom
 `init(from:)` bodies do NOT run — a documented divergence to burn down with
 real Codable synthesis when the histogram demands it.
 
+**Rung scoring (the metric).** Each scenario is an ORDERED ladder of rungs —
+decode → strings-in-tree → nonblank pixels → interaction (tap a row, its
+detail shows fixture content). The LiveCheck metric is TOTAL RUNGS passed
+across scenarios, strictly improving; a fix that moves a scenario from
+"117 strings of chrome" to "titles in the tree" counts even though the
+scenario isn't fully green. Sub-rung progress goes in the histogram, not
+the score.
+
+**Cost & flakiness budget (hard rules).** A full LiveCheck run must stay
+under ~3 minutes wall-clock and be deterministic run-to-run:
+- per-scenario hard timeout (120s) — a scenario that can't fit is split or
+  simplified, never retried-until-green;
+- assertions use only fixture-derived substrings, counts, and a BLANKNESS
+  threshold on renders (mean brightness) — never pixel-exact images, never
+  wall-clock-dependent strings (relative timestamps), never ordering that
+  the fixture doesn't pin;
+- replay serves recorded bytes and DETERMINISTIC placeholder images (a
+  generated solid PNG) for image requests — no network, no randomness;
+- flaky-by-design surfaces (streaming, push, animations mid-flight) are out
+  of the metric; they belong to the human live gate.
+
+**The live gate (acceptance, human-run, not a metric):** with `--network
+live`, the demo window shows a REAL feed — MovieSwiftUI: popular-movie grid
+with titles and poster images, tap pushes a detail with overview; IceCubes:
+a public Mastodon timeline with authors and readable text, scroll works,
+tap pushes a status detail. OAuth/login flows are OUT OF SCOPE (quarantine
+class: auth) — public/unauthenticated data only.
+
+**Doctrine fork (recorded, to implement when the histogram demands):**
+absorbed mode keeps iter-71 semantics (Combine pipelines never emit). In
+replay/live modes, pipelines rooted at `$published` deliver SYNCHRONOUSLY on
+write (debounce collapses to immediate) — otherwise completion-based apps
+whose data flows through publishers can never become functional.
+
 Baseline (2026-07-09): **2/4 scenarios pass** (mastodon-fixture-decode,
 tmdb-fixture-decode — the full decoder pipeline works). Open classes:
 - movieswiftui-popular-ui: 0 strings rendered — the fetch path
@@ -83,6 +117,9 @@ tmdb-fixture-decode — the full decoder pipeline works). Open classes:
   reaches the tree.
 - icecubes-timeline-ui: renders 117 strings of chrome but no fixture
   authors — the same async-fetch wall plus whatever hides behind it.
+- replay wildcards: parameterized paths (`/api/v1/statuses/:id`,
+  `/3/movie/:id`) must match fixtures with `_` wildcard segments — needed
+  for every detail-view rung.
 
 ## TestCheck Ledger
 
@@ -97,9 +134,15 @@ Each iteration does exactly this:
    suite is never weakened, tests are never deleted to go green.
 2. **Measure**: `swift run ProjectCheck --limit N` (N grows over time; start
    25, raise when the current window passes ~80%). Read the failure-class
-   histogram.
+   histogram. ALSO run the cheap queues every iteration: `swift run
+   LiveCheck` (~minutes, deterministic) and, when its classes or
+   ProjectCheck's top class point at semantics, `swift run TestCheck
+   --limit N` with the native-baseline rule.
 3. **Pick the single biggest failure class** (most projects blocked). If two
    tie, pick the one that's an interpreter-language gap over a gateway gap.
+   When ProjectCheck's histogram is all-singletons or a known wall, a
+   LiveCheck rung class or a native-verified TestCheck class outranks
+   render singletons — functional-app progress beats breadth.
 4. **Classify and fix properly** (no per-project hacks):
    - *Language gap* (unsupported syntax/semantics) → implement in
      `Sources/SwiftInterpreter/` following existing evaluator patterns.
@@ -1533,3 +1576,14 @@ Each iteration does exactly this:
   (139 precedent). **644/648 counted — ZERO failures (TWENTY-THIRD
   saturation). 585 zips + 60 OSS repos green. Suite 323 (unchanged —
   no new capability, no new test).**
+- 2026-07-10 iter 161: step 9 — winston (448 files), OpenArtemis (92),
+  swift-chat (5, arrival-pass) cloned. Two classes: FORMATTING
+  recoveries parse to a correct tree and are tolerated
+  (`@Environment (\.colorScheme)` with a stray space — Xcode builds
+  it; SwiftParser recovers with an "extraneous whitespace" error we no
+  longer treat as fatal); unlabeled trailing closures bind by SE-0286
+  FORWARD scan — the first unbound function-typed parameter, not the
+  last slot (`getNavigationView { … }` fills `content:` past defaulted
+  Bools). winston ✅, OpenArtemis ✅ (259 nodes, 24 actions).
+  **647/651 counted — ZERO failures (TWENTY-FOURTH saturation).
+  585 zips + 63 OSS repos green. Suite 323 → 324.**

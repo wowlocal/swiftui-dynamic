@@ -2909,6 +2909,38 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// winston + OpenArtemis (iteration 161): formatting recoveries parse
+    /// to a correct tree and are tolerated (`@Environment (\.colorScheme)`
+    /// with a stray space builds in Xcode); unlabeled trailing closures
+    /// bind by SE-0286 FORWARD scan — the first unbound function-typed
+    /// parameter, not the last slot (`getNavigationView { … }` fills
+    /// `content:` even when defaulted Bools follow).
+    @Test func whitespaceRecoveryAndForwardScanTrailing() throws {
+        let source = """
+        struct ContentView: View {
+            @Environment (\\.colorScheme) var colorScheme: ColorScheme
+
+            func getNavigationView(
+                content: () -> some View,
+                shouldRespondToGlobalLinking: Bool = false,
+                forceNonSplitStack: Bool = false
+            ) -> some View {
+                NavigationStack {
+                    content()
+                }
+            }
+
+            var body: some View {
+                getNavigationView {
+                    Text("feed")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// ACHNBrowserUI (iteration 159): `fallthrough` runs the NEXT case's
     /// body without re-matching — in plain statements and in view-builder
     /// switches (chained cases collect all their views).

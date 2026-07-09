@@ -16,6 +16,20 @@ struct DemoApp: App {
         }
     }
 
+    /// `--network live` → real HTTP (the human demo gate);
+    /// `--network replay:<fixturesDir>` → recorded responses.
+    /// Default stays absorbed — checks and casual runs are unaffected.
+    static func applyNetworkFlag() {
+        guard let index = CommandLine.arguments.firstIndex(of: "--network"),
+              CommandLine.arguments.indices.contains(index + 1) else { return }
+        let mode = CommandLine.arguments[index + 1]
+        if mode == "live" {
+            NetworkBridge.policy = .live
+        } else if mode.hasPrefix("replay:") {
+            NetworkBridge.policy = .replay(fixturesDirectory: String(mode.dropFirst("replay:".count)))
+        }
+    }
+
     var body: some Scene {
         WindowGroup("Dynamic SwiftUI") {
             if let directory = Self.projectDirectory {
@@ -77,6 +91,7 @@ func mergedProjectSource(at root: String) -> String {
 /// background processes — without this activation dance no window appears.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DemoApp.applyNetworkFlag()
         if let index = CommandLine.arguments.firstIndex(of: "--render-png"),
            CommandLine.arguments.indices.contains(index + 1) {
             renderSnapshot(to: CommandLine.arguments[index + 1])
