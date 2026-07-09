@@ -41,6 +41,29 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// `Binding<T>(get:set:)` — generic specialization evaluates as its base
+    /// and the computed binding snapshots get() per render pass.
+    @Test func computedBindingWithGenericSpecialization() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var celsius = 25.0
+
+            var body: some View {
+                VStack {
+                    Slider(value: Binding<Double>(get: {
+                        celsius * 9 / 5 + 32
+                    }, set: { newValue in
+                        celsius = (newValue - 32) * 5 / 9
+                    }), in: 32...212)
+                    Text("F = \\(celsius * 9 / 5 + 32)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// A CaseIterable enum nested in the very view that iterates it:
     /// `ForEach(ChartType.allCases, id: \.rawValue)`.
     @Test func nestedEnumAllCasesDrivesForEach() throws {

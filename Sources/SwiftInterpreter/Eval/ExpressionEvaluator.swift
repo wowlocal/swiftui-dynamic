@@ -133,6 +133,11 @@ extension Interpreter {
             if case .normal(let value) = try executeSwitch(switchExpr, in: env) { return value }
             throw error(switchExpr, "control flow can't escape a switch-expression")
         }
+        if let generic = expr.as(GenericSpecializationExprSyntax.self) {
+            // Type arguments are annotations we don't check —
+            // `Binding<Int?>(get:set:)` evaluates as `Binding(get:set:)`.
+            return try evaluate(generic.expression, in: env)
+        }
         if expr.is(SequenceExprSyntax.self) {
             throw error(expr, "internal error: unfolded operator sequence")
         }

@@ -377,3 +377,9 @@ Each iteration does exactly this:
   struct path (Outer.Name + unclaimed bare name). Class eliminated; both
   AnimatedCharts advanced to `Date.createDate` extension statics in annotated
   positions (new class). **162/200 holds — top class eliminated.**
+- 2026-07-09 iter 48: genericSpecializationExpr + computed bindings —
+  `Binding<Int?>(get:set:)` evaluates its base (type args are unchecked
+  annotations) and a Binding(get:set:) host constructor backs a BindingStub
+  whose box snapshots get() per render pass and calls set(newValue) on
+  writes. JSONWithPagination + HorizontalWheelPicker_Updated pass (the
+  latter a 359-node render). **162/200 → 164/200**.

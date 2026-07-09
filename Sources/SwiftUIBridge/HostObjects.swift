@@ -45,6 +45,20 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                 y: try Coerce.cgFloat(args.labeled("y") ?? .native(0))
             ))
         }
+    case "Binding":
+        // `Binding(get:set:)` — a computed binding. The box snapshots get()
+        // now (bindings are reconstructed every render pass, so the snapshot
+        // refreshes per pass); writes call set(newValue).
+        return HostFunction(name: name) { args, ctx in
+            let get = args.closure(labeled: "get")
+            let set = args.closure(labeled: "set")
+            let initial = try get.map { try ctx.callClosure($0, arguments: []) } ?? RuntimeValue.void
+            let box = Box(initial)
+            if let set {
+                box.onChange = { _ = try? ctx.callClosure(set, arguments: [box.value]) }
+            }
+            return .native(BindingStub(box: box))
+        }
     default:
         return nil
     }
