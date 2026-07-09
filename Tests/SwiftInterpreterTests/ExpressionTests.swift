@@ -46,6 +46,16 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(labeled).intValue == 13)
     }
 
+    /// CG-shaped init markers do arithmetic on labeled arguments and
+    /// rewrap; member reads give the labeled argument back; chains compare
+    /// by final member name.
+    @Test func initMarkerArithmeticAndReadback() throws {
+        #expect(try eval(".init(width: 100, height: 120).height * 0.5").doubleValue == 60)
+        #expect(try eval("(.init(degrees: 40) * 0.1).degrees").doubleValue == 4)
+        #expect(try eval("(.init(x: 10, y: 20) + .init(x: 1, y: 2)).y").doubleValue == 22)
+        #expect(try eval(".current.orientation == .landscapeRight").boolValue == false)
+    }
+
     /// DispatchTime deadlines: the `.now()` anchor absorbs into the offset.
     @Test func nowAnchorArithmeticYieldsOffsetSeconds() throws {
         #expect(try eval(".now() + 0.5").doubleValue == 0.5)

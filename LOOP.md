@@ -533,3 +533,13 @@ Each iteration does exactly this:
   closures ({ index, char in } over enumerated()), and for-in destructures
   tuple patterns (`for (index, digit) in text.enumerated()`). PaymentCard,
   WalletAnimation, QuizGame, SequencedAnimation pass. **489/587 → 493/587**.
+- 2026-07-09 iter 65: marker arithmetic — the chain-combine class (4).
+  Members read off `.init(labeled:)` markers return the matching labeled
+  argument (memberwise read-back: `.init(width: 100, height: 120).height` →
+  120); CG-shaped init markers do arithmetic on their labeled numeric
+  arguments and REWRAP (`Angle(degrees:) * 0.1`, `sizeA - sizeB` elementwise,
+  scalar broadcasts), staying typed markers for later coercion; chained
+  markers compare by final member name (`.current.orientation ==
+  .landscapeRight` → false). 3DGestureCard, FloatingWindow,
+  Pomodoro_Timer_Part_1, CustomVideoPlayer_-_Part_2 pass (+ripple).
+  **493/587 → 499/587**.

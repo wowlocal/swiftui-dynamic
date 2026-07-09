@@ -539,6 +539,13 @@ extension Interpreter {
             // here — `.easeInOut(duration: 0.3).delay(0.2)` folds at the
             // gateway boundary where the expected type is known.
             if any is ImplicitMemberCall || any is ChainedImplicitCall {
+                // `.init(width: 100, height: 120).height` — reading a member
+                // that matches a labeled constructor argument returns it
+                // (memberwise read-back on an unresolved init marker).
+                if let call = any as? ImplicitMemberCall, call.name == "init",
+                   let argument = call.arguments.labeled(name) {
+                    return argument
+                }
                 return .native(ChainedImplicitCall(base: baseValue, member: name, arguments: CallArguments()))
             }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")

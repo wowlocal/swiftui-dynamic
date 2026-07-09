@@ -93,11 +93,65 @@ enum Builtins {
            call.name == "now", let offset = rhs.doubleValue {
             return .native(op == "+" ? offset : -offset)
         }
+        // CG-shaped init markers (`.init(degrees:)`, `.init(width:height:)`)
+        // do arithmetic on their labeled numeric arguments and rewrap, so
+        // Angle * 0.1 and sizeA - sizeB stay typed markers for coercion.
+        if let combined = try initMarkerArithmetic(op, lhs, rhs, double: double) {
+            return combined
+        }
         throw EvalMessage(text: "'\(op)' cannot combine \(lhs.stringified) and \(rhs.stringified)")
+    }
+
+    private static func initMarkerArithmetic(
+        _ op: String,
+        _ lhs: RuntimeValue,
+        _ rhs: RuntimeValue,
+        double: (Double, Double) throws -> Double
+    ) throws -> RuntimeValue? {
+        func initCall(_ value: RuntimeValue) -> ImplicitMemberCall? {
+            if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+               call.name == "init", !call.arguments.arguments.isEmpty,
+               call.arguments.arguments.allSatisfy({ $0.label != nil && $0.value.doubleValue != nil }) {
+                return call
+            }
+            return nil
+        }
+        func rewrap(_ template: ImplicitMemberCall, _ values: [Double]) -> RuntimeValue {
+            let rebuilt = zip(template.arguments.arguments, values).map {
+                CallArguments.Argument(label: $0.label, value: .native($1))
+            }
+            return .native(ImplicitMemberCall(name: "init", arguments: CallArguments(arguments: rebuilt)))
+        }
+        if let l = initCall(lhs), let r = initCall(rhs),
+           l.arguments.arguments.map(\.label) == r.arguments.arguments.map(\.label) {
+            let combined = try zip(l.arguments.arguments, r.arguments.arguments).map {
+                try double($0.value.doubleValue!, $1.value.doubleValue!)
+            }
+            return rewrap(l, combined)
+        }
+        if let l = initCall(lhs), let scalar = rhs.doubleValue {
+            return rewrap(l, try l.arguments.arguments.map { try double($0.value.doubleValue!, scalar) })
+        }
+        if let r = initCall(rhs), let scalar = lhs.doubleValue {
+            return rewrap(r, try r.arguments.arguments.map { try double(scalar, $0.value.doubleValue!) })
+        }
+        return nil
     }
 
     static func areEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
         if lhs.isNil || rhs.isNil { return lhs.isNil && rhs.isNil }
+        // Chained markers compare by their final member name — honestly
+        // false for `.current.orientation == .landscapeRight`.
+        if case .native(let any) = lhs, let chain = any as? ChainedImplicitCall {
+            if case .implicitMember(let name) = rhs { return chain.member == name }
+            if case .native(let other) = rhs, let otherChain = other as? ChainedImplicitCall {
+                return chain.member == otherChain.member
+            }
+        }
+        if case .native(let any) = rhs, let chain = any as? ChainedImplicitCall,
+           case .implicitMember(let name) = lhs {
+            return chain.member == name
+        }
         // A marker CALL against a bare marker compares by name — honestly
         // false for `authorizationStatus(for: .video) == .authorized` (fresh
         // system state), true only for same-named markers.
