@@ -58,6 +58,13 @@ extension Interpreter {
             return try evaluateInfix(infix, in: env)
         }
         if let prefix = expr.as(PrefixOperatorExprSyntax.self) {
+            if prefix.operator.text == "/",
+               globals.lookup(prefix.operator.text) == nil {
+                // The CasePaths case-path operator: `/AppAction.milestone`.
+                // The operand is a case REFERENCE (not a value) — keep it
+                // textual; consumers are framework machinery that absorbs.
+                return .native(CasePathMarker(path: prefix.expression.trimmedDescription))
+            }
             let operand = try evaluate(prefix.expression, in: env)
             do {
                 return try relocating(prefix) { try Builtins.prefix(prefix.operator.text, operand) }

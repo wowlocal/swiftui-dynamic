@@ -616,6 +616,51 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// A parameterized ROOT view (no ContentView) renders standalone:
+    /// required parameters synthesize fresh values — identity primitives,
+    /// recursive fresh instances for interpreted types (through custom
+    /// inits), unknowable chains for host generics. Formatter config
+    /// setters (locale/dateStyle) and the case-path prefix `/` parse.
+    @Test func parameterizedRootViewSynthesis() throws {
+        let source = """
+        extension DateFormatter {
+            convenience init(calendar: Calendar, dateFormat: String) {
+                self.init()
+                self.calendar = calendar
+                self.dateFormat = dateFormat
+            }
+        }
+
+        struct DayView: View {
+            struct ViewState {
+                let text: String
+
+                init(date: Date, calendar: Calendar, isDisabled: Bool) {
+                    let formatter = DateFormatter(calendar: calendar, dateFormat: "d")
+                    formatter.locale = .current
+                    self.text = formatter.string(from: date)
+                }
+            }
+
+            let state: ViewState
+            let store: Store<String, Never>
+            let count: Int
+            let scale: CGFloat
+            let path = /DayAction.selected
+
+            var body: some View {
+                VStack {
+                    Text(state.text.isEmpty ? "no day" : "day \\(state.text)")
+                    Text("count \\(count) scale \\(scale)")
+                    Text(store.isLoading ? "loading" : "fresh")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

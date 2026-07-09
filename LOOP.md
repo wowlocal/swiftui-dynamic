@@ -805,3 +805,13 @@ Each iteration does exactly this:
   locals shadow via the before-globals walk. Stream_Tutorials passes
   (12 nodes). **584 → 585/588 (99.5%). Remaining: Milestones (TCA),
   SplashScreen (Pods).**
+- 2026-07-09 iter 102: oss:Milestones — three layers peeled: (1) CasePaths
+  prefix `/` yields an inert CasePathMarker (operand kept textual — case
+  references aren't standalone values); (2) DateFormatterBox config setters
+  (locale/calendar/timeZone/dateStyle/timeStyle/am-pmSymbol); (3) ROOT view
+  parameter synthesis — parameterized roots (no ContentView) instantiate
+  with fresh values per annotation: identity primitives, empty collections,
+  nil optionals, recursive fresh instances for interpreted types (custom
+  inits included), Binding stubs, unknowable chains for host generics
+  (Store<A,B>). oss:Milestones passes. **585 → 586/588 (99.7%).
+  Remaining: SplashScreen (vendored Pods).**

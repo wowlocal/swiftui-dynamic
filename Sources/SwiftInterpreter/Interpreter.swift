@@ -341,6 +341,86 @@ public final class Interpreter {
     /// The struct to render when the program doesn't end in an explicit view
     /// expression: `ContentView` if present, then `Main`, then the first
     /// View-conforming struct in declaration order.
+    /// Instantiate a root view for standalone verification: required
+    /// parameters (un-defaulted stored properties, or a custom init's
+    /// parameters) receive synthesized FRESH values — the fresh-state
+    /// doctrine applied to view parameters.
+    public func instantiateRoot(_ symbol: StructSymbol) throws -> RuntimeValue {
+        var seen: Set<String> = [symbol.name]
+        let args = try synthesizedArguments(for: symbol, seen: &seen)
+        return try instantiate(symbol, with: args)
+    }
+
+    private func synthesizedArguments(for symbol: StructSymbol, seen: inout Set<String>) throws -> CallArguments {
+        var arguments: [CallArguments.Argument] = []
+        if let initializer = symbol.initializers.first {
+            for param in initializer.signature.parameterClause.parameters
+            where param.defaultValue == nil {
+                let label = param.firstName.text
+                let value = try synthesizedFreshValue(
+                    typeName: param.type.trimmedDescription, seen: &seen)
+                arguments.append(.init(label: label == "_" ? nil : label, value: value))
+            }
+        } else {
+            for property in symbol.storedProperties
+            where property.wrapper == .none && property.initializer == nil
+                && !property.isBuilderClosure {
+                let typeName = property.typeAnnotation?.trimmedDescription ?? ""
+                arguments.append(.init(
+                    label: property.name,
+                    value: try synthesizedFreshValue(typeName: typeName, seen: &seen)))
+            }
+        }
+        return CallArguments(arguments: arguments)
+    }
+
+    /// The fresh value of a type: identity for primitives, empty for
+    /// collections, nil for optionals, recursive fresh instances for
+    /// interpreted types, and an unknowable chain (absorbs everywhere)
+    /// for host/generic types.
+    func synthesizedFreshValue(typeName rawName: String, seen: inout Set<String>) throws -> RuntimeValue {
+        var typeName = rawName.trimmingCharacters(in: .whitespaces)
+        if typeName.hasSuffix("?") || typeName.hasSuffix("!") { return .nilValue }
+        if typeName.hasPrefix("[") { // arrays AND dictionaries start empty
+            return typeName.contains(":") ? .native(DictValue()) : .native([RuntimeValue]())
+        }
+        if typeName.contains("->") {
+            return .hostFunction(HostFunction(name: "synthesized") { _, _ in .void })
+        }
+        if typeName.hasPrefix("Binding<"), typeName.hasSuffix(">") {
+            let inner = String(typeName.dropFirst("Binding<".count).dropLast())
+            let value = try synthesizedFreshValue(typeName: inner, seen: &seen)
+            return .native(BindingStub(box: Box(value)))
+        }
+        switch typeName {
+        case "Int", "Int8", "Int16", "Int32", "Int64", "UInt": return .native(0)
+        case "String", "Character": return .native("")
+        case "Bool": return .native(false)
+        case "Date": return .native(Date())
+        default: break
+        }
+        if Self.doubleFamilyTypeNames.contains(typeName) { return .native(0.0) }
+        if let generic = typeName.firstIndex(of: "<") {
+            typeName = String(typeName[..<generic]) // Store<A, B> → Store
+        }
+        if !seen.contains(typeName) {
+            seen.insert(typeName)
+            defer { seen.remove(typeName) }
+            if case .type(let nested)? = globals.lookup(typeName) {
+                let args = try synthesizedArguments(for: nested, seen: &seen)
+                return try instantiate(nested, with: args)
+            }
+            if let enumSymbol = enumSymbols[typeName],
+               let first = enumSymbol.cases.first(where: { !$0.hasAssociatedValues }) {
+                return .enumCase(EnumCaseValue(symbol: enumSymbol, name: first.name))
+            }
+        }
+        // Host/generic/cyclic types: an unknowable chain — reads chain,
+        // bools read false, numerics zero, iteration empty.
+        return .native(ChainedImplicitCall(
+            base: .implicitMember("synthesized"), member: typeName, arguments: CallArguments()))
+    }
+
     public func rootViewSymbol() -> StructSymbol? {
         let candidates = structSymbols.filter(\.conformsToView)
         return candidates.first { $0.name == "ContentView" }

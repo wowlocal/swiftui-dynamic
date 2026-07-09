@@ -17,7 +17,7 @@ public enum HeadlessVerifier {
         guard let symbol = interpreter.rootViewSymbol() else {
             throw RuntimeError(message: "no View-conforming struct found")
         }
-        guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
+        guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
             throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
         }
         try interpreter.injectEnvironmentObjects(into: instance, models: [:])

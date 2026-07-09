@@ -151,6 +151,17 @@ public struct PublishedProjection: InertCallable {
 /// (`vc.present(alert, animated: true)` on a UIKit hosting stub).
 public protocol InertCallable {}
 
+/// `/AppAction.milestone` — the CasePaths/TCA case-path prefix operator.
+/// The path itself is inert: whatever consumes it (reducer scoping,
+/// pullbacks) is external framework machinery that absorbs markers.
+public struct CasePathMarker: InertCallable {
+    public let path: String
+
+    public init(path: String) {
+        self.path = path
+    }
+}
+
 /// `super` inside a class body: member access dispatches to the interpreted
 /// superclass when one exists, and is inert for host superclasses (NSObject,
 /// UIViewController, …) whose initializers have no interpreter analog.

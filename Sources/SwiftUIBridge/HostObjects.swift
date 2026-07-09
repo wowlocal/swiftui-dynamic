@@ -789,6 +789,40 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
         guard let format = newValue.stringValue else { return false }
         box.formatter.dateFormat = format
         return true
+    case "locale":
+        if case .native(let any) = newValue, let locale = any as? Locale {
+            box.formatter.locale = locale
+        } else if case .implicitMember("current") = newValue {
+            box.formatter.locale = .current
+        }
+        return true // unknown locale markers keep the default — accepted
+    case "calendar":
+        if case .native(let any) = newValue, let calendarBox = any as? CalendarBox {
+            box.formatter.calendar = calendarBox.calendar
+        }
+        return true
+    case "timeZone":
+        return true // host formatting stays in the run's zone — accepted
+    case "dateStyle", "timeStyle":
+        if case .implicitMember(let style) = newValue {
+            let mapped: DateFormatter.Style
+            switch style {
+            case "short": mapped = .short
+            case "medium": mapped = .medium
+            case "long": mapped = .long
+            case "full": mapped = .full
+            default: mapped = .none
+            }
+            if name == "dateStyle" { box.formatter.dateStyle = mapped }
+            else { box.formatter.timeStyle = mapped }
+        }
+        return true
+    case "amSymbol", "pmSymbol":
+        if let symbol = newValue.stringValue {
+            if name == "amSymbol" { box.formatter.amSymbol = symbol }
+            else { box.formatter.pmSymbol = symbol }
+        }
+        return true
     default:
         return false
     }
