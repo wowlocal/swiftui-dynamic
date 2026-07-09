@@ -1075,3 +1075,15 @@ Each iteration does exactly this:
   modern appendingPathComponent. Whisky passes (59 nodes, 5 actions).
   **605/605 counted — ZERO failures (sixth saturation). 585 zips + 20 OSS
   repos green; quarantines: Realm pair + isowords.**
+- 2026-07-09 iter 129: step 9 — cloned CodeEdit (672 files, PASSED ON
+  ARRIVAL — the biggest single-pass yet), OnlySwitch (343), eul (128);
+  units 605 → 608. Classes fixed: objectWillChange on interpreted
+  ObservableObjects (.send() fires the change signal; pipeline members
+  chain); generic-typed @EnvironmentObject strips generics
+  (ComponentsStore<EulComponent>); String.localized* (key fallback —
+  Localize_Swift); marker $projections complete (.implicitMember/
+  .hostFunction box values); backticked enum case names normalize
+  (`default`); LAZY instance members defer to first access with self
+  bound (LazyMemberSeed — sibling-property references are legal).
+  eul (74 nodes) + OnlySwitch (8 nodes) pass. **608/608 counted — ZERO
+  failures (seventh saturation). 585 zips + 23 OSS repos green.**

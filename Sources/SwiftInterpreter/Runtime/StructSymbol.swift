@@ -49,6 +49,9 @@ public final class StructSymbol {
         /// `@ViewBuilder var content: Content` — memberwise init takes a
         /// trailing closure and stores the BUILT view.
         public let isBuilderClosure: Bool
+        /// `lazy var keychain = KeychainManager(service: keychainService)` —
+        /// the initializer defers to first access with self bound.
+        public var isLazy: Bool = false
 
         /// Function-typed or @ViewBuilder: what a trailing closure can fill.
         public var acceptsTrailingClosure: Bool {

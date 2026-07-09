@@ -393,13 +393,15 @@ extension Interpreter {
                    binding.typeAnnotation?.type.trimmedDescription == "Bool" {
                     stateLikeDefault = ExprSyntax(BooleanLiteralExprSyntax(literal: .keyword(.false)))
                 }
-                symbol.storedProperties.append(.init(
+                var stored = StructSymbol.StoredProperty(
                     name: name,
                     wrapper: wrapper,
                     initializer: binding.initializer?.value ?? queryDefault ?? stateLikeDefault,
                     typeAnnotation: binding.typeAnnotation?.type ?? syntheticAnnotation,
                     isBuilderClosure: hasBuilderAttribute
-                ))
+                )
+                stored.isLazy = varDecl.modifiers.contains { $0.name.text == "lazy" }
+                symbol.storedProperties.append(stored)
             }
         }
     }
@@ -422,17 +424,20 @@ extension Interpreter {
         for member in node.memberBlock.members {
             if let caseDecl = member.decl.as(EnumCaseDeclSyntax.self) {
                 for element in caseDecl.elements {
+                    // `case \`default\`` — backticks normalize away, like
+                    // parameters and labels everywhere else.
+                    let caseName = element.name.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
                     let labels: [String?] = element.parameterClause?.parameters.map { $0.firstName?.text } ?? []
                     let raw: RuntimeValue
                     if let rawExpr = element.rawValue?.value {
                         raw = try evaluate(rawExpr, in: globals)
                     } else if rawIsString {
-                        raw = .native(element.name.text)
+                        raw = .native(caseName)
                     } else {
                         raw = .native(nextIntRaw)
                     }
                     if let intRaw = raw.intValue { nextIntRaw = intRaw + 1 }
-                    symbol.cases.append(.init(name: element.name.text, associatedLabels: labels, rawValue: raw))
+                    symbol.cases.append(.init(name: caseName, associatedLabels: labels, rawValue: raw))
                 }
             } else {
                 try collectEnumMember(member.decl, into: symbol)

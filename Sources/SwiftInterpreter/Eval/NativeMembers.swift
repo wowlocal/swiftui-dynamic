@@ -525,6 +525,13 @@ extension Interpreter {
             return .native(string.unicodeScalars.map { RuntimeValue.native(String($0)) })
         case "description", "debugDescription", "localizedDescription":
             return .native(string)
+        case "localized", "localizedCapitalized", "localizedLowercase", "localizedUppercase":
+            // Localization without tables: the key localizes to itself
+            // (call form tolerated — Localize_Swift's `.localized()`).
+            if name == "localizedCapitalized" { return .native(string.localizedCapitalized) }
+            if name == "localizedLowercase" { return .native(string.localizedLowercase) }
+            if name == "localizedUppercase" { return .native(string.localizedUppercase) }
+            return .hostFunction(HostFunction(name: name) { _, _ in .native(string) })
         case "startIndex": return .native(string.startIndex)
         case "endIndex": return .native(string.endIndex)
         case "range":

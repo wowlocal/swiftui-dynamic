@@ -158,6 +158,14 @@ public final class Interpreter {
             let annotationText = property.typeAnnotation?.trimmedDescription ?? ""
             var value: RuntimeValue = annotationText.hasSuffix("?") || annotationText.hasSuffix("!")
                 ? .nilValue : .void
+            if property.isLazy, let initializer = property.initializer {
+                // `lazy var` defers to FIRST ACCESS with self bound —
+                // sibling-property references are legal there.
+                let box = Box(.native(LazyMemberSeed(
+                    initializer: initializer, annotation: property.typeAnnotation)))
+                instance.properties[property.name] = box
+                continue
+            }
             if let initializer = property.initializer {
                 // Static context: property initializers may reference the
                 // type's own statics bare (`= Timer.publish(every:
@@ -380,7 +388,10 @@ public final class Interpreter {
     /// fresh-store doctrine as @Query.
     public func injectEnvironmentObjects(into instance: Instance, models: [String: Instance]) throws {
         for property in instance.symbol.storedProperties where property.wrapper == .environmentObject {
-            let typeName = property.typeAnnotation?.trimmedDescription ?? ""
+            var typeName = property.typeAnnotation?.trimmedDescription ?? ""
+            if let generic = typeName.firstIndex(of: "<") {
+                typeName = String(typeName[..<generic]) // generics drop everywhere
+            }
             let model: Instance
             if let ambient = models[typeName] {
                 model = ambient

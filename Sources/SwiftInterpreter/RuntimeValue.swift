@@ -1,3 +1,4 @@
+import SwiftSyntax
 /// The type-erased runtime representation of every value the interpreter touches.
 ///
 /// Native values (numbers, strings, arrays, and opaque host values such as
@@ -184,6 +185,29 @@ public struct PartialRangeValue {
         self.lower = lower
         self.upper = upper
         self.closed = closed
+    }
+}
+
+/// `objectWillChange` on interpreted ObservableObjects — `.send()` fires
+/// the instance's change signal (live views re-render); other pipeline
+/// members chain inertly.
+public final class ObjectWillChangePublisher: InertCallable {
+    public let fire: () -> Void
+
+    public init(fire: @escaping () -> Void) {
+        self.fire = fire
+    }
+}
+
+/// A `lazy var` instance property's pending initializer: evaluated with
+/// `self` bound on FIRST ACCESS, then replaced by the value.
+public final class LazyMemberSeed {
+    public let initializer: ExprSyntax
+    public let annotation: TypeSyntax?
+
+    public init(initializer: ExprSyntax, annotation: TypeSyntax?) {
+        self.initializer = initializer
+        self.annotation = annotation
     }
 }
 

@@ -290,6 +290,8 @@ extension Interpreter {
                        any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
                         return boxValue ?? .nilValue
                     }
+                    if case .implicitMember? = boxValue { return boxValue ?? .nilValue }
+                    if case .hostFunction? = boxValue { return boxValue ?? .nilValue }
                     throw error(node, "'\(name)' has no model instance assigned")
                 }
                 return .native(ModelProjection(model: model))
@@ -377,6 +379,19 @@ extension Interpreter {
     /// if the name is unknown.
     func instanceMember(_ rawName: String, on instance: Instance) throws -> RuntimeValue? {
         let name = instance.symbol.canonicalPropertyName(rawName)
+        if name == "objectWillChange", instance.symbol.isClass {
+            let signal = instance.changeSignal
+            return .native(ObjectWillChangePublisher(fire: { signal.fire() }))
+        }
+        if let box = instance.box(for: name),
+           case .native(let any) = box.value, let seed = any as? LazyMemberSeed {
+            // Force the lazy member now, with self bound.
+            let value = try resolveAnnotated(
+                try evaluate(seed.initializer, in: selfEnvironment(.instance(instance))),
+                annotation: seed.annotation)
+            box.value = value
+            return value
+        }
         // A type's OWN nested types shadow same-named globals inside its
         // body (each IceCubes package declares its own `enum Constants`).
         if let nested = instance.symbol.nestedTypes[name] { return nested }
@@ -649,6 +664,16 @@ extension Interpreter {
                 return .hostFunction(HostFunction(name: name) { _, _ in
                     .native(PublishedProjection())
                 })
+            }
+            if let publisher = any as? ObjectWillChangePublisher {
+                if name == "send" {
+                    return .hostFunction(HostFunction(name: "send") { _, _ in
+                        publisher.fire()
+                        return .void
+                    })
+                }
+                // Pipeline members (.debounce, .sink…) chain silently.
+                return .native(PublishedProjection())
             }
             if let tuple = any as? TupleValue {
                 // `(hrp: String, data: Data)` — member by label or index.

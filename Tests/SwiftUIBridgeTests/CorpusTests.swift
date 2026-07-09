@@ -1601,6 +1601,61 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// objectWillChange.send() fires the change signal; generic-typed
+    /// env objects strip generics; lazy members defer with self bound
+    /// (sibling references); backticked enum cases normalize; .localized
+    /// falls back to the key.
+    @Test func observableLazyAndBacktickBreadth() throws {
+        let source = """
+        enum FontDesign: String {
+            case `default`
+            case serif
+
+            var label: String {
+                switch self {
+                case .default: return "standard"
+                case .serif: return "serif"
+                }
+            }
+        }
+
+        class Store<Item>: ObservableObject {
+            var items: [String] = []
+
+            func refresh() {
+                items.append("refreshed")
+                objectWillChange.send()
+            }
+        }
+
+        class VaultManager {
+            private let service = "com.example.vault"
+            private lazy var vault = ExternalVault(service: service)
+
+            func describe() -> String {
+                "\\(vault)"
+            }
+        }
+
+        struct ContentView: View {
+            @EnvironmentObject var store: Store<String>
+
+            var body: some View {
+                let _ = store.refresh()
+                let manager = VaultManager()
+                VStack {
+                    Text(FontDesign.default.label)
+                    Text("ui.launch_at_login".localized())
+                    Text("items \\(store.items.count)")
+                    Text(manager.describe().isEmpty ? "no vault" : "vault made")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
