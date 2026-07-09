@@ -52,3 +52,25 @@ import SwiftInterpreter
         #expect(report.nodeCount >= 1)
     }
 }
+
+/// Edge.Set spelled as an array literal — `.edgesIgnoringSafeArea([.top,
+/// .bottom])` (damus) and the empty `[]` no-op form.
+@Suite struct EdgeSetCoercionTests {
+    @Test func arrayLiteralUnions() throws {
+        let set = try Coerce.edgeSet(.native([
+            RuntimeValue.implicitMember("top"), RuntimeValue.implicitMember("bottom"),
+        ]))
+        #expect(set.contains(.top))
+        #expect(set.contains(.bottom))
+        #expect(!set.contains(.leading))
+    }
+
+    @Test func emptyArrayIsNoEdges() throws {
+        let set = try Coerce.edgeSet(.native([RuntimeValue]()))
+        #expect(set.isEmpty)
+    }
+
+    @Test func singleMemberStillWorks() throws {
+        #expect(try Coerce.edgeSet(.implicitMember("horizontal")) == .horizontal)
+    }
+}
