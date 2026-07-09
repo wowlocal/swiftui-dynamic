@@ -2909,6 +2909,39 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// NetNewsWire + Cookbook (iteration 164): shebang lines strip in the
+    /// merge (build-phase scripts are legal Swift after `#!`); marker
+    /// ARITHMETIC reads unknowable operation-DSL sides as zero (AudioKit's
+    /// `.phasor(f) * .randomNumberPulse(…)`, one- and two-sided); member
+    /// WRITES through a nil base absorb in compiled mode
+    /// (`sequencer.tracks[1].length = …` on a fresh store).
+    @Test func shebangMarkerArithmeticAndNilWrites() throws {
+        let root = NSTemporaryDirectory() + "shebang-probe-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try """
+        #!/usr/bin/swift
+        let scriptConstant = 42
+        """.write(toFile: root + "/BuildScript.swift", atomically: true, encoding: .utf8)
+        try """
+        struct ContentView: View {
+            var body: some View {
+                let signal = OperationDSL.phasor(frequency: 0.5) * OperationDSL.randomNumberPulse(minimum: 0.9)
+                let offset = 0.0 + OperationDSL.jitter(amplitude: 300)
+                var track = sequencerTracks.first
+                track.length = 4.0
+                if signal != 0 || offset != 0 { fatalError("marker arithmetic broke") }
+                return Text("\\(scriptConstant)")
+            }
+        }
+        """.write(toFile: root + "/ContentView.swift", atomically: true, encoding: .utf8)
+
+        let merged = ProjectMaterial.mergedSource(at: root)
+        #expect(!merged.contains("#!"))
+        let report = try HeadlessVerifier.verify(source: merged, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// Gifski (iteration 163): TUPLE-pattern stored properties —
     /// `let (first, second, third): (A, B, C)` declares each element with
     /// its split annotation (Gifski's @dynamicMemberLookup Tuple3).

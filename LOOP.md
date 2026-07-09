@@ -1646,3 +1646,16 @@ without this.
   exercised the init the headless run never reached). Gifski ✅
   (12 nodes, 3 actions). **649/653 counted — ZERO failures (TWENTY-
   SIXTH saturation). 585 zips + 65 OSS repos green. Suite 329 → 330.**
+- 2026-07-10 iter 164: step 9 — NetNewsWire (601 files, the AppKit
+  giant deferred since the ladder began) + AudioKit Cookbook (133)
+  cloned; System-Color-Picker has no public sources (dropped). Three
+  classes: SHEBANG lines strip in the merge (build-phase scripts are
+  legal Swift after `#!`; NNW's VerifyNoBS.swift); marker ARITHMETIC
+  reads unknowable operation-DSL operands as zero, one- and two-sided,
+  AFTER typed marker arithmetic has its chance (AudioKit's
+  `.phasor(f) * .randomNumberPulse(…)`, `0.0 + .jitter(…)`); member
+  WRITES through a NIL base absorb in compiled mode
+  (`sequencer.tracks[1].length = …` — the marker-write doctrine).
+  NetNewsWire ✅ (14 nodes), Cookbook ✅ (171 nodes, 2 actions).
+  **651/655 counted — ZERO failures (TWENTY-SEVENTH saturation).
+  585 zips + 67 OSS repos green. Suite 330 → 331.**

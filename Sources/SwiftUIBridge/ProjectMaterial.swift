@@ -34,7 +34,11 @@ public enum ProjectMaterial {
                 .split(separator: "\n", omittingEmptySubsequences: false)
                 .filter { line in
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    return !(trimmed.hasPrefix("import ") || trimmed.hasPrefix("@testable import "))
+                    // Shebangs (build-phase scripts run as `swift file.swift`)
+                    // are meaningless in module compilation — strip like
+                    // imports so the script's Swift still merges.
+                    return !(trimmed.hasPrefix("import ") || trimmed.hasPrefix("@testable import ")
+                        || trimmed.hasPrefix("#!"))
                 }
                 .joined(separator: "\n")
             merged += "\n// FILE: \(URL(fileURLWithPath: path).lastPathComponent)\n" + stripped + "\n"

@@ -2354,6 +2354,14 @@ extension Interpreter {
                     ImplicitMemberCall(name: fn.name, arguments: CallArguments()),
                     member.declName.baseName.text)
             }
+            if baseValue.isNil, assumesCompiledImports {
+                // A nil base from absorbed collections (`sequencer.tracks[1]`
+                // on a fresh store): the write is accepted and ignored, the
+                // marker-write doctrine.
+                return .hostProperty(
+                    ImplicitMemberCall(name: "nil", arguments: CallArguments()),
+                    member.declName.baseName.text)
+            }
             throw error(member, "cannot assign to a member of \(baseValue.stringified)")
         }
         if let subscriptCall = expr.as(SubscriptCallExprSyntax.self) {

@@ -330,6 +330,28 @@ public enum Builtins {
         if let combined = try initMarkerArithmetic(op, lhs, rhs, double: double) {
             return combined
         }
+        // BOTH-unknowable arithmetic (AudioKit's operation DSL:
+        // `.phasor(f) * .randomNumberPulse(…)`): each side reads the fresh
+        // zero — the general absorption, AFTER typed marker arithmetic
+        // (init rewrap, clock offsets) had its chance.
+        func isCallMarker(_ value: RuntimeValue) -> Bool {
+            if let payload = value.hostPayload {
+                return payload is ImplicitMemberCall || payload is ChainedImplicitCall
+                    || payload is InertCallable
+            }
+            if case .implicitMember = value { return true }
+            if case .hostFunction = value { return true }
+            return false
+        }
+        if isCallMarker(lhs), isCallMarker(rhs) {
+            return .native(try double(0, 0))
+        }
+        if isCallMarker(lhs), let r = rhs.doubleValue {
+            return .native(try double(0, r))
+        }
+        if isCallMarker(rhs), let l = lhs.doubleValue {
+            return .native(try double(l, 0))
+        }
         throw EvalMessage(text: "'\(op)' cannot combine \(lhs.stringified) and \(rhs.stringified)")
     }
 
