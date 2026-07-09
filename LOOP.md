@@ -863,3 +863,11 @@ Each iteration does exactly this:
   list includes actors. oss:clean-architecture-swiftui passes (5 nodes).
   **592/594 (99.7%); queue: oss:OnlineStoreTCA ($0), oss:MortyUI
   (ForEach over chain).**
+- 2026-07-09 iter 109: AsyncImage phases — the trace gateway invokes the
+  content closure with a stub image (TraceNode "Image" — trace-land's image
+  currency, so `$0.resizable()` shorthand chains natively; GeometryReader-
+  proxy precedent) AND renders the placeholder (the phase a fresh launch
+  shows); phase-form closures record without invoking. The generic recorder
+  had called `{ $0… }` shorthand closures with zero args ($0 unbound).
+  oss:OnlineStoreTCA passes (19 nodes, 1 action). **593/594 (99.8%);
+  queue: oss:MortyUI.**

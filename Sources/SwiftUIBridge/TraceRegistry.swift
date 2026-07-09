@@ -102,6 +102,31 @@ public final class TraceRegistry: HostRegistry {
                 }
                 return .native(node)
             }
+        case "AsyncImage":
+            // Headlessly there's no network: the CONTENT closure still
+            // verifies against a stub image (GeometryReader-proxy
+            // precedent), and the placeholder renders — the phase a fresh
+            // launch actually shows.
+            return HostFunction(name: name) { args, ctx in
+                let node = TraceNode(kind: name)
+                if let url = args.labeled("url") { node.args.append(url.stringified) }
+                if let content = args.unlabeledClosures.first {
+                    // The stub is what trace Image constructors produce, so
+                    // every image modifier chains natively.
+                    let stub = RuntimeValue.native(TraceNode(kind: "Image"))
+                    do {
+                        node.children += try ctx.callBuilderClosure(content, arguments: [stub]).map(Self.node)
+                    } catch let error as RuntimeError where !error.fatal {
+                        // Phase-form closures (`{ phase in … }`) read members
+                        // a plain image lacks — record without invoking.
+                        node.args.append("closure")
+                    }
+                }
+                if let placeholder = args.closure(labeled: "placeholder") {
+                    node.children += try ctx.callBuilderClosure(placeholder, arguments: []).map(Self.node)
+                }
+                return .native(node)
+            }
         case "Canvas":
             // The renderer draws (side effects on the context), it doesn't
             // build children — run it with an inert context + canvas size.

@@ -859,6 +859,31 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// AsyncImage verifies BOTH phases headlessly: the content closure
+    /// receives a stub image (so `$0.resizable()` shorthand chains), and
+    /// the placeholder renders — the phase a fresh launch shows.
+    @Test func asyncImageContentAndPlaceholder() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                AsyncImage(
+                    url: URL(string: "https://example.com/hero.png")
+                ) {
+                    $0
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 100, height: 100)
+                } placeholder: {
+                    ProgressView()
+                        .frame(width: 100, height: 100)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
