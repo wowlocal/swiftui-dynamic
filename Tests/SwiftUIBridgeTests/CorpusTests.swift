@@ -558,6 +558,32 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Array("abc") splits into characters (single-char strings), so
+    /// index math over a constant string works like compiled Swift.
+    @Test func arrayOfStringSplitsCharacters() throws {
+        let source = """
+        let constant = "matrix"
+
+        struct ContentView: View {
+            func shifted(_ index: Int) -> Int {
+                let max = constant.count - 1
+                return index + 2 > max ? index : index + 2
+            }
+
+            var body: some View {
+                VStack {
+                    ForEach(0..<constant.count, id: \\.self) { index in
+                        Text(String(Array(constant)[shifted(index)]))
+                    }
+                    Text("count \\(Array(constant).count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 7)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

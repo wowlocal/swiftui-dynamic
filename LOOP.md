@@ -792,3 +792,8 @@ Each iteration does exactly this:
   infinity (compiled-Swift behavior) instead of an Int-division trap.
   TwitterProfileScrolling passes (242 nodes, 5 actions).
   **582 → 583/588 (99.1%).**
+- 2026-07-09 iter 100: Array(String) splits into characters — the Array()
+  builtin maps a string to single-char strings (our character model), so
+  `Array(constant)[getRandomIndex(…)]` indexes real characters instead of
+  a one-element wrap. MatrixRainEffect passes (711 nodes — full grid).
+  **583 → 584/588 (99.3%). Only the three SDK/Pods walls remain.**

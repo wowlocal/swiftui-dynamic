@@ -607,6 +607,11 @@ public final class Interpreter {
             guard let value = args.positional(0) else { return .native([RuntimeValue]()) }
             if let range = value.rangeValue { return .native(range.map { RuntimeValue.native($0) }) }
             if let array = value.arrayValue { return .native(array) }
+            // Array("abc") splits into characters (single-char strings,
+            // our character model): Array(constant)[i] indexes real chars.
+            if let s = value.stringValue {
+                return .native(s.map { RuntimeValue.native(String($0)) })
+            }
             return .native([value])
         }
         define("Set") { args, _ in
