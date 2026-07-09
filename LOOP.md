@@ -355,3 +355,8 @@ Each iteration does exactly this:
   closure via a delayed main-actor Task (real firing, like async). All three
   class projects pass (ParticleEmission, RepeatButton, LiquidTransition).
   **155/200 → 158/200**.
+- 2026-07-09 iter 45: ScreenStub gains visibleFrame/frame (real NSScreen when
+  present, laptop-shaped rect headlessly) — the NSScreen.main?.visibleFrame
+  class. CustomTabBarMac + Login_Mac pass; FloatingWindow advanced to
+  arithmetic-on-unresolved `.init(x:y:)` marker (the chain-combine class).
+  **158/200 → 160/200**.

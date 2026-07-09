@@ -41,6 +41,22 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// `NSScreen.main?.visibleFrame` — real screen when present, a
+    /// laptop-shaped rect headlessly; members read as numbers.
+    @Test func screenVisibleFrameServesRectMembers() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let frame = NSScreen.main?.visibleFrame ?? .zero
+                let size = NSScreen.main?.visibleFrame.size
+                Text("w=\\(frame.width) h=\\(size?.height ?? 0)")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// `DispatchQueue.main.asyncAfter(deadline: .now() + delay)` schedules
     /// the interpreted closure without error (click-through fires it).
     @Test func asyncAfterSchedulesInertly() throws {

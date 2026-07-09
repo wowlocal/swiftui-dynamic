@@ -125,6 +125,16 @@ struct ScreenStub {
     var bounds: CGRect {
         CGRect(origin: .zero, size: NSScreen.main?.frame.size ?? CGSize(width: 390, height: 844))
     }
+
+    /// `NSScreen.main?.visibleFrame` — the real screen when there is one,
+    /// a laptop-shaped rect headlessly.
+    var visibleFrame: CGRect {
+        NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 875)
+    }
+
+    var frame: CGRect {
+        NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+    }
 }
 
 /// `UIApplication.shared.windows.first?.safeAreaInsets…` — one window with
@@ -207,8 +217,12 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
     }
     if value is ScreenStub {
-        if name == "bounds" { return .native(ScreenStub().bounds) }
-        return nil
+        switch name {
+        case "bounds": return .native(ScreenStub().bounds)
+        case "visibleFrame": return .native(ScreenStub().visibleFrame)
+        case "frame": return .native(ScreenStub().frame)
+        default: return nil
+        }
     }
     if value is MainQueueStub {
         if name == "async" {
