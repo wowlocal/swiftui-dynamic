@@ -1,4 +1,5 @@
 import Foundation
+import SwiftInterpreter
 
 /// Shared source discovery + merge for whole projects (ProjectCheck and the
 /// demo's `--project` mode). Mirrors what the build system itself treats as
@@ -30,6 +31,13 @@ public enum ProjectMaterial {
         var merged = ""
         for path in files {
             guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
+            // Sourcery's inline-scratch files hold BARE fragments meant for
+            // inlining elsewhere — hard parse errors prove a file isn't a
+            // member of any compiling target.
+            if content.contains("sourcery:inline:"),
+               Interpreter.sourceHasHardErrors(content) {
+                continue
+            }
             let stripped = content
                 .split(separator: "\n", omittingEmptySubsequences: false)
                 .filter { line in

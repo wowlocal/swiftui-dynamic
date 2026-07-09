@@ -1659,3 +1659,15 @@ without this.
   NetNewsWire ✅ (14 nodes), Cookbook ✅ (171 nodes, 2 actions).
   **651/655 counted — ZERO failures (TWENTY-SEVENTH saturation).
   585 zips + 67 OSS repos green. Suite 330 → 331.**
+- 2026-07-10 iter 165: step 9 — mastodon-ios (807 files, the official
+  client) + DockDoor (189, arrival-pass) cloned; linearmouse was
+  already aboard. One class: Sourcery inline-SCRATCH files hold bare
+  method fragments meant for inlining elsewhere — HARD parse errors
+  prove a file is not a member of any compiling target, so the merge
+  skips it (gated on the sourcery:inline marker for cheapness;
+  destination files with the same markers still merge — their inline
+  blocks are real code inside extensions; the recovered-diagnostics
+  tolerance from iter 161 keeps winston-style files IN).
+  mastodon-ios ✅ (2 nodes). **653/657 counted — ZERO failures
+  (TWENTY-EIGHTH saturation). 585 zips + 69 OSS repos green.
+  Suite 331 → 332.**

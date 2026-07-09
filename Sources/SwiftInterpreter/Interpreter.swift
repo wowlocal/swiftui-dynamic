@@ -194,6 +194,16 @@ public final class Interpreter {
             requiredLabels: requiredLabels)
     }
 
+    /// True when the source has HARD parse errors (recovered formatting
+    /// diagnostics don't count) — such a file can't be a member of any
+    /// compiling target (Sourcery inline-scratch fragments).
+    public static func sourceHasHardErrors(_ source: String) -> Bool {
+        let tree = Parser.parse(source: source)
+        return ParseDiagnosticsGenerator.diagnostics(for: tree).contains {
+            $0.diagMessage.severity == .error && !$0.message.contains("extraneous whitespace")
+        }
+    }
+
     // MARK: - Parsing
 
     public func parse(source: String) throws -> SourceFileSyntax {

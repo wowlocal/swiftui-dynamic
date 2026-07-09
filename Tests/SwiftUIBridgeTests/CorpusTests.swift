@@ -2909,6 +2909,40 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// mastodon-ios (iteration 165): Sourcery inline-SCRATCH files hold
+    /// bare method fragments meant for inlining elsewhere — hard parse
+    /// errors prove a file is not a member of any compiling target, so the
+    /// merge skips it (destination files with the same markers still merge:
+    /// their inline blocks are real code inside extensions).
+    @Test func sourceryScratchFragmentsAreNotProjectSource() throws {
+        let root = NSTemporaryDirectory() + "sourcery-probe-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try """
+        // Generated using Sourcery — DO NOT EDIT
+        // sourcery:inline:SomeDelegate.AutoGenerateProtocolDelegate
+        notificationView(_ notificationView: NotificationView, menuButton button: UIButton)
+        // sourcery:end
+        """.write(toFile: root + "/AutoGenerate.generated.swift", atomically: true, encoding: .utf8)
+        try """
+        struct RealView: View {
+            // sourcery:inline:RealView.Inlined
+            var inlined: String { "compiled destination" }
+            // sourcery:end
+            var body: some View { Text(inlined) }
+        }
+        struct ContentView: View {
+            var body: some View { RealView() }
+        }
+        """.write(toFile: root + "/RealView.swift", atomically: true, encoding: .utf8)
+
+        let merged = ProjectMaterial.mergedSource(at: root)
+        #expect(!merged.contains("menuButton"))
+        #expect(merged.contains("compiled destination"))
+        let report = try HeadlessVerifier.verify(source: merged, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// NetNewsWire + Cookbook (iteration 164): shebang lines strip in the
     /// merge (build-phase scripts are legal Swift after `#!`); marker
     /// ARITHMETIC reads unknowable operation-DSL sides as zero (AudioKit's
