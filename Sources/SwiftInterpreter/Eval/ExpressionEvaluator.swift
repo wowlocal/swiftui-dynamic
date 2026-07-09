@@ -474,7 +474,20 @@ extension Interpreter {
         for typeName in candidates {
             guard let symbol = hostExtensionSymbols[typeName] else { continue }
             if let method = symbol.methods[name]?.first, let body = method.body {
-                return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue)))
+                let frame = ExtensionFrame(typeName: typeName, member: name)
+                // A same-named self-call INSIDE this method's own body is
+                // the other overload (UTM: onReceive(Notification.Name…)
+                // delegating to SwiftUI's onReceive(publisher…)) — prefer
+                // the registry gateway when one exists; recurse only when
+                // there is no alternative (fib-style helpers).
+                if activeExtensionFrames.contains(frame),
+                   let registry, registry.isViewValue(selfValue),
+                   registry.modifier(named: name) != nil {
+                    continue
+                }
+                let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
+                closure.extensionFrame = frame
+                return .closure(closure)
             }
             if let computed = symbol.computedProperties[name] {
                 return try evaluateComputed(computed, selfValue: selfValue, name: name)
@@ -1432,6 +1445,11 @@ extension Interpreter {
     func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {
         callDepth += 1
         defer { callDepth -= 1 }
+        var insertedFrame: ExtensionFrame?
+        if let frame = closure.extensionFrame, activeExtensionFrames.insert(frame).inserted {
+            insertedFrame = frame
+        }
+        defer { if let insertedFrame { activeExtensionFrames.remove(insertedFrame) } }
         guard callDepth < callDepthLimit else {
             if let node {
                 let located = error(node, "call depth exceeded (possible infinite recursion)")

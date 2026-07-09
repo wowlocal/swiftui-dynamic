@@ -1276,3 +1276,16 @@ Each iteration does exactly this:
   chain (docc snippets → macroDecl → nested enums → description →
   $store/@Perception.Bindable → buildEither) closed. **625/630 counted
   — STRICTLY IMPROVED (624 → 625); only UTM remains. Suite 262 → 263.**
+- 2026-07-09 iter 147: UTM (219 files) — `call depth exceeded` in root
+  body: a user View-extension OVERLOAD of a SwiftUI modifier
+  (`onReceive(_ name: Notification.Name…)` delegating to
+  `self.onReceive(publisher…)`). Real overload resolution picks the
+  framework's; ours re-entered the user method forever. Host-extension
+  method closures now carry an ExtensionFrame; while a frame is active,
+  a re-entrant same-name dispatch on a VIEW self prefers the registry
+  gateway — helpers with no gateway alternative (fib-style, non-view
+  selves) still recurse. First draft used `modifier(named:) != nil`
+  alone; the trace registry's catch-all modifier table claims ANY name
+  (iter-114 lesson re-learned) — gated by isViewValue(self). UTM ✅ (47
+  nodes, 6 actions). **626/630 counted — ZERO failures (FOURTEENTH
+  saturation). 585 zips + 42 OSS repos green. Suite 263 → 264.**

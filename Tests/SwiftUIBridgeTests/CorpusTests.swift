@@ -2909,6 +2909,43 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// UTM (iteration 147): a user View-extension OVERLOAD of a SwiftUI
+    /// modifier delegates to the framework form — `onReceive(_ name:
+    /// Notification.Name…)` calling `self.onReceive(publisher…)`. Real
+    /// overload resolution picks SwiftUI's; ours re-entered the user method
+    /// forever. Re-entrant same-name dispatch now prefers the registry
+    /// gateway — while helpers with NO gateway alternative still recurse.
+    @Test func modifierOverloadDelegatesToGatewayNotItself() throws {
+        let source = """
+        extension View {
+            func onReceive(_ name: Notification.Name,
+                           center: NotificationCenter = .default,
+                           object: AnyObject? = nil,
+                           perform action: @escaping (Notification) -> Void) -> some View {
+                self.onReceive(
+                    center.publisher(for: name, object: object), perform: action
+                )
+            }
+        }
+
+        extension Int {
+            func fib() -> Int {
+                self < 2 ? self : ((self - 1).fib() + (self - 2).fib())
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                if 10.fib() != 55 { fatalError("recursive extension helper broken") }
+                return Text("listening")
+                    .onReceive(Notification.Name("UTMDidChange")) { _ in }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// swift-composable-architecture (iteration 146): TCA's IfLetStore shim
     /// calls the compiler-reserved builder statics AS API —
     /// `ViewBuilder.buildEither(first:)`/`(second:)` wrap _ConditionalContent

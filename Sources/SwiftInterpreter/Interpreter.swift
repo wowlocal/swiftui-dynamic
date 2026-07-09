@@ -33,6 +33,9 @@ public final class Interpreter {
     /// budget can trip. Fatal — never catchable by interpreted code.
     var callDepth = 0
     let callDepthLimit = 200
+    /// Host-extension method frames currently executing (recursion guard:
+    /// re-entrant same-name dispatch prefers the registry gateway).
+    var activeExtensionFrames: Set<ExtensionFrame> = []
 
     public init(registry: HostRegistry? = nil) {
         self.registry = registry

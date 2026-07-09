@@ -51,6 +51,11 @@ public final class ClosureValue {
     public let isBuilder: Bool
     /// Used to resolve returned `.member` values against known enums.
     public let returnType: TypeSyntax?
+    /// Set for host-extension METHOD bodies (`extension View { func … }`):
+    /// while this frame is active, a same-named self-call prefers the
+    /// registry gateway — real overload resolution for the ubiquitous
+    /// "convenience overload of a SwiftUI modifier" pattern.
+    public var extensionFrame: ExtensionFrame?
 
     public init(
         parameters: [Parameter],
@@ -65,4 +70,10 @@ public final class ClosureValue {
         self.isBuilder = isBuilder
         self.returnType = returnType
     }
+}
+
+/// Identity of a host-extension method execution (type + member).
+public struct ExtensionFrame: Hashable {
+    public let typeName: String
+    public let member: String
 }
