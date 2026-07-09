@@ -671,6 +671,14 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 return .native(AttributedRangeProxy(box: box, range: rangeBox.range))
             })
+        case "replacingAttributes", "settingAttributes", "mergingAttributes",
+             "transformingAttributes":
+            // Attribute transforms are cosmetic headlessly — the text
+            // carries through (styling-proxy precedent).
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native(AttributedStringBox(box.attributed))
+            })
+        case "description": return .native(String(box.attributed.characters))
         default:
             return nil
         }

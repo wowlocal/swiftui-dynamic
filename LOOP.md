@@ -1175,3 +1175,12 @@ Each iteration does exactly this:
   both-unknowable equality compares marker NAMES ((function shapeKind)
   vs .none → false). Ice passes (56 nodes). **618/618 counted — ZERO
   failures (eleventh saturation). 585 zips + 33 OSS repos green.**
+- 2026-07-09 iter 138: step 9 — cloned Secretive (105 files, PASSED ON
+  ARRIVAL), CotEditor (595 — the second-biggest repo), Plash (vendored no
+  Swift, dropped); units 618 → 620. CotEditor's two classes:
+  AttributedString attribute transforms (replacingAttributes/setting/
+  merging/transforming — text carries through, styling-proxy precedent)
+  and $binding.animation()/transaction() (presentation-side; the binding
+  carries through). CotEditor passes (25 nodes); Secretive (98 nodes,
+  13 actions). **620/620 counted — ZERO failures (twelfth saturation).
+  585 zips + 35 OSS repos green. Suite 253.**

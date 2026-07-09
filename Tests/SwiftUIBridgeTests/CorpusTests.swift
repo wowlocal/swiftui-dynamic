@@ -2084,6 +2084,27 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// AttributedString attribute transforms carry text through;
+    /// $binding.animation() returns the binding unchanged.
+    @Test func attributeTransformsAndBindingAnimation() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var expanded = false
+
+            var body: some View {
+                var styled = AttributedString("hello world")
+                let plain = styled.replacingAttributes(AttributeContainer(), with: AttributeContainer())
+                VStack {
+                    Toggle("Expand", isOn: $expanded.animation())
+                    Text(plain)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

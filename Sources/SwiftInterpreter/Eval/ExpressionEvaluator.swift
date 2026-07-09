@@ -763,6 +763,10 @@ extension Interpreter {
                 switch name {
                 case "wrappedValue": return stub.box.value
                 case "projectedValue": return baseValue
+                case "animation", "transaction":
+                    // `$flag.animation()` — presentation-side; the binding
+                    // carries through unchanged.
+                    return .hostFunction(HostFunction(name: name) { _, _ in baseValue })
                 default:
                     // Binding is @dynamicMemberLookup: `$item.field` projects
                     // a binding to the field. Instance fields bind their own
