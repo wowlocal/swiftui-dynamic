@@ -229,7 +229,9 @@ extension Interpreter {
     }
 
     func resolveIdentifier(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
-        if let box = env.box(for: name) { return try force(box) }
+        // Real Swift scoping: locals first, implicit-self members second,
+        // globals LAST (a method named like a global type wins in its body).
+        if let box = env.box(for: name, before: globals) { return try force(box) }
         // `$count` — projected value of an @State or @Binding property.
         // (`$0`-style closure shorthands were already bound in the environment.)
         if name.hasPrefix("$"), name.count > 1, !name.dropFirst().allSatisfy(\.isNumber) {
@@ -274,6 +276,7 @@ extension Interpreter {
            let value = try selfMember(name, on: selfValue) {
             return value
         }
+        if let box = globals.box(for: name) { return try force(box) }
         if name == "Self", let selfValue = env.lookup("self") {
             switch selfValue {
             case .instance(let instance):

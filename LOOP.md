@@ -733,3 +733,9 @@ Each iteration does exactly this:
   FunctionParameterSyntax.attributes, not the type node.
   InteractiveFloatingButton passes (31 nodes, 4 actions).
   **572 → 573/588 (97.4%).**
+- 2026-07-09 iter 91: name-resolution order — identifier lookup now walks
+  locals (chain BEFORE globals) → implicit-self members → globals, matching
+  real Swift scoping: a method named like a top-level type wins in its own
+  body (`func OTPField()` vs `enum OTPField`), member properties shadow
+  global constants. New Environment.box(for:before:) boundary walk.
+  AutoOTP passes (44 nodes, 3 actions). **573 → 574/588 (97.4%).**

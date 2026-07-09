@@ -320,6 +320,36 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// Real Swift scoping order: implicit-self members shadow globals.
+    /// A method named like a top-level enum wins in call position; a
+    /// stored property named like a global constant wins in reads.
+    @Test func selfMembersShadowGlobals() throws {
+        let source = """
+        let title = "global"
+
+        enum OTPField {
+            case one
+        }
+
+        struct ContentView: View {
+            var title: String = "member"
+
+            var body: some View {
+                VStack {
+                    OTPField()
+                    Text(title)
+                }
+            }
+
+            func OTPField() -> some View {
+                Text("field")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

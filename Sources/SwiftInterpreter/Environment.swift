@@ -53,6 +53,14 @@ public final class Environment {
         bindings[name] ?? parent?.box(for: name)
     }
 
+    /// Walks the chain but stops BEFORE `boundary` (exclusive): lets lookup
+    /// consult locals without the global tail, so implicit-self members can
+    /// shadow globals the way real Swift scoping does.
+    public func box(for name: String, before boundary: Environment) -> Box? {
+        if self === boundary { return nil }
+        return bindings[name] ?? parent?.box(for: name, before: boundary)
+    }
+
     public func lookup(_ name: String) -> RuntimeValue? {
         box(for: name)?.value
     }
