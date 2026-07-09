@@ -1656,6 +1656,50 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Global computed vars evaluate per read; static initializers and
+    /// host-extension static methods see bare sibling statics;
+    /// Thread.isMainThread is true; array allSatisfy + keypath filter.
+    @Test func computedGlobalsAndStaticContexts() throws {
+        let source = """
+        var launchCount = 0
+
+        var uptimeLabel: String {
+            launchCount += 1
+            return "run \\(launchCount)"
+        }
+
+        extension Logger {
+            static let subsystem = "com.example.app"
+
+            static func custom(category: String) -> Logger {
+                return Logger(subsystem: subsystem, category: category)
+            }
+
+            static let network = custom(category: "network")
+        }
+
+        struct Game {
+            var isInstalled: Bool
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let games = [Game(isInstalled: true), Game(isInstalled: false)]
+                let installed = games.filter(\\.isInstalled)
+                VStack {
+                    Text(uptimeLabel)
+                    Text(uptimeLabel)
+                    Text(Thread.isMainThread ? "main" : "off-main")
+                    Text(installed.allSatisfy(\\.isInstalled) ? "all installed" : "mixed")
+                    Text("count \\(installed.count)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 6)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

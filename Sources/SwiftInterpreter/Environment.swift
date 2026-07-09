@@ -28,6 +28,18 @@ public final class LazyGlobal {
     }
 }
 
+/// `var uptime: String { … }` at FILE scope — a global computed property:
+/// the accessor evaluates on every read (never cached).
+public final class ComputedGlobal {
+    public let accessor: CodeBlockItemListSyntax
+    public let annotation: TypeSyntax?
+
+    public init(accessor: CodeBlockItemListSyntax, annotation: TypeSyntax?) {
+        self.accessor = accessor
+        self.annotation = annotation
+    }
+}
+
 /// A lexical scope: a dictionary of named Boxes with a parent chain
 /// (block → closure/method → globals).
 public final class Environment {

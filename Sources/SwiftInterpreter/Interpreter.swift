@@ -106,6 +106,11 @@ public final class Interpreter {
                 continue // library globals: initialize on first reference
             }
             if case .decl(let decl) = item.item,
+               let varDecl = decl.as(VariableDeclSyntax.self),
+               varDecl.bindings.allSatisfy({ $0.accessorBlock != nil }) {
+                continue // computed globals were collected; accessors run on read
+            }
+            if case .decl(let decl) = item.item,
                let varDecl = decl.as(VariableDeclSyntax.self), isHoistableGlobal(varDecl) {
                 // Hoisted as lazy for FORWARD references; still executed
                 // eagerly in statement order (main.swift semantics) unless a
@@ -687,7 +692,8 @@ public final class Interpreter {
                     return try instantiate(symbol, with: call.arguments)
                 }
                 if let method = symbol.staticMethods[call.name], let body = method.body {
-                    let closure = makeFunctionClosure(method, body: body, captured: globals)
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.type(symbol)))
                     return try callWithArguments(closure, args: call.arguments, node: nil)
                 }
             }
@@ -754,7 +760,8 @@ public final class Interpreter {
             }
             if case .native(let any) = value, let call = any as? ImplicitMemberCall,
                let method = hostSymbol.staticMethods[call.name], let body = method.body {
-                let closure = makeFunctionClosure(method, body: body, captured: globals)
+                let closure = makeFunctionClosure(
+                    method, body: body, captured: selfEnvironment(.type(hostSymbol)))
                 return try callWithArguments(closure, args: call.arguments, node: nil)
             }
         }

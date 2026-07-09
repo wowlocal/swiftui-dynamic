@@ -204,13 +204,29 @@ extension Interpreter {
                 return .native(out)
             })
         case "filter":
-            return .hostFunction(HostFunction(name: name) { args, ctx in
-                let closure = try Self.requiredClosure(args, name)
+            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 var out: [RuntimeValue] = []
-                for element in array where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
+                for element in array
+                where try Self.mapStep(args, name, element, self, ctx).boolValue == true {
                     out.append(element)
                 }
                 return .native(out)
+            })
+        case "allSatisfy":
+            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
+                for element in array
+                where try Self.mapStep(args, name, element, self, ctx).boolValue != true {
+                    return .native(false)
+                }
+                return .native(true)
+            })
+        case "allSatisfy":
+            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
+                for element in array
+                where try Self.mapStep(args, name, element, self, ctx).boolValue != true {
+                    return .native(false)
+                }
+                return .native(true)
             })
         case "forEach":
             return .hostFunction(HostFunction(name: name) { args, ctx in

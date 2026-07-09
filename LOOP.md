@@ -1087,3 +1087,13 @@ Each iteration does exactly this:
   bound (LazyMemberSeed — sibling-property references are legal).
   eul (74 nodes) + OnlySwitch (8 nodes) pass. **608/608 counted — ZERO
   failures (seventh saturation). 585 zips + 23 OSS repos green.**
+- 2026-07-09 iter 130: step 9 — cloned PlayCover (73 files), Mythic (108);
+  Swiftcord vendored no Swift (dropped); units 608 → 610. Classes fixed
+  (Mythic's climb): GLOBAL computed vars (`var uptime: String { … }` at
+  file scope — ComputedGlobal, accessor per read); static property
+  initializers + host-extension static METHODS evaluate in static-type
+  context (bare sibling statics: `custom(category:)` sees `subsystem`);
+  Thread.isMainThread true (single-threaded interpreter) + bare markers
+  read false in Bool; array allSatisfy + filter accept key paths (own
+  test caught allSatisfy's requiredClosure draft). **608/610; queue:
+  Mythic (call-depth in action #0), PlayCover ($viewModel projection).**

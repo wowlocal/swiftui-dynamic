@@ -345,6 +345,13 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .native(CGSize(width: measured.width, height: measured.height))
         })
     }
+    if let marker = value as? HostTypeMarker, marker.name == "Thread" {
+        switch name {
+        case "isMainThread": return .native(true) // single-threaded interpreter
+        case "current", "main": return .native(UIKitStub())
+        default: break
+        }
+    }
     if let marker = value as? HostTypeMarker, marker.name == "Date", name == "now" {
         return .native(Date())
     }

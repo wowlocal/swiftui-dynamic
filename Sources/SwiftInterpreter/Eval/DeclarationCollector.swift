@@ -47,6 +47,18 @@ extension Interpreter {
                         annotation: binding.typeAnnotation?.type
                     )))
                 }
+            } else if let varDecl = decl.as(VariableDeclSyntax.self) {
+                // `var uptime: String { … }` at file scope — a computed
+                // global; the accessor runs on every read.
+                for binding in varDecl.bindings {
+                    guard let ident = binding.pattern.as(IdentifierPatternSyntax.self),
+                          let accessorBlock = binding.accessorBlock,
+                          let accessors = parseAccessors(of: accessorBlock) else { continue }
+                    globals.define(ident.identifier.text, .native(ComputedGlobal(
+                        accessor: accessors.getter,
+                        annotation: binding.typeAnnotation?.type
+                    )))
+                }
             }
         }
         for item in expandedTopLevelItems(file.statements) {

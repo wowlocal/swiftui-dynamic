@@ -236,6 +236,16 @@ extension Interpreter {
 
     /// Lazy globals evaluate their initializer on first read (memoized).
     func force(_ box: Box) throws -> RuntimeValue {
+        if case .native(let any) = box.value, let computed = any as? ComputedGlobal {
+            // Global computed var: evaluate fresh on every read.
+            let result = try executeBlock(computed.accessor, in: Environment(parent: globals))
+            switch result {
+            case .normal(let value), .returnValue(let value):
+                return try resolveAnnotated(value, annotation: computed.annotation)
+            default:
+                return .void
+            }
+        }
         guard case .native(let any) = box.value, let lazy = any as? LazyGlobal else {
             return box.value
         }
@@ -814,11 +824,21 @@ extension Interpreter {
         }
     }
 
+    /// Static property initializers reference bare sibling statics
+    /// (`static let network = custom(category: "network")`).
+    private func staticInitEnvironment(for symbol: StructSymbol) -> Environment {
+        selfEnvironment(.type(symbol))
+    }
+
+    private func staticInitEnvironment(for symbol: EnumSymbol) -> Environment {
+        selfEnvironment(.enumType(symbol))
+    }
+
     func staticMember(_ name: String, of symbol: StructSymbol) throws -> RuntimeValue? {
         if let nested = symbol.nestedTypes[name] { return nested }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
-            let raw = try evaluate(property.initializer, in: globals)
+            let raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
             let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
             symbol.staticCache[name] = value
             return value
@@ -840,7 +860,7 @@ extension Interpreter {
     func staticMember(_ name: String, of symbol: EnumSymbol) throws -> RuntimeValue? {
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
-            let raw = try evaluate(property.initializer, in: globals)
+            let raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
             let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
             symbol.staticCache[name] = value
             return value
@@ -1921,6 +1941,8 @@ extension Interpreter {
             if case .hostFunction = value { return false }
             // Nil from optional chains through stubs reads false too.
             if value.isNil { return false }
+            // Bare `.member` markers (unresolved host statics) read false.
+            if case .implicitMember = value { return false }
             throw error(node, "expected a Bool, got \(value.stringified)")
         }
         return b
