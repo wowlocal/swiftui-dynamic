@@ -46,13 +46,13 @@ for entry in ((try? fm.contentsOfDirectory(atPath: root)) ?? []).sorted() {
 units.sort { $0.bytes < $1.bytes }
 
 var checked = 0
-var totals = (projects: 0, passed: 0, failed: 0, errored: 0)
+var totals = (projects: 0, passed: 0, failed: 0, errored: 0, skipped: 0)
 var failureClasses: [String: (count: Int, example: String)] = [:]
 
 for unit in units {
     guard checked < limit else { break }
     let source = ProjectMaterial.testMergedSource(at: unit.directory)
-    guard source.contains("XCTestCase") else { continue }
+    guard source.contains("XCTestCase") || source.contains("@Test") else { continue }
     checked += 1
 
     do {
@@ -65,8 +65,13 @@ for unit in units {
         totals.passed += report.passed
         totals.failed += report.failed
         totals.errored += report.errored
+        totals.skipped += report.skipped
         let mark = report.failed == 0 && report.errored == 0 ? "✅" : "🟡"
-        print("\(mark) \(unit.name)  \(report.passed) passed, \(report.failed) failed, \(report.errored) errored (\(report.results.count) tests)")
+        var line = "\(mark) \(unit.name)  \(report.passed) passed, \(report.failed) failed, \(report.errored) errored"
+        if report.skipped > 0 {
+            line += ", \(report.skipped) skipped"
+        }
+        print(line + " (\(report.results.count) tests)")
         for result in report.results {
             switch result.outcome {
             case .passed:
@@ -77,6 +82,8 @@ for unit in units {
                     (failureClasses[key]?.count ?? 0) + 1,
                     "\(unit.name).\(result.className).\(result.testName)")
                 print("   ✗ \(result.className).\(result.testName): \(reasons.first ?? "")")
+            case .skipped:
+                break
             case .errored(let message):
                 let key = message
                     .replacingOccurrences(of: "[0-9]+", with: "…", options: .regularExpression)
@@ -95,7 +102,7 @@ for unit in units {
     }
 }
 
-print("\n═══ \(totals.projects) suites: \(totals.passed) passed, \(totals.failed) failed, \(totals.errored) errored ═══")
+print("\n═══ \(totals.projects) suites: \(totals.passed) passed, \(totals.failed) failed, \(totals.errored) errored, \(totals.skipped) skipped ═══")
 if !failureClasses.isEmpty {
     print("\nfailure classes (fix the biggest first):")
     for (key, value) in failureClasses.sorted(by: { $0.value.count > $1.value.count }).prefix(12) {

@@ -190,8 +190,15 @@ extension Interpreter {
             return try evaluate(inout_.expression, in: env)
         }
         if let macro = expr.as(MacroExpansionExprSyntax.self) {
-            // `#selector(...)`, `#Predicate {...}` — inert marker values;
-            // consumers (sendAction, flattened queries) ignore them.
+            // Registered macros (#expect/#require) execute; the rest stay
+            // inert markers (`#selector(...)`, `#Predicate {...}`).
+            if let result = try invokeRegisteredMacro(
+                named: macro.macroName.text, arguments: macro.arguments,
+                trailingClosure: macro.trailingClosure,
+                additionalTrailingClosures: macro.additionalTrailingClosures,
+                node: macro, in: env) {
+                return result
+            }
             return .native(HostTypeMarker(name: "#\(macro.macroName.text)"))
         }
         if let asExpr = expr.as(AsExprSyntax.self) {
