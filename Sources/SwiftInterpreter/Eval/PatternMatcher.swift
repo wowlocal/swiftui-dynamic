@@ -109,7 +109,7 @@ extension Interpreter {
     }
 
     private func isUnknowable(_ value: RuntimeValue) -> Bool {
-        if case .native(let any) = value {
+        if case .host(let any) = value {
             return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
         }
         if case .implicitMember = value { return true }
@@ -204,7 +204,7 @@ extension Interpreter {
         // Casts stay optimistic for interpreted/host types, but PRIMITIVES
         // are checkable: `for case let text as String` over [Any] must
         // skip the Ints.
-        if let castType, case .native(let any) = subject {
+        if let castType, let any = subject.hostPayload {
             switch castType {
             case "String": guard any is String else { return false }
             case "Int": guard any is Int else { return false }
@@ -285,7 +285,7 @@ extension Interpreter {
         if case .enumCase(let value) = subject {
             return (value.name, value.associated)
         }
-        if case .native(let any) = subject, let call = any as? ImplicitMemberCall {
+        if case .host(let any) = subject, let call = any as? ImplicitMemberCall {
             return (call.name, call.arguments.arguments.map(\.value))
         }
         return nil

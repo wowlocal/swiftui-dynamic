@@ -37,7 +37,7 @@ extension Interpreter {
                     if let target = args.labeled("to") ?? args.positional(0) {
                         // Real URLs key by path; unknowable chain-URLs key
                         // by their stable stringified form.
-                        if case .native(let urlAny) = target, let url = urlAny as? URL {
+                        if case .host(let urlAny) = target, let url = urlAny as? URL {
                             self.registry?.storeBlob(.native(blob), at: url.path)
                         } else {
                             self.registry?.storeBlob(.native(blob), at: target.stringified)
@@ -439,7 +439,7 @@ extension Interpreter {
                             ?? args.positional(0)?.closureValue) {
             return try ctx.callClosure(closure, arguments: [element])
         }
-        if case .native(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
+        if case .host(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
            let interpreter {
             return try interpreter.applyKeyPath(path, to: element)
         }
@@ -462,7 +462,7 @@ extension Interpreter {
                     throw RuntimeError(message: "'\(instance.symbol.name)' has no member '\(component)'")
                 }
                 current = value
-            case .native(let any):
+            case .host(let any):
                 if let value = try nativeMember(component, on: any)
                     ?? registry?.hostMember(component, on: any) {
                     current = value
@@ -540,7 +540,7 @@ extension Interpreter {
                     ?? args.positional(0)?.closureValue {
                     return try ctx.callClosure(closure, arguments: [.native(string)])
                 }
-                if case .native(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
+                if case .host(let pathAny)? = args.positional(0), let path = pathAny as? KeyPathStub,
                    let self {
                     return try self.applyKeyPath(path, to: .native(string))
                 }
@@ -644,7 +644,7 @@ extension Interpreter {
             })
         case "index":
             return .hostFunction(HostFunction(name: name) { args, _ in
-                guard case .native(let any)? = args.positional(0),
+                guard case .host(let any)? = args.positional(0),
                       let base = any as? String.Index else {
                     throw RuntimeError(message: "index(_:offsetBy:) needs a String.Index")
                 }
@@ -657,8 +657,8 @@ extension Interpreter {
             })
         case "distance":
             return .hostFunction(HostFunction(name: name) { args, _ in
-                guard case .native(let fromAny)? = args.labeled("from"), let from = fromAny as? String.Index,
-                      case .native(let toAny)? = args.labeled("to"), let to = toAny as? String.Index else {
+                guard case .host(let fromAny)? = args.labeled("from"), let from = fromAny as? String.Index,
+                      case .host(let toAny)? = args.labeled("to"), let to = toAny as? String.Index else {
                     throw RuntimeError(message: "distance(from:to:) needs String.Index bounds")
                 }
                 return .native(string.distance(from: from, to: to))

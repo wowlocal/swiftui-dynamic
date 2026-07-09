@@ -20,7 +20,7 @@ final class InoutSlot {
 
 extension RuntimeValue {
     var inoutSlot: InoutSlot? {
-        if case .native(let any) = self { return any as? InoutSlot }
+        if case .host(let any) = self { return any as? InoutSlot }
         return nil
     }
 

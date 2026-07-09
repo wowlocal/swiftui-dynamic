@@ -29,28 +29,28 @@ extension Interpreter {
                 message: located.message, line: located.line, column: located.column, fatal: true)
         }
 
-        if let lit = expr.as(IntegerLiteralExprSyntax.self) {
-            return .native(try integerValue(of: lit))
-        }
-        if let lit = expr.as(FloatLiteralExprSyntax.self) {
+        // Single jump on the node kind — this dispatch runs once per
+        // evaluated node, so a ~25-deep `as()` chain was pure overhead.
+        switch expr.kind {
+        case .integerLiteralExpr:
+            return .native(try integerValue(of: expr.cast(IntegerLiteralExprSyntax.self)))
+        case .floatLiteralExpr:
+            let lit = expr.cast(FloatLiteralExprSyntax.self)
             guard let d = Double(lit.literal.text.filter { $0 != "_" }) else {
                 throw error(lit, "invalid float literal")
             }
             return .native(d)
-        }
-        if let lit = expr.as(BooleanLiteralExprSyntax.self) {
-            return .native(lit.literal.text == "true")
-        }
-        if expr.is(NilLiteralExprSyntax.self) {
+        case .booleanLiteralExpr:
+            return .native(expr.cast(BooleanLiteralExprSyntax.self).literal.text == "true")
+        case .nilLiteralExpr:
             return .nilValue
-        }
-        if let lit = expr.as(StringLiteralExprSyntax.self) {
-            return .native(try stringLiteral(lit, in: env))
-        }
-        if let array = expr.as(ArrayExprSyntax.self) {
+        case .stringLiteralExpr:
+            return .native(try stringLiteral(expr.cast(StringLiteralExprSyntax.self), in: env))
+        case .arrayExpr:
+            let array = expr.cast(ArrayExprSyntax.self)
             return .native(try array.elements.map { try evaluate($0.expression, in: env) })
-        }
-        if let dict = expr.as(DictionaryExprSyntax.self) {
+        case .dictionaryExpr:
+            let dict = expr.cast(DictionaryExprSyntax.self)
             let value = DictValue()
             if case .elements(let elements) = dict.content {
                 for element in elements {
@@ -60,27 +60,24 @@ extension Interpreter {
                 }
             }
             return .native(value)
-        }
-        if let ref = expr.as(DeclReferenceExprSyntax.self) {
+        case .declReferenceExpr:
+            let ref = expr.cast(DeclReferenceExprSyntax.self)
             return try resolveIdentifier(ref.baseName.text, in: env, node: ref)
-        }
-        if let member = expr.as(MemberAccessExprSyntax.self) {
+        case .memberAccessExpr:
+            let member = expr.cast(MemberAccessExprSyntax.self)
             guard let base = member.base else {
                 return .implicitMember(member.declName.baseName.text)
             }
             let baseValue = try evaluate(base, in: env)
             return try accessMember(member.declName.baseName.text, on: baseValue, node: member, env: env)
-        }
-        if let call = expr.as(FunctionCallExprSyntax.self) {
-            return try evaluateCall(call, in: env)
-        }
-        if let closure = expr.as(ClosureExprSyntax.self) {
-            return .closure(makeClosure(closure, in: env))
-        }
-        if let infix = expr.as(InfixOperatorExprSyntax.self) {
-            return try evaluateInfix(infix, in: env)
-        }
-        if let prefix = expr.as(PrefixOperatorExprSyntax.self) {
+        case .functionCallExpr:
+            return try evaluateCall(expr.cast(FunctionCallExprSyntax.self), in: env)
+        case .closureExpr:
+            return .closure(makeClosure(expr.cast(ClosureExprSyntax.self), in: env))
+        case .infixOperatorExpr:
+            return try evaluateInfix(expr.cast(InfixOperatorExprSyntax.self), in: env)
+        case .prefixOperatorExpr:
+            let prefix = expr.cast(PrefixOperatorExprSyntax.self)
             if prefix.operator.text == "..<" || prefix.operator.text == "..." {
                 let bound = try evaluate(prefix.expression, in: env)
                 return .native(PartialRangeValue(upper: bound, closed: prefix.operator.text == "..."))
@@ -105,8 +102,8 @@ extension Interpreter {
                 }
                 throw builtinError
             }
-        }
-        if let postfix = expr.as(PostfixOperatorExprSyntax.self) {
+        case .postfixOperatorExpr:
+            let postfix = expr.cast(PostfixOperatorExprSyntax.self)
             if postfix.operator.text == "..." {
                 let bound = try evaluate(postfix.expression, in: env)
                 return .native(PartialRangeValue(lower: bound))
@@ -121,34 +118,32 @@ extension Interpreter {
                     node: nil)
             }
             throw error(postfix, "unsupported postfix operator '\(postfix.operator.text)'")
-        }
-        if let ternary = expr.as(TernaryExprSyntax.self) {
+        case .ternaryExpr:
+            let ternary = expr.cast(TernaryExprSyntax.self)
             let condition = try expectBool(evaluate(ternary.condition, in: env), node: ternary.condition)
             return try evaluate(condition ? ternary.thenExpression : ternary.elseExpression, in: env)
-        }
-        if let tuple = expr.as(TupleExprSyntax.self) {
+        case .tupleExpr:
+            let tuple = expr.cast(TupleExprSyntax.self)
             if tuple.elements.count == 1, let only = tuple.elements.first, only.label == nil {
                 return try evaluate(only.expression, in: env)
             }
             let labels = tuple.elements.map { $0.label?.text }
             let values = try tuple.elements.map { try evaluate($0.expression, in: env) }
             return .native(TupleValue(labels: labels, values: values))
-        }
-        if let subscriptCall = expr.as(SubscriptCallExprSyntax.self) {
-            return try evaluateSubscript(subscriptCall, in: env)
-        }
-        if let forceUnwrap = expr.as(ForceUnwrapExprSyntax.self) {
+        case .subscriptCallExpr:
+            return try evaluateSubscript(expr.cast(SubscriptCallExprSyntax.self), in: env)
+        case .forceUnwrapExpr:
+            let forceUnwrap = expr.cast(ForceUnwrapExprSyntax.self)
             let value = try evaluate(forceUnwrap.expression, in: env)
             guard !value.isNil else {
                 throw error(forceUnwrap, "unexpectedly found nil while force-unwrapping")
             }
             return value
-        }
-        if let chaining = expr.as(OptionalChainingExprSyntax.self) {
+        case .optionalChainingExpr:
             // Member/call/subscript on nil propagates nil (see accessMember/invoke).
-            return try evaluate(chaining.expression, in: env)
-        }
-        if let tryExpr = expr.as(TryExprSyntax.self) {
+            return try evaluate(expr.cast(OptionalChainingExprSyntax.self).expression, in: env)
+        case .tryExpr:
+            let tryExpr = expr.cast(TryExprSyntax.self)
             if tryExpr.questionOrExclamationMark?.text == "?" {
                 do {
                     return try evaluate(tryExpr.expression, in: env)
@@ -159,26 +154,24 @@ extension Interpreter {
                 }
             }
             return try evaluate(tryExpr.expression, in: env) // try / try!
-        }
-        if let awaitExpr = expr.as(AwaitExprSyntax.self) {
+        case .awaitExpr:
             // Synchronous stand-in: async work evaluates inline (documented).
-            return try evaluate(awaitExpr.expression, in: env)
-        }
-        if let keyPath = expr.as(KeyPathExprSyntax.self) {
+            return try evaluate(expr.cast(AwaitExprSyntax.self).expression, in: env)
+        case .keyPathExpr:
+            let keyPath = expr.cast(KeyPathExprSyntax.self)
             let components = keyPath.components.map {
                 $0.trimmedDescription.hasPrefix(".")
                     ? String($0.trimmedDescription.dropFirst())
                     : $0.trimmedDescription
             }
             return .native(KeyPathStub(components: components))
-        }
-        if expr.is(SuperExprSyntax.self) {
+        case .superExpr:
             guard case .instance(let instance)? = env.lookup("self") else {
                 throw error(expr, "'super' can only be used inside a class body")
             }
             return .native(SuperReference(instance: instance))
-        }
-        if let inout_ = expr.as(InOutExprSyntax.self) {
+        case .inOutExpr:
+            let inout_ = expr.cast(InOutExprSyntax.self)
             // `&value` — capture the lvalue so user `inout` parameters can
             // write back; non-closure consumers unwrap to the current value.
             if let target = try? resolveLValue(inout_.expression, in: env) {
@@ -188,10 +181,10 @@ extension Interpreter {
                 return .native(InoutSlot(box: nil, target: target, current: try target.read(self)))
             }
             return try evaluate(inout_.expression, in: env)
-        }
-        if let macro = expr.as(MacroExpansionExprSyntax.self) {
+        case .macroExpansionExpr:
             // Registered macros (#expect/#require) execute; the rest stay
             // inert markers (`#selector(...)`, `#Predicate {...}`).
+            let macro = expr.cast(MacroExpansionExprSyntax.self)
             if let result = try invokeRegisteredMacro(
                 named: macro.macroName.text, arguments: macro.arguments,
                 trailingClosure: macro.trailingClosure,
@@ -200,8 +193,8 @@ extension Interpreter {
                 return result
             }
             return .native(HostTypeMarker(name: "#\(macro.macroName.text)"))
-        }
-        if let asExpr = expr.as(AsExprSyntax.self) {
+        case .asExpr:
+            let asExpr = expr.cast(AsExprSyntax.self)
             // Dynamic casts: give the target type a chance to resolve markers,
             // bridge numerics, and otherwise pass the value through
             // (optimistic `as?` — documented divergence).
@@ -220,18 +213,18 @@ extension Interpreter {
                 break
             }
             return try resolveAnnotated(value, typeName: typeName)
-        }
-        if let ifExpr = expr.as(IfExprSyntax.self) {
+        case .ifExpr:
+            let ifExpr = expr.cast(IfExprSyntax.self)
             if case .normal(let value) = try executeIf(ifExpr, in: env) { return value }
             throw error(ifExpr, "control flow can't escape an if-expression")
-        }
-        if let switchExpr = expr.as(SwitchExprSyntax.self) {
+        case .switchExpr:
+            let switchExpr = expr.cast(SwitchExprSyntax.self)
             if case .normal(let value) = try executeSwitch(switchExpr, in: env) { return value }
             throw error(switchExpr, "control flow can't escape a switch-expression")
-        }
-        if let postfixIf = expr.as(PostfixIfConfigExprSyntax.self) {
+        case .postfixIfConfigExpr:
             // `view \n #if os(iOS) \n .modifier() \n #endif` — apply the
             // active clause's postfix chain to the base (inactive: base).
+            let postfixIf = expr.cast(PostfixIfConfigExprSyntax.self)
             let baseValue = try postfixIf.base.map { try evaluate($0, in: env) } ?? .void
             guard let clause = activeIfConfigClause(postfixIf.config),
                   case .postfixExpression(let postfix)? = clause.elements else {
@@ -240,16 +233,15 @@ extension Interpreter {
             let child = Environment(parent: env)
             child.define("__postfixBase", baseValue)
             return try evaluate(graftPostfixBase(postfix, name: "__postfixBase"), in: child)
-        }
-        if let generic = expr.as(GenericSpecializationExprSyntax.self) {
+        case .genericSpecializationExpr:
             // Type arguments are annotations we don't check —
             // `Binding<Int?>(get:set:)` evaluates as `Binding(get:set:)`.
-            return try evaluate(generic.expression, in: env)
-        }
-        if expr.is(SequenceExprSyntax.self) {
+            return try evaluate(expr.cast(GenericSpecializationExprSyntax.self).expression, in: env)
+        case .sequenceExpr:
             throw error(expr, "internal error: unfolded operator sequence")
+        default:
+            throw error(expr, "unsupported expression (\(expr.kind))")
         }
-        throw error(expr, "unsupported expression (\(expr.kind))")
     }
 
     /// Grafts a name reference onto the missing root base of a postfix
@@ -273,7 +265,7 @@ extension Interpreter {
 
     /// Lazy globals evaluate their initializer on first read (memoized).
     func force(_ box: Box) throws -> RuntimeValue {
-        if case .native(let any) = box.value, let computed = any as? ComputedGlobal {
+        if case .host(let any) = box.value, let computed = any as? ComputedGlobal {
             // Global computed var: evaluate fresh on every read.
             let result = try executeBlock(computed.accessor, in: Environment(parent: globals))
             switch result {
@@ -283,7 +275,7 @@ extension Interpreter {
                 return .void
             }
         }
-        guard case .native(let any) = box.value, let lazy = any as? LazyGlobal else {
+        guard case .host(let any) = box.value, let lazy = any as? LazyGlobal else {
             return box.value
         }
         var value: RuntimeValue = lazy.annotation?.trimmedDescription.hasSuffix("?") == true
@@ -311,7 +303,7 @@ extension Interpreter {
                 if case .instance(let model) = local {
                     return .native(ModelProjection(model: model))
                 }
-                if case .native(let any) = local, any is BindingStub {
+                if case .host(let any) = local, any is BindingStub {
                     return local
                 }
             }
@@ -333,7 +325,7 @@ extension Interpreter {
                 guard case .instance(let model)? = boxValue else {
                     // External-package models synthesize as unknowables —
                     // their projection is equally unknowable (absorbs).
-                    if case .native(let any)? = boxValue,
+                    if case .host(let any)? = boxValue,
                        any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
                         return boxValue ?? .nilValue
                     }
@@ -433,9 +425,11 @@ extension Interpreter {
             return try staticMember(name, of: symbol)
         case .enumType(let symbol):
             return try staticMember(name, of: symbol)
-        case .native(let any):
+        case .int, .double, .bool, .host:
             // Bare `count`/`firstIndex(...)` inside a host-type extension body
-            // is implicit self on the native value.
+            // is implicit self on the native value. Inline scalars box on
+            // demand — member dispatch wants the uniform Any path.
+            let any = selfValue.hostPayload!
             if let value = try nativeMember(name, on: any) { return value }
             if let value = registry?.hostMember(name, on: any) { return value }
             return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
@@ -453,7 +447,7 @@ extension Interpreter {
             return .native(ObjectWillChangePublisher(fire: { signal.fire() }))
         }
         if let box = instance.box(for: name),
-           case .native(let any) = box.value, let seed = any as? LazyMemberSeed {
+           case .host(let any) = box.value, let seed = any as? LazyMemberSeed {
             // Force the lazy member now, with self bound.
             let value = try resolveAnnotated(
                 try evaluate(seed.initializer, in: selfEnvironment(.instance(instance))),
@@ -856,7 +850,10 @@ extension Interpreter {
             }
             return .implicitMember(name)
 
-        case .native(let any):
+        case .int, .double, .bool, .host:
+            // Inline scalars box on demand: `5.description`, `x.rounded()`,
+            // and user Int/Double extensions all dispatch on the Any payload.
+            let any = baseValue.hostPayload!
             if any is PublishedProjection {
                 // Every pipeline stage chains another silent projection.
                 return .hostFunction(HostFunction(name: name) { _, _ in
@@ -932,7 +929,7 @@ extension Interpreter {
                     // A binding over an UNKNOWABLE value projects a detached
                     // binding to the member chain (reads absorb, writes land
                     // in the detached box).
-                    if case .native(let inner) = stub.box.value,
+                    if case .host(let inner) = stub.box.value,
                        inner is InertCallable || inner is ChainedImplicitCall || inner is ImplicitMemberCall {
                         return .native(BindingStub(box: Box(.native(ChainedImplicitCall(
                             base: stub.box.value, member: name, arguments: CallArguments())))))
@@ -1317,7 +1314,7 @@ extension Interpreter {
         // guard keeps other `path(…)` calls off this route.
         if name == "path",
            call.arguments.contains(where: { $0.label?.text == "percentEncoded" }),
-           case .native(let any) = try evaluate(base, in: env),
+           case .host(let any) = try evaluate(base, in: env),
            let url = any as? URL {
             let args = try collectArguments(of: call, in: env)
             let encoded = args.labeled("percentEncoded")?.boolValue ?? true
@@ -1328,11 +1325,11 @@ extension Interpreter {
         // `text.replaceSubrange(range, with: "…")`.
         if name == "replaceSubrange",
            let target = try? resolveLValue(base, in: env),
-           case .native(let existingAny) = try target.read(self),
+           case .host(let existingAny) = try target.read(self),
            var text = existingAny as? String {
             let args = try collectArguments(of: call, in: env)
             guard let replacement = args.labeled("with")?.stringValue,
-                  case .native(let rangeAny)? = args.positional(0) else {
+                  case .host(let rangeAny)? = args.positional(0) else {
                 throw error(call, "replaceSubrange needs a range and 'with:'")
             }
             if let range = rangeAny as? Range<String.Index> {
@@ -1354,7 +1351,7 @@ extension Interpreter {
         // `url.append(path:)` / `url.appendPathComponent(_:)`.
         if name == "append" || name == "appendPathComponent",
            let target = try? resolveLValue(base, in: env),
-           case .native(let existingAny) = try target.read(self),
+           case .host(let existingAny) = try target.read(self),
            let url = existingAny as? URL {
             let args = try collectArguments(of: call, in: env)
             guard let component = (args.labeled("path") ?? args.labeled("component")
@@ -1371,13 +1368,13 @@ extension Interpreter {
         // `data.append(other)` / `data.append(byte)`.
         if name == "append",
            let target = try? resolveLValue(base, in: env),
-           case .native(let existingAny) = try target.read(self),
+           case .host(let existingAny) = try target.read(self),
            var bytes = existingAny as? Data {
             let args = try collectArguments(of: call, in: env)
             guard let value = args.positional(0) else {
                 throw error(call, "append needs a value")
             }
-            if case .native(let addAny) = value, let more = addAny as? Data {
+            if case .host(let addAny) = value, let more = addAny as? Data {
                 bytes.append(more)
             } else if let byte = value.intValue {
                 bytes.append(UInt8(truncatingIfNeeded: byte))
@@ -1449,7 +1446,7 @@ extension Interpreter {
            let current = try target.read(self).stringValue {
             let args = try collectArguments(of: call, in: env)
             guard let element = args.positional(0), !element.isNil,
-                  case .native(let idxAny)? = args.labeled("at"),
+                  case .host(let idxAny)? = args.labeled("at"),
                   let index = idxAny as? Swift.String.Index else {
                 throw error(call, "String.insert needs a value and an at: String.Index")
             }
@@ -1643,20 +1640,20 @@ extension Interpreter {
             throw error(node, "'\(symbol.name)' has no matching initializer")
         case .implicitMember(let name):
             return .native(ImplicitMemberCall(name: name, arguments: args))
-        case .native(let any) where any is ChainedImplicitCall:
+        case .host(let any) where any is ChainedImplicitCall:
             let chained = any as! ChainedImplicitCall
             return .native(ChainedImplicitCall(base: chained.base, member: chained.member, arguments: args))
-        case .native(let any) where any is HostTypeMarker:
+        case .host(let any) where any is HostTypeMarker:
             let marker = any as! HostTypeMarker
             throw error(node, "'\(marker.name)' has no interpreter constructor — only its static members (like \(marker.name).something) are supported")
-        case .native(let any) where any is KeyPathStub:
+        case .host(let any) where any is KeyPathStub:
             // SE-0249 keypath-as-function: `(\.feature1)(subject)` reads the
             // property off the argument (TCA's case-keypath action mapping).
             if let subject = args.positional(0) {
                 return try applyKeyPath(any as! KeyPathStub, to: subject)
             }
             return callee
-        case .native(let any) where any is InertCallable:
+        case .host(let any) where any is InertCallable:
             return callee // inert-chainable host stub call
         default:
             if args.arguments.isEmpty {
@@ -1873,7 +1870,7 @@ extension Interpreter {
                 // wrapped value: `item` shares the binding's box, so reads
                 // are live and writes propagate.
                 if parameter.name.hasPrefix("$"), parameter.name.count > 1,
-                   case .native(let any) = resolved, let stub = any as? BindingStub {
+                   case .host(let any) = resolved, let stub = any as? BindingStub {
                     env.define(String(parameter.name.dropFirst()), sharing: stub.box)
                 }
             } else if let defaultValue = parameter.defaultValue {
@@ -1931,6 +1928,11 @@ extension Interpreter {
         default:
             var lhs = try evaluate(infix.leftOperand, in: env)
             var rhs = try evaluate(infix.rightOperand, in: env)
+            // Pure numeric pairs skip the marker/registry machinery below —
+            // all of it is a no-op for concrete Int/Double operands.
+            if let fast = try relocating(infix, { try Builtins.fastNumericBinary(op, lhs, rhs) }) {
+                return fast
+            }
             // `dragOffset == .zero` / `40 + .statusColumnsSpacing` — an
             // unresolved implicit member adopts the other operand's host
             // type before combining (static constants in user extensions
@@ -1994,12 +1996,12 @@ extension Interpreter {
         switch value {
         case .implicitMember:
             unresolved = true
-        case .native(let any):
+        case .host(let any):
             unresolved = allowCalls && (any is ImplicitMemberCall || any is ChainedImplicitCall)
         default:
             unresolved = false
         }
-        guard unresolved, case .native(let otherAny) = other else { return value }
+        guard unresolved, case .host(let otherAny) = other else { return value }
         // Our CGFloat/TimeInterval model IS Double — statics declared on
         // either name apply to Double operands.
         var candidates = [String(describing: type(of: otherAny))]
@@ -2010,7 +2012,7 @@ extension Interpreter {
             switch resolved {
             case .implicitMember: stillUnresolved = true
             case .nilValue: stillUnresolved = true // a nil never beats the marker
-            case .native(let any):
+            case .host(let any):
                 stillUnresolved = any is ImplicitMemberCall || any is ChainedImplicitCall
             default: stillUnresolved = false
             }
@@ -2093,14 +2095,14 @@ extension Interpreter {
             case .staticProperty(let symbol, let name):
                 return try interpreter.staticMember(name, of: symbol) ?? .nilValue
             case .dataElement(let base, let index):
-                guard case .native(let any) = try base.read(interpreter), let bytes = any as? Data,
+                guard case .host(let any) = try base.read(interpreter), let bytes = any as? Data,
                       index >= 0, index < bytes.count else {
                     throw EvalMessage(text: "Data index \(index) out of range")
                 }
                 return .native(Int(bytes[bytes.index(bytes.startIndex, offsetBy: index)]))
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
-                guard case .native(let any) = baseValue,
+                guard case .host(let any) = baseValue,
                       let member = interpreter.registry?.hostMember(name, on: any) else {
                     throw EvalMessage(text: "no readable member '\(name)'")
                 }
@@ -2115,7 +2117,7 @@ extension Interpreter {
             case .instanceProperty(let instance, let name):
                 // Assigning a $binding into an @Binding property shares the
                 // parent's box instead of copying the stub (custom inits).
-                if case .native(let any) = value, let stub = any as? BindingStub,
+                if case .host(let any) = value, let stub = any as? BindingStub,
                    instance.symbol.storedProperty(named: name)?.wrapper == .binding {
                     instance.properties[name] = stub.box
                     return
@@ -2172,7 +2174,7 @@ extension Interpreter {
             case .staticProperty(let symbol, let name):
                 symbol.staticCache[name] = value
             case .dataElement(let base, let index):
-                guard case .native(let any) = try base.read(interpreter), var bytes = any as? Data,
+                guard case .host(let any) = try base.read(interpreter), var bytes = any as? Data,
                       index >= 0, index < bytes.count, let byte = value.intValue else {
                     throw EvalMessage(text: "Data byte write out of range")
                 }
@@ -2180,7 +2182,7 @@ extension Interpreter {
                 try base.write(.native(bytes), interpreter)
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
-                guard case .native(let any) = baseValue,
+                guard case .host(let any) = baseValue,
                       let mutated = interpreter.registry?.hostMutatedCopy(
                         settingMember: name, on: any, to: value) else {
                     throw EvalMessage(text: "cannot assign to '\(name)' on \(baseValue.stringified)")
@@ -2282,7 +2284,7 @@ extension Interpreter {
             if case .instance(let instance) = baseValue {
                 return .instanceProperty(instance, instance.symbol.canonicalPropertyName(member.declName.baseName.text))
             }
-            if case .native(let any) = baseValue {
+            if case .host(let any) = baseValue {
                 // `binding.wrappedValue = …` writes straight through the box.
                 if let stub = any as? BindingStub, member.declName.baseName.text == "wrappedValue" {
                     return .box(stub.box)
@@ -2343,7 +2345,7 @@ extension Interpreter {
             // last component's owner and assign the property.
             if subscriptCall.arguments.first?.label?.text == "keyPath" {
                 let keyValue = try evaluate(indexExpr, in: env)
-                if case .native(let any) = keyValue, let stub = any as? KeyPathStub,
+                if case .host(let any) = keyValue, let stub = any as? KeyPathStub,
                    let last = stub.components.last, last != "self" {
                     var owner = try evaluate(subscriptCall.calledExpression, in: env)
                     for component in stub.components.dropLast() where component != "self" {
@@ -2370,7 +2372,7 @@ extension Interpreter {
             guard let index = try evaluate(indexExpr, in: env).intValue else {
                 throw error(subscriptCall, "subscript assignment requires an Int index")
             }
-            if case .native(let any)? = baseValue, any is Data {
+            if case .host(let any)? = baseValue, any is Data {
                 return .dataElement(base, index) // byte write-through
             }
             return .element(base, index)
@@ -2412,7 +2414,7 @@ extension Interpreter {
                     // Unknowables read "" in string interpolation — the
                     // fresh-string doctrine; internal marker dumps must
                     // never reach rendered Text.
-                    if case .native(let any) = value,
+                    if case .host(let any) = value,
                        any is InertCallable || any is ChainedImplicitCall
                         || any is ImplicitMemberCall {
                         continue
@@ -2463,7 +2465,7 @@ extension Interpreter {
 
     private func storeKeyBag(base: RuntimeValue, index: RuntimeValue) throws -> Any? {
         let storeTypeName: String? = {
-            if case .native(let baseAny) = base, let marker = baseAny as? HostTypeMarker {
+            if case .host(let baseAny) = base, let marker = baseAny as? HostTypeMarker {
                 return marker.name
             }
             if case .hostFunction(let fn) = base { return fn.name } // ctor catch-all
@@ -2473,7 +2475,7 @@ extension Interpreter {
               case .implicitMember(let keyName) = index,
               let keysSymbol = hostExtensionSymbols["\(storeTypeName).Keys"],
               let keyValue = try staticMember(keyName, of: keysSymbol),
-              case .native(let keyAny) = keyValue else { return nil }
+              case .host(let keyAny) = keyValue else { return nil }
         return keyAny
     }
 
@@ -2486,7 +2488,7 @@ extension Interpreter {
         let index = try evaluate(indexExpr, in: env)
         if call.arguments.first?.label?.text == "keyPath" {
             // `element[keyPath: kp]` — apply the stub's components.
-            if case .native(let any) = index, let stub = any as? KeyPathStub {
+            if case .host(let any) = index, let stub = any as? KeyPathStub {
                 return try applyKeyPath(stub, to: base)
             }
             return .nilValue // unknowable keypath: fresh read
@@ -2505,7 +2507,7 @@ extension Interpreter {
             guard materialized.indices.contains(i) else { throw error(call, "range index out of range") }
             return .native(materialized[i])
         }
-        if case .native(let any) = base, let stub = any as? BindingStub, let i = index.intValue {
+        if case .host(let any) = base, let stub = any as? BindingStub, let i = index.intValue {
             // `$items[index]` — a write-through element binding.
             guard let element = stub.elementBinding(at: i) else {
                 throw error(call, "binding index out of range")
@@ -2521,8 +2523,8 @@ extension Interpreter {
                 try callUserSubscriptGetter(on: instance, with: indexArgs)
             }
         }
-        if case .native(let stringAny) = base, let string = stringAny as? String,
-           case .native(let indexAny) = index {
+        if case .host(let stringAny) = base, let string = stringAny as? String,
+           case .host(let indexAny) = index {
             // `text[range]` / `text[i]` with String.Index values.
             if let indexRange = indexAny as? Range<String.Index>,
                indexRange.lowerBound >= string.startIndex, indexRange.upperBound <= string.endIndex {
@@ -2542,17 +2544,17 @@ extension Interpreter {
                ?? registry?.hostMember("defaultValue", on: keyBag) {
             return declared
         }
-        if case .native(let any) = base,
+        if case .host(let any) = base,
            case .hostFunction(let subscripting)? = registry?.hostMember("subscript", on: any) {
             // Host subscripts (AttributedString[range] styling proxies).
             let args = CallArguments(arguments: [.init(label: nil, value: index)])
             return try relocating(call) { try subscripting.invoke(args, self) }
         }
-        if case .native(let partAny) = index, let part = partAny as? PartialRangeValue {
+        if case .host(let partAny) = index, let part = partAny as? PartialRangeValue {
             // Partial-range slices: str[..<pos], bytes[pos...], array[..<n].
-            if case .native(let strAny) = base, let string = strAny as? String {
-                let lower = (part.lower.flatMap { if case .native(let a) = $0 { return a as? String.Index } else { return nil } }) ?? string.startIndex
-                var upper = (part.upper.flatMap { if case .native(let a) = $0 { return a as? String.Index } else { return nil } }) ?? string.endIndex
+            if case .host(let strAny) = base, let string = strAny as? String {
+                let lower = (part.lower.flatMap { if case .host(let a) = $0 { return a as? String.Index } else { return nil } }) ?? string.startIndex
+                var upper = (part.upper.flatMap { if case .host(let a) = $0 { return a as? String.Index } else { return nil } }) ?? string.endIndex
                 if let lowInt = part.lower?.intValue { return .native(String(string.dropFirst(lowInt))) }
                 if let upInt = part.upper?.intValue {
                     let count = part.closed ? upInt + 1 : upInt
@@ -2564,7 +2566,7 @@ extension Interpreter {
                 }
                 return .native(String(string[lower..<upper]))
             }
-            if case .native(let dataAny) = base, let bytes = dataAny as? Data {
+            if case .host(let dataAny) = base, let bytes = dataAny as? Data {
                 let lower = part.lower?.intValue ?? 0
                 var upper = part.upper?.intValue ?? bytes.count
                 if part.closed, part.upper != nil { upper += 1 }
@@ -2585,7 +2587,7 @@ extension Interpreter {
                 return .native(Array(array[lower..<upper]))
             }
         }
-        if case .native(let dataAny) = base, let bytes = dataAny as? Data {
+        if case .host(let dataAny) = base, let bytes = dataAny as? Data {
             // Byte access and slices (bech32 decoders index raw buffers).
             if let i = index.intValue {
                 guard i >= 0, i < bytes.count else {
@@ -2605,7 +2607,7 @@ extension Interpreter {
         // Subscripting an unknowable host collection (Bundle.main
         // .infoDictionary?[…]) reads nil — the empty fresh store; the
         // caller's ?? fallback applies, as on a device without that key.
-        if case .native(let any) = base,
+        if case .host(let any) = base,
            any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             return .nilValue
         }
@@ -2619,7 +2621,7 @@ extension Interpreter {
             // Hosted-object truths (`context.canEvaluatePolicy(…)`,
             // `engine.isRunning`) read FALSE — fresh system state: no
             // biometrics, nothing running headlessly.
-            if case .native(let any) = value,
+            if case .host(let any) = value,
                any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
                 return false
             }

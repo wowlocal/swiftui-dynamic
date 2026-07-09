@@ -110,11 +110,11 @@ public enum NetworkBridge {
 
     static func url(from value: RuntimeValue?) -> URL? {
         guard let value else { return nil }
-        if case .native(let any) = value {
+        if case .host(let any) = value {
             if let url = any as? URL { return url }
             if let stub = any as? UIKitStub {
                 // URLRequest(url:) built as an absorbing bag — the url rode in.
-                if case .native(let inner)? = stub.config["url"], let url = inner as? URL {
+                if case .host(let inner)? = stub.config["url"], let url = inner as? URL {
                     return url
                 }
                 if let text = stub.config["url"]?.stringValue { return URL(string: text) }
@@ -237,7 +237,7 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 guard let interpreter = ctx as? Interpreter else {
                     throw RuntimeError(message: "decode needs the interpreter context")
                 }
-                guard case .native(let dataAny)? = args.labeled("from"),
+                guard case .host(let dataAny)? = args.labeled("from"),
                       let data = dataAny as? Data else {
                     throw RuntimeError(message: "decode(_:from:) needs Data")
                 }

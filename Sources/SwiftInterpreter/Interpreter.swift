@@ -284,7 +284,7 @@ public final class Interpreter {
                 let alreadyForced = varDecl.bindings.contains { binding in
                     guard let ident = binding.pattern.as(IdentifierPatternSyntax.self),
                           let box = globals.box(for: ident.identifier.text) else { return false }
-                    if case .native(let any) = box.value, any is LazyGlobal { return false }
+                    if case .host(let any) = box.value, any is LazyGlobal { return false }
                     return true
                 }
                 if alreadyForced { continue }
@@ -440,10 +440,10 @@ public final class Interpreter {
                 }
                 assigned.insert(label)
                 if property.wrapper == .binding,
-                   case .native(let any) = argument.value, let stub = any as? BindingStub {
+                   case .host(let any) = argument.value, let stub = any as? BindingStub {
                     instance.properties[label] = stub.box
                 } else if property.wrapper == .binding,
-                          case .native(let any) = argument.value,
+                          case .host(let any) = argument.value,
                           let call = any as? ImplicitMemberCall, call.name == "constant" {
                     // `.constant("")` — a binding to a fixed value.
                     instance.properties[label] = Box(try resolveAnnotated(
@@ -981,7 +981,7 @@ public final class Interpreter {
             }
             // `self = .init(rawValue: n)!` inside enum inits — the marker
             // resolves through the raw-value initializer in type context.
-            if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                call.name == "init", call.arguments.arguments.count == 1,
                let raw = call.arguments.labeled("rawValue") {
                 return symbol.cases
@@ -989,7 +989,7 @@ public final class Interpreter {
                     .map { RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name)) }
                     ?? .nilValue
             }
-            if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                let info = symbol.caseInfo(named: call.name), info.hasAssociatedValues {
                 return .enumCase(EnumCaseValue(
                     symbol: symbol,
@@ -1002,7 +1002,7 @@ public final class Interpreter {
 
         // User structs/classes: `= .init(...)`, static factories, static values.
         if case .type(let symbol)? = globals.lookup(typeName) {
-            if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall {
                 if call.name == "init" {
                     return try instantiate(symbol, with: call.arguments)
                 }
@@ -1023,7 +1023,7 @@ public final class Interpreter {
 
         // Host-type annotations: `: Date = .init()`, `: CGSize = .init(…)`,
         // `.now`-style statics served by the bridge.
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall {
             if call.name == "init" {
                 if let ctor = registry?.hostObjectConstructor(named: typeName) {
                     return try ctor.invoke(call.arguments, self)
@@ -1045,11 +1045,11 @@ public final class Interpreter {
         }
         // `.now.startOfMonth` — chained markers resolve their base against
         // the type, then the member (host natives and user extensions both).
-        if case .native(let any) = value, let chained = any as? ChainedImplicitCall {
+        if case .host(let any) = value, let chained = any as? ChainedImplicitCall {
             let resolvedBase = try resolveAnnotated(chained.base, typeName: typeName)
             let stillMarker: Bool = {
                 if case .implicitMember = resolvedBase { return true }
-                if case .native(let inner) = resolvedBase,
+                if case .host(let inner) = resolvedBase,
                    inner is ImplicitMemberCall || inner is ChainedImplicitCall { return true }
                 return false
             }()
@@ -1075,7 +1075,7 @@ public final class Interpreter {
                let staticValue = try staticMember(memberName, of: hostSymbol) {
                 return staticValue
             }
-            if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                let overloads = hostSymbol.staticMethods[call.name],
                let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,
                let body = method.body {
@@ -1166,7 +1166,7 @@ public final class Interpreter {
             if let bytes = args.labeled("bytes") {
                 // String(bytes: data, encoding: .ascii) — real decode; NUL
                 // padding trims (C buffers).
-                if case .native(let any) = bytes, let data = any as? Data {
+                if case .host(let any) = bytes, let data = any as? Data {
                     let text = String(decoding: data, as: UTF8.self)
                     return .native(String(text.prefix(while: { $0 != "\0" })))
                 }
@@ -1261,7 +1261,7 @@ public final class Interpreter {
         // unknowable (marker-fed) conditions assume a healthy device.
         for trap in ["assert", "precondition"] {
             define(trap) { args, _ in
-                if case .native(let flag)? = args.positional(0), let concrete = flag as? Bool,
+                if let concrete = args.positional(0)?.boolValue,
                    !concrete {
                     let message = args.positional(1)?.stringValue ?? trap
                     throw RuntimeError(message: "\(trap) failed: \(message)", fatal: true)
@@ -1286,7 +1286,7 @@ public final class Interpreter {
             // NSRange (marker text-parse results) honestly fails: nil, the
             // parse that found nothing.
             if let text = (args.labeled("in"))?.stringValue {
-                if case .native(let any)? = args.positional(0), let ns = any as? NSRange {
+                if case .host(let any)? = args.positional(0), let ns = any as? NSRange {
                     return Range(ns, in: text).map { RuntimeValue.native($0) } ?? .nilValue
                 }
                 return .nilValue

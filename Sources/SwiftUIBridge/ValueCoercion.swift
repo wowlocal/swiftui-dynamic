@@ -8,9 +8,9 @@ enum Coerce {
     // MARK: - Bindings
 
     static func bindingBox(_ value: RuntimeValue) throws -> Box {
-        if case .native(let any) = value, let stub = any as? BindingStub { return stub.box }
+        if case .host(let any) = value, let stub = any as? BindingStub { return stub.box }
         // `.constant(x)` — a binding to a fixed value (writes go nowhere).
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall,
            call.name == "constant" {
             return Box(call.arguments.positional(0) ?? .void)
         }
@@ -67,7 +67,7 @@ enum Coerce {
     // MARK: - Colors & shape styles
 
     static func color(_ value: RuntimeValue) throws -> Color {
-        if case .native(let any) = value, let color = any as? Color { return color }
+        if case .host(let any) = value, let color = any as? Color { return color }
         guard case .implicitMember(let name) = value else {
             throw RuntimeError(message: "expected a color like .blue, got \(value.stringified)")
         }
@@ -106,11 +106,11 @@ enum Coerce {
     /// `.black.opacity(x)` chains. Colors are Views, so this also powers
     /// bare colors in view position.
     static func colorLike(_ value: RuntimeValue) -> Color? {
-        if case .native(let any) = value, let color = any as? Color { return color }
+        if case .host(let any) = value, let color = any as? Color { return color }
         if case .implicitMember(let name) = value {
             return colorNamed(name)
         }
-        if case .native(let any) = value, let chained = any as? ChainedImplicitCall,
+        if case .host(let any) = value, let chained = any as? ChainedImplicitCall,
            let base = colorLike(chained.base), chained.member == "opacity",
            let amount = chained.arguments.positional(0)?.doubleValue {
             return base.opacity(amount)
@@ -121,7 +121,7 @@ enum Coerce {
     /// The wide funnel for style positions: colors, hierarchical styles,
     /// materials, gradients, and `.color.opacity(x)` / `.color.gradient` chains.
     static func shapeStyle(_ value: RuntimeValue) throws -> AnyShapeStyle {
-        if case .native(let any) = value {
+        if case .host(let any) = value {
             if let style = any as? AnyShapeStyle { return style }
             if let color = any as? Color { return AnyShapeStyle(color) }
             if let gradient = any as? LinearGradient { return AnyShapeStyle(gradient) }
@@ -179,10 +179,10 @@ enum Coerce {
             default: throw RuntimeError(message: "unknown font '.\(name)'")
             }
         }
-        if case .native(let any) = value, let font = any as? Font {
+        if case .host(let any) = value, let font = any as? Font {
             return font
         }
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall, call.name == "system" {
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall, call.name == "system" {
             let size = try cgFloat(call.arguments.labeled("size") ?? .native(13))
             let design: Font.Design = switch call.arguments.labeled("design") {
             case .implicitMember("serif"): .serif
@@ -197,7 +197,7 @@ enum Coerce {
         }
         // Font-returning chains — `.largeTitle.bold()`, `Font.system(size:
         // 48).weight(.black)` — apply members to the recursively-coerced base.
-        if case .native(let any) = value, let chained = any as? ChainedImplicitCall {
+        if case .host(let any) = value, let chained = any as? ChainedImplicitCall {
             let base = try font(chained.base)
             switch chained.member {
             case "bold": return base.bold()
@@ -359,7 +359,7 @@ enum Coerce {
     // MARK: - Angles & animation
 
     static func angle(_ value: RuntimeValue) throws -> Angle {
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall {
             let amount = try double(call.arguments.positional(0) ?? .native(0.0))
             switch call.name {
             case "degrees": return .degrees(amount)
@@ -386,7 +386,7 @@ enum Coerce {
             default: throw RuntimeError(message: "unknown animation '.\(name)'")
             }
         }
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall {
             let duration = call.arguments.labeled("duration")?.doubleValue
             switch call.name {
             case "easeIn": return .easeIn(duration: duration ?? 0.35)
@@ -418,7 +418,7 @@ enum Coerce {
         }
         // Combinator chains fold recursively:
         // `.easeInOut(duration: 0.3).delay(0.2).repeatForever(autoreverses: false)`
-        if case .native(let any) = value, let chained = any as? ChainedImplicitCall {
+        if case .host(let any) = value, let chained = any as? ChainedImplicitCall {
             let base = try animation(chained.base)
             let first = chained.arguments.positional(0)
             switch chained.member {
@@ -442,7 +442,7 @@ enum Coerce {
     // MARK: - Shapes & grids
 
     static func shape(_ value: RuntimeValue) throws -> AnyShape {
-        if case .native(let any) = value, let box = any as? ShapeBox { return box.shape }
+        if case .host(let any) = value, let box = any as? ShapeBox { return box.shape }
         if case .implicitMember(let name) = value {
             switch name {
             case "circle": return AnyShape(Circle())
@@ -451,11 +451,11 @@ enum Coerce {
             default: break
             }
         }
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall, call.name == "rect" {
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall, call.name == "rect" {
             let radius = try cgFloat(call.arguments.labeled("cornerRadius") ?? .native(0))
             return AnyShape(RoundedRectangle(cornerRadius: radius))
         }
-        if case .native(let any) = value,
+        if case .host(let any) = value,
            any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             // Unknowable shapes (external-SDK shape builders) degrade to the
             // bounding rectangle — clipping to bounds is the honest no-op.
@@ -470,13 +470,13 @@ enum Coerce {
             throw RuntimeError(message: "expected an array of GridItem")
         }
         return try array.map { element in
-            if case .native(let any) = element, let item = any as? GridItem { return item }
+            if case .host(let any) = element, let item = any as? GridItem { return item }
             throw RuntimeError(message: "expected GridItem, got \(element.stringified)")
         }
     }
 
     static func gridItemSize(_ value: RuntimeValue) throws -> GridItem.Size {
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall {
             switch call.name {
             case "flexible":
                 return .flexible(

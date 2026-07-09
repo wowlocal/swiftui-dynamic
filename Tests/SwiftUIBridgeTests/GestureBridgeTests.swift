@@ -14,7 +14,7 @@ import SwiftInterpreter
             .onEnded { _ in }
             .onChanged { v in }
         """)
-        guard case .native(let any) = value, let gesture = any as? GestureBox else {
+        guard case .host(let any) = value, let gesture = any as? GestureBox else {
             Issue.record("expected a GestureBox, got \(value.stringified)")
             return
         }

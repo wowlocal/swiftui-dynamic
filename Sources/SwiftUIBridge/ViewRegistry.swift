@@ -31,7 +31,7 @@ public final class ViewRegistry: HostRegistry {
             // The host hardware is REAL: fill the interpreted struct with
             // actual utsname values and return success.
             return HostFunction(name: name) { args, _ in
-                if case .native(let any)? = args.positional(0), let node = any as? TraceNode {
+                if case .host(let any)? = args.positional(0), let node = any as? TraceNode {
                     var info = utsname()
                     _ = Darwin.uname(&info)
                     func field<T>(_ keyPath: KeyPath<utsname, T>) -> String {
@@ -110,7 +110,7 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
-        if case .native(let any) = value {
+        if case .host(let any) = value {
             if any is AnyView || any is ImageBox || any is ShapeBox || any is LinearGradient
                 || any is PathDrawStub {
                 return true
@@ -148,7 +148,7 @@ public final class ViewRegistry: HostRegistry {
     // MARK: - Helpers shared by gateways
 
     static func anyView(_ value: RuntimeValue) throws -> AnyView {
-        if case .native(let any) = value {
+        if case .host(let any) = value {
             if let view = any as? AnyView { return view }
             if any is UIKitStub || any is ImplicitMemberCall || any is ChainedImplicitCall {
                 // Unknown SDK views render empty — the documented inert

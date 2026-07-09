@@ -41,7 +41,7 @@ import SwiftInterpreter
         task
         """
         let result = try Interpreter(registry: ViewRegistry()).run(source: source)
-        if case .native(let any) = result {
+        if case .host(let any) = result {
             #expect(any is UIKitStub)
         } else {
             Issue.record("expected absorbing stub, got \(result.stringified)")

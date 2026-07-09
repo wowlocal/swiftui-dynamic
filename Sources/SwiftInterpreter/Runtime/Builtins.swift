@@ -6,6 +6,58 @@ import Foundation
 /// and never reach this table. Errors are unlocated `EvalMessage`s; the
 /// evaluator re-throws them with the operator node's source location.
 public enum Builtins {
+    /// Direct arithmetic/comparison on pure numeric operands — the hot path
+    /// for loop counters and recursion, where the general path's marker
+    /// adoption, registry consult, and absorption checks are all no-ops.
+    /// Returns nil for anything that isn't a plain Int/Double pair (markers,
+    /// Dates, strings, ranges) so the general path keeps its semantics.
+    /// Int/Int overflow and division by zero throw exactly like `binary`.
+    static func fastNumericBinary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue? {
+        if let l = lhs.intValue, let r = rhs.intValue {
+            switch op {
+            case "+":
+                let (v, overflow) = l.addingReportingOverflow(r)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return .native(v)
+            case "-":
+                let (v, overflow) = l.subtractingReportingOverflow(r)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return .native(v)
+            case "*":
+                let (v, overflow) = l.multipliedReportingOverflow(by: r)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return .native(v)
+            case "/":
+                guard r != 0 else { throw EvalMessage(text: "division by zero") }
+                return .native(l / r)
+            case "%":
+                guard r != 0 else { throw EvalMessage(text: "division by zero") }
+                return .native(l % r)
+            case "==": return .native(l == r)
+            case "!=": return .native(l != r)
+            case "<": return .native(l < r)
+            case "<=": return .native(l <= r)
+            case ">": return .native(l > r)
+            case ">=": return .native(l >= r)
+            default: return nil
+            }
+        }
+        guard let l = lhs.doubleValue, let r = rhs.doubleValue else { return nil }
+        switch op {
+        case "+": return .native(l + r)
+        case "-": return .native(l - r)
+        case "*": return .native(l * r)
+        case "/": return .native(l / r) // IEEE 754: x/0 is ±inf, 0/0 is NaN
+        case "==": return .native(l == r)
+        case "!=": return .native(l != r)
+        case "<": return .native(l < r)
+        case "<=": return .native(l <= r)
+        case ">": return .native(l > r)
+        case ">=": return .native(l >= r)
+        default: return nil // `%` on doubles errors in the general path
+        }
+    }
+
     static func binary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue {
         switch op {
         case "+":
@@ -96,8 +148,8 @@ public enum Builtins {
                 return .native(l...r) // half-open doubles: iteration never materializes these
             }
             // `soon..<later` — Date ranges (DatePicker in:).
-            if case .native(let la) = lhs, let l = la as? Date,
-               case .native(let ra) = rhs, let r = ra as? Date, l <= r {
+            if case .host(let la) = lhs, let l = la as? Date,
+               case .host(let ra) = rhs, let r = ra as? Date, l <= r {
                 return .native(l..<r)
             }
             // `"A"..<"H"` — String ranges (letter-bucket dictionary keys).
@@ -115,8 +167,8 @@ public enum Builtins {
             if let l = lhs.doubleValue, let r = rhs.doubleValue, l <= r {
                 return .native(l...r)
             }
-            if case .native(let la) = lhs, let l = la as? Date,
-               case .native(let ra) = rhs, let r = ra as? Date, l <= r {
+            if case .host(let la) = lhs, let l = la as? Date,
+               case .host(let ra) = rhs, let r = ra as? Date, l <= r {
                 return .native(l...r)
             }
             if let l = lhs.stringValue, let r = rhs.stringValue, l <= r {
@@ -137,7 +189,7 @@ public enum Builtins {
         case "!":
             if let b = value.boolValue { return .native(!b) }
             // Hosted-object truths negate from their fresh-state false.
-            if case .native(let any) = value,
+            if case .host(let any) = value,
                any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
                 return .native(true)
             }
@@ -164,7 +216,7 @@ public enum Builtins {
             default: break // unresolved statics fall to the zero rule below
             }
         }
-        if case .native(let any) = value,
+        if case .host(let any) = value,
            any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             return 0.0
         }
@@ -185,7 +237,7 @@ public enum Builtins {
             // Clock idioms: time ANCHORS read the fresh epoch (0), DURATION
             // statics read their seconds — `.now + .milliseconds(500)` is
             // 0.5, exactly like the DispatchTime `.now() + 0.5` rule.
-            if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall {
                 if call.name == "now", call.arguments.arguments.isEmpty { return 0 }
                 if let quantity = (call.arguments.positional(0)?.doubleValue) {
                     switch call.name {
@@ -216,7 +268,7 @@ public enum Builtins {
             // Hosted-object quantities, unresolved CHAINS, and bound host
             // member FUNCTIONS read ZERO — the fresh canvas (consistent
             // with hosted truths reading false).
-            if case .native(let any) = value,
+            if case .host(let any) = value,
                any is InertCallable || any is ChainedImplicitCall {
                 return .native(0.0)
             }
@@ -231,7 +283,7 @@ public enum Builtins {
         // NSTemporaryDirectory() + "\(Date()).mov" yields the suffix.
         if op == "+" {
             func isUnknowable(_ value: RuntimeValue) -> Bool {
-                if case .native(let any) = value {
+                if case .host(let any) = value {
                     return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
                 }
                 if case .hostFunction = value { return true }
@@ -251,15 +303,15 @@ public enum Builtins {
         // Real Foundation Date arithmetic: Date ± TimeInterval → Date,
         // Date − Date → TimeInterval.
         if op == "+" || op == "-" {
-            if case .native(let la) = lhs, let anchor = la as? Date {
+            if case .host(let la) = lhs, let anchor = la as? Date {
                 if let offset = rhs.doubleValue {
                     return .native(anchor.addingTimeInterval(op == "+" ? offset : -offset))
                 }
-                if op == "-", case .native(let ra) = rhs, let other = ra as? Date {
+                if op == "-", case .host(let ra) = rhs, let other = ra as? Date {
                     return .native(anchor.timeIntervalSince(other))
                 }
             }
-            if op == "+", case .native(let ra) = rhs, let anchor = ra as? Date,
+            if op == "+", case .host(let ra) = rhs, let anchor = ra as? Date,
                let offset = lhs.doubleValue {
                 return .native(anchor.addingTimeInterval(offset))
             }
@@ -268,7 +320,7 @@ public enum Builtins {
         // into the numeric offset; delay-taking gateways (asyncAfter) read
         // the seconds directly.
         if op == "+" || op == "-",
-           case .native(let any) = lhs, let call = any as? ImplicitMemberCall,
+           case .host(let any) = lhs, let call = any as? ImplicitMemberCall,
            call.name == "now", let offset = rhs.doubleValue {
             return .native(op == "+" ? offset : -offset)
         }
@@ -288,7 +340,7 @@ public enum Builtins {
         double: (Double, Double) throws -> Double
     ) throws -> RuntimeValue? {
         func initCall(_ value: RuntimeValue) -> ImplicitMemberCall? {
-            if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                call.name == "init", !call.arguments.arguments.isEmpty,
                call.arguments.arguments.allSatisfy({ $0.label != nil && $0.value.doubleValue != nil }) {
                 return call
@@ -329,24 +381,24 @@ public enum Builtins {
         if lhs.isNil || rhs.isNil { return lhs.isNil && rhs.isNil }
         // Chained markers compare by their final member name — honestly
         // false for `.current.orientation == .landscapeRight`.
-        if case .native(let any) = lhs, let chain = any as? ChainedImplicitCall {
+        if case .host(let any) = lhs, let chain = any as? ChainedImplicitCall {
             if case .implicitMember(let name) = rhs { return chain.member == name }
-            if case .native(let other) = rhs, let otherChain = other as? ChainedImplicitCall {
+            if case .host(let other) = rhs, let otherChain = other as? ChainedImplicitCall {
                 return chain.member == otherChain.member
             }
         }
-        if case .native(let any) = rhs, let chain = any as? ChainedImplicitCall,
+        if case .host(let any) = rhs, let chain = any as? ChainedImplicitCall,
            case .implicitMember(let name) = lhs {
             return chain.member == name
         }
         // Hosted objects compare by identity; against anything else, false.
-        if case .native(let la) = lhs, la is InertCallable {
-            if case .native(let ra) = rhs, ra is InertCallable {
+        if case .host(let la) = lhs, la is InertCallable {
+            if case .host(let ra) = rhs, ra is InertCallable {
                 return (la as AnyObject) === (ra as AnyObject)
             }
             return false
         }
-        if case .native(let ra) = rhs, ra is InertCallable { return false }
+        if case .host(let ra) = rhs, ra is InertCallable { return false }
         // A bare marker against a CONCRETE non-marker value is unknowable —
         // false (`false == .cardHolderName`, `0 == .count`).
         if case .implicitMember = lhs,
@@ -360,11 +412,11 @@ public enum Builtins {
         // A marker CALL against a bare marker compares by name — honestly
         // false for `authorizationStatus(for: .video) == .authorized` (fresh
         // system state), true only for same-named markers.
-        if case .native(let any) = lhs, let call = any as? ImplicitMemberCall,
+        if case .host(let any) = lhs, let call = any as? ImplicitMemberCall,
            case .implicitMember(let name) = rhs {
             return call.name == name
         }
-        if case .native(let any) = rhs, let call = any as? ImplicitMemberCall,
+        if case .host(let any) = rhs, let call = any as? ImplicitMemberCall,
            case .implicitMember(let name) = lhs {
             return call.name == name
         }
@@ -383,11 +435,11 @@ public enum Builtins {
             return true
         }
         if let l = lhs.rangeValue, let r = rhs.rangeValue { return l == r }
-        if case .native(let la) = lhs, let l = la as? Range<String>,
-           case .native(let ra) = rhs, let r = ra as? Range<String> {
+        if case .host(let la) = lhs, let l = la as? Range<String>,
+           case .host(let ra) = rhs, let r = ra as? Range<String> {
             return l == r
         }
-        if case .native(let la) = lhs, case .native(let ra) = rhs {
+        if case .host(let la) = lhs, case .host(let ra) = rhs {
             // Marker-call vs marker-call: name equality is the best truth
             // available (`.video == .video`); differing names are unequal.
             if let l = la as? ImplicitMemberCall, let r = ra as? ImplicitMemberCall {
@@ -418,7 +470,7 @@ public enum Builtins {
             // Unknowable vs CONCRETE equality is false — a fresh chain
             // can't equal a specific value (marker-vs-concrete doctrine).
             func isUnknowable(_ value: RuntimeValue) -> Bool {
-                if case .native(let any) = value {
+                if case .host(let any) = value {
                     return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
                 }
                 if case .implicitMember = value { return true }
@@ -439,7 +491,7 @@ public enum Builtins {
                 func markerName(_ value: RuntimeValue) -> String? {
                     if case .implicitMember(let name) = value { return name }
                     if case .hostFunction(let fn) = value { return fn.name }
-                    if case .native(let any) = value {
+                    if case .host(let any) = value {
                         if let call = any as? ImplicitMemberCall { return call.name }
                         if let chain = any as? ChainedImplicitCall { return chain.member }
                     }
@@ -465,7 +517,7 @@ public enum Builtins {
                 default: break
                 }
             }
-            if case .native(let any) = value,
+            if case .host(let any) = value,
                any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
                 return .native(0.0)
             }
@@ -479,15 +531,15 @@ public enum Builtins {
         let rhs = absorbed(rhs)
         func isUnknowable(_ value: RuntimeValue) -> Bool {
             if case .implicitMember = value { return true }
-            if case .native(let any) = value {
+            if case .host(let any) = value {
                 return any is ImplicitMemberCall || any is ChainedImplicitCall
             }
             return false
         }
         if isUnknowable(lhs) || isUnknowable(rhs) { return false }
         // Dates compare by time interval (`$0.creationDate < $1.creationDate`).
-        if case .native(let la) = lhs, let l = la as? Date,
-           case .native(let ra) = rhs, let r = ra as? Date {
+        if case .host(let la) = lhs, let l = la as? Date,
+           case .host(let ra) = rhs, let r = ra as? Date {
             switch op {
             case "<": return l < r
             case "<=": return l <= r

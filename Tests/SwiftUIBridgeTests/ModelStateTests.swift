@@ -222,7 +222,7 @@ import SwiftInterpreter
         // The publish/autoconnect chain yields the box either way…
         let interpreter = Interpreter(registry: TraceRegistry())
         let box = try interpreter.run(source: "Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()")
-        if case .native(let any) = box {
+        if case .host(let any) = box {
             #expect(any is TimerPublisherBox)
         } else {
             Issue.record("expected a TimerPublisherBox")

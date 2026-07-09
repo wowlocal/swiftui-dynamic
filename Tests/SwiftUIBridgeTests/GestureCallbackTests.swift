@@ -33,7 +33,7 @@ import SwiftInterpreter
         (gesture, Probe(translation: CGSize(width: 100, height: 0)), model)
         """)
         guard let tuple = result.tupleValue,
-              case .native(let any) = tuple.values[0], let gesture = any as? GestureBox,
+              case .host(let any) = tuple.values[0], let gesture = any as? GestureBox,
               case .instance(let model) = tuple.values[2] else {
             Issue.record("expected (GestureBox, Probe, Model), got \(result.stringified)")
             return

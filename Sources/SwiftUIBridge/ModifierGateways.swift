@@ -247,7 +247,7 @@ extension ViewRegistry {
         // accepted and ignored; unknown gesture kinds attach nothing.
         for gestureModifier in ["gesture", "simultaneousGesture", "highPriorityGesture"] {
             register(gestureModifier) { view, args, ctx in
-                guard case .native(let any)? = args.positional(0),
+                guard case .host(let any)? = args.positional(0),
                       let gesture = any as? GestureBox else {
                     return view
                 }
@@ -259,7 +259,7 @@ extension ViewRegistry {
             return AnyView(view.task { _ = try? ctx.callClosure(closure, arguments: []) })
         }
         register("onReceive") { view, args, ctx in
-            guard case .native(let any)? = args.positional(0), let box = any as? TimerPublisherBox else {
+            guard case .host(let any)? = args.positional(0), let box = any as? TimerPublisherBox else {
                 throw RuntimeError(message: ".onReceive supports Timer publishers (Timer.publish(...).autoconnect())")
             }
             guard let closure = args.firstUnlabeledClosure else { return view }
@@ -291,7 +291,7 @@ extension ViewRegistry {
             // `.environment(\\.isCompact, true)` — custom-key writes pass
             // through for now: subtrees read their @Entry defaults (the
             // fresh-canvas reading). Model injection below stays live.
-            if case .native(let any)? = args.positional(0), any is KeyPathStub {
+            if case .host(let any)? = args.positional(0), any is KeyPathStub {
                 return AnyView(view)
             }
             guard case .instance(let model)? = args.positional(0), args.arguments.count == 1 else {
@@ -329,7 +329,7 @@ extension ViewRegistry {
             // item binding is non-nil; content builds at presentation time
             // with the then-current item.
             if let item = args.labeled("item"),
-               case .native(let any) = item, let stub = any as? BindingStub {
+               case .host(let any) = item, let stub = any as? BindingStub {
                 guard let closure = args.closure(labeled: "content") ?? args.firstUnlabeledClosure else {
                     throw RuntimeError(message: ".sheet needs a content closure")
                 }
@@ -459,7 +459,7 @@ extension ViewRegistry {
     private func registerTypedModifiers() {
         modifiers["fill"] = HostModifier(name: "fill") { value, args, _ in
             var shapeBox: ShapeBox?
-            if case .native(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
+            if case .host(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
             guard let box = shapeBox else {
                 throw RuntimeError(message: ".fill applies to shapes like Circle()")
             }
@@ -468,7 +468,7 @@ extension ViewRegistry {
         }
         modifiers["stroke"] = HostModifier(name: "stroke") { value, args, _ in
             var shapeBox: ShapeBox?
-            if case .native(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
+            if case .host(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
             guard let box = shapeBox else {
                 throw RuntimeError(message: ".stroke applies to shapes like Circle()")
             }
@@ -477,7 +477,7 @@ extension ViewRegistry {
             return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
         }
         modifiers["trim"] = HostModifier(name: "trim") { value, args, _ in
-            guard case .native(let any) = value, let box = any as? ShapeBox else {
+            guard case .host(let any) = value, let box = any as? ShapeBox else {
                 throw RuntimeError(message: ".trim applies to shapes")
             }
             let from = try Coerce.cgFloat(args.labeled("from") ?? .native(0.0))
@@ -485,7 +485,7 @@ extension ViewRegistry {
             return .native(ShapeBox(box.shape.trim(from: from, to: to)))
         }
         modifiers["resizable"] = HostModifier(name: "resizable") { value, _, _ in
-            guard case .native(let any) = value, let box = any as? ImageBox else {
+            guard case .host(let any) = value, let box = any as? ImageBox else {
                 throw RuntimeError(message: ".resizable applies to Image")
             }
             return .native(ImageBox(box.image.resizable()))

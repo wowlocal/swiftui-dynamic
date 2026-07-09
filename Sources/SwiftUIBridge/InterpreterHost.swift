@@ -14,7 +14,7 @@ public struct InterpreterHost {
             let last = try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
 
             // A trailing view expression (e.g. `ContentView()`) is an explicit root.
-            if case .native(let any) = last, let view = any as? AnyView {
+            if case .host(let any) = last, let view = any as? AnyView {
                 return .success(view)
             }
             if case .instance(let instance) = last, instance.symbol.conformsToView {
