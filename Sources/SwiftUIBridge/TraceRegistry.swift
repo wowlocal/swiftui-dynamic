@@ -11,6 +11,10 @@ public final class TraceNode {
     public var bindings: [String: BindingStub] = [:]
     public var environmentModels: [String: Instance] = [:]
     public var instance: Instance?
+    /// Opaque host objects (`UIPanGestureRecognizer()`, …) are recorded as
+    /// nodes but behave like the mutable objects they stand for: property
+    /// writes land here and read back (`gesture.name = id … gesture.name`).
+    public var config: [String: RuntimeValue] = [:]
 
     init(kind: String) {
         self.kind = kind
@@ -188,11 +192,18 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
-        bridgeHostMember(name, on: value)
+        if let node = value as? TraceNode, let stored = node.config[name] {
+            return stored
+        }
+        return bridgeHostMember(name, on: value)
     }
 
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
-        hostObjectSetMember(name, on: value, to: newValue)
+        if let node = value as? TraceNode {
+            node.config[name] = newValue
+            return true
+        }
+        return hostObjectSetMember(name, on: value, to: newValue)
     }
 
     static func node(_ value: RuntimeValue) throws -> TraceNode {

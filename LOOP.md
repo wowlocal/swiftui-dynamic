@@ -305,3 +305,9 @@ Each iteration does exactly this:
   close (click-through fires Quit buttons — terminating the host is not an
   option). MultiWindowApp passes; AnimatedButton advanced to closure
   return-type annotation threading. **75/100 → 76/100**.
+- 2026-07-09 iter 39: host-object property bags in trace — opaque constructed
+  objects (UIPanGestureRecognizer() → generic TraceNode) now behave like the
+  mutable objects they stand for: member writes land in node.config and read
+  back (`gesture.name = id … gesture.name ?? ""` round-trips). Kills the
+  "cannot assign on TraceNode" class; both FullScreenPop variants pass.
+  **76/100 → 78/100**.

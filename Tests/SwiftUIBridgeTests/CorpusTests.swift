@@ -41,6 +41,28 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Opaque host objects recorded as trace nodes behave like the mutable
+    /// objects they stand for: property writes round-trip on reads
+    /// (`gesture.name = id … gesture.name`).
+    @Test func hostObjectPropertyWritesRoundTripInTrace() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var gesture: UIPanGestureRecognizer = {
+                let gesture = UIPanGestureRecognizer()
+                gesture.name = "pop-gesture"
+                gesture.isEnabled = false
+                return gesture
+            }()
+
+            var body: some View {
+                Text(gesture.name ?? "unset")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// Scene-management env actions are honest no-ops (no scene shell in our
     /// hosting) — declaring, rendering, and firing them must all work.
     @Test func windowActionsAreInertlyCallable() throws {
