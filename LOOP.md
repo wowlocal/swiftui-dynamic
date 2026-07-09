@@ -1215,3 +1215,12 @@ Each iteration does exactly this:
   arm64 detected), Mythic ✅ held. UTM + swift-composable-architecture
   fail IDENTICALLY at HEAD (pre-existing, the next classes). **624/630
   counted; 623 → 624 vs HEAD on the identical corpus. Suite 253 → 256.**
+- 2026-07-09 iter 141: swift-composable-architecture — top-level parse
+  failure at a literal `…` in `store.send(\.addSyncUp…)`: a DocC TUTORIAL
+  SNIPPET. `.docc` catalogs are documentation resources to SwiftPM, never
+  compile sources (TCA ships 475 snippet files of intentionally elided
+  code) — the merge now excludes them. Extracted the duplicated
+  ProjectCheck/demo merge into shared, TESTED ProjectMaterial
+  (SwiftUIBridge). SCA advances to its real wall: `unsupported
+  declaration (macroDecl)` at 21934 — next class. **624/630 counted
+  (docc class eliminated, no collateral). Suite 256 → 257.**

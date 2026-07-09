@@ -39,15 +39,7 @@ struct Unit {
 }
 
 func swiftFiles(under directory: String) -> [String] {
-    let excluded = ["Tests", "UITests", "Preview Content", "__MACOSX", ".build", "DerivedData"]
-    guard let enumerator = fm.enumerator(atPath: directory) else { return [] }
-    var files: [String] = []
-    for case let path as String in enumerator {
-        guard path.hasSuffix(".swift") else { continue }
-        guard !excluded.contains(where: { path.contains($0) }) else { continue }
-        files.append(directory + "/" + path)
-    }
-    return files.sorted()
+    ProjectMaterial.swiftFiles(under: directory)
 }
 
 func extractedDir(forZip zipPath: String) -> String {
@@ -113,19 +105,7 @@ print("checking \(units.count) projects (smallest first) from \(root)\n")
 // MARK: - Run
 
 func mergedSource(of unit: Unit) -> String {
-    var merged = ""
-    for path in unit.sources {
-        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
-        let stripped = content
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                return !(trimmed.hasPrefix("import ") || trimmed.hasPrefix("@testable import "))
-            }
-            .joined(separator: "\n")
-        merged += "\n// FILE: \(URL(fileURLWithPath: path).lastPathComponent)\n" + stripped + "\n"
-    }
-    return merged
+    ProjectMaterial.mergedSource(files: unit.sources)
 }
 
 /// Collapse an error message into a class: strip positions and quoted names

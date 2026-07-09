@@ -2863,6 +2863,30 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// swift-composable-architecture (iteration 141): DocC catalogs hold
+    /// tutorial SNIPPETS — intentionally elided, non-compiling code
+    /// (`store.send(\\.addSyncUp…)` with a literal ellipsis). SwiftPM
+    /// registers `.docc` bundles as documentation resources, never compile
+    /// sources, so the project merge must skip them too.
+    @Test func doccCatalogSnippetsAreNotProjectSource() throws {
+        let root = NSTemporaryDirectory() + "docc-merge-probe-\(UUID().uuidString)"
+        let docc = root + "/Sources/App/Documentation.docc/Tutorials"
+        try FileManager.default.createDirectory(atPath: docc, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try "struct RealView: View { var body: some View { Text(\"real\") } }"
+            .write(toFile: root + "/Sources/App/RealView.swift", atomically: true, encoding: .utf8)
+        try "await store.send(\\.addSyncUp…)"
+            .write(toFile: docc + "/Snippet-code-0009.swift", atomically: true, encoding: .utf8)
+
+        let files = ProjectMaterial.swiftFiles(under: root)
+        #expect(files.count == 1)
+        #expect(files.first?.hasSuffix("RealView.swift") == true)
+        let merged = ProjectMaterial.mergedSource(at: root)
+        #expect(merged.contains("RealView"))
+        #expect(!merged.contains("addSyncUp"))
+        try HeadlessVerifier.verify(source: merged)
+    }
+
     /// Mythic (iteration 140): a launch hook spawning an INTENTIONALLY
     /// infinite background cycle — `Task { while true { poll(); try? await
     /// Task.sleep } }` — is legitimate on device (it suspends concurrently).

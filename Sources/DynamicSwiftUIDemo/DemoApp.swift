@@ -70,30 +70,7 @@ struct ProjectPreviewView: View {
 
 /// The same merge rules ProjectCheck uses.
 func mergedProjectSource(at root: String) -> String {
-    let fm = FileManager.default
-    let excluded = ["Tests", "UITests", "Preview Content", "__MACOSX", ".build", "DerivedData"]
-    var files: [String] = []
-    if let enumerator = fm.enumerator(atPath: root) {
-        for case let path as String in enumerator {
-            guard path.hasSuffix(".swift"),
-                  !excluded.contains(where: { path.contains($0) }) else { continue }
-            files.append(root + "/" + path)
-        }
-    }
-    files.sort()
-    var merged = ""
-    for path in files {
-        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
-        let stripped = content
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                return !(trimmed.hasPrefix("import ") || trimmed.hasPrefix("@testable import "))
-            }
-            .joined(separator: "\n")
-        merged += "\n// FILE: \(URL(fileURLWithPath: path).lastPathComponent)\n" + stripped + "\n"
-    }
-    return merged
+    ProjectMaterial.mergedSource(at: root)
 }
 
 /// `swift run` executables have no app bundle, so AppKit launches them as
