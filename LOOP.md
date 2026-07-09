@@ -551,3 +551,11 @@ Each iteration does exactly this:
   boxes. TaskManagement, TaskPlanner (162 nodes — its Calendar extension
   evaluates for real), TaskManagementCoreData ×2 pass.
   **499/587 → 503/587 (85.7%).**
+- 2026-07-09 iter 67: the protocols wall, first slice — protocol declarations
+  collect inertly (requirements carry no bodies; conformance is duck typing),
+  and protocol-EXTENSION members dispatch as DEFAULTS through the conformer's
+  inheritance clause (own definitions win). Operator/precedence/typealias
+  declarations skip inertly (vendored-Pods projects declare custom
+  operators). Quiz + Global_Chat (despite merged Firebase Pods!) pass;
+  SplashScreen advanced deep into vendored lib internals.
+  **503/587 → 505/587 (86.0%).**

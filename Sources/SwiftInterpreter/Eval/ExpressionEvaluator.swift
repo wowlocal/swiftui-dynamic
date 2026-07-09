@@ -292,6 +292,18 @@ extension Interpreter {
            let value = try hostExtensionMember(name, candidates: ["View"], selfValue: .instance(instance)) {
             return value
         }
+        // Protocol-extension defaults: `extension GameLogic { func start() … }`
+        // serves conformers that don't define the member themselves.
+        for conformance in instance.symbol.conformances {
+            guard let proto = hostExtensionSymbols[conformance] else { continue }
+            if let method = proto.methods[name], let body = method.body {
+                return .closure(makeFunctionClosure(
+                    method, body: body, captured: selfEnvironment(.instance(instance))))
+            }
+            if let computed = proto.computedProperties[name] {
+                return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
+            }
+        }
         return nil
     }
 

@@ -69,6 +69,9 @@ public final class StructSymbol {
     /// `class Recognizer: NSObject, …` — the (non-protocol) superclass name;
     /// host superclasses make `super.*` inert, interpreted ones dispatch.
     public internal(set) var superclassName: String?
+    /// The full inheritance clause — protocol-extension defaults dispatch
+    /// through these names.
+    public internal(set) var conformances: [String] = []
     /// Declared with `class` — matters for observation; reference semantics
     /// are the default for ALL instances (the documented struct divergence).
     public internal(set) var isClass = false

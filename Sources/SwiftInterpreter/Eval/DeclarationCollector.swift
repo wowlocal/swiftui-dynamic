@@ -133,6 +133,7 @@ extension Interpreter {
         let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
         symbol.isRepresentable = inherited.contains { $0.hasSuffix("Representable") }
         symbol.conformsToShape = inherited.contains("Shape") || inherited.contains("InsettableShape")
+        symbol.conformances = inherited
         try collectStructMembers(node.memberBlock, into: symbol)
         return symbol
     }
@@ -151,6 +152,7 @@ extension Interpreter {
         let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
         let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
         symbol.isClass = true
+        symbol.conformances = inherited
         // A superclass, if present, is first in the clause; protocols follow.
         if let first = inherited.first, !Self.knownProtocols.contains(first),
            !first.hasSuffix("Delegate"), !first.hasSuffix("DataSource") {

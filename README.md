@@ -62,7 +62,10 @@ implicit return, trailing closures, `@ViewBuilder`/`some View` builder
 bodies), closures (`$0` shorthand, capture-by-reference), structs (stored/
 computed properties, methods, custom `init`s, memberwise init, statics),
 enums (raw + associated values, methods, computed properties, `CaseIterable`),
-**classes** (reference semantics, custom inits, statics), extensions,
+**classes** (reference semantics, custom inits, statics, `super`
+inheritance-lite), **protocols** (declarations inert — conformance is duck
+typing; protocol-EXTENSION members serve as defaults, conformers' own
+definitions win), extensions,
 **view models** — `ObservableObject`/`@Observable` with `@Published`,
 `@StateObject` (model persists across view recreation), `@ObservedObject`
 (shared models re-render every observing view), `$store.field` bindings onto

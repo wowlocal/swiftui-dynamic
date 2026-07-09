@@ -290,6 +290,37 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct StdlibTests {
+    /// Protocol declarations are inert; protocol-EXTENSION members serve as
+    /// defaults for conformers, and a conformer's own definition wins.
+    @Test func protocolExtensionDefaultsDispatch() throws {
+        let source = """
+        protocol GameLogic {
+            func label() -> String
+        }
+
+        extension GameLogic {
+            func label() -> String {
+                return "default"
+            }
+
+            var badge: String {
+                return "star"
+            }
+        }
+
+        struct TriviaGame: GameLogic {
+        }
+
+        struct CustomGame: GameLogic {
+            func label() -> String {
+                return "custom"
+            }
+        }
+        TriviaGame().label() + "/" + CustomGame().label() + "/" + TriviaGame().badge
+        """
+        #expect(try eval(source).stringValue == "default/custom/star")
+    }
+
     /// `super.method()` dispatches to the interpreted superclass with self
     /// unchanged; host superclasses (NSObject) make super.* inert.
     @Test func superDispatchesToInterpretedParent() throws {
