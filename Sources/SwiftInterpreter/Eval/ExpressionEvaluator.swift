@@ -1902,6 +1902,27 @@ extension Interpreter {
                 _ = value // `_ = expr` — evaluate for effect, discard
                 return .void
             }
+            // Tuple destructuring assignment: `(self.first, self.second,
+            // self.third) = (first, second, third)` writes element-wise.
+            if let tuple = infix.leftOperand.as(TupleExprSyntax.self), tuple.elements.count > 1 {
+                let values: [RuntimeValue]
+                if let t = value.tupleValue {
+                    values = t.values
+                } else if let a = value.arrayValue {
+                    values = a
+                } else {
+                    throw error(infix, "tuple assignment needs a tuple value")
+                }
+                guard values.count == tuple.elements.count else {
+                    throw error(infix, "tuple assignment arity mismatch")
+                }
+                for (element, elementValue) in zip(tuple.elements, values) {
+                    if element.expression.is(DiscardAssignmentExprSyntax.self) { continue }
+                    let target = try resolveLValue(element.expression, in: env)
+                    try relocating(infix) { try target.write(elementValue, self) }
+                }
+                return .void
+            }
             let target = try resolveLValue(infix.leftOperand, in: env)
             try relocating(infix) { try target.write(value, self) }
             return .void

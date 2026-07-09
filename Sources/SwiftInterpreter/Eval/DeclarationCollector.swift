@@ -372,6 +372,30 @@ extension Interpreter {
         let isStaticDecl = isStatic(varDecl.modifiers)
 
         for binding in varDecl.bindings {
+            // Tuple-pattern stored properties (`let (first, second, third):
+            // (A, B, C)`) declare each element; annotations split when the
+            // tuple type's arity matches.
+            if let tuplePattern = binding.pattern.as(TuplePatternSyntax.self) {
+                let elements = Array(tuplePattern.elements)
+                let tupleTypes: [TypeSyntax?]
+                if let tupleType = binding.typeAnnotation?.type.as(TupleTypeSyntax.self),
+                   tupleType.elements.count == elements.count {
+                    tupleTypes = tupleType.elements.map { $0.type }
+                } else {
+                    tupleTypes = Array(repeating: nil, count: elements.count)
+                }
+                for (element, elementType) in zip(elements, tupleTypes) {
+                    guard let ident = element.pattern.as(IdentifierPatternSyntax.self) else { continue }
+                    symbol.storedProperties.append(StructSymbol.StoredProperty(
+                        name: ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                        wrapper: .none,
+                        initializer: nil,
+                        typeAnnotation: elementType,
+                        isBuilderClosure: false
+                    ))
+                }
+                continue
+            }
             guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
                 throw error(binding, "unsupported property pattern")
             }

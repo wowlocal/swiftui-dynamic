@@ -2909,6 +2909,36 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Gifski (iteration 163): TUPLE-pattern stored properties —
+    /// `let (first, second, third): (A, B, C)` declares each element with
+    /// its split annotation (Gifski's @dynamicMemberLookup Tuple3).
+    @Test func tuplePatternStoredProperties() throws {
+        let source = """
+        struct Tuple3 {
+            let (first, second, third): (Int, String, Bool)
+
+            init(_ first: Int, _ second: String, _ third: Bool) {
+                (self.first, self.second, self.third) = (first, second, third)
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let triple = Tuple3(7, "seven", true)
+                let checks = [
+                    triple.first == 7,
+                    triple.second == "seven",
+                    triple.third == true,
+                ]
+                if checks.contains(false) { fatalError("tuple properties broken") }
+                return Text(triple.second)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// IceCubesApp + Meshtastic (iteration 162): an ObjC-trampoline method
     /// whose encoding RETURNS an object but hands back nil IS nil — fresh
     /// UserDefaults has nothing persisted, so `object(forKey:) as? Bool`

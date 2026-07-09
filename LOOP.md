@@ -1636,3 +1636,13 @@ without this.
   trampoline formatters). IceCubes ✅, Meshtastic ✅, Whisky ✅.
   **647/651 counted — ZERO failures (TWENTY-FIFTH saturation).
   Suite 328 → 329.**
+- 2026-07-10 iter 163: step 9 — Solstice (106 files, arrival-pass) +
+  Gifski (39) cloned; sindresorhus/Actions has no public sources
+  (dropped). One class, two halves: TUPLE-pattern stored properties
+  (`let (first, second, third): (A, B, C)` — Gifski's
+  @dynamicMemberLookup Tuple3 — each element declares with its split
+  annotation) and tuple DESTRUCTURING assignment (`(self.first, …) =
+  (first, …)` writes element-wise, `_` slots skip; the regression test
+  exercised the init the headless run never reached). Gifski ✅
+  (12 nodes, 3 actions). **649/653 counted — ZERO failures (TWENTY-
+  SIXTH saturation). 585 zips + 65 OSS repos green. Suite 329 → 330.**
