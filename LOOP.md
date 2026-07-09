@@ -1524,3 +1524,12 @@ Each iteration does exactly this:
   ACHNBrowserUI ✅ (90 nodes). **643/647 counted — ZERO failures
   (TWENTY-SECOND saturation). 585 zips + 59 OSS repos green. Suite
   322 → 323.**
+- 2026-07-10 iter 160: step 9 — mlem cloned (1171 files, the BIGGEST
+  unit yet; Lemmy client) — PASSED ON ARRIVAL (1 node: the root gates
+  on absorbed onboarding state, honestly minimal headlessly).
+  Vernissage's repo is README-only (dropped); Apple's Fruta isn't a
+  git clone. No failure class existed this iteration — the material
+  addition is the step-9 action, the second all-arrival iteration
+  (139 precedent). **644/648 counted — ZERO failures (TWENTY-THIRD
+  saturation). 585 zips + 60 OSS repos green. Suite 323 (unchanged —
+  no new capability, no new test).**
