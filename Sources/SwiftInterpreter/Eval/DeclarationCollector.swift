@@ -507,6 +507,37 @@ extension Interpreter {
             } else {
                 symbol.methods[funcDecl.name.text, default: []].append(funcDecl)
             }
+        } else if let nestedEnum = decl.as(EnumDeclSyntax.self) {
+            // Enums are namespaces as often as value types
+            // (`TestCase.Cases.allCases`) — nested types register under the
+            // dotted name and the bare name when unclaimed, mirroring the
+            // struct path.
+            let nested = try makeEnumSymbol(nestedEnum)
+            symbol.nestedTypes[nested.name] = .enumType(nested)
+            enumSymbols["\(symbol.name).\(nested.name)"] = nested
+            if enumSymbols[nested.name] == nil { enumSymbols[nested.name] = nested }
+            globals.define("\(symbol.name).\(nested.name)", .enumType(nested))
+            if globals.lookup(nested.name) == nil {
+                globals.define(nested.name, .enumType(nested))
+            }
+        } else if let nestedStruct = decl.as(StructDeclSyntax.self) {
+            let nestedSymbol = try makeStructSymbol(nestedStruct)
+            symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
+            structSymbols.append(nestedSymbol)
+            globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
+            if globals.lookup(nestedSymbol.name) == nil {
+                globals.define(nestedSymbol.name, .type(nestedSymbol))
+            }
+        } else if let nestedClass = decl.as(ClassDeclSyntax.self) {
+            let nestedSymbol = try makeClassLikeSymbol(
+                name: nestedClass.name.text, inheritanceClause: nestedClass.inheritanceClause,
+                memberBlock: nestedClass.memberBlock, attributes: nestedClass.attributes)
+            symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
+            structSymbols.append(nestedSymbol)
+            globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
+            if globals.lookup(nestedSymbol.name) == nil {
+                globals.define(nestedSymbol.name, .type(nestedSymbol))
+            }
         }
     }
 

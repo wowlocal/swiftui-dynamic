@@ -1232,3 +1232,18 @@ Each iteration does exactly this:
   advances two walls deep into root body: `'TestCase' has no case or
   static member 'Cases'` — next class. **624/630 counted (macroDecl
   class eliminated). Suite 257 → 258.**
+- 2026-07-09 iter 143: swift-composable-architecture — `'TestCase' has
+  no case or static member 'Cases'`: enums are NAMESPACES as often as
+  value types, but EnumSymbol had no nestedTypes. Nested enum/struct/
+  class decls inside enum bodies now collect and register (dotted +
+  unclaimed-bare names, the struct-path pattern); staticMember(of:
+  EnumSymbol) consults them first. Registering them UN-ABSORBED real
+  paths in Rayon and OnlySwitch, exposing three adjacent gaps fixed in
+  the same sweep: operator-function references (`reduce(0, +)`,
+  `sorted(by: >)` — operator identifiers now resolve via Builtins.binary,
+  HOFs accept function values), `localizedDescription` on interpreted
+  Error enums (LocalizedError.errorDescription wins, NSError boilerplate
+  fallback), and `exactly:`-labeled numeric ctors (`CGFloat(exactly:)`,
+  `Int(exactly:)` nil on fractional). SCA advances to `unsupported
+  member 'description' on Int` — next class. **624/630 counted (class
+  eliminated, collateral healed same-iteration). Suite 258 → 260.**

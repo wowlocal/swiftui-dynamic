@@ -981,9 +981,13 @@ public final class Interpreter {
             return .native(value.stringValue ?? value.stringified)
         }
         define("Int") { args, _ in
-            guard let value = args.positional(0) else { return .nilValue }
+            guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
             if let i = value.intValue { return .native(i) }
-            if let d = value.doubleValue { return .native(Int(d)) }
+            if let d = value.doubleValue {
+                // Int(exactly:) is nil for fractional values — real semantics.
+                if args.labeled("exactly") != nil, d != d.rounded(.towardZero) { return .nilValue }
+                return .native(Int(d))
+            }
             if let s = value.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }
             // Numeric conversion of an unknowable reads the fresh state —
             // Int(player.currentTime.truncatingRemainder(…)) is 0, not nil.
@@ -991,7 +995,7 @@ public final class Interpreter {
             return .nilValue
         }
         define("Double") { args, _ in
-            guard let value = args.positional(0) else { return .nilValue }
+            guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
             if let d = value.doubleValue { return .native(d) }
             if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
             if let z = Builtins.absorbedNumeric(value) { return .native(z) }
@@ -999,7 +1003,7 @@ public final class Interpreter {
         }
         define("Float") { args, _ in
             // Our floating model is Double throughout.
-            guard let value = args.positional(0) else { return .nilValue }
+            guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
             if let d = value.doubleValue { return .native(d) }
             if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
             if let z = Builtins.absorbedNumeric(value) { return .native(z) }
@@ -1007,8 +1011,9 @@ public final class Interpreter {
         }
         define("CGFloat") { args, _ in
             // Our CGFloat model IS Double.
-            if let d = args.positional(0)?.doubleValue { return .native(d) }
-            if let value = args.positional(0), let z = Builtins.absorbedNumeric(value) {
+            let operand = args.positional(0) ?? args.labeled("exactly")
+            if let d = operand?.doubleValue { return .native(d) }
+            if let value = operand, let z = Builtins.absorbedNumeric(value) {
                 return .native(z) // unknowables read fresh zero (iter-94 rule)
             }
             throw RuntimeError(message: "CGFloat needs a number")
@@ -1067,7 +1072,7 @@ public final class Interpreter {
             define(intType) { args, _ in
                 // Fixed-width conversions: our integer model is Int.
                 let value = args.labeled("truncatingIfNeeded") ?? args.labeled("clamping")
-                    ?? args.labeled("bitPattern") ?? args.positional(0)
+                    ?? args.labeled("bitPattern") ?? args.labeled("exactly") ?? args.positional(0)
                 if let i = value?.intValue { return .native(i) }
                 if let d = value?.doubleValue { return .native(Int(d)) }
                 if let s = value?.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }

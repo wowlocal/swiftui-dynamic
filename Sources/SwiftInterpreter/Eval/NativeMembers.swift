@@ -282,20 +282,20 @@ extension Interpreter {
                 guard let initial = args.positional(0) else {
                     throw RuntimeError(message: "reduce needs an initial value")
                 }
-                let closure = try Self.requiredClosure(args, name)
+                let call = try Self.requiredCallable(args, name)
                 var accumulator = initial
                 for element in array {
-                    accumulator = try ctx.callClosure(closure, arguments: [accumulator, element])
+                    accumulator = try call(ctx, [accumulator, element])
                 }
                 return accumulator
             })
         case "sorted":
             return .hostFunction(HostFunction(name: name) { args, ctx in
-                if let closure = args.closure(labeled: "by") ?? args.unlabeledClosures.first {
+                if let call = try? Self.requiredCallable(args, name) {
                     var failure: Error?
                     let out = array.sorted { a, b in
                         if failure != nil { return false }
-                        do { return try ctx.callClosure(closure, arguments: [a, b]).boolValue == true }
+                        do { return try call(ctx, [a, b]).boolValue == true }
                         catch { failure = error; return false }
                     }
                     if let failure { throw failure }
@@ -722,5 +722,23 @@ extension Interpreter {
             throw RuntimeError(message: "\(name) needs a closure argument")
         }
         return closure
+    }
+
+    /// Closures OR function values: operator refs (`reduce(0, +)`) and
+    /// function refs arrive as hostFunctions, not closures.
+    static func requiredCallable(
+        _ args: CallArguments, _ name: String
+    ) throws -> (EvalContext, [RuntimeValue]) throws -> RuntimeValue {
+        if let closure = args.unlabeledClosures.first ?? args.closure(labeled: "by") {
+            return { ctx, xs in try ctx.callClosure(closure, arguments: xs) }
+        }
+        for argument in args.arguments {
+            if case .hostFunction(let fn) = argument.value {
+                return { ctx, xs in
+                    try fn.invoke(CallArguments(arguments: xs.map { .init(label: nil, value: $0) }), ctx)
+                }
+            }
+        }
+        throw RuntimeError(message: "\(name) needs a closure argument")
     }
 }

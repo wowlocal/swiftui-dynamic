@@ -316,6 +316,17 @@ extension Interpreter {
             return value
         }
         if let box = globals.box(for: name) { return try force(box) }
+        // Operator-function references (`reduce(0, +)`, `sorted(by: >)`) —
+        // real Swift passes the global operator function; ours applies the
+        // builtin table. User-declared operator functions won above (globals).
+        if name.count <= 3, name.allSatisfy({ "+-*/%<>=!&|^~".contains($0) }) {
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let lhs = args.positional(0), let rhs = args.positional(1) else {
+                    throw EvalMessage(text: "operator '\(name)' needs two arguments")
+                }
+                return try Builtins.binary(name, lhs, rhs)
+            })
+        }
         if name == "Self", let selfValue = env.lookup("self") {
             switch selfValue {
             case .instance(let instance):
@@ -517,6 +528,16 @@ extension Interpreter {
         }
         if let computed = value.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .enumCase(value), name: name)
+        }
+        if name == "localizedDescription" {
+            // Every Error carries this on device. Foundation consults
+            // LocalizedError's errorDescription first, then falls back to
+            // the NSError boilerplate.
+            if let described = try enumCaseMember("errorDescription", on: value),
+               let text = described.stringValue {
+                return .native(text)
+            }
+            return .native("The operation couldn\u{2019}t be completed. (\(value.symbol.name) error.)")
         }
         return nil
     }
@@ -933,6 +954,9 @@ extension Interpreter {
     }
 
     func staticMember(_ name: String, of symbol: EnumSymbol) throws -> RuntimeValue? {
+        // Own nested types shadow same-named globals inside the body —
+        // the struct-path doctrine applied to enum namespaces.
+        if let nested = symbol.nestedTypes[name] { return nested }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
             let raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))

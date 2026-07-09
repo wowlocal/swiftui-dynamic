@@ -20,6 +20,9 @@ public final class EnumSymbol {
     public internal(set) var staticMethods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var staticComputedProperties: [String: ComputedProperty] = [:]
     public internal(set) var initializers: [InitializerDeclSyntax] = []
+    /// Types declared inside the enum body (`TestCase.Cases`) — enums are
+    /// namespaces as often as they are value types.
+    public internal(set) var nestedTypes: [String: RuntimeValue] = [:]
     var staticCache: [String: RuntimeValue] = [:]
 
     public init(name: String) {

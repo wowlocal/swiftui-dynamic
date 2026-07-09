@@ -2863,6 +2863,98 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// swift-composable-architecture (iteration 143): enums are namespaces
+    /// as often as value types — `TestCase.Cases` is an enum NESTED inside
+    /// an enum (the Integration app iterates
+    /// `ForEach(TestCase.Cases.allCases)`). Nested types now collect into
+    /// EnumSymbol and resolve as static members, qualified or bare.
+    @Test func enumNestedTypesResolveAsStaticMembers() throws {
+        let source = """
+        public enum TestCase {
+            case cases(Cases)
+            case legacy(Legacy)
+
+            public enum Cases: String, CaseIterable, Identifiable {
+                case multipleAlerts = "Multiple alerts"
+                public var id: Self { self }
+            }
+
+            public enum Legacy: String, CaseIterable, Identifiable {
+                case ifLetStore = "IfLetStore"
+                case navigationStack = "NavigationStack"
+                public var id: Self { self }
+            }
+
+            static func firstCase() -> Cases { Cases.allCases.first! }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                List {
+                    ForEach(TestCase.Cases.allCases) { test in
+                        switch test {
+                        case .multipleAlerts:
+                            Text(test.rawValue)
+                        }
+                    }
+                    ForEach(TestCase.Legacy.allCases) { test in
+                        Text(test.rawValue)
+                    }
+                    Text(TestCase.firstCase().rawValue)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
+    /// Rayon + OnlySwitch (iteration 143): registering enum nested types
+    /// un-absorbed real code paths and exposed three adjacent gaps —
+    /// operator-function references (`reduce(0, +)`, `sorted(by: >)`),
+    /// `localizedDescription` on interpreted Error enums (LocalizedError's
+    /// errorDescription wins, NSError boilerplate otherwise), and the
+    /// `exactly:`-labeled numeric constructors.
+    @Test func unabsorbedAdjacents() throws {
+        let source = """
+        enum ImportError: LocalizedError {
+            case invalidURL
+            case tooBig
+
+            var errorDescription: String? {
+                switch self {
+                case .invalidURL: return "Invalid QR scan result"
+                case .tooBig: return nil
+                }
+            }
+        }
+
+        enum PlainError: Error { case oops }
+
+        struct ContentView: View {
+            var body: some View {
+                let weights: [Double] = [1, 2, 3.5]
+                let total = weights.reduce(0, +)
+                let top = weights.sorted(by: >).first!
+                let scaled = (CGFloat(exactly: total) ?? 0) * 2
+                let whole = Int(exactly: 6.5)
+                let checks = [
+                    total == 6.5,
+                    top == 3.5,
+                    scaled == 13,
+                    whole == nil,
+                    ImportError.invalidURL.localizedDescription == "Invalid QR scan result",
+                    !PlainError.oops.localizedDescription.isEmpty,
+                ]
+                if checks.contains(false) { fatalError("unabsorbed adjacents broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// swift-composable-architecture (iteration 142): `macro` declarations
     /// (freestanding and attached, TCA declares both) are compile-time
     /// constructs — the runtime image holds no entity, so the interpreter
