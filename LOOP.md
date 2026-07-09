@@ -1097,3 +1097,16 @@ Each iteration does exactly this:
   read false in Bool; array allSatisfy + filter accept key paths (own
   test caught allSatisfy's requiredClosure draft). **608/610; queue:
   Mythic (call-depth in action #0), PlayCover ($viewModel projection).**
+- 2026-07-09 iter 131: Mythic falls — delegation to INHERITED designated
+  inits: chooseInitializerStrict (shape-only, nil on no match) stops the
+  blind fallback that made `self.init(window:)` self-delegate forever
+  inside NSWindowController conveniences; unmatched delegation binds
+  labeled args as properties (iter-93 host-superclass rule); bare statics
+  ASSIGN inside static methods (`shared = …` via .type self →
+  LValue.staticProperty); @StateObject joins root synthesis; unknowable
+  binding projections ($vm.app.settings → detached member binding);
+  chain-vs-concrete equality false (areEqual unknowable gate); compare-
+  side chains absorb; formatter decimalSeparator/minimumIntegerDigits;
+  unknowable path components chain; nested Task bodies SCHEDULE (never
+  run synchronously — taskDepth). Mythic passes (48 nodes, 2 actions).
+  **609/610; queue: PlayCover (direct recursion in action #18).**

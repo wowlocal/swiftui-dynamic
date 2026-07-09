@@ -73,7 +73,10 @@ extension Interpreter {
             case "appendingPathComponent":
                 return .hostFunction(HostFunction(name: name) { args, _ in
                     guard let component = args.positional(0)?.stringValue else {
-                        throw RuntimeError(message: "appendingPathComponent needs a string")
+                        // Unknowable component: the resulting URL is equally
+                        // unknowable (absorbs downstream).
+                        return .native(ChainedImplicitCall(
+                            base: .native(url), member: name, arguments: args))
                     }
                     return .native(url.appendingPathComponent(component))
                 })

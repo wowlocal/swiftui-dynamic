@@ -566,9 +566,20 @@ extension Interpreter {
             if name == "init", !instance.symbol.initializers.isEmpty {
                 return .hostFunction(HostFunction(name: "init") { [weak self] args, _ in
                     guard let self else { throw RuntimeError(message: "interpreter gone") }
+                    guard let chosen = self.chooseInitializerStrict(
+                        from: instance.symbol.initializers, for: args) else {
+                        // No interpreted candidate: `self.init(window:)`
+                        // delegates to a HOST superclass's designated init —
+                        // labeled args bind as properties (iter-93 rule).
+                        // A blind fallback here self-delegates forever.
+                        for argument in args.arguments {
+                            guard let label = argument.label else { continue }
+                            instance.properties[label] = Box(argument.value)
+                        }
+                        return .void
+                    }
                     let outcome = try self.runInitializer(
-                        self.chooseInitializer(from: instance.symbol.initializers, for: args),
-                        on: instance, args: args, node: nil)
+                        chosen, on: instance, args: args, node: nil)
                     if outcome.isNil {
                         throw RuntimeError(message: Interpreter.initFailedSentinel)
                     }
@@ -736,6 +747,18 @@ extension Interpreter {
                             }
                             return .native(BindingStub(box: element))
                         }
+                    }
+                    // A binding over an UNKNOWABLE value projects a detached
+                    // binding to the member chain (reads absorb, writes land
+                    // in the detached box).
+                    if case .native(let inner) = stub.box.value,
+                       inner is InertCallable || inner is ChainedImplicitCall || inner is ImplicitMemberCall {
+                        return .native(BindingStub(box: Box(.native(ChainedImplicitCall(
+                            base: stub.box.value, member: name, arguments: CallArguments())))))
+                    }
+                    if case .implicitMember = stub.box.value {
+                        return .native(BindingStub(box: Box(.native(ChainedImplicitCall(
+                            base: stub.box.value, member: name, arguments: CallArguments())))))
                     }
                 }
                 switch name {
@@ -1667,6 +1690,14 @@ extension Interpreter {
                 if instance.box(for: canonical) != nil || instance.symbol.computedProperties[canonical] != nil {
                     return .instanceProperty(instance, canonical)
                 }
+            }
+            // Bare sibling statics inside static methods:
+            // `static func show() { shared = … }`.
+            if case .type(let symbol)? = env.lookup("self"),
+               symbol.staticProperties[name] != nil
+                || symbol.staticUninitialized.contains(name)
+                || symbol.staticCache[name] != nil {
+                return .staticProperty(symbol, name)
             }
             throw error(ref, "cannot assign to '\(name)'")
         }

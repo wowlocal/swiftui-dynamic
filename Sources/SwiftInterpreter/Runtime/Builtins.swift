@@ -369,6 +369,17 @@ enum Builtins {
         case (.implicitMember(let l), .implicitMember(let r)):
             return l == r
         default:
+            // Unknowable vs CONCRETE equality is false — a fresh chain
+            // can't equal a specific value (marker-vs-concrete doctrine).
+            func isUnknowable(_ value: RuntimeValue) -> Bool {
+                if case .native(let any) = value {
+                    return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
+                }
+                if case .implicitMember = value { return true }
+                if case .hostFunction = value { return true }
+                return false
+            }
+            if isUnknowable(lhs) != isUnknowable(rhs) { return false }
             throw EvalMessage(text: "cannot compare \(lhs.stringified) and \(rhs.stringified)")
         }
     }
@@ -386,7 +397,10 @@ enum Builtins {
                 default: break
                 }
             }
-            if case .native(let any) = value, any is InertCallable { return .native(0.0) }
+            if case .native(let any) = value,
+               any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+                return .native(0.0)
+            }
             if case .hostFunction = value { return .native(0.0) }
             // A bare `.member` no type context could resolve is an
             // unmerged-module static: fresh identity, zero.

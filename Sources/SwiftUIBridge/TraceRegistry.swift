@@ -33,6 +33,9 @@ public final class TraceNode: InertCallable {
 /// views. No SwiftUI hosting needed: `makeRenderable` is lazy (tests call
 /// `evaluateBody` themselves), and any modifier name is accepted and recorded.
 public final class TraceRegistry: HostRegistry {
+    /// Nested `Task {}` bodies are scheduled, never run synchronously.
+    var taskDepth = 0
+
     public init() {}
 
     public func constructor(named name: String) -> HostFunction? {
@@ -105,9 +108,14 @@ public final class TraceRegistry: HostRegistry {
         case "Task", "MainActor":
             // `Task { try await … }` — the body runs (our async is
             // synchronous), and UNHANDLED errors end the task silently,
-            // exactly as on device.
-            return HostFunction(name: name) { args, ctx in
-                if let body = args.unlabeledClosures.first ?? args.closure(labeled: "operation") {
+            // exactly as on device. NESTED tasks are SCHEDULED, not run:
+            // recursive retry loops (`func poll() { Task { poll() } }`)
+            // terminate exactly like real async scheduling.
+            return HostFunction(name: name) { [weak self] args, ctx in
+                if let body = args.unlabeledClosures.first ?? args.closure(labeled: "operation"),
+                   let self, self.taskDepth == 0 {
+                    self.taskDepth += 1
+                    defer { self.taskDepth -= 1 }
                     do {
                         _ = try ctx.callClosure(body, arguments: [])
                     } catch let error as RuntimeError where !error.fatal {

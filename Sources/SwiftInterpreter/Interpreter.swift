@@ -341,6 +341,12 @@ public final class Interpreter {
     }
 
     func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {
+        chooseInitializerStrict(from: initializers, for: args) ?? initializers[0]
+    }
+
+    /// Shape-matching only — nil when NO candidate fits (callers decide
+    /// whether to fall back or treat the call as an inherited init).
+    func chooseInitializerStrict(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax? {
         let argLabels = args.arguments.compactMap(\.label)
         let unlabeled = args.arguments.filter { $0.label == nil && !$0.isTrailing }.count
         for candidate in initializers {
@@ -361,7 +367,7 @@ public final class Interpreter {
                 return candidate
             }
         }
-        return initializers[0]
+        return nil
     }
 
     /// Evaluate an instance's `body` computed property in ViewBuilder mode.
@@ -509,8 +515,9 @@ public final class Interpreter {
                     arguments.append(.init(
                         label: property.name,
                         value: try synthesizedFreshValue(typeName: "Binding<\(typeName)>", seen: &seen)))
-                case .observedObject:
-                    // Fresh model per the missing-environment-object doctrine.
+                case .observedObject, .stateObject:
+                    // Fresh model per the missing-environment-object doctrine
+                    // (initializer-less wrappers only — the where clause).
                     arguments.append(.init(
                         label: property.name,
                         value: try synthesizedFreshValue(typeName: typeName, seen: &seen)))

@@ -1700,6 +1700,44 @@ enum Corpus {
         #expect(report.nodeCount >= 6)
     }
 
+    /// Delegation to inherited (host-superclass) designated inits binds
+    /// labeled args as properties instead of self-delegating forever;
+    /// bare statics assign inside static methods; unknowable bindings
+    /// project detached members; chain-vs-concrete equality is false.
+    @Test func inheritedDelegationAndStaticAssignment() throws {
+        let source = """
+        class SupportWindowController: NSWindowController {
+            static var shared: SupportWindowController!
+
+            convenience init() {
+                let window = NSWindow()
+                self.init(window: window)
+            }
+
+            static func show() {
+                if shared == nil {
+                    shared = SupportWindowController()
+                }
+            }
+        }
+
+        struct ContentView: View {
+            @State private var viewModel: PlayAppVM?
+
+            var body: some View {
+                let _ = SupportWindowController.show()
+                let settings = ExternalSDK.current.settings
+                VStack {
+                    Text(SupportWindowController.shared == nil ? "no window" : "window kept")
+                    Text(settings.resolution == 0 ? "fresh res" : "custom res")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

@@ -782,7 +782,14 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
         case "minimumFractionDigits":
             if let digits = newValue.intValue { box.formatter.minimumFractionDigits = digits }
             return true
-        case "locale", "currencySymbol", "groupingSeparator", "allowsFloats":
+        case "decimalSeparator":
+            if let separator = newValue.stringValue { box.formatter.decimalSeparator = separator }
+            return true
+        case "minimumIntegerDigits":
+            if let digits = newValue.intValue { box.formatter.minimumIntegerDigits = digits }
+            return true
+        case "locale", "currencySymbol", "groupingSeparator", "allowsFloats",
+             "usesGroupingSeparator", "roundingMode", "positiveFormat", "negativeFormat":
             return true // accepted; defaults suffice headlessly
         default:
             return false
@@ -810,7 +817,14 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
         case "minimumFractionDigits":
             if let digits = newValue.intValue { box.formatter.minimumFractionDigits = digits }
             return true
-        case "locale", "currencySymbol", "groupingSeparator", "allowsFloats":
+        case "decimalSeparator":
+            if let separator = newValue.stringValue { box.formatter.decimalSeparator = separator }
+            return true
+        case "minimumIntegerDigits":
+            if let digits = newValue.intValue { box.formatter.minimumIntegerDigits = digits }
+            return true
+        case "locale", "currencySymbol", "groupingSeparator", "allowsFloats",
+             "usesGroupingSeparator", "roundingMode", "positiveFormat", "negativeFormat":
             return true // accepted; defaults suffice headlessly
         default:
             return false
