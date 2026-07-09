@@ -162,10 +162,16 @@ Each iteration does exactly this:
 8. **Update the Progress log below** (date, pass rate, what was fixed). Keep
    entries to one line.
 9. If ProjectCheck passes everything in the current window: raise `--limit`
-   (25 → 50 → 100 → … → --all). When the local ladder is exhausted, find
-   harder material: search GitHub for small real SwiftUI apps (10–40 files,
-   stars > 100), clone into `External/oss/<name>`, and point ProjectCheck at
-   them. Never fabricate passing material.
+   (25 → 50 → 100 → … → --all). When the local ladder is exhausted, check
+   the OTHER queues BEFORE reaching for new material: an open LiveCheck rung
+   class (M2/M3) or a native-verified TestCheck class outranks material
+   expansion — new-material hunts (GitHub apps, 10–40 files, stars > 100,
+   cloned into `External/oss/<name>`) are the fallback when LiveCheck and
+   TestCheck have no actionable class either, and at most every THIRD
+   iteration otherwise. Never fabricate passing material. Current standing
+   M2 target: the async-fetch class — `.task`/`.onAppear` closures must
+   execute in deep-render probes (with the re-render observed) so fetched
+   fixture data reaches the tree; it blocks both open LiveCheck scenarios.
 
 ## Rules
 
