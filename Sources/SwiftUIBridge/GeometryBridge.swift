@@ -222,11 +222,17 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         case ("Double", "random"), ("CGFloat", "random"), ("Int", "random"):
             let wantsInt = marker.name == "Int"
             return .hostFunction(HostFunction(name: "random") { args, _ in
-                guard let range = (args.labeled("in") ?? args.positional(0))?.rangeValue else {
+                let argument = args.labeled("in") ?? args.positional(0)
+                if wantsInt {
+                    guard let range = argument?.rangeValue else {
+                        throw RuntimeError(message: "random(in:) needs a range")
+                    }
+                    return .native(Int.random(in: range))
+                }
+                guard let bounds = argument?.doubleRangeValue else {
                     throw RuntimeError(message: "random(in:) needs a range")
                 }
-                if wantsInt { return .native(Int.random(in: range)) }
-                return .native(Double.random(in: Double(range.lowerBound)...Double(range.upperBound - 1)))
+                return .native(Double.random(in: bounds))
             })
         default:
             return nil

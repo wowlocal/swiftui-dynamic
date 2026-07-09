@@ -48,15 +48,22 @@ enum Builtins {
         case "<", "<=", ">", ">=":
             return .native(try compare(op, lhs, rhs))
         case "..<":
-            guard let l = lhs.intValue, let r = rhs.intValue, l <= r else {
-                throw EvalMessage(text: "invalid range bounds")
+            if let l = lhs.intValue, let r = rhs.intValue, l <= r {
+                return .native(l..<r)
             }
-            return .native(l..<r)
+            if let l = lhs.doubleValue, let r = rhs.doubleValue, l <= r {
+                return .native(l...r) // half-open doubles: iteration never materializes these
+            }
+            throw EvalMessage(text: "invalid range bounds")
         case "...":
-            guard let l = lhs.intValue, let r = rhs.intValue, l <= r else {
-                throw EvalMessage(text: "invalid range bounds")
+            if let l = lhs.intValue, let r = rhs.intValue, l <= r {
+                return .native(l..<(r + 1))
             }
-            return .native(l..<(r + 1))
+            // `0.01...0.1` — fractional bounds (Slider ranges, random(in:)).
+            if let l = lhs.doubleValue, let r = rhs.doubleValue, l <= r {
+                return .native(l...r)
+            }
+            throw EvalMessage(text: "invalid range bounds")
         default:
             throw EvalMessage(text: "unsupported operator '\(op)'")
         }

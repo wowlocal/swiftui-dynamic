@@ -651,3 +651,9 @@ Each iteration does exactly this:
 - 2026-07-09 iter 80: array `append(contentsOf:)` splices through the
   mutating-lvalue path (both AnimatedCharts units pass — their multi-
   iteration march ends). **547 → 549/585 (93.8%).**
+- 2026-07-09 iter 81: fractional ranges — `0.01...0.1` constructs
+  ClosedRange<Double> (Int semantics unchanged), doubleRangeValue bridges
+  Int ranges, and the consumers speak both: Slider(in:), Double.random(in:),
+  Int-context random over double bounds. HackerTextEffect passes;
+  MatrixRainEffect advanced to stub-fed index math.
+  **549 → 550/585 (94.0%).**

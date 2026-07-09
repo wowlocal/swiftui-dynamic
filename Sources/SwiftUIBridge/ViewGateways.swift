@@ -296,10 +296,9 @@ extension ViewRegistry {
             guard let rangeValue = args.labeled("in") else {
                 return .native(AnyView(Slider(value: binding)))
             }
-            guard let range = rangeValue.rangeValue else {
-                throw RuntimeError(message: "Slider(in:) needs an integer range like 0...10")
+            guard let bounds = rangeValue.doubleRangeValue else {
+                throw RuntimeError(message: "Slider(in:) needs a range like 0...10 or 0.01...0.1")
             }
-            let bounds = Double(range.lowerBound)...Double(range.upperBound - 1)
             if let step = args.labeled("step")?.doubleValue {
                 return .native(AnyView(Slider(value: binding, in: bounds, step: step)))
             }

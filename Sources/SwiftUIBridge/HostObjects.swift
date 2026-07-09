@@ -166,9 +166,10 @@ private func dateArg(_ value: RuntimeValue?) -> Date? {
 private func intArg(_ value: RuntimeValue?) -> Int? {
     if let i = value?.intValue { return i }
     // `.random(in: 1...100)` arriving without type context.
-    if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "random",
-       let range = (call.arguments.labeled("in") ?? call.arguments.positional(0))?.rangeValue {
-        return Int.random(in: range)
+    if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "random" {
+        let argument = call.arguments.labeled("in") ?? call.arguments.positional(0)
+        if let range = argument?.rangeValue { return Int.random(in: range) }
+        if let bounds = argument?.doubleRangeValue { return Int(Double.random(in: bounds)) }
     }
     return nil
 }

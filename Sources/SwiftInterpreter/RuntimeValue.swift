@@ -50,6 +50,17 @@ extension RuntimeValue {
         return nil
     }
 
+    /// `0.01...0.1` — fractional ranges (Slider bounds, .random(in:)).
+    public var doubleRangeValue: ClosedRange<Double>? {
+        if case .native(let any) = self {
+            if let closed = any as? ClosedRange<Double> { return closed }
+            if let intRange = any as? Range<Int>, !intRange.isEmpty {
+                return Double(intRange.lowerBound)...Double(intRange.upperBound - 1)
+            }
+        }
+        return nil
+    }
+
     public var dictValue: DictValue? {
         if case .native(let any) = self { return any as? DictValue }
         return nil

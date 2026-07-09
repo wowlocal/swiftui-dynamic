@@ -203,6 +203,31 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Fractional ranges: Slider(in: 0.01...0.1), Double.random over
+    /// computed double bounds.
+    @Test func fractionalRanges() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var speed: CGFloat = 0.05
+
+            var body: some View {
+                let size = CGSize(width: 390, height: 844)
+                let randomHeight: CGFloat = .random(in: (size.height / 2)...size.height)
+                VStack {
+                    Slider(value: $speed, in: 0.01...0.1)
+                    Text(randomHeight >= 422 ? "tall" : "short")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+        let real = InterpreterHost().render(source: source)
+        if case .failure(let error) = real {
+            Issue.record("real render failed: \(error)")
+        }
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }
