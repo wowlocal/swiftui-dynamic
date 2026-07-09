@@ -41,6 +41,11 @@ let package = Package(
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
+            name: "InterpreterBench",
+            dependencies: ["SwiftUIBridge"],
+            swiftSettings: mainActorByDefault
+        ),
+        .executableTarget(
             name: "TestCheck",
             dependencies: ["SwiftUIBridge"],
             swiftSettings: mainActorByDefault
