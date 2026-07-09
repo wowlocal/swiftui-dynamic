@@ -2909,6 +2909,30 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// IceCubesApp + Meshtastic (iteration 162): an ObjC-trampoline method
+    /// whose encoding RETURNS an object but hands back nil IS nil — fresh
+    /// UserDefaults has nothing persisted, so `object(forKey:) as? Bool`
+    /// takes the else branch instead of binding ().
+    @Test func trampolineNilObjectReturnsAreNil() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let sharedDefault = UserDefaults.standard
+                var branch = "unset"
+                if let alwaysUseDeepl = (sharedDefault.object(forKey: "always_use_deepl") as? Bool) {
+                    branch = alwaysUseDeepl ? "deepl" : "api"
+                } else {
+                    branch = "fresh"
+                }
+                if branch != "fresh" { fatalError("fresh defaults must read nil, got \\(branch)") }
+                return Text(branch)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// winston + OpenArtemis (iteration 161): formatting recoveries parse
     /// to a correct tree and are tolerated (`@Environment (\.colorScheme)`
     /// with a stray space builds in Xcode); unlabeled trailing closures

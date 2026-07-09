@@ -1587,3 +1587,15 @@ Each iteration does exactly this:
   Bools). winston ✅, OpenArtemis ✅ (259 nodes, 24 actions).
   **647/651 counted — ZERO failures (TWENTY-FOURTH saturation).
   585 zips + 63 OSS repos green. Suite 323 → 324.**
+- 2026-07-10 iter 162: the biggest class was a REGRESSION from the
+  merged parallel work (ObjC trampoline + RuntimeValue inline-scalar
+  rework): an object-returning trampoline method handing back nil
+  collapsed to `()` — fresh `UserDefaults.object(forKey:)` must be NIL
+  (IceCubes + Meshtastic both died on `if let x = … as? Bool`). Fixed:
+  returnsObject && nil result → .nilValue; void encodings keep ().
+  Healing it exposed Whisky's bare `path(percentEncoded:)` INSIDE a URL
+  extension (the method/property collision, implicit-self flavor) —
+  routed like the member form. Meshtastic now renders 777 nodes (real
+  trampoline formatters). IceCubes ✅, Meshtastic ✅, Whisky ✅.
+  **647/651 counted — ZERO failures (TWENTY-FIFTH saturation).
+  Suite 328 → 329.**

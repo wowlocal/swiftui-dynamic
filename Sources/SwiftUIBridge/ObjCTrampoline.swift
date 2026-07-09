@@ -156,9 +156,11 @@ enum ObjCTrampoline {
             }
         }
         // perform() on a VOID method returns garbage — only read the result
-        // when the encoding says an object comes back.
-        guard returnsObject(object, selector: selector),
-              let returned = result?.takeUnretainedValue() else { return .void }
+        // when the encoding says an object comes back. An object-returning
+        // method that hands back nil IS nil (fresh UserDefaults
+        // .object(forKey:) — nothing persisted), never ().
+        guard returnsObject(object, selector: selector) else { return .void }
+        guard let returned = result?.takeUnretainedValue() else { return .nilValue }
         return marshalToRuntime(returned)
     }
 

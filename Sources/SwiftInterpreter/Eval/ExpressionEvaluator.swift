@@ -1245,6 +1245,14 @@ extension Interpreter {
         if let ref = call.calledExpression.as(DeclReferenceExprSyntax.self),
            env.box(for: ref.baseName.text, before: globals) == nil {
             let name = ref.baseName.text
+            // Bare `path(percentEncoded:)` inside a URL extension — the
+            // METHOD/property collision, implicit-self flavor.
+            if name == "path",
+               call.arguments.contains(where: { $0.label?.text == "percentEncoded" }),
+               let url = env.lookup("self")?.hostPayload as? URL {
+                let args = try collectArguments(of: call, in: env)
+                return .native(url.path(percentEncoded: args.labeled("percentEncoded")?.boolValue ?? true))
+            }
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instance.symbol.methods[name], overloads.count > 1 {
                 let args = try collectArguments(of: call, in: env)
