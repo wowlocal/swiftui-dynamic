@@ -628,3 +628,10 @@ Each iteration does exactly this:
   class too). Canvas_Editor, ImageDrawing, InteractiveToasts,
   Responsive_UI_New (218 nodes) pass — two classes, one stroke.
   **534 → 538/585 (92.0%).**
+- 2026-07-09 iter 77: fresh-state Bool doctrine — hosted-object values
+  (InertCallable) AND unresolved markers in Bool positions read false
+  (`canEvaluatePolicy` → no biometrics, `session.isRunning` → nothing runs
+  headlessly); `!` negates from that. Clears the Bool/TraceNode 3-class and
+  half the Bool-operand pair: Music, FaceID_Login ×2, QRCodeScanner pass;
+  TextSelectionAPI advanced (patternExpr singleton).
+  **538 → 543/585 (92.8%).**

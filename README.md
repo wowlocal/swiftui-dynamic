@@ -165,6 +165,10 @@ coverage.
 - **Custom `Layout` containers flow.** `TagLayout(spacing:) { … }` renders
   its children in a default vertical flow; the interpreted
   `sizeThatFits`/`placeSubviews` never run.
+- **Hosted-object truths are fresh-state false.** Unknown host objects and
+  unresolved markers in Bool positions read `false` (`context.
+  canEvaluatePolicy(…)`, `session.isRunning` — no biometrics, nothing
+  running headlessly); `!` negates from that.
 - **Canvas drawing is inert.** `Canvas { context, size in … }` runs the
   renderer once against a no-op context (390×844) — the closure's math
   executes, but fill/stroke/translate commands never reach a real

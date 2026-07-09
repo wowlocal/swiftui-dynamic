@@ -1329,6 +1329,13 @@ extension Interpreter {
 
     func expectBool(_ value: RuntimeValue, node: some SyntaxProtocol) throws -> Bool {
         guard let b = value.boolValue else {
+            // Hosted-object truths (`context.canEvaluatePolicy(…)`,
+            // `engine.isRunning`) read FALSE — fresh system state: no
+            // biometrics, nothing running headlessly.
+            if case .native(let any) = value,
+               any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
+                return false
+            }
             throw error(node, "expected a Bool, got \(value.stringified)")
         }
         return b

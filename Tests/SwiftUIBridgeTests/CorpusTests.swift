@@ -116,6 +116,35 @@ enum Corpus {
         #expect(report.actionsInvoked == 1)
     }
 
+    /// Hosted-object and marker truths read FALSE (fresh system state: no
+    /// biometrics, no running sessions); negation reads true.
+    @Test func hostedObjectTruthsAreFreshStateFalse() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var status = "checking"
+
+            var body: some View {
+                Text(status)
+                Button("Auth") {
+                    let context = LAContext()
+                    if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil) {
+                        status = "biometrics"
+                    } else {
+                        status = "fallback"
+                    }
+                    let session: AVCaptureSession = .init()
+                    if !session.isRunning {
+                        status = status + "/stopped"
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+        #expect(report.actionsInvoked == 1)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

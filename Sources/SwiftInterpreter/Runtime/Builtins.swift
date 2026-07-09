@@ -69,8 +69,13 @@ enum Builtins {
             if let d = value.doubleValue { return .native(-d) }
             throw EvalMessage(text: "unary '-' requires a numeric operand")
         case "!":
-            guard let b = value.boolValue else { throw EvalMessage(text: "'!' requires a Bool operand") }
-            return .native(!b)
+            if let b = value.boolValue { return .native(!b) }
+            // Hosted-object truths negate from their fresh-state false.
+            if case .native(let any) = value,
+               any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
+                return .native(true)
+            }
+            throw EvalMessage(text: "'!' requires a Bool operand, got \(value.stringified)")
         default:
             throw EvalMessage(text: "unsupported prefix operator '\(op)'")
         }
