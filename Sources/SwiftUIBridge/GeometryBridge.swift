@@ -215,6 +215,21 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .native(color)
         }
         switch (marker.name, name) {
+        case ("ViewBuilder", "buildEither"):
+            // TCA's IfLetStore shim calls the compiler-reserved statics as
+            // API: `ViewBuilder.buildEither(first: content)` IS the content
+            // (_ConditionalContent is invisible to rendering).
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                args.labeled("first") ?? args.labeled("second") ?? args.positional(0) ?? .void
+            })
+        case ("ViewBuilder", "buildBlock"), ("ViewBuilder", "buildExpression"),
+             ("ViewBuilder", "buildOptional"), ("ViewBuilder", "buildIf"),
+             ("ViewBuilder", "buildLimitedAvailability"):
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let views = args.arguments.map(\.value)
+                if views.count == 1 { return views[0] }
+                return .native(views) // builder-content shape ([views])
+            })
         case ("UIScreen", "main"), ("NSScreen", "main"):
             return .native(ScreenStub())
         case ("DispatchQueue", "main"):

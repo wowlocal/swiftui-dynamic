@@ -1265,3 +1265,14 @@ Each iteration does exactly this:
   to `expected a view, got ImplicitMemberCall(buildEither)` — result-
   builder statics, next class. **624/630 counted ($store class
   eliminated). Suite 261 → 262.**
+- 2026-07-09 iter 146: swift-composable-architecture FALLS — `expected
+  a view, got ImplicitMemberCall(buildEither)`: TCA's IfLetStore shim
+  calls the compiler-reserved builder statics AS API
+  (`ViewBuilder.buildEither(first:)`). The statics now pass their
+  argument through on the shared marker path (buildEither first/second;
+  buildBlock/buildExpression/buildOptional/buildIf/
+  buildLimitedAvailability single-or-array). The 796-file point-free
+  flagship renders end-to-end: **390 nodes, 81 actions** — the six-wall
+  chain (docc snippets → macroDecl → nested enums → description →
+  $store/@Perception.Bindable → buildEither) closed. **625/630 counted
+  — STRICTLY IMPROVED (624 → 625); only UTM remains. Suite 262 → 263.**

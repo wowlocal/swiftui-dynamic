@@ -2909,6 +2909,35 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// swift-composable-architecture (iteration 146): TCA's IfLetStore shim
+    /// calls the compiler-reserved builder statics AS API —
+    /// `ViewBuilder.buildEither(first:)`/`(second:)` wrap _ConditionalContent
+    /// that is invisible to rendering; the argument IS the view.
+    @Test func explicitViewBuilderStaticsPassThrough() throws {
+        let source = """
+        struct ContentView: View {
+            var showFirst = true
+
+            var content: AnyView {
+                if showFirst {
+                    return ViewBuilder.buildEither(first: Text("first branch"))
+                } else {
+                    return ViewBuilder.buildEither(second: Text("second branch"))
+                }
+            }
+
+            var body: some View {
+                VStack {
+                    content
+                    ViewBuilder.buildBlock(Text("block"))
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// swift-composable-architecture (iteration 145): `@Perception.Bindable
     /// var store` — @Bindable (module-qualified or bare) wraps an observable
     /// reference type; `$store.field` projects a binding into the model's
