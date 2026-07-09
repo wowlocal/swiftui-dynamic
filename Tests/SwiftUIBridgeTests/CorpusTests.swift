@@ -506,6 +506,32 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// The appearance proxy is a read/write bag with real fresh-layout
+    /// geometry: bounds reads CGRect.zero, member writes stick, config
+    /// calls chain inertly.
+    @Test func appearanceProxyReadsAndWrites() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let refreshControl = UIRefreshControl.appearance()
+                let _ = {
+                    refreshControl.bounds = CGRect(x: refreshControl.bounds.origin.x,
+                                                   y: -350 + refreshControl.bounds.origin.y,
+                                                   width: refreshControl.bounds.size.width,
+                                                   height: refreshControl.bounds.size.height)
+                    refreshControl.tintColor = .white
+                }()
+                VStack {
+                    Text(refreshControl.bounds.origin.y < 0 ? "moved" : "zero")
+                    Text("w \\(refreshControl.bounds.size.width)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

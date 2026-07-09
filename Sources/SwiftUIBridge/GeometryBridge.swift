@@ -240,10 +240,17 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if let stub = value as? UIKitStub {
         if let stored = stub.config[name] { return stored }
-        // Unknown members read as fresh stubs, memoized so writes persist
-        // (`vc.view.tag = 7` then `vc.view.tag`); calling a stub is also
-        // inert (see the evaluator's invoke fallback).
-        let fresh = RuntimeValue.native(UIKitStub())
+        // Geometry members read real fresh-layout values so CGRect/CGPoint
+        // math works; everything else reads as a fresh stub. Both memoize
+        // so writes persist (`vc.view.tag = 7` then `vc.view.tag`); calling
+        // a stub is also inert (see the evaluator's invoke fallback).
+        let fresh: RuntimeValue
+        switch name {
+        case "bounds", "frame": fresh = .native(CGRect.zero)
+        case "center", "contentOffset": fresh = .native(CGPoint.zero)
+        case "contentSize": fresh = .native(CGSize.zero)
+        default: fresh = .native(UIKitStub())
+        }
         stub.config[name] = fresh
         return fresh
     }

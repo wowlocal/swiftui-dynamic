@@ -780,3 +780,9 @@ Each iteration does exactly this:
   (Activity<T>.activities; bare `.member` sequences too). README doctrine
   extended. ReelsCamera (22 nodes) + Lockscreen_Dock (13) pass.
   **579 → 581/588 (98.8%).**
+- 2026-07-09 iter 98: appearance proxy = UIKitStub — `.appearance()` returns
+  the read/write bag (writes stick, reads memoize, config calls chain);
+  UIKitStub geometry members (bounds/frame → CGRect.zero, center/
+  contentOffset → CGPoint.zero, contentSize → CGSize.zero) read REAL
+  fresh-layout values so CGRect math works; AppearanceStub deleted.
+  CustomHeader passes (18 nodes). **581 → 582/588 (99.0%).**

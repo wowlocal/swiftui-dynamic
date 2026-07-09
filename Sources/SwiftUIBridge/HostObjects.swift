@@ -132,7 +132,6 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
 /// `UITabBar.appearance().isHidden = true` — iOS styling side-channels have
 /// no macOS analog; the proxy accepts configuration inertly (writes ignored,
 /// config calls chain).
-struct AppearanceStub {}
 
 /// `FileManager.default` — real file operations confined to a per-run
 /// sandbox, the analog of an app's fresh container: documents start empty,
@@ -635,11 +634,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
     }
     if value is HostTypeMarker, name == "appearance" {
-        return .hostFunction(HostFunction(name: "appearance") { _, _ in .native(AppearanceStub()) })
-    }
-    if value is AppearanceStub {
-        // Config calls chain (`.configureWithOpaqueBackground()` → stub).
-        return .hostFunction(HostFunction(name: name) { _, _ in .native(AppearanceStub()) })
+        // The appearance proxy is a UIKitStub: reads memoize, writes stick
+        // (`refreshControl.bounds = …` then reading it back), calls chain.
+        return .hostFunction(HostFunction(name: "appearance") { _, _ in .native(UIKitStub()) })
     }
     if let marker = value as? HostTypeMarker, marker.name == "Timer", name == "publish" {
         return .hostFunction(HostFunction(name: "publish") { args, _ in
@@ -711,9 +708,6 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
         default:
             return false
         }
-    }
-    if value is AppearanceStub {
-        return true // appearance configuration is accepted and ignored
     }
     if value is GraphicsContextStub || value is PathDrawStub {
         return true // `context.opacity = 0.5` — draw state accepted, no surface
