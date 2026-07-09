@@ -1224,3 +1224,11 @@ Each iteration does exactly this:
   (SwiftUIBridge). SCA advances to its real wall: `unsupported
   declaration (macroDecl)` at 21934 — next class. **624/630 counted
   (docc class eliminated, no collateral). Suite 256 → 257.**
+- 2026-07-09 iter 142: swift-composable-architecture — `unsupported
+  declaration (macroDecl)`: TCA declares freestanding AND attached macros
+  (`@Reducer`, `#externalMacro`). Macro DECLARATIONS are compile-time
+  constructs — the runtime image holds no entity — so they no-op beside
+  the import no-op; uses ride the existing attribute/expansion paths. SCA
+  advances two walls deep into root body: `'TestCase' has no case or
+  static member 'Cases'` — next class. **624/630 counted (macroDecl
+  class eliminated). Suite 257 → 258.**

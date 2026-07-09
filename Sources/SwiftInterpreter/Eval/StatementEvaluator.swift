@@ -128,6 +128,13 @@ extension Interpreter {
         if decl.is(ImportDeclSyntax.self) {
             return // imports are module directives — no-ops in the merged model
         }
+        if decl.is(MacroDeclSyntax.self) {
+            // `macro Reducer(…) = #externalMacro(…)` — a compile-time
+            // construct; the runtime image holds no entity for it. USES are
+            // separate: attached macros ride the attribute path, freestanding
+            // expansions the MacroExpansionExpr path.
+            return
+        }
         if decl.is(StructDeclSyntax.self) || decl.is(ClassDeclSyntax.self)
             || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
             throw error(decl, "types must be declared at the top level")

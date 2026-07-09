@@ -2863,6 +2863,32 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// swift-composable-architecture (iteration 142): `macro` declarations
+    /// (freestanding and attached, TCA declares both) are compile-time
+    /// constructs — the runtime image holds no entity, so the interpreter
+    /// treats the declarations as no-ops instead of "unsupported
+    /// declaration (macroDecl)".
+    @Test func macroDeclarationsAreCompileTimeNoOps() throws {
+        let source = """
+        @freestanding(expression)
+        public macro exampleURL(_ stringLiteral: String) -> String =
+            #externalMacro(module: "Macros", type: "URLMacro")
+
+        @attached(member, names: arbitrary)
+        @attached(extension, conformances: Reducer)
+        public macro Reducer() =
+            #externalMacro(module: "ComposableArchitectureMacros", type: "ReducerMacro")
+
+        struct ContentView: View {
+            var body: some View {
+                Text("macros are inert")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// swift-composable-architecture (iteration 141): DocC catalogs hold
     /// tutorial SNIPPETS — intentionally elided, non-compiling code
     /// (`store.send(\\.addSyncUp…)` with a literal ellipsis). SwiftPM
