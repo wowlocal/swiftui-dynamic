@@ -5,7 +5,7 @@ struct SampleProgram: Identifiable, Hashable {
 }
 
 enum SamplePrograms {
-    static let all = [counter, todoMVVM, form, weather, staticLayout, list, segments, material]
+    static let all = [counter, todoMVVM, form, weather, staticLayout, list, segments, material, popup, albums]
 
     /// A real view-model app: ObservableObject store shared by three views.
     static let todoMVVM = SampleProgram(name: "Todo", source: """
@@ -527,6 +527,259 @@ enum SamplePrograms {
             }
         }
     }
+    """#)
+
+    /// Real-world code from the sample-projects corpus: Kavsoft's
+    /// PopUpNavigation — a custom popup built with an `.overlay` extension on
+    /// View, hosting a NavigationView with pushable links over a dimmed
+    /// backdrop. Adapted for the bridge: the iOS-only keyboard toolbar and
+    /// `navigationBarTitleDisplayMode` are dropped; the toolbar Close button
+    /// moved below the list.
+    static let popup = SampleProgram(name: "Popup", source: #"""
+    // MARK: Task Model
+    struct Task: Identifiable{
+        var id = UUID().uuidString
+        var taskTitle: String
+        var taskDescription: String
+    }
+
+    // MARK: Sample Tasks
+    var tasks: [Task] = [
+
+        Task(taskTitle: "Meeting", taskDescription: "Discuss team task for the day"),
+        Task(taskTitle: "Icon set", taskDescription: "Edit icons for team task for next week"),
+        Task(taskTitle: "Prototype", taskDescription: "Make and send prototype"),
+        Task(taskTitle: "Check asset", taskDescription: "Start checking the assets"),
+        Task(taskTitle: "Team party", taskDescription: "Make fun with team mates"),
+        Task(taskTitle: "Client Meeting", taskDescription: "Explain project to clinet"),
+
+        Task(taskTitle: "Next Project", taskDescription: "Discuss next project with team"),
+        Task(taskTitle: "App Proposal", taskDescription: "Meet client for next App Proposal"),
+    ]
+
+    // MARK: Custom View Property Extensions
+    extension View{
+
+        // MARK: Building a Custom Modifier for Custom Popup navigation View
+        func popupNavigationView<Content: View>(horizontalPadding: CGFloat = 40,show: Binding<Bool>,@ViewBuilder content: @escaping ()->Content)->some View{
+
+            return self
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .overlay {
+
+                    if show.wrappedValue{
+
+                        // MARK: Geometry Reader for reading Container Frame
+                        GeometryReader{proxy in
+
+                            Color.primary
+                                .opacity(0.15)
+                                .ignoresSafeArea()
+
+                            let size = proxy.size
+
+                            NavigationView{
+                                content()
+                            }
+                            .frame(width: size.width - horizontalPadding, height: size.height / 1.7, alignment: .center)
+                            // Corner Radius
+                            .cornerRadius(15)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        }
+                    }
+                }
+        }
+    }
+
+    struct Home: View {
+        @State var showPopup: Bool = false
+        var body: some View {
+
+            NavigationView{
+
+                Button("Show Popup"){
+                    withAnimation{
+                        showPopup.toggle()
+                    }
+                }
+                .navigationTitle("Custom Popup's")
+            }
+            .popupNavigationView(horizontalPadding: 40, show: $showPopup) {
+
+                // MARK: Your Popup content which will also performs navigations
+                VStack(spacing: 0){
+                    List{
+                        ForEach(tasks){task in
+                            NavigationLink(task.taskTitle) {
+                                Text(task.taskDescription)
+                                    .navigationTitle("Destination")
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    Button("Close"){
+                        withAnimation{showPopup.toggle()}
+                    }
+                    .padding(.vertical, 10)
+                }
+                .navigationTitle("Popup Navigation")
+            }
+        }
+    }
+    """#)
+
+    /// Real-world code from the sample-projects corpus: Kavsoft's "Filled"
+    /// album list — cards scale and fade as they scroll under the header,
+    /// driven by nested GeometryReaders. Adapted for the bridge: deprecated
+    /// `edgesIgnoringSafeArea` modernized to `ignoresSafeArea`, and the
+    /// bundled cover art (unavailable here) replaced with a tinted
+    /// system-image tile.
+    static let albums = SampleProgram(name: "Albums", source: #"""
+    struct Home : View {
+
+        var body: some View{
+
+            VStack(spacing: 0){
+
+                HStack{
+
+                    Text("Album Songs")
+                        .font(.system(size: 40))
+                        .fontWeight(.bold)
+                        .foregroundColor(.black)
+
+                    Spacer(minLength: 0)
+                }
+                .padding()
+                // since top edge is ignored....
+                .padding(.top,UIApplication.shared.windows.first?.safeAreaInsets.top)
+                .background(Color.white.shadow(color: Color.black.opacity(0.18), radius: 5, x: 0, y: 5))
+                .zIndex(0)
+                // moving view in stack for shadow effect...
+
+                // Scaling Effect....
+
+                GeometryReader{mainView in
+
+                    ScrollView{
+
+                        VStack(spacing: 15){
+
+                            // setting name as id...
+
+                            ForEach(albums,id: \.album_name){album in
+
+                                // Album View....
+
+                                GeometryReader{item in
+
+                                    AlbumView(album: album)
+                                        // scaling effect from bottom....
+                                        .scaleEffect(scaleValue(mainFrame: mainView.frame(in: .global).minY, minY: item.frame(in: .global).minY),anchor: .bottom)
+                                    // adding opacity effect...
+                                        .opacity(Double(scaleValue(mainFrame: mainView.frame(in: .global).minY, minY: item.frame(in: .global).minY)))
+                                }
+                                // setting default frame height...
+                                // since each card height is 100...
+                                .frame(height: 100)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top,25)
+                    }
+                    .zIndex(1)
+                }
+            }
+            .background(Color.black.opacity(0.06).ignoresSafeArea())
+            .ignoresSafeArea(edges: .top)
+        }
+
+        // Simple Calculation for scaling Effect...
+
+        func scaleValue(mainFrame : CGFloat,minY : CGFloat)-> CGFloat{
+
+            // adding animation...
+
+            withAnimation(.easeOut){
+
+                // reducing top padding value...
+
+                let scale = (minY - 25) / mainFrame
+
+                // retuning scaling value to Album View if its less than 1...
+
+                if scale > 1{
+
+                    return 1
+                }
+                else{
+
+                    return scale
+                }
+            }
+        }
+    }
+
+    struct AlbumView : View {
+
+        var album : Album
+
+        var body: some View{
+
+            HStack{
+
+                Image(systemName: "music.note")
+                    .font(.system(size: 40))
+                    .foregroundColor(.white)
+                    .frame(width: 100, height: 100)
+                    .background(Color.indigo.opacity(0.75))
+                    .cornerRadius(15)
+
+                VStack(alignment: .leading, spacing: 12) {
+
+                    Text(album.album_name)
+                        .fontWeight(.bold)
+
+                    Text(album.album_author)
+                }
+                .padding(.leading,10)
+
+                Spacer(minLength: 0)
+            }
+            .background(Color.white.shadow(color: Color.black.opacity(0.12), radius: 5, x: 0, y: 4))
+            .cornerRadius(15)
+        }
+    }
+
+    // Sample Data....
+
+    struct Album{
+
+        var album_name : String
+        var album_author : String
+        var album_cover : String
+    }
+
+    var albums = [
+
+        Album(album_name: "Let Her Go", album_author: "Passenger", album_cover: "p1"),
+        Album(album_name: "Bad Blood", album_author: "Taylor Swift", album_cover: "p2"),
+        Album(album_name: "Believer", album_author: "Kurt Hugo Schneider", album_cover: "p3"),
+        Album(album_name: "Let Me Love You", album_author: "DJ Snake", album_cover: "p4"),
+        Album(album_name: "Shape Of You", album_author: "Ed Sherran", album_cover: "p5"),
+        Album(album_name: "Blank Space", album_author: "Taylor Swift", album_cover: "p6"),
+        Album(album_name: "Havana", album_author: "Camila Cabello", album_cover: "p7"),
+        Album(album_name: "Red", album_author: "Taylor Swift", album_cover: "p8"),
+        Album(album_name: "I Like It", album_author: "J Balvin", album_cover: "p9"),
+        Album(album_name: "Lover", album_author: "Taylor Swift", album_cover: "p10"),
+        Album(album_name: "7/27 Harmony", album_author: "Camila Cabello", album_cover: "p11"),
+        Album(album_name: "Joanne", album_author: "Lady Gaga", album_cover: "p12"),
+        Album(album_name: "Roar", album_author: "Kay Perry", album_cover: "p13"),
+        Album(album_name: "My Church", album_author: "Maren Morris", album_cover: "p14"),
+        Album(album_name: "Part Of Me", album_author: "Katy Perry", album_cover: "p15"),
+    ]
     """#)
 
     static let list = SampleProgram(name: "List", source: """

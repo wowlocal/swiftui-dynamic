@@ -201,6 +201,16 @@ extension Interpreter {
         case "indices": return .native(0..<array.count)
         case "startIndex": return .native(0)
         case "endIndex": return .native(array.count)
+        case "elementsEqual":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let other = args.positional(0)?.arrayValue, other.count == array.count else {
+                    return .native(false)
+                }
+                for (a, b) in zip(array, other) where try !Builtins.areEqual(a, b) {
+                    return .native(false)
+                }
+                return .native(true)
+            })
 
         case "flatMap":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
@@ -557,6 +567,10 @@ extension Interpreter {
             return .native(string.first!.isLetter)
         case "isWhitespace" where string.count == 1:
             return .native(string.first!.isWhitespace)
+        case "elementsEqual":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(args.positional(0)?.stringValue == string)
+            })
         case "unicodeScalars":
             // Scalars as single-char strings (our character model): count,
             // iteration, and allSatisfy work through array machinery.

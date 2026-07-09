@@ -962,6 +962,21 @@ public final class Interpreter {
             if let repeating = args.labeled("repeating")?.stringValue, let count = args.labeled("count")?.intValue {
                 return .native(Swift.String(repeating: repeating, count: Swift.max(0, count)))
             }
+            if let bytes = args.labeled("bytes") {
+                // String(bytes: data, encoding: .ascii) — real decode; NUL
+                // padding trims (C buffers).
+                if case .native(let any) = bytes, let data = any as? Data {
+                    let text = String(decoding: data, as: UTF8.self)
+                    return .native(String(text.prefix(while: { $0 != "\0" })))
+                }
+                if let text = bytes.stringValue { return .native(text) }
+                return .nilValue
+            }
+            if args.labeled("cString") != nil || args.labeled("validatingUTF8") != nil {
+                // C-string of an absorbed buffer reads empty (fresh).
+                let value = args.labeled("cString") ?? args.labeled("validatingUTF8")
+                return .native(value?.stringValue ?? "")
+            }
             guard let value = args.positional(0) ?? args.labeled("describing") else { return .native("") }
             return .native(value.stringValue ?? value.stringified)
         }
@@ -1107,7 +1122,9 @@ public final class Interpreter {
         steps += 1
         if steps > stepBudget {
             let located = error(node, "evaluation budget exceeded (possible infinite loop)")
-            throw RuntimeError(message: located.message, line: located.line, column: located.column, fatal: true)
+            throw RuntimeError(
+                message: located.message, line: located.line, column: located.column,
+                fatal: true, budgetTrip: true)
         }
     }
 }
@@ -1119,6 +1136,26 @@ extension Interpreter: EvalContext {
         steps = 0 // fresh entry, e.g. a Button action invoked from the UI
         let args = CallArguments(arguments: arguments.map { .init(label: nil, value: $0) })
         return try callWithArguments(closure, args: args, node: nil)
+    }
+
+    /// Background work (`Task { … }` bodies). On device these run
+    /// concurrently, so an INTENTIONALLY infinite loop (`while true {
+    /// poll(); try? await Task.sleep }`) is legitimate there — it suspends
+    /// and never blocks launch. Synchronously we give the body a bounded
+    /// slice and PARK it when the slice is spent: execution stops quietly
+    /// and the caller's own budget is untouched. Documented divergence:
+    /// parked background tasks never resume.
+    public func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue {
+        let entrySteps = steps
+        let slice = 20_000
+        steps = max(0, stepBudget - slice)
+        defer { steps = entrySteps }
+        do {
+            let args = CallArguments(arguments: arguments.map { .init(label: nil, value: $0) })
+            return try callWithArguments(closure, args: args, node: nil)
+        } catch let error as RuntimeError where error.budgetTrip {
+            return .void // parked
+        }
     }
 
     public func callBuilderClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> [RuntimeValue] {

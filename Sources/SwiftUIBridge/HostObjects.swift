@@ -64,6 +64,20 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                let count = args.labeled("count")?.intValue {
                 return .native(Data(repeating: UInt8(truncatingIfNeeded: repeating), count: Swift.max(0, count)))
             }
+            // `Data(bytes: &sysinfo.machine, count: n)` — bag members carry
+            // real strings; byte arrays carry ints.
+            if let bytesValue = args.labeled("bytes") {
+                if let text = bytesValue.stringValue {
+                    var data = Data(text.utf8)
+                    if let count = args.labeled("count")?.intValue, count > data.count {
+                        data.append(Data(repeating: 0, count: count - data.count))
+                    }
+                    return .native(data)
+                }
+                if let array = bytesValue.arrayValue {
+                    return .native(Data(array.compactMap { $0.intValue.map { UInt8(truncatingIfNeeded: $0) } }))
+                }
+            }
             return .native(Data())
         }
     case "Locale":

@@ -382,7 +382,14 @@ public enum Builtins {
                 if case .hostFunction = value { return true }
                 return false
             }
-            if isUnknowable(lhs) != isUnknowable(rhs) { return false }
+            if isUnknowable(lhs) != isUnknowable(rhs) {
+                // Unknowable vs a concrete NUMBER compares through the
+                // fresh zero (uname(&info) == 0 succeeds — status codes);
+                // vs any other concrete it's simply unequal.
+                let concrete = isUnknowable(lhs) ? rhs : lhs
+                if let n = concrete.doubleValue { return n == 0 }
+                return false
+            }
             if isUnknowable(lhs), isUnknowable(rhs) {
                 // Both unknowable: name equality is the best truth
                 // ((function shapeKind) vs .none — different names differ).

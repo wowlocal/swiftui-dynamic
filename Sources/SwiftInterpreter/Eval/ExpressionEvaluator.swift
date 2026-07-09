@@ -339,7 +339,12 @@ extension Interpreter {
         // Everything else resolved above (members, globals, constructors),
         // so this only rescues would-be-unresolved lowercase names when
         // implicit self is a view (native or interpreted instance).
+        // C-interop names never rescue as modifiers: inside host-type
+        // extension bodies (self = host object) a bare `uname(&info)` must
+        // reach the C absorber below, not the registry's modifier table.
         if let selfValue = env.lookup("self"),
+           !Self.looksLikeCImport(name),
+           registry?.cFunction(named: name) == nil,
            let modifier = registry?.modifier(named: name),
            let target = modifierTarget(for: selfValue) {
             return .hostFunction(HostFunction(name: name) { args, ctx in
@@ -349,13 +354,18 @@ extension Interpreter {
         // Unresolved snake_case identifiers are C imports (sqlite3_open,
         // ndb_builder — the merge holds all the app's OWN Swift): inert
         // absorbing functions, values chain per the fresh-state doctrine.
-        if Self.cStdlibNames.contains(name)
-            || (name.contains("_") && name.first?.isLowercase == true)
-            || (name.hasPrefix("_") && name.dropFirst().first?.isLowercase == true)
-            || assumesCompiledImports {
-            return .hostFunction(HostFunction(name: name) { _, _ in
-                .native(ChainedImplicitCall(
-                    base: .implicitMember(name), member: "call", arguments: CallArguments()))
+        if Self.looksLikeCImport(name) || assumesCompiledImports {
+            if let real = registry?.cFunction(named: name) { return .hostFunction(real) }
+            // SCREAMING_SNAKE identifiers are C CONSTANTS (EXIT_SUCCESS,
+            // _SYS_NAMELEN): numeric-absorbing markers, not host types.
+            if name.contains("_"), name.dropFirst(name.hasPrefix("_") ? 1 : 0)
+                .allSatisfy({ $0.isUppercase || $0 == "_" || $0.isNumber }) {
+                return .implicitMember(name)
+            }
+            return .hostFunction(HostFunction(name: name) { [weak self] _, _ in
+                self?.registry?.absorbedCValue(named: name)
+                    ?? .native(ChainedImplicitCall(
+                        base: .implicitMember(name), member: "call", arguments: CallArguments()))
             })
         }
         throw error(node, "unresolved identifier '\(name)'")
@@ -951,6 +961,15 @@ extension Interpreter {
         "sysctl", "sysctlbyname", "getpid", "getppid", "getenv", "setenv",
         "unsetenv", "getuid", "geteuid",
     ]
+
+    /// Identifier shapes that read as C imports (snake_case, leading
+    /// underscore, or the known stdlib list) — these absorb via the C
+    /// branch and must never be claimed by the modifier rescue.
+    static func looksLikeCImport(_ name: String) -> Bool {
+        cStdlibNames.contains(name)
+            || (name.contains("_") && name.first?.isLowercase == true)
+            || (name.hasPrefix("_") && name.dropFirst().first?.isLowercase == true)
+    }
 
     func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
         // `[Index]()` / `[String: Int]()` — typed empty containers.
@@ -1889,6 +1908,13 @@ extension Interpreter {
                 // ignored (the marker-write doctrine).
                 return .hostProperty(
                     ImplicitMemberCall(name: markerName, arguments: CallArguments()),
+                    member.declName.baseName.text)
+            }
+            if case .hostFunction(let fn) = baseValue {
+                // `LaunchAtLogin.isEnabled = …` — external-package statics
+                // resolve to constructor functions; writes are accepted.
+                return .hostProperty(
+                    ImplicitMemberCall(name: fn.name, arguments: CallArguments()),
                     member.declName.baseName.text)
             }
             throw error(member, "cannot assign to a member of \(baseValue.stringified)")

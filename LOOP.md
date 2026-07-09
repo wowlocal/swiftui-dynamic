@@ -1193,3 +1193,25 @@ Each iteration does exactly this:
   KeyboardCowboy, CodeEdit, Aidoku, Clop, Rayon, VirtualBuddy, now Apple's
   flagship samples) marks the long-tail regime: classes surface as API
   breadth, not language gaps.**
+- 2026-07-09 iter 140: AlDente-Charge-Limiter (8 files) — 187:25
+  `Helper.instance.appleSilicon!` nil: the machineHardwareName chain
+  (utsname/uname/EXIT_SUCCESS/_SYS_NAMELEN/Data(bytes:count:)/
+  String(bytes:encoding:)) inside a ProcessInfo extension. Four classes:
+  (1) HOST HARDWARE IS REAL — HostRegistry.cFunction answers uname
+  truthfully (fills the struct bag with the actual host's utsname fields,
+  returns 0); absorbedCValue gives absorbed C calls writable bags;
+  SCREAMING_SNAKE constants are numeric-absorbing markers; concrete
+  numbers compare with unknowables through zero. (2) bare C names inside
+  host-extension bodies were hijacked by the LAST-resort modifier rescue
+  (self = TraceNode reads as view + trace catch-all modifier table):
+  looksLikeCImport names and registry-real cFunctions now skip the
+  rescue. (3) String/Array elementsEqual are real members. (4) launch
+  hooks — applicationDidFinishLaunching runs before root render. The
+  hook exposed Mythic's INTENTIONAL infinite background cycle
+  (`Task { while true { …; try? await Task.sleep } }`) draining the
+  global budget: background tasks now run a bounded 20k-step slice and
+  PARK (tick marks budgetTrip; only callBackgroundClosure catches it;
+  caller's budget untouched). AlDente ✅ (9 nodes, 2 actions — real
+  arm64 detected), Mythic ✅ held. UTM + swift-composable-architecture
+  fail IDENTICALLY at HEAD (pre-existing, the next classes). **624/630
+  counted; 623 → 624 vs HEAD on the identical corpus. Suite 253 → 256.**

@@ -2804,6 +2804,123 @@ enum Corpus {
         #expect(report.nodeCount > 2)
     }
 
+    /// AlDente-Charge-Limiter (iteration 140): C interop inside a host-type
+    /// extension body. Bare `uname(&info)` with self = a host object must
+    /// reach the REAL registry cFunction (host hardware is real), not the
+    /// trace registry's catch-all modifier table; EXIT_SUCCESS/_SYS_NAMELEN
+    /// resolve as absorbing C constants; Data(bytes:count:) +
+    /// String(bytes:encoding:) round-trip the filled struct field. The app
+    /// delegate's launch hook seeds the singleton BEFORE the root renders,
+    /// so the view's force-unwrap sees a non-nil platform key.
+    @Test func cInteropInsideHostExtensionSeedsPlatformKey() throws {
+        let source = """
+        import AppKit
+
+        extension ProcessInfo {
+            var machineHardwareName: String? {
+                var sysinfo = utsname()
+                let result = uname(&sysinfo)
+                guard result == EXIT_SUCCESS else { return nil }
+                let data = Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN))
+                guard let identifier = String(bytes: data, encoding: .ascii) else { return nil }
+                return identifier.trimmingCharacters(in: .controlCharacters)
+            }
+        }
+
+        class Helper {
+            static let instance = Helper()
+            var platformKey: String?
+            var appleSilicon: Bool?
+
+            func setPlatformKey() {
+                let s: String! = ProcessInfo.init().machineHardwareName
+                if s != nil {
+                    if s.elementsEqual("x86_64") {
+                        platformKey = "intel"
+                        appleSilicon = false
+                    } else if s.elementsEqual("arm64") {
+                        platformKey = "apple"
+                        appleSilicon = true
+                    }
+                }
+            }
+        }
+
+        class AppDelegate: NSObject, NSApplicationDelegate {
+            func applicationDidFinishLaunching(_ notification: Notification) {
+                Helper.instance.setPlatformKey()
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text(Helper.instance.appleSilicon! ? "AS" : "Intel")
+                    .accessibilityLabel(Helper.instance.platformKey!)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
+    /// Mythic (iteration 140): a launch hook spawning an INTENTIONALLY
+    /// infinite background cycle — `Task { while true { poll(); try? await
+    /// Task.sleep } }` — is legitimate on device (it suspends concurrently).
+    /// The synchronous harness parks the task after its slice; the main
+    /// flow's budget must be untouched, so root init and rendering proceed.
+    @Test func infiniteBackgroundTaskParksWithoutDrainingBudget() throws {
+        let source = """
+        import AppKit
+
+        class Poller {
+            static let shared = Poller()
+            var polls = 0
+            func poll() { polls += 1 }
+        }
+
+        class AppDelegate: NSObject, NSApplicationDelegate {
+            func applicationDidFinishLaunching(_ notification: Notification) {
+                Task(priority: .utility) {
+                    while true {
+                        Poller.shared.poll()
+                        try? await Task.sleep(for: .seconds(300))
+                    }
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text(Poller.shared.polls > 0 ? "polled" : "never ran")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
+    /// String/Array `elementsEqual` are real members (AlDente branches on
+    /// them) — absorbing them to chains would read false on BOTH platform
+    /// comparisons and leave the key nil.
+    @Test func elementsEqualComparesContents() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let checks = [
+                    "arm64".elementsEqual("arm64"),
+                    !"arm64".elementsEqual("x86_64"),
+                    [1, 2, 3].elementsEqual([1, 2, 3]),
+                    ![1, 2, 3].elementsEqual([1, 2]),
+                ]
+                if checks.contains(false) { fatalError("elementsEqual broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     @Test(arguments: corpusFiles)
     func hostedRealRender(file: String) throws {
         RenderDiagnostics.reset()

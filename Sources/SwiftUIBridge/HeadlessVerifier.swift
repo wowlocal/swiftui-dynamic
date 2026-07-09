@@ -20,6 +20,26 @@ public enum HeadlessVerifier {
         } catch {
             throw RuntimeError(message: "top-level threw: \(error)")
         }
+        // Launch hooks run before any view, as on device: the app
+        // delegate's didFinishLaunching seeds singletons (platform keys,
+        // caches). Absorbed-environment failures inside are tolerated.
+        for delegateSymbol in interpreter.structSymbols
+        where delegateSymbol.conformances.contains("NSApplicationDelegate")
+            || delegateSymbol.conformances.contains("UIApplicationDelegate") {
+            guard case .instance(let delegate)? = try? interpreter.instantiateRoot(delegateSymbol) else {
+                continue
+            }
+            let hook = RuntimeValue.native(ChainedImplicitCall(
+                base: .implicitMember("launch"), member: "notification", arguments: CallArguments()))
+            do {
+                _ = try interpreter.callMethod(
+                    named: "applicationDidFinishLaunching", on: delegate, arguments: [hook])
+            } catch let error as RuntimeError where !error.fatal {
+                // absorbed-environment failures inside the hook are tolerated
+            } catch {
+                throw RuntimeError(message: "launch hook threw: \(error)")
+            }
+        }
         guard let symbol = interpreter.rootViewSymbol() else {
             throw RuntimeError(message: "no View-conforming struct found")
         }

@@ -71,6 +71,9 @@ public struct HostModifier {
 /// mode (container content).
 public protocol EvalContext: AnyObject {
     func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
+    /// Task-body semantics: runs on a bounded slice, parks (returns quietly)
+    /// on slice exhaustion, and never charges the caller's step budget.
+    func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     func callBuilderClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> [RuntimeValue]
 }
 
@@ -78,6 +81,12 @@ public protocol EvalContext: AnyObject {
 /// The interpreter core never imports SwiftUI; view values flow through it
 /// opaquely and all rendering decisions happen behind this protocol.
 public protocol HostRegistry: AnyObject {
+    /// Real implementations for C functions worth answering truthfully
+    /// (uname fills real host values). nil falls to the inert absorber.
+    func cFunction(named name: String) -> HostFunction?
+    /// The value an absorbed C call yields — registries return writable
+    /// bags so out-parameter structs (utsname) can be filled.
+    func absorbedCValue(named name: String) -> RuntimeValue?
     func storeBlob(_ value: RuntimeValue, at path: String)
     func constructor(named name: String) -> HostFunction?
     func modifier(named name: String) -> HostModifier?

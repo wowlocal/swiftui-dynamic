@@ -6,12 +6,17 @@ public struct RuntimeError: Error, CustomStringConvertible {
     /// Fatal errors (step-budget trips) are never catchable by interpreted
     /// `do`/`catch` — the infinite-loop guard must survive user code.
     public let fatal: Bool
+    /// True only for step-budget trips — the one fatal kind background-task
+    /// slices may park on (a spinning task keeps its core on device; a
+    /// recursion crash would kill the device process too, so it stays fatal).
+    public let budgetTrip: Bool
 
-    public init(message: String, line: Int = 0, column: Int = 0, fatal: Bool = false) {
+    public init(message: String, line: Int = 0, column: Int = 0, fatal: Bool = false, budgetTrip: Bool = false) {
         self.message = message
         self.line = line
         self.column = column
         self.fatal = fatal
+        self.budgetTrip = budgetTrip
     }
 
     public var description: String { "\(line):\(column): \(message)" }

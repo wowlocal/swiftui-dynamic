@@ -16,10 +16,14 @@ Built-in samples (toolbar picker): **Counter** (`@State` + Button
 actions), **Todo** (MVVM `ObservableObject` store shared by views), **Form**
 (`$state` bindings driving `Toggle`/`Slider`/`TextField`), **Weather** (enums
 with methods, `switch` in bodies, gradients), **Layout** (stacks, modifiers,
-`ForEach` chips), **List** (nested user-defined views), plus two lifted from
+`ForEach` chips), **List** (nested user-defined views), plus four lifted from
 the sample-projects corpus: **Segments** (Kavsoft's AnimatedSegmentedControl —
 generic view with a `@ViewBuilder` closure property, GeometryReader indicator
-math) and **Material** (Kavsoft's MaterialTF — floating-label text field).
+math), **Material** (Kavsoft's MaterialTF — floating-label text field),
+**Popup** (Kavsoft's PopUpNavigation — an `.overlay`-based popup hosting
+pushable NavigationLinks over a dimmed backdrop), and **Albums** (Kavsoft's
+"Filled" — cards scale and fade under the header as they scroll, via nested
+GeometryReaders).
 
 ```
 swift test
@@ -241,6 +245,26 @@ coverage.
   beyond `nil` literals, `guard`, `switch`, dictionaries.
 - An evaluation **step budget** (100k) guards the main thread against
   `while true {}`.
+- **Background tasks run a bounded slice, then park.** `Task { … }` bodies
+  execute synchronously (coverage over concurrency), so an intentionally
+  infinite background loop (`while true { poll(); try? await Task.sleep }`
+  — legitimate on device, where it suspends) gets a 20k-step slice and then
+  stops quietly; the surrounding flow's budget is never charged. Parked
+  tasks never resume.
+- **C interop is absorbing, hardware answers are real.** Unresolved
+  snake_case/SCREAMING_SNAKE identifiers and bodyless functions read as C
+  imports: calls absorb into writable bags, constants read as
+  numeric-absorbing markers (0 in arithmetic and comparisons through
+  concrete zero). A short registry of functions answers truthfully —
+  `uname(&info)` fills the struct bag with the real host's utsname values
+  and returns 0 — so hardware-detection chains (AlDente's
+  `machineHardwareName`) resolve to the machine's actual identity. Inside
+  host-type extension bodies these names resolve as C imports before any
+  view-modifier rescue.
+- **App-delegate launch hooks run.** `applicationDidFinishLaunching` on
+  NS/UIApplicationDelegate conformers executes before the root view
+  renders (singleton seeding happens as on device); non-fatal errors
+  inside the hook are tolerated.
 
 [SwiftSyntax]: https://github.com/swiftlang/swift-syntax
 [bitrig-1]: https://bitrig.com/blog/swift-interpreter
