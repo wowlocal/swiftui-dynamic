@@ -1823,9 +1823,20 @@ extension Interpreter {
         for (index, value) in zip(bound.indices.filter({ bound[$0] == nil }), positionals[positionalCursor...]) {
             bound[index] = value
         }
-        // The unlabeled trailing closure binds to the last unbound parameter.
+        // The unlabeled trailing closure binds by SE-0286 forward scan:
+        // the FIRST unbound function-typed parameter
+        // (`getNavigationView { … }` fills `content:` even when defaulted
+        // Bools follow); falling back to the last unbound slot when no
+        // annotation is function-shaped.
         for trailing in unlabeledTrailing.reversed() {
-            if let index = bound.indices.last(where: { bound[$0] == nil }) {
+            let accepts: (Int) -> Bool = { index in
+                let parameter = closure.parameters[index]
+                return parameter.isBuilderAttributed
+                    || parameter.typeAnnotation?.trimmedDescription.contains("->") == true
+            }
+            if let index = bound.indices.first(where: { bound[$0] == nil && accepts($0) }) {
+                bound[index] = trailing
+            } else if let index = bound.indices.last(where: { bound[$0] == nil }) {
                 bound[index] = trailing
             }
         }

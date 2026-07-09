@@ -202,7 +202,13 @@ public final class Interpreter {
         locationConverter = converter
 
         let diagnostics = ParseDiagnosticsGenerator.diagnostics(for: tree)
-        if let firstError = diagnostics.first(where: { $0.diagMessage.severity == .error }) {
+        if let firstError = diagnostics.first(where: {
+            $0.diagMessage.severity == .error
+                // Formatting recoveries parse to a CORRECT tree — the
+                // compiler accepts them too (`@Environment (\.colorScheme)`
+                // with a stray space builds in Xcode).
+                && !$0.message.contains("extraneous whitespace")
+        }) {
             let location = converter.location(for: firstError.position)
             throw RuntimeError(message: firstError.message, line: location.line, column: location.column)
         }

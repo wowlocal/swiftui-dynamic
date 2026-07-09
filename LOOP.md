@@ -1533,3 +1533,14 @@ Each iteration does exactly this:
   (139 precedent). **644/648 counted — ZERO failures (TWENTY-THIRD
   saturation). 585 zips + 60 OSS repos green. Suite 323 (unchanged —
   no new capability, no new test).**
+- 2026-07-10 iter 161: step 9 — winston (448 files), OpenArtemis (92),
+  swift-chat (5, arrival-pass) cloned. Two classes: FORMATTING
+  recoveries parse to a correct tree and are tolerated
+  (`@Environment (\.colorScheme)` with a stray space — Xcode builds
+  it; SwiftParser recovers with an "extraneous whitespace" error we no
+  longer treat as fatal); unlabeled trailing closures bind by SE-0286
+  FORWARD scan — the first unbound function-typed parameter, not the
+  last slot (`getNavigationView { … }` fills `content:` past defaulted
+  Bools). winston ✅, OpenArtemis ✅ (259 nodes, 24 actions).
+  **647/651 counted — ZERO failures (TWENTY-FOURTH saturation).
+  585 zips + 63 OSS repos green. Suite 323 → 324.**
