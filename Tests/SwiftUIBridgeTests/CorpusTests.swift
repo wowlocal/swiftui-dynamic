@@ -481,6 +481,31 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Unknowables read fresh-state identities in typed contexts:
+    /// "" in string concat (suffix survives), empty in for-in iteration.
+    @Test func unknowablesReadFreshIdentities() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let path = NSTemporaryDirectory() + "clip.mov"
+                var visited = 0
+                let _ = {
+                    for _ in Activity<DockAttributes>.activities {
+                        visited += 1
+                    }
+                }()
+                VStack {
+                    Text(path)
+                    Text(path.hasSuffix("clip.mov") ? "suffix kept" : "lost")
+                    Text("visited \\(visited)")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

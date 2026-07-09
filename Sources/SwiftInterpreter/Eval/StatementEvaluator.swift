@@ -326,8 +326,17 @@ extension Interpreter {
             elements = range.map { .native($0) }
         } else if let array = sequence.arrayValue {
             elements = array
+        } else if case .native(let any) = sequence,
+                  any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+            // Unknowable host collections (Activity<T>.activities on a fresh
+            // device) iterate EMPTY — the fresh-store reading.
+            elements = []
+        } else if case .implicitMember = sequence {
+            // Same doctrine: a bare `.member` in sequence position can only
+            // be an unresolved host-static chain.
+            elements = []
         } else {
-            throw error(forStmt.sequence, "for-in requires a range or an array")
+            throw error(forStmt.sequence, "for-in requires a range or an array, got \(sequence.stringified)")
         }
 
         loop: for element in elements {

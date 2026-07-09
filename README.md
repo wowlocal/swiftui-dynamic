@@ -170,7 +170,11 @@ coverage.
 - **Hosted-object truths are fresh-state false.** Unknown host objects and
   unresolved markers in Bool positions read `false` (`context.
   canEvaluatePolicy(…)`, `session.isRunning` — no biometrics, nothing
-  running headlessly); `!` negates from that.
+  running headlessly); `!` negates from that. The same absorption reads
+  unknowables as each context's fresh identity: 0 in arithmetic and numeric
+  conversions, `""` in string concatenation
+  (`NSTemporaryDirectory() + name` keeps the name), and empty in `for-in`
+  iteration (`Activity<T>.activities` on a fresh device).
 - **Canvas drawing is inert.** `Canvas { context, size in … }` runs the
   renderer once against a no-op context (390×844) — the closure's math
   executes, but fill/stroke/translate commands never reach a real

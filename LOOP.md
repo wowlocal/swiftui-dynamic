@@ -774,3 +774,9 @@ Each iteration does exactly this:
   Signal_ImagePicker regression); URL members (path/lastPathComponent/
   appending…/deleting…). README fresh-state doctrine updated.
   DownloadTask passes (7 nodes). **578 → 579/588 (98.5%).**
+- 2026-07-09 iter 97: fresh-identity absorption — unknowables read each
+  context's identity value: "" in string concat (suffix survives:
+  NSTemporaryDirectory() + "….mov"), empty in for-in iteration
+  (Activity<T>.activities; bare `.member` sequences too). README doctrine
+  extended. ReelsCamera (22 nodes) + Lockscreen_Dock (13) pass.
+  **579 → 581/588 (98.8%).**

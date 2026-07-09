@@ -139,6 +139,19 @@ enum Builtins {
             }
             return value
         }
+        // String concat with an unknowable operand: the unknowable reads
+        // "" (the fresh string), same doctrine as numerics reading zero —
+        // NSTemporaryDirectory() + "\(Date()).mov" yields the suffix.
+        if op == "+" {
+            func isUnknowable(_ value: RuntimeValue) -> Bool {
+                if case .native(let any) = value {
+                    return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
+                }
+                return false
+            }
+            if let l = lhs.stringValue, isUnknowable(rhs) { return .native(l) }
+            if let r = rhs.stringValue, isUnknowable(lhs) { return .native(r) }
+        }
         let lhs = absorbed(lhs)
         let rhs = absorbed(rhs)
         if let l = lhs.intValue, let r = rhs.intValue { return .native(try int(l, r)) }
