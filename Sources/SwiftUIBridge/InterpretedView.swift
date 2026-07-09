@@ -47,6 +47,12 @@ public enum InterpretedEnvironment {
             "openWindow": .hostFunction(HostFunction(name: "openWindow") { _, _ in .void }),
             "dismissWindow": .hostFunction(HostFunction(name: "dismissWindow") { _, _ in .void }),
             "openURL": .hostFunction(HostFunction(name: "openURL") { _, _ in .void }),
+            // The canvas is iPhone-portrait-shaped: compact width, regular
+            // height (matching the 390×844 stubs).
+            "horizontalSizeClass": .implicitMember("compact"),
+            "verticalSizeClass": .implicitMember("regular"),
+            "dynamicTypeSize": .implicitMember("large"),
+            "scenePhase": .implicitMember("active"),
         ]
         values["self"] = .native(EnvironmentValuesStub(values: values))
         return values

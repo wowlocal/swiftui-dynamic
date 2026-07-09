@@ -356,6 +356,12 @@ extension ViewRegistry {
     // MARK: - Shared helpers
 
     static func forEachElements(_ data: RuntimeValue) throws -> [RuntimeValue] {
+        if case .native(let any) = data, let call = any as? ImplicitMemberCall,
+           call.name == "init",
+           call.arguments.labeled("filter") != nil || call.arguments.labeled("sort") != nil
+            || call.arguments.labeled("sortDescriptors") != nil {
+            return [] // Query-shaped marker: fresh store
+        }
         if let range = data.rangeValue {
             return range.map { .native($0) }
         }

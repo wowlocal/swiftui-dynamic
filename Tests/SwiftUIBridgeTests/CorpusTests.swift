@@ -183,6 +183,26 @@ enum Corpus {
         }
     }
 
+    /// Size-class env keys read as the iPhone-portrait canvas; Query-shaped
+    /// init markers act as fresh (empty) stores in ForEach.
+    @Test func sizeClassesAndQueryMarkers() throws {
+        let source = """
+        struct ContentView: View {
+            @Environment(\\.horizontalSizeClass) private var hSize
+            @Environment(\\.verticalSizeClass) private var vSize
+
+            var body: some View {
+                VStack {
+                    Text(hSize == .regular ? "wide" : "narrow")
+                    Text(vSize == .regular ? "tall" : "short")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

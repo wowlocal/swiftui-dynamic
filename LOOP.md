@@ -643,3 +643,8 @@ Each iteration does exactly this:
   AnyShapeStyle pass-through, and AnyHashable equality (realized Colors
   compare) — the last three recovered a 4-project regression the
   realization caused. ImageColorPicker ×2 pass. **543 → 545/585 (93.2%).**
+- 2026-07-09 iter 79: size-class env keys — horizontalSizeClass reads
+  .compact / verticalSizeClass .regular (the iPhone-portrait canvas), plus
+  dynamicTypeSize/.scenePhase defaults; Query-shaped `.init(filter:sort:)`
+  markers act as fresh empty stores in ForEach. AdaptiveLayoutDesign +
+  Notes_App_Complete pass. **545 → 547/585 (93.5%).**

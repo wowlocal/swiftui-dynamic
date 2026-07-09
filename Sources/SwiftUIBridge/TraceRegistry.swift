@@ -340,6 +340,13 @@ public final class TraceRegistry: HostRegistry {
     }
 
     static func elements(of data: RuntimeValue) throws -> [RuntimeValue] {
+        // A Query-shaped `.init(filter:sort:…)` marker is a fresh store: empty.
+        if case .native(let any) = data, let call = any as? ImplicitMemberCall,
+           call.name == "init",
+           call.arguments.labeled("filter") != nil || call.arguments.labeled("sort") != nil
+            || call.arguments.labeled("sortDescriptors") != nil {
+            return []
+        }
         if case .native(let any) = data, let range = any as? Range<Int> {
             return range.map { .native($0) }
         }
