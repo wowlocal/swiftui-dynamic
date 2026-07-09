@@ -295,3 +295,13 @@ Each iteration does exactly this:
   distance(from:to:) join the String natives. Class eliminated: MarqueeText
   passes, Chips_UI advanced to a custom-Layout blocker, TextSelectionAPI
   advanced to a Bool-operand singleton. **74/100 → 75/100**.
+- 2026-07-09 iter 38: the "() is not callable" class — two roots. Memberwise
+  multiple-trailing-closure binding is now two-pass: labeled arguments claim
+  their properties first, then unlabeled trailing closures fill remaining
+  closure-shaped properties in DECLARATION order (SE-0286 forward scan) —
+  `CustomButton(tint:) { content } action: {…}` binds correctly. Env action
+  keys openWindow/dismissWindow/openURL are honest no-ops (no scene shell);
+  AppStub gains inert terminate + mainWindow/keyWindow, WindowStub gains
+  close (click-through fires Quit buttons — terminating the host is not an
+  option). MultiWindowApp passes; AnimatedButton advanced to closure
+  return-type annotation threading. **75/100 → 76/100**.

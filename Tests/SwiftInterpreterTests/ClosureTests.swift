@@ -51,6 +51,21 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 10)
     }
 
+    /// Multiple trailing closures on a memberwise init: the unlabeled one
+    /// binds to the FIRST unclaimed closure property (SE-0286 forward scan);
+    /// later labeled trailing closures claim theirs by name first.
+    @Test func multipleTrailingClosuresBindMemberwiseInOrder() throws {
+        let source = """
+        struct Runner {
+            var task: () -> Int
+            var fallback: () -> Int
+        }
+        let r = Runner { 1 } fallback: { 2 }
+        r.task() * 10 + r.fallback()
+        """
+        #expect(try eval(source).intValue == 12)
+    }
+
     @Test func closureAsArgument() throws {
         let source = """
         func apply(n: Int, f: (Int) -> Int) -> Int { f(n) }

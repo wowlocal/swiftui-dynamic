@@ -29,6 +29,12 @@ public enum InterpretedEnvironment {
             // SwiftData's context — a fresh-in-memory-store stub everywhere
             // (real hosting included): persistence is a platform side-channel.
             "modelContext": .native(ModelContextStub()),
+            // Scene-management actions — our hosting has no scene shell, so
+            // these accept their arguments and do nothing (what real SwiftUI
+            // does without a matching WindowGroup, minus the console warning).
+            "openWindow": .hostFunction(HostFunction(name: "openWindow") { _, _ in .void }),
+            "dismissWindow": .hostFunction(HostFunction(name: "dismissWindow") { _, _ in .void }),
+            "openURL": .hostFunction(HostFunction(name: "openURL") { _, _ in .void }),
         ]
     }
 }

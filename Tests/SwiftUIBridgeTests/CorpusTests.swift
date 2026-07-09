@@ -41,6 +41,34 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Scene-management env actions are honest no-ops (no scene shell in our
+    /// hosting) — declaring, rendering, and firing them must all work.
+    @Test func windowActionsAreInertlyCallable() throws {
+        let source = """
+        struct ContentView: View {
+            @Environment(\\.openWindow) private var openWindow
+            @Environment(\\.dismissWindow) private var dismissWindow
+            @State private var clicks = 0
+
+            var body: some View {
+                VStack {
+                    Text("clicks: \\(clicks)")
+                    Button("New window") {
+                        openWindow(id: "second")
+                        clicks += 1
+                    }
+                    Button("Close") {
+                        dismissWindow()
+                        clicks += 1
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount > 2)
+    }
+
     /// MapKit views can't real-host (the bridge never imports MapKit), so the
     /// reader-family stub is verified trace-only: content deep-renders with a
     /// MapProxyStub whose conversions are honestly nil.

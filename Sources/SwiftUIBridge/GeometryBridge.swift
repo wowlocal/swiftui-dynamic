@@ -75,6 +75,10 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         switch name {
         case "windows": return .native([RuntimeValue.native(WindowStub())])
         case "connectedScenes": return .native([RuntimeValue.native(WindowSceneStub())])
+        case "mainWindow", "keyWindow": return .native(WindowStub())
+        case "terminate":
+            // Quitting the host would kill the verifier/demo — inert.
+            return .hostFunction(HostFunction(name: "terminate") { _, _ in .void })
         default: return nil
         }
     }
@@ -89,6 +93,9 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if value is WindowStub {
         if name == "safeAreaInsets" { return .native(EdgeInsets()) }
+        if name == "close" {
+            return .hostFunction(HostFunction(name: "close") { _, _ in .void })
+        }
         return nil
     }
     if let insets = value as? EdgeInsets {
