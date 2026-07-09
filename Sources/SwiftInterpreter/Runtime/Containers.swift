@@ -2,7 +2,7 @@
 /// Members are accessed as `.0`/`.1` or by label.
 public final class TupleValue: CustomStringConvertible {
     public let labels: [String?]
-    public let values: [RuntimeValue]
+    public var values: [RuntimeValue]
 
     public init(labels: [String?], values: [RuntimeValue]) {
         self.labels = labels

@@ -472,14 +472,50 @@ extension Interpreter {
         }
         // Methods that mutate collections in place, and property/method pairs
         // like `first` / `first(where:)`, need the base handled specially.
-        if let member = call.calledExpression.as(MemberAccessExprSyntax.self), let base = member.base {
-            if let result = try specialMemberCall(member.declName.baseName.text, base: base, call: call, in: env) {
+        if let member = call.calledExpression.as(MemberAccessExprSyntax.self), let baseExpr = member.base {
+            let name = member.declName.baseName.text
+            if let result = try specialMemberCall(name, base: baseExpr, call: call, in: env) {
                 return result
+            }
+            let baseValue = try evaluate(baseExpr, in: env)
+            let callee = try accessMember(name, on: baseValue, node: member, env: env)
+            let args = try collectArguments(of: call, in: env)
+            do {
+                return try invoke(callee, with: args, node: call)
+            } catch let bindingError as RuntimeError
+                where !bindingError.fatal && bindingError.message.hasPrefix("missing argument") {
+                // A user extension can shadow a built-in modifier under the
+                // same name with different labels (`extension View { func
+                // offset(coordinateSpace:…) }` vs the built-in `.offset(x:)`).
+                // Binding fails before the body runs, so retrying through the
+                // modifier table is safe.
+                guard let registry, let modifier = registry.modifier(named: name),
+                      let target = modifierTarget(for: baseValue) else {
+                    throw bindingError
+                }
+                do {
+                    return try modifier.apply(target, args, self)
+                } catch let e as RuntimeError where e.line == 0 {
+                    throw error(call, e.message)
+                }
             }
         }
         let callee = try evaluate(call.calledExpression, in: env)
         let args = try collectArguments(of: call, in: env)
         return try invoke(callee, with: args, node: call)
+    }
+
+    /// The value a retried modifier applies to: view values directly,
+    /// view/shape-conforming instances wrapped renderable.
+    private func modifierTarget(for value: RuntimeValue) -> RuntimeValue? {
+        guard let registry else { return nil }
+        if registry.isViewValue(value) { return value }
+        if case .instance(let instance) = value,
+           instance.symbol.conformsToView || instance.symbol.isRepresentable
+            || instance.symbol.conformsToShape {
+            return registry.makeRenderable(instance: instance, interpreter: self)
+        }
+        return nil
     }
 
     /// Mutating collection methods (`items.append(x)`) resolve the base as an
@@ -816,6 +852,9 @@ extension Interpreter {
         case hostProperty(Any, String)
         case element(LValue, Int)
         case dictElement(DictValue, RuntimeValue)
+        /// `trigger.0 = …` / `pair.label = …` — writes mutate the tuple and
+        /// re-write the base, so state boxes still notify.
+        case tupleElement(LValue, Int)
 
         /// The element type of an `[X]`-annotated instance property, if known.
         func annotatedElementType() -> String? {
@@ -848,6 +887,12 @@ extension Interpreter {
                 return array[index]
             case .dictElement(let dict, let key):
                 return try dict.lookup(key)
+            case .tupleElement(let base, let index):
+                guard let tuple = try base.read(interpreter).tupleValue,
+                      tuple.values.indices.contains(index) else {
+                    throw EvalMessage(text: "tuple element \(index) out of range")
+                }
+                return tuple.values[index]
             }
         }
 
@@ -895,6 +940,14 @@ extension Interpreter {
                 try base.write(.native(array), interpreter)
             case .dictElement(let dict, let key):
                 try dict.update(key, to: value)
+            case .tupleElement(let base, let index):
+                guard let tuple = try base.read(interpreter).tupleValue,
+                      tuple.values.indices.contains(index) else {
+                    throw EvalMessage(text: "tuple element \(index) out of range")
+                }
+                tuple.values[index] = value
+                // Re-write the base so state boxes notify.
+                try base.write(.native(tuple), interpreter)
             }
         }
     }
@@ -920,6 +973,13 @@ extension Interpreter {
                 // `binding.wrappedValue = …` writes straight through the box.
                 if let stub = any as? BindingStub, member.declName.baseName.text == "wrappedValue" {
                     return .box(stub.box)
+                }
+                if let tuple = any as? TupleValue {
+                    let memberName = member.declName.baseName.text
+                    let index = Int(memberName) ?? tuple.labels.firstIndex(of: memberName) ?? -1
+                    if tuple.values.indices.contains(index), let baseLValue = try? resolveLValue(base, in: env) {
+                        return .tupleElement(baseLValue, index)
+                    }
                 }
                 if registry != nil {
                     // Host objects with settable members (formatter.dateFormat = …).

@@ -360,3 +360,13 @@ Each iteration does exactly this:
   class. CustomTabBarMac + Login_Mac pass; FloatingWindow advanced to
   arithmetic-on-unresolved `.init(x:y:)` marker (the chain-combine class).
   **158/200 → 160/200**.
+- 2026-07-09 iter 46: the "missing argument" class — three roots, two fixed.
+  (1) Label-mismatch retry: when a member call binds a user extension whose
+  labels don't fit (binding fails BEFORE the body runs), the call retries
+  through the modifier table — `extension View { func offset(coordinateSpace:
+  …) }` no longer shadows the built-in `.offset(x:)` (HeaderAnimation).
+  (2) KeyframeAnimator/PhaseAnimator content receives its initialValue/first
+  phase as seed; GlitchEffect then exposed tuple-element lvalues —
+  `@State var trigger: (Bool, Bool, Bool)` + `trigger.0.toggle()` — added
+  LValue.tupleElement with write-through-base (state notifies). Chips_UI
+  (Layout protocol) remains the wall. **160/200 → 162/200**.

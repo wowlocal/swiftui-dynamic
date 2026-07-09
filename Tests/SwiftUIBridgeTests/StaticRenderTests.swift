@@ -177,6 +177,31 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         }
     }
 
+    /// A user View extension can shadow a built-in modifier under different
+    /// labels; calls that don't bind the extension retry the modifier table.
+    @Test func extensionShadowedModifierRetriesBuiltin() throws {
+        let source = """
+        extension View {
+            func offset(coordinateSpace: String, completion: (CGFloat) -> Void) -> some View {
+                self
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    Text("builtin").offset(x: 12, y: 4)
+                    Text("custom").offset(coordinateSpace: "SCROLL") { _ in }
+                }
+            }
+        }
+        """
+        let outcome = InterpreterHost().render(source: source)
+        if case .failure(let error) = outcome {
+            Issue.record("render failed: \(error)")
+        }
+    }
+
     /// The Chips pattern: a user String extension named `size` wrapping the
     /// NSString measurement API. The extension must win plain member access
     /// while the inner labeled call reaches real font metrics.

@@ -41,6 +41,30 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// KeyframeAnimator/PhaseAnimator content receives the animated value —
+    /// headlessly the initialValue (or first phase) seeds it.
+    @Test func keyframeAnimatorContentReceivesInitialValue() throws {
+        let source = """
+        struct Frame {
+            var top: CGFloat = 0
+            var opacity: CGFloat = 1
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                KeyframeAnimator(initialValue: Frame(), trigger: true) { value in
+                    Text("t")
+                        .offset(y: value.top)
+                        .opacity(value.opacity)
+                } keyframes: { _ in
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// `NSScreen.main?.visibleFrame` — real screen when present, a
     /// laptop-shaped rect headlessly; members read as numbers.
     @Test func screenVisibleFrameServesRectMembers() throws {

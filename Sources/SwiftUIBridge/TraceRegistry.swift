@@ -88,6 +88,20 @@ public final class TraceRegistry: HostRegistry {
                 }
                 return .native(node)
             }
+        case "KeyframeAnimator", "PhaseAnimator":
+            // Content receives the animated value — headlessly that's the
+            // initialValue (keyframes) or the first phase. The keyframes/
+            // animation timing DSL closure deliberately never runs.
+            return HostFunction(name: name) { args, ctx in
+                let node = TraceNode(kind: name)
+                let seed = (args.labeled("initialValue")
+                    ?? args.positional(0)?.arrayValue?.first
+                    ?? args.positional(0)) ?? .void
+                if let content = args.unlabeledClosures.first {
+                    node.children = try ctx.callBuilderClosure(content, arguments: [seed]).map(Self.node)
+                }
+                return .native(node)
+            }
         case "Canvas":
             // The renderer draws (side effects on the context), it doesn't
             // build children — run it with an inert context + canvas size.

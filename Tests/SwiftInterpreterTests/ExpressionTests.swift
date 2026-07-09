@@ -22,6 +22,22 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(throws: RuntimeError.self) { try eval("1 / 0") }
     }
 
+    @Test func tupleElementsAreAssignable() throws {
+        let source = """
+        var pair = (1, true)
+        pair.0 = 5
+        pair.1.toggle()
+        pair.0 + (pair.1 ? 0 : 100)
+        """
+        #expect(try eval(source).intValue == 105)
+        let labeled = """
+        var point = (x: 1, y: 2)
+        point.x += 10
+        point.x + point.y
+        """
+        #expect(try eval(labeled).intValue == 13)
+    }
+
     /// DispatchTime deadlines: the `.now()` anchor absorbs into the offset.
     @Test func nowAnchorArithmeticYieldsOffsetSeconds() throws {
         #expect(try eval(".now() + 0.5").doubleValue == 0.5)
