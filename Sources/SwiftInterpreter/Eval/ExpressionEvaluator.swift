@@ -1894,6 +1894,8 @@ extension Interpreter {
             // A bound host-member FUNCTION in Bool position is equally an
             // artifact of stub reads — fresh-state false.
             if case .hostFunction = value { return false }
+            // Nil from optional chains through stubs reads false too.
+            if value.isNil { return false }
             throw error(node, "expected a Bool, got \(value.stringified)")
         }
         return b

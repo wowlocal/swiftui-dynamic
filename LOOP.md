@@ -1058,3 +1058,14 @@ Each iteration does exactly this:
   InterpreterHost uses lazy globals + root synthesis. Verified: PNG
   snapshot renders error-free; windowed app alive 12s with the project
   loaded. `swift run DynamicSwiftUIDemo --project External/oss/IceCubesApp`.
+- 2026-07-09 iter 127: step 9 — cloned Whisky (64 files), Cork (370), Rayon
+  (230, PASSED on arrival); units 602 → 605. Biggest new class (Cork):
+  default-less switches over UNKNOWABLE subjects take the first case
+  (payload bindings read fresh chains — the switch analog of first-enum-
+  case synthesis); nil reads false in Bool positions (optional-chain
+  artifacts); DI-container wrappers (@InjectedObservable/@Injected —
+  FactoryKit) are environment-object shaped, typed by annotation or the
+  capitalized keypath (`\.navigationManager` → NavigationManager), so the
+  existing missing-env-object synthesis provides fresh instances.
+  Cork passes (35 nodes, 7 actions). **604/605 (99.8%); queue: Whisky
+  (FileManagerBox.homeDirectoryForCurrentUser).**

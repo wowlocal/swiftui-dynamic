@@ -596,6 +596,24 @@ extension Interpreter {
         if hasAttribute(attributes, named: "StateObject") { return (.stateObject, nil) }
         if hasAttribute(attributes, named: "ObservedObject") { return (.observedObject, nil) }
         if hasAttribute(attributes, named: "EnvironmentObject") { return (.environmentObject, nil) }
+        // DI-container wrappers (FactoryKit's @InjectedObservable/@Injected):
+        // a container provides shared instances — environment-object shaped,
+        // typed by the annotation or the capitalized keypath component
+        // (`\.navigationManager` → NavigationManager).
+        for attribute in attributes {
+            guard let attr = attribute.as(AttributeSyntax.self),
+                  ["InjectedObservable", "Injected", "LazyInjected", "WeakLazyInjected", "InjectedObject"]
+                      .contains(attr.attributeName.trimmedDescription) else { continue }
+            var typeName: String?
+            if case .argumentList(let arguments)? = attr.arguments,
+               let keyPath = arguments.first?.expression.as(KeyPathExprSyntax.self),
+               let component = keyPath.components.last?.trimmedDescription
+                   .split(separator: ".").last.map(String.init),
+               let first = component.first {
+                typeName = String(first).uppercased() + component.dropFirst()
+            }
+            return (.environmentObject, typeName)
+        }
         for attribute in attributes {
             guard let attr = attribute.as(AttributeSyntax.self),
                   attr.attributeName.trimmedDescription == "Environment",

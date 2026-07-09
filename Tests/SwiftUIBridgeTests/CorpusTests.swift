@@ -1545,6 +1545,42 @@ enum Corpus {
         #expect(report.nodeCount >= 2)
     }
 
+    /// Default-less switches over unknowable subjects take the FIRST
+    /// case (payload bindings read fresh chains); nil reads false in Bool
+    /// positions; DI-container wrappers (@InjectedObservable) synthesize
+    /// like environment objects, typed by annotation or keypath.
+    @Test func unknowableSwitchesAndDIWrappers() throws {
+        let source = """
+        class NavigationManager: ObservableObject {
+            var openedScreen: String = "home"
+        }
+
+        struct SidebarView: View {
+            @InjectedObservable(\\.navigationManager) var navigationManager
+
+            var body: some View {
+                let phase = ExternalService.current.phase
+                VStack {
+                    switch phase {
+                    case .loading(let progress):
+                        Text("loading \\(progress)")
+                    case .done:
+                        Text("done")
+                    }
+                    Text(Bindable(navigationManager).openedScreen)
+                    if ExternalService.current.maybeFlag {
+                        Text("flagged")
+                    } else {
+                        Text("fresh flag")
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

@@ -47,7 +47,53 @@ extension Interpreter {
         if let defaultCase {
             return (defaultCase, Environment(parent: env))
         }
+        // A default-less switch over an UNKNOWABLE subject: real code is
+        // exhaustive over a real value; the fresh reading is the FIRST case
+        // (the same doctrine as synthesis picking the first enum case),
+        // with payload bindings bound to unknowable chains.
+        if isUnknowable(subject) {
+            for element in switchExpr.cases {
+                guard case .switchCase(let switchCase) = element,
+                      case .case(let label) = switchCase.label,
+                      let item = label.caseItems.first else { continue }
+                let child = Environment(parent: env)
+                bindPatternsToUnknowables(item.pattern, into: child)
+                return (switchCase.statements, child)
+            }
+        }
         throw error(switchExpr, "switch was not exhaustive for \(subject.stringified)")
+    }
+
+    private func isUnknowable(_ value: RuntimeValue) -> Bool {
+        if case .native(let any) = value {
+            return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
+        }
+        if case .implicitMember = value { return true }
+        if case .hostFunction = value { return true }
+        return false
+    }
+
+    /// `case .selection(let range):` chosen as the fresh branch — its
+    /// bindings read unknowable chains that absorb downstream.
+    private func bindPatternsToUnknowables(_ pattern: PatternSyntax, into env: Environment) {
+        if let binding = pattern.as(ValueBindingPatternSyntax.self) {
+            bindPatternsToUnknowables(binding.pattern, into: env)
+            return
+        }
+        if let ident = pattern.as(IdentifierPatternSyntax.self) {
+            env.define(ident.identifier.text, .native(ChainedImplicitCall(
+                base: .implicitMember("fresh"), member: ident.identifier.text,
+                arguments: CallArguments())))
+            return
+        }
+        if let expr = pattern.as(ExpressionPatternSyntax.self),
+           let call = expr.expression.as(FunctionCallExprSyntax.self) {
+            for argument in call.arguments {
+                if let inner = argument.expression.as(PatternExprSyntax.self) {
+                    bindPatternsToUnknowables(inner.pattern, into: env)
+                }
+            }
+        }
     }
 
     func matches(
