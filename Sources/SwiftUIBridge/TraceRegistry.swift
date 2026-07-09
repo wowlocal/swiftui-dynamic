@@ -304,6 +304,9 @@ public final class TraceRegistry: HostRegistry {
 
     static func node(_ value: RuntimeValue) throws -> TraceNode {
         if case .native(let any) = value, let node = any as? TraceNode { return node }
+        if case .native(let any) = value, any is PathDrawStub {
+            return TraceNode(kind: "Path") // Path IS a Shape/View
+        }
         if Coerce.colorLike(value) != nil {
             let node = TraceNode(kind: "Color")
             node.args = [value.stringified]

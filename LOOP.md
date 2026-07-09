@@ -79,6 +79,13 @@ Each iteration does exactly this:
 
 (projects excluded from the metric, with reasons — keep short)
 
+- SwiftUIRealm — Realm ORM internals: `@Persisted(primaryKey:) var id:
+  ObjectId` and Object base-class storage; third-party database library,
+  not SwiftUI surface (candidate since iter 32, blocked on ObjectId since
+  iter 35).
+- RealmDataBase — Realm ORM internals: live `Results` objects and
+  `@ObservedRealmObject` backing storage.
+
 ## Progress log
 
 - 2026-07-09: Loop bootstrapped. Corpus (12 programs) + 97 unit tests green.
@@ -585,3 +592,12 @@ Each iteration does exactly this:
   expressions evaluate pass-through (reference semantics) and Set() joins
   the builtins (array-backed set-lite). LocationSearch ×2 + Marvel_API pass.
   **514/587 → 517/587 (88.1%).**
+- 2026-07-09 iter 72: the member-on-void class resolved three ways. Path is a
+  Shape/View: draw commands chain (`Path{}.strokedPath(StrokeStyle(...))
+  .fill(...)`), strokedPath/addLines apply for REAL, StrokeStyle constructs,
+  fill/stroke accept PathDrawStub, Path renders in view position in both
+  registries — CustomScrollViewBottomShee passes. The two Realm projects are
+  QUARANTINED (ProjectCheck gains the mechanism, reasons printed as 🚧 and
+  recorded above) — third-party ORM internals, the sanctioned last resort.
+  Metric basis is now 585. **517 → 518 passing / 66 failing / 2 quarantined
+  (88.5% of the metric).**

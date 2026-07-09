@@ -54,7 +54,8 @@ public final class ViewRegistry: HostRegistry {
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .native(let any) = value {
-            if any is AnyView || any is ImageBox || any is ShapeBox || any is LinearGradient {
+            if any is AnyView || any is ImageBox || any is ShapeBox || any is LinearGradient
+                || any is PathDrawStub {
                 return true
             }
         }
@@ -87,6 +88,7 @@ public final class ViewRegistry: HostRegistry {
             if let view = any as? AnyView { return view }
             if let box = any as? ImageBox { return AnyView(box.image) }
             if let box = any as? ShapeBox { return AnyView(box.shape) }
+            if let stub = any as? PathDrawStub { return AnyView(stub.path) }
             if let gradient = any as? LinearGradient { return AnyView(gradient) }
         }
         if let color = Coerce.colorLike(value) { return AnyView(color) }

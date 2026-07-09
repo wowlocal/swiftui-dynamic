@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import SwiftUI
 import SwiftInterpreter
 
 /// Mutable host objects interpreted code constructs and configures —
@@ -73,6 +74,30 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             components.minute = args.labeled("minute")?.intValue
             components.second = args.labeled("second")?.intValue
             return .native(DateComponentsBox(components: components))
+        }
+    case "StrokeStyle":
+        return HostFunction(name: name) { args, _ in
+            var lineCap = CGLineCap.butt
+            if case .implicitMember(let cap)? = args.labeled("lineCap") {
+                switch cap {
+                case "round": lineCap = .round
+                case "square": lineCap = .square
+                default: break
+                }
+            }
+            var lineJoin = CGLineJoin.miter
+            if case .implicitMember(let join)? = args.labeled("lineJoin") {
+                switch join {
+                case "round": lineJoin = .round
+                case "bevel": lineJoin = .bevel
+                default: break
+                }
+            }
+            return .native(StrokeStyle(
+                lineWidth: (try? Coerce.cgFloat(args.labeled("lineWidth") ?? .native(1.0))) ?? 1,
+                lineCap: lineCap,
+                lineJoin: lineJoin
+            ))
         }
     case "AttributedString":
         return HostFunction(name: name) { args, _ in

@@ -283,6 +283,30 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// `Path{}.strokedPath(StrokeStyle(...)).fill(...)` — Path is a
+    /// Shape/View: draw commands chain, stroke styles apply for real.
+    @Test func pathChainsStrokeAndFill() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                Path { path in
+                    path.move(to: CGPoint(x: 0, y: 0))
+                    path.addLines([CGPoint(x: 20, y: 40), CGPoint(x: 60, y: 10)])
+                }
+                .strokedPath(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .fill(.blue.opacity(0.5))
+                .frame(height: 100)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+        let real = InterpreterHost().render(source: source)
+        if case .failure(let error) = real {
+            Issue.record("real render failed: \(error)")
+        }
+    }
+
     /// `$published` pipelines inside models chain inertly and never emit
     /// headlessly (debounce schedulers don't run) — the honest silent
     /// pipeline; `&inout` args and Set() holders ride along.

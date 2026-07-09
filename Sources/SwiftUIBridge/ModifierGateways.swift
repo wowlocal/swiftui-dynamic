@@ -386,14 +386,18 @@ extension ViewRegistry {
     /// Shape- and image-typed modifiers that must see the raw box, not AnyView.
     private func registerTypedModifiers() {
         modifiers["fill"] = HostModifier(name: "fill") { value, args, _ in
-            guard case .native(let any) = value, let box = any as? ShapeBox else {
+            var shapeBox: ShapeBox?
+            if case .native(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
+            guard let box = shapeBox else {
                 throw RuntimeError(message: ".fill applies to shapes like Circle()")
             }
             let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
             return .native(AnyView(box.shape.fill(style)))
         }
         modifiers["stroke"] = HostModifier(name: "stroke") { value, args, _ in
-            guard case .native(let any) = value, let box = any as? ShapeBox else {
+            var shapeBox: ShapeBox?
+            if case .native(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
+            guard let box = shapeBox else {
                 throw RuntimeError(message: ".stroke applies to shapes like Circle()")
             }
             let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))

@@ -69,6 +69,19 @@ final class PathDrawStub {
             if let r = rect(args.labeled("in") ?? args.positional(0)) { path.addEllipse(in: r) }
         case "closeSubpath":
             path.closeSubpath()
+        case "strokedPath":
+            var style = StrokeStyle()
+            if case .native(let any)? = args.positional(0), let real = any as? StrokeStyle {
+                style = real
+            }
+            path = path.strokedPath(style)
+        case "addLines":
+            if case .native(let any)? = args.positional(0), let points = any as? [RuntimeValue] {
+                path.addLines(points.compactMap {
+                    if case .native(let p) = $0 { return p as? CGPoint }
+                    return nil
+                })
+            }
         default:
             break // other draw commands accepted inertly
         }
@@ -344,7 +357,7 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let stub = value as? PathDrawStub {
         return .hostFunction(HostFunction(name: name) { args, _ in
             stub.apply(name, args)
-            return .void
+            return .native(stub) // chainable: Path{}.strokedPath(...).fill(...)
         })
     }
     if let context = value as? TimelineViewDefaultContext {
