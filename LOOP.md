@@ -565,3 +565,10 @@ Each iteration does exactly this:
   items into an ARRAY (buildBlock semantics), view-typed ones keep grouping.
   CustomSwipeActions_Updated + Expense_Tracker EP2/EP3 pass (146/138-node
   renders — the Expense march ends). **505/587 → 508/587 (86.5%).**
+- 2026-07-09 iter 69: `.constant(x)` bindings — the marker-compare class (3).
+  Constant bindings resolve to fixed-value boxes at @Binding memberwise
+  positions (annotation-resolved) and in the bridge's binding coercions
+  (Toggle(isOn: .constant(true))), so side-menu rows comparing
+  `selectedMenu == title` read the constant. Custom_Side_Menu, Drawer,
+  Instagram_Desktop (266 nodes / 29 actions — the largest render yet) pass.
+  **508/587 → 511/587 (87.1%).**

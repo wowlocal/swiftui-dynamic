@@ -283,6 +283,39 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// `.constant("")` bindings: fixed-value boxes for @Binding properties
+    /// and real Binding coercions; comparisons read the constant.
+    @Test func constantBindingsResolve() throws {
+        let source = """
+        struct MenuRow: View {
+            var title: String
+            @Binding var selectedMenu: String
+
+            var body: some View {
+                Button(title) {
+                    selectedMenu = title
+                }
+                .opacity(selectedMenu == title ? 1 : 0.6)
+            }
+        }
+
+        struct ContentView: View {
+            @State private var selected = "Home"
+
+            var body: some View {
+                VStack {
+                    MenuRow(title: "Home", selectedMenu: $selected)
+                    MenuRow(title: "Log out", selectedMenu: .constant(""))
+                    Text(selected)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+        #expect(report.actionsInvoked == 2)
+    }
+
     /// dateInterval(of:for:) with weekOfMonth + user `extension Calendar`
     /// members dispatching on the real-backed box.
     @Test func dateIntervalAndCalendarExtensions() throws {

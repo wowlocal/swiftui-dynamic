@@ -178,6 +178,13 @@ public final class Interpreter {
                 if property.wrapper == .binding,
                    case .native(let any) = argument.value, let stub = any as? BindingStub {
                     instance.properties[label] = stub.box
+                } else if property.wrapper == .binding,
+                          case .native(let any) = argument.value,
+                          let call = any as? ImplicitMemberCall, call.name == "constant" {
+                    // `.constant("")` — a binding to a fixed value.
+                    instance.properties[label] = Box(try resolveAnnotated(
+                        call.arguments.positional(0) ?? .void,
+                        annotation: property.typeAnnotation))
                 } else if let closure = argument.value.closureValue,
                           property.isBuilderClosure,
                           !(property.typeAnnotation?.trimmedDescription.contains("->") ?? false) {

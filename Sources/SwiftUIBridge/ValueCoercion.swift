@@ -9,6 +9,11 @@ enum Coerce {
 
     static func bindingBox(_ value: RuntimeValue) throws -> Box {
         if case .native(let any) = value, let stub = any as? BindingStub { return stub.box }
+        // `.constant(x)` — a binding to a fixed value (writes go nowhere).
+        if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+           call.name == "constant" {
+            return Box(call.arguments.positional(0) ?? .void)
+        }
         throw RuntimeError(message: "expected a binding like $someState, got \(value.stringified)")
     }
 
