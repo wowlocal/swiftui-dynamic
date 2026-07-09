@@ -29,28 +29,28 @@ extension Interpreter {
                 message: located.message, line: located.line, column: located.column, fatal: true)
         }
 
-        if let lit = expr.as(IntegerLiteralExprSyntax.self) {
-            return .native(try integerValue(of: lit))
-        }
-        if let lit = expr.as(FloatLiteralExprSyntax.self) {
+        // Single jump on the node kind — this dispatch runs once per
+        // evaluated node, so a ~25-deep `as()` chain was pure overhead.
+        switch expr.kind {
+        case .integerLiteralExpr:
+            return .native(try integerValue(of: expr.cast(IntegerLiteralExprSyntax.self)))
+        case .floatLiteralExpr:
+            let lit = expr.cast(FloatLiteralExprSyntax.self)
             guard let d = Double(lit.literal.text.filter { $0 != "_" }) else {
                 throw error(lit, "invalid float literal")
             }
             return .native(d)
-        }
-        if let lit = expr.as(BooleanLiteralExprSyntax.self) {
-            return .native(lit.literal.text == "true")
-        }
-        if expr.is(NilLiteralExprSyntax.self) {
+        case .booleanLiteralExpr:
+            return .native(expr.cast(BooleanLiteralExprSyntax.self).literal.text == "true")
+        case .nilLiteralExpr:
             return .nilValue
-        }
-        if let lit = expr.as(StringLiteralExprSyntax.self) {
-            return .native(try stringLiteral(lit, in: env))
-        }
-        if let array = expr.as(ArrayExprSyntax.self) {
+        case .stringLiteralExpr:
+            return .native(try stringLiteral(expr.cast(StringLiteralExprSyntax.self), in: env))
+        case .arrayExpr:
+            let array = expr.cast(ArrayExprSyntax.self)
             return .native(try array.elements.map { try evaluate($0.expression, in: env) })
-        }
-        if let dict = expr.as(DictionaryExprSyntax.self) {
+        case .dictionaryExpr:
+            let dict = expr.cast(DictionaryExprSyntax.self)
             let value = DictValue()
             if case .elements(let elements) = dict.content {
                 for element in elements {
@@ -60,27 +60,24 @@ extension Interpreter {
                 }
             }
             return .native(value)
-        }
-        if let ref = expr.as(DeclReferenceExprSyntax.self) {
+        case .declReferenceExpr:
+            let ref = expr.cast(DeclReferenceExprSyntax.self)
             return try resolveIdentifier(ref.baseName.text, in: env, node: ref)
-        }
-        if let member = expr.as(MemberAccessExprSyntax.self) {
+        case .memberAccessExpr:
+            let member = expr.cast(MemberAccessExprSyntax.self)
             guard let base = member.base else {
                 return .implicitMember(member.declName.baseName.text)
             }
             let baseValue = try evaluate(base, in: env)
             return try accessMember(member.declName.baseName.text, on: baseValue, node: member, env: env)
-        }
-        if let call = expr.as(FunctionCallExprSyntax.self) {
-            return try evaluateCall(call, in: env)
-        }
-        if let closure = expr.as(ClosureExprSyntax.self) {
-            return .closure(makeClosure(closure, in: env))
-        }
-        if let infix = expr.as(InfixOperatorExprSyntax.self) {
-            return try evaluateInfix(infix, in: env)
-        }
-        if let prefix = expr.as(PrefixOperatorExprSyntax.self) {
+        case .functionCallExpr:
+            return try evaluateCall(expr.cast(FunctionCallExprSyntax.self), in: env)
+        case .closureExpr:
+            return .closure(makeClosure(expr.cast(ClosureExprSyntax.self), in: env))
+        case .infixOperatorExpr:
+            return try evaluateInfix(expr.cast(InfixOperatorExprSyntax.self), in: env)
+        case .prefixOperatorExpr:
+            let prefix = expr.cast(PrefixOperatorExprSyntax.self)
             if prefix.operator.text == "..<" || prefix.operator.text == "..." {
                 let bound = try evaluate(prefix.expression, in: env)
                 return .native(PartialRangeValue(upper: bound, closed: prefix.operator.text == "..."))
@@ -105,8 +102,8 @@ extension Interpreter {
                 }
                 throw builtinError
             }
-        }
-        if let postfix = expr.as(PostfixOperatorExprSyntax.self) {
+        case .postfixOperatorExpr:
+            let postfix = expr.cast(PostfixOperatorExprSyntax.self)
             if postfix.operator.text == "..." {
                 let bound = try evaluate(postfix.expression, in: env)
                 return .native(PartialRangeValue(lower: bound))
@@ -121,34 +118,32 @@ extension Interpreter {
                     node: nil)
             }
             throw error(postfix, "unsupported postfix operator '\(postfix.operator.text)'")
-        }
-        if let ternary = expr.as(TernaryExprSyntax.self) {
+        case .ternaryExpr:
+            let ternary = expr.cast(TernaryExprSyntax.self)
             let condition = try expectBool(evaluate(ternary.condition, in: env), node: ternary.condition)
             return try evaluate(condition ? ternary.thenExpression : ternary.elseExpression, in: env)
-        }
-        if let tuple = expr.as(TupleExprSyntax.self) {
+        case .tupleExpr:
+            let tuple = expr.cast(TupleExprSyntax.self)
             if tuple.elements.count == 1, let only = tuple.elements.first, only.label == nil {
                 return try evaluate(only.expression, in: env)
             }
             let labels = tuple.elements.map { $0.label?.text }
             let values = try tuple.elements.map { try evaluate($0.expression, in: env) }
             return .native(TupleValue(labels: labels, values: values))
-        }
-        if let subscriptCall = expr.as(SubscriptCallExprSyntax.self) {
-            return try evaluateSubscript(subscriptCall, in: env)
-        }
-        if let forceUnwrap = expr.as(ForceUnwrapExprSyntax.self) {
+        case .subscriptCallExpr:
+            return try evaluateSubscript(expr.cast(SubscriptCallExprSyntax.self), in: env)
+        case .forceUnwrapExpr:
+            let forceUnwrap = expr.cast(ForceUnwrapExprSyntax.self)
             let value = try evaluate(forceUnwrap.expression, in: env)
             guard !value.isNil else {
                 throw error(forceUnwrap, "unexpectedly found nil while force-unwrapping")
             }
             return value
-        }
-        if let chaining = expr.as(OptionalChainingExprSyntax.self) {
+        case .optionalChainingExpr:
             // Member/call/subscript on nil propagates nil (see accessMember/invoke).
-            return try evaluate(chaining.expression, in: env)
-        }
-        if let tryExpr = expr.as(TryExprSyntax.self) {
+            return try evaluate(expr.cast(OptionalChainingExprSyntax.self).expression, in: env)
+        case .tryExpr:
+            let tryExpr = expr.cast(TryExprSyntax.self)
             if tryExpr.questionOrExclamationMark?.text == "?" {
                 do {
                     return try evaluate(tryExpr.expression, in: env)
@@ -159,26 +154,24 @@ extension Interpreter {
                 }
             }
             return try evaluate(tryExpr.expression, in: env) // try / try!
-        }
-        if let awaitExpr = expr.as(AwaitExprSyntax.self) {
+        case .awaitExpr:
             // Synchronous stand-in: async work evaluates inline (documented).
-            return try evaluate(awaitExpr.expression, in: env)
-        }
-        if let keyPath = expr.as(KeyPathExprSyntax.self) {
+            return try evaluate(expr.cast(AwaitExprSyntax.self).expression, in: env)
+        case .keyPathExpr:
+            let keyPath = expr.cast(KeyPathExprSyntax.self)
             let components = keyPath.components.map {
                 $0.trimmedDescription.hasPrefix(".")
                     ? String($0.trimmedDescription.dropFirst())
                     : $0.trimmedDescription
             }
             return .native(KeyPathStub(components: components))
-        }
-        if expr.is(SuperExprSyntax.self) {
+        case .superExpr:
             guard case .instance(let instance)? = env.lookup("self") else {
                 throw error(expr, "'super' can only be used inside a class body")
             }
             return .native(SuperReference(instance: instance))
-        }
-        if let inout_ = expr.as(InOutExprSyntax.self) {
+        case .inOutExpr:
+            let inout_ = expr.cast(InOutExprSyntax.self)
             // `&value` — capture the lvalue so user `inout` parameters can
             // write back; non-closure consumers unwrap to the current value.
             if let target = try? resolveLValue(inout_.expression, in: env) {
@@ -188,13 +181,13 @@ extension Interpreter {
                 return .native(InoutSlot(box: nil, target: target, current: try target.read(self)))
             }
             return try evaluate(inout_.expression, in: env)
-        }
-        if let macro = expr.as(MacroExpansionExprSyntax.self) {
+        case .macroExpansionExpr:
             // `#selector(...)`, `#Predicate {...}` — inert marker values;
             // consumers (sendAction, flattened queries) ignore them.
+            let macro = expr.cast(MacroExpansionExprSyntax.self)
             return .native(HostTypeMarker(name: "#\(macro.macroName.text)"))
-        }
-        if let asExpr = expr.as(AsExprSyntax.self) {
+        case .asExpr:
+            let asExpr = expr.cast(AsExprSyntax.self)
             // Dynamic casts: give the target type a chance to resolve markers,
             // bridge numerics, and otherwise pass the value through
             // (optimistic `as?` — documented divergence).
@@ -213,18 +206,18 @@ extension Interpreter {
                 break
             }
             return try resolveAnnotated(value, typeName: typeName)
-        }
-        if let ifExpr = expr.as(IfExprSyntax.self) {
+        case .ifExpr:
+            let ifExpr = expr.cast(IfExprSyntax.self)
             if case .normal(let value) = try executeIf(ifExpr, in: env) { return value }
             throw error(ifExpr, "control flow can't escape an if-expression")
-        }
-        if let switchExpr = expr.as(SwitchExprSyntax.self) {
+        case .switchExpr:
+            let switchExpr = expr.cast(SwitchExprSyntax.self)
             if case .normal(let value) = try executeSwitch(switchExpr, in: env) { return value }
             throw error(switchExpr, "control flow can't escape a switch-expression")
-        }
-        if let postfixIf = expr.as(PostfixIfConfigExprSyntax.self) {
+        case .postfixIfConfigExpr:
             // `view \n #if os(iOS) \n .modifier() \n #endif` — apply the
             // active clause's postfix chain to the base (inactive: base).
+            let postfixIf = expr.cast(PostfixIfConfigExprSyntax.self)
             let baseValue = try postfixIf.base.map { try evaluate($0, in: env) } ?? .void
             guard let clause = activeIfConfigClause(postfixIf.config),
                   case .postfixExpression(let postfix)? = clause.elements else {
@@ -233,16 +226,15 @@ extension Interpreter {
             let child = Environment(parent: env)
             child.define("__postfixBase", baseValue)
             return try evaluate(graftPostfixBase(postfix, name: "__postfixBase"), in: child)
-        }
-        if let generic = expr.as(GenericSpecializationExprSyntax.self) {
+        case .genericSpecializationExpr:
             // Type arguments are annotations we don't check —
             // `Binding<Int?>(get:set:)` evaluates as `Binding(get:set:)`.
-            return try evaluate(generic.expression, in: env)
-        }
-        if expr.is(SequenceExprSyntax.self) {
+            return try evaluate(expr.cast(GenericSpecializationExprSyntax.self).expression, in: env)
+        case .sequenceExpr:
             throw error(expr, "internal error: unfolded operator sequence")
+        default:
+            throw error(expr, "unsupported expression (\(expr.kind))")
         }
-        throw error(expr, "unsupported expression (\(expr.kind))")
     }
 
     /// Grafts a name reference onto the missing root base of a postfix
