@@ -256,29 +256,39 @@ public final class Interpreter {
                 }
             }
         } else {
-            let chosen = chooseInitializer(from: symbol.initializers, for: args)
-            guard let body = chosen.body else {
-                throw RuntimeError(message: "init of '\(symbol.name)' has no body")
-            }
-            let parameters = chosen.signature.parameterClause.parameters.map { param in
-                ClosureValue.Parameter(
-                    name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                    label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                    defaultValue: param.defaultValue?.value,
-                    typeAnnotation: param.type,
-                    isBuilderAttributed: param.attributes.contains {
-                        $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-                    } || ClosureValue.Parameter.isBuilderAttributedType(param.type)
-                )
-            }
-            let closure = ClosureValue(
-                parameters: parameters,
-                body: body.statements,
-                captured: selfEnvironment(.instance(instance))
-            )
-            _ = try callWithArguments(closure, args: args, node: node)
+            try runInitializer(
+                chooseInitializer(from: symbol.initializers, for: args),
+                on: instance, args: args, node: node)
         }
         return .instance(instance)
+    }
+
+    /// Run one initializer body with `self` bound to the instance — used
+    /// by instantiate and by `self.init(…)` delegation.
+    func runInitializer(
+        _ chosen: InitializerDeclSyntax, on instance: Instance,
+        args: CallArguments, node: Syntax?
+    ) throws {
+        guard let body = chosen.body else {
+            throw RuntimeError(message: "init of '\(instance.symbol.name)' has no body")
+        }
+        let parameters = chosen.signature.parameterClause.parameters.map { param in
+            ClosureValue.Parameter(
+                name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                defaultValue: param.defaultValue?.value,
+                typeAnnotation: param.type,
+                isBuilderAttributed: param.attributes.contains {
+                    $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+                } || ClosureValue.Parameter.isBuilderAttributedType(param.type)
+            )
+        }
+        let closure = ClosureValue(
+            parameters: parameters,
+            body: body.statements,
+            captured: selfEnvironment(.instance(instance))
+        )
+        _ = try callWithArguments(closure, args: args, node: node)
     }
 
     func chooseInitializer(from initializers: [InitializerDeclSyntax], for args: CallArguments) -> InitializerDeclSyntax {

@@ -79,6 +79,12 @@ Each iteration does exactly this:
 
 (projects excluded from the metric, with reasons — keep short)
 
+- oss:isowords — client+server monorepo; the server half (Bootstrap,
+  ApiRouter, Postgres) depends on unmerged swift-server frameworks (NIO,
+  Prelude, EitherIO). The merged-module model can't split targets; the
+  CLIENT half drove real fixes (custom operator folding, C-interop
+  absorbers, String ranges) before the server wall.
+
 - SwiftUIRealm — Realm ORM internals: `@Persisted(primaryKey:) var id:
   ObjectId` and Object base-class storage; third-party database library,
   not SwiftUI surface (candidate since iter 32, blocked on ObjectId since
@@ -972,3 +978,14 @@ Each iteration does exactly this:
   by the measure), reduce(into:), Data(contentsOf:) marker flow,
   unsafeBitCast passthrough. isowords: line 1 → 28146 (sqlite3 C interop —
   next class/scope decision). **598/600 (99.7%); queue: isowords, damus.**
+- 2026-07-09 iter 121: C-interop absorbers — unresolved snake_case /
+  _dyld-style / C-stdlib identifiers (sqlite3_*, ndb_*, malloc) read as
+  inert absorbing functions (the merge holds all the app's OWN Swift, so
+  undeclared snake_case = unmerged C import); delegating initializers
+  (`self.init(…)` convenience chains, shared runInitializer); String
+  utf8/utf16 views + Data byte views; Data(bytes) real construction;
+  hostCandidates gains Data/URL/UUID; String ranges ("A"..<"H" dict keys,
+  equality). isowords QUARANTINED after its C wall fell: the remaining
+  wall is the SERVER half (NIO/Prelude/EitherIO — client+server monorepo
+  the merged-module model can't split; recorded in ProjectCheck).
+  damus: 8262 → 11978. **598/599 counted; queue: oss:damus.**

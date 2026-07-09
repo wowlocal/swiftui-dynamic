@@ -319,6 +319,17 @@ extension Interpreter {
                 try modifier.apply(target, args, ctx)
             })
         }
+        // Unresolved snake_case identifiers are C imports (sqlite3_open,
+        // ndb_builder — the merge holds all the app's OWN Swift): inert
+        // absorbing functions, values chain per the fresh-state doctrine.
+        if Self.cStdlibNames.contains(name)
+            || (name.contains("_") && name.first?.isLowercase == true)
+            || (name.hasPrefix("_") && name.dropFirst().first?.isLowercase == true) {
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native(ChainedImplicitCall(
+                    base: .implicitMember(name), member: "call", arguments: CallArguments()))
+            })
+        }
         throw error(node, "unresolved identifier '\(name)'")
     }
 
@@ -406,6 +417,9 @@ extension Interpreter {
         if any is Date { names.append("Date") }
         if any is BindingStub { names.append("Binding") }
         if any is DictValue { names.append("Dictionary") }
+        if any is Data { names.append("Data") }
+        if any is URL { names.append("URL") }
+        if any is UUID { names.append("UUID") }
         if any is [RuntimeValue] {
             // `extension Array` and sugar-typed `extension [Item]` both apply.
             names.append("Array")
@@ -505,6 +519,17 @@ extension Interpreter {
             return .nilValue
 
         case .instance(let instance):
+            // `self.init(…)` — delegating initializers run another init on
+            // the SAME instance (convenience inits).
+            if name == "init", !instance.symbol.initializers.isEmpty {
+                return .hostFunction(HostFunction(name: "init") { [weak self] args, _ in
+                    guard let self else { throw RuntimeError(message: "interpreter gone") }
+                    try self.runInitializer(
+                        self.chooseInitializer(from: instance.symbol.initializers, for: args),
+                        on: instance, args: args, node: nil)
+                    return .void
+                })
+            }
             if let value = try instanceMember(name, on: instance) { return value }
             // A modifier applied to an interpreted View (or Shape — the
             // registry wraps those shape-typed, so .fill/.stroke/.trim see a
@@ -780,6 +805,11 @@ extension Interpreter {
     }
 
     // MARK: - Calls
+
+    static let cStdlibNames: Set<String> = [
+        "malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset",
+        "strlen", "strcmp", "strncmp", "strcpy", "strdup",
+    ]
 
     func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
         // `[Index]()` / `[String: Int]()` — typed empty containers.

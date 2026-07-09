@@ -1282,6 +1282,51 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// C-interop reads as inert absorbers (snake_case / _dyld / malloc —
+    /// the merge holds all the app's own Swift); delegating inits run on
+    /// the same instance; utf8 views count; Data(bytes) is real; string
+    /// ranges key dictionaries.
+    @Test func cInteropDelegatingInitsAndByteViews() throws {
+        let source = """
+        final class Note {
+            var content: String
+            var kind: Int
+
+            init(content: String, kind: Int) {
+                self.content = content
+                self.kind = kind
+            }
+
+            convenience init(content: String) {
+                self.init(content: content, kind: 1)
+            }
+        }
+
+        func hex_decode_id(_ str: String) -> Data? {
+            guard str.utf8.count == 4 else { return nil }
+            return Data([1, 2, 3, 4])
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let note = Note(content: "gm")
+                let builder = ndb_builder_new()
+                let buf = malloc(1024)
+                let letters = ["A"..<"H": "warm", "H"..<"O": "cool"]
+                VStack {
+                    Text("kind \\(note.kind) \\(note.content)")
+                    Text(hex_decode_id("abcd")?.count == 4 ? "decoded" : "no")
+                    Text(builder.isReady ? "ready" : "fresh")
+                    Text(buf == nil ? "nil buf" : "buf")
+                    Text(letters["A"..<"H"] ?? "none")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 6)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

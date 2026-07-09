@@ -80,6 +80,10 @@ enum Builtins {
                case .native(let ra) = rhs, let r = ra as? Date, l <= r {
                 return .native(l..<r)
             }
+            // `"A"..<"H"` — String ranges (letter-bucket dictionary keys).
+            if let l = lhs.stringValue, let r = rhs.stringValue, l <= r {
+                return .native(l..<r)
+            }
             throw EvalMessage(text: "invalid range bounds")
         case "...":
             let lhs = absorbedNumeric(lhs).map { RuntimeValue.native($0) } ?? lhs
@@ -93,6 +97,9 @@ enum Builtins {
             }
             if case .native(let la) = lhs, let l = la as? Date,
                case .native(let ra) = rhs, let r = ra as? Date, l <= r {
+                return .native(l...r)
+            }
+            if let l = lhs.stringValue, let r = rhs.stringValue, l <= r {
                 return .native(l...r)
             }
             throw EvalMessage(text: "invalid range bounds")
@@ -329,6 +336,10 @@ enum Builtins {
             return true
         }
         if let l = lhs.rangeValue, let r = rhs.rangeValue { return l == r }
+        if case .native(let la) = lhs, let l = la as? Range<String>,
+           case .native(let ra) = rhs, let r = ra as? Range<String> {
+            return l == r
+        }
         if case .native(let la) = lhs, case .native(let ra) = rhs {
             // Marker-call vs marker-call: name equality is the best truth
             // available (`.video == .video`); differing names are unequal.

@@ -32,6 +32,10 @@ extension Interpreter {
         }
         if let data = any as? Data {
             switch name {
+            case "utf8", "bytes":
+                // Byte view (damus reads .utf8.count off values that are
+                // Data by the time they arrive) — Int array.
+                return .native(data.map { RuntimeValue.native(Int($0)) })
             case "count": return .native(data.count)
             case "isEmpty": return .native(data.isEmpty)
             case "base64EncodedString":
@@ -469,6 +473,12 @@ extension Interpreter {
                 }
                 return .native(string.replacingOccurrences(of: target, with: replacement))
             })
+        case "utf8", "utf16":
+            // Byte/code-unit views as Int arrays: .count and iteration work.
+            if name == "utf8" {
+                return .native(Array(string.utf8).map { RuntimeValue.native(Int($0)) })
+            }
+            return .native(Array(string.utf16).map { RuntimeValue.native(Int($0)) })
         case "unicodeScalars":
             // Scalars as single-char strings (our character model): count,
             // iteration, and allSatisfy work through array machinery.
