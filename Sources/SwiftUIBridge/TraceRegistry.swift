@@ -300,6 +300,13 @@ public final class TraceRegistry: HostRegistry {
                 return .hostFunction(HostFunction(name: name) { _, _ in .native([RuntimeValue]()) })
             case "count": return .native(0)
             case "isEmpty": return .native(true)
+            case "decode":
+                // Decoding through a stub decoder (JSONDecoder over marker
+                // data) fails like a fresh store: nothing was persisted.
+                // `try?` lands in the caller's else/catch path.
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    throw RuntimeError(message: "nothing to decode (fresh store)")
+                })
             default: break
             }
         }

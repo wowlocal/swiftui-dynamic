@@ -30,6 +30,17 @@ extension Interpreter {
         if let string = any as? String {
             return stringMember(name, string)
         }
+        if let data = any as? Data {
+            switch name {
+            case "count": return .native(data.count)
+            case "isEmpty": return .native(data.isEmpty)
+            case "base64EncodedString":
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    .native(data.base64EncodedString())
+                })
+            default: return nil
+            }
+        }
         if let url = any as? URL {
             switch name {
             case "path": return .native(url.path)

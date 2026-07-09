@@ -35,6 +35,20 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { _, _ in .native(DateFormatterBox()) }
     case "NumberFormatter":
         return HostFunction(name: name) { _, _ in .native(NumberFormatterBox()) }
+    case "Data":
+        return HostFunction(name: name) { args, _ in
+            // Real semantics: reading a file that isn't there throws (a
+            // fresh sandbox is empty), so `try?` honestly yields nil.
+            if let value = args.labeled("contentsOf") {
+                guard case .native(let any) = value, let url = any as? URL else {
+                    throw RuntimeError(message: "Data(contentsOf:) needs a URL")
+                }
+                do { return .native(try Data(contentsOf: url)) } catch {
+                    throw RuntimeError(message: "Data(contentsOf:): \(error.localizedDescription)")
+                }
+            }
+            return .native(Data())
+        }
     case "Locale":
         return HostFunction(name: name) { args, _ in
             guard let identifier = args.labeled("identifier")?.stringValue else {
@@ -335,6 +349,17 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .hostFunction(HostFunction(name: name) { _, _ in
                 .native([RuntimeValue.native(box.documentsDirectory())])
             })
+        case "url":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                // `url(forUbiquityContainerIdentifier:)` — a fresh device
+                // has no iCloud container.
+                if args.labeled("forUbiquityContainerIdentifier") != nil { return .nilValue }
+                // `url(for: .documentDirectory, in: …, appropriateFor:
+                // create:)` — the sandbox documents dir, like urls(for:in:).
+                return .native(box.documentsDirectory())
+            })
+        case "startDownloadingUbiquitousItem", "setUbiquitous":
+            return .hostFunction(HostFunction(name: name) { _, _ in .void })
         case "fileExists":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let path = args.labeled("atPath")?.stringValue else { return .native(false) }

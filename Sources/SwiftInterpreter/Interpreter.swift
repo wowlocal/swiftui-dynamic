@@ -706,6 +706,30 @@ public final class Interpreter {
             }
             return .native([RuntimeValue]())
         }
+        define("fatalError") { args, _ in
+            let message = args.positional(0)?.stringValue ?? "fatalError"
+            throw RuntimeError(message: "fatalError: \(message)", fatal: true)
+        }
+        define("preconditionFailure") { args, _ in
+            let message = args.positional(0)?.stringValue ?? "preconditionFailure"
+            throw RuntimeError(message: "preconditionFailure: \(message)", fatal: true)
+        }
+        define("assertionFailure") { args, _ in
+            let message = args.positional(0)?.stringValue ?? "assertionFailure"
+            throw RuntimeError(message: "assertionFailure: \(message)", fatal: true)
+        }
+        // assert/precondition describe DEVICE truths: concrete false traps,
+        // unknowable (marker-fed) conditions assume a healthy device.
+        for trap in ["assert", "precondition"] {
+            define(trap) { args, _ in
+                if case .native(let flag)? = args.positional(0), let concrete = flag as? Bool,
+                   !concrete {
+                    let message = args.positional(1)?.stringValue ?? trap
+                    throw RuntimeError(message: "\(trap) failed: \(message)", fatal: true)
+                }
+                return .void
+            }
+        }
         define("UUID") { _, _ in .native(UUID()) }
         define("URL") { args, _ in
             // Real URL semantics: invalid strings are honestly nil.

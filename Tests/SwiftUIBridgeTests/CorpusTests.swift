@@ -695,6 +695,55 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Fresh-store persistence reads fail honestly: Data(contentsOf:)
+    /// of a missing sandbox file throws (try? -> nil), decode through a
+    /// stub decoder throws, so archived-state restores take their else
+    /// branch and later writes land on real instances. Trap builtins
+    /// (fatalError family) resolve; FileManager.url singular forms work.
+    @Test func freshStoreRestorePath() throws {
+        let source = """
+        struct MoviesState {
+            var movies: [Int: String] = [:]
+        }
+
+        final class AppState: ObservableObject {
+            var moviesState: MoviesState
+            var savePath: URL
+
+            init() {
+                do {
+                    let documentDirectory = try FileManager.default.url(for: .documentDirectory,
+                                                                        in: .userDomainMask,
+                                                                        appropriateFor: nil,
+                                                                        create: false)
+                    savePath = documentDirectory.appendingPathComponent("userData")
+                } catch {
+                    fatalError("Couldn't create save state data with error: \\(error)")
+                }
+                if let data = try? Data(contentsOf: savePath),
+                   let savedState = try? JSONDecoder().decode(AppState.self, from: data) {
+                    self.moviesState = savedState.moviesState
+                } else {
+                    self.moviesState = MoviesState()
+                }
+                moviesState.movies[0] = "sample"
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let state = AppState()
+                VStack {
+                    Text("movies \\(state.moviesState.movies.count)")
+                    Text(state.moviesState.movies[0] ?? "missing")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

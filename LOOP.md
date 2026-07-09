@@ -824,3 +824,16 @@ Each iteration does exactly this:
   members (Color.black). SplashScreen passes (33 nodes, 3 actions).
   **586 → 587/587 counted units — ZERO failures. The local ladder + OSS
   rung are saturated; step 9 (new OSS material) applies next.**
+- 2026-07-09 iter 104: ladder step 9 — cloned four new OSS repos (Weather 25
+  files, reddit-swiftui 37, MovieSwiftUI 105, Jinxiansen/SwiftUI examples
+  41; units 588 → 591 counted). Fixed the biggest new class, MovieSwiftUI's
+  archived-state restore: FileManager.url(for:in:appropriateFor:create:) +
+  url(forUbiquityContainerIdentifier:) → nil (no iCloud, fresh device);
+  trap builtins (fatalError/precondition/assert family — concrete false
+  traps, unknowable conditions assume a healthy device); fresh-store
+  persistence reads fail honestly (Data(contentsOf:) real file semantics,
+  decode-on-stub throws) so restores take their else branch; Data members
+  (count/isEmpty/base64) — the real-Data switch briefly regressed
+  Music+Filter, caught by the measure. MovieSwiftUI passes (3 nodes).
+  **588/591 counted (99.5%); queue: oss:Weather, oss:SwiftUI,
+  oss:reddit-swiftui.**
