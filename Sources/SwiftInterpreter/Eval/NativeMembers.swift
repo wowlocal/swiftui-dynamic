@@ -30,6 +30,37 @@ extension Interpreter {
         if let string = any as? String {
             return stringMember(name, string)
         }
+        if let url = any as? URL {
+            switch name {
+            case "path": return .native(url.path)
+            case "absoluteString": return .native(url.absoluteString)
+            case "lastPathComponent": return .native(url.lastPathComponent)
+            case "pathExtension": return .native(url.pathExtension)
+            case "appendingPathComponent":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let component = args.positional(0)?.stringValue else {
+                        throw RuntimeError(message: "appendingPathComponent needs a string")
+                    }
+                    return .native(url.appendingPathComponent(component))
+                })
+            case "appendingPathExtension":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let ext = args.positional(0)?.stringValue else {
+                        throw RuntimeError(message: "appendingPathExtension needs a string")
+                    }
+                    return .native(url.appendingPathExtension(ext))
+                })
+            case "deletingLastPathComponent":
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    .native(url.deletingLastPathComponent())
+                })
+            case "deletingPathExtension":
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    .native(url.deletingPathExtension())
+                })
+            default: return nil
+            }
+        }
         if let indexRange = any as? Range<String.Index> {
             switch name {
             case "lowerBound": return .native(indexRange.lowerBound)

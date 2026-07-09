@@ -611,6 +611,22 @@ public final class Interpreter {
             return .native([RuntimeValue]())
         }
         define("UUID") { _, _ in .native(UUID()) }
+        define("URL") { args, _ in
+            // Real URL semantics: invalid strings are honestly nil.
+            if let s = (args.labeled("string") ?? args.positional(0))?.stringValue {
+                return URL(string: s).map { RuntimeValue.native($0) } ?? .nilValue
+            }
+            if let path = args.labeled("fileURLWithPath")?.stringValue {
+                return .native(URL(fileURLWithPath: path))
+            }
+            // Unknowable string (host-constant markers like
+            // UIApplication.openSettingsURLString): the URL is equally
+            // unknowable but non-nil on device — the marker flows through.
+            if let value = args.labeled("string") ?? args.positional(0), !value.isNil {
+                return value
+            }
+            return .nilValue
+        }
         define("Date") { _, _ in .native(Date()) }
     }
 

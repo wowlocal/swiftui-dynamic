@@ -457,6 +457,30 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// FileManager bridges to a per-run sandbox (fresh container:
+    /// documents start empty) and URL values are real Foundation URLs.
+    @Test func fileManagerSandboxAndRealURLs() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let file = docs.appendingPathComponent("track.mp3")
+                VStack {
+                    Text(FileManager.default.fileExists(atPath: file.path) ? "cached" : "fresh")
+                    Text(file.lastPathComponent)
+                    if let remote = URL(string: "https://example.com/a/song.mp3") {
+                        Text(remote.lastPathComponent)
+                    }
+                    Text(URL(string: "") == nil ? "invalid" : "valid")
+                    Text(URL(string: UIApplication.openSettingsURLString) == nil ? "lost" : "flows")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 5)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

@@ -189,6 +189,13 @@ coverage.
   `\.managedObjectContext` yield an inert context (insert/delete/save
   accepted and ignored, fetch returns empty); `$results.append/remove`
   mutate the flattened state array. Nothing persists.
+- **The file system is a per-run sandbox.** `FileManager.default` performs
+  real file operations confined to a temp-directory sandbox (the analog of
+  an app's fresh container): `urls(for:in:)` returns a sandbox Documents
+  directory that starts empty, `fileExists` is honestly false until the
+  program writes, copy/move/remove genuinely happen inside the sandbox and
+  throw outside it. `URL(string:)` has real Foundation semantics (invalid
+  strings are nil).
 - **Missing environment objects synthesize fresh models.** When
   `@EnvironmentObject`/`@Environment(Type.self)` finds no ambient model (the
   `App` shell that would inject it never runs), a fresh instance of the type

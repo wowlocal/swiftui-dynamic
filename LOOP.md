@@ -765,3 +765,12 @@ Each iteration does exactly this:
   hostTypeName "Locale" for extension dispatch.
   PhoneAuth_Updated_Latest passes (35 nodes, 13 actions).
   **577 → 578/588 (98.3%).**
+- 2026-07-09 iter 96: FileManager sandbox + real URLs — FileManager.default
+  performs real file ops confined to a per-run temp sandbox (fresh
+  container: documents start empty; ops outside the sandbox throw);
+  urls/fileExists/remove/copy/move/createDirectory/contentsOfDirectory;
+  URL(string:) has real semantics (invalid → nil) with unknowable marker
+  strings flowing through (openSettingsURLString — caught a mid-iteration
+  Signal_ImagePicker regression); URL members (path/lastPathComponent/
+  appending…/deleting…). README fresh-state doctrine updated.
+  DownloadTask passes (7 nodes). **578 → 579/588 (98.5%).**

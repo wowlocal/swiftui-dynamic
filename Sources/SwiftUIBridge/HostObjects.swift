@@ -134,6 +134,30 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
 /// config calls chain).
 struct AppearanceStub {}
 
+/// `FileManager.default` — real file operations confined to a per-run
+/// sandbox, the analog of an app's fresh container: documents start empty,
+/// writes/copies/removals genuinely happen (inside the sandbox only).
+public final class FileManagerBox {
+    static let sandboxRoot: URL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "DynamicSwiftUI-Sandbox-\(ProcessInfo.processInfo.processIdentifier)",
+            isDirectory: true)
+
+    let manager = FileManager.default
+
+    func documentsDirectory() -> URL {
+        let documents = Self.sandboxRoot.appendingPathComponent("Documents", isDirectory: true)
+        try? manager.createDirectory(at: documents, withIntermediateDirectories: true)
+        return documents
+    }
+
+    func requireSandboxed(_ url: URL) throws {
+        guard url.standardizedFileURL.path.hasPrefix(Self.sandboxRoot.standardizedFileURL.path) else {
+            throw RuntimeError(message: "file operation outside the app sandbox: \(url.path)")
+        }
+    }
+}
+
 /// `Calendar.current` — backed by the real Foundation calendar.
 struct CalendarBox {
     let calendar = Calendar.current
@@ -296,6 +320,78 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if let marker = value as? HostTypeMarker, marker.name == "Calendar", name == "current" {
         return .native(CalendarBox())
+    }
+    if let marker = value as? HostTypeMarker, marker.name == "FileManager", name == "default" {
+        return .native(FileManagerBox())
+    }
+    if let box = value as? FileManagerBox {
+        func urlArg(_ value: RuntimeValue?) -> URL? {
+            guard case .native(let any)? = value else { return nil }
+            return any as? URL
+        }
+        switch name {
+        case "urls":
+            // Any search path reads the sandbox documents dir — the
+            // fresh-container reading of (for: .documentDirectory, in:).
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native([RuntimeValue.native(box.documentsDirectory())])
+            })
+        case "fileExists":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let path = args.labeled("atPath")?.stringValue else { return .native(false) }
+                return .native(box.manager.fileExists(atPath: path))
+            })
+        case "removeItem":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let url = urlArg(args.labeled("at"))
+                    ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
+                guard let url else { throw RuntimeError(message: "removeItem needs a URL") }
+                try box.requireSandboxed(url)
+                do { try box.manager.removeItem(at: url) } catch {
+                    throw RuntimeError(message: "removeItem: \(error.localizedDescription)")
+                }
+                return .void
+            })
+        case "copyItem", "moveItem":
+            let move = name == "moveItem"
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let from = urlArg(args.labeled("at")), let to = urlArg(args.labeled("to")) else {
+                    // Sources that never materialized (URLSession temp
+                    // markers) can't be copied — the honest throw lands in
+                    // the app's own catch.
+                    throw RuntimeError(message: "\(name) needs source and destination URLs")
+                }
+                try box.requireSandboxed(to)
+                try box.requireSandboxed(from)
+                do {
+                    if move { try box.manager.moveItem(at: from, to: to) }
+                    else { try box.manager.copyItem(at: from, to: to) }
+                } catch {
+                    throw RuntimeError(message: "\(name): \(error.localizedDescription)")
+                }
+                return .void
+            })
+        case "createDirectory":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let url = urlArg(args.labeled("at"))
+                    ?? args.labeled("atPath")?.stringValue.map { URL(fileURLWithPath: $0) }
+                guard let url else { throw RuntimeError(message: "createDirectory needs a URL") }
+                try box.requireSandboxed(url)
+                try? box.manager.createDirectory(at: url, withIntermediateDirectories: true)
+                return .void
+            })
+        case "contentsOfDirectory":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let url = urlArg(args.labeled("at")) else {
+                    throw RuntimeError(message: "contentsOfDirectory needs a URL")
+                }
+                try box.requireSandboxed(url)
+                let contents = (try? box.manager.contentsOfDirectory(
+                    at: url, includingPropertiesForKeys: nil)) ?? []
+                return .native(contents.map { RuntimeValue.native($0) })
+            })
+        default: return nil
+        }
     }
     // `Locale.current` — the real host locale (a device runs with one too).
     if let marker = value as? HostTypeMarker, marker.name == "Locale",
