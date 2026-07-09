@@ -180,24 +180,26 @@ extension Interpreter {
     ]
 
     private func collectClass(_ node: ClassDeclSyntax) throws {
-        try collectClassLike(name: node.name.text, inheritanceClause: node.inheritanceClause,
-                             memberBlock: node.memberBlock, attributes: node.attributes)
+        registerTypeSymbol(try makeClassLikeSymbol(
+            name: node.name.text, inheritanceClause: node.inheritanceClause,
+            memberBlock: node.memberBlock, attributes: node.attributes))
     }
 
     /// `actor Store { … }` — collected as a reference-typed class. Isolation
     /// is not enforced: methods run synchronously on the caller (documented
     /// divergence — the interpreter is single-threaded anyway).
     private func collectActor(_ node: ActorDeclSyntax) throws {
-        try collectClassLike(name: node.name.text, inheritanceClause: node.inheritanceClause,
-                             memberBlock: node.memberBlock, attributes: node.attributes)
+        registerTypeSymbol(try makeClassLikeSymbol(
+            name: node.name.text, inheritanceClause: node.inheritanceClause,
+            memberBlock: node.memberBlock, attributes: node.attributes))
     }
 
-    private func collectClassLike(
+    func makeClassLikeSymbol(
         name: String,
         inheritanceClause: InheritanceClauseSyntax?,
         memberBlock: MemberBlockSyntax,
         attributes: AttributeListSyntax
-    ) throws {
+    ) throws -> StructSymbol {
         let inherited = inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
         let symbol = StructSymbol(name: name, conformsToView: inherited.contains("View"))
         symbol.isClass = true
@@ -212,7 +214,7 @@ extension Interpreter {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Observable"
         }
         try collectStructMembers(memberBlock, into: symbol)
-        registerTypeSymbol(symbol)
+        return symbol
     }
 
     private func collectStructMembers(_ block: MemberBlockSyntax, into symbol: StructSymbol) throws {
@@ -279,13 +281,29 @@ extension Interpreter {
                 }
             } else if let nestedStruct = member.decl.as(StructDeclSyntax.self) {
                 let nestedSymbol = try makeStructSymbol(nestedStruct)
-                symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
-                structSymbols.append(nestedSymbol)
-                globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
-                if globals.lookup(nestedSymbol.name) == nil {
-                    globals.define(nestedSymbol.name, .type(nestedSymbol))
-                }
+                registerNestedType(nestedSymbol, in: symbol)
+            } else if let nestedClass = member.decl.as(ClassDeclSyntax.self) {
+                // Nested classes (UserPreferences.Storage) register like
+                // nested structs — reference-typed.
+                let nestedSymbol = try makeClassLikeSymbol(
+                    name: nestedClass.name.text, inheritanceClause: nestedClass.inheritanceClause,
+                    memberBlock: nestedClass.memberBlock, attributes: nestedClass.attributes)
+                registerNestedType(nestedSymbol, in: symbol)
+            } else if let nestedActor = member.decl.as(ActorDeclSyntax.self) {
+                let nestedSymbol = try makeClassLikeSymbol(
+                    name: nestedActor.name.text, inheritanceClause: nestedActor.inheritanceClause,
+                    memberBlock: nestedActor.memberBlock, attributes: nestedActor.attributes)
+                registerNestedType(nestedSymbol, in: symbol)
             }
+        }
+    }
+
+    private func registerNestedType(_ nestedSymbol: StructSymbol, in symbol: StructSymbol) {
+        symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
+        structSymbols.append(nestedSymbol)
+        globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
+        if globals.lookup(nestedSymbol.name) == nil {
+            globals.define(nestedSymbol.name, .type(nestedSymbol))
         }
     }
 

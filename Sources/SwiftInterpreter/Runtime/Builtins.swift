@@ -140,12 +140,14 @@ enum Builtins {
         }
         func absorbed(_ value: RuntimeValue) -> RuntimeValue {
             if let numeric = numericMarker(value) { return .native(numeric) }
-            // Hosted-object quantities and unresolved CHAINS read ZERO —
-            // the fresh canvas (consistent with hosted truths reading false).
+            // Hosted-object quantities, unresolved CHAINS, and bound host
+            // member FUNCTIONS read ZERO — the fresh canvas (consistent
+            // with hosted truths reading false).
             if case .native(let any) = value,
                any is InertCallable || any is ChainedImplicitCall {
                 return .native(0.0)
             }
+            if case .hostFunction = value { return .native(0.0) }
             return value
         }
         // String concat with an unknowable operand: the unknowable reads
@@ -156,6 +158,7 @@ enum Builtins {
                 if case .native(let any) = value {
                     return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
                 }
+                if case .hostFunction = value { return true }
                 return false
             }
             if let l = lhs.stringValue, isUnknowable(rhs) { return .native(l) }
@@ -346,6 +349,7 @@ enum Builtins {
                 }
             }
             if case .native(let any) = value, any is InertCallable { return .native(0.0) }
+            if case .hostFunction = value { return .native(0.0) }
             return value
         }
         let lhs = absorbed(lhs)

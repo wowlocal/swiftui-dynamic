@@ -1107,6 +1107,41 @@ enum Corpus {
         #expect(report.nodeCount >= 4)
     }
 
+    /// Nested CLASSES register like nested structs (UserPreferences.
+    /// Storage), and bound host-member functions absorb to fresh
+    /// identities: 0 in arithmetic, false in Bool positions.
+    @Test func nestedClassesAndFunctionAbsorption() throws {
+        let source = """
+        class Preferences {
+            class Storage {
+                var useSettings: Bool = true
+            }
+
+            private let storage = Storage()
+            var useSettings: Bool
+
+            init() {
+                useSettings = storage.useSettings
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let prefs = Preferences()
+                let device = HapticEngine()
+                let luminance = 0.299 * device.red + 0.587 * device.green
+                VStack {
+                    Text(prefs.useSettings ? "instance settings" : "app settings")
+                    Text(luminance == 0 ? "dark" : "lit")
+                    Text(device.isReady ? "ready" : "fresh")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 4)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

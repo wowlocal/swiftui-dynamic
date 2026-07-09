@@ -922,3 +922,11 @@ Each iteration does exactly this:
   TimeInterval → Date, Date − Date → TimeInterval); (5) suite caught
   nothing else. IceCubes: 39961 → 19181 (bag member in Bool position —
   next class). **596/597; ToolbarContent class eliminated. Suite 228.**
+- 2026-07-09 iter 116: nested classes + function absorption — nested CLASS/
+  ACTOR declarations register like nested structs (UserPreferences.Storage
+  was falling to the catch-all TraceNode, poisoning every preference read);
+  makeClassLikeSymbol split from registration, shared registerNestedType;
+  bound host-member FUNCTIONS complete the fresh-identity table (0 in
+  arithmetic + compare, "" in concat, false in Bool). IceCubes:
+  19181 → 35507 (String.unicodeScalars — next class). **596/597;
+  picked class eliminated. Suite 229.**
