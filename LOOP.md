@@ -1330,3 +1330,18 @@ Each iteration does exactly this:
   **629/634 counted; Suite 266 → 268 (all green — the cycle-guard limit
   needed tightening to 350 nestings post-commit: 2000 × large evaluate
   frames still overflowed the test stack; corpus unaffected at 350).**
+- 2026-07-09 iter 151: Maccy (106 files) — `'>' cannot compare nil and
+  200.0` at root init: the sindresorhus/Defaults library.
+  `Defaults[.windowSize]` now answers the KEY'S DECLARED DEFAULT on a
+  fresh store (`Defaults.Keys.windowSize = Key("…", default:
+  NSSize(450, 800))` — the @Default-wrapper doctrine at subscript
+  level); registry catch-all bags store LABELED ctor arguments in
+  config so `Key(default:)` and `NSSize(width:height:)` read back;
+  store WRITES land in the key bag (Box.onChange → hostSetMember) and
+  round-trip in-run; Int promotes for `.rounded()`. The bag change made
+  CotEditor's vendored Package.swift loop REAL (`(target.plugins ?? [])
+  + [.plugin(…)]`) — healed by extending the fresh-state doctrine:
+  unknowables read EMPTY in array concatenation (README updated).
+  Maccy ✅ (118 nodes, 8 actions). **630/634 counted — ZERO failures
+  (SEVENTEENTH saturation). 585 zips + 46 OSS repos green. Suite
+  268 → 269.**

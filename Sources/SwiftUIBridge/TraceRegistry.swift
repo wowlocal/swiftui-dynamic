@@ -278,7 +278,14 @@ public final class TraceRegistry: HostRegistry {
                             node.args.append("closure")
                         }
                     } else {
-                        if argument.label == nil { data = argument.value }
+                        if let label = argument.label {
+                            // Labeled configuration round-trips through the
+                            // bag: Key("size", default: NSSize(…)).default
+                            // and NSSize(width:…).width read back.
+                            node.config[label] = argument.value
+                        } else {
+                            data = argument.value
+                        }
                         node.args.append(argument.value.stringified)
                     }
                 }

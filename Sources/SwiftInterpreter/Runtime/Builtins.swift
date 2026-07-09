@@ -219,6 +219,10 @@ public enum Builtins {
             }
             if let l = lhs.stringValue, isUnknowable(rhs) { return .native(l) }
             if let r = rhs.stringValue, isUnknowable(lhs) { return .native(r) }
+            // Same doctrine for arrays: the unknowable side reads EMPTY —
+            // `(target.plugins ?? []) + [.plugin(…)]` keeps the additions.
+            if let l = lhs.arrayValue, isUnknowable(rhs) { return .native(l) }
+            if let r = rhs.arrayValue, isUnknowable(lhs) { return .native(r) }
         }
         let lhs = absorbed(lhs)
         let rhs = absorbed(rhs)

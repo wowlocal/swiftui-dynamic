@@ -2909,6 +2909,41 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Maccy (iteration 151): library key-value stores with DECLARED key
+    /// defaults (sindresorhus/Defaults). A fresh store answers the key's
+    /// `default:` argument — `Defaults[.windowSize]` is NSSize(450, 800),
+    /// and labeled ctor args round-trip through the catch-all bags so
+    /// `.width` reads 450. Writes remember within the run. Int promotes
+    /// for `.rounded()`.
+    @Test func declaredDefaultStoresReadAndWrite() throws {
+        let source = """
+        extension Defaults.Keys {
+            static let windowSize = Key<NSSize>("windowSize", default: NSSize(width: 450, height: 800))
+            static let previewWidth = Key<CGFloat>("previewWidth", default: 290)
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let width = Defaults[.windowSize].width
+                Defaults[.previewWidth] = 333
+                let readBack = Defaults[.previewWidth]
+                let rounded = max(200, width).rounded()
+        let additions = (Bundle.main.mystery ?? []) + ["added"]
+                let checks = [
+                    width == 450,
+                    readBack == 333,
+                    rounded == 450,
+                    additions == ["added"],
+                ]
+                if checks.contains(false) { fatalError("declared-default store broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// CopilotForXcode (iteration 150): local DI-wrapper declarations
     /// (`@Dependency(\.pool) var pool` in an init) resolve a fresh shared
     /// instance of the keypath'd type; Bundle.main is the REAL process

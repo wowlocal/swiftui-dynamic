@@ -2058,6 +2058,17 @@ extension Interpreter {
             if let dict = baseValue?.dictValue {
                 return .dictElement(dict, try evaluate(indexExpr, in: env))
             }
+            // Store WRITES remember (`Defaults[.previewWidth] = w`): the
+            // key bag's declared default updates, so later reads round-trip
+            // within the run — fresh-store bag semantics.
+            if let keyBag = try storeKeyBag(base: baseValue, indexExpr: indexExpr, in: env) {
+                let seed = registry?.hostMember("default", on: keyBag) ?? .void
+                let box = Box(seed)
+                box.onChange = { [weak self] in
+                    _ = self?.registry?.hostSetMember("default", on: keyBag, to: box.value)
+                }
+                return .box(box)
+            }
             let base = try resolveLValue(subscriptCall.calledExpression, in: env)
             guard let index = try evaluate(indexExpr, in: env).intValue else {
                 throw error(subscriptCall, "subscript assignment requires an Int index")
@@ -2127,6 +2138,32 @@ extension Interpreter {
         return out
     }
 
+    /// Library key-value stores with DECLARED key defaults (sindresorhus/
+    /// Defaults): `Store[.key]` resolves `Store.Keys.key`'s bag, whose
+    /// `default:` argument is the fresh-store value (reads) and updates on
+    /// writes.
+    private func storeKeyBag(base: RuntimeValue?, indexExpr: ExprSyntax, in env: Environment) throws -> Any? {
+        guard let base else { return nil }
+        guard case .implicitMember = try evaluate(indexExpr, in: env) else { return nil }
+        return try storeKeyBag(base: base, index: try evaluate(indexExpr, in: env))
+    }
+
+    private func storeKeyBag(base: RuntimeValue, index: RuntimeValue) throws -> Any? {
+        let storeTypeName: String? = {
+            if case .native(let baseAny) = base, let marker = baseAny as? HostTypeMarker {
+                return marker.name
+            }
+            if case .hostFunction(let fn) = base { return fn.name } // ctor catch-all
+            return nil
+        }()
+        guard let storeTypeName,
+              case .implicitMember(let keyName) = index,
+              let keysSymbol = hostExtensionSymbols["\(storeTypeName).Keys"],
+              let keyValue = try staticMember(keyName, of: keysSymbol),
+              case .native(let keyAny) = keyValue else { return nil }
+        return keyAny
+    }
+
     private func evaluateSubscript(_ call: SubscriptCallExprSyntax, in env: Environment) throws -> RuntimeValue {
         let base = try evaluate(call.calledExpression, in: env)
         if base.isNil { return .nilValue }
@@ -2175,6 +2212,15 @@ extension Interpreter {
                position < string.endIndex {
                 return .native(String(string[position]))
             }
+        }
+        // Library key-value stores with DECLARED defaults (sindresorhus/
+        // Defaults: `Defaults[.windowSize]` with `Defaults.Keys.windowSize =
+        // Key("…", default: NSSize(…))`): a fresh store answers the key's
+        // declared default — the @Default-wrapper doctrine at subscript level.
+        if let keyBag = try storeKeyBag(base: base, index: index),
+           let declared = registry?.hostMember("default", on: keyBag)
+               ?? registry?.hostMember("defaultValue", on: keyBag) {
+            return declared
         }
         if case .native(let any) = base,
            case .hostFunction(let subscripting)? = registry?.hostMember("subscript", on: any) {

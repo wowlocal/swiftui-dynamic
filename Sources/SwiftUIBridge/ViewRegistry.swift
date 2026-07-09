@@ -65,7 +65,13 @@ public final class ViewRegistry: HostRegistry {
             // trace registry's opaque recorder. Lowercase names stay
             // unresolved so genuine errors surface.
             guard name.first?.isUppercase == true else { return nil }
-            return HostFunction(name: name) { _, _ in .native(UIKitStub()) }
+            return HostFunction(name: name) { args, _ in
+                let stub = UIKitStub()
+                for argument in args.arguments {
+                    if let label = argument.label { stub.config[label] = argument.value }
+                }
+                return .native(stub)
+            }
         }
         // Hand-written first; if it rejects this call shape and a generated
         // table exists, fall through — so e.g. Text(verbatim:) can come from
