@@ -324,7 +324,14 @@ extension ViewRegistry {
             guard let content = args.closure(labeled: "content") ?? args.unlabeledClosures.last else {
                 throw RuntimeError(message: "ForEach needs a content closure")
             }
-            let elements = try Self.forEachElements(data)
+            // `ForEach($items) { $item in … }` — element bindings write back.
+            let elements: [RuntimeValue]
+            if case .native(let any) = data, let stub = any as? BindingStub,
+               let bindings = stub.elementBindings() {
+                elements = bindings
+            } else {
+                elements = try Self.forEachElements(data)
+            }
             var views: [AnyView] = []
             for element in elements {
                 views += try ctx.callBuilderClosure(content, arguments: [element]).map(Self.anyView)

@@ -371,6 +371,16 @@ extension Interpreter {
                 switch name {
                 case "wrappedValue": return stub.box.value
                 case "projectedValue": return baseValue
+                default:
+                    // Binding is @dynamicMemberLookup: `$item.field` projects
+                    // a binding to the field. Instance fields bind their own
+                    // box (reference-backed); other members read through.
+                    if case .instance(let inner) = stub.box.value,
+                       let box = inner.box(for: inner.symbol.canonicalPropertyName(name)) {
+                        return .native(BindingStub(box: box))
+                    }
+                }
+                switch name {
                 case "append", "remove" where stub.box.value.arrayValue != nil:
                     // Projected-collection writes (`$results.append(x)` —
                     // the Realm/SwiftData binding idiom) mutate through the
@@ -715,7 +725,15 @@ extension Interpreter {
 
         for (index, parameter) in closure.parameters.enumerated() {
             if let value = bound[index] {
-                env.define(parameter.name, try resolveAnnotated(value, annotation: parameter.typeAnnotation))
+                let resolved = try resolveAnnotated(value, annotation: parameter.typeAnnotation)
+                env.define(parameter.name, resolved)
+                // `{ $item in … }` — the binding parameter also exposes its
+                // wrapped value: `item` shares the binding's box, so reads
+                // are live and writes propagate.
+                if parameter.name.hasPrefix("$"), parameter.name.count > 1,
+                   case .native(let any) = resolved, let stub = any as? BindingStub {
+                    env.define(String(parameter.name.dropFirst()), sharing: stub.box)
+                }
             } else if let defaultValue = parameter.defaultValue {
                 env.define(parameter.name, try resolveAnnotated(
                     try evaluate(defaultValue, in: closure.captured),

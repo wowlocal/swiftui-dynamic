@@ -8,4 +8,22 @@ public final class BindingStub {
     public init(box: Box) {
         self.box = box
     }
+
+    /// `ForEach($items) { $item in … }` — one binding per element, whose
+    /// writes land back in the parent array (notifying, like any state
+    /// write). Nil when the box doesn't hold an array.
+    public func elementBindings() -> [RuntimeValue]? {
+        guard let array = box.value.arrayValue else { return nil }
+        let parent = box
+        return array.indices.map { index in
+            let element = Box(array[index])
+            element.onChange = {
+                guard var updated = parent.value.arrayValue,
+                      updated.indices.contains(index) else { return }
+                updated[index] = element.value
+                parent.value = .native(updated)
+            }
+            return .native(BindingStub(box: element))
+        }
+    }
 }

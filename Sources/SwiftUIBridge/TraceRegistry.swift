@@ -121,7 +121,15 @@ public final class TraceRegistry: HostRegistry {
                       let content = args.closure(labeled: "content") ?? args.unlabeledClosures.last else {
                     throw RuntimeError(message: "ForEach needs data and a content closure")
                 }
-                for element in try Self.elements(of: data) {
+                // `ForEach($items) { $item in … }` — element bindings.
+                let elements: [RuntimeValue]
+                if case .native(let any) = data, let stub = any as? BindingStub,
+                   let bindings = stub.elementBindings() {
+                    elements = bindings
+                } else {
+                    elements = try Self.elements(of: data)
+                }
+                for element in elements {
                     node.children += try ctx.callBuilderClosure(content, arguments: [element]).map(Self.node)
                 }
                 return .native(node)

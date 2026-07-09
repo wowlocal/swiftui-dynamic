@@ -27,6 +27,13 @@ public final class Environment {
         bindings[name] = Box(value)
     }
 
+    /// Bind a name to an EXISTING box — reads stay live and writes propagate
+    /// (used for `$item` closure parameters, where `item` shares the
+    /// binding's storage).
+    public func define(_ name: String, sharing box: Box) {
+        bindings[name] = box
+    }
+
     public func box(for name: String) -> Box? {
         bindings[name] ?? parent?.box(for: name)
     }

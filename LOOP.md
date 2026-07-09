@@ -341,3 +341,11 @@ Each iteration does exactly this:
   real-hosted). 7 shape projects pass (WaterWave, SplashsAnimation, Glass,
   SegmentedControlAnimation, ScratchCard, Custom_Tab_Bar, Device_MockUp);
   the 8th (Tags) is a Layout — the protocols wall. **142/200 → 149/200**.
+- 2026-07-09 iter 43: binding-collection ForEach — `ForEach($items) { $item
+  in … }` iterates element bindings whose writes land back in the parent
+  array (BindingStub.elementBindings, both registries); `$`-prefixed closure
+  parameters also bind their bare name SHARING the binding's box (`item`
+  reads live); `$item.field` projects field bindings via the instance's own
+  box (Binding's @dynamicMemberLookup semantics). ChoreBoard corpus
+  (Toggle(isOn: $chore.done) + reset click-through). All 5 in-window class
+  projects pass. **149/200 → 155/200**.

@@ -79,7 +79,9 @@ no inference engine, just annotations.
 `ScrollView`, `List`, `Form`, `Section`, `LazyVGrid`/`LazyHGrid`/`GridItem`,
 `NavigationStack`/`NavigationLink`, `TabView`/`.tabItem`, `Button` (with
 roles), `Toggle`, `Slider`, `TextField`/`SecureField`, `Picker` (String
-selection), `ForEach`, `ProgressView`, `Spacer`/`Divider`, shapes (`Circle`,
+selection), `ForEach` (ranges, arrays, and `ForEach($items) { $item in … }`
+binding collections — element bindings write back into the array, and
+`$item.field` projects field bindings à la `@dynamicMemberLookup`), `ProgressView`, `Spacer`/`Divider`, shapes (`Circle`,
 `Capsule`, `Rectangle`, `RoundedRectangle`, `Ellipse`) with `.fill`/`.stroke`,
 `LinearGradient`, `withAnimation`, **user `Shape` structs** (`func path(in:)
 -> Path` runs interpreted and draws real geometry; `.fill`/`.stroke`/`.trim`
