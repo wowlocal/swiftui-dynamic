@@ -1096,6 +1096,18 @@ public final class Interpreter {
                 return .native(0)
             }
         }
+        define("Range") { args, _ in
+            // Range(nsRange, in: string) — real conversion. An unknowable
+            // NSRange (marker text-parse results) honestly fails: nil, the
+            // parse that found nothing.
+            if let text = (args.labeled("in"))?.stringValue {
+                if case .native(let any)? = args.positional(0), let ns = any as? NSRange {
+                    return Range(ns, in: text).map { RuntimeValue.native($0) } ?? .nilValue
+                }
+                return .nilValue
+            }
+            return args.positional(0) ?? .nilValue
+        }
         define("unsafeBitCast") { args, _ in
             // Bit-identity cast: the value passes through (casts are
             // optimistic everywhere in the interpreter).

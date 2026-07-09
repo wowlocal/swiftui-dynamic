@@ -1345,3 +1345,19 @@ Each iteration does exactly this:
   Maccy ✅ (118 nodes, 8 actions). **630/634 counted — ZERO failures
   (SEVENTEENTH saturation). 585 zips + 46 OSS repos green. Suite
   268 → 269.**
+- 2026-07-09 iter 152: step 9 — reminders-menubar (119 files) + Ollamac
+  (36, arrival-pass) cloned; Swiftcord's default branch is docs-only
+  (dropped). Five classes: VARIADIC parameters (`arguments: CVarArg...`
+  gathers present-or-empty, labeled-first + positional rest);
+  force-unwrap LVALUES (`components.hour! += 1` writes through);
+  nil STORED closure properties sharing a modifier's name apply the
+  registry modifier (`.onSubmit { }` on a Representable — first draft
+  in specialMemberCall double-evaluated EVERY member-call base against
+  the trace catch-all → exponential budget blowups across ~50 zips;
+  moved into accessMember single-eval, then narrowed to
+  closure-TYPED properties after the catch-all claimed damus's
+  `mndb` nil-check too — the iter-114 lesson, third bite); mutating
+  `String.replaceSubrange`; real `Range(_:in:)` (marker NSRanges
+  honestly nil). reminders-menubar ✅ (109 nodes, 16 actions).
+  **632/636 counted — ZERO failures (EIGHTEENTH saturation). 585 zips
+  + 48 OSS repos green. Suite 269 → 270.**

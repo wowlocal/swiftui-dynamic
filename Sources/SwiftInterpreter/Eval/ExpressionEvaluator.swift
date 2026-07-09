@@ -672,7 +672,22 @@ extension Interpreter {
                     return .void
                 })
             }
-            if let value = try instanceMember(name, on: instance) { return value }
+            if let value = try instanceMember(name, on: instance) {
+                // A nil STORED closure sharing a modifier's name
+                // (`.onSubmit { }` on a Representable declaring
+                // `var onSubmit: (() -> Void)?`): real overload resolution
+                // can't call nil — the registry modifier applies.
+                if value.isNil, instance.symbol.rendersLikeView,
+                   let property = instance.symbol.storedProperty(named: name),
+                   property.typeAnnotation?.trimmedDescription.contains("->") == true,
+                   let registry, let modifier = registry.modifier(named: name) {
+                    let wrapped = registry.makeRenderable(instance: instance, interpreter: self)
+                    return .hostFunction(HostFunction(name: name) { args, ctx in
+                        try modifier.apply(wrapped, args, ctx)
+                    })
+                }
+                return value
+            }
             // A modifier applied to an interpreted View (or Shape — the
             // registry wraps those shape-typed, so .fill/.stroke/.trim see a
             // shape): wrap it renderable first.
@@ -1201,6 +1216,32 @@ extension Interpreter {
             return .native(url.path(percentEncoded: encoded))
         }
 
+        // Mutating String members write through the lvalue:
+        // `text.replaceSubrange(range, with: "…")`.
+        if name == "replaceSubrange",
+           let target = try? resolveLValue(base, in: env),
+           case .native(let existingAny) = try target.read(self),
+           var text = existingAny as? String {
+            let args = try collectArguments(of: call, in: env)
+            guard let replacement = args.labeled("with")?.stringValue,
+                  case .native(let rangeAny)? = args.positional(0) else {
+                throw error(call, "replaceSubrange needs a range and 'with:'")
+            }
+            if let range = rangeAny as? Range<String.Index> {
+                text.replaceSubrange(range, with: replacement)
+            } else if let closed = rangeAny as? ClosedRange<String.Index> {
+                text.replaceSubrange(closed, with: replacement)
+            } else if let intRange = rangeAny as? Range<Int> {
+                let lower = text.index(text.startIndex, offsetBy: intRange.lowerBound)
+                let upper = text.index(text.startIndex, offsetBy: intRange.upperBound)
+                text.replaceSubrange(lower..<upper, with: replacement)
+            } else {
+                throw error(call, "replaceSubrange needs a string range")
+            }
+            try relocating(call) { try target.write(.native(text), self) }
+            return .void
+        }
+
         // Mutating URL members write through the lvalue (value semantics):
         // `url.append(path:)` / `url.appendPathComponent(_:)`.
         if name == "append" || name == "appendPathComponent",
@@ -1477,7 +1518,8 @@ extension Interpreter {
                         name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                         label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
                         defaultValue: param.defaultValue?.value,
-                        typeAnnotation: param.type
+                        typeAnnotation: param.type,
+                        isVariadic: param.ellipsis != nil
                     )
                 }
                 let closure = ClosureValue(parameters: parameters, body: body.statements, captured: env)
@@ -1596,6 +1638,22 @@ extension Interpreter {
         var bound = [RuntimeValue?](repeating: nil, count: closure.parameters.count)
         var positionalCursor = 0
         for (index, parameter) in closure.parameters.enumerated() {
+            if parameter.isVariadic {
+                // `arguments: CVarArg...` — the labeled value (Swift labels
+                // only the first) plus every remaining positional; absent
+                // means empty, never a binding error.
+                var gathered: [RuntimeValue] = []
+                if let label = parameter.label, let value = labeled.removeValue(forKey: label) {
+                    gathered.append(value)
+                    gathered.append(contentsOf: positionals[positionalCursor...])
+                    positionalCursor = positionals.count
+                } else if parameter.label == nil {
+                    gathered.append(contentsOf: positionals[positionalCursor...])
+                    positionalCursor = positionals.count
+                }
+                bound[index] = .native(gathered)
+                continue
+            }
             if let label = parameter.label, let value = labeled.removeValue(forKey: label) {
                 bound[index] = value
             } else if parameter.label == nil, positionalCursor < positionals.count {
@@ -2080,6 +2138,11 @@ extension Interpreter {
         }
         if let tuple = expr.as(TupleExprSyntax.self), tuple.elements.count == 1, let only = tuple.elements.first {
             return try resolveLValue(only.expression, in: env)
+        }
+        // `components.hour! += 1` — optionals ARE the value, so the
+        // force-unwrap lvalue writes through the wrapped path.
+        if let force = expr.as(ForceUnwrapExprSyntax.self) {
+            return try resolveLValue(force.expression, in: env)
         }
         throw error(expr, "expression is not assignable")
     }

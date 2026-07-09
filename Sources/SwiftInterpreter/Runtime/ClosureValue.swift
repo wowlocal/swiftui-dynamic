@@ -15,16 +15,20 @@ public final class ClosureValue {
         /// `@ViewBuilder`/custom `@…Builder` parameter: closure arguments
         /// bound here undergo the result-builder transform.
         public let isBuilderAttributed: Bool
+        /// `arguments: CVarArg...` — gathers zero-or-more into an array.
+        public let isVariadic: Bool
 
         public init(
             name: String, label: String? = nil, defaultValue: ExprSyntax? = nil,
-            typeAnnotation: TypeSyntax? = nil, isBuilderAttributed: Bool = false
+            typeAnnotation: TypeSyntax? = nil, isBuilderAttributed: Bool = false,
+            isVariadic: Bool = false
         ) {
             self.name = name
             self.label = label
             self.defaultValue = defaultValue
             self.typeAnnotation = typeAnnotation
             self.isBuilderAttributed = isBuilderAttributed
+            self.isVariadic = isVariadic
         }
 
         /// `@FloatingActionBuilder actions: () -> [FloatingAction]` — the

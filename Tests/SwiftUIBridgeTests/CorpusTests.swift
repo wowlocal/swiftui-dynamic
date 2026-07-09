@@ -2909,6 +2909,61 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// reminders-menubar (iteration 152): five classes — VARIADIC
+    /// parameters (`arguments: CVarArg...` binds present-or-empty);
+    /// force-unwrap LVALUES (`components.hour! += 1`); a nil STORED
+    /// closure property sharing a modifier's name can't be called, so the
+    /// registry modifier applies (`.onSubmit { }` on a Representable);
+    /// mutating `replaceSubrange`; `Range(_:in:)` real conversion where
+    /// marker NSRanges honestly fail.
+    @Test func remindersMenubarClasses() throws {
+        let source = """
+        func localized(_ key: String, arguments: CVarArg...) -> String {
+            if arguments.isEmpty {
+                return key
+            }
+            return key + "+\\(arguments.count)"
+        }
+
+        struct FieldView: NSViewRepresentable {
+            var onSubmit: (() -> Void)?
+
+            func makeNSView(context: Context) -> NSTextField { NSTextField() }
+            func updateNSView(_ view: NSTextField, context: Context) {}
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                var components = Calendar.current.dateComponents([.hour], from: Date())
+                components.hour! += 1
+
+                var title = "high priority task"
+                if let range = title.range(of: "high ") {
+                    title.replaceSubrange(range, with: "")
+                }
+
+                let parsed: Range<String.Index>? = Range(NSRange(location: 99, length: 99), in: "ab")
+
+                let checks = [
+                    localized("plain") == "plain",
+                    localized("fmt", arguments: 1, 2) == "fmt+2",
+                    title == "priority task",
+                    parsed == nil,
+                    components.hour != nil,
+                ]
+                if checks.contains(false) { fatalError("reminders classes broken") }
+                return VStack {
+                    FieldView()
+                        .onSubmit { }
+                    Text(title)
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// Maccy (iteration 151): library key-value stores with DECLARED key
     /// defaults (sindresorhus/Defaults). A fresh store answers the key's
     /// `default:` argument — `Defaults[.windowSize]` is NSSize(450, 800),

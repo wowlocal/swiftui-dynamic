@@ -587,7 +587,8 @@ extension Interpreter {
                 typeAnnotation: param.type,
                 isBuilderAttributed: param.attributes.contains {
                         $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-                    } || ClosureValue.Parameter.isBuilderAttributedType(param.type)
+                    } || ClosureValue.Parameter.isBuilderAttributedType(param.type),
+                isVariadic: param.ellipsis != nil
             )
         }
         let returnType = node.signature.returnClause?.type
