@@ -41,6 +41,69 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// A typed env object with no ambient injection (the App shell that
+    /// would provide it never runs) synthesizes one fresh instance per type.
+    @Test func missingEnvironmentObjectSynthesizesFreshModel() throws {
+        let source = """
+        @Observable
+        class Router {
+            var path: [String] = []
+        }
+
+        struct ContentView: View {
+            @Environment(Router.self) private var router
+
+            var body: some View {
+                VStack {
+                    Text("depth \\(router.path.count)")
+                    Button("Push") {
+                        router.path.append("detail")
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+        #expect(report.actionsInvoked == 1)
+    }
+
+    /// `@Environment(\.self)` — the whole EnvironmentValues; member reads
+    /// serve the keyed defaults (colorScheme…).
+    @Test func wholeEnvironmentValuesServesMembers() throws {
+        let source = """
+        struct ContentView: View {
+            @Environment(\\.self) var env
+
+            var body: some View {
+                Text(env.colorScheme == .dark ? "dark" : "light")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
+    /// `@FetchRequest` (CoreData) joins the fresh-store query wrappers:
+    /// results are empty, the empty-state branch renders.
+    @Test func fetchRequestFlattensToEmptyResults() throws {
+        let source = """
+        struct ContentView: View {
+            @FetchRequest(entity: nil, sortDescriptors: []) var results: [Int]
+
+            var body: some View {
+                if results.isEmpty {
+                    Text("No Tasks !!!")
+                } else {
+                    Text("\\(results.count) tasks")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// `Binding<T>(get:set:)` — generic specialization evaluates as its base
     /// and the computed binding snapshots get() per render pass.
     @Test func computedBindingWithGenericSpecialization() throws {

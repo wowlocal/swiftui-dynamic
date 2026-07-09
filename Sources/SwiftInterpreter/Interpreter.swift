@@ -16,6 +16,9 @@ public final class Interpreter {
     /// Struct symbols in declaration order (used to pick the root View).
     public internal(set) var structSymbols: [StructSymbol] = []
     var enumSymbols: [String: EnumSymbol] = [:]
+    /// Env-object models constructed as fresh-store stand-ins (one per type,
+    /// so every view reading the type sees the same instance).
+    var synthesizedEnvironmentModels: [String: Instance] = [:]
     /// Interpreted `extension View { … }` / `extension String { … }` members,
     /// keyed by the extended host type's name.
     var hostExtensionSymbols: [String: StructSymbol] = [:]
@@ -235,11 +238,23 @@ public final class Interpreter {
 
     /// Fill `@EnvironmentObject` properties from ambient models (keyed by type
     /// name). The SwiftUI bridge reads the models off the real Environment;
-    /// headless harnesses thread them down the trace tree.
+    /// headless harnesses thread them down the trace tree. When no ambient
+    /// model exists (the App shell that would inject it never runs), a fresh
+    /// instance of the type is synthesized once and reused — the same
+    /// fresh-store doctrine as @Query.
     public func injectEnvironmentObjects(into instance: Instance, models: [String: Instance]) throws {
         for property in instance.symbol.storedProperties where property.wrapper == .environmentObject {
             let typeName = property.typeAnnotation?.trimmedDescription ?? ""
-            guard let model = models[typeName] else {
+            let model: Instance
+            if let ambient = models[typeName] {
+                model = ambient
+            } else if let synthesized = synthesizedEnvironmentModels[typeName] {
+                model = synthesized
+            } else if case .type(let symbol)? = globals.lookup(typeName),
+                      case .instance(let fresh) = try instantiate(symbol, with: CallArguments()) {
+                synthesizedEnvironmentModels[typeName] = fresh
+                model = fresh
+            } else {
                 throw RuntimeError(message: "no ObservableObject of type '\(typeName)' in the environment — inject it with .environmentObject(_:)")
             }
             instance.box(for: property.name)?.value = .instance(model)

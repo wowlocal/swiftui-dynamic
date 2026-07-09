@@ -20,6 +20,7 @@ public enum HeadlessVerifier {
         guard case .instance(let instance) = try interpreter.instantiate(symbol, with: CallArguments()) else {
             throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
         }
+        try interpreter.injectEnvironmentObjects(into: instance, models: [:])
         interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
 
         var actions: [ClosureValue] = []

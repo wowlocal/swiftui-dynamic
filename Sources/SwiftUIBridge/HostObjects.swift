@@ -219,6 +219,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return nil
         }
     }
+    if let stub = value as? EnvironmentValuesStub {
+        return stub.values[name]
+    }
     if let box = value as? AttributedStringBox {
         switch name {
         case "range":

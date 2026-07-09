@@ -396,3 +396,14 @@ Each iteration does exactly this:
   DarkModeAnimation advanced into UIKit window introspection, DownloadTask
   opaque, Cart/AnimationChallenge4 into marker-arithmetic.
   **283/400 → 290/400**.
+- 2026-07-09 iter 50: the member-on-void class (7) — environment holes.
+  Missing env objects synthesize one fresh instance per type (the App shell
+  that would inject them never runs; ambient wins — fresh-store doctrine,
+  documented); verify() now injects env objects at the ROOT too.
+  `@Environment(\.self)` serves the whole values table via
+  EnvironmentValuesStub (member reads hit the same defaults, real-side
+  overrides included). `@FetchRequest`/`@SectionedFetchRequest` join the
+  query-flatten family and `\.managedObjectContext` maps to the inert
+  context. PopupImagePicker + InteractiveToasts ×2 pass (+ripple); TaskApp →
+  CalendarBox class, IconGenerator → marker-compare, SwiftUIRealm stays
+  (ObjectId). **290/400 → 297/400**.

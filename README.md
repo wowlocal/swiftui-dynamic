@@ -165,11 +165,17 @@ coverage.
   `@GestureState`, and `@FocusState` bind and project like `@State` but skip
   their special semantics (no UserDefaults persistence, no gesture reset, no
   focus plumbing).
-- **Store-query wrappers act on a fresh empty store.** `@Query` (SwiftData)
-  and `@ObservedResults` (Realm) flatten to `@State` defaulting to `[]`;
-  `@Environment(\.modelContext)` yields an inert context (insert/delete/save
+- **Store-query wrappers act on a fresh empty store.** `@Query` (SwiftData),
+  `@ObservedResults` (Realm), and `@FetchRequest` (CoreData) flatten to
+  `@State` defaulting to `[]`; `@Environment(\.modelContext)` and
+  `\.managedObjectContext` yield an inert context (insert/delete/save
   accepted and ignored, fetch returns empty); `$results.append/remove`
   mutate the flattened state array. Nothing persists.
+- **Missing environment objects synthesize fresh models.** When
+  `@EnvironmentObject`/`@Environment(Type.self)` finds no ambient model (the
+  `App` shell that would inject it never runs), a fresh instance of the type
+  is constructed once and shared — the fresh-store doctrine applied to
+  models. Ambient injections always win.
 - **Typed environment rides the model environment.**
   `@Environment(Type.self)` + `.environment(model)` behave exactly like
   `@EnvironmentObject` + `.environmentObject(_:)`, keyed by type name.

@@ -19,16 +19,28 @@ extension EnvironmentValues {
     }
 }
 
+/// `@Environment(\.self)` — the whole EnvironmentValues as one value; member
+/// reads serve the same table the keyed wrappers use.
+public struct EnvironmentValuesStub {
+    public let values: [String: RuntimeValue]
+
+    public init(values: [String: RuntimeValue]) {
+        self.values = values
+    }
+}
+
 /// `@Environment(\.key)` values for interpreted views. Headless harnesses use
 /// these defaults; InterpretedView overrides with real environment reads.
 public enum InterpretedEnvironment {
     public static func defaults() -> [String: RuntimeValue] {
-        [
+        var values: [String: RuntimeValue] = [
             "colorScheme": .implicitMember("light"),
             "dismiss": .hostFunction(HostFunction(name: "dismiss") { _, _ in .void }),
-            // SwiftData's context — a fresh-in-memory-store stub everywhere
-            // (real hosting included): persistence is a platform side-channel.
+            // SwiftData/CoreData contexts — fresh-in-memory-store stubs
+            // everywhere (real hosting included): persistence is a platform
+            // side-channel.
             "modelContext": .native(ModelContextStub()),
+            "managedObjectContext": .native(ModelContextStub()),
             // Scene-management actions — our hosting has no scene shell, so
             // these accept their arguments and do nothing (what real SwiftUI
             // does without a matching WindowGroup, minus the console warning).
@@ -36,6 +48,8 @@ public enum InterpretedEnvironment {
             "dismissWindow": .hostFunction(HostFunction(name: "dismissWindow") { _, _ in .void }),
             "openURL": .hostFunction(HostFunction(name: "openURL") { _, _ in .void }),
         ]
+        values["self"] = .native(EnvironmentValuesStub(values: values))
+        return values
     }
 }
 
@@ -128,6 +142,7 @@ public struct InterpretedView: View {
             dismissAction()
             return .void
         })
+        environmentValues["self"] = .native(EnvironmentValuesStub(values: environmentValues))
         interpreter.injectEnvironmentValues(into: instance, values: environmentValues)
         store.adopt(into: instance)
         return interpretedBody

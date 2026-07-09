@@ -103,8 +103,8 @@ extension Interpreter {
         }
         // Query wrappers usually have no initializer; a fresh store is empty.
         let queryDefault: ExprSyntax? =
-            hasAttribute(varDecl.attributes, named: "Query")
-                || hasAttribute(varDecl.attributes, named: "ObservedResults")
+            ["Query", "ObservedResults", "FetchRequest", "SectionedFetchRequest"]
+                .contains(where: { hasAttribute(varDecl.attributes, named: $0) })
             ? ExprSyntax(ArrayExprSyntax(elements: ArrayElementListSyntax([])))
             : nil
         let hasBuilderAttribute = hasAttribute(varDecl.attributes, named: "ViewBuilder")
@@ -304,10 +304,11 @@ extension Interpreter {
         where hasAttribute(attributes, named: stateLike) {
             return (.state, nil)
         }
-        // Store-query wrappers (@Query — SwiftData, @ObservedResults — Realm)
-        // flatten to @State over a fresh-store default: empty results
-        // (documented divergence — no persistence, like the state-like list).
-        for queryLike in ["Query", "ObservedResults"]
+        // Store-query wrappers (@Query — SwiftData, @ObservedResults — Realm,
+        // @FetchRequest — CoreData) flatten to @State over a fresh-store
+        // default: empty results (documented divergence — no persistence,
+        // like the state-like list).
+        for queryLike in ["Query", "ObservedResults", "FetchRequest", "SectionedFetchRequest"]
         where hasAttribute(attributes, named: queryLike) {
             return (.state, nil)
         }
