@@ -128,6 +128,14 @@ public struct ChainedImplicitCall {
     }
 }
 
+/// `$published` inside an ObservableObject — the Combine publisher
+/// projection. Pipelines chain inertly (debounce/removeDuplicates/sink all
+/// absorb) and never emit headlessly: timers and debounce schedulers don't
+/// run, so the honest behavior is a silent pipeline.
+public struct PublishedProjection: InertCallable {
+    public init() {}
+}
+
 /// Bridge stub types conform so calling them is inert-chainable
 /// (`vc.present(alert, animated: true)` on a UIKit hosting stub).
 public protocol InertCallable {}

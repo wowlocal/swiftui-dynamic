@@ -112,6 +112,10 @@ extension Interpreter {
             }
             return .native(SuperReference(instance: instance))
         }
+        if let inout_ = expr.as(InOutExprSyntax.self) {
+            // `&cancellables` — reference semantics make inout moot here.
+            return try evaluate(inout_.expression, in: env)
+        }
         if let macro = expr.as(MacroExpansionExprSyntax.self) {
             // `#selector(...)`, `#Predicate {...}` — inert marker values;
             // consumers (sendAction, flattened queries) ignore them.
@@ -221,6 +225,12 @@ extension Interpreter {
             }
             guard case .instance(let instance)? = env.lookup("self") else {
                 throw error(node, "'\(name)' can only be used inside a View body")
+            }
+            // `$searchText` on a @Published property (inside the model) is
+            // the Combine publisher projection — an inert pipeline.
+            if let property = instance.symbol.storedProperty(named: propertyName),
+               property.wrapper == .published {
+                return .native(PublishedProjection())
             }
             // `$store` on a model property projects the model so `$store.field`
             // can become a binding to the model's own box.
@@ -464,6 +474,12 @@ extension Interpreter {
             return .implicitMember(name)
 
         case .native(let any):
+            if any is PublishedProjection {
+                // Every pipeline stage chains another silent projection.
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    .native(PublishedProjection())
+                })
+            }
             if let superRef = any as? SuperReference {
                 let symbol = superRef.instance.symbol
                 if let parentName = symbol.superclassName,

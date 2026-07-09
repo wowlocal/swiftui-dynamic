@@ -542,6 +542,18 @@ public final class Interpreter {
             if let array = value.arrayValue { return .native(array) }
             return .native([value])
         }
+        define("Set") { args, _ in
+            // Array-backed set-lite: construction and iteration cover the
+            // corpus (Set<AnyCancellable>() holders, Set(array) dedup-ish).
+            if let array = args.positional(0)?.arrayValue {
+                var seen: [RuntimeValue] = []
+                for element in array where try !seen.contains(where: { try Builtins.areEqual($0, element) }) {
+                    seen.append(element)
+                }
+                return .native(seen)
+            }
+            return .native([RuntimeValue]())
+        }
         define("UUID") { _, _ in .native(UUID()) }
         define("Date") { _, _ in .native(Date()) }
     }

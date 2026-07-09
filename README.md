@@ -198,6 +198,10 @@ coverage.
   system state).
 - **Property observers are inert.** `willSet`/`didSet` bindings parse as plain
   stored properties; the observer bodies never run.
+- **`$published` pipelines are silent.** The Combine projection inside a
+  model (`$searchText.debounce(…).sink {…}`) chains inertly and never
+  emits — debounce schedulers and timers don't run headlessly, so sinks
+  stay quiet.
 - **Model notification is box-level.** Writing a `@Published` property (or any
   stored property of an `@Observable` class) fires the model's change signal.
   Mutating an instance nested *inside* a published collection doesn't — 

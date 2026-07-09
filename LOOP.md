@@ -578,3 +578,10 @@ Each iteration does exactly this:
   closures; calendar.compare(_:to:toGranularity:) returns marker-comparable
   ComparisonResults. Task_Management ×2 (92 nodes) + CardAnimation pass.
   **511/587 → 514/587 (87.6%).**
+- 2026-07-09 iter 71: Combine `$published` projections — the $searchText
+  class (3). Inside a model, `$published` yields a PublishedProjection whose
+  pipeline stages (debounce/removeDuplicates/sink/store) chain inertly and
+  never emit (documented: schedulers don't run headlessly). `&inout`
+  expressions evaluate pass-through (reference semantics) and Set() joins
+  the builtins (array-backed set-lite). LocationSearch ×2 + Marvel_API pass.
+  **514/587 → 517/587 (88.1%).**

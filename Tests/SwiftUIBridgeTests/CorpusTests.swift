@@ -283,6 +283,41 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// `$published` pipelines inside models chain inertly and never emit
+    /// headlessly (debounce schedulers don't run) — the honest silent
+    /// pipeline; `&inout` args and Set() holders ride along.
+    @Test func publishedProjectionPipelinesAreSilent() throws {
+        let source = """
+        class SearchModel: ObservableObject {
+            @Published var searchText = ""
+            var cancellable: AnyCancellable?
+            var fired = false
+
+            init() {
+                cancellable = $searchText
+                    .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
+                    .removeDuplicates()
+                    .sink(receiveValue: { value in
+                        self.fired = true
+                    })
+            }
+        }
+
+        struct ContentView: View {
+            @StateObject var model = SearchModel()
+
+            var body: some View {
+                VStack {
+                    TextField("Search", text: $model.searchText)
+                    Text(model.fired ? "fired" : "silent")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// `.constant("")` bindings: fixed-value boxes for @Binding properties
     /// and real Binding coercions; comparisons read the constant.
     @Test func constantBindingsResolve() throws {
