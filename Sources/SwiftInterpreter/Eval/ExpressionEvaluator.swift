@@ -913,6 +913,11 @@ extension Interpreter {
                 }
                 return .native(ChainedImplicitCall(base: baseValue, member: name, arguments: CallArguments()))
             }
+            if name == "description" || name == "debugDescription" {
+                // CustomStringConvertible: every stdlib value prints
+                // (`store.count.description` — Int, Double, Bool, …).
+                return .native(baseValue.stringValue ?? baseValue.stringified)
+            }
             throw error(node, "unsupported member '\(name)' on \(type(of: any))")
 
         default:

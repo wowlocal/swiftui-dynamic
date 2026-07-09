@@ -1247,3 +1247,11 @@ Each iteration does exactly this:
   `Int(exactly:)` nil on fractional). SCA advances to `unsupported
   member 'description' on Int` — next class. **624/630 counted (class
   eliminated, collateral healed same-iteration). Suite 258 → 260.**
+- 2026-07-09 iter 144: swift-composable-architecture — `unsupported
+  member 'description' on Int` (`store.count.description`).
+  CustomStringConvertible is UNIVERSAL: a `description`/
+  `debugDescription` fallback before the unsupported-member throw prints
+  any native (Int, Double, Bool — String's own member still wins). SCA
+  advances to `'$store' requires an @State or @Binding property`
+  (@Perception.Bindable — dotted wrapper attribute) — next class.
+  **624/630 counted (description class eliminated). Suite 260 → 261.**

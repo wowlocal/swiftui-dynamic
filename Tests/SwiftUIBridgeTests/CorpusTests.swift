@@ -2909,6 +2909,28 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// swift-composable-architecture (iteration 144): `store.count
+    /// .description` — CustomStringConvertible is universal; every stdlib
+    /// value prints (Int, Double, Bool). String's own member still wins.
+    @Test func descriptionIsUniversal() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let checks = [
+                    (5).description == "5",
+                    (2.5).description == "2.5",
+                    true.description == "true",
+                    "text".description == "text",
+                ]
+                if checks.contains(false) { fatalError("description broken") }
+                return Text(42.description)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// Rayon + OnlySwitch (iteration 143): registering enum nested types
     /// un-absorbed real code paths and exposed three adjacent gaps —
     /// operator-function references (`reduce(0, +)`, `sorted(by: >)`),
