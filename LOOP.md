@@ -1514,3 +1514,13 @@ Each iteration does exactly this:
   (found by the regression test). Sidekick ✅ (115 nodes, 7 actions).
   **641/645 counted — ZERO failures (TWENTY-FIRST saturation). 585 zips
   + 57 OSS repos green. Suite 302 → 303.**
+- 2026-07-10 iter 159: step 9 — ACHNBrowserUI (208 files) + Bark (117,
+  arrival-pass) cloned (MovieSwiftUI/SwiftUI-Kit already aboard). One
+  class: `fallthrough` runs the NEXT case's body without re-matching —
+  selectCase exposes the case index; both the statement executor and
+  the view-builder collector loop while the trailing statement is
+  `fallthrough` (Swift requires it last, so trailing-drop is exact);
+  builder switches collect views across chained cases.
+  ACHNBrowserUI ✅ (90 nodes). **643/647 counted — ZERO failures
+  (TWENTY-SECOND saturation). 585 zips + 59 OSS repos green. Suite
+  322 → 323.**

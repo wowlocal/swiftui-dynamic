@@ -6,31 +6,75 @@ import SwiftSyntax
 /// real SwiftUI view code writes.
 extension Interpreter {
     func executeSwitch(_ switchExpr: SwitchExprSyntax, in env: Environment) throws -> StatementResult {
-        let selected = try selectCase(switchExpr, in: env)
-        let result = try executeBlock(selected.statements, in: selected.env)
-        if case .breakLoop = result {
-            return .normal(.void) // `break` inside a case exits the SWITCH
+        var selected = try selectCase(switchExpr, in: env)
+        while true {
+            let falls = Self.trailingFallthrough(selected.statements)
+            let body = falls
+                ? CodeBlockItemListSyntax(Array(selected.statements.dropLast()))
+                : selected.statements
+            let result = try executeBlock(body, in: selected.env)
+            if case .breakLoop = result {
+                return .normal(.void) // `break` inside a case exits the SWITCH
+            }
+            if falls, case .normal = result,
+               let next = Self.caseStatements(after: selected.caseIndex, in: switchExpr) {
+                // `fallthrough` runs the NEXT case's body, no re-match.
+                selected = (next.index, next.statements, Environment(parent: env))
+                continue
+            }
+            return result
         }
-        return result
     }
 
     func collectBuilderSwitch(_ switchExpr: SwitchExprSyntax, in env: Environment) throws -> [RuntimeValue] {
-        let selected = try selectCase(switchExpr, in: env)
-        return try collectBuilderViews(selected.statements, in: selected.env)
+        var selected = try selectCase(switchExpr, in: env)
+        var views: [RuntimeValue] = []
+        while true {
+            let falls = Self.trailingFallthrough(selected.statements)
+            let body = falls
+                ? CodeBlockItemListSyntax(Array(selected.statements.dropLast()))
+                : selected.statements
+            views += try collectBuilderViews(body, in: selected.env)
+            if falls, let next = Self.caseStatements(after: selected.caseIndex, in: switchExpr) {
+                selected = (next.index, next.statements, Environment(parent: env))
+                continue
+            }
+            return views
+        }
+    }
+
+    /// Swift requires `fallthrough` to be the LAST statement of a case.
+    private static func trailingFallthrough(_ statements: CodeBlockItemListSyntax) -> Bool {
+        guard let last = statements.last, case .stmt(let stmt) = last.item else { return false }
+        return stmt.is(FallThroughStmtSyntax.self)
+    }
+
+    private static func caseStatements(
+        after index: Int, in switchExpr: SwitchExprSyntax
+    ) -> (index: Int, statements: CodeBlockItemListSyntax)? {
+        let elements = Array(switchExpr.cases)
+        var cursor = index + 1
+        while cursor < elements.count {
+            if case .switchCase(let switchCase) = elements[cursor] {
+                return (cursor, switchCase.statements)
+            }
+            cursor += 1
+        }
+        return nil
     }
 
     private func selectCase(
         _ switchExpr: SwitchExprSyntax,
         in env: Environment
-    ) throws -> (statements: CodeBlockItemListSyntax, env: Environment) {
+    ) throws -> (caseIndex: Int, statements: CodeBlockItemListSyntax, env: Environment) {
         let subject = try evaluate(switchExpr.subject, in: env)
-        var defaultCase: CodeBlockItemListSyntax?
+        var defaultCase: (Int, CodeBlockItemListSyntax)?
 
-        for element in switchExpr.cases {
+        for (index, element) in switchExpr.cases.enumerated() {
             guard case .switchCase(let switchCase) = element else { continue }
             switch switchCase.label {
             case .default:
-                defaultCase = switchCase.statements
+                defaultCase = (index, switchCase.statements)
             case .case(let label):
                 for item in label.caseItems {
                     let child = Environment(parent: env)
@@ -40,25 +84,25 @@ extension Interpreter {
                             continue
                         }
                     }
-                    return (switchCase.statements, child)
+                    return (index, switchCase.statements, child)
                 }
             }
         }
-        if let defaultCase {
-            return (defaultCase, Environment(parent: env))
+        if let (index, statements) = defaultCase {
+            return (index, statements, Environment(parent: env))
         }
         // A default-less switch over an UNKNOWABLE subject: real code is
         // exhaustive over a real value; the fresh reading is the FIRST case
         // (the same doctrine as synthesis picking the first enum case),
         // with payload bindings bound to unknowable chains.
         if isUnknowable(subject) {
-            for element in switchExpr.cases {
+            for (index, element) in switchExpr.cases.enumerated() {
                 guard case .switchCase(let switchCase) = element,
                       case .case(let label) = switchCase.label,
                       let item = label.caseItems.first else { continue }
                 let child = Environment(parent: env)
                 bindPatternsToUnknowables(item.pattern, into: child)
-                return (switchCase.statements, child)
+                return (index, switchCase.statements, child)
             }
         }
         throw error(switchExpr, "switch was not exhaustive for \(subject.stringified)")

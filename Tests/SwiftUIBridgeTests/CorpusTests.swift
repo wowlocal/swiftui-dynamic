@@ -2909,6 +2909,43 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// ACHNBrowserUI (iteration 159): `fallthrough` runs the NEXT case's
+    /// body without re-matching — in plain statements and in view-builder
+    /// switches (chained cases collect all their views).
+    @Test func fallthroughRunsNextCase() throws {
+        let source = """
+        enum Effect { case lift, highlight, automatic }
+
+        struct ContentView: View {
+            var body: some View {
+                let type = Effect.automatic
+                var effect = ""
+                switch type {
+                case .lift:
+                    effect = "lift"
+                case .automatic:
+                    fallthrough
+                default:
+                    effect = "default"
+                }
+                if effect != "default" { fatalError("fallthrough broke: \\(effect)") }
+
+                return VStack {
+                    switch type {
+                    case .automatic:
+                        Text("automatic")
+                        fallthrough
+                    default:
+                        Text("shared footer")
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// Sidekick (iteration 158): three classes — BACKTICKED statics on
     /// enums normalize (`static var \`default\``); static COMPUTED setters
     /// are assignable via Self./TypeName. (the UserDefaults-backed settings
