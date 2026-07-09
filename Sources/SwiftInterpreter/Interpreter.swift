@@ -1315,7 +1315,19 @@ public final class Interpreter {
             }
             return .nilValue
         }
-        define("Date") { _, _ in .native(Date()) }
+        define("Date") { args, _ in
+            // Interval inits construct for real; the argless form is `now`.
+            if let interval = args.labeled("timeIntervalSince1970")?.doubleValue {
+                return .native(Date(timeIntervalSince1970: interval))
+            }
+            if let interval = args.labeled("timeIntervalSinceNow")?.doubleValue {
+                return .native(Date(timeIntervalSinceNow: interval))
+            }
+            if let interval = args.labeled("timeIntervalSinceReferenceDate")?.doubleValue {
+                return .native(Date(timeIntervalSinceReferenceDate: interval))
+            }
+            return .native(Date())
+        }
     }
 
     private static func extremum(_ args: CallArguments, op: String) throws -> RuntimeValue {
