@@ -527,6 +527,37 @@ public enum Builtins {
     }
 
     private static func compare(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
+        // Enum-case ORDERED comparisons: synthesized Comparable orders by
+        // DECLARATION position (`stage > .welcome`), ignoring raw values;
+        // an enum case against a NUMBER compares through its numeric raw.
+        if case .enumCase(let l) = lhs, case .enumCase(let r) = rhs,
+           l.symbol === r.symbol,
+           let li = l.symbol.cases.firstIndex(where: { $0.name == l.name }),
+           let ri = r.symbol.cases.firstIndex(where: { $0.name == r.name }) {
+            return try compare(op, .native(li), .native(ri))
+        }
+        // `stage < .creation` where the bare `.member` never resolved:
+        // the case's OWN symbol names it.
+        if case .enumCase(let l) = lhs, case .implicitMember(let name) = rhs,
+           let li = l.symbol.cases.firstIndex(where: { $0.name == l.name }),
+           let ri = l.symbol.cases.firstIndex(where: { $0.name == name }) {
+            return try compare(op, .native(li), .native(ri))
+        }
+        if case .enumCase(let r) = rhs, case .implicitMember(let name) = lhs,
+           let ri = r.symbol.cases.firstIndex(where: { $0.name == r.name }),
+           let li = r.symbol.cases.firstIndex(where: { $0.name == name }) {
+            return try compare(op, .native(li), .native(ri))
+        }
+        if case .enumCase(let l) = lhs, let raw = l.rawValue.doubleValue, rhs.doubleValue != nil {
+            return try compare(op, .native(raw), rhs)
+        }
+        if case .enumCase(let r) = rhs, let raw = r.rawValue.doubleValue, lhs.doubleValue != nil {
+            return try compare(op, lhs, .native(raw))
+        }
+        // A case ordered against anything else it can't line up with reads
+        // FALSE — the fresh-state doctrine for unknowable orderings.
+        if case .enumCase = lhs { return false }
+        if case .enumCase = rhs { return false }
         // `.zero > 0.0` — well-known numeric markers absorb; hosted objects
         // read zero; remaining unresolved markers are unknowable and every
         // ordered comparison on them reads FALSE (fresh-state doctrine).

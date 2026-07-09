@@ -1721,3 +1721,14 @@ without this.
   widened). anytype ✅ (6 nodes, 1 action). **662/666 counted — ZERO
   failures (THIRTY-SECOND saturation). 585 zips + 78 OSS repos green.
   Suite 336 → 337.**
+- 2026-07-10 iter 170: the merged M4 root-selection work (the app's
+  DECLARED root wins) made the verifier render every unit's REAL root —
+  exposing twelve genuine gaps that the old heuristic roots never
+  reached (650/666 at iteration start). The biggest class (2 units,
+  MakeItSo + Mythic): enum-case ORDERED comparisons — synthesized
+  Comparable orders by DECLARATION position (raw values ignored); bare
+  unresolved `.member` operands resolve against the other side's own
+  symbol; numeric raws compare through numbers; anything else reads
+  FALSE (fresh-state ordering). MakeItSo ✅, Mythic ✅. Ten singleton
+  classes remain at the honest roots — the next iterations' queue.
+  **652/666 counted (650 → 652 strictly improved). Suite 340 → 341.**

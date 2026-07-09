@@ -2909,6 +2909,41 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// MakeItSo + Mythic (iteration 170): enum-case ORDERED comparisons —
+    /// synthesized Comparable orders by DECLARATION position (ignoring raw
+    /// values); a bare unresolved `.member` on either side names a case of
+    /// the other side's own symbol; numeric raws compare through numbers;
+    /// anything else reads FALSE (fresh-state ordering).
+    @Test func enumCaseOrderedComparisons() throws {
+        let source = """
+        enum Stage: String, Comparable {
+            case welcome, onboarding, finished
+
+            static func < (lhs: Stage, rhs: Stage) -> Bool {
+                allCases.firstIndex(of: lhs)! < allCases.firstIndex(of: rhs)!
+            }
+        }
+
+        enum Priority: Int { case none = 0, low, high }
+
+        struct ContentView: View {
+            var body: some View {
+                let stage = Stage.onboarding
+                let checks = [
+                    stage > Stage.welcome,
+                    stage < .finished,
+                    !(Stage.welcome > Stage.welcome),
+                    Priority.high.rawValue > 0,
+                ]
+                if checks.contains(false) { fatalError("enum ordering broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// anytype-swift (iteration 169): generated NAMESPACE enums claim
     /// ubiquitous bare names (SwiftGen's Loc.Text) — when nothing
     /// enum-shaped fits the call, real overload resolution crosses the
