@@ -49,7 +49,7 @@ public final class TraceRegistry: HostRegistry {
             // The host hardware is REAL: fill the interpreted struct with
             // actual utsname values and return success.
             return HostFunction(name: name) { args, _ in
-                if case .native(let any)? = args.positional(0), let node = any as? TraceNode {
+                if case .host(let any)? = args.positional(0), let node = any as? TraceNode {
                     var info = utsname()
                     _ = Darwin.uname(&info)
                     func field<T>(_ keyPath: KeyPath<utsname, T>) -> String {
@@ -82,7 +82,7 @@ public final class TraceRegistry: HostRegistry {
             return HostFunction(name: name) { args, _ in
                 let node = TraceNode(kind: name)
                 for argument in args.arguments {
-                    if case .native(let any) = argument.value, let stub = any as? BindingStub {
+                    if case .host(let any) = argument.value, let stub = any as? BindingStub {
                         node.bindings[argument.label ?? "_"] = stub
                     } else if argument.value.closureValue == nil {
                         node.args.append(argument.value.stringified)
@@ -226,7 +226,7 @@ public final class TraceRegistry: HostRegistry {
                 }
                 // `ForEach($items) { $item in … }` — element bindings.
                 let elements: [RuntimeValue]
-                if case .native(let any) = data, let stub = any as? BindingStub,
+                if case .host(let any) = data, let stub = any as? BindingStub,
                    let bindings = stub.elementBindings() {
                     elements = bindings
                 } else {
@@ -248,7 +248,7 @@ public final class TraceRegistry: HostRegistry {
                 let node = TraceNode(kind: name)
                 var data: RuntimeValue?
                 for argument in args.arguments {
-                    if case .native(let any) = argument.value, let stub = any as? BindingStub {
+                    if case .host(let any) = argument.value, let stub = any as? BindingStub {
                         node.bindings[argument.label ?? "_"] = stub
                     } else if let closure = argument.value.closureValue {
                         if argument.label == "action" {
@@ -326,7 +326,7 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
-        if case .native(let any) = value, any is TraceNode { return true }
+        if case .host(let any) = value, any is TraceNode { return true }
         return Coerce.colorLike(value) != nil // Color IS a View
     }
 
@@ -396,7 +396,7 @@ public final class TraceRegistry: HostRegistry {
                 // round-trips the ORIGINAL value; anything else fails like
                 // a fresh store (nothing persisted).
                 return .hostFunction(HostFunction(name: name) { args, _ in
-                    if case .native(let blobAny)? = args.labeled("from") ?? args.positional(1) ?? args.positional(0),
+                    if case .host(let blobAny)? = args.labeled("from") ?? args.positional(1) ?? args.positional(0),
                        let blob = blobAny as? EncodedValueBlob {
                         return blob.value
                     }
@@ -416,8 +416,8 @@ public final class TraceRegistry: HostRegistry {
     /// `Text("a") + Text("b")` — concatenation records a combined node.
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? {
         guard op == "+",
-              case .native(let l) = lhs, let left = l as? TraceNode,
-              case .native(let r) = rhs, let right = r as? TraceNode else { return nil }
+              case .host(let l) = lhs, let left = l as? TraceNode,
+              case .host(let r) = rhs, let right = r as? TraceNode else { return nil }
         let node = TraceNode(kind: "TextConcat")
         node.children = [left, right]
         return .native(node)
@@ -443,8 +443,8 @@ public final class TraceRegistry: HostRegistry {
     }
 
     static func node(_ value: RuntimeValue) throws -> TraceNode {
-        if case .native(let any) = value, let node = any as? TraceNode { return node }
-        if case .native(let any) = value, any is PathDrawStub {
+        if case .host(let any) = value, let node = any as? TraceNode { return node }
+        if case .host(let any) = value, any is PathDrawStub {
             return TraceNode(kind: "Path") // Path IS a Shape/View
         }
         if Coerce.colorLike(value) != nil {
@@ -455,11 +455,11 @@ public final class TraceRegistry: HostRegistry {
         // Unknown host views reached via member calls (WishKit.
         // FeedbackListView()) render as opaque nodes — the Lottie-degrade
         // precedent for external SDK views.
-        if case .native(let any) = value, let call = any as? ImplicitMemberCall,
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall,
            call.name.first?.isUppercase == true {
             return TraceNode(kind: call.name)
         }
-        if case .native(let any) = value, let chain = any as? ChainedImplicitCall {
+        if case .host(let any) = value, let chain = any as? ChainedImplicitCall {
             // Modifier chains hanging off an unresolved root (an unmerged
             // asset extension's `.atSymbol` with .aspectRatio/.blendMode
             // chained) render as opaque leaf nodes named for the ROOT —
@@ -468,7 +468,7 @@ public final class TraceRegistry: HostRegistry {
             var cursor: Any? = chain
             while let c = cursor as? ChainedImplicitCall {
                 if case .implicitMember(let name) = c.base { rootName = name; break }
-                if case .native(let inner) = c.base { cursor = inner } else { break }
+                if case .host(let inner) = c.base { cursor = inner } else { break }
             }
             return TraceNode(kind: rootName)
         }
@@ -477,7 +477,7 @@ public final class TraceRegistry: HostRegistry {
 
     static func elements(of data: RuntimeValue) throws -> [RuntimeValue] {
         // A Query-shaped `.init(filter:sort:…)` marker is a fresh store: empty.
-        if case .native(let any) = data, let call = any as? ImplicitMemberCall,
+        if case .host(let any) = data, let call = any as? ImplicitMemberCall,
            call.name == "init",
            call.arguments.labeled("filter") != nil || call.arguments.labeled("sort") != nil
             || call.arguments.labeled("sortDescriptors") != nil {
@@ -485,16 +485,16 @@ public final class TraceRegistry: HostRegistry {
         }
         // Unknowable host collections (GraphQL fragment chains, unresolved
         // statics) iterate EMPTY — the fresh-store reading, same as for-in.
-        if case .native(let any) = data,
+        if case .host(let any) = data,
            any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             return []
         }
         if case .implicitMember = data { return [] }
         if case .hostFunction = data { return [] } // unresolvable member read
-        if case .native(let dataAny) = data, let bytes = dataAny as? Data {
+        if case .host(let dataAny) = data, let bytes = dataAny as? Data {
             return bytes.map { .native(Int($0)) } // Data IS a byte collection
         }
-        if case .native(let any) = data, let range = any as? Range<Int> {
+        if case .host(let any) = data, let range = any as? Range<Int> {
             return range.map { .native($0) }
         }
         if let array = data.arrayValue { return array }

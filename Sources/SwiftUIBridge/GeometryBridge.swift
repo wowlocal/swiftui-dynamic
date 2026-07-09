@@ -33,11 +33,11 @@ final class PathDrawStub {
 
     func apply(_ command: String, _ args: CallArguments) {
         func point(_ value: RuntimeValue?) -> CGPoint? {
-            if case .native(let any)? = value { return any as? CGPoint }
+            if case .host(let any)? = value { return any as? CGPoint }
             return nil
         }
         func rect(_ value: RuntimeValue?) -> CGRect? {
-            if case .native(let any)? = value { return any as? CGRect }
+            if case .host(let any)? = value { return any as? CGRect }
             return nil
         }
         switch command {
@@ -71,14 +71,14 @@ final class PathDrawStub {
             path.closeSubpath()
         case "strokedPath":
             var style = StrokeStyle()
-            if case .native(let any)? = args.positional(0), let real = any as? StrokeStyle {
+            if case .host(let any)? = args.positional(0), let real = any as? StrokeStyle {
                 style = real
             }
             path = path.strokedPath(style)
         case "addLines":
-            if case .native(let any)? = args.positional(0), let points = any as? [RuntimeValue] {
+            if case .host(let any)? = args.positional(0), let points = any as? [RuntimeValue] {
                 path.addLines(points.compactMap {
-                    if case .native(let p) = $0 { return p as? CGPoint }
+                    if case .host(let p) = $0 { return p as? CGPoint }
                     return nil
                 })
             }
@@ -115,10 +115,10 @@ struct InterpretedShape: Shape {
             do {
                 let result = try carrier.interpreter.callMethod(
                     named: "path", on: carrier.instance, arguments: [.native(rect)])
-                if case .native(let any) = result, let stub = any as? PathDrawStub {
+                if case .host(let any) = result, let stub = any as? PathDrawStub {
                     return stub.path
                 }
-                if case .native(let any) = result, let real = any as? Path {
+                if case .host(let any) = result, let real = any as? Path {
                     return real
                 }
                 return Path()
@@ -522,7 +522,7 @@ private func coordinateSpace(_ value: RuntimeValue?) throws -> some CoordinateSp
         default: break
         }
     }
-    if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+    if case .host(let any) = value, let call = any as? ImplicitMemberCall {
         switch call.name {
         case "named":
             if let name = call.arguments.positional(0)?.stringValue {
@@ -543,7 +543,7 @@ private func coordinateSpace(_ value: RuntimeValue?) throws -> some CoordinateSp
 private func namedCoordinateSpace(_ value: RuntimeValue?) -> NamedCoordinateSpace? {
     guard let value else { return nil }
     if case .implicitMember("scrollView") = value { return .scrollView }
-    if case .native(let any) = value, let call = any as? ImplicitMemberCall {
+    if case .host(let any) = value, let call = any as? ImplicitMemberCall {
         switch call.name {
         case "named":
             if let name = call.arguments.positional(0)?.stringValue { return .named(name) }
@@ -694,12 +694,12 @@ func bridgeHostMutatedCopy(settingMember name: String, on value: Any, to newValu
     if var rect = value as? CGRect {
         switch name {
         case "origin":
-            if case .native(let any) = newValue, let origin = any as? CGPoint {
+            if case .host(let any) = newValue, let origin = any as? CGPoint {
                 rect.origin = origin
                 return rect
             }
         case "size":
-            if case .native(let any) = newValue, let size = any as? CGSize {
+            if case .host(let any) = newValue, let size = any as? CGSize {
                 rect.size = size
                 return rect
             }

@@ -42,7 +42,7 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { args, _ in
             // The host process is real: Bundle(url:)/(path:)/(identifier:)
             // resolve against the actual filesystem; no argument = main.
-            if case .native(let any)? = args.labeled("url"), let url = any as? URL {
+            if case .host(let any)? = args.labeled("url"), let url = any as? URL {
                 return Foundation.Bundle(url: url).map { .native(BundleBox(bundle: $0)) } ?? .nilValue
             }
             if let path = args.labeled("path")?.stringValue {
@@ -63,7 +63,7 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             // fresh sandbox is empty), so `try?` honestly yields nil.
             if let value = args.labeled("contentsOf") {
                 if let stored = FileManagerBox.blobStore[value.stringified] { return stored }
-                if case .native(let any) = value, let url = any as? URL {
+                if case .host(let any) = value, let url = any as? URL {
                     if let stored = FileManagerBox.blobStore[url.path] { return stored }
                     do { return .native(try Data(contentsOf: url)) } catch {
                         throw RuntimeError(message: "Data(contentsOf:): \(error.localizedDescription)")
@@ -75,7 +75,7 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                 throw RuntimeError(message: "Data(contentsOf:) needs a URL")
             }
             // `Data(otherData)` — copy construction passes through.
-            if case .native(let existing)? = args.positional(0), let d = existing as? Data {
+            if case .host(let existing)? = args.positional(0), let d = existing as? Data {
                 return .native(d)
             }
             // `Data(bytes)` — a real byte buffer from an Int array.
@@ -250,10 +250,10 @@ final class DateComponentsBox {
 struct ModelContextStub {}
 
 private func dateArg(_ value: RuntimeValue?) -> Date? {
-    if case .native(let any)? = value, let date = any as? Date { return date }
+    if case .host(let any)? = value, let date = any as? Date { return date }
     if case .implicitMember("now")? = value { return Date() }
     // `to: .init()` — a bare Date construction in date position.
-    if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
+    if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
         if let interval = call.arguments.labeled("timeIntervalSince1970")?.doubleValue {
             return Date(timeIntervalSince1970: interval)
         }
@@ -268,7 +268,7 @@ private func dateArg(_ value: RuntimeValue?) -> Date? {
 private func intArg(_ value: RuntimeValue?) -> Int? {
     if let i = value?.intValue { return i }
     // `.random(in: 1...100)` arriving without type context.
-    if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "random" {
+    if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "random" {
         let argument = call.arguments.labeled("in") ?? call.arguments.positional(0)
         if let range = argument?.rangeValue { return Int.random(in: range) }
         if let bounds = argument?.doubleRangeValue { return Int(Double.random(in: bounds)) }
@@ -278,10 +278,10 @@ private func intArg(_ value: RuntimeValue?) -> Int? {
 
 /// DateComponents from a box OR an `.init(month: 1, minute: -1)` marker.
 private func dateComponentsArg(_ value: RuntimeValue?) -> DateComponents? {
-    if case .native(let any)? = value, let box = any as? DateComponentsBox {
+    if case .host(let any)? = value, let box = any as? DateComponentsBox {
         return box.components
     }
-    if case .native(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
+    if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
         var components = DateComponents()
         components.year = call.arguments.labeled("year")?.intValue
         components.month = call.arguments.labeled("month")?.intValue
@@ -322,8 +322,8 @@ struct DateIntervalBox {
 /// measurement uses actual metrics. Unresolvable markers fall back to the
 /// system font.
 private func nsFont(from value: RuntimeValue) -> NSFont? {
-    if case .native(let any) = value, let font = any as? NSFont { return font }
-    guard case .native(let any) = value, let call = any as? ImplicitMemberCall else { return nil }
+    if case .host(let any) = value, let font = any as? NSFont { return font }
+    guard case .host(let any) = value, let call = any as? ImplicitMemberCall else { return nil }
     let size = call.arguments.labeled("ofSize")?.doubleValue.map { CGFloat($0) }
         ?? NSFont.systemFontSize
     switch call.name {
@@ -425,7 +425,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if let box = value as? FileManagerBox {
         func urlArg(_ value: RuntimeValue?) -> URL? {
-            guard case .native(let any)? = value else { return nil }
+            guard case .host(let any)? = value else { return nil }
             return any as? URL
         }
         switch name {
@@ -728,7 +728,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         case "subscript":
             return .hostFunction(HostFunction(name: "subscript") { args, _ in
-                guard case .native(let any)? = args.positional(0),
+                guard case .host(let any)? = args.positional(0),
                       let rangeBox = any as? AttributedRangeBox else {
                     throw RuntimeError(message: "AttributedString subscripting needs a range from range(of:)")
                 }
@@ -752,7 +752,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .hostFunction(HostFunction(name: "string") { args, _ in
                 var value = args.labeled("from") ?? args.positional(0)
                 // `.init(value: x)` — the NSNumber marker unwraps to x.
-                if case .native(let any)? = value, let call = any as? ImplicitMemberCall,
+                if case .host(let any)? = value, let call = any as? ImplicitMemberCall,
                    call.name == "init" {
                     value = call.arguments.labeled("value") ?? call.arguments.positional(0)
                 }
@@ -962,14 +962,14 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
         box.formatter.dateFormat = format
         return true
     case "locale":
-        if case .native(let any) = newValue, let locale = any as? Locale {
+        if case .host(let any) = newValue, let locale = any as? Locale {
             box.formatter.locale = locale
         } else if case .implicitMember("current") = newValue {
             box.formatter.locale = .current
         }
         return true // unknown locale markers keep the default — accepted
     case "calendar":
-        if case .native(let any) = newValue, let calendarBox = any as? CalendarBox {
+        if case .host(let any) = newValue, let calendarBox = any as? CalendarBox {
             box.formatter.calendar = calendarBox.calendar
         }
         return true

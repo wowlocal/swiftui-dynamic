@@ -11,12 +11,12 @@ extension ViewRegistry {
             guard let value = args.positional(0) else {
                 throw RuntimeError(message: "Text needs a string argument")
             }
-            if case .native(let any) = value, let box = any as? AttributedStringBox {
+            if case .host(let any) = value, let box = any as? AttributedStringBox {
                 return .native(AnyView(Text(box.attributed)))
             }
             // Unknowables read "" (fresh-string doctrine) — marker dumps
             // must never reach rendered Text.
-            if case .native(let any) = value,
+            if case .host(let any) = value,
                any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
                 return .native(AnyView(Text("")))
             }
@@ -385,7 +385,7 @@ extension ViewRegistry {
             }
             // `ForEach($items) { $item in … }` — element bindings write back.
             let elements: [RuntimeValue]
-            if case .native(let any) = data, let stub = any as? BindingStub,
+            if case .host(let any) = data, let stub = any as? BindingStub,
                let bindings = stub.elementBindings() {
                 elements = bindings
             } else {
@@ -424,7 +424,7 @@ extension ViewRegistry {
             guard let closure = args.firstUnlabeledClosure else {
                 throw RuntimeError(message: "withTransaction needs a closure")
             }
-            guard case .native(let any)? = args.positional(0), let transaction = any as? Transaction else {
+            guard case .host(let any)? = args.positional(0), let transaction = any as? Transaction else {
                 return try ctx.callClosure(closure, arguments: [])
             }
             return try withTransaction(transaction) {
@@ -436,7 +436,7 @@ extension ViewRegistry {
     // MARK: - Shared helpers
 
     static func forEachElements(_ data: RuntimeValue) throws -> [RuntimeValue] {
-        if case .native(let any) = data, let call = any as? ImplicitMemberCall,
+        if case .host(let any) = data, let call = any as? ImplicitMemberCall,
            call.name == "init",
            call.arguments.labeled("filter") != nil || call.arguments.labeled("sort") != nil
             || call.arguments.labeled("sortDescriptors") != nil {
@@ -444,13 +444,13 @@ extension ViewRegistry {
         }
         // Unknowable host collections (GraphQL fragment chains, unresolved
         // statics) iterate EMPTY — the fresh-store reading, same as for-in.
-        if case .native(let any) = data,
+        if case .host(let any) = data,
            any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             return []
         }
         if case .implicitMember = data { return [] }
         if case .hostFunction = data { return [] } // unresolvable member read
-        if case .native(let dataAny) = data, let bytes = dataAny as? Data {
+        if case .host(let dataAny) = data, let bytes = dataAny as? Data {
             return bytes.map { .native(Int($0)) } // Data IS a byte collection
         }
         if let range = data.rangeValue {

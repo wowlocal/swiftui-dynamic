@@ -308,12 +308,12 @@ extension Coerce {
     }
 
     static func edgeInsets(_ value: RuntimeValue) throws -> EdgeInsets {
-        if case .native(let any) = value, let insets = any as? EdgeInsets { return insets }
+        if case .host(let any) = value, let insets = any as? EdgeInsets { return insets }
         throw RuntimeError(message: "expected EdgeInsets(top:leading:bottom:trailing:)")
     }
 
     static func gradient(_ value: RuntimeValue) throws -> Gradient {
-        if case .native(let any) = value, let gradient = any as? Gradient { return gradient }
+        if case .host(let any) = value, let gradient = any as? Gradient { return gradient }
         if let array = value.arrayValue {
             return Gradient(colors: try array.map(color))
         }

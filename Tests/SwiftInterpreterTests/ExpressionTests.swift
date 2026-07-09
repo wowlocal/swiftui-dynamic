@@ -100,13 +100,13 @@ private func eval(_ source: String) throws -> RuntimeValue {
 
     @Test func ranges() throws {
         let half = try eval("0..<3")
-        if case .native(let any) = half, let range = any as? Range<Int> {
+        if case .host(let any) = half, let range = any as? Range<Int> {
             #expect(range == 0..<3)
         } else {
             Issue.record("expected a Range<Int>")
         }
         let closed = try eval("1...3")
-        if case .native(let any) = closed, let range = any as? Range<Int> {
+        if case .host(let any) = closed, let range = any as? Range<Int> {
             #expect(range == 1..<4)
         } else {
             Issue.record("expected a Range<Int>")

@@ -410,7 +410,7 @@ extension Interpreter {
             elements = range.map { .native($0) }
         } else if let array = sequence.arrayValue {
             elements = array
-        } else if case .native(let any) = sequence,
+        } else if case .host(let any) = sequence,
                   any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             // Unknowable host collections (Activity<T>.activities on a fresh
             // device) iterate EMPTY — the fresh-store reading.
@@ -423,7 +423,7 @@ extension Interpreter {
             // A bound host member in sequence position (stub.allKeys) is
             // equally unknowable — real code can't iterate a function.
             elements = []
-        } else if case .native(let dataAny) = sequence, let bytes = dataAny as? Data {
+        } else if case .host(let dataAny) = sequence, let bytes = dataAny as? Data {
             elements = bytes.map { .native(Int($0)) } // byte collection
         } else {
             throw error(forStmt.sequence, "for-in requires a range or an array, got \(sequence.stringified)")

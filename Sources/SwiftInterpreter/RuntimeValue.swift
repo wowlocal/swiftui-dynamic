@@ -1,13 +1,21 @@
 import SwiftSyntax
 /// The type-erased runtime representation of every value the interpreter touches.
 ///
-/// Native values (numbers, strings, arrays, and opaque host values such as
-/// `AnyView`) live in `.native`; user-defined structs are `.instance`; functions
-/// and closures are `.closure`; pre-compiled host gateways are `.hostFunction`.
+/// The scalars every loop and comparison churns through (`Int`, `Double`,
+/// `Bool`) live INLINE — reading them is a jump, not an existential dynamic
+/// cast. Other native values (strings, arrays, and opaque host values such
+/// as `AnyView`) live in `.host`; user-defined structs are `.instance`;
+/// functions and closures are `.closure`; pre-compiled host gateways are
+/// `.hostFunction`. Construct through the `native(_:)` factories, which
+/// normalize scalars into their inline cases — `.host` never holds an
+/// Int/Double/Bool (accessors stay tolerant regardless).
 public enum RuntimeValue {
     case void
     case nilValue
-    case native(Any)
+    case int(Int)
+    case double(Double)
+    case bool(Bool)
+    case host(Any)
     case instance(Instance)
     case closure(ClosureValue)
     case hostFunction(HostFunction)
@@ -15,45 +23,82 @@ public enum RuntimeValue {
     case enumType(EnumSymbol)
     case enumCase(EnumCaseValue)
     case implicitMember(String)
+
+    @inline(__always) public static func native(_ value: Int) -> RuntimeValue { .int(value) }
+    @inline(__always) public static func native(_ value: Double) -> RuntimeValue { .double(value) }
+    @inline(__always) public static func native(_ value: Bool) -> RuntimeValue { .bool(value) }
+    /// The untyped fallback: statically-scalar call sites bind the overloads
+    /// above at compile time; `Any` payloads normalize here (this also
+    /// unwraps optional scalars, matching the old `as? Int` read behavior;
+    /// CGFloat bridges into `.double` the way `doubleValue` always read it).
+    public static func native(_ value: Any) -> RuntimeValue {
+        if let i = value as? Int { return .int(i) }
+        if let d = value as? Double { return .double(d) }
+        if let b = value as? Bool { return .bool(b) }
+        return .host(value)
+    }
 }
 
 extension RuntimeValue {
+    /// The payload as a host `Any` — inline scalars box on demand (member
+    /// dispatch and gateway coercion want one uniform payload; arithmetic
+    /// never calls this). Non-payload cases return nil.
+    public var hostPayload: Any? {
+        switch self {
+        case .host(let any): return any
+        case .int(let i): return i
+        case .double(let d): return d
+        case .bool(let b): return b
+        default: return nil
+        }
+    }
+
     public var intValue: Int? {
-        if case .native(let any) = self { return any as? Int }
-        return nil
+        switch self {
+        case .int(let i): return i
+        case .host(let any): return any as? Int
+        default: return nil
+        }
     }
 
     public var doubleValue: Double? {
-        if case .native(let any) = self {
+        switch self {
+        case .double(let d): return d
+        case .int(let i): return Double(i)
+        case .host(let any):
             if let d = any as? Double { return d }
             if let i = any as? Int { return Double(i) }
+            return nil
+        default: return nil
         }
-        return nil
     }
 
     public var stringValue: String? {
-        if case .native(let any) = self { return any as? String }
+        if case .host(let any) = self { return any as? String }
         return nil
     }
 
     public var boolValue: Bool? {
-        if case .native(let any) = self { return any as? Bool }
-        return nil
+        switch self {
+        case .bool(let b): return b
+        case .host(let any): return any as? Bool
+        default: return nil
+        }
     }
 
     public var arrayValue: [RuntimeValue]? {
-        if case .native(let any) = self { return any as? [RuntimeValue] }
+        if case .host(let any) = self { return any as? [RuntimeValue] }
         return nil
     }
 
     public var rangeValue: Range<Int>? {
-        if case .native(let any) = self { return any as? Range<Int> }
+        if case .host(let any) = self { return any as? Range<Int> }
         return nil
     }
 
     /// `0.01...0.1` — fractional ranges (Slider bounds, .random(in:)).
     public var doubleRangeValue: ClosedRange<Double>? {
-        if case .native(let any) = self {
+        if case .host(let any) = self {
             if let closed = any as? ClosedRange<Double> { return closed }
             if let intRange = any as? Range<Int>, !intRange.isEmpty {
                 return Double(intRange.lowerBound)...Double(intRange.upperBound - 1)
@@ -63,12 +108,12 @@ extension RuntimeValue {
     }
 
     public var dictValue: DictValue? {
-        if case .native(let any) = self { return any as? DictValue }
+        if case .host(let any) = self { return any as? DictValue }
         return nil
     }
 
     public var tupleValue: TupleValue? {
-        if case .native(let any) = self { return any as? TupleValue }
+        if case .host(let any) = self { return any as? TupleValue }
         return nil
     }
 
@@ -88,7 +133,10 @@ extension RuntimeValue {
         switch self {
         case .void: return "()"
         case .nilValue: return "nil"
-        case .native(let any):
+        case .int(let i): return String(i)
+        case .double(let d): return String(d)
+        case .bool(let b): return b ? "true" : "false"
+        case .host(let any):
             if let arr = any as? [RuntimeValue] {
                 return "[" + arr.map(\.stringified).joined(separator: ", ") + "]"
             }
