@@ -41,6 +41,27 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// Unknown-API trailing closures that don't yield views (the Lottie
+    /// idiom: `LottieView { await LottieAnimation.loadedFrom(url:) }`) are
+    /// recorded as configuration instead of failing the builder.
+    @Test func nonBuilderClosureOnUnknownConstructorDegrades() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    LottieView {
+                        await LottieAnimation.loadedFrom(url: "logo.json")
+                    }
+                    .playing(true)
+                    Text("ready")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// Opaque host objects recorded as trace nodes behave like the mutable
     /// objects they stand for: property writes round-trip on reads
     /// (`gesture.name = id … gesture.name`).

@@ -127,7 +127,16 @@ public final class TraceRegistry: HostRegistry {
                                 node.children += try ctx.callBuilderClosure(closure, arguments: [element]).map(Self.node)
                             }
                         } else {
-                            node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
+                            do {
+                                node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
+                            } catch let error as RuntimeError
+                                where !error.fatal && error.message.hasPrefix("expected a view") {
+                                // Unknown API whose closure isn't a view
+                                // builder after all — `LottieView { await
+                                // LottieAnimation.loadedFrom(url:) }` loads
+                                // data. Record it as configuration.
+                                node.args.append("closure")
+                            }
                         }
                     } else {
                         if argument.label == nil { data = argument.value }

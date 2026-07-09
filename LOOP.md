@@ -311,3 +311,11 @@ Each iteration does exactly this:
   back (`gesture.name = id … gesture.name ?? ""` round-trips). Kills the
   "cannot assign on TraceNode" class; both FullScreenPop variants pass.
   **76/100 → 78/100**.
+- 2026-07-09 iter 40: non-builder trailing closures on unknown constructors
+  degrade to recorded configuration — the Lottie idiom (`LottieView { await
+  LottieAnimation.loadedFrom(url:) }` loads data, not views) no longer fails
+  the builder; genuine nested errors still propagate (fatal + non-view-shape
+  guarded). Both NetflixUI units pass after their 3-iteration march, and
+  MoreTabBar's `.init(value:)-as-view` rode the same shape. Only known walls
+  (Canvas GraphicsContext, Chips_UI Layout) + singletons remain.
+  **78/100 → 81/100**.
