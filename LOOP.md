@@ -635,3 +635,11 @@ Each iteration does exactly this:
   half the Bool-operand pair: Music, FaceID_Login ×2, QRCodeScanner pass;
   TextSelectionAPI advanced (patternExpr singleton).
   **538 → 543/585 (92.8%).**
+- 2026-07-09 iter 78: real Color statics — `Color.white` etc. resolve to real
+  Colors (user `extension Color/UIColor` members dispatch via the
+  hostTypeName precedence rule: user extensions of a stub's host type WIN
+  over bridge members); tuple locals destructure (`var (r, g, b, a) =
+  (0,0,0,0)`); native-Color members (opacity/gradient), AnyGradient.opacity,
+  AnyShapeStyle pass-through, and AnyHashable equality (realized Colors
+  compare) — the last three recovered a 4-project regression the
+  realization caused. ImageColorPicker ×2 pass. **543 → 545/585 (93.2%).**

@@ -145,6 +145,44 @@ enum Corpus {
         #expect(report.actionsInvoked == 1)
     }
 
+    /// Color statics are real Colors; user Color/UIColor extensions
+    /// dispatch on them (isDarkColor reads fresh-state luminance 0 = dark);
+    /// tuple locals destructure.
+    @Test func colorExtensionsAndTupleLocals() throws {
+        let source = """
+        extension Color {
+            var isDarkColor: Bool {
+                return UIColor(self).isDarkColor
+            }
+        }
+
+        extension UIColor {
+            var isDarkColor: Bool {
+                var (r, g, b, a): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+                self.getRed(&r, green: &g, blue: &b, alpha: &a)
+                let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                return lum < 0.50
+            }
+        }
+
+        struct ContentView: View {
+            @State private var selectedColor: Color = Color.white
+
+            var body: some View {
+                Text("sample")
+                    .foregroundColor(selectedColor.isDarkColor ? .white : .black)
+                    .background(Color.black.opacity(0.3))
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+        let real = InterpreterHost().render(source: source)
+        if case .failure(let error) = real {
+            Issue.record("real render failed: \(error)")
+        }
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

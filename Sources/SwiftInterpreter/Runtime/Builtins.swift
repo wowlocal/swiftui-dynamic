@@ -212,6 +212,7 @@ enum Builtins {
                 return l.name == r.name
             }
             if let l = la as? UUID, let r = ra as? UUID { return l == r }
+            if let l = la as? AnyHashable, let r = ra as? AnyHashable { return l == r }
             if let l = la as? Date, let r = ra as? Date { return l == r }
             if let l = la as? CGSize, let r = ra as? CGSize { return l == r }
             if let l = la as? CGPoint, let r = ra as? CGPoint { return l == r }

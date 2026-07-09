@@ -535,6 +535,14 @@ extension Interpreter {
                 default: break
                 }
             }
+            // User extensions of the host TYPE a value stands for win over
+            // bridge-served members — they intentionally override our stubs
+            // (`extension Color { var isDarkColor }` on a real Color,
+            // `extension UIColor { … }` on a recorded UIColor node).
+            if let typeName = registry?.hostTypeName(of: any),
+               let value = try hostExtensionMember(name, candidates: [typeName], selfValue: baseValue) {
+                return value
+            }
             // The bridge gets first refusal on host natives (GeometryProxy,
             // CGRect, and static chains like UIScreen.main / DispatchQueue.main).
             if let value = registry?.hostMember(name, on: any) {

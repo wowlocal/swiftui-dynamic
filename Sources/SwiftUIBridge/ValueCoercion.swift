@@ -106,6 +106,7 @@ enum Coerce {
     /// `.black.opacity(x)` chains. Colors are Views, so this also powers
     /// bare colors in view position.
     static func colorLike(_ value: RuntimeValue) -> Color? {
+        if case .native(let any) = value, let color = any as? Color { return color }
         if case .implicitMember(let name) = value {
             return colorNamed(name)
         }
@@ -121,8 +122,10 @@ enum Coerce {
     /// materials, gradients, and `.color.opacity(x)` / `.color.gradient` chains.
     static func shapeStyle(_ value: RuntimeValue) throws -> AnyShapeStyle {
         if case .native(let any) = value {
+            if let style = any as? AnyShapeStyle { return style }
             if let color = any as? Color { return AnyShapeStyle(color) }
             if let gradient = any as? LinearGradient { return AnyShapeStyle(gradient) }
+            if let gradient = any as? AnyGradient { return AnyShapeStyle(gradient) }
             if let gradient = any as? RadialGradient { return AnyShapeStyle(gradient) }
             if let gradient = any as? AngularGradient { return AnyShapeStyle(gradient) }
             if let chained = any as? ChainedImplicitCall {

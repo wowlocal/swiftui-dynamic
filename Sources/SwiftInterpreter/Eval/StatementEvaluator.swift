@@ -60,6 +60,21 @@ extension Interpreter {
         }
         if let varDecl = decl.as(VariableDeclSyntax.self) {
             for binding in varDecl.bindings {
+                // `var (r, g, b, a) = (0, 0, 0, 0)` — tuple destructuring.
+                if let tuplePattern = binding.pattern.as(TuplePatternSyntax.self),
+                   let initializer = binding.initializer?.value {
+                    let value = try evaluate(initializer, in: env)
+                    guard let tuple = value.tupleValue,
+                          tuple.values.count == tuplePattern.elements.count else {
+                        throw error(binding, "tuple binding doesn't match the value shape")
+                    }
+                    for (element, elementValue) in zip(tuplePattern.elements, tuple.values) {
+                        if let ident = element.pattern.as(IdentifierPatternSyntax.self) {
+                            env.define(ident.identifier.text, elementValue)
+                        }
+                    }
+                    continue
+                }
                 guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
                     throw error(binding, "unsupported binding pattern")
                 }

@@ -173,7 +173,31 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let member = hostObjectMember(name, on: value) {
         return member
     }
+    if let gradient = value as? AnyGradient {
+        if name == "opacity" {
+            return .hostFunction(HostFunction(name: "opacity") { args, _ in
+                .native(AnyShapeStyle(gradient.opacity(args.positional(0)?.doubleValue ?? 1)))
+            })
+        }
+    }
+    if let color = value as? Color {
+        switch name {
+        case "opacity":
+            return .hostFunction(HostFunction(name: "opacity") { args, _ in
+                .native(color.opacity(args.positional(0)?.doubleValue ?? 1))
+            })
+        case "gradient":
+            return .native(color.gradient)
+        default:
+            break
+        }
+    }
     if let marker = value as? HostTypeMarker {
+        // `Color.white`, `Color.gray` — real Color values, so user
+        // `extension Color { … }` members can dispatch on them.
+        if marker.name == "Color", let color = Coerce.colorLike(.implicitMember(name)) {
+            return .native(color)
+        }
         switch (marker.name, name) {
         case ("UIScreen", "main"), ("NSScreen", "main"):
             return .native(ScreenStub())
@@ -572,6 +596,7 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is WindowStub: return "UIWindow"
     case is WindowSceneStub: return "UIWindowScene"
     case is ScreenStub: return "UIScreen"
+    case is Color: return "Color"
     case is CalendarBox: return "Calendar"
     case is DateFormatterBox: return "DateFormatter"
     case is NumberFormatterBox: return "NumberFormatter"
