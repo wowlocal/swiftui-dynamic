@@ -5,6 +5,11 @@ import SwiftInterpreter
 /// the tree — scenario assertions check that fixture-derived content
 /// (movie titles, status authors) actually reached the UI.
 public enum LiveCheckSupport {
+    /// Diagnostics from the last probe run — scenario failure messages
+    /// surface them so the histogram names the next class precisely.
+    public private(set) static var lastRootSymbol = ""
+    public private(set) static var lastLifecycleFired = 0
+
     public static func renderedStrings(source: String) throws -> [String] {
         let interpreter = Interpreter(registry: TraceRegistry())
         do {
@@ -26,33 +31,60 @@ public enum LiveCheckSupport {
         guard let symbol = interpreter.rootViewSymbol() else {
             throw RuntimeError(message: "no View-conforming struct found")
         }
+        lastRootSymbol = symbol.name
+        lastLifecycleFired = 0
         guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
             throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
         }
         try interpreter.injectEnvironmentObjects(into: instance, models: [:])
         interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
-        let root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+
+        // The async-fetch pass (M2): render, FIRE retained `.task`/
+        // `.onAppear` closures (fetched data lands in state), re-render and
+        // recollect — repeat while new lifecycle work appears or the tree
+        // grows (fetch → state → dependent fetch cascades), max 3 passes.
         var strings: [String] = []
-        try collect(interpreter, root, into: &strings)
+        var firedCount = 0
+        for _ in 0..<3 {
+            let root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            var passStrings: [String] = []
+            var lifecycle: [ClosureValue] = []
+            try collect(interpreter, root, into: &passStrings, lifecycle: &lifecycle)
+            let grew = passStrings.count > strings.count
+            strings = passStrings
+            let pending = lifecycle.dropFirst(firedCount)
+            if pending.isEmpty && !grew {
+                break
+            }
+            for closure in pending {
+                _ = try? interpreter.callBackgroundClosure(closure, arguments: [])
+                lastLifecycleFired += 1
+            }
+            firedCount = lifecycle.count
+        }
         return strings
     }
 
     private static func collect(
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
+        lifecycle: inout [ClosureValue],
         environment: [String: Instance] = [:], depth: Int = 0
     ) throws {
         guard depth < 16 else { return }
         strings.append(contentsOf: node.args)
+        lifecycle.append(contentsOf: node.lifecycle)
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         if let instance = node.instance {
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
             interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
-            try collect(interpreter, body, into: &strings, environment: environment, depth: depth + 1)
+            try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,
+                        environment: environment, depth: depth + 1)
         }
         for child in node.children {
-            try collect(interpreter, child, into: &strings, environment: environment, depth: depth + 1)
+            try collect(interpreter, child, into: &strings, lifecycle: &lifecycle,
+                        environment: environment, depth: depth + 1)
         }
     }
 }
