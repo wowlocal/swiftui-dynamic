@@ -134,6 +134,18 @@ extension Interpreter {
             if case .normal(let value) = try executeSwitch(switchExpr, in: env) { return value }
             throw error(switchExpr, "control flow can't escape a switch-expression")
         }
+        if let postfixIf = expr.as(PostfixIfConfigExprSyntax.self) {
+            // `view \n #if os(iOS) \n .modifier() \n #endif` — apply the
+            // active clause's postfix chain to the base (inactive: base).
+            let baseValue = try postfixIf.base.map { try evaluate($0, in: env) } ?? .void
+            guard let clause = activeIfConfigClause(postfixIf.config),
+                  case .postfixExpression(let postfix)? = clause.elements else {
+                return baseValue
+            }
+            let child = Environment(parent: env)
+            child.define("__postfixBase", baseValue)
+            return try evaluate(graftPostfixBase(postfix, name: "__postfixBase"), in: child)
+        }
         if let generic = expr.as(GenericSpecializationExprSyntax.self) {
             // Type arguments are annotations we don't check —
             // `Binding<Int?>(get:set:)` evaluates as `Binding(get:set:)`.
@@ -143,6 +155,23 @@ extension Interpreter {
             throw error(expr, "internal error: unfolded operator sequence")
         }
         throw error(expr, "unsupported expression (\(expr.kind))")
+    }
+
+    /// Grafts a name reference onto the missing root base of a postfix
+    /// chain from `#if`-postfix clauses (`.padding().background(...)`).
+    private func graftPostfixBase(_ expr: ExprSyntax, name: String) -> ExprSyntax {
+        if let member = expr.as(MemberAccessExprSyntax.self) {
+            if let base = member.base {
+                return ExprSyntax(member.with(\.base, graftPostfixBase(base, name: name)))
+            }
+            return ExprSyntax(member.with(
+                \.base, ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(name)))))
+        }
+        if let call = expr.as(FunctionCallExprSyntax.self) {
+            return ExprSyntax(call.with(
+                \.calledExpression, graftPostfixBase(call.calledExpression, name: name)))
+        }
+        return expr
     }
 
     // MARK: - Identifiers & members

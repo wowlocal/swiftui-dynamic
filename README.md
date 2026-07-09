@@ -153,6 +153,12 @@ coverage.
   `NSViewRepresentable` structs are accepted in view position but render
   inert (their make/update methods never run); `X.appearance()` proxies accept
   all configuration inertly (writes ignored, config calls chain).
+- **Conditional compilation identifies as iOS.** `#if os(iOS)`,
+  `canImport(_)`, `DEBUG`, and `swift(…)`/`compiler(…)` hold;
+  `os(macOS)`/`targetEnvironment(simulator)` and unknown conditions take
+  the `#else` branch — consistent with the iOS-shaped platform stubs.
+  Works in declaration, statement, builder, and postfix (modifier-chain)
+  positions.
 - **Canvas drawing is inert.** `Canvas { context, size in … }` runs the
   renderer once against a no-op context (390×844) — the closure's math
   executes, but fill/stroke/translate commands never reach a real

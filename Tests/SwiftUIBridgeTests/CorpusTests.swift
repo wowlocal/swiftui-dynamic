@@ -41,6 +41,30 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// `#if os(iOS)` in builder and postfix (modifier-chain) positions.
+    @Test func conditionalCompilationInBuildersAndPostfix() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    #if os(iOS)
+                    Text("touch UI")
+                    #else
+                    Text("pointer UI")
+                    #endif
+                    Text("shared")
+                    #if os(iOS)
+                        .padding()
+                        .font(.caption)
+                    #endif
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// Parameterized closures on unknown constructors are callbacks we
     /// can't honestly drive (SignInWithAppleButton's onRequest, UIAction
     /// handlers) — recorded as configuration, never invoked.

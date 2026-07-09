@@ -269,6 +269,28 @@ private func eval(_ source: String) throws -> RuntimeValue {
 }
 
 @Suite struct StdlibTests {
+    /// The harness identifies as an iOS-shaped canvas: os(iOS)/canImport/
+    /// DEBUG hold, os(macOS) takes the #else branch.
+    @Test func conditionalCompilationTakesIOSBranches() throws {
+        let source = """
+        #if os(iOS)
+        let platform = "iOS"
+        #else
+        let platform = "macOS"
+        #endif
+        #if os(macOS)
+        let extra = "-mac"
+        #else
+        let extra = "-touch"
+        #endif
+        #if canImport(UIKit) && DEBUG
+        let debug = true
+        #endif
+        platform + extra + (debug ? "!" : "?")
+        """
+        #expect(try eval(source).stringValue == "iOS-touch!")
+    }
+
     /// Globals are lazily forceable, so forward references work (real Swift
     /// non-main-file semantics) while statement order still executes eagerly.
     @Test func globalsSupportForwardReferences() throws {

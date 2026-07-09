@@ -27,6 +27,15 @@ extension Interpreter {
         try tick(item)
         switch item.item {
         case .decl(let decl):
+            if let ifConfig = decl.as(IfConfigDeclSyntax.self) {
+                // `#if os(iOS)` — the active clause's statements run inline
+                // (control flow propagates).
+                if let clause = activeIfConfigClause(ifConfig),
+                   case .statements(let items)? = clause.elements {
+                    return try executeBlock(items, in: env)
+                }
+                return .normal(.void)
+            }
             try executeDecl(decl, in: env)
             return .normal(.void)
         case .stmt(let stmt):
@@ -275,6 +284,15 @@ extension Interpreter {
             try tick(item)
             switch item.item {
             case .decl(let decl):
+                if let ifConfig = decl.as(IfConfigDeclSyntax.self) {
+                    // `#if os(iOS)` in builder position: the active clause's
+                    // items contribute their views.
+                    if let clause = activeIfConfigClause(ifConfig),
+                       case .statements(let activeItems)? = clause.elements {
+                        views += try collectBuilderViews(activeItems, in: env)
+                    }
+                    continue
+                }
                 try executeDecl(decl, in: env)
             case .stmt(let stmt):
                 if let exprStmt = stmt.as(ExpressionStmtSyntax.self) {

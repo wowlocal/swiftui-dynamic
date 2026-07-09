@@ -445,3 +445,12 @@ Each iteration does exactly this:
   self = the type, so bare statics resolve (`Timer.publish(every:
   autoScrollDuration…)`). FacebookGradientMask, HeroNavigationStack,
   AutoScrollCarousel, WidgetsDemo pass. **311/400 → 315/400**.
+- 2026-07-09 iter 55: conditional compilation — the harness identifies as an
+  iOS-shaped canvas: os(iOS)/canImport/DEBUG/swift() hold, os(macOS)/
+  targetEnvironment and unknowns take #else (documented; consistent with the
+  UIKit-flavored stubs). Wired through all four positions: top-level
+  (expandedTopLevelItems feeds collector + run), struct members, statements
+  (control flow propagates), builders (active clause contributes views), and
+  postfix modifier chains (PostfixIfConfigExpr grafts the base onto the
+  active clause's chain). TabBars advanced (UIDevice chain), NotesMacOS +
+  SharedLogin-Updated pass. **315/400 → 318/400**.

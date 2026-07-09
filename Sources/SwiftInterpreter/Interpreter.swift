@@ -75,7 +75,7 @@ public final class Interpreter {
         try collectDeclarations(from: file)
 
         var last: RuntimeValue = .void
-        for item in file.statements {
+        for item in expandedTopLevelItems(file.statements) {
             if case .decl(let decl) = item.item,
                decl.is(StructDeclSyntax.self) || decl.is(ClassDeclSyntax.self)
                 || decl.is(FunctionDeclSyntax.self)

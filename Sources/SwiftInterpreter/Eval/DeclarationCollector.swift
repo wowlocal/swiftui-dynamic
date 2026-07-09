@@ -5,8 +5,25 @@ import SwiftSyntax
 /// Top-level `let`/`var` and expressions are executed in source order by
 /// `Interpreter.run` afterwards.
 extension Interpreter {
+    /// Flattens active `#if` clauses into the top-level item stream.
+    func expandedTopLevelItems(_ items: CodeBlockItemListSyntax) -> [CodeBlockItemSyntax] {
+        var out: [CodeBlockItemSyntax] = []
+        for item in items {
+            if case .decl(let decl) = item.item,
+               let ifConfig = decl.as(IfConfigDeclSyntax.self) {
+                if let clause = activeIfConfigClause(ifConfig),
+                   case .statements(let nested)? = clause.elements {
+                    out += expandedTopLevelItems(nested)
+                }
+                continue
+            }
+            out.append(item)
+        }
+        return out
+    }
+
     func collectDeclarations(from file: SourceFileSyntax) throws {
-        for item in file.statements {
+        for item in expandedTopLevelItems(file.statements) {
             guard case .decl(let decl) = item.item else { continue }
             if let structDecl = decl.as(StructDeclSyntax.self) {
                 try collectStruct(structDecl)
@@ -29,7 +46,7 @@ extension Interpreter {
                 }
             }
         }
-        for item in file.statements {
+        for item in expandedTopLevelItems(file.statements) {
             guard case .decl(let decl) = item.item,
                   let extensionDecl = decl.as(ExtensionDeclSyntax.self) else { continue }
             try collectExtension(extensionDecl)
@@ -42,6 +59,65 @@ extension Interpreter {
         varDecl.bindings.allSatisfy {
             $0.pattern.is(IdentifierPatternSyntax.self) && $0.accessorBlock == nil
         }
+    }
+
+    // MARK: - Conditional compilation
+
+    /// `#if` conditions under the harness's identity: an iOS-shaped canvas.
+    /// os(iOS)/canImport(_)/DEBUG/swift(…) hold; os(macOS)/
+    /// targetEnvironment(simulator) and anything unknown don't (documented).
+    func ifConfigConditionHolds(_ condition: ExprSyntax?) -> Bool {
+        guard let condition else { return true } // #else
+        if let paren = condition.as(TupleExprSyntax.self), paren.elements.count == 1,
+           let only = paren.elements.first {
+            return ifConfigConditionHolds(only.expression)
+        }
+        if let ref = condition.as(DeclReferenceExprSyntax.self) {
+            return ref.baseName.text == "DEBUG"
+        }
+        if let call = condition.as(FunctionCallExprSyntax.self),
+           let callee = call.calledExpression.as(DeclReferenceExprSyntax.self) {
+            let argument = call.arguments.first?.expression.trimmedDescription ?? ""
+            switch callee.baseName.text {
+            case "os": return argument == "iOS"
+            case "canImport": return true
+            case "swift", "compiler": return true
+            case "targetEnvironment": return false
+            default: return false
+            }
+        }
+        if let prefix = condition.as(PrefixOperatorExprSyntax.self), prefix.operator.text == "!" {
+            return !ifConfigConditionHolds(prefix.expression)
+        }
+        if let infix = condition.as(InfixOperatorExprSyntax.self) {
+            let op = infix.operator.trimmedDescription
+            if op == "&&" {
+                return ifConfigConditionHolds(infix.leftOperand) && ifConfigConditionHolds(infix.rightOperand)
+            }
+            if op == "||" {
+                return ifConfigConditionHolds(infix.leftOperand) || ifConfigConditionHolds(infix.rightOperand)
+            }
+        }
+        if let sequence = condition.as(SequenceExprSyntax.self) {
+            // #if conditions aren't operator-folded; handle && / || runs.
+            let elements = Array(sequence.elements)
+            let operators = stride(from: 1, to: elements.count, by: 2).compactMap {
+                elements[$0].as(BinaryOperatorExprSyntax.self)?.operator.text
+            }
+            let operands = stride(from: 0, to: elements.count, by: 2).map { elements[$0] }
+            if operators.allSatisfy({ $0 == "&&" }), !operators.isEmpty {
+                return operands.allSatisfy { ifConfigConditionHolds($0) }
+            }
+            if operators.allSatisfy({ $0 == "||" }), !operators.isEmpty {
+                return operands.contains { ifConfigConditionHolds($0) }
+            }
+        }
+        return false
+    }
+
+    /// The first clause whose condition holds (`#else` always does).
+    func activeIfConfigClause(_ node: IfConfigDeclSyntax) -> IfConfigClauseSyntax? {
+        node.clauses.first { ifConfigConditionHolds($0.condition) }
     }
 
     // MARK: - Structs
@@ -78,7 +154,18 @@ extension Interpreter {
     }
 
     private func collectStructMembers(_ block: MemberBlockSyntax, into symbol: StructSymbol) throws {
-        for member in block.members {
+        try collectMemberItems(block.members, into: symbol)
+    }
+
+    private func collectMemberItems(_ members: MemberBlockItemListSyntax, into symbol: StructSymbol) throws {
+        for member in members {
+            if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
+                if let clause = activeIfConfigClause(ifConfig),
+                   case .decls(let nested)? = clause.elements {
+                    try collectMemberItems(nested, into: symbol)
+                }
+                continue
+            }
             if let varDecl = member.decl.as(VariableDeclSyntax.self) {
                 try collectProperties(varDecl, into: symbol)
             } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
