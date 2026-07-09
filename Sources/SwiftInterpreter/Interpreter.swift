@@ -562,12 +562,16 @@ public final class Interpreter {
             if let i = value.intValue { return .native(i) }
             if let d = value.doubleValue { return .native(Int(d)) }
             if let s = value.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            // Numeric conversion of an unknowable reads the fresh state —
+            // Int(player.currentTime.truncatingRemainder(…)) is 0, not nil.
+            if let z = Builtins.absorbedNumeric(value) { return .native(Int(z.isFinite ? z : 0)) }
             return .nilValue
         }
         define("Double") { args, _ in
             guard let value = args.positional(0) else { return .nilValue }
             if let d = value.doubleValue { return .native(d) }
             if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            if let z = Builtins.absorbedNumeric(value) { return .native(z) }
             return .nilValue
         }
         define("Float") { args, _ in
@@ -575,6 +579,7 @@ public final class Interpreter {
             guard let value = args.positional(0) else { return .nilValue }
             if let d = value.doubleValue { return .native(d) }
             if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            if let z = Builtins.absorbedNumeric(value) { return .native(z) }
             return .nilValue
         }
         define("CGFloat") { args, _ in

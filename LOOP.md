@@ -752,3 +752,9 @@ Each iteration does exactly this:
   memberwise error (new isInterpretedType gate).
   WeatherAppScrolling_Rain_Effect_Updated passes (199 nodes).
   **575 → 576/588 (97.8%).**
+- 2026-07-09 iter 94: numeric conversions absorb unknowables — Int()/
+  Double()/Float() of host markers/chains read the fresh state (0; .pi/
+  .infinity markers keep their constants) via new Builtins.absorbedNumeric,
+  instead of yielding nil that poisons downstream comparisons
+  (`Int(player.currentTime.truncatingRemainder(…)) < 9`).
+  Audio_Player passes (40 nodes, 9 actions). **576 → 577/588 (98.0%).**

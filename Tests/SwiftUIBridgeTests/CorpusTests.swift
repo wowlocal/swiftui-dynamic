@@ -413,6 +413,29 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// Numeric conversions of unknowable values read the fresh state:
+    /// Int(stub chain) is 0 (not nil), so downstream comparisons and
+    /// formatting work like a just-launched app.
+    @Test func numericConversionsAbsorbUnknowables() throws {
+        let source = """
+        struct ContentView: View {
+            func formatted(_ value: TimeInterval) -> String {
+                "\\(Int(value / 60)):\\(Int(value.truncatingRemainder(dividingBy: 60)) < 9 ? "0" : "")\\(Int(value.truncatingRemainder(dividingBy: 60)))"
+            }
+
+            var body: some View {
+                let player = AVAudioPlayer()
+                VStack {
+                    Text(formatted(player.currentTime))
+                    Text(Double(player.duration) == 0 ? "fresh" : "playing")
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     @Test func corpusIsPopulated() {
         #expect(corpusFiles.count >= 10)
     }

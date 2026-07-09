@@ -88,6 +88,28 @@ enum Builtins {
         }
     }
 
+    /// The fresh-state numeric reading of an unknowable value: well-known
+    /// numeric markers (.pi/.zero/.infinity…) map to their constants; hosted
+    /// objects and unresolved chains read ZERO (the fresh canvas). Returns
+    /// nil for real values — callers keep their concrete coercions.
+    static func absorbedNumeric(_ value: RuntimeValue) -> Double? {
+        if case .implicitMember(let name) = value {
+            switch name {
+            case "pi": return Double.pi
+            case "zero": return 0
+            case "infinity": return .infinity
+            case "leastNonzeroMagnitude": return .leastNonzeroMagnitude
+            case "greatestFiniteMagnitude": return .greatestFiniteMagnitude
+            default: return nil
+            }
+        }
+        if case .native(let any) = value,
+           any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+            return 0.0
+        }
+        return nil
+    }
+
     private static func arithmetic(
         _ op: String,
         _ lhs: RuntimeValue,
