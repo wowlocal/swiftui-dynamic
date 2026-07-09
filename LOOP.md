@@ -454,3 +454,9 @@ Each iteration does exactly this:
   postfix modifier chains (PostfixIfConfigExpr grafts the base onto the
   active clause's chain). TabBars advanced (UIDevice chain), NotesMacOS +
   SharedLogin-Updated pass. **315/400 → 318/400**.
+- 2026-07-09 iter 56: @Bindable locals — `$name` resolution consults scope
+  LOCALS before the self property path: a local holding a model instance
+  projects member bindings (ModelProjection), a local binding projects
+  itself. `@Bindable var x = model; $x.activeTab` — the Observation binding
+  idiom. TabBarSheet, CustomNavigationPopItems, ZoomTransitions pass.
+  **318/400 → 321/400 (80.25% — next iteration raises the window to --all).**

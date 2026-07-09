@@ -41,6 +41,36 @@ enum Corpus {
         #expect(report.nodeCount > 1, "\(file) rendered a trivial tree")
     }
 
+    /// `@Bindable var x = model` as a body-local: `$x.field` projects a
+    /// binding into the observable model's own storage.
+    @Test func bindableLocalProjectsModelBindings() throws {
+        let source = """
+        @Observable
+        class SharedModel {
+            var activeTab: String = "home"
+            var showsSheet: Bool = false
+        }
+
+        struct ContentView: View {
+            @Environment(SharedModel.self) private var sharedModel
+
+            var body: some View {
+                @Bindable var bindableObject = sharedModel
+                VStack {
+                    Toggle("Sheet", isOn: $bindableObject.showsSheet)
+                    Text(bindableObject.activeTab)
+                    Button("Go profile") {
+                        sharedModel.activeTab = "profile"
+                    }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+        #expect(report.actionsInvoked == 1)
+    }
+
     /// `#if os(iOS)` in builder and postfix (modifier-chain) positions.
     @Test func conditionalCompilationInBuildersAndPostfix() throws {
         let source = """

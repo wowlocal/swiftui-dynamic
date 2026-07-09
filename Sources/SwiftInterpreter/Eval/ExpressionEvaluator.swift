@@ -196,6 +196,18 @@ extension Interpreter {
         // (`$0`-style closure shorthands were already bound in the environment.)
         if name.hasPrefix("$"), name.count > 1, !name.dropFirst().allSatisfy(\.isNumber) {
             let propertyName = String(name.dropFirst())
+            // `@Bindable var x = model` — a LOCAL holding a model instance
+            // projects member bindings (`$x.activeTab`); a local binding
+            // projects itself.
+            if let localBox = env.box(for: propertyName) {
+                let local = try force(localBox)
+                if case .instance(let model) = local {
+                    return .native(ModelProjection(model: model))
+                }
+                if case .native(let any) = local, any is BindingStub {
+                    return local
+                }
+            }
             guard case .instance(let instance)? = env.lookup("self") else {
                 throw error(node, "'\(name)' can only be used inside a View body")
             }
