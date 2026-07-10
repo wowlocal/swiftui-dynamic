@@ -579,6 +579,23 @@ enum JSONDecodeBridge {
                 try decode(array[0], json: $0, interpreter: interpreter, decoder: decoder)
             })
         }
+        // A generic APPLICATION (`PaginatedResponse<Movie>`): the head
+        // symbol decodes with its generic parameters substituted by the
+        // application's arguments (results: [T] → [Movie]).
+        if case .host(let any) = typeValue, let application = any as? GenericApplication {
+            let text = application.text
+            guard let angle = text.firstIndex(of: "<"), text.hasSuffix(">"),
+                  case .type(let symbol)? = interpreter.typeValue(named: String(text[..<angle])) else {
+                throw RuntimeError(message: "decode: unresolvable generic application '\(text)'")
+            }
+            let arguments = Interpreter.splitTopLevel(
+                String(text[text.index(after: angle)..<text.index(before: text.endIndex)]))
+            let substitutions = Dictionary(
+                uniqueKeysWithValues: zip(symbol.orderedGenericParameters, arguments))
+            return try decodeInstance(
+                of: symbol, json: json, interpreter: interpreter, decoder: decoder,
+                substitutions: substitutions)
+        }
         switch typeValue {
         case .type(let symbol):
             return try decodeInstance(of: symbol, json: json, interpreter: interpreter, decoder: decoder)
@@ -590,7 +607,8 @@ enum JSONDecodeBridge {
     }
 
     private static func decodeInstance(
-        of symbol: StructSymbol, json: Any, interpreter: Interpreter, decoder: JSONDecoderBox
+        of symbol: StructSymbol, json: Any, interpreter: Interpreter, decoder: JSONDecoderBox,
+        substitutions: [String: String] = [:]
     ) throws -> RuntimeValue {
         // A declared `init(from: Decoder)` runs against a Decoder stub —
         // real Codable semantics (HTMLString decodes from a plain string
@@ -614,11 +632,14 @@ enum JSONDecodeBridge {
                 }
             }
         }
-        return try structuralDecode(of: symbol, json: json, interpreter: interpreter, decoder: decoder)
+        return try structuralDecode(
+            of: symbol, json: json, interpreter: interpreter, decoder: decoder,
+            substitutions: substitutions)
     }
 
     private static func structuralDecode(
-        of symbol: StructSymbol, json: Any, interpreter: Interpreter, decoder: JSONDecoderBox
+        of symbol: StructSymbol, json: Any, interpreter: Interpreter, decoder: JSONDecoderBox,
+        substitutions: [String: String] = [:]
     ) throws -> RuntimeValue {
         guard let object = json as? [String: Any] else {
             throw RuntimeError(message: "decode(\(symbol.name)): expected a JSON object")
@@ -627,7 +648,10 @@ enum JSONDecodeBridge {
         var arguments: [CallArguments.Argument] = []
         for property in symbol.storedProperties {
             let jsonValue = lookup(property.name, in: object, codingKeys: codingKeys)
-            let annotation = property.typeAnnotation?.trimmedDescription
+            var annotation = property.typeAnnotation?.trimmedDescription
+            if let text = annotation, !substitutions.isEmpty {
+                annotation = substituteGenerics(text, substitutions)
+            }
             if jsonValue == nil || jsonValue is NSNull {
                 if annotation?.hasSuffix("?") == true {
                     arguments.append(.init(label: property.name, value: .nilValue))
@@ -752,6 +776,27 @@ enum JSONDecodeBridge {
         return try decodeField(
             json, annotation: annotation, interpreter: interpreter, decoder: decoder,
             context: context)
+    }
+
+    /// Whole-identifier substitution: `[T]` with T→Movie is `[Movie]`;
+    /// `PaginatedT` stays untouched.
+    static func substituteGenerics(_ text: String, _ substitutions: [String: String]) -> String {
+        var out = ""
+        var identifier = ""
+        func flush() {
+            out += substitutions[identifier] ?? identifier
+            identifier = ""
+        }
+        for ch in text {
+            if ch.isLetter || ch.isNumber || ch == "_" {
+                identifier.append(ch)
+            } else {
+                flush()
+                out.append(ch)
+            }
+        }
+        flush()
+        return out
     }
 
     private static func codingKeyMap(of symbol: StructSymbol) -> [String: String] {

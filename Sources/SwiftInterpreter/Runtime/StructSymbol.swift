@@ -91,6 +91,8 @@ public final class StructSymbol {
     /// so properties typed by a GENERIC PARAMETER never synthesize as a
     /// same-named concrete type from elsewhere in the merge.
     public internal(set) var genericParameters: [String: String] = [:]
+    /// Declaration order — generic-application decode zips arguments here.
+    public internal(set) var orderedGenericParameters: [String] = []
     /// The full inheritance clause — protocol-extension defaults dispatch
     /// through these names.
     public internal(set) var conformances: [String] = []
@@ -115,6 +117,11 @@ public final class StructSymbol {
         public let getter: CodeBlockItemListSyntax
         public let setter: ComputedProperty.Setter?
     }
+
+    /// Custom-property-wrapper STATICS (`@UserDefault("key", defaultValue:
+    /// false) static var flag: Bool`): the wrapper ATTRIBUTE, applied at
+    /// read time through the wrapper type's wrappedValue.
+    public internal(set) var staticWrapped: [String: AttributeSyntax] = [:]
 
     public internal(set) var subscripts: [SubscriptMember] = []
     public internal(set) var storedProperties: [StoredProperty] = []

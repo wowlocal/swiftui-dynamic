@@ -198,10 +198,12 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
-      Store.state + dispatch → reducer → objectWillChange (the last
-      open LiveCheck rung-blocker; probe shows 12 strings, root
-      app:StoreProvider, 6 lifecycle closures firing).
+   1. `.modifier(m)` MEMBER spelling still absorbs (the interception
+      that ran interpreted ViewModifier bodies at member sites broke
+      isowords/winston/KeyboardCowboy and was removed; the
+      ModifiedContent(content:modifier:) ctor form RUNS bodies). Wire
+      the member spelling through applyViewModifier without disturbing
+      registry-modifier flows when the histogram demands it.
       (State identity note: per-identity @State persistence is OPT-IN
       via `Interpreter.persistentViewState` — LiveCheck sets it; M0
       probes keep fresh-per-instantiation state, see README divergence.
@@ -2141,3 +2143,27 @@ between iterations 35 and 183.)
   renders and clicks: 77 nodes, 4 actions. **678 → 679/680 — ZERO
   failures (FORTY-THIRD saturation); suite 417 → 424; LiveCheck 3/4.
   Queue: SwiftUIFlux (movieswiftui) is the top open class.**
+- 2026-07-10 iter 198: LiveCheck queue #1 (SwiftUIFlux, movieswiftui)
+  CLOSED — **LiveCheck 4/4: every live-data scenario GREEN.** The
+  SOURCE-LIBRARY SHIM mechanism landed (LibraryShims: a library the
+  merge imports but doesn't vendor gets its distilled public core
+  appended — SwiftUIFlux's Store/dispatch/AsyncAction/StoreProvider/
+  ConnectedView, ~60 lines of the real semantics). The chain to green:
+  generic T binds from TYPED COMPLETION closures (makeClosure keeps
+  closure-parameter annotations; the parallel-session unifier consumes
+  them), generic APPLICATIONS decode (`PaginatedResponse<Movie>` rides
+  textually via GenericApplication + typeDescriptor; the decode bridge
+  substitutes ordered generic parameters into property annotations —
+  results: [T] → [Movie]), `as?` returns NIL on DEFINITE interpreted
+  mismatches (declared type/protocol targets with transitive protocol
+  inheritance — SwiftUIFlux's `action as? AsyncAction` took the async
+  branch for EVERY action under the optimistic divergence, so sync
+  actions never reduced), custom property wrappers on STATICS read
+  through wrappedValue (@UserDefault-genre), and ModifiedContent(
+  content:modifier:) RUNS the ViewModifier's body (MovieRow's
+  titleStyle was recording "TitleFont(size: 16)" where titles
+  belonged). A `.modifier()` MEMBER-spelling interception was tried
+  and REVERTED (broke isowords/winston/KeyboardCowboy — running
+  arbitrary interpreted modifier bodies at member sites is queued
+  behind a safer wiring). **679/680 unchanged; suite 426 → 431;
+  LiveCheck 3/4 → 4/4.**

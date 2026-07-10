@@ -235,6 +235,22 @@ extension Interpreter {
             }
             var typeName = asExpr.type.trimmedDescription
             if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+            // A DEFINITE mismatch is nil when both sides are declared in
+            // this merge (`action as? AsyncAction` over a plain Action —
+            // the SwiftUIFlux dispatch genre); host values and unknown
+            // types keep the optimistic pass-through divergence.
+            if asExpr.questionOrExclamationMark?.text == "?" {
+                let checkable: Bool
+                switch value {
+                case .instance, .enumCase: checkable = true
+                default: checkable = false
+                }
+                let declaredTarget = typeValue(named: typeName) != nil
+                    || protocolInheritance[typeName] != nil
+                if checkable, declaredTarget, !valueIsType(value, typeName) {
+                    return .nilValue
+                }
+            }
             switch typeName {
             case "Double", "CGFloat", "TimeInterval":
                 if let d = value.doubleValue { return .native(d) }
@@ -1263,6 +1279,34 @@ extension Interpreter {
                 return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol))))
             }
         }
+        if let attribute = symbol.staticWrapped[name],
+           case .type(let wrapperSymbol)? = globals.lookup(attribute.attributeName.trimmedDescription),
+           wrapperSymbol.computedProperties["wrappedValue"] != nil
+               || wrapperSymbol.storedProperty(named: "wrappedValue") != nil {
+            // Custom-wrapper static: the backing wrapper instance builds
+            // once from the attribute's arguments; every read runs its
+            // wrappedValue getter (AppUserDefaults.alwaysOriginalTitle).
+            let backingKey = "__wrapper_" + name
+            let backing: RuntimeValue
+            if let cached = symbol.staticCache[backingKey] {
+                backing = cached
+            } else {
+                var arguments: [CallArguments.Argument] = []
+                if case .argumentList(let list)? = attribute.arguments {
+                    for element in list {
+                        arguments.append(.init(
+                            label: element.label?.text,
+                            value: try evaluate(element.expression, in: globals)))
+                    }
+                }
+                backing = try instantiate(
+                    wrapperSymbol, with: CallArguments(arguments: arguments), node: nil)
+                symbol.staticCache[backingKey] = backing
+            }
+            if case .instance(let wrapper) = backing {
+                return try instanceMember("wrappedValue", on: wrapper)
+            }
+        }
         if symbol.staticUninitialized.contains(name) { return .nilValue }
         return nil
     }
@@ -1329,14 +1373,22 @@ extension Interpreter {
         case .instance(let instance):
             var symbol: StructSymbol? = instance.symbol
             while let current = symbol {
-                if current.name == typeName || current.conformances.contains(typeName) { return true }
+                if current.name == typeName { return true }
+                if current.conformances.contains(where: { conformance in
+                    var seen = Set<String>()
+                    return protocolReaches(conformance, target: typeName, seen: &seen)
+                }) { return true }
                 guard let superName = current.superclassName,
                       case .type(let parent)? = globals.lookup(superName) else { break }
                 symbol = parent
             }
             return false
         case .enumCase(let caseValue):
-            return caseValue.symbol.name == typeName || caseValue.symbol.conformances.contains(typeName)
+            if caseValue.symbol.name == typeName { return true }
+            return caseValue.symbol.conformances.contains { conformance in
+                var seen = Set<String>()
+                return protocolReaches(conformance, target: typeName, seen: &seen)
+            }
         case .host(let any):
             if any is String || any is NSString { return ["String", "NSString"].contains(typeName) }
             if any is Date { return ["Date", "NSDate"].contains(typeName) }
@@ -1353,7 +1405,36 @@ extension Interpreter {
         }
     }
 
+    /// A custom ViewModifier applies by RUNNING its body(content:) — real
+    /// semantics for both spellings (`.modifier(m)` and
+    /// `ModifiedContent(content:modifier:)`).
+    func applyViewModifier(
+        _ modifier: Instance, to content: RuntimeValue, node: Syntax?
+    ) throws -> RuntimeValue {
+        guard let overloads = modifier.symbol.methods["body"], let method = overloads.first,
+              let body = method.body else {
+            return content // bodyless conformer: identity
+        }
+        let closure = makeFunctionClosure(
+            method, body: body, captured: selfEnvironment(.instance(modifier)))
+        return try callWithArguments(
+            closure,
+            args: CallArguments(arguments: [.init(label: "content", value: content)]),
+            node: node)
+    }
+
     func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
+        // `ModifiedContent(content: self, modifier: TitleFont(size: 16))` —
+        // the explicit ViewModifier application (MovieSwiftUI's titleStyle).
+        if let ref = call.calledExpression.as(DeclReferenceExprSyntax.self),
+           ref.baseName.text == "ModifiedContent",
+           env.box(for: "ModifiedContent") == nil, globals.lookup("ModifiedContent") == nil {
+            let args = try collectArguments(of: call, in: env)
+            if let content = args.labeled("content"),
+               case .instance(let modifier)? = args.labeled("modifier") {
+                return try applyViewModifier(modifier, to: content, node: Syntax(call))
+            }
+        }
         // `[Index]()` / `[String: Int]()` — typed empty containers.
         if call.calledExpression.is(ArrayExprSyntax.self) {
             if call.arguments.isEmpty { return .native([RuntimeValue]()) }
@@ -2040,7 +2121,11 @@ extension Interpreter {
             case .simpleInput(let shorthand):
                 parameters = shorthand.map { .init(name: $0.name.text) }
             case .parameterClause(let clause):
-                parameters = clause.parameters.map { .init(name: ($0.secondName ?? $0.firstName).text) }
+                // Typed closure parameters (`{ (result: Result<…>) in }`)
+                // keep their annotations — generic unification reads them.
+                parameters = clause.parameters.map {
+                    .init(name: ($0.secondName ?? $0.firstName).text, typeAnnotation: $0.type)
+                }
             }
         }
         return ClosureValue(parameters: parameters, body: closure.statements, captured: env)
@@ -2176,7 +2261,7 @@ extension Interpreter {
         return Self.splitTopLevel(inner)
     }
 
-    static func splitTopLevel(_ text: String) -> [String] {
+    public static func splitTopLevel(_ text: String) -> [String] {
         var parts: [String] = []
         var depth = 0
         var current = ""
@@ -2257,6 +2342,13 @@ extension Interpreter {
             let inner = String(name.dropFirst().dropLast())
             guard !inner.contains(":") else { return nil } // dictionaries later
             return typeDescriptor(named: inner).map { .native([$0]) }
+        }
+        // A generic APPLICATION (`PaginatedResponse<Movie>`) rides textually
+        // when its head is a declared type — decode re-parses it to bind
+        // the struct's own generics.
+        if let angle = name.firstIndex(of: "<"), name.hasSuffix(">"),
+           typeValue(named: String(name[..<angle])) != nil {
+            return .native(GenericApplication(text: name))
         }
         return typeValue(named: name)
     }

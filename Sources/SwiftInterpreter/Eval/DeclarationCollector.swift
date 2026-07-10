@@ -274,6 +274,7 @@ extension Interpreter {
         for parameter in clause.parameters {
             symbol.genericParameters[parameter.name.text] =
                 parameter.inheritedType?.trimmedDescription ?? ""
+            symbol.orderedGenericParameters.append(parameter.name.text)
         }
     }
 
@@ -519,6 +520,13 @@ extension Interpreter {
                         initializer: initializer,
                         typeAnnotation: binding.typeAnnotation?.type
                     )
+                } else if let wrapper = varDecl.attributes.compactMap({ $0.as(AttributeSyntax.self) }).first(where: {
+                    $0.arguments != nil && $0.attributeName.trimmedDescription.first?.isUppercase == true
+                }) {
+                    // `@UserDefault("key", defaultValue: …) static var x` —
+                    // a CUSTOM wrapper; reads go through wrappedValue.
+                    symbol.staticWrapped[name] = wrapper
+                    symbol.staticUninitialized.insert(name)
                 } else {
                     // `static var shared: ChatClient!` — nil until written.
                     symbol.staticUninitialized.insert(name)

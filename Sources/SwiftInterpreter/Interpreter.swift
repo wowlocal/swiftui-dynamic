@@ -36,6 +36,15 @@ public final class Interpreter {
         return inherited.contains { protocolReachesView($0, seen: &seen) }
     }
 
+    /// Transitive protocol conformance (`AsyncAction: Action` reaches
+    /// `Action`) — the `is`/`as?` machinery walks declared inheritance.
+    func protocolReaches(_ name: String, target: String, seen: inout Set<String>) -> Bool {
+        if name == target { return true }
+        guard seen.insert(name).inserted else { return false }
+        guard let inherited = protocolInheritance[name] else { return false }
+        return inherited.contains { protocolReaches($0, target: target, seen: &seen) }
+    }
+
     func resolveTransitiveViewConformance() {
         guard !protocolInheritance.isEmpty else { return }
         for symbol in structSymbols where !symbol.conformsToView {

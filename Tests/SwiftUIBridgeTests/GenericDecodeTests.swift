@@ -231,3 +231,228 @@ import SwiftInterpreter
         #expect(tuple.values[1].doubleValue == 5.0)
     }
 }
+
+/// The APIService genre (iteration 198, movieswiftui): a generic
+/// `GET<T: Codable>` whose T binds from the CALLER's typed completion
+/// closure, decoded inside a nested dataTask completion — including the
+/// callee's OWN generic struct (`PaginatedResponse<T>.results: [T]`).
+@Suite struct CompletionClosureGenericTests {
+    @Test func genericBindsFromTypedCompletionClosure() throws {
+        let directory = NSTemporaryDirectory() + "flux-decode-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: directory) }
+        let json = #"{"page": 1, "total_results": 2, "results": [{"id": 1, "title": "Dune"}, {"id": 2, "title": "Arrival"}]}"#
+        try Data(json.utf8).write(to: URL(fileURLWithPath: directory + "/3_movie_popular.json"))
+        NetworkBridge.policy = .replay(fixturesDirectory: directory)
+        defer { NetworkBridge.policy = .absorbed }
+        let source = """
+        struct Movie: Codable {
+            let id: Int
+            let title: String
+        }
+
+        struct PaginatedResponse<T: Codable>: Codable {
+            let page: Int?
+            let totalResults: Int?
+            let results: [T]
+        }
+
+        enum APIError: Error {
+            case noResponse
+            case jsonDecodingError(error: Error)
+        }
+
+        final class APIService {
+            static let shared = APIService()
+            let decoder = JSONDecoder()
+
+            init() {
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+            }
+
+            func GET<T: Codable>(path: String,
+                                 completionHandler: @escaping (Result<T, APIError>) -> Void) {
+                let url = URL(string: "https://api.themoviedb.org" + path)!
+                var request = URLRequest(url: url)
+                request.httpMethod = "GET"
+                let task = URLSession.shared.dataTask(with: request) { (data, response, error) in
+                    guard let data = data else {
+                        completionHandler(.failure(.noResponse))
+                        return
+                    }
+                    do {
+                        let object = try self.decoder.decode(T.self, from: data)
+                        completionHandler(.success(object))
+                    } catch {
+                        completionHandler(.failure(.jsonDecodingError(error: error)))
+                    }
+                }
+                task.resume()
+            }
+        }
+
+        var titles: [String] = []
+        APIService.shared.GET(path: "/3/movie/popular") {
+            (result: Result<PaginatedResponse<Movie>, APIError>) in
+            switch result {
+            case let .success(response):
+                titles = response.results.map { $0.title }
+            case .failure:
+                break
+            }
+        }
+        titles.joined(separator: "|")
+        """
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.stringValue == "Dune|Arrival", "got \(result.stringified)")
+    }
+}
+
+@Suite struct DictMergeOperatorTests {
+    @Test func customDictPlusEqualsMerges() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+struct Movie: Codable { let id: Int; let title: String }
+func +=(lhs: inout [Int: Movie], rhs: [Movie]) {
+    for movie in rhs {
+        lhs[movie.id] = movie
+    }
+}
+struct MoviesState {
+    var movies: [Int: Movie] = [:]
+}
+var state = MoviesState()
+state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
+(state.movies.count, state.movies[5]?.title ?? "missing")
+""")
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 2)
+        #expect(tuple.values[1].stringValue == "Dune")
+    }
+}
+
+@Suite struct FluxShimTests {
+    @Test func shimStoreDispatchReduces() throws {
+        let shim = LibraryShims.shims(importedIn: ["SwiftUIFlux"], mergedSource: "")
+        let source = """
+        struct CounterState: FluxState {
+            var count = 0
+        }
+
+        struct Increment: Action {
+            let amount: Int
+        }
+
+        struct FetchThenIncrement: AsyncAction {
+            func execute(state: FluxState?, dispatch: @escaping DispatchFunction) {
+                dispatch(Increment(amount: 2))
+            }
+        }
+
+        func counterReducer(state: CounterState, action: Action) -> CounterState {
+            var state = state
+            switch action {
+            case let action as Increment:
+                state.count += action.amount
+            default:
+                break
+            }
+            return state
+        }
+
+        let store = Store<CounterState>(reducer: counterReducer, state: CounterState())
+        store.dispatch(action: Increment(amount: 1))
+        store.dispatch(action: FetchThenIncrement())
+        store.state.count
+        """ + shim
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.intValue == 3, "got \(result.stringified)")
+    }
+}
+
+@Suite struct ViewModifierBodyTests {
+    @Test func customModifierRunsItsBody() throws {
+        let source = """
+        struct TitleFont: ViewModifier {
+            let size: CGFloat
+
+            func body(content: Content) -> some View {
+                content.font(.system(size: size, weight: .bold, design: .rounded))
+            }
+        }
+
+        extension View {
+            func titleStyle() -> some View {
+                self.modifier(TitleFont(size: 16))
+            }
+        }
+
+        struct AppUserDefaults {
+            @UserDefault("original_title", defaultValue: false)
+            static var alwaysOriginalTitle: Bool
+        }
+
+        @propertyWrapper
+        struct UserDefault<T> {
+            let key: String
+            let defaultValue: T
+
+            init(_ key: String, defaultValue: T) {
+                self.key = key
+                self.defaultValue = defaultValue
+            }
+
+            var wrappedValue: T {
+                get {
+                    return UserDefaults.standard.object(forKey: key) as? T ?? defaultValue
+                }
+                set {
+                    UserDefaults.standard.set(newValue, forKey: key)
+                }
+            }
+        }
+
+        struct ContentView: View {
+            let title = "Dune Part Three"
+
+            var userTitle: String {
+                AppUserDefaults.alwaysOriginalTitle ? "DUNE III" : title
+            }
+
+            var body: some View {
+                Text(userTitle)
+                    .titleStyle()
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("Dune Part Three"),
+                "the modifier body must pass content through, got \(strings)")
+    }
+}
+
+@Suite struct ModifiedContentTests {
+    @Test func explicitModifiedContentApplies() throws {
+        let source = """
+        struct Badge: ViewModifier {
+            func body(content: Content) -> some View {
+                content.padding()
+            }
+        }
+
+        extension View {
+            func badged() -> some View {
+                return ModifiedContent(content: self, modifier: Badge())
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text("badge title").badged()
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("badge title"),
+                "ModifiedContent(content:modifier:) runs the modifier body, got \(strings)")
+    }
+}

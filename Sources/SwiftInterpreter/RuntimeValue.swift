@@ -154,6 +154,16 @@ extension RuntimeValue {
     }
 }
 
+/// A generic TYPE APPLICATION carried textually (`PaginatedResponse<Movie>`)
+/// — the decode bridge re-parses it to bind the struct's own generics.
+public struct GenericApplication {
+    public let text: String
+
+    public init(text: String) {
+        self.text = text
+    }
+}
+
 /// A call on an implicit member expression, e.g. `.system(size: 40)` — carried
 /// opaquely until a gateway resolves it against the parameter's expected type.
 public struct ImplicitMemberCall {

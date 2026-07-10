@@ -37,6 +37,7 @@ public enum ProjectMaterial {
     /// interpreter absorbs what a compiled import would provide).
     public static func mergedSource(files: [String]) -> String {
         var merged = ""
+        var imports: Set<String> = []
         for path in files {
             guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
             // Hard parse errors prove a file isn't a member of any
@@ -55,6 +56,11 @@ public enum ProjectMaterial {
                 .split(separator: "\n", omittingEmptySubsequences: false)
                 .filter { line in
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("import ") {
+                        let module = trimmed.dropFirst("import ".count)
+                            .split(separator: " ").last.map(String.init) ?? ""
+                        imports.insert(module.split(separator: ".").first.map(String.init) ?? module)
+                    }
                     // Shebangs (build-phase scripts run as `swift file.swift`)
                     // are meaningless in module compilation — strip like
                     // imports so the script's Swift still merges.
@@ -64,6 +70,9 @@ public enum ProjectMaterial {
                 .joined(separator: "\n")
             merged += "\n// FILE: \(URL(fileURLWithPath: path).lastPathComponent)\n" + stripped + "\n"
         }
+        // Source-distributed state libraries the app imports but doesn't
+        // vendor get their distilled core appended (LibraryShims).
+        merged += LibraryShims.shims(importedIn: imports, mergedSource: merged)
         return merged
     }
 
