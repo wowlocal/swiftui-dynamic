@@ -167,6 +167,37 @@ let scenarios: [Scenario] = [
         }
         return [message]
     },
+    Scenario(name: "achnbrowser-items-ui", fixturesDirectory: "/Users/mike/src/tries/2026-07-08-swiftui-dynamic/External/oss/ACHNBrowserUI/ACHNBrowserUI/Packages/Backend/Sources/Backend/Resources/json") {
+        // A THIRD async genre: bundled RESOURCE data rides a Combine
+        // pipeline (Result.publisher → decode(type:decoder:) →
+        // subscribe(on:) → sink into @Published). The repo's committed
+        // JSON IS the fixture — real bytes the compiled app ships in
+        // Bundle.module.
+        let resource = ossRoot + "/ACHNBrowserUI/ACHNBrowserUI/Packages/Backend/Sources/Backend/Resources/json/fish"
+        guard let json = fixtureJSON(resource) as? [String: Any],
+              let results = json["results"] as? [[String: Any]] else {
+            return ["bundled resource unreadable"]
+        }
+        let expectedNames = results.compactMap { $0["name"] as? String }.prefix(20)
+        let source = ProjectMaterial.mergedSource(at: ossRoot + "/ACHNBrowserUI")
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        let joined = strings.joined(separator: "\n")
+        let found = expectedNames.filter { joined.contains($0) }
+        if found.count >= 3 {
+            return []
+        }
+        var message = "only \(found.count)/\(expectedNames.count) bundled item names reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"
+        for error in LiveCheckSupport.lastLifecycleErrors.prefix(3) {
+            message += "\n     lifecycle error: \(error.prefix(160))"
+        }
+        let absorbed = LiveCheckSupport.lastAbsorbedHostMembers
+            .sorted { $0.value > $1.value }.prefix(8)
+            .map { "\($0.key)×\($0.value)" }
+        if !absorbed.isEmpty {
+            message += "\n     absorbed: \(absorbed.joined(separator: ", "))"
+        }
+        return [message]
+    },
     Scenario(name: "icecubes-timeline-ui", fixturesDirectory: fixtures + "/mastodon-public-timeline") {
         // Launch parity: an UNAUTHENTICATED IceCubes shows TRENDING —
         // expected authors come from whichever fixture the app requests.
