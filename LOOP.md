@@ -198,13 +198,18 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close.
-   CLAIMS: two agents work this repo (the ralph loop and the steering
-   worktree (штурман)). Before STARTING a queue item, prepend `[CLAIMED <agent>
-   <HH:MM>]` to its first line (loop: edit in your iteration commit;
-   steward: via the worktree merge). Skip items with a fresh claim;
-   claims older than ~2 hours are stale and free. Three duplicate
-   implementations happened on 2026-07-10 (decoder stubs, generics,
-   flux) — claims are cheaper:
+   CLAIMS: THREE agents work this repo — this loop (core/M1 lane), the
+   live/M2 lane (LOOP-LIVE.md, worktree-lane-live), and the steering
+   integrator (штурман, worktree-interp-2048-fixes; the ONLY agent that
+   merges to main). The lock is a FILE outside git — instant, no merge
+   latency: `.claude/claims.md` at the repo root (absolute:
+   /Users/mike/src/tries/2026-07-08-swiftui-dynamic/.claude/claims.md).
+   FIRST action of every iteration: read it; a claim younger than ~2h by
+   another agent means SKIP that item. Append `<UTC time> <lane> CLAIM
+   <class>` before starting and `... DONE ...` after your commit. Your
+   lane: interpreter semantics + TestCheck; the live board belongs to
+   lane-live — take LiveCheck walls only if unclaimed AND your TestCheck
+   queue is empty. In-file [CLAIMED] markers are superseded:
    1. [DONE iter 199] `.modifier(m)` member spelling runs interpreted
       ViewModifier bodies (strict shape + environment injection).
       (State identity note: per-identity @State persistence is OPT-IN
