@@ -131,6 +131,88 @@ extension Interpreter {
             case "isEmpty": return .native(dict.isEmpty)
             case "keys": return .native(dict.keys)
             case "values": return .native(dict.values)
+            case "contains":
+                // Dictionary's only contains is the PREDICATE form; the
+                // element is the native (key:, value:) labeled tuple.
+                return .hostFunction(HostFunction(name: name) { args, ctx in
+                    guard let predicate = args.closure(labeled: "where") ?? args.firstUnlabeledClosure else {
+                        throw RuntimeError(message: "Dictionary.contains needs a where: predicate")
+                    }
+                    for (key, value) in zip(dict.keys, dict.values) {
+                        let element = RuntimeValue.native(
+                            TupleValue(labels: ["key", "value"], values: [key, value]))
+                        if try ctx.callClosure(predicate, arguments: [element]).boolValue == true {
+                            return .native(true)
+                        }
+                    }
+                    return .native(false)
+                })
+            case "filter":
+                return .hostFunction(HostFunction(name: name) { args, ctx in
+                    guard let predicate = args.firstUnlabeledClosure ?? args.closure(labeled: "isIncluded") else {
+                        throw RuntimeError(message: "Dictionary.filter needs a predicate")
+                    }
+                    var keys: [RuntimeValue] = []
+                    var values: [RuntimeValue] = []
+                    for (key, value) in zip(dict.keys, dict.values) {
+                        let element = RuntimeValue.native(
+                            TupleValue(labels: ["key", "value"], values: [key, value]))
+                        if try ctx.callClosure(predicate, arguments: [element]).boolValue == true {
+                            keys.append(key)
+                            values.append(value)
+                        }
+                    }
+                    return .native(DictValue(keys: keys, values: values))
+                })
+            case "compactMap":
+                return .hostFunction(HostFunction(name: name) { args, ctx in
+                    guard let transform = args.firstUnlabeledClosure else {
+                        throw RuntimeError(message: "compactMap needs a transform")
+                    }
+                    var out: [RuntimeValue] = []
+                    for (key, value) in zip(dict.keys, dict.values) {
+                        let element = RuntimeValue.native(
+                            TupleValue(labels: ["key", "value"], values: [key, value]))
+                        let mapped = try ctx.callClosure(transform, arguments: [element])
+                        if !mapped.isNil { out.append(mapped) }
+                    }
+                    return .native(out)
+                })
+            case "map":
+                return .hostFunction(HostFunction(name: name) { args, ctx in
+                    guard let transform = args.firstUnlabeledClosure else {
+                        throw RuntimeError(message: "map needs a transform")
+                    }
+                    return .native(try zip(dict.keys, dict.values).map { key, value in
+                        try ctx.callClosure(transform, arguments: [.native(
+                            TupleValue(labels: ["key", "value"], values: [key, value]))])
+                    })
+                })
+            case "sorted":
+                // Dictionary.sorted(by:) — pairs compared as (key:, value:)
+                // elements; the result is the native array-of-tuples.
+                return .hostFunction(HostFunction(name: name) { args, ctx in
+                    guard let areInOrder = args.closure(labeled: "by") ?? args.firstUnlabeledClosure else {
+                        throw RuntimeError(message: "Dictionary.sorted needs a by: predicate")
+                    }
+                    let pairs = zip(dict.keys, dict.values).map { key, value in
+                        RuntimeValue.native(TupleValue(labels: ["key", "value"], values: [key, value]))
+                    }
+                    var sorted = pairs
+                    // Insertion sort via the interpreted predicate (throwing
+                    // comparators can't ride Swift's sort(by:)).
+                    for index in 1..<max(sorted.count, 1) {
+                        var cursor = index
+                        while cursor > 0,
+                              try ctx.callClosure(
+                                  areInOrder,
+                                  arguments: [sorted[cursor], sorted[cursor - 1]]).boolValue == true {
+                            sorted.swapAt(cursor, cursor - 1)
+                            cursor -= 1
+                        }
+                    }
+                    return .native(sorted)
+                })
             case "enumerated":
                 // `for (_, value) in params.enumerated()` (the APIService
                 // genre): (offset, (key:, value:)) pairs, so `value.key` /
