@@ -211,6 +211,26 @@ public final class Interpreter {
     static let traceStateCells = ProcessInfo.processInfo.environment["INTERP_TRACE_STATE"] != nil
     /// Gated call-stack names for cycle diagnosis (nesting-guard dumps).
     var callStackNames: [String] = []
+    /// Declaration → the symbol whose body/extension lexically holds it
+    /// (StructSymbol or EnumSymbol), stamped at collection.
+    var declLexicalOwners: [SyntaxIdentifier: AnyObject] = [:]
+    /// The RUNNING function's declaring scopes, innermost last. Plain
+    /// closures push nothing — they inherit their enclosing frame.
+    var lexicalOwnerFrames: [AnyObject] = []
+
+    /// Bare nested-type lookup with LEXICAL scoping: the running method's
+    /// declaring type wins over the runtime self's (a protocol-extension
+    /// body resolves names at its own scope — clean-architecture's
+    /// `throw APIError.unexpectedResponse` inside `extension WebRepository`
+    /// must not see the conforming test double's nested APIError).
+    func lexicalNestedType(_ name: String, runtime: StructSymbol) -> RuntimeValue? {
+        guard let owner = lexicalOwnerFrames.last else {
+            return runtime.nestedTypes[name]
+        }
+        if let symbol = owner as? StructSymbol { return symbol.nestedTypes[name] }
+        if let symbol = owner as? EnumSymbol { return symbol.nestedTypes[name] }
+        return nil
+    }
 
     /// Persistence is the LIVE-probe contract (LiveCheck's multi-pass render
     /// needs .onAppear writes visible to the fetch pass) — opt-in. M0 render
@@ -1172,6 +1192,19 @@ public final class Interpreter {
         "Double", "CGFloat", "Float", "TimeInterval", "Float32", "Float64",
     ]
 
+    static func rangeAnnotation(_ rawName: String) -> (name: String, bound: String)? {
+        let text = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let open = text.firstIndex(of: "<"), text.hasSuffix(">") else { return nil }
+        let qualifiedHead = text[..<open].trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = qualifiedHead.split(separator: ".").last.map(String.init) ?? qualifiedHead
+        guard ["Range", "ClosedRange", "PartialRangeFrom", "PartialRangeUpTo", "PartialRangeThrough"]
+            .contains(name) else { return nil }
+        let bound = text[text.index(after: open)..<text.index(before: text.endIndex)]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bound.isEmpty else { return nil }
+        return (name, bound)
+    }
+
     func selfEnvironment(_ selfValue: RuntimeValue) -> Environment {
         let env = Environment(parent: globals)
         env.define("self", selfValue)
@@ -1202,6 +1235,17 @@ public final class Interpreter {
         guard resolveAnnotatedDepth < 64 else { return value }
         var typeName = rawName.trimmingCharacters(in: .whitespaces)
         if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+
+        if let range = value.rangeValue, let annotation = Self.rangeAnnotation(typeName) {
+            guard range.matchesNominalShape(annotation.name) else {
+                throw RuntimeError(message: "\(range.description) is not a \(annotation.name)")
+            }
+            do {
+                return .native(try range.coercingBounds(to: annotation.bound))
+            } catch let message as EvalMessage {
+                throw RuntimeError(message: message.text)
+            }
+        }
 
         // `(hrp: String, data: Data)` annotations LABEL positional tuple
         // literals so `decoded.hrp` member reads work.
@@ -1586,7 +1630,7 @@ public final class Interpreter {
                 return .native([RuntimeValue](repeating: element, count: max(0, count)))
             }
             guard let value = args.positional(0) else { return .native([RuntimeValue]()) }
-            if let range = value.rangeValue { return .native(range.map { RuntimeValue.native($0) }) }
+            if let range = value.rangeValue, let values = range.integerValues() { return .native(values) }
             if let array = value.arrayValue { return .native(array) }
             // Array("abc") splits into characters (single-char strings,
             // our character model): Array(constant)[i] indexes real chars.

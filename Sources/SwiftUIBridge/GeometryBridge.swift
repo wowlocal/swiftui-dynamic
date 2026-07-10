@@ -332,15 +332,21 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .hostFunction(HostFunction(name: "random") { args, _ in
                 let argument = args.labeled("in") ?? args.positional(0)
                 if wantsInt {
-                    guard let range = argument?.rangeValue else {
-                        throw RuntimeError(message: "random(in:) needs a range")
+                    if let range = argument?.rangeValue?.halfOpenIntRange {
+                        return .native(Int.random(in: range))
                     }
-                    return .native(Int.random(in: range))
+                    if let range = argument?.rangeValue?.closedIntRange {
+                        return .native(Int.random(in: range))
+                    }
+                    throw RuntimeError(message: "Int.random(in:) needs an integer range")
                 }
-                guard let bounds = argument?.doubleRangeValue else {
-                    throw RuntimeError(message: "random(in:) needs a range")
+                if let range = argument?.rangeValue?.halfOpenDoubleRange {
+                    return .native(Double.random(in: range))
                 }
-                return .native(Double.random(in: bounds))
+                if let range = argument?.rangeValue?.closedDoubleRange {
+                    return .native(Double.random(in: range))
+                }
+                throw RuntimeError(message: "Double.random(in:) needs a numeric range")
             })
         case ("Color", _), ("UIColor", _), ("NSColor", _):
             // Asset-catalog accessors (SwiftGen's `Color.haPrimary`) are

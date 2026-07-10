@@ -13,18 +13,21 @@ extension Interpreter {
         if let array = any as? [RuntimeValue] {
             return try arrayMember(name, array)
         }
-        if let range = any as? Range<Int> {
+        if let range = any as? RuntimeRangeValue {
             switch name {
-            case "lowerBound": return .native(range.lowerBound)
-            case "upperBound": return .native(range.upperBound)
+            case "lowerBound": return range.lowerBound
+            case "upperBound": return range.upperBound
+            case "isEmpty": return .native(try range.isEmpty())
             case "contains":
                 return .hostFunction(HostFunction(name: name) { args, _ in
-                    guard let v = args.positional(0)?.intValue else { return .native(false) }
-                    return .native(range.contains(v))
+                    guard let value = args.positional(0) else { return .native(false) }
+                    return .native(try range.contains(value))
                 })
             default:
-                // Everything else (count, map, …) behaves like the materialized array.
-                return try arrayMember(name, range.map { .native($0) })
+                // Only integer ranges are Collections. Other bound domains
+                // expose RangeExpression members without fake iteration.
+                guard let values = range.integerValues() else { return nil }
+                return try arrayMember(name, values)
             }
         }
         if let string = any as? String {

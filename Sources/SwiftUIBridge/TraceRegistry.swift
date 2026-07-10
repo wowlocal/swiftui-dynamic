@@ -607,8 +607,8 @@ public final class TraceRegistry: HostRegistry {
         if case .host(let dataAny) = data, let bytes = dataAny as? Data {
             return bytes.map { .native(Int($0)) } // Data IS a byte collection
         }
-        if case .host(let any) = data, let range = any as? Range<Int> {
-            return range.map { .native($0) }
+        if let range = data.rangeValue, let values = range.integerValues() {
+            return values
         }
         if let array = data.arrayValue { return array }
         if case .instance(let instance) = data {

@@ -144,50 +144,9 @@ public enum Builtins {
             default: return .native(l >> r)
             }
         case "..<":
-            // Unknowable bounds read ZERO (fresh identity): 0..<chain is
-            // the empty range, not an error.
-            let lhs = absorbedNumeric(lhs).map { RuntimeValue.native($0) } ?? lhs
-            let rhs = absorbedNumeric(rhs).map { RuntimeValue.native($0) } ?? rhs
-            if let l = lhs.intValue, let r = rhs.intValue, l <= r {
-                return .native(l..<r)
-            }
-            if let l = lhs.intValue, let r = rhs.doubleValue, Double(l) <= r {
-                return .native(l..<Int(r))
-            }
-            if let l = lhs.doubleValue, let r = rhs.intValue, l <= Double(r) {
-                return .native(Int(l)..<r)
-            }
-            if let l = lhs.doubleValue, let r = rhs.doubleValue, l <= r {
-                return .native(l...r) // half-open doubles: iteration never materializes these
-            }
-            // `soon..<later` — Date ranges (DatePicker in:).
-            if case .host(let la) = lhs, let l = la as? Date,
-               case .host(let ra) = rhs, let r = ra as? Date, l <= r {
-                return .native(l..<r)
-            }
-            // `"A"..<"H"` — String ranges (letter-bucket dictionary keys).
-            if let l = lhs.stringValue, let r = rhs.stringValue, l <= r {
-                return .native(l..<r)
-            }
-            throw EvalMessage(text: "invalid range bounds")
+            return try makeRange(lower: lhs, upper: rhs, includesUpperBound: false)
         case "...":
-            let lhs = absorbedNumeric(lhs).map { RuntimeValue.native($0) } ?? lhs
-            let rhs = absorbedNumeric(rhs).map { RuntimeValue.native($0) } ?? rhs
-            if let l = lhs.intValue, let r = rhs.intValue, l <= r {
-                return .native(l..<(r + 1))
-            }
-            // `0.01...0.1` — fractional bounds (Slider ranges, random(in:)).
-            if let l = lhs.doubleValue, let r = rhs.doubleValue, l <= r {
-                return .native(l...r)
-            }
-            if case .host(let la) = lhs, let l = la as? Date,
-               case .host(let ra) = rhs, let r = ra as? Date, l <= r {
-                return .native(l...r)
-            }
-            if let l = lhs.stringValue, let r = rhs.stringValue, l <= r {
-                return .native(l...r)
-            }
-            throw EvalMessage(text: "invalid range bounds")
+            return try makeRange(lower: lhs, upper: rhs, includesUpperBound: true)
         default:
             throw EvalMessage(text: "unsupported operator '\(op)'")
         }
@@ -517,11 +476,7 @@ public enum Builtins {
             for (a, b) in zip(l.values, r.values) where try !areEqual(a, b) { return false }
             return true
         }
-        if let l = lhs.rangeValue, let r = rhs.rangeValue { return l == r }
-        if case .host(let la) = lhs, let l = la as? Range<String>,
-           case .host(let ra) = rhs, let r = ra as? Range<String> {
-            return l == r
-        }
+        if let l = lhs.rangeValue, let r = rhs.rangeValue { return try l.isEqual(to: r) }
         if case .host(let la) = lhs, case .host(let ra) = rhs {
             // Marker-call vs marker-call: name equality is the best truth
             // available (`.video == .video`); differing names are unequal.

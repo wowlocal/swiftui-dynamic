@@ -99,18 +99,15 @@ private func eval(_ source: String) throws -> RuntimeValue {
     }
 
     @Test func ranges() throws {
-        let half = try eval("0..<3")
-        if case .host(let any) = half, let range = any as? Range<Int> {
-            #expect(range == 0..<3)
-        } else {
-            Issue.record("expected a Range<Int>")
-        }
-        let closed = try eval("1...3")
-        if case .host(let any) = closed, let range = any as? Range<Int> {
-            #expect(range == 1..<4)
-        } else {
-            Issue.record("expected a Range<Int>")
-        }
+        let half = try #require(try eval("0..<3").rangeValue)
+        #expect(half.lowerBound?.intValue == 0)
+        #expect(half.upperBound?.intValue == 3)
+        #expect(!half.includesUpperBound)
+
+        let closed = try #require(try eval("1...3").rangeValue)
+        #expect(closed.lowerBound?.intValue == 1)
+        #expect(closed.upperBound?.intValue == 3)
+        #expect(closed.includesUpperBound)
     }
 
     @Test func prefixMinus() throws {

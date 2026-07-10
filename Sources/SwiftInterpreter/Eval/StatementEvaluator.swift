@@ -481,7 +481,10 @@ extension Interpreter {
 
         let elements: [RuntimeValue]
         if let range = sequence.rangeValue {
-            elements = range.map { .native($0) }
+            guard let values = range.integerValues() else {
+                throw error(forStmt.sequence, "for-in requires an integer range")
+            }
+            elements = values
         } else if let array = sequence.arrayValue {
             elements = array
         } else if case .host(let any) = sequence,

@@ -94,7 +94,9 @@ extension Interpreter {
             let prefix = expr.cast(PrefixOperatorExprSyntax.self)
             if prefix.operator.text == "..<" || prefix.operator.text == "..." {
                 let bound = try evaluate(prefix.expression, in: env)
-                return .native(PartialRangeValue(upper: bound, closed: prefix.operator.text == "..."))
+                return .native(RuntimeRangeValue(
+                    upperBound: bound,
+                    includesUpperBound: prefix.operator.text == "..."))
             }
             if prefix.operator.text == "/",
                globals.lookup(prefix.operator.text) == nil {
@@ -120,7 +122,7 @@ extension Interpreter {
             let postfix = expr.cast(PostfixOperatorExprSyntax.self)
             if postfix.operator.text == "..." {
                 let bound = try evaluate(postfix.expression, in: env)
-                return .native(PartialRangeValue(lower: bound))
+                return .native(RuntimeRangeValue(lowerBound: bound))
             }
             // User-defined postfix operators (`postfix func >*` — 2048's
             // AnyView-erasure operator).
@@ -535,8 +537,10 @@ extension Interpreter {
             return value
         }
         // A type's OWN nested types shadow same-named globals inside its
-        // body (each IceCubes package declares its own `enum Constants`).
-        if let nested = instance.symbol.nestedTypes[name] { return nested }
+        // body (each IceCubes package declares its own `enum Constants`) —
+        // scoped LEXICALLY to the running method's declaring type, so
+        // protocol-extension bodies never see the runtime self's nesteds.
+        if let nested = lexicalNestedType(name, runtime: instance.symbol) { return nested }
         if let box = instance.box(for: name) { return box.value }
         // Dynamic dispatch: the instance's OWN members win (overrides beat
         // the inherited definition), THEN interpreted-superclass members
@@ -625,8 +629,12 @@ extension Interpreter {
         }
         // Bare sibling STATICS are visible from any member context
         // (`assert(blurRadius > 0)` where the parameter default is
-        // `defaultBlurRadius`, a static let on the type).
-        if let value = try staticMember(name, of: instance.symbol) {
+        // `defaultBlurRadius`, a static let on the type) — resolved in the
+        // DECLARING type's scope: a protocol-extension body sees the
+        // extension's own statics/nesteds, never the runtime conformer's
+        // (clean-architecture's test double nests a shadowing APIError).
+        let staticScope = (lexicalOwnerFrames.last as? StructSymbol) ?? instance.symbol
+        if let value = try staticMember(name, of: staticScope) {
             return value
         }
         return nil
@@ -697,6 +705,17 @@ extension Interpreter {
         if any is Data { names.append("Data") }
         if any is URL { names.append("URL") }
         if any is UUID { names.append("UUID") }
+        if let range = any as? RuntimeRangeValue {
+            switch (range.lowerBound, range.upperBound, range.includesUpperBound) {
+            case (.some, .some, false): names.append("Range")
+            case (.some, .some, true): names.append("ClosedRange")
+            case (.some, nil, _): names.append("PartialRangeFrom")
+            case (nil, .some, false): names.append("PartialRangeUpTo")
+            case (nil, .some, true): names.append("PartialRangeThrough")
+            default: break
+            }
+            names.append("RangeExpression")
+        }
         if any is [RuntimeValue] {
             // `extension Array` and sugar-typed `extension [Item]` both apply.
             names.append("Array")
@@ -704,13 +723,17 @@ extension Interpreter {
         }
         // Protocol umbrellas: `extension Collection { var isNotEmpty }`
         // applies to every conforming native (twostraws idiom).
-        if any is [RuntimeValue] || any is String || any is DictValue
-            || any is Range<Int> || any is ClosedRange<Double> {
+        let integerRangeCollection = (any as? RuntimeRangeValue).map {
+            $0.lowerBound?.intValue != nil && $0.upperBound?.intValue != nil
+        } ?? false
+        if any is [RuntimeValue] || any is String || any is DictValue || integerRangeCollection {
             names.append("Collection")
             names.append("Sequence")
         }
-        if any is [RuntimeValue] {
+        if any is [RuntimeValue] || integerRangeCollection {
             names.append("RandomAccessCollection")
+        }
+        if any is [RuntimeValue] {
             names.append("MutableCollection")
             names.append("BidirectionalCollection")
         }
@@ -1419,6 +1442,28 @@ extension Interpreter {
     func valueIsType(_ value: RuntimeValue, _ rawType: String) -> Bool {
         var typeName = rawType.trimmingCharacters(in: .whitespaces)
         if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+        if let range = value.rangeValue, let annotation = Self.rangeAnnotation(typeName) {
+            guard range.matchesNominalShape(annotation.name) else { return false }
+            let bounds = [range.lowerBound, range.upperBound].compactMap { $0 }
+            if Self.doubleFamilyTypeNames.contains(annotation.bound) {
+                return bounds.allSatisfy { $0.doubleValue != nil }
+            }
+            if annotation.bound == "Int" { return bounds.allSatisfy { $0.intValue != nil } }
+            if annotation.bound == "String" { return bounds.allSatisfy { $0.stringValue != nil } }
+            if annotation.bound == "Date" {
+                return bounds.allSatisfy { value in
+                    if case .host(let any) = value { return any is Date }
+                    return false
+                }
+            }
+            if annotation.bound == "String.Index" {
+                return bounds.allSatisfy { value in
+                    if case .host(let any) = value { return any is String.Index }
+                    return false
+                }
+            }
+            return false
+        }
         if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
         if typeName == "Any" || typeName == "AnyObject" { return !value.isNil }
         if value.isNil { return false }
@@ -1756,20 +1801,10 @@ extension Interpreter {
            var text = existingAny as? String {
             let args = try collectArguments(of: call, in: env)
             guard let replacement = args.labeled("with")?.stringValue,
-                  case .host(let rangeAny)? = args.positional(0) else {
+                  let range = args.positional(0)?.rangeValue else {
                 throw error(call, "replaceSubrange needs a range and 'with:'")
             }
-            if let range = rangeAny as? Range<String.Index> {
-                text.replaceSubrange(range, with: replacement)
-            } else if let closed = rangeAny as? ClosedRange<String.Index> {
-                text.replaceSubrange(closed, with: replacement)
-            } else if let intRange = rangeAny as? Range<Int> {
-                let lower = text.index(text.startIndex, offsetBy: intRange.lowerBound)
-                let upper = text.index(text.startIndex, offsetBy: intRange.upperBound)
-                text.replaceSubrange(lower..<upper, with: replacement)
-            } else {
-                throw error(call, "replaceSubrange needs a string range")
-            }
+            text.replaceSubrange(try stringSlice(range, in: text, node: call), with: replacement)
             try relocating(call) { try target.write(.native(text), self) }
             return .void
         }
@@ -1967,7 +2002,7 @@ extension Interpreter {
 
         if name == "first" || name == "last" {
             let baseValue = try evaluate(base, in: env)
-            let array = baseValue.arrayValue ?? baseValue.rangeValue.map { range in range.map { RuntimeValue.native($0) } }
+            let array = baseValue.arrayValue ?? baseValue.rangeValue?.integerValues()
             if let array {
                 let args = try collectArguments(of: call, in: env)
                 if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
@@ -2234,6 +2269,12 @@ extension Interpreter {
             insertedBody = declID
         }
         defer { if let insertedBody { activeFunctionBodies.remove(insertedBody) } }
+        var pushedLexicalOwner = false
+        if let owner = closure.lexicalOwner {
+            lexicalOwnerFrames.append(owner)
+            pushedLexicalOwner = true
+        }
+        defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
 
         guard callDepth < callDepthLimit else {
             if let node {
@@ -2702,6 +2743,9 @@ extension Interpreter {
         default:
             var lhs = try evaluate(infix.leftOperand, in: env)
             var rhs = try evaluate(infix.rightOperand, in: env)
+            if op == "~=" {
+                return .native(try matchRuntimePattern(lhs, subject: rhs, env: env, node: infix))
+            }
             // Pure numeric pairs skip the marker/registry machinery below —
             // all of it is a no-op for concrete Int/Double operands.
             if let fast = try relocating(infix, { try Builtins.fastNumericBinary(op, lhs, rhs) }) {
@@ -3517,18 +3561,24 @@ extension Interpreter {
             return .nilValue // unknowable keypath: fresh read
         }
         if let array = base.arrayValue {
-            guard let i = index.intValue, array.indices.contains(i) else {
-                throw error(call, "array index out of range")
+            if let i = index.intValue, array.indices.contains(i) {
+                return array[i]
             }
-            return array[i]
+            if let range = index.rangeValue {
+                let bounds = try integerSlice(range, count: array.count, name: "array", node: call)
+                return .native(Array(array[bounds]))
+            }
+            throw error(call, "array index out of range")
         }
         if let dict = base.dictValue {
             return try relocating(call) { try dict.lookup(index) }
         }
         if let range = base.rangeValue, let i = index.intValue {
-            let materialized = Array(range)
+            guard let materialized = range.integerValues() else {
+                throw error(call, "only integer ranges can be indexed")
+            }
             guard materialized.indices.contains(i) else { throw error(call, "range index out of range") }
-            return .native(materialized[i])
+            return materialized[i]
         }
         if case .host(let any) = base, let stub = any as? BindingStub, let i = index.intValue {
             // `$items[index]` — a write-through element binding.
@@ -3546,16 +3596,15 @@ extension Interpreter {
                 try callUserSubscriptGetter(on: instance, with: indexArgs)
             }
         }
-        if case .host(let stringAny) = base, let string = stringAny as? String,
-           case .host(let indexAny) = index {
+        if case .host(let stringAny) = base, let string = stringAny as? String {
             // `text[range]` / `text[i]` with String.Index values.
-            if let indexRange = indexAny as? Range<String.Index>,
-               indexRange.lowerBound >= string.startIndex, indexRange.upperBound <= string.endIndex {
-                return .native(String(string[indexRange]))
+            if let range = index.rangeValue {
+                return .native(String(string[try stringSlice(range, in: string, node: call)]))
             }
-            if let position = indexAny as? String.Index, position >= string.startIndex,
-               position < string.endIndex {
-                return .native(String(string[position]))
+            if case .host(let indexAny) = index,
+               let position = indexAny as? String.Index,
+               position >= string.startIndex, position < string.endIndex {
+                    return .native(String(string[position]))
             }
         }
         // Library key-value stores with DECLARED defaults (sindresorhus/
@@ -3573,43 +3622,6 @@ extension Interpreter {
             let args = CallArguments(arguments: [.init(label: nil, value: index)])
             return try relocating(call) { try subscripting.invoke(args, self) }
         }
-        if case .host(let partAny) = index, let part = partAny as? PartialRangeValue {
-            // Partial-range slices: str[..<pos], bytes[pos...], array[..<n].
-            if case .host(let strAny) = base, let string = strAny as? String {
-                let lower = (part.lower.flatMap { if case .host(let a) = $0 { return a as? String.Index } else { return nil } }) ?? string.startIndex
-                var upper = (part.upper.flatMap { if case .host(let a) = $0 { return a as? String.Index } else { return nil } }) ?? string.endIndex
-                if let lowInt = part.lower?.intValue { return .native(String(string.dropFirst(lowInt))) }
-                if let upInt = part.upper?.intValue {
-                    let count = part.closed ? upInt + 1 : upInt
-                    return .native(String(string.prefix(count)))
-                }
-                if part.closed, upper < string.endIndex { upper = string.index(after: upper) }
-                guard lower >= string.startIndex, upper <= string.endIndex, lower <= upper else {
-                    throw error(call, "string slice out of bounds")
-                }
-                return .native(String(string[lower..<upper]))
-            }
-            if case .host(let dataAny) = base, let bytes = dataAny as? Data {
-                let lower = part.lower?.intValue ?? 0
-                var upper = part.upper?.intValue ?? bytes.count
-                if part.closed, part.upper != nil { upper += 1 }
-                guard lower >= 0, upper <= bytes.count, lower <= upper else {
-                    throw error(call, "Data slice out of bounds")
-                }
-                let start = bytes.index(bytes.startIndex, offsetBy: lower)
-                let end = bytes.index(bytes.startIndex, offsetBy: upper)
-                return .native(Data(bytes[start..<end]))
-            }
-            if let array = base.arrayValue {
-                let lower = part.lower?.intValue ?? 0
-                var upper = part.upper?.intValue ?? array.count
-                if part.closed, part.upper != nil { upper += 1 }
-                guard lower >= 0, upper <= array.count, lower <= upper else {
-                    throw error(call, "array slice out of bounds")
-                }
-                return .native(Array(array[lower..<upper]))
-            }
-        }
         if case .host(let dataAny) = base, let bytes = dataAny as? Data {
             // Byte access and slices (bech32 decoders index raw buffers).
             if let i = index.intValue {
@@ -3619,11 +3631,9 @@ extension Interpreter {
                 return .native(Int(bytes[bytes.index(bytes.startIndex, offsetBy: i)]))
             }
             if let range = index.rangeValue {
-                guard range.lowerBound >= 0, range.upperBound <= bytes.count else {
-                    throw error(call, "Data range out of bounds")
-                }
-                let start = bytes.index(bytes.startIndex, offsetBy: range.lowerBound)
-                let end = bytes.index(bytes.startIndex, offsetBy: range.upperBound)
+                let bounds = try integerSlice(range, count: bytes.count, name: "Data", node: call)
+                let start = bytes.index(bytes.startIndex, offsetBy: bounds.lowerBound)
+                let end = bytes.index(bytes.startIndex, offsetBy: bounds.upperBound)
                 return .native(Data(bytes[start..<end]))
             }
         }
@@ -3653,6 +3663,55 @@ extension Interpreter {
         if case .implicitMember = base { return .nilValue }
         if case .hostFunction = base { return .nilValue }
         throw error(call, "subscripting is only supported on arrays and dictionaries, got \(base.stringified)")
+    }
+
+    private func integerSlice(
+        _ range: RuntimeRangeValue,
+        count: Int,
+        name: String,
+        node: some SyntaxProtocol
+    ) throws -> Range<Int> {
+        let lower = range.lowerBound?.intValue ?? 0
+        var upper = range.upperBound?.intValue ?? count
+        if range.includesUpperBound, range.upperBound != nil {
+            guard upper < count else { throw error(node, "\(name) slice out of bounds") }
+            upper += 1
+        }
+        guard lower >= 0, upper <= count, lower <= upper else {
+            throw error(node, "\(name) slice out of bounds")
+        }
+        return lower..<upper
+    }
+
+    private func stringSlice(
+        _ range: RuntimeRangeValue,
+        in string: String,
+        node: some SyntaxProtocol
+    ) throws -> Range<String.Index> {
+        func index(_ value: RuntimeValue?, fallback: String.Index) throws -> String.Index {
+            guard let value else { return fallback }
+            if let offset = value.intValue {
+                guard offset >= 0, offset <= string.count else {
+                    throw error(node, "string slice out of bounds")
+                }
+                return string.index(string.startIndex, offsetBy: offset)
+            }
+            if case .host(let any) = value, let index = any as? String.Index {
+                return index
+            }
+            throw error(node, "string slice needs Int or String.Index bounds")
+        }
+
+        let lower = try index(range.lowerBound, fallback: string.startIndex)
+        var upper = try index(range.upperBound, fallback: string.endIndex)
+        if range.includesUpperBound, range.upperBound != nil {
+            guard upper < string.endIndex else { throw error(node, "string slice out of bounds") }
+            upper = string.index(after: upper)
+        }
+        guard lower >= string.startIndex, upper <= string.endIndex, lower <= upper else {
+            throw error(node, "string slice out of bounds")
+        }
+        return lower..<upper
     }
 
     func expectBool(_ value: RuntimeValue, node: some SyntaxProtocol) throws -> Bool {

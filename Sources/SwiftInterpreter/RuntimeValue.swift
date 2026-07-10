@@ -35,6 +35,7 @@ public enum RuntimeValue {
         if let i = value as? Int { return .int(i) }
         if let d = value as? Double { return .double(d) }
         if let b = value as? Bool { return .bool(b) }
+        if let range = RuntimeRangeValue.fromNative(value) { return .host(range) }
         return .host(value)
     }
 }
@@ -91,20 +92,9 @@ extension RuntimeValue {
         return nil
     }
 
-    public var rangeValue: Range<Int>? {
-        if case .host(let any) = self { return any as? Range<Int> }
-        return nil
-    }
-
-    /// `0.01...0.1` — fractional ranges (Slider bounds, .random(in:)).
-    public var doubleRangeValue: ClosedRange<Double>? {
-        if case .host(let any) = self {
-            if let closed = any as? ClosedRange<Double> { return closed }
-            if let intRange = any as? Range<Int>, !intRange.isEmpty {
-                return Double(intRange.lowerBound)...Double(intRange.upperBound - 1)
-            }
-        }
-        return nil
+    public var rangeValue: RuntimeRangeValue? {
+        guard case .host(let any) = self else { return nil }
+        return RuntimeRangeValue.fromNative(any)
     }
 
     public var dictValue: DictValue? {
@@ -235,20 +225,6 @@ public struct SuperReference {
 
     public init(instance: Instance) {
         self.instance = instance
-    }
-}
-
-/// Marker for key-path literals like `\.self`; gateways that take `id:` ignore it.
-/// `..<pos` / `pos...` — partial ranges; subscripts slice with them.
-public struct PartialRangeValue {
-    public let lower: RuntimeValue?
-    public let upper: RuntimeValue?
-    public let closed: Bool
-
-    public init(lower: RuntimeValue? = nil, upper: RuntimeValue? = nil, closed: Bool = false) {
-        self.lower = lower
-        self.upper = upper
-        self.closed = closed
     }
 }
 

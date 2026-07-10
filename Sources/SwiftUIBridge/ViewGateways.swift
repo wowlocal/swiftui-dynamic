@@ -353,8 +353,8 @@ extension ViewRegistry {
             guard let rangeValue = args.labeled("in") else {
                 return .native(AnyView(Slider(value: binding)))
             }
-            guard let bounds = rangeValue.doubleRangeValue else {
-                throw RuntimeError(message: "Slider(in:) needs a range like 0...10 or 0.01...0.1")
+            guard let bounds = rangeValue.rangeValue?.closedDoubleRange else {
+                throw RuntimeError(message: "Slider(in:) needs a closed range like 0...10 or 0.01...0.1")
             }
             if let step = args.labeled("step")?.doubleValue {
                 return .native(AnyView(Slider(value: binding, in: bounds, step: step)))
@@ -454,7 +454,10 @@ extension ViewRegistry {
             return bytes.map { .native(Int($0)) } // Data IS a byte collection
         }
         if let range = data.rangeValue {
-            return range.map { .native($0) }
+            guard let values = range.integerValues() else {
+                throw RuntimeError(message: "ForEach needs an integer range")
+            }
+            return values
         }
         if let array = data.arrayValue {
             return array

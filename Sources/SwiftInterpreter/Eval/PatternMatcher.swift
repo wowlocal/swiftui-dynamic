@@ -343,16 +343,75 @@ extension Interpreter {
         }
 
         let value = try evaluate(expr, in: env)
-        if let range = value.rangeValue, let i = subject.intValue {
-            return range.contains(i)
+        return try matchRuntimePattern(value, subject: subject, env: env, node: expr)
+    }
+
+    /// Shared implementation of Swift's expression-pattern `~=` operation.
+    /// Explicit `pattern ~= value` expressions call this same path.
+    func matchRuntimePattern(
+        _ pattern: RuntimeValue,
+        subject: RuntimeValue,
+        env: Environment,
+        node: some SyntaxProtocol
+    ) throws -> Bool {
+        if let range = pattern.rangeValue {
+            return try relocating(node) { try range.contains(subject) }
         }
-        // Double interval patterns (`case oneGigabyte...Double
-        // .greatestFiniteMagnitude:` over a file size).
-        if case .host(let any) = value, let d = subject.doubleValue {
-            if let closed = any as? ClosedRange<Double> { return closed.contains(d) }
-            if let open = any as? Range<Double> { return open.contains(d) }
+        if let custom = try invokeCustomPatternOperator(
+            pattern: pattern, subject: subject, env: env, node: node) {
+            guard let result = custom.boolValue else {
+                throw error(node, "custom ~= must return Bool, got \(custom.stringified)")
+            }
+            return result
         }
-        return try relocating(expr) { try Builtins.areEqual(subject, value) }
+        return try relocating(node) { try Builtins.areEqual(subject, pattern) }
+    }
+
+    private func invokeCustomPatternOperator(
+        pattern: RuntimeValue,
+        subject: RuntimeValue,
+        env: Environment,
+        node: some SyntaxProtocol
+    ) throws -> RuntimeValue? {
+        let args = CallArguments(arguments: [
+            .init(label: nil, value: pattern),
+            .init(label: nil, value: subject),
+        ])
+
+        for operand in [pattern, subject] {
+            let overloads: [FunctionDeclSyntax]?
+            let home: RuntimeValue
+            switch operand {
+            case .instance(let instance):
+                overloads = instance.symbol.staticMethods["~="]
+                home = .type(instance.symbol)
+            case .enumCase(let value):
+                overloads = value.symbol.staticMethods["~="]
+                home = .enumType(value.symbol)
+            default:
+                overloads = nil
+                home = .void
+            }
+            guard let overloads else { continue }
+            let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+            if let method = chooseFunction(from: available, for: args) ?? available.first,
+               let body = method.body {
+                let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(home))
+                return try callWithArguments(closure, args: args, node: Syntax(node))
+            }
+        }
+
+        if let overloads = globalFunctionOverloads["~="] {
+            let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+            if let function = chooseFunction(from: available, for: args) ?? available.first,
+               let body = function.body {
+                let closure = makeFunctionClosure(function, body: body, captured: globals)
+                return try callWithArguments(closure, args: args, node: Syntax(node))
+            }
+        } else if case .closure(let closure)? = env.lookup("~=") ?? globals.lookup("~=") {
+            return try callWithArguments(closure, args: args, node: Syntax(node))
+        }
+        return nil
     }
 
     /// Case name + payloads for anything case-shaped: a real enum value, or a

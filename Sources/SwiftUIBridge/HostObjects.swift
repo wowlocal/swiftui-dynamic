@@ -476,8 +476,8 @@ private func intArg(_ value: RuntimeValue?) -> Int? {
     // `.random(in: 1...100)` arriving without type context.
     if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "random" {
         let argument = call.arguments.labeled("in") ?? call.arguments.positional(0)
-        if let range = argument?.rangeValue { return Int.random(in: range) }
-        if let bounds = argument?.doubleRangeValue { return Int(Double.random(in: bounds)) }
+        if let range = argument?.rangeValue?.halfOpenIntRange { return Int.random(in: range) }
+        if let range = argument?.rangeValue?.closedIntRange { return Int.random(in: range) }
     }
     return nil
 }

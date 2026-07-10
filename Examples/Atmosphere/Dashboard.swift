@@ -386,16 +386,12 @@ struct AtmosphereDashboard: View {
     }
 
     func uvDescription(_ value: Double) -> String {
-        if value < 3 {
-            return "Low for the current hour."
+        switch value {
+        case 0..<3: return "Low for the current hour."
+        case 3..<6: return "Moderate — protection is recommended."
+        case 6..<8: return "High — reduce midday exposure."
+        default: return "Very high — use extra protection."
         }
-        if value < 6 {
-            return "Moderate — protection is recommended."
-        }
-        if value < 8 {
-            return "High — reduce midday exposure."
-        }
-        return "Very high — use extra protection."
     }
 
     func displayTemperature(_ value: Double) -> Int {
