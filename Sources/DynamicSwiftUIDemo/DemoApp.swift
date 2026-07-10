@@ -18,10 +18,17 @@ struct DemoApp: App {
 
     /// `--network live` → real HTTP (the human demo gate);
     /// `--network replay:<fixturesDir>` → recorded responses.
-    /// Default stays absorbed — checks and casual runs are unaffected.
+    /// With no flag, the interactive editor demo uses live HTTP so city
+    /// search works. Deterministic/offline runs opt into replay explicitly.
+    /// Whole-project previews remain absorbed unless explicitly enabled.
     static func applyNetworkFlag() {
         guard let index = CommandLine.arguments.firstIndex(of: "--network"),
-              CommandLine.arguments.indices.contains(index + 1) else { return }
+              CommandLine.arguments.indices.contains(index + 1) else {
+            if projectDirectory == nil {
+                NetworkBridge.policy = .live
+            }
+            return
+        }
         let mode = CommandLine.arguments[index + 1]
         if mode == "live" {
             NetworkBridge.policy = .live

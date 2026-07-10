@@ -59,6 +59,7 @@ public final class ViewRegistry: HostRegistry {
 
     public func constructor(named name: String) -> HostFunction? {
         if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
+        if let task = interpretedTaskConstructor(named: name) { return task }
         let hand = constructors[name]
         let generated = GeneratedConstructors.table[name]
         if hand == nil && generated == nil {

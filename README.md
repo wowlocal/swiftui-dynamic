@@ -11,8 +11,31 @@ expressions][bitrig-2]) and [Cocoanetics/SwiftScript][swiftscript].
 swift run DynamicSwiftUIDemo
 ```
 
-An editor opens on the left, the live interpreted view renders on the right.
-Built-in samples (toolbar picker): **Counter** (`@State` + Button
+An editor opens on the left and a live interpreted **Atmosphere** app renders on
+the right: a complete networked weather and air-quality dashboard. Its source
+performs a three-stage request pipeline
+(geocoding → forecast → air quality) with an actor-based generic API client,
+`async`/`await`, `URLComponents`, nested `Codable` models, observable loading
+state, debounced live city suggestions, and a custom `Shape` temperature
+chart. The default launch uses live HTTP, so typing shows tappable matches;
+pressing Return or the search button fetches the first result.
+For deterministic/offline use, replay the committed Lisbon snapshot with:
+
+```
+swift run DynamicSwiftUIDemo --network replay:Fixtures/open-meteo-lisbon
+```
+
+The same app also lives as a conventional split-file interpreted project in
+`Examples/Atmosphere/` (`Models.swift`, client, store, components, dashboard,
+and root view). Run the directory directly:
+
+```
+swift run DynamicSwiftUIDemo \
+  --project Examples/Atmosphere \
+  --network live
+```
+
+Other built-in samples (toolbar picker): **Counter** (`@State` + Button
 actions), **Calculator** (an iOS-style calculator — a real immediate-execution
 state machine with chained operators, repeat-equals, percent and
 divide-by-zero handling), **Tic-Tac-Toe** (play against a rule-based AI that
@@ -112,7 +135,7 @@ and `Date()` basics; ~50 modifiers including `padding`/`frame`/`font`/
 `foregroundStyle` (colors, materials, hierarchicals, `.color.opacity`/
 `.gradient` chains)/`background`/`overlay`/`shadow`/`clipShape`/`offset`/
 `scaleEffect`/`rotationEffect`/`animation(value:)`/`onAppear`/`onTapGesture`/
-`task`/`navigationTitle`/`listStyle`/`buttonStyle`/`pickerStyle`.
+`onSubmit`/`task`/`navigationTitle`/`listStyle`/`buttonStyle`/`pickerStyle`.
 
 ## Generated gateways (BridgeGen)
 

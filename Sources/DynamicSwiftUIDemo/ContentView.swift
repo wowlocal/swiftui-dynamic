@@ -2,8 +2,8 @@ import SwiftUI
 import SwiftUIBridge
 
 struct ContentView: View {
-    @State private var source = SamplePrograms.counter.source
-    @State private var selectedSampleID = SamplePrograms.counter.id
+    @State private var source = SamplePrograms.atmosphere.source
+    @State private var selectedSampleID = SamplePrograms.atmosphere.id
     @State private var renderedView: AnyView?
     @State private var errorMessage: String?
     @State private var generation = 0

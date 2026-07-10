@@ -227,6 +227,10 @@ extension ViewRegistry {
             guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.onTapGesture { _ = try? ctx.callClosure(closure, arguments: []) })
         }
+        register("onSubmit") { view, args, ctx in
+            guard let closure = args.firstUnlabeledClosure else { return view }
+            return AnyView(view.onSubmit { _ = try? ctx.callClosure(closure, arguments: []) })
+        }
         // Metal flattening with an explicit color mode (2048's board).
         register("drawingGroup") { view, args, _ in
             let opaque = args.labeled("opaque")?.boolValue ?? false

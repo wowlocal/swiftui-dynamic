@@ -5,7 +5,1194 @@ struct SampleProgram: Identifiable, Hashable {
 }
 
 enum SamplePrograms {
-    static let all = [counter, calculator, tictactoe, todoMVVM, form, weather, staticLayout, list, segments, material, popup, albums]
+    static let all = [atmosphere, counter, calculator, tictactoe, todoMVVM, form, weather, staticLayout, list, segments, material, popup, albums]
+
+    /// A three-request, real-network app: city geocoding feeds weather and
+    /// air-quality endpoints. It exercises actors, async/await, generic
+    /// Codable decoding, URLComponents, custom Shape drawing, observable
+    /// models, task-driven loading, and a non-trivial responsive SwiftUI UI.
+    static let atmosphere = SampleProgram(name: "Atmosphere", source: #"""
+    struct Place: Codable, Identifiable {
+        let id: Int
+        let name: String
+        let latitude: Double
+        let longitude: Double
+        let country: String?
+        let admin1: String?
+        let timezone: String
+
+        var subtitle: String {
+            if let admin1, let country {
+                return "\(admin1), \(country)"
+            }
+            return country ?? timezone
+        }
+    }
+
+    struct PlaceResponse: Codable {
+        let results: [Place]
+    }
+
+    struct CurrentWeather: Codable {
+        let time: String
+        let temperature: Double
+        let feelsLike: Double
+        let humidity: Int
+        let weatherCode: Int
+        let windSpeed: Double
+
+        enum CodingKeys: String, CodingKey {
+            case time
+            case temperature = "temperature_2m"
+            case feelsLike = "apparent_temperature"
+            case humidity = "relative_humidity_2m"
+            case weatherCode = "weather_code"
+            case windSpeed = "wind_speed_10m"
+        }
+    }
+
+    struct HourlyWeather: Codable {
+        let time: [String]
+        let temperatures: [Double]
+        let rainChance: [Int]
+        let weatherCodes: [Int]
+
+        enum CodingKeys: String, CodingKey {
+            case time
+            case temperatures = "temperature_2m"
+            case rainChance = "precipitation_probability"
+            case weatherCodes = "weather_code"
+        }
+    }
+
+    struct DailyWeather: Codable {
+        let time: [String]
+        let weatherCodes: [Int]
+        let highs: [Double]
+        let lows: [Double]
+        let sunrise: [String]
+        let sunset: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case time
+            case weatherCodes = "weather_code"
+            case highs = "temperature_2m_max"
+            case lows = "temperature_2m_min"
+            case sunrise
+            case sunset
+        }
+    }
+
+    struct Forecast: Codable {
+        let timezone: String
+        let current: CurrentWeather
+        let hourly: HourlyWeather
+        let daily: DailyWeather
+    }
+
+    struct CurrentAir: Codable {
+        let aqi: Int
+        let particles: Double
+        let uvIndex: Double
+
+        enum CodingKeys: String, CodingKey {
+            case aqi = "european_aqi"
+            case particles = "pm2_5"
+            case uvIndex = "uv_index"
+        }
+    }
+
+    struct AirQuality: Codable {
+        let current: CurrentAir
+    }
+
+    struct AtmosphereSnapshot {
+        let place: Place
+        let forecast: Forecast
+        let air: AirQuality
+    }
+
+    enum AtmosphereError: Error {
+        case invalidURL
+        case placeNotFound
+        case server(Int)
+    }
+
+    actor AtmosphereClient {
+        private let decoder = JSONDecoder()
+
+        init() {
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+        }
+
+        private func makeURL(host: String, path: String, query: [URLQueryItem]) throws -> URL {
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = host
+            components.path = path
+            components.queryItems = query
+            guard let url = components.url else {
+                throw AtmosphereError.invalidURL
+            }
+            return url
+        }
+
+        private func request<T: Decodable>(_ type: T.Type, from url: URL) async throws -> T {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            if response.statusCode < 200 || response.statusCode >= 300 {
+                throw AtmosphereError.server(response.statusCode)
+            }
+            return try decoder.decode(T.self, from: data)
+        }
+
+        func suggestions(for search: String) async throws -> [Place] {
+            let url = try makeURL(
+                host: "geocoding-api.open-meteo.com",
+                path: "/v1/search",
+                query: [
+                    URLQueryItem(name: "name", value: search),
+                    URLQueryItem(name: "count", value: "6"),
+                    URLQueryItem(name: "language", value: "en"),
+                    URLQueryItem(name: "format", value: "json"),
+                ]
+            )
+            let response: PlaceResponse = try await request(PlaceResponse.self, from: url)
+            return response.results
+        }
+
+        private func find(_ search: String) async throws -> Place {
+            guard let place = try await suggestions(for: search).first else {
+                throw AtmosphereError.placeNotFound
+            }
+            return place
+        }
+
+        private func weather(for place: Place) async throws -> Forecast {
+            let url = try makeURL(
+                host: "api.open-meteo.com",
+                path: "/v1/forecast",
+                query: [
+                    URLQueryItem(name: "latitude", value: String(place.latitude)),
+                    URLQueryItem(name: "longitude", value: String(place.longitude)),
+                    URLQueryItem(name: "current", value: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m"),
+                    URLQueryItem(name: "hourly", value: "temperature_2m,precipitation_probability,weather_code"),
+                    URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset"),
+                    URLQueryItem(name: "timezone", value: "auto"),
+                    URLQueryItem(name: "forecast_days", value: "10"),
+                    URLQueryItem(name: "forecast_hours", value: "24"),
+                ]
+            )
+            return try await request(Forecast.self, from: url)
+        }
+
+        private func airQuality(for place: Place) async throws -> AirQuality {
+            let url = try makeURL(
+                host: "air-quality-api.open-meteo.com",
+                path: "/v1/air-quality",
+                query: [
+                    URLQueryItem(name: "latitude", value: String(place.latitude)),
+                    URLQueryItem(name: "longitude", value: String(place.longitude)),
+                    URLQueryItem(name: "current", value: "european_aqi,pm2_5,uv_index"),
+                    URLQueryItem(name: "timezone", value: "auto"),
+                ]
+            )
+            return try await request(AirQuality.self, from: url)
+        }
+
+        func snapshot(for search: String) async throws -> AtmosphereSnapshot {
+            let place = try await find(search)
+            return try await snapshotForPlace(place)
+        }
+
+        func snapshotForPlace(_ place: Place) async throws -> AtmosphereSnapshot {
+            let forecast = try await weather(for: place)
+            let air = try await airQuality(for: place)
+            return AtmosphereSnapshot(place: place, forecast: forecast, air: air)
+        }
+    }
+
+    @MainActor
+    final class AtmosphereStore: ObservableObject {
+        @Published var query = "Lisbon"
+        @Published var place: Place? = nil
+        @Published var forecast: Forecast? = nil
+        @Published var air: AirQuality? = nil
+        @Published var suggestions: [Place] = []
+        @Published var isLoading = false
+        @Published var isSuggesting = false
+        @Published var errorMessage = ""
+
+        private let client = AtmosphereClient()
+        private var suggestionGeneration = 0
+        private var committedQuery = "Lisbon"
+
+        func queryChanged() {
+            let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            suggestionGeneration += 1
+            let generation = suggestionGeneration
+
+            guard search.count >= 2 && search != committedQuery else {
+                suggestions = []
+                isSuggesting = false
+                return
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                guard generation == suggestionGeneration else { return }
+                Task {
+                    await fetchSuggestions(search, generation: generation)
+                }
+            }
+        }
+
+        private func fetchSuggestions(_ search: String, generation: Int) async {
+            guard generation == suggestionGeneration else { return }
+            isSuggesting = true
+            do {
+                let matches = try await client.suggestions(for: search)
+                if generation == suggestionGeneration {
+                    suggestions = matches
+                }
+            } catch {
+                if generation == suggestionGeneration {
+                    suggestions = []
+                }
+            }
+            if generation == suggestionGeneration {
+                isSuggesting = false
+            }
+        }
+
+        func load() async {
+            let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard search.count >= 2 else {
+                errorMessage = "Enter at least two characters."
+                return
+            }
+
+            isLoading = true
+            suggestionGeneration += 1
+            suggestions = []
+            isSuggesting = false
+            errorMessage = ""
+            do {
+                let snapshot = try await client.snapshot(for: search)
+                apply(snapshot)
+                committedQuery = search
+            } catch {
+                errorMessage = "Could not load live atmosphere data: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
+
+        func select(_ selected: Place) {
+            suggestionGeneration += 1
+            committedQuery = selected.name
+            query = selected.name
+            suggestions = []
+            isSuggesting = false
+            Task {
+                await loadSelected(selected)
+            }
+        }
+
+        private func loadSelected(_ selected: Place) async {
+            isLoading = true
+            errorMessage = ""
+            do {
+                let snapshot = try await client.snapshotForPlace(selected)
+                apply(snapshot)
+            } catch {
+                errorMessage = "Could not load live atmosphere data: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
+
+        private func apply(_ snapshot: AtmosphereSnapshot) {
+            place = snapshot.place
+            forecast = snapshot.forecast
+            air = snapshot.air
+        }
+    }
+
+    struct TemperatureCurve: Shape {
+        var values: [Double]
+
+        func path(in rect: CGRect) -> Path {
+            Path { path in
+                if values.count > 1 {
+                    let low = values.min() ?? 0
+                    let high = values.max() ?? 1
+                    let spread = max(1.0, high - low)
+                    for index in values.indices {
+                        let x = rect.minX + rect.width * CGFloat(index) / CGFloat(values.count - 1)
+                        let ratio = (values[index] - low) / spread
+                        let y = rect.maxY - rect.height * CGFloat(ratio)
+                        if index == 0 {
+                            path.move(to: CGPoint(x: x, y: y))
+                        } else {
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    struct SunArc: Shape {
+        func path(in rect: CGRect) -> Path {
+            Path { path in
+                path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+                path.addQuadCurve(
+                    to: CGPoint(x: rect.maxX, y: rect.maxY),
+                    control: CGPoint(x: rect.midX, y: rect.minY)
+                )
+            }
+        }
+    }
+
+    struct WeatherPanel<Content: View>: View {
+        @ViewBuilder var content: Content
+
+        var body: some View {
+            content
+                .padding(16)
+                .background(.ultraThinMaterial)
+                .cornerRadius(22)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        }
+    }
+
+    struct WeatherSectionHeader: View {
+        var icon: String
+        var title: String
+
+        var body: some View {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title.uppercased())
+                    .tracking(0.5)
+                Spacer()
+            }
+            .font(.caption2)
+            .foregroundStyle(.white.opacity(0.62))
+        }
+    }
+
+    struct WeatherMetricTile: View {
+        var icon: String
+        var title: String
+        var value: String
+        var detail: String
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                WeatherSectionHeader(icon: icon, title: title)
+                Text(value)
+                    .font(.system(size: 28, weight: .regular))
+                    .monospaced()
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(2)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
+            .padding(16)
+            .background(.ultraThinMaterial)
+            .cornerRadius(22)
+            .overlay(
+                RoundedRectangle(cornerRadius: 22)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            )
+        }
+    }
+
+    struct AQIRing: View {
+        var air: CurrentAir
+
+        var body: some View {
+            WeatherPanel {
+                VStack(alignment: .leading, spacing: 13) {
+                    WeatherSectionHeader(icon: "aqi.medium", title: "Air Quality")
+
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .stroke(Color.white.opacity(0.12), lineWidth: 8)
+                            Circle()
+                                .trim(from: 0, to: min(1.0, Double(air.aqi) / 100.0))
+                                .stroke(aqiColor(air.aqi), lineWidth: 8)
+                                .rotationEffect(.degrees(-90))
+                            VStack(spacing: 0) {
+                                Text("\(air.aqi)")
+                                    .font(.title2)
+                                    .bold()
+                                    .monospaced()
+                                Text("EAQI")
+                                    .font(.caption2)
+                                    .foregroundStyle(.white.opacity(0.58))
+                            }
+                        }
+                        .frame(width: 82, height: 82)
+
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(aqiLabel(air.aqi))
+                                .font(.title3)
+                                .bold()
+                            Text(aqiDescription(air.aqi))
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.7))
+                            Text("PM2.5  \(String(format: "%.1f", air.particles)) µg/m³")
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.55))
+                        }
+                        Spacer()
+                    }
+                }
+            }
+        }
+
+        func aqiLabel(_ value: Int) -> String {
+            switch value {
+            case 0..<20: return "Good"
+            case 20..<40: return "Fair"
+            case 40..<60: return "Moderate"
+            case 60..<80: return "Poor"
+            default: return "Very poor"
+            }
+        }
+
+        func aqiDescription(_ value: Int) -> String {
+            switch value {
+            case 0..<20: return "Air quality is ideal for outdoor activity."
+            case 20..<40: return "Air quality is acceptable for most people."
+            case 40..<60: return "Sensitive people may notice mild effects."
+            case 60..<80: return "Consider reducing prolonged outdoor activity."
+            default: return "Limit outdoor activity when possible."
+            }
+        }
+
+        func aqiColor(_ value: Int) -> Color {
+            switch value {
+            case 0..<20: return Color.green
+            case 20..<40: return Color.mint
+            case 40..<60: return Color.yellow
+            case 60..<80: return Color.orange
+            default: return Color.red
+            }
+        }
+    }
+
+    struct AtmosphereDashboard: View {
+        var place: Place
+        var forecast: Forecast
+        var air: AirQuality
+        var isNight: Bool
+
+        var body: some View {
+            ScrollView {
+                VStack(spacing: 12) {
+                    hero
+                    hourlyForecast
+                    dailyForecast
+
+                    HStack(alignment: .top, spacing: 12) {
+                        WeatherMetricTile(
+                            icon: "thermometer.medium",
+                            title: "Feels Like",
+                            value: "\(Int(forecast.current.feelsLike.rounded()))°",
+                            detail: feelsLikeDetail
+                        )
+                        WeatherMetricTile(
+                            icon: "humidity.fill",
+                            title: "Humidity",
+                            value: "\(forecast.current.humidity)%",
+                            detail: "Relative humidity at the latest observation."
+                        )
+                    }
+
+                    HStack(alignment: .top, spacing: 12) {
+                        WeatherMetricTile(
+                            icon: "wind",
+                            title: "Wind",
+                            value: "\(String(format: "%.1f", forecast.current.windSpeed))",
+                            detail: "Kilometres per hour at the surface."
+                        )
+                        WeatherMetricTile(
+                            icon: "sun.max.fill",
+                            title: "UV Index",
+                            value: String(format: "%.1f", air.current.uvIndex),
+                            detail: uvDescription(air.current.uvIndex)
+                        )
+                    }
+
+                    AQIRing(air: air.current)
+                    sunCard
+
+                    Text("Weather by Open-Meteo • Air quality by CAMS")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.48))
+                        .padding(.vertical, 8)
+                }
+                .frame(maxWidth: 560)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 28)
+            }
+        }
+
+        var hero: some View {
+            VStack(spacing: 4) {
+                Text(place.name)
+                    .font(.title2)
+                    .bold()
+                Text(place.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.65))
+
+                Text("\(Int(forecast.current.temperature.rounded()))°")
+                    .font(.system(size: 88, weight: .thin))
+                    .padding(.top, 3)
+
+                Text(conditionName(forecast.current.weatherCode))
+                    .font(.title3)
+                Text("H:\(Int(forecast.daily.highs.first ?? 0))°  L:\(Int(forecast.daily.lows.first ?? 0))°")
+                    .font(.headline)
+
+                HStack(spacing: 5) {
+                    Image(systemName: "clock")
+                    Text("Updated \(updatedTime(forecast.current.time))")
+                }
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.56))
+                .padding(.top, 5)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 24)
+            .padding(.bottom, 22)
+        }
+
+        var hourlyForecast: some View {
+            WeatherPanel {
+                VStack(alignment: .leading, spacing: 12) {
+                    WeatherSectionHeader(icon: "clock", title: "Hourly Forecast")
+
+                    Text(hourlyNarrative)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.82))
+
+                    Divider()
+                        .opacity(0.18)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 15) {
+                            ForEach(0..<min(12, forecast.hourly.time.count / 2)) { position in
+                                let index = position * 2
+                                VStack(spacing: 7) {
+                                    Text(hourLabel(forecast.hourly.time[index], position: position))
+                                        .font(.caption)
+                                        .bold()
+                                    Image(systemName: weatherIcon(
+                                        forecast.hourly.weatherCodes[index],
+                                        night: night(at: forecast.hourly.time[index])
+                                    ))
+                                    .font(.title3)
+                                    .foregroundStyle(weatherTint(
+                                        forecast.hourly.weatherCodes[index],
+                                        night: night(at: forecast.hourly.time[index])
+                                    ))
+                                    Text("\(Int(forecast.hourly.temperatures[index].rounded()))°")
+                                        .font(.headline)
+                                    if forecast.hourly.rainChance[index] > 0 {
+                                        Text("\(forecast.hourly.rainChance[index])%")
+                                            .font(.caption2)
+                                            .foregroundStyle(.cyan)
+                                    } else {
+                                        Text(" ")
+                                            .font(.caption2)
+                                    }
+                                }
+                                .frame(width: 48)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+
+                    Divider()
+                        .opacity(0.18)
+
+                    HStack {
+                        Text("24-HOUR TEMPERATURE")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.55))
+                        Spacer()
+                        Text("\(Int(forecast.hourly.temperatures.min() ?? 0))° — \(Int(forecast.hourly.temperatures.max() ?? 0))°")
+                            .font(.caption)
+                            .monospaced()
+                    }
+
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color.cyan.opacity(0.2), Color.clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        TemperatureCurve(values: forecast.hourly.temperatures)
+                            .stroke(Color.white.opacity(0.88), lineWidth: 2)
+                            .padding(.vertical, 7)
+                    }
+                    .frame(height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+
+        var dailyForecast: some View {
+            WeatherPanel {
+                VStack(spacing: 0) {
+                    WeatherSectionHeader(
+                        icon: "calendar",
+                        title: "\(forecast.daily.time.count)-Day Forecast"
+                    )
+                    .padding(.bottom, 8)
+
+                    ForEach(forecast.daily.time.indices) { index in
+                        HStack(spacing: 9) {
+                            Text(dayLabel(forecast.daily.time[index], index: index))
+                                .font(.subheadline)
+                                .frame(width: 68, alignment: .leading)
+
+                            Image(systemName: weatherIcon(forecast.daily.weatherCodes[index], night: false))
+                                .foregroundStyle(weatherTint(forecast.daily.weatherCodes[index], night: false))
+                                .frame(width: 28)
+
+                            Spacer()
+
+                            Text("\(Int(forecast.daily.lows[index].rounded()))°")
+                                .foregroundStyle(.white.opacity(0.54))
+                                .monospaced()
+                                .frame(width: 34, alignment: .trailing)
+
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.white.opacity(0.14))
+                                    .frame(width: 58, height: 5)
+                                Capsule()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.cyan, Color.yellow],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: rangeWidth(index), height: 5)
+                                    .offset(x: rangeOffset(index))
+                            }
+                            .frame(width: 58)
+
+                            Text("\(Int(forecast.daily.highs[index].rounded()))°")
+                                .monospaced()
+                                .frame(width: 34, alignment: .trailing)
+                        }
+                        .padding(.vertical, 10)
+
+                        if index < forecast.daily.time.count - 1 {
+                            Divider()
+                                .opacity(0.16)
+                        }
+                    }
+
+                    HStack {
+                        Spacer()
+                        Text(forecast.timezone)
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.42))
+                    }
+                    .padding(.top, 8)
+                }
+            }
+        }
+
+        var sunCard: some View {
+            WeatherPanel {
+                VStack(alignment: .leading, spacing: 12) {
+                    WeatherSectionHeader(icon: "sunrise.fill", title: "Sun")
+
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Sunrise")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.6))
+                            Text(clockTime(forecast.daily.sunrise.first ?? ""))
+                                .font(.title3)
+                                .bold()
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Sunset")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.6))
+                            Text(clockTime(forecast.daily.sunset.first ?? ""))
+                                .font(.title3)
+                                .bold()
+                        }
+                    }
+
+                    GeometryReader { proxy in
+                        let progress = sunProgress()
+                        let x = 9 + (proxy.size.width - 18) * CGFloat(progress)
+                        let heightRatio = 4.0 * progress * (1.0 - progress)
+                        let y = proxy.size.height - 8 - (proxy.size.height - 16) * CGFloat(heightRatio)
+
+                        SunArc()
+                            .stroke(Color.white.opacity(0.28), lineWidth: 1)
+                            .padding(.horizontal, 7)
+                        Image(systemName: isNight ? "moon.fill" : "sun.max.fill")
+                            .foregroundStyle(isNight ? Color.white : Color.yellow)
+                            .position(x: x, y: y)
+                    }
+                    .frame(height: 62)
+                }
+            }
+        }
+
+        var hourlyNarrative: String {
+            let rain = forecast.hourly.rainChance.max() ?? 0
+            let high = Int((forecast.hourly.temperatures.max() ?? forecast.current.temperature).rounded())
+            if rain >= 50 {
+                return "Rain is likely during the next 24 hours."
+            }
+            if rain >= 20 {
+                return "There is a chance of rain later today."
+            }
+            if high > Int(forecast.current.temperature.rounded()) + 2 {
+                return "Temperatures will rise to around \(high)° today."
+            }
+            return "\(conditionName(forecast.current.weatherCode)) conditions will continue for the next several hours."
+        }
+
+        var feelsLikeDetail: String {
+            let difference = forecast.current.feelsLike - forecast.current.temperature
+            if difference > 1.5 {
+                return "It feels warmer than the actual temperature."
+            }
+            if difference < -1.5 {
+                return "It feels cooler than the actual temperature."
+            }
+            return "Similar to the actual temperature."
+        }
+
+        func weatherIcon(_ code: Int, night: Bool) -> String {
+            switch code {
+            case 0: return night ? "moon.stars.fill" : "sun.max.fill"
+            case 1...3: return night ? "cloud.moon.fill" : "cloud.sun.fill"
+            case 45...48: return "cloud.fog.fill"
+            case 51...67: return "cloud.rain.fill"
+            case 71...77: return "snowflake"
+            case 80...82: return "cloud.heavyrain.fill"
+            case 95...99: return "cloud.bolt.rain.fill"
+            default: return "cloud.fill"
+            }
+        }
+
+        func weatherTint(_ code: Int, night: Bool) -> Color {
+            switch code {
+            case 0: return night ? Color.white : Color.yellow
+            case 1...3: return night ? Color.white : Color.yellow
+            case 71...77: return Color.white
+            default: return Color.cyan
+            }
+        }
+
+        func conditionName(_ code: Int) -> String {
+            switch code {
+            case 0: return "Clear"
+            case 1...3: return "Partly Cloudy"
+            case 45...48: return "Fog"
+            case 51...67: return "Rain"
+            case 71...77: return "Snow"
+            case 80...82: return "Showers"
+            case 95...99: return "Thunderstorms"
+            default: return "Cloudy"
+            }
+        }
+
+        func night(at value: String) -> Bool {
+            let hour = Int(String(value.suffix(5).prefix(2))) ?? 12
+            return hour < 6 || hour >= 19
+        }
+
+        func hourLabel(_ value: String, position: Int) -> String {
+            if position == 0 {
+                return "Now"
+            }
+            let parser = DateFormatter()
+            parser.dateFormat = "yyyy-MM-dd'T'HH:mm"
+            guard let date = parser.date(from: value) else {
+                return String(value.suffix(5))
+            }
+            parser.dateFormat = "ha"
+            return parser.string(from: date)
+        }
+
+        func dayLabel(_ value: String, index: Int) -> String {
+            if index == 0 {
+                return "Today"
+            }
+            let parser = DateFormatter()
+            parser.dateFormat = "yyyy-MM-dd"
+            guard let date = parser.date(from: value) else {
+                return String(value.suffix(5))
+            }
+            parser.dateFormat = "EEE"
+            return parser.string(from: date)
+        }
+
+        func updatedTime(_ value: String) -> String {
+            let parser = DateFormatter()
+            parser.dateFormat = "yyyy-MM-dd'T'HH:mm"
+            guard let date = parser.date(from: value) else {
+                return String(value.suffix(5))
+            }
+            parser.dateFormat = "h:mm a"
+            return parser.string(from: date)
+        }
+
+        func clockTime(_ value: String) -> String {
+            let parser = DateFormatter()
+            parser.dateFormat = "yyyy-MM-dd'T'HH:mm"
+            guard let date = parser.date(from: value) else {
+                return String(value.suffix(5))
+            }
+            parser.dateFormat = "h:mm a"
+            return parser.string(from: date)
+        }
+
+        func uvDescription(_ value: Double) -> String {
+            if value < 3 {
+                return "Low for the current hour."
+            }
+            if value < 6 {
+                return "Moderate — protection is recommended."
+            }
+            if value < 8 {
+                return "High — reduce midday exposure."
+            }
+            return "Very high — use extra protection."
+        }
+
+        func rangeOffset(_ index: Int) -> CGFloat {
+            let floor = forecast.daily.lows.min() ?? 0
+            let ceiling = forecast.daily.highs.max() ?? 1
+            let spread = max(1.0, ceiling - floor)
+            return CGFloat((forecast.daily.lows[index] - floor) / spread) * 58
+        }
+
+        func rangeWidth(_ index: Int) -> CGFloat {
+            let floor = forecast.daily.lows.min() ?? 0
+            let ceiling = forecast.daily.highs.max() ?? 1
+            let spread = max(1.0, ceiling - floor)
+            let width = CGFloat((forecast.daily.highs[index] - forecast.daily.lows[index]) / spread) * 58
+            return max(7, width)
+        }
+
+        func minutes(_ value: String) -> Double {
+            let clock = String(value.suffix(5))
+            let hour = Double(String(clock.prefix(2))) ?? 0
+            let minute = Double(String(clock.suffix(2))) ?? 0
+            return hour * 60 + minute
+        }
+
+        func sunProgress() -> Double {
+            let current = minutes(forecast.current.time)
+            let sunrise = minutes(forecast.daily.sunrise.first ?? "06:00")
+            let sunset = minutes(forecast.daily.sunset.first ?? "18:00")
+            let daylight = max(1.0, sunset - sunrise)
+            return min(1.0, max(0.0, (current - sunrise) / daylight))
+        }
+    }
+
+    struct ContentView: View {
+        @StateObject private var store = AtmosphereStore()
+
+        var body: some View {
+            ZStack(alignment: .top) {
+                atmosphericBackground
+
+                VStack(spacing: 0) {
+                    searchBar
+
+                    if let place = store.place,
+                       let forecast = store.forecast,
+                       let air = store.air {
+                        AtmosphereDashboard(
+                            place: place,
+                            forecast: forecast,
+                            air: air,
+                            isNight: currentIsNight
+                        )
+                    } else if store.isLoading {
+                        loadingView
+                    } else {
+                        unavailableView
+                    }
+                }
+                .foregroundStyle(.white)
+
+                if !store.suggestions.isEmpty {
+                    suggestionMenu
+                        .padding(.horizontal, 16)
+                        .padding(.top, 64)
+                        .zIndex(10)
+                } else if !store.errorMessage.isEmpty && store.forecast != nil {
+                    errorBanner
+                        .padding(.horizontal, 16)
+                        .padding(.top, 64)
+                        .zIndex(9)
+                }
+            }
+            .task {
+                if store.forecast == nil {
+                    await store.load()
+                }
+            }
+        }
+
+        var atmosphericBackground: some View {
+            ZStack(alignment: .topTrailing) {
+                LinearGradient(
+                    colors: backgroundColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                Circle()
+                    .fill((currentIsNight ? Color.indigo : Color.cyan).opacity(0.25))
+                    .frame(width: 330, height: 330)
+                    .blur(radius: 55)
+                    .offset(x: 125, y: -80)
+
+                Circle()
+                    .fill(Color.blue.opacity(0.18))
+                    .frame(width: 260, height: 260)
+                    .blur(radius: 60)
+                    .offset(x: -270, y: 470)
+
+                Image(systemName: backgroundSymbol)
+                    .font(.system(size: 250, weight: .ultraLight))
+                    .foregroundStyle(.white.opacity(0.055))
+                    .offset(x: 68, y: 90)
+
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.24)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .ignoresSafeArea()
+        }
+
+        var searchBar: some View {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.white.opacity(0.72))
+
+                TextField("Search for a city", text: $store.query)
+                    .textFieldStyle(.plain)
+                    .onChange(of: store.query, initial: false) {
+                        store.queryChanged()
+                    }
+                    .onSubmit {
+                        Task { await store.load() }
+                    }
+
+                if store.isLoading || store.isSuggesting {
+                    ProgressView()
+                        .scaleEffect(0.72)
+                } else {
+                    Button {
+                        Task { await store.load() }
+                    } label: {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.title3)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(store.query.count < 2)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: 560)
+            .frame(height: 44)
+            .background(.regularMaterial)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.13), lineWidth: 1)
+            )
+            .shadow(radius: 12, y: 5)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+        }
+
+        var suggestionMenu: some View {
+            VStack(spacing: 0) {
+                ForEach(store.suggestions) { suggestion in
+                    Button {
+                        store.select(suggestion)
+                    } label: {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.1))
+                                Image(systemName: "mappin.and.ellipse")
+                                    .foregroundStyle(.cyan)
+                            }
+                            .frame(width: 34, height: 34)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(suggestion.name)
+                                    .font(.headline)
+                                Text(suggestion.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.62))
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.36))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: 560)
+            .padding(.vertical, 5)
+            .background(.regularMaterial)
+            .cornerRadius(18)
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            )
+            .shadow(radius: 18, y: 8)
+            .transition(.opacity)
+        }
+
+        var errorBanner: some View {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.yellow)
+                Text(store.errorMessage)
+                    .font(.caption)
+                    .lineLimit(2)
+                Spacer()
+                Button {
+                    store.errorMessage = ""
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.plain)
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: 560)
+            .padding(12)
+            .background(.regularMaterial)
+            .cornerRadius(16)
+            .shadow(radius: 14, y: 6)
+        }
+
+        var loadingView: some View {
+            VStack(spacing: 13) {
+                Image(systemName: backgroundSymbol)
+                    .font(.system(size: 50, weight: .thin))
+                    .foregroundStyle(.white.opacity(0.8))
+                ProgressView()
+                Text("Loading Weather")
+                    .font(.headline)
+                Text("Forecast • air quality • local conditions")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+
+        var unavailableView: some View {
+            VStack(spacing: 12) {
+                Image(systemName: "cloud.slash.fill")
+                    .font(.system(size: 46, weight: .thin))
+                    .foregroundStyle(.white.opacity(0.75))
+                Text("Weather Unavailable")
+                    .font(.title3)
+                    .bold()
+                Text(store.errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.62))
+                    .multilineTextAlignment(.center)
+                Button("Try Again") {
+                    Task { await store.load() }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+
+        var currentIsNight: Bool {
+            guard let time = store.forecast?.current.time else {
+                return false
+            }
+            let hour = Int(String(time.suffix(5).prefix(2))) ?? 12
+            return hour < 6 || hour >= 19
+        }
+
+        var backgroundColors: [Color] {
+            let code = store.forecast?.current.weatherCode ?? 0
+            if currentIsNight {
+                switch code {
+                case 95...99:
+                    return [Color.black, Color.purple, Color.indigo]
+                case 51...82:
+                    return [Color.black, Color.indigo, Color.blue.opacity(0.7)]
+                default:
+                    return [Color.black, Color.indigo, Color.blue.opacity(0.68)]
+                }
+            }
+
+            switch code {
+            case 0:
+                return [Color.blue, Color.cyan.opacity(0.8), Color.indigo]
+            case 1...48:
+                return [Color.indigo, Color.blue, Color.gray]
+            case 51...82:
+                return [Color.indigo, Color.blue.opacity(0.82), Color.black]
+            case 95...99:
+                return [Color.black, Color.purple, Color.indigo]
+            default:
+                return [Color.blue, Color.indigo, Color.black]
+            }
+        }
+
+        var backgroundSymbol: String {
+            let code = store.forecast?.current.weatherCode ?? 0
+            switch code {
+            case 0: return currentIsNight ? "moon.stars.fill" : "sun.max.fill"
+            case 1...3: return currentIsNight ? "cloud.moon.fill" : "cloud.sun.fill"
+            case 45...48: return "cloud.fog.fill"
+            case 51...67: return "cloud.rain.fill"
+            case 71...77: return "snowflake"
+            case 80...82: return "cloud.heavyrain.fill"
+            case 95...99: return "cloud.bolt.rain.fill"
+            default: return "cloud.fill"
+            }
+        }
+    }
+    """#)
 
     /// A real view-model app: ObservableObject store shared by three views.
     static let todoMVVM = SampleProgram(name: "Todo", source: """
