@@ -206,8 +206,6 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { _, _ in .native(DateFormatterBox()) }
     case "NumberFormatter":
         return HostFunction(name: name) { _, _ in .native(NumberFormatterBox()) }
-    case "Result":
-        return combineHostObjectConstructor(name)
     case "Data":
         return HostFunction(name: name) { args, _ in
             // Real semantics: reading a file that isn't there throws (a
