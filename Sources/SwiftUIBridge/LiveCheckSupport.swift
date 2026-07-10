@@ -37,17 +37,47 @@ public enum LiveCheckSupport {
         // environment seeding evaluate for real, e.g. StoreProvider(store:)
         // around the tab view); fall back to instantiating the root symbol.
         var renderRoot: (() throws -> TraceNode)?
-        if let declared = interpreter.declaredRootViewExpression() {
+        // The @main App path: scene body as a BUILDER with the App as self
+        // (multi-statement scenes, wrappers, env seeding all launch-faithful).
+        if let scene = interpreter.declaredAppSceneRoot() {
+            do {
+                let views = try interpreter.sceneViews(app: scene.app, sceneBody: scene.sceneBody)
+                if let first = views.first, (try? TraceRegistry.node(first)) != nil {
+                    lastRootSymbol = "scene:" + scene.app.symbol.name
+                    renderRoot = {
+                        let fresh = try interpreter.sceneViews(app: scene.app, sceneBody: scene.sceneBody)
+                        guard let view = fresh.first else {
+                            throw RuntimeError(message: "scene produced no views")
+                        }
+                        return try TraceRegistry.node(view)
+                    }
+                }
+            } catch {
+                lastRootSymbol = "sceneBuilderError: \(error)"
+            }
+        }
+        if renderRoot == nil, let declared = interpreter.declaredRootViewExpression() {
             // The App instance's stored/@StateObject properties evaluate
             // once (its init runs), then the scene expression sees them as
             // self — launch-faithful environment seeding.
             var appInstance: Instance?
-            if let appSymbol = declared.app,
-               case .instance(let app)? = try? interpreter.instantiateRoot(appSymbol) {
-                appInstance = app
+            if let appSymbol = declared.app {
+                do {
+                    if case .instance(let app) = try interpreter.instantiateRoot(appSymbol) {
+                        appInstance = app
+                    }
+                } catch {
+                    lastRootSymbol = "appInitError: \(error)"
+                }
             }
             let rootExpression = declared.expression
-            if let value = try? interpreter.evaluateAppRootExpression(rootExpression, app: appInstance) {
+            var sceneValue: RuntimeValue?
+            do {
+                sceneValue = try interpreter.evaluateAppRootExpression(rootExpression, app: appInstance)
+            } catch {
+                lastRootSymbol = "sceneExprError: \(error)"
+            }
+            if let value = sceneValue {
             if case .instance(let instance) = value {
                 lastRootSymbol = "app:" + instance.symbol.name
                 try interpreter.injectEnvironmentObjects(into: instance, models: [:])
@@ -61,6 +91,8 @@ public enum LiveCheckSupport {
                 renderRoot = {
                     try TraceRegistry.node(interpreter.evaluateAppRootExpression(rootExpression, app: app))
                 }
+            } else {
+                lastRootSymbol = "sceneValueUnusable: \(value.stringified.prefix(60))"
             }
             }
         }
@@ -68,7 +100,14 @@ public enum LiveCheckSupport {
             guard let symbol = interpreter.rootViewSymbol() else {
                 throw RuntimeError(message: "no View-conforming struct found")
             }
-            lastRootSymbol = symbol.name
+            if lastRootSymbol.hasPrefix("appInitError") || lastRootSymbol.hasPrefix("sceneExprError")
+                || lastRootSymbol.hasPrefix("sceneValueUnusable") || lastRootSymbol.hasPrefix("sceneBuilderError") {
+                lastRootSymbol += " → fallback:" + symbol.name
+            } else if interpreter.declaredRootViewExpression() == nil {
+                lastRootSymbol = "noDeclaredRoot → " + symbol.name
+            } else {
+                lastRootSymbol = symbol.name
+            }
             guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
                 throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
             }

@@ -54,6 +54,26 @@ extension Interpreter {
         return nil
     }
 
+    /// The @main App's scene BODY as a builder: instantiate the App once
+    /// (stored/@StateObject props evaluate), then collect the scene
+    /// closure's views with the App as self — multi-statement and
+    /// conditional scenes included. nil when there is no App/scene.
+    public func declaredAppSceneRoot() -> (app: Instance, sceneBody: CodeBlockItemListSyntax)? {
+        for symbol in structSymbols where symbol.conformances.contains("App") {
+            guard let body = symbol.computedProperties["body"],
+                  let sceneCall = Self.firstSceneBuilderCall(in: Syntax(body.accessor)),
+                  let trailing = sceneCall.trailingClosure else { continue }
+            guard case .instance(let app)? = try? instantiateRoot(symbol) else { continue }
+            return (app, trailing.statements)
+        }
+        return nil
+    }
+
+    /// Collect the scene's views (builder semantics) with the App as self.
+    public func sceneViews(app: Instance, sceneBody: CodeBlockItemListSyntax) throws -> [RuntimeValue] {
+        try collectBuilderViews(sceneBody, in: selfEnvironment(.instance(app)))
+    }
+
     /// Evaluate the declared root expression with the APP INSTANCE as self —
     /// `.environmentObject(appAccountsManager)` sees the App's own
     /// stored/@StateObject properties, exactly as at launch.
