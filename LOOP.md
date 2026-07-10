@@ -224,6 +224,16 @@ Each iteration does exactly this:
    3. [DONE iter 200] @Query/@FetchRequest read the live model store
       each render (Wrapper.query + per-render refreshQueries;
       QueryLiveStoreTests — insert taps become visible rows).
+   3b. STDLIB CONTAINER MEMBERS absorb at scale (histogram audit
+      2026-07-10 ~18:00; scenarios PASS but the semantics read
+      fresh-falsy): movieswiftui absorbs DictValue.contains ×184,
+      DictValue.filter ×18, Array<RuntimeValue>.append ×18
+      (member-position), DictValue.compactMap ×6 — OUR containers, so
+      the fix is nativeMember stdlib-table entries, NOT the generated
+      swiftinterface tier (its sweep serves SDK types only). Minor tier
+      items from the same audit: URLSessionBox.webSocketTask (stateful
+      hand box), URL.resourceValues (throws — sweep-filtered; consider
+      a do/catch-wrapping emit policy for throwing members).
    4. TestCheck classes (native-baseline rule first; scoreboard
       2026-07-10 @ --limit 8: 79 passed / 52 failed / 12 errored).
       Top exemplar: clean-architecture-swiftui LoadableTests.map —
