@@ -227,6 +227,21 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                 lineJoin: lineJoin
             ))
         }
+    case "NSError":
+        return HostFunction(name: name) { args, _ in
+            // Real NSError — localizedDescription and userInfo round-trip
+            // (the NSLocalizedDescriptionKey genre in test helpers).
+            let domain = args.labeled("domain")?.stringValue ?? "interpreted"
+            let code = args.labeled("code")?.intValue ?? 0
+            var userInfo: [String: Any] = [:]
+            if case .host(let any)? = args.labeled("userInfo"), let dict = any as? DictValue {
+                for (key, value) in zip(dict.keys, dict.values) {
+                    guard let keyText = key.stringValue else { continue }
+                    userInfo[keyText] = value.stringValue ?? value.stringified
+                }
+            }
+            return .native(ObjCBox(NSError(domain: domain, code: code, userInfo: userInfo)))
+        }
     case "AttributedString":
         return HostFunction(name: name) { args, _ in
             // `AttributedString(markdown: text)` converts for real (author

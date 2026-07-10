@@ -640,7 +640,17 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     @Test func loadableMapTransformsAndCompares() throws {
         let result = try Interpreter(registry: ViewRegistry()).run(source: """
         final class CancelBag {
-            static var test: CancelBag { CancelBag() }
+            private let equalToAny: Bool
+
+            init(equalToAny: Bool = false) {
+                self.equalToAny = equalToAny
+            }
+
+            static var test: CancelBag { CancelBag(equalToAny: true) }
+
+            func isEqual(to other: CancelBag) -> Bool {
+                return other === self || other.equalToAny || self.equalToAny
+            }
         }
 
         enum Loadable<T> {
@@ -678,7 +688,8 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             static func == (lhs: Loadable<T>, rhs: Loadable<T>) -> Bool {
                 switch (lhs, rhs) {
                 case (.notRequested, .notRequested): return true
-                case let (.isLoading(lhsV, _), .isLoading(rhsV, _)): return lhsV == rhsV
+                case let (.isLoading(lhsV, lhsC), .isLoading(rhsV, rhsC)):
+                    return lhsV == rhsV && lhsC.isEqual(to: rhsC)
                 case let (.loaded(lhsV), .loaded(rhsV)): return lhsV == rhsV
                 case let (.failed(lhsE), .failed(rhsE)):
                     return lhsE.localizedDescription == rhsE.localizedDescription
@@ -687,7 +698,8 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             }
         }
 
-        let error = NSError(domain: "test", code: 0)
+        let error = NSError(domain: "test", code: 0,
+                            userInfo: [NSLocalizedDescriptionKey: "Test error"])
         let values: [Loadable<Int>] = [
             .notRequested,
             .isLoading(last: nil, cancelBag: CancelBag()),
@@ -706,7 +718,7 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
             value.map { "\\($0)" }
         }
         (sut[0] == expect[0], sut[1] == expect[1], sut[2] == expect[2],
-         sut[3] == expect[3], sut[4] == expect[4])
+         sut[3] == expect[3], sut[4] == expect[4], sut == expect)
         """)
         let tuple = try #require(result.tupleValue)
         for (index, value) in tuple.values.enumerated() {

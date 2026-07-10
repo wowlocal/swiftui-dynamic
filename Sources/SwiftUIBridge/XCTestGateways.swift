@@ -123,7 +123,8 @@ extension ViewRegistry {
             }
             if args.positional(0)?.boolValue != true {
                 let comment = args.positional(1)?.stringValue.map { " — \($0)" } ?? ""
-                recorder.record("#expect failed\(comment)")
+                let source = args.labeled("__source")?.stringValue.map { ": \($0)" } ?? ""
+                recorder.record("#expect failed\(source)\(comment)")
             }
             return .void
         }

@@ -2224,3 +2224,17 @@ between iterations 35 and 183.)
   fallback keeps equality throw-free). **TestCheck 79 → 80 passed / 51
   failed; ProjectCheck 679/680 (damus regression caught and healed
   in-iteration); suite 438 → 439; LiveCheck 4/4.**
+- 2026-07-10 iter 203: LoadableTests.map ACTUALLY closed (iter 202's
+  fix covered element comparisons; the real assertion compares ARRAYS):
+  `sut == expect` now routes ELEMENTWISE through the user-declared ==
+  (equalsViaDeclaredOperator recurses arrays), and the mismatch dump
+  (≠, gated) plus SOURCE-NAMED #expect failures ("#expect failed: sut
+  == expect" — the macro dispatch now passes the argument source) made
+  the last wall visible in minutes: NSError(domain:code:userInfo:) was
+  a catch-all STUB, so localizedDescription threw inside the == and
+  the fallback compared stub identity — a real NSError constructor
+  gateway fixes it (userInfo marshaled, localizedDescription real).
+  **TestCheck 80 → 81 passed / 50 failed; suite 441 green; LiveCheck
+  4/4; ProjectCheck 678/680 — Basic-Car-Maintenance ("map needs a
+  transform" at 1853) broke at HEAD via the parallel merge, verified
+  pre-existing, next histogram item.**

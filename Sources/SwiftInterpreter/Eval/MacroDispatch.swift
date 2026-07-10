@@ -30,6 +30,10 @@ extension Interpreter {
                 label: extra.label.text, value: .closure(makeClosure(extra.closure, in: env)),
                 isTrailing: true))
         }
+        // The raw argument SOURCE rides along so failure messages can name
+        // the expression (`#expect failed: sut == expect`).
+        callArguments.append(.init(
+            label: "__source", value: .native(arguments.trimmedDescription)))
         return try relocating(node) { try host.invoke(CallArguments(arguments: callArguments), self) }
     }
 }

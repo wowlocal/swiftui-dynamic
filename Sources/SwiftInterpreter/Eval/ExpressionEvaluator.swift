@@ -2658,22 +2658,8 @@ extension Interpreter {
             // its own ==, while payload-wise comparison would not (the
             // clean-architecture LoadableTests genre). `!=` negates it.
             if op == "==" || op == "!=",
-               let declared = declaredEqualsOperator(lhs) ?? declaredEqualsOperator(rhs) {
-                do {
-                    let result = try callWithArguments(
-                        declared,
-                        args: CallArguments(arguments: [
-                            .init(label: nil, value: lhs), .init(label: nil, value: rhs),
-                        ]),
-                        node: Syntax(infix))
-                    if let b = result.boolValue {
-                        return .bool(op == "==" ? b : !b)
-                    }
-                } catch let opError as RuntimeError where !opError.fatal {
-                    // A declared == whose body trips an absorbed member
-                    // falls back to STRUCTURAL equality (damus's Route ==
-                    // compares hashValues) — never let equality throw.
-                }
+               let viaDeclared = try equalsViaDeclaredOperator(lhs, rhs, node: Syntax(infix)) {
+                return .bool(op == "==" ? viaDeclared : !viaDeclared)
             }
             // Host-typed operators the core can't know (`Text("a") + Text("b")`).
             if let registry, let combined = registry.combineValues(op, lhs, rhs) {
@@ -3017,6 +3003,47 @@ extension Interpreter {
                 try base.write(.native(mutated), interpreter)
             }
         }
+    }
+
+    /// Equality THROUGH a user-declared `static func ==` when one applies —
+    /// scalars dispatch directly; ARRAYS of such values compare elementwise
+    /// through it (`sut == expect` over [Loadable<String>]). nil when no
+    /// declared operator is involved; a declared body that trips an
+    /// absorbed member falls back to structural (equality never throws).
+    private func equalsViaDeclaredOperator(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue, node: Syntax?
+    ) throws -> Bool? {
+        if let declared = declaredEqualsOperator(lhs) ?? declaredEqualsOperator(rhs) {
+            do {
+                let result = try callWithArguments(
+                    declared,
+                    args: CallArguments(arguments: [
+                        .init(label: nil, value: lhs), .init(label: nil, value: rhs),
+                    ]),
+                    node: node)
+                if let b = result.boolValue { return b }
+            } catch let opError as RuntimeError where !opError.fatal {
+                // damus's Route == compares hashValues of absorbed members.
+            }
+            return nil
+        }
+        if let l = lhs.arrayValue, let r = rhs.arrayValue,
+           let sample = l.first ?? r.first,
+           declaredEqualsOperator(sample) != nil {
+            guard l.count == r.count else { return false }
+            for (a, b) in zip(l, r) {
+                let pair = try equalsViaDeclaredOperator(a, b, node: node)
+                    ?? ((try? Builtins.areEqual(a, b)) ?? false)
+                if !pair {
+                    if Interpreter.traceStateCells {
+                        FileHandle.standardError.write(Data("   ≠ \(a.stringified.prefix(90)) VS \(b.stringified.prefix(90))\n".utf8))
+                    }
+                    return false
+                }
+            }
+            return true
+        }
+        return nil
     }
 
     /// The `static func ==` a value's own type (or its extensions)
