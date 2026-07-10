@@ -75,8 +75,17 @@ public final class Interpreter {
     /// surface grows — fill the biggest absorber, regenerate, re-measure.
     public private(set) var absorbedHostMembers: [String: Int] = [:]
 
+    /// Cross-run census (INTERP_ABSORB_CENSUS=1): aggregates across every
+    /// interpreter instance a harness creates — the DEMAND CURVE of the
+    /// whole corpus, not one scenario.
+    public static var absorbCensus: [String: Int] = [:]
+    static let censusEnabled = ProcessInfo.processInfo.environment["INTERP_ABSORB_CENSUS"] != nil
+
     func recordAbsorbedHostMember(type typeName: String, member: String) {
         let key = "\(typeName).\(member)"
+        if Self.censusEnabled {
+            Self.absorbCensus[key, default: 0] += 1
+        }
         if absorbedHostMembers[key] == nil, absorbedHostMembers.count >= 512 { return }
         absorbedHostMembers[key, default: 0] += 1
     }

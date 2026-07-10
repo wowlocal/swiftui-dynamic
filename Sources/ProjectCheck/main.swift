@@ -174,6 +174,14 @@ for unit in units {
 }
 
 print("\n═══ \(passed)/\(units.count) projects pass ═══")
+
+if !Interpreter.absorbCensus.isEmpty {
+    let census = Interpreter.absorbCensus.sorted { $0.value > $1.value }
+    print("\n═══ absorb census: \(census.count) distinct members, \(census.reduce(0) { $0 + $1.value }) total absorptions ═══")
+    for (key, count) in census.prefix(40) {
+        print(String(format: "%6d  %@", count, key))
+    }
+}
 if !histogram.isEmpty {
     print("\nfailure classes (fix the biggest first):")
     for (message, projects) in histogram.sorted(by: { $0.value.count > $1.value.count }) {
