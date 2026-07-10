@@ -239,7 +239,7 @@ Each iteration does exactly this:
       (key:, value:) tuple elements (DictEnumeratedTests). Post-fix
       histogram: only Array.append (member-position) + webSocketTask +
       URL.resourceValues remain.
-   3c. [CLAIMED штурман 20:05] M2 BREADTH: achnbrowser-items-ui scenario SEEDED (4/5 board —
+   3c. [DONE iter 207] M2 BREADTH: achnbrowser-items-ui scenario SEEDED (4/5 board —
       the four green stay the invariant; the fifth is the new demand).
       ACHNBrowserUI is a THIRD async genre: bundled RESOURCE data
       (repo-committed real JSON, what Bundle.module ships) rides a
@@ -2316,3 +2316,30 @@ between iterations 35 and 183.)
   Date(timeInterval:since:) constructs real. **679/680; suite 448
   green (steward merge + ACHNBootChainTests); TestCheck 81/51/11;
   LiveCheck 4/5 — achnbrowser's bundle-loading gap is queue #1.**
+- 2026-07-11 iter 207: achnbrowser-items-ui GREEN — the LiveCheck board
+  is 5/5. The wall was invisible: all 32 fetchFile pipelines "worked"
+  while `replaceError(with: NewItemResponse(total: 0, results: []))`
+  silently swapped empty responses over a failed decode —
+  `.decode(type: T.self)` runs INSIDE the generic factory where T is
+  unresolved (natively T pins from the caller's typed fallback).
+  DEFERRED DECODE: an unresolved type descriptor keeps the raw Data
+  pending on the ValuePublisherBox; replaceError(with:)'s typed
+  fallback names the type and decodes then (map/sink guard pendings;
+  ⚠-traces mark absorbed failures — DeferredGenericDecodeTests). The
+  rest of the road there: Bundle.module resolves committed project
+  resources (BundleBox.projectResourceRoot, extensionless files —
+  BundledResourcePipelineTests), $published projections deliver the
+  CURRENT value as a replay pipeline, NavigationLink destinations walk
+  as OPTIONAL-COVERAGE children (interpreted instances wrap via
+  makeRenderable — they were silently dropped; pushed-screen body
+  failures skip in both collect and deepRender like un-tapped screens),
+  and SwiftGen asset-catalog color statics (Color.haPrimary — generated
+  code no merge can see) absorb to a placeholder on Color/UIColor/
+  NSColor markers (healed the home-assistant regression the destination
+  walk exposed). Isolation tests written while bisecting all PASSED and
+  stay as pins: enum-keyed @Published dict subscripts, self-assign enum
+  inits with rawValue fallback, decode→filter by computed enum, nested
+  $0 shadowing. INTERP_TRACE_PROP generalizes the ✍ state tracer.
+  **679/680; suite 457 green (+5 suites); TestCheck 81/51/11;
+  LiveCheck 5/5 — first full board. SATURATION: next iteration opens
+  the TestCheck queue (clean-architecture generics, oldest first).**

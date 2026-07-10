@@ -35,6 +35,11 @@ public enum ProjectMaterial {
 
     /// Imports are stripped (the merge holds all the app's own Swift; the
     /// interpreter absorbs what a compiled import would provide).
+    public static func mergedSource(at root: String, files: [String]) -> String {
+        BundleBox.projectResourceRoot = root
+        return mergedSource(files: files)
+    }
+
     public static func mergedSource(files: [String]) -> String {
         var merged = ""
         var imports: Set<String> = []
@@ -77,7 +82,7 @@ public enum ProjectMaterial {
     }
 
     public static func mergedSource(at root: String) -> String {
-        mergedSource(files: swiftFiles(under: root))
+        mergedSource(at: root, files: swiftFiles(under: root))
     }
 
     /// Per-TARGET merge: a compiler never merges sibling app targets

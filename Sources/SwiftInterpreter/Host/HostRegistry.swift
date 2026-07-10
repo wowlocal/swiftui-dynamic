@@ -122,6 +122,10 @@ public protocol HostRegistry: AnyObject {
     /// Members on host-native values the core can't know (GeometryProxy.size,
     /// CGSize.width, …). Return nil for unknown names.
     func hostMember(_ name: String, on value: Any) -> RuntimeValue?
+    /// `$published` projection: replay/live registries deliver the CURRENT
+    /// value as a synchronous publisher (the doctrine fork); absorbed mode
+    /// returns nil and the projection stays inert.
+    func publishedProjection(current: RuntimeValue) -> RuntimeValue?
     /// Writable members on host-native values (formatter.dateFormat = "…").
     /// Return false when the member isn't settable.
     func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool
@@ -145,6 +149,7 @@ extension HostRegistry {
     public func hostTypeName(of value: Any) -> String? { nil }
     public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
+    public func publishedProjection(current: RuntimeValue) -> RuntimeValue? { nil }
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool { false }
     public func hostObjectConstructor(named name: String) -> HostFunction? { nil }
 }

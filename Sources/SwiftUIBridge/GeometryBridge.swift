@@ -280,6 +280,10 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 if views.count == 1 { return views[0] }
                 return .native(views) // builder-content shape ([views])
             })
+        case ("Bundle", "module"):
+            // SPM resource bundles resolve against the merge's project
+            // root — the committed files ARE what Bundle.module ships.
+            return .native(BundleBox(bundle: .main))
         case ("Bundle", "main"):
             // The host process IS real (the uname doctrine): path-walking
             // idioms (locateHostBundleURL's climb to "/") terminate on a
@@ -338,6 +342,13 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 return .native(Double.random(in: bounds))
             })
+        case ("Color", _), ("UIColor", _), ("NSColor", _):
+            // Asset-catalog accessors (SwiftGen's `Color.haPrimary`) are
+            // build-time generated — no source can ever declare them, so a
+            // missing lowercase color static reads as a deterministic
+            // placeholder (assets resolve only on device).
+            guard name.first?.isLowercase == true else { return nil }
+            return .native(SwiftUI.Color.gray)
         default:
             return nil
         }
@@ -426,11 +437,10 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if value is MainQueueStub {
         if name == "asyncAfter" {
-            // ZERO-delay deadlines deliver on the next drain (mock loading
-            // times of 0); REAL delays never fire within one probe frame —
-            // exactly like a device frame, so self-rescheduling retry
-            // loops terminate instead of spinning the drain forever
-            // (nextcloud's action retries).
+            // ZERO-delay deadlines deliver on the next drain. Positive
+            // delays stay inert in trace mode (deterministic probes must not
+            // grow timers), but the real SwiftUI registry schedules them so
+            // interactive code can debounce user input.
             return .hostFunction(HostFunction(name: "asyncAfter") { args, ctx in
                 guard let closure = args.firstUnlabeledClosure else { return .void }
                 let deadline = args.labeled("deadline")
@@ -442,10 +452,20 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                     }
                     return nil
                 } ?? 0
-                guard delay <= 0.001 else { return .void }
                 let action = ActionValue(run: {
                     _ = try? ctx.callClosure(closure, arguments: [])
                 })
+                if delay > 0.001 {
+                    guard let interpreter = ctx as? Interpreter,
+                          interpreter.registry is ViewRegistry else { return .void }
+                    Task { @MainActor in
+                        try? await Task.sleep(
+                            nanoseconds: UInt64(max(0, delay) * 1_000_000_000)
+                        )
+                        action.run()
+                    }
+                    return .void
+                }
                 MainQueueDrain.pending.append(action)
                 Task { @MainActor in MainQueueDrain.drain() }
                 return .void
@@ -469,20 +489,6 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 })
                 MainQueueDrain.pending.append(action)
                 Task { @MainActor in MainQueueDrain.drain() }
-                return .void
-            })
-        }
-        if name == "asyncAfter" {
-            return .hostFunction(HostFunction(name: "asyncAfter") { args, ctx in
-                guard let closure = args.firstUnlabeledClosure else { return .void }
-                // `.now() + delay` arithmetic already reduced to seconds.
-                let delay = (args.labeled("deadline") ?? args.labeled("wallDeadline"))?
-                    .doubleValue ?? 0
-                let action = ActionValue(run: { _ = try? ctx.callClosure(closure, arguments: []) })
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: UInt64(max(0, delay) * 1_000_000_000))
-                    action.run()
-                }
                 return .void
             })
         }

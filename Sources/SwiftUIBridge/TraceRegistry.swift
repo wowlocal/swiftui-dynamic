@@ -7,6 +7,10 @@ import SwiftInterpreter
 public final class TraceNode: InertCallable {
     public let kind: String
     public var args: [String] = []
+    /// Pushed-screen coverage (NavigationLink destinations): body failures
+    /// SKIP the subtree instead of failing the walk — on device the screen
+    /// only exists after a tap.
+    public var optionalCoverage = false
     public var children: [TraceNode] = []
     public var modifiers: [String] = []
     public var actions: [String: ClosureValue] = [:]
@@ -87,6 +91,11 @@ public final class TraceRegistry: HostRegistry {
         if let text = element.stringValue { return text }
         if let number = element.intValue { return String(number) }
         return String(index)
+    }
+
+    public func publishedProjection(current: RuntimeValue) -> RuntimeValue? {
+        guard case .replay = NetworkBridge.policy else { return nil }
+        return .native(ValuePublisherBox(.success(current)))
     }
 
     public func constructor(named name: String) -> HostFunction? {
@@ -228,6 +237,39 @@ public final class TraceRegistry: HostRegistry {
             // Identity: interpreted views are already type-erased.
             return HostFunction(name: name) { args, _ in
                 args.positional(0) ?? .void
+            }
+        case "NavigationLink":
+            // Destinations get deep coverage like other PRESENTED content
+            // (sheet bodies, tab items): on device they render on tap; the
+            // probe walks them so pushed screens' data reaches the tree.
+            return HostFunction(name: name) { args, ctx in
+                let node = TraceNode(kind: name)
+                if let title = args.positional(0)?.stringValue { node.args.append(title) }
+                for argument in args.arguments {
+                    if let closure = argument.value.closureValue {
+                        if closure.parameters.isEmpty {
+                            node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
+                        }
+                        continue
+                    }
+                    if argument.label == "destination" {
+                        // Interpreted view instances arrive raw (builder
+                        // collection normally converts them) — wrap so the
+                        // pushed screen's body walks like any child.
+                        var destinationValue = argument.value
+                        if case .instance(let viewInstance) = destinationValue,
+                           viewInstance.symbol.conformances.contains("View"),
+                           let interpreter = ctx as? Interpreter {
+                            destinationValue = self.makeRenderable(
+                                instance: viewInstance, interpreter: interpreter)
+                        }
+                        if let destination = try? Self.node(destinationValue) {
+                            destination.optionalCoverage = true
+                            node.children.append(destination)
+                        }
+                    }
+                }
+                return .native(node)
             }
         case "withAnimation":
             return HostFunction(name: name) { args, ctx in

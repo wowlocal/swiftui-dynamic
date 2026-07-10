@@ -122,6 +122,19 @@ public enum HeadlessVerifier {
     ) throws -> Int {
         guard depth < 16 else { return 1 }
         var count = 1
+        if node.optionalCoverage {
+            // Pushed-screen subtrees (NavigationLink destinations) exist on
+            // device only after a tap: render best-effort, skip on failure,
+            // and leave their actions unclicked like any unopened screen.
+            node.optionalCoverage = false
+            var unclicked: [ClosureValue] = []
+            do {
+                count += try deepRender(
+                    interpreter, node, actions: &unclicked,
+                    environment: environment, depth: depth)
+            } catch {}
+            return count
+        }
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         actions += node.actions.values

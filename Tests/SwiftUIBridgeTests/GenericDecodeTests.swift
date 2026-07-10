@@ -865,3 +865,310 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(!strings.contains("sheet content"), "nil-item sheets stay unpresented")
     }
 }
+
+/// The bundled-resource Combine genre (iteration 207): Result(catching:)
+/// .publisher.decode → sink populates @Published; $published projections
+/// deliver the CURRENT value synchronously in replay (the doctrine fork);
+/// Bundle.module resolves committed resources.
+@Suite struct BundledResourcePipelineTests {
+    @Test func bundleResourceRidesPublisherIntoPublished() throws {
+        NetworkBridge.policy = .replay(fixturesDirectory: NSTemporaryDirectory())
+        defer { NetworkBridge.policy = .absorbed }
+        let previousRoot = BundleBox.projectResourceRoot
+        let root = NSTemporaryDirectory() + "bundle-probe-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(
+            atPath: root + "/Resources/json", withIntermediateDirectories: true)
+        defer {
+            BundleBox.projectResourceRoot = previousRoot
+            try? FileManager.default.removeItem(atPath: root)
+        }
+        try #"{"total": 2, "results": [{"name": "Goldfish"}, {"name": "Anchovy"}]}"#
+            .write(toFile: root + "/Resources/json/fish", atomically: true, encoding: .utf8)
+        BundleBox.projectResourceRoot = root
+        let source = """
+        struct ItemRow: Codable {
+            let name: String
+        }
+
+        struct FileResponse: Codable {
+            let total: Int
+            let results: [ItemRow]
+        }
+
+        final class Items: ObservableObject {
+            static let shared = Items()
+            @Published var names: [String] = []
+
+            init() {
+                _ = Result(catching: {
+                    guard let url = Bundle.module.url(forResource: "fish", withExtension: nil) else {
+                        throw APIError.message(reason: "missing")
+                    }
+                    return try Data(contentsOf: url)
+                })
+                .publisher
+                .decode(type: FileResponse.self, decoder: JSONDecoder())
+                .mapError { _ in APIError.message(reason: "parse") }
+                .subscribe(on: DispatchQueue.main)
+                .eraseToAnyPublisher()
+                .replaceError(with: FileResponse(total: 0, results: []))
+                .map { $0.results.map(\\.name) }
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] names in
+                    self?.names = names
+                }
+            }
+        }
+
+        enum APIError: Error {
+            case message(reason: String)
+        }
+
+        final class RowsModel: ObservableObject {
+            @Published var rows: [String] = []
+            var cancellable: Any?
+
+            init() {
+                cancellable = Items.shared.$names
+                    .map { $0.sorted() }
+                    .sink { [weak self] in
+                        self?.rows = $0
+                    }
+            }
+        }
+
+        struct ContentView: View {
+            @StateObject private var model = RowsModel()
+
+            var body: some View {
+                ForEach(model.rows, id: \\.self) { row in
+                    Text(row)
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("Goldfish") && strings.contains("Anchovy"),
+                "bundled bytes must ride the pipeline into rendered rows, got \(strings)")
+    }
+}
+
+@Suite struct EnumKeyedPublishedDictTests {
+    // ACHNBrowser's Items environment: init loops CaseIterable categories,
+    // a private method subscript-assigns into an enum-keyed @Published
+    // dictionary, and views read counts back through the same subscript.
+    @Test func subscriptWritesReadBackByEnumKey() throws {
+        let source = """
+        enum Category: String, CaseIterable {
+            case fish, bugs, fossils
+        }
+        final class Items: ObservableObject {
+            static let shared = Items()
+            @Published var categories: [Category: [String]] = [:]
+            init() {
+                for category in Category.allCases {
+                    process(category: category, items: ["a-\\(category.rawValue)", "b"])
+                }
+            }
+            private func process(category: Category, items: [String]) {
+                var items = items
+                items.append("c")
+                let finalItems = items.map { $0 }
+                categories[category] = finalItems
+            }
+            func count(for category: Category) -> Int {
+                categories[category]?.count ?? 0
+            }
+        }
+        let shared = Items.shared
+        let direct = shared.categories[Category.fish]?.count ?? 0
+        let viaFunc = shared.count(for: .fish)
+        let total = shared.categories.count
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("direct")?.stringified == "3")
+        #expect(interpreter.globals.lookup("viaFunc")?.stringified == "3")
+        #expect(interpreter.globals.lookup("total")?.stringified == "3")
+    }
+}
+
+@Suite struct EnumSelfAssignInitTests {
+    // ACHNBrowser's Category: declared init with `self = .case`
+    // assignments falling back to the synthesized rawValue init with
+    // mixed implicit/explicit raw strings. Native: "Fish" → .fish.
+    @Test func declaredInitWithRawValueFallback() throws {
+        let source = """
+        enum Category: String, CaseIterable {
+            case housewares, miscellaneous
+            case wallMounted = "wall-mounted"
+            case dressup = "Dress-Up"
+            case other
+            case art, bugs, fish, fossils
+            case seaCreatures = "Sea Creatures"
+            init(itemCategory: String) {
+                if itemCategory == "Fish - North" || itemCategory == "Fish - South" {
+                    self = .fish
+                    return
+                } else if itemCategory == "Sea Creatures" {
+                    self = .seaCreatures
+                    return
+                }
+                self = Category(rawValue: itemCategory.lowercased()) ?? .other
+            }
+        }
+        struct Item {
+            let category: String
+            var appCategory: Category { Category(itemCategory: category) }
+        }
+        let items = [Item(category: "Fish"), Item(category: "Housewares"), Item(category: "Fish - North")]
+        let fish = items.filter { $0.appCategory == Category.fish }
+        let fishCount = fish.count
+        let houseCount = items.filter { $0.appCategory == .housewares }.count
+        let direct = Category(rawValue: "fish") == Category.fish
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("fishCount")?.stringified == "2")
+        #expect(interpreter.globals.lookup("houseCount")?.stringified == "1")
+        #expect(interpreter.globals.lookup("direct")?.stringified == "true")
+    }
+}
+
+@Suite struct DecodedEnumFilterTests {
+    // The full ACHNBrowser items path: structural decode of a wrapper
+    // response, then filtering by a computed enum property on the DECODED
+    // instances. Native keeps both fish.
+    @Test func decodedItemsFilterByComputedEnum() throws {
+        let source = """
+        enum Category: String, CaseIterable {
+            case housewares, fish, other
+            init(itemCategory: String) {
+                if itemCategory == "Fish - North" {
+                    self = .fish
+                    return
+                }
+                self = Category(rawValue: itemCategory.lowercased()) ?? .other
+            }
+        }
+        struct Item: Codable, Equatable {
+            static func ==(lhs: Item, rhs: Item) -> Bool {
+                lhs.name == rhs.name && lhs.appCategory == rhs.appCategory
+            }
+            let name: String
+            let category: String
+            var appCategory: Category { Category(itemCategory: category) }
+        }
+        struct ItemWrapper: Codable {
+            let id: Int
+            let name: String
+            var content: Item
+        }
+        struct NewItemResponse: Codable {
+            let total: Int
+            let results: [ItemWrapper]
+        }
+        let json = \"\"\"
+        {"total": 2,
+         "results": [
+           {"id": 1, "name": "anchovy", "content": {"name": "Anchovy", "category": "Fish"}},
+           {"id": 2, "name": "chair", "content": {"name": "Chair", "category": "Housewares"}}
+         ]}
+        \"\"\"
+        let data = json.data(using: .utf8)!
+        let response = try! JSONDecoder().decode(NewItemResponse.self, from: data)
+        let decodedCount = response.results.count
+        let firstCategory = response.results[0].content.category
+        let fishItems = response.results.filter { $0.content.appCategory == Category.fish }
+        let fishCount = fishItems.count
+        let fishName = fishItems.first?.content.name ?? "NONE"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("decodedCount")?.stringified == "2")
+        #expect(interpreter.globals.lookup("firstCategory")?.stringified == "Fish")
+        #expect(interpreter.globals.lookup("fishCount")?.stringified == "1")
+        #expect(interpreter.globals.lookup("fishName")?.stringified == "Anchovy")
+    }
+}
+
+@Suite struct NestedShorthandClosureTests {
+    // `numbers.map { $0.filter { $0 % 2 == 0 } }` — the inner closure's $0
+    // must shadow the outer's (ACHNBrowser filters inside a publisher map).
+    @Test func nestedDollarZeroShadows() throws {
+        let source = """
+        let numbers = [[1, 2, 3], [4, 5]]
+        let evens = numbers.map { $0.filter { $0 % 2 == 0 } }
+        let flat = evens.flatMap { $0 }
+        let counts = evens.map { $0.count }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("flat")?.stringified == "[2, 4]")
+        #expect(interpreter.globals.lookup("counts")?.stringified == "[1, 1]")
+    }
+}
+
+@Suite struct DeferredGenericDecodeTests {
+    // ACHNBrowser's ItemsAPI.fetchFile<T: Codable>: `.decode(type: T.self)`
+    // runs with T UNRESOLVED inside the factory — natively T pins from the
+    // caller's `.replaceError(with: NewItemResponse(...))`. The data rides
+    // pending until the typed fallback names the type.
+    @Test func replaceErrorFallbackResolvesDeferredDecode() throws {
+        let previousRoot = BundleBox.projectResourceRoot
+        let root = NSTemporaryDirectory() + "deferred-probe-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(
+            atPath: root + "/Resources/json", withIntermediateDirectories: true)
+        defer {
+            BundleBox.projectResourceRoot = previousRoot
+            try? FileManager.default.removeItem(atPath: root)
+        }
+        try #"{"total": 2, "results": [{"name": "Goldfish", "category": "Fish"}, {"name": "Chair", "category": "Housewares"}]}"#
+            .write(toFile: root + "/Resources/json/fish", atomically: true, encoding: .utf8)
+        BundleBox.projectResourceRoot = root
+        let source = """
+        import Combine
+
+        struct ItemRow: Codable {
+            let name: String
+            let category: String
+        }
+
+        struct FileResponse: Codable {
+            let total: Int
+            let results: [ItemRow]
+        }
+
+        enum APIError: Error {
+            case parseError(String)
+        }
+
+        struct FileAPI {
+            static func fetchFile<T: Codable>(name: String) -> AnyPublisher<T, APIError> {
+                Result(catching: {
+                    try Data(contentsOf: Bundle.module.url(forResource: name, withExtension: nil)!)
+                })
+                .publisher
+                .decode(type: T.self, decoder: JSONDecoder())
+                .mapError { APIError.parseError("\\($0)") }
+                .eraseToAnyPublisher()
+            }
+        }
+
+        var fishNames: [String] = []
+        _ = FileAPI.fetchFile(name: "fish")
+            .replaceError(with: FileResponse(total: 0, results: []))
+            .eraseToAnyPublisher()
+            .map { $0.results.filter { $0.category == "Fish" } }
+            .sink { items in
+                fishNames = items.map { $0.name }
+            }
+        let count = fishNames.count
+        let first = fishNames.first ?? "NONE"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("count")?.stringified == "1")
+        #expect(interpreter.globals.lookup("first")?.stringified == "Goldfish")
+    }
+}

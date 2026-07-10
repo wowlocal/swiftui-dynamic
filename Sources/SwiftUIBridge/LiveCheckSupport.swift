@@ -242,6 +242,39 @@ public enum LiveCheckSupport {
         actions.append(contentsOf: node.actions.values)
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
+        if node.optionalCoverage {
+            // Pushed-screen subtrees are best-effort: a failing destination
+            // body skips (the screen never rendered), never fails the walk.
+            do {
+                var optionalStrings: [String] = []
+                var optionalLifecycle: [ClosureValue] = []
+                var optionalActions: [ClosureValue] = []
+                let probe = TraceNode(kind: node.kind)
+                probe.args = node.args
+                probe.children = node.children
+                probe.instance = node.instance
+                probe.environmentModels = node.environmentModels
+                try collectRequired(interpreter, probe, into: &optionalStrings,
+                                    lifecycle: &optionalLifecycle, actions: &optionalActions,
+                                    environment: environment, depth: depth)
+                strings += optionalStrings
+                lifecycle += optionalLifecycle
+                actions += optionalActions
+            } catch {
+                // unreachable screen: contributes nothing
+            }
+            return
+        }
+        try collectRequired(interpreter, node, into: &strings, lifecycle: &lifecycle,
+                            actions: &actions, environment: environment, depth: depth)
+    }
+
+    private static func collectRequired(
+        _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
+        lifecycle: inout [ClosureValue],
+        actions: inout [ClosureValue],
+        environment: [String: Instance] = [:], depth: Int = 0
+    ) throws {
         if let instance = node.instance {
             if traceLifecycle, ["TimelineView", "TimelineListView", "StatusesListView"].contains(instance.symbol.name) {
                 let vm = instance.box(for: "viewModel")?.value ?? instance.box(for: "fetcher")?.value ?? .void

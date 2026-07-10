@@ -27,11 +27,68 @@ final class NumberFormatterBox {
     let formatter = NumberFormatter()
 }
 
+/// Executes interpreted `Task { ... }` bodies for the real registry. The
+/// interpreter's async model is synchronous, but a bounded background slice
+/// preserves the important behavior: UI callbacks actually run their work,
+/// while recursive task scheduling cannot lock the host app.
+@MainActor
+private enum InterpretedTaskRunner {
+    static var activeContexts: Set<ObjectIdentifier> = []
+
+    static func run(_ args: CallArguments, in context: EvalContext) throws {
+        guard let body = args.firstUnlabeledClosure ?? args.closure(labeled: "operation") else {
+            return
+        }
+        let identity = ObjectIdentifier(context)
+        guard !activeContexts.contains(identity) else { return }
+        activeContexts.insert(identity)
+        defer { activeContexts.remove(identity) }
+        do {
+            _ = try context.callBackgroundClosure(body, arguments: [])
+        } catch let error as RuntimeError where !error.fatal {
+            if LiveCheckSupport.traceLifecycle {
+                print("   ⚠ task body died: \(error)")
+            }
+        }
+    }
+}
+
+func interpretedTaskConstructor(named name: String) -> HostFunction? {
+    guard name == "Task" || name == "MainActor" else { return nil }
+    return HostFunction(name: name) { args, context in
+        try InterpretedTaskRunner.run(args, in: context)
+        return .native(UIKitStub())
+    }
+}
+
 /// Constructors for host object types, consulted by both registries before
 /// their own tables.
 /// Real bundle identity (URL/path — path-climbing idioms terminate) with
 /// ABSORBING resource lookups (nothing is bundled headlessly).
 final class BundleBox {
+    /// The MERGE's project root: bundled resources (SPM Resources/ dirs,
+    /// asset JSON) resolve against the repo's committed files — the same
+    /// bytes the compiled app ships in Bundle.module.
+    static var projectResourceRoot: String?
+
+    /// Find a resource file by name under the project root (bounded walk,
+    /// build dirs skipped).
+    static func projectResource(named name: String, extension ext: String?) -> URL? {
+        guard let root = projectResourceRoot else { return nil }
+        var target = name
+        if let ext, !ext.isEmpty, !target.hasSuffix(".\(ext)") { target += ".\(ext)" }
+        let skip: Set<String> = [".git", ".build", "DerivedData", "__MACOSX", "Tests"]
+        guard let walker = FileManager.default.enumerator(atPath: root) else { return nil }
+        for case let path as String in walker {
+            if skip.contains(where: { path.contains($0) }) { continue }
+            let file = (path as NSString).lastPathComponent
+            if file == target || (ext == nil && (file as NSString).deletingPathExtension == target) {
+                return URL(fileURLWithPath: root + "/" + path)
+            }
+        }
+        return nil
+    }
+
     let bundle: Foundation.Bundle
     init(bundle: Foundation.Bundle) { self.bundle = bundle }
 }
@@ -557,6 +614,10 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .hostFunction(HostFunction(name: name) { args, _ in
                     let resource = (args.labeled("forResource") ?? args.positional(0))?.stringValue ?? ""
                     let ext = args.labeled("withExtension")?.stringValue ?? ""
+                    if let real = BundleBox.projectResource(
+                        named: resource, extension: ext.isEmpty ? nil : ext) {
+                        return .native(real)
+                    }
                     if resource.contains("Info"), resource.hasSuffix(".plist") || ext == "plist" {
                         let url = FileManagerBox.sandboxRoot.appendingPathComponent("Seeded-Info.plist")
                         try? FileManager.default.createDirectory(

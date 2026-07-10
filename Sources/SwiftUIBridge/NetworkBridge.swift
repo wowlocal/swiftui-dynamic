@@ -20,7 +20,7 @@ public enum NetworkPolicy {
 public enum NetworkBridge {
     public static var policy: NetworkPolicy = .absorbed
 
-    /// Replay-mode request log (`/path hit|miss`) — the LiveCheck
+    /// Replay-mode request log (`/path?query hit|miss`) — the LiveCheck
     /// histogram's view into WHICH requests the app actually made.
     public static var requestLog: [String] = []
 
@@ -77,7 +77,8 @@ public enum NetworkBridge {
             defer {
                 if requestLog.count < 40 {
                     let hit = isImageRequest(url) || fixtureData(forPath: url.path, in: directory) != nil
-                    requestLog.append("\(url.path) \(hit ? "hit" : "MISS")")
+                    let resource = url.query.map { "\(url.path)?\($0)" } ?? url.path
+                    requestLog.append("\(resource) \(hit ? "hit" : "MISS")")
                 }
             }
             if isImageRequest(url) {
@@ -146,6 +147,177 @@ public enum NetworkBridge {
 /// `URLSession.shared` and friends.
 public final class URLSessionBox {
     public init() {}
+}
+
+/// A VALUE publisher (`Result.publisher`, `Just`) with its operator chain
+/// applied EAGERLY — the replay/live doctrine's synchronous delivery for
+/// pipelines rooted at concrete values (bundled-resource loads):
+/// decode/map/replaceError transform; subscribe/receive/erase pass
+/// through; sink delivers immediately.
+/// A success-or-failure of interpreted values (Result's shape without
+/// the Error constraint).
+public enum ValueOutcome {
+    case success(RuntimeValue)
+    case failure(RuntimeValue)
+}
+
+/// `Result(catching:)` — success/failure carried for `.publisher` and
+/// pattern access.
+public final class ResultBox {
+    let outcome: ValueOutcome
+
+    init(_ outcome: ValueOutcome) {
+        self.outcome = outcome
+    }
+}
+
+public final class ValuePublisherBox {
+    var outcome: ValueOutcome
+
+    init(_ outcome: ValueOutcome) {
+        self.outcome = outcome
+    }
+}
+
+/// `.decode(type: T.self, …)` inside a generic factory whose T only pins
+/// DOWNSTREAM (`fetchFile(...).replaceError(with: NewItemResponse(...))`):
+/// the data rides along undecoded until a typed fallback names the type —
+/// the same inference direction the compiler runs.
+final class PendingDecode {
+    let data: Data
+    let decoder: JSONDecoderBox
+
+    init(data: Data, decoder: JSONDecoderBox) {
+        self.data = data
+        self.decoder = decoder
+    }
+}
+
+@MainActor
+func valuePublisherMember(_ name: String, on box: ValuePublisherBox) -> RuntimeValue? {
+    switch name {
+    case "decode":
+        return .hostFunction(HostFunction(name: name) { args, ctx in
+            guard let interpreter = ctx as? Interpreter else { return .native(box) }
+            switch box.outcome {
+            case .failure:
+                return .native(box)
+            case .success(let value):
+                guard case .host(let any) = value, let data = any as? Data else {
+                    return .native(box)
+                }
+                guard let typeValue = args.labeled("type") ?? args.positional(0) else {
+                    return .native(box)
+                }
+                let decoder = JSONDecoderBox()
+                if case .host(let decoderAny)? = args.labeled("decoder"),
+                   let real = decoderAny as? JSONDecoderBox {
+                    decoder.convertFromSnakeCase = real.convertFromSnakeCase
+                    decoder.dateStrategy = real.dateStrategy
+                }
+                if !JSONDecodeBridge.isTypeDescriptor(typeValue) {
+                    return .native(ValuePublisherBox(.success(
+                        .native(PendingDecode(data: data, decoder: decoder)))))
+                }
+                do {
+                    let json = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+                    let decoded = try JSONDecodeBridge.decode(
+                        typeValue, json: json, interpreter: interpreter, decoder: decoder)
+                    return .native(ValuePublisherBox(.success(decoded)))
+                } catch {
+                    if LiveCheckSupport.traceLifecycle {
+                        print("   ⚠ publisher decode failed: \(String(describing: error).prefix(200))")
+                    }
+                    return .native(ValuePublisherBox(.failure(.native("\(error)"))))
+                }
+            }
+        })
+    case "map":
+        return .hostFunction(HostFunction(name: name) { args, ctx in
+            guard case .success(let value) = box.outcome,
+                  let transform = args.firstUnlabeledClosure else { return .native(box) }
+            if case .host(let any) = value, any is PendingDecode { return .native(box) }
+            return .native(ValuePublisherBox(.success(try ctx.callClosure(transform, arguments: [value]))))
+        })
+    case "mapError":
+        return .hostFunction(HostFunction(name: name) { args, ctx in
+            guard case .failure(let error) = box.outcome,
+                  let transform = args.firstUnlabeledClosure else { return .native(box) }
+            return .native(ValuePublisherBox(.failure(try ctx.callClosure(transform, arguments: [error]))))
+        })
+    case "replaceError":
+        return .hostFunction(HostFunction(name: name) { args, ctx in
+            if case .failure(let error) = box.outcome, let fallback = args.labeled("with") {
+                if LiveCheckSupport.traceLifecycle {
+                    print("   ⚠ replaceError absorbed: \(error.stringified.prefix(160))")
+                }
+                return .native(ValuePublisherBox(.success(fallback)))
+            }
+            // A typed fallback names the deferred decode's T: decode now,
+            // and on failure the fallback stands in — exactly the chain's
+            // native semantics.
+            if case .success(let value) = box.outcome,
+               case .host(let any) = value, let pending = any as? PendingDecode,
+               let fallback = args.labeled("with"),
+               let interpreter = ctx as? Interpreter {
+                var typeValue: RuntimeValue?
+                if case .instance(let instance) = fallback {
+                    typeValue = .type(instance.symbol)
+                } else if case .enumCase(let enumCase) = fallback {
+                    typeValue = .enumType(enumCase.symbol)
+                }
+                guard let resolved = typeValue else {
+                    if LiveCheckSupport.traceLifecycle {
+                        print("   ⚠ deferred decode dropped (untyped fallback \(fallback.stringified.prefix(60)))")
+                    }
+                    return .native(ValuePublisherBox(.success(fallback)))
+                }
+                do {
+                    let json = try JSONSerialization.jsonObject(
+                        with: pending.data, options: [.fragmentsAllowed])
+                    let decoded = try JSONDecodeBridge.decode(
+                        resolved, json: json, interpreter: interpreter, decoder: pending.decoder)
+                    return .native(ValuePublisherBox(.success(decoded)))
+                } catch {
+                    if LiveCheckSupport.traceLifecycle {
+                        print("   ⚠ deferred decode failed: \(String(describing: error).prefix(200))")
+                    }
+                    return .native(ValuePublisherBox(.success(fallback)))
+                }
+            }
+            return .native(box)
+        })
+    case "subscribe", "receive", "eraseToAnyPublisher", "removeDuplicates", "print":
+        return .hostFunction(HostFunction(name: name) { _, _ in .native(box) })
+    case "sink":
+        return .hostFunction(HostFunction(name: name) { args, ctx in
+            let closures = args.arguments.compactMap { $0.value.closureValue }
+            switch box.outcome {
+            case .success(let value):
+                if case .host(let any) = value, any is PendingDecode {
+                    if LiveCheckSupport.traceLifecycle {
+                        print("   ⚠ sink dropped an unresolved deferred decode")
+                    }
+                    return .native(PublishedProjection())
+                }
+                if let receiveValue = args.closure(labeled: "receiveValue") ?? closures.last {
+                    _ = try ctx.callClosure(receiveValue, arguments: [value])
+                }
+                if let completion = args.closure(labeled: "receiveCompletion") {
+                    _ = try? ctx.callClosure(completion, arguments: [.implicitMember("finished")])
+                }
+            case .failure(let error):
+                if let completion = args.closure(labeled: "receiveCompletion") {
+                    _ = try? ctx.callClosure(completion, arguments: [.native(ImplicitMemberCall(
+                        name: "failure",
+                        arguments: CallArguments(arguments: [.init(label: nil, value: error)])))])
+                }
+            }
+            return .native(PublishedProjection())
+        })
+    default:
+        return nil
+    }
 }
 
 /// The URLProtocol CLIENT handed to interpreted mock protocols: records
@@ -376,6 +548,15 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         default:
             return nil
         }
+    }
+    if let box = value as? ValuePublisherBox {
+        return valuePublisherMember(name, on: box)
+    }
+    if let result = value as? ResultBox {
+        if name == "publisher" {
+            return .native(ValuePublisherBox(result.outcome))
+        }
+        return nil
     }
     if let recorder = value as? URLProtocolClientRecorder {
         return urlProtocolClientMember(name, on: recorder)
@@ -632,6 +813,22 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
         }
     case "JSONDecoder":
         return HostFunction(name: name) { _, _ in .native(JSONDecoderBox()) }
+    case "Result":
+        return HostFunction(name: name) { args, ctx in
+            // `Result(catching:)` — run the body; thrown values become the
+            // failure. `.publisher` then rides the value pipeline.
+            guard let body = args.closure(labeled: "catching") ?? args.firstUnlabeledClosure else {
+                return .nilValue
+            }
+            do {
+                let value = try ctx.callClosure(body, arguments: [])
+                return .native(ResultBox(.success(value)))
+            } catch let thrown as InterpretedThrow {
+                return .native(ResultBox(.failure(thrown.value)))
+            } catch let error as RuntimeError where !error.fatal {
+                return .native(ResultBox(.failure(.native(error.message))))
+            }
+        }
     case "JSONEncoder":
         return HostFunction(name: name) { _, _ in .native(JSONEncoderBox()) }
     case "HTTPURLResponse":
@@ -706,6 +903,20 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
 /// surfaces types this breaks.
 @MainActor
 enum JSONDecodeBridge {
+    /// The shapes `decode(_:json:…)` can act on. Anything else is an
+    /// UNRESOLVED type reference (a generic parameter that only pins
+    /// downstream) — callers defer instead of failing.
+    static func isTypeDescriptor(_ typeValue: RuntimeValue) -> Bool {
+        if let array = typeValue.arrayValue, array.count == 1 {
+            return isTypeDescriptor(array[0])
+        }
+        if case .host(let any) = typeValue, any is GenericApplication { return true }
+        switch typeValue {
+        case .type, .enumType: return true
+        default: return false
+        }
+    }
+
     static func decode(
         _ typeValue: RuntimeValue, json: Any, interpreter: Interpreter, decoder: JSONDecoderBox
     ) throws -> RuntimeValue {

@@ -352,6 +352,12 @@ extension Interpreter {
         // the Combine publisher projection — an inert pipeline.
         if let property = instance.symbol.storedProperty(named: propertyName),
            property.wrapper == .published {
+            // Replay/live registries deliver the CURRENT value synchronously
+            // (the doctrine fork); absorbed mode stays inert.
+            if let current = instance.box(for: propertyName)?.value,
+               let publisher = registry?.publishedProjection(current: current) {
+                return publisher
+            }
             return .native(PublishedProjection())
         }
         // `$store` on a model property projects the model so `$store.field`
@@ -2939,7 +2945,8 @@ extension Interpreter {
             case .box(let box):
                 box.value = value
             case .instanceProperty(let instance, let name):
-                if Interpreter.traceStateCells, name == "statusesState" {
+                if Interpreter.traceStateCells,
+                   name == (ProcessInfo.processInfo.environment["INTERP_TRACE_PROP"] ?? "statusesState") {
                     Swift.print("   ✍ \(instance.symbol.name)(\(UInt(bitPattern: ObjectIdentifier(instance).hashValue) % 100000)).\(name) = \(value.stringified.prefix(50))")
                 }
                 // Assigning a $binding into an @Binding property shares the
