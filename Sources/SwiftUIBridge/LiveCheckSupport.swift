@@ -10,7 +10,12 @@ public enum LiveCheckSupport {
     public private(set) static var lastRootSymbol = ""
     public private(set) static var lastLifecycleFired = 0
 
-    public static func renderedStrings(source: String) throws -> [String] {
+    /// `afterActions:` — the interaction rung: after lifecycle passes,
+    /// invoke up to N collected actions (each against a FRESH render, like
+    /// HeadlessVerifier's click-through), then re-render and re-collect —
+    /// with the live model store, an Add button's insert becomes a visible
+    /// row.
+    public static func renderedStrings(source: String, afterActions actionCount: Int = 0) throws -> [String] {
         let interpreter = Interpreter(registry: TraceRegistry())
         do {
             try interpreter.run(source: source, lazyTopLevelGlobals: true)
@@ -74,7 +79,8 @@ public enum LiveCheckSupport {
             let root = try renderRoot!()
             var passStrings: [String] = []
             var lifecycle: [ClosureValue] = []
-            try collect(interpreter, root, into: &passStrings, lifecycle: &lifecycle)
+            var passActions: [ClosureValue] = []
+            try collect(interpreter, root, into: &passStrings, lifecycle: &lifecycle, actions: &passActions)
             let grew = passStrings.count > strings.count
             strings = passStrings
             let pending = lifecycle.dropFirst(firedCount)
@@ -87,17 +93,40 @@ public enum LiveCheckSupport {
             }
             firedCount = lifecycle.count
         }
+
+        // Interaction rung: click through the first N actions.
+        if actionCount > 0 {
+            for position in 0..<actionCount {
+                var current: [ClosureValue] = []
+                var discardStrings: [String] = []
+                var discardLifecycle: [ClosureValue] = []
+                try collect(interpreter, try renderRoot!(), into: &discardStrings,
+                            lifecycle: &discardLifecycle, actions: &current)
+                guard !current.isEmpty else { break }
+                // N interactions cycle through the available actions — a
+                // single Add button tapped twice inserts twice.
+                _ = try? interpreter.callClosure(current[position % current.count], arguments: [])
+            }
+            var finalStrings: [String] = []
+            var discardLifecycle: [ClosureValue] = []
+            var discardActions: [ClosureValue] = []
+            try collect(interpreter, try renderRoot!(), into: &finalStrings,
+                        lifecycle: &discardLifecycle, actions: &discardActions)
+            strings = finalStrings
+        }
         return strings
     }
 
     private static func collect(
         _ interpreter: Interpreter, _ node: TraceNode, into strings: inout [String],
         lifecycle: inout [ClosureValue],
+        actions: inout [ClosureValue],
         environment: [String: Instance] = [:], depth: Int = 0
     ) throws {
         guard depth < 16 else { return }
         strings.append(contentsOf: node.args)
         lifecycle.append(contentsOf: node.lifecycle)
+        actions.append(contentsOf: node.actions.values)
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         if let instance = node.instance {
@@ -105,11 +134,11 @@ public enum LiveCheckSupport {
             interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
             try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,
-                        environment: environment, depth: depth + 1)
+                        actions: &actions, environment: environment, depth: depth + 1)
         }
         for child in node.children {
             try collect(interpreter, child, into: &strings, lifecycle: &lifecycle,
-                        environment: environment, depth: depth + 1)
+                        actions: &actions, environment: environment, depth: depth + 1)
         }
     }
 }

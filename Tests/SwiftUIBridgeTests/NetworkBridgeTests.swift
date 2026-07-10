@@ -284,3 +284,44 @@ import SwiftInterpreter
         #expect(first.contains("count 1"))
     }
 }
+
+/// The interaction rung × live store (M3): tapping Add inserts into the
+/// live model store, and the re-rendered tree shows the new row.
+@Suite struct InteractionRungTests {
+    private static let todoSource = """
+    struct Note {
+        var title = ""
+    }
+
+    struct ContentView: View {
+        @Environment(\\.modelContext) private var context
+        @State private var tick = 0
+
+        var body: some View {
+            let notes = context.fetch(FetchDescriptor<Note>())
+            return VStack {
+                Button("Add") {
+                    context.insert(Note(title: "Bought milk"))
+                    tick += 1
+                }
+                ForEach(0..<notes.count) { index in
+                    Text(notes[index].title)
+                }
+            }
+        }
+    }
+    """
+
+    @Test func addButtonInsertsVisibleRow() throws {
+        let before = try LiveCheckSupport.renderedStrings(source: Self.todoSource)
+        #expect(!before.contains("Bought milk"))
+        let after = try LiveCheckSupport.renderedStrings(source: Self.todoSource, afterActions: 1)
+        #expect(after.contains("Bought milk"),
+                "the tapped insert should render as a row, got \(after)")
+    }
+
+    @Test func twoTapsTwoRows() throws {
+        let after = try LiveCheckSupport.renderedStrings(source: Self.todoSource, afterActions: 2)
+        #expect(after.filter { $0 == "Bought milk" }.count >= 2)
+    }
+}
