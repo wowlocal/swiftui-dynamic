@@ -2909,6 +2909,45 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// winston at its honest root (iteration 173): KEYED subscript
+    /// assignment auto-vivifies the dictionary when the store is deferred,
+    /// nil, or an absorbed marker (`self.routers[tab] = router` where
+    /// `var routers: [Tab: Router]` initializes in an init the synthesis
+    /// skipped) — and the caching-subscript idiom round-trips.
+    @Test func keyedSubscriptAssignmentAutoVivifies() throws {
+        let source = """
+        enum Tab: String { case posts, inbox }
+
+        class Router { var id = "router" }
+
+        class Nav {
+            private var routers: [Tab: Router]
+
+            init() {
+                routers = unmergedRestore.decode()
+            }
+
+            subscript(tab: Tab) -> Router {
+                let router = self.routers[tab] ?? Router()
+                if self.routers[tab] == nil { self.routers[tab] = router }
+                return router
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let nav = Nav()
+                let first = nav[.posts]
+                let second = nav[.posts]
+                if first !== second { fatalError("cached router must round-trip") }
+                return Text(first.id)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// swift-composable-architecture at its honest root (iteration 172):
     /// @Reducer on an enum GENERATES nested State/Action at compile time —
     /// macro artifacts the merge can't see. Uppercase misses on enum

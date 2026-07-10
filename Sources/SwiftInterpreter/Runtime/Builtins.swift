@@ -99,6 +99,19 @@ public enum Builtins {
             return .native(op == "==" ? equal : !equal)
         case "<", "<=", ">", ">=":
             return .native(try compare(op, lhs, rhs))
+        case "===", "!==":
+            // Identity: interpreted instances are class-backed, host
+            // objects compare by reference; everything else is not
+            // identical.
+            let same: Bool = {
+                if case .instance(let l) = lhs, case .instance(let r) = rhs { return l === r }
+                if case .host(let l) = lhs, case .host(let r) = rhs,
+                   let lo = l as? AnyObject, let ro = r as? AnyObject {
+                    return lo === ro
+                }
+                return false
+            }()
+            return .native(op == "===" ? same : !same)
         case "&+", "&-", "&*":
             // Overflow operators (protobuf hashing, bit mixers): true
             // wrapping arithmetic on our Int model.

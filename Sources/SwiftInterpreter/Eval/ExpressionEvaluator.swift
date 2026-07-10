@@ -2548,7 +2548,30 @@ extension Interpreter {
                 return .box(box)
             }
             let base = try resolveLValue(subscriptCall.calledExpression, in: env)
-            guard let index = try evaluate(indexExpr, in: env).intValue else {
+            let indexValue = try evaluate(indexExpr, in: env)
+            guard let index = indexValue.intValue else {
+                // KEYED assignment onto a DEFERRED store (`var routers:
+                // [Tab: Router]` initialized in an init our synthesis
+                // skipped): the dictionary auto-vivifies.
+                let current = try base.read(self)
+                let isVoid: Bool = { if case .void = current { return true } else { return false } }()
+                let isMarker: Bool = {
+                    if let payload = current.hostPayload {
+                        return payload is InertCallable || payload is ChainedImplicitCall
+                            || payload is ImplicitMemberCall
+                    }
+                    if case .implicitMember = current { return true }
+                    if case .hostFunction = current { return true }
+                    return false
+                }()
+                if current.isNil || isVoid || isMarker {
+                    let dict = DictValue()
+                    try base.write(.native(dict), self)
+                    return .dictElement(dict, indexValue)
+                }
+                if let dict = current.dictValue {
+                    return .dictElement(dict, indexValue)
+                }
                 throw error(subscriptCall, "subscript assignment requires an Int index")
             }
             if case .host(let any)? = baseValue, any is Data {

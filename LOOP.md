@@ -1768,3 +1768,12 @@ without this.
   budget exhaustion — plain enums keep the fast throw the hook
   tolerance depends on. SCA ✅ (6 nodes, 2 actions at its honest
   root). **654/666 counted (653 → 654). Suite 342 → 344.**
+- 2026-07-10 iter 173: honest-roots queue — winston. KEYED subscript
+  assignment auto-vivifies the dictionary when the store reads
+  deferred/nil/absorbed (`self.routers[tab] = router` where
+  `var routers: [Tab: Router]` initializes in an init the synthesis
+  absorbed) — the caching-subscript idiom round-trips. The regression
+  test surfaced `===`/`!==`: IDENTITY operators now compare
+  class-backed instances and host objects by reference. winston ✅ —
+  121 nodes and 14 actions at the honest root (the heuristic root saw
+  1 node). **655/666 counted (654 → 655). Suite 346 → 347.**
