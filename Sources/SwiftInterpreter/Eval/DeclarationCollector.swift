@@ -453,6 +453,43 @@ extension Interpreter {
 
     private func collectEnum(_ node: EnumDeclSyntax) throws {
         let symbol = try makeEnumSymbol(node)
+        if let existing = enumSymbols[symbol.name], existing !== symbol {
+            // SIBLING app targets in a monorepo declare the same namespace
+            // (Rayon + mRayon both ship `enum UIBridge`): members UNION —
+            // separate targets never collide on device.
+            for enumCase in symbol.cases
+            where !existing.cases.contains(where: { $0.name == enumCase.name }) {
+                existing.cases.append(enumCase)
+            }
+            for (name, overloads) in symbol.methods {
+                existing.methods[name, default: []].append(contentsOf: overloads)
+            }
+            for (name, overloads) in symbol.staticMethods {
+                existing.staticMethods[name, default: []].append(contentsOf: overloads)
+            }
+            for (name, property) in symbol.staticProperties
+            where existing.staticProperties[name] == nil {
+                existing.staticProperties[name] = property
+            }
+            for (name, computed) in symbol.computedProperties
+            where existing.computedProperties[name] == nil {
+                existing.computedProperties[name] = computed
+            }
+            for (name, computed) in symbol.staticComputedProperties
+            where existing.staticComputedProperties[name] == nil {
+                existing.staticComputedProperties[name] = computed
+            }
+            for (name, nested) in symbol.nestedTypes
+            where existing.nestedTypes[name] == nil {
+                existing.nestedTypes[name] = nested
+            }
+            existing.initializers.append(contentsOf: symbol.initializers)
+            for conformance in symbol.conformances
+            where !existing.conformances.contains(conformance) {
+                existing.conformances.append(conformance)
+            }
+            return
+        }
         enumSymbols[symbol.name] = symbol
         globals.define(symbol.name, .enumType(symbol))
     }

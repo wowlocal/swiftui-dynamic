@@ -2909,6 +2909,51 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Rayon at its honest root (iteration 178): bare sibling STATICS are
+    /// visible from any member context (an init parameter defaulting to
+    /// `defaultBlurRadius`, a static let); and sibling app targets in a
+    /// monorepo declaring the SAME namespace enum union their members
+    /// (Rayon + mRayon both ship `enum UIBridge` — separate targets never
+    /// collide on device).
+    @Test func siblingStaticsAndNamespaceUnions() throws {
+        let source = """
+        enum UIBridge {
+            static func open(url: URL) -> String { "opened" }
+        }
+
+        enum UIBridge {
+            static func toggleSidebar() -> String { "toggled" }
+        }
+
+        struct GradientView: View {
+            static let defaultBlurRadius: CGFloat = 64
+            let blurRadius: CGFloat
+
+            init(blurRadius: CGFloat = defaultBlurRadius) {
+                assert(blurRadius > 0)
+                self.blurRadius = blurRadius
+            }
+
+            var body: some View {
+                Text("blur \\(blurRadius)")
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let checks = [
+                    UIBridge.toggleSidebar() == "toggled",
+                    UIBridge.open(url: URL(string: "https://a.b")!) == "opened",
+                ]
+                if checks.contains(false) { fatalError("namespace union broken") }
+                return GradientView()
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// Basic-Car-Maintenance at its honest root (iteration 177): a
     /// PROPERTY/METHOD name collision — `var filteredReadings` beside
     /// `func filteredReadings(for:)`. A bare reference is the property

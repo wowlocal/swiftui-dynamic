@@ -1816,3 +1816,13 @@ without this.
   the call side going to the property). Basic-Car ✅ at 93 nodes/9
   actions. Three honest-root singletons remain (Rayon, Pearcleaner,
   Planet). **659/666 counted (658 → 659). Suite 352 → 354.**
+- 2026-07-10 iter 178: honest-roots queue — Rayon. Two classes: bare
+  sibling STATICS resolve from any member context (an init parameter
+  defaulting to `defaultBlurRadius`, a static let — instanceMember
+  falls through to staticMember); sibling app targets in a monorepo
+  declaring the SAME namespace enum now UNION their members (Rayon +
+  mRayon both ship `enum UIBridge`; last-wins had kept the iOS variant,
+  which lacks toggleSidebar — separate targets never collide on
+  device). Rayon ✅ at 157 nodes/15 actions (actions click now). Two
+  honest-root singletons remain (Pearcleaner, Planet). **660/666
+  counted (659 → 660). Suite 354 → 355.**

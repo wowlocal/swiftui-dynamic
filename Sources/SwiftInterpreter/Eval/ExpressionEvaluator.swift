@@ -541,6 +541,12 @@ extension Interpreter {
                 return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
             }
         }
+        // Bare sibling STATICS are visible from any member context
+        // (`assert(blurRadius > 0)` where the parameter default is
+        // `defaultBlurRadius`, a static let on the type).
+        if let value = try staticMember(name, of: instance.symbol) {
+            return value
+        }
         return nil
     }
 
