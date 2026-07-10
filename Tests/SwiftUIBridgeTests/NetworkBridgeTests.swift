@@ -325,3 +325,39 @@ import SwiftInterpreter
         #expect(after.filter { $0 == "Bought milk" }.count >= 2)
     }
 }
+
+/// M4 App-shell env seeding: the scene expression evaluates with the APP
+/// instance as self, so its @StateObject properties flow into
+/// .environmentObject exactly as at launch (the IceCubes shape).
+@Suite struct AppShellEnvSeedingTests {
+    @Test func appStateObjectSeedsEnvironment() throws {
+        let source = """
+        final class AccountsManager: ObservableObject {
+            @Published var current = "alice@mstdn.social"
+        }
+
+        struct TimelineView: View {
+            @EnvironmentObject var accounts: AccountsManager
+
+            var body: some View {
+                Text("signed in: \\(accounts.current)")
+            }
+        }
+
+        @main
+        struct FeedApp: App {
+            @StateObject var accounts = AccountsManager()
+
+            var body: some Scene {
+                WindowGroup {
+                    TimelineView()
+                        .environmentObject(accounts)
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("signed in: alice@mstdn.social"),
+                "the App's @StateObject should seed the environment, got \(strings)")
+    }
+}

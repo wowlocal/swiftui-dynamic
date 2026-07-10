@@ -32,26 +32,34 @@ extension Interpreter {
     /// environment seeding evaluates), or the delegate-hosted
     /// `rootView:` expression. Probes evaluate this in the global scope
     /// instead of instantiating a bare symbol.
-    public func declaredRootViewExpression() -> ExprSyntax? {
+    public func declaredRootViewExpression() -> (app: StructSymbol?, expression: ExprSyntax)? {
         for symbol in structSymbols where symbol.conformances.contains("App") {
             guard let body = symbol.computedProperties["body"] else { continue }
             if let sceneCall = Self.firstSceneBuilderCall(in: Syntax(body.accessor)),
                let trailing = sceneCall.trailingClosure,
                let first = trailing.statements.first,
                let expr = first.item.as(ExprSyntax.self) {
-                return expr
+                return (symbol, expr)
             }
         }
         for symbol in structSymbols {
             for decls in symbol.methods.values {
                 for decl in decls where decl.description.contains("HostingController") {
                     if let hosted = Self.hostedRootExpression(in: Syntax(decl)) {
-                        return hosted
+                        return (nil, hosted)
                     }
                 }
             }
         }
         return nil
+    }
+
+    /// Evaluate the declared root expression with the APP INSTANCE as self —
+    /// `.environmentObject(appAccountsManager)` sees the App's own
+    /// stored/@StateObject properties, exactly as at launch.
+    public func evaluateAppRootExpression(_ expression: ExprSyntax, app: Instance?) throws -> RuntimeValue {
+        guard let app else { return try evaluate(expression, in: globals) }
+        return try evaluate(expression, in: selfEnvironment(.instance(app)))
     }
 
     private static let sceneContainers: Set<String> = ["WindowGroup", "Window", "DocumentGroup"]
