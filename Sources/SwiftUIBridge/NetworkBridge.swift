@@ -1262,3 +1262,9 @@ enum JSONDecodeBridge {
         return plain.date(from: text)
     }
 }
+
+
+extension URLComponentsBox: GeneratedMemberCarrier, CustomStringConvertible {
+    var generatedMemberValue: Any { components }
+    public var description: String { String(describing: components) }
+}

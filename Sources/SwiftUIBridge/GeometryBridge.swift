@@ -280,6 +280,8 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 if views.count == 1 { return views[0] }
                 return .native(views) // builder-content shape ([views])
             })
+        case ("TimeZone", "current"), ("TimeZone", "autoupdatingCurrent"):
+            return .native(TimeZone.current)
         case ("Bundle", "module"):
             // SPM resource bundles resolve against the merge's project
             // root — the committed files ARE what Bundle.module ships.
