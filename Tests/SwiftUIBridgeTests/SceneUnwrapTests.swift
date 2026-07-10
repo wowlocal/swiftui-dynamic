@@ -46,4 +46,30 @@ import SwiftUIBridge
         """)
         #expect(!rendered.contains("function"), "scene content stayed a function value: \(rendered)")
     }
+
+    @Test func extensionScenePropertyResolves() throws {
+        let rendered = try LiveCheckSupport.renderedStrings(source: """
+        struct HomeView: View {
+            var body: some View { Text("home sweet home") }
+        }
+        @main struct DemoApp: App {
+            var body: some Scene {
+                appScene
+                otherScenes
+            }
+        }
+        extension DemoApp {
+            var appScene: some Scene {
+                WindowGroup { HomeView() }
+            }
+            var otherScenes: some Scene {
+                WindowGroup(id: "aux") { Text("aux") }
+            }
+        }
+        """)
+        #expect(rendered.joined(separator: "|").contains("home sweet home"),
+                "scene property didn't resolve: \(rendered) (root \(LiveCheckSupport.lastRootSymbol))")
+        #expect(LiveCheckSupport.lastRootSymbol.hasPrefix("scene:"),
+                "root should come from the scene rung, got \(LiveCheckSupport.lastRootSymbol)")
+    }
 }

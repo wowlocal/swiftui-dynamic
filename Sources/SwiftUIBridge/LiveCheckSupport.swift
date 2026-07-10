@@ -9,6 +9,9 @@ public enum LiveCheckSupport {
     /// surface them so the histogram names the next class precisely.
     public private(set) static var lastRootSymbol = ""
     public private(set) static var lastLifecycleFired = 0
+    /// Errors swallowed while firing lifecycle closures — the histogram's
+    /// raw material (a silent `try?` here hides the next wall).
+    public private(set) static var lastLifecycleErrors: [String] = []
 
     /// `afterActions:` — the interaction rung: after lifecycle passes,
     /// invoke up to N collected actions (each against a FRESH render, like
@@ -118,6 +121,7 @@ public enum LiveCheckSupport {
             }
         }
         lastLifecycleFired = 0
+        lastLifecycleErrors = []
 
         // The async-fetch pass (M2): render, FIRE retained `.task`/
         // `.onAppear` closures (fetched data lands in state), re-render and
@@ -138,7 +142,11 @@ public enum LiveCheckSupport {
                 break
             }
             for closure in pending {
-                _ = try? interpreter.callBackgroundClosure(closure, arguments: [])
+                do {
+                    _ = try interpreter.callBackgroundClosure(closure, arguments: [])
+                } catch {
+                    lastLifecycleErrors.append("\(error)")
+                }
                 lastLifecycleFired += 1
             }
             firedCount = lifecycle.count

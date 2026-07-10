@@ -34,8 +34,7 @@ extension Interpreter {
     /// instead of instantiating a bare symbol.
     public func declaredRootViewExpression() -> (app: StructSymbol?, expression: ExprSyntax)? {
         for symbol in structSymbols where symbol.conformances.contains("App") {
-            guard let body = symbol.computedProperties["body"] else { continue }
-            if let sceneCall = Self.firstSceneBuilderCall(in: Syntax(body.accessor)),
+            if let sceneCall = Self.sceneBuilderCall(app: symbol),
                let trailing = sceneCall.trailingClosure,
                let first = trailing.statements.first,
                let expr = first.item.as(ExprSyntax.self) {
@@ -60,8 +59,7 @@ extension Interpreter {
     /// conditional scenes included. nil when there is no App/scene.
     public func declaredAppSceneRoot() -> (app: Instance, sceneBody: CodeBlockItemListSyntax)? {
         for symbol in structSymbols where symbol.conformances.contains("App") {
-            guard let body = symbol.computedProperties["body"],
-                  let sceneCall = Self.firstSceneBuilderCall(in: Syntax(body.accessor)),
+            guard let sceneCall = Self.sceneBuilderCall(app: symbol),
                   let trailing = sceneCall.trailingClosure else { continue }
             guard case .instance(let app)? = try? instantiateRoot(symbol) else { continue }
             return (app, trailing.statements)
@@ -83,6 +81,37 @@ extension Interpreter {
     }
 
     private static let sceneContainers: Set<String> = ["WindowGroup", "Window", "DocumentGroup"]
+
+    /// The App's scene-builder call, following ONE level of indirection:
+    /// `var body: some Scene { appScene; otherScenes }` references
+    /// scene-valued computed properties (extensions merge them into the
+    /// symbol) whose accessors hold the real WindowGroup — IceCubes' shape.
+    /// Without this, the share-extension's UIHostingController hunt hijacks
+    /// root selection.
+    static func sceneBuilderCall(app symbol: StructSymbol) -> FunctionCallExprSyntax? {
+        guard let body = symbol.computedProperties["body"] else { return nil }
+        if let direct = firstSceneBuilderCall(in: Syntax(body.accessor)) { return direct }
+        for name in referencedIdentifiers(in: Syntax(body.accessor)) {
+            if let property = symbol.computedProperties[name],
+               let call = firstSceneBuilderCall(in: Syntax(property.accessor)) {
+                return call
+            }
+        }
+        return nil
+    }
+
+    private static func referencedIdentifiers(in node: Syntax) -> [String] {
+        var names: [String] = []
+        func walk(_ node: Syntax) {
+            if let reference = node.as(DeclReferenceExprSyntax.self) {
+                let name = reference.baseName.text
+                if !names.contains(name) { names.append(name) }
+            }
+            for child in node.children(viewMode: .sourceAccurate) { walk(child) }
+        }
+        walk(node)
+        return names
+    }
 
     private static func firstSceneBuilderCall(in node: Syntax) -> FunctionCallExprSyntax? {
         if let call = node.as(FunctionCallExprSyntax.self),
@@ -106,6 +135,10 @@ extension Interpreter {
         let viewNames = Set(structSymbols.filter(\.conformsToView).map(\.name))
         guard !viewNames.isEmpty else { return nil }
         for symbol in structSymbols where symbol.conformances.contains("App") {
+            if let call = Self.sceneBuilderCall(app: symbol),
+               let name = Self.firstViewName(in: Syntax(call), among: viewNames) {
+                return name
+            }
             if let body = symbol.computedProperties["body"],
                let name = Self.firstViewName(in: Syntax(body.accessor), among: viewNames) {
                 return name

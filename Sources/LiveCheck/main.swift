@@ -134,14 +134,20 @@ let scenarios: [Scenario] = [
         if found.count >= 3 {
             return []
         }
-        return ["only \(found.count)/10 fixture authors reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"]
+        var message = "only \(found.count)/10 fixture authors reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"
+        for error in LiveCheckSupport.lastLifecycleErrors.prefix(3) {
+            message += "\n     lifecycle error: \(error.prefix(160))"
+        }
+        return [message]
     },
 ]
 
 var passed = 0
 var failureClasses: [(scenario: String, message: String)] = []
+var ran = 0
 for scenario in scenarios {
     if let filter, !scenario.name.localizedCaseInsensitiveContains(filter) { continue }
+    ran += 1
     NetworkBridge.policy = .replay(fixturesDirectory: scenario.fixturesDirectory)
     defer { NetworkBridge.policy = .absorbed }
     do {
@@ -162,7 +168,7 @@ for scenario in scenarios {
     }
 }
 
-print("\n═══ \(passed)/\(scenarios.count) live-data scenarios pass ═══")
+print("\n═══ \(passed)/\(ran) live-data scenarios pass ═══")
 if !failureClasses.isEmpty {
     print("\nfailure classes (fix the biggest first):")
     for entry in failureClasses {
