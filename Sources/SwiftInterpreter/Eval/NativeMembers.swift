@@ -165,27 +165,23 @@ extension Interpreter {
                     return .native(DictValue(keys: keys, values: values))
                 })
             case "compactMap":
-                return .hostFunction(HostFunction(name: name) { args, ctx in
-                    guard let transform = args.firstUnlabeledClosure else {
-                        throw RuntimeError(message: "compactMap needs a transform")
-                    }
+                return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                     var out: [RuntimeValue] = []
                     for (key, value) in zip(dict.keys, dict.values) {
                         let element = RuntimeValue.native(
                             TupleValue(labels: ["key", "value"], values: [key, value]))
-                        let mapped = try ctx.callClosure(transform, arguments: [element])
+                        let mapped = try Self.mapStep(args, name, element, self, ctx)
                         if !mapped.isNil { out.append(mapped) }
                     }
                     return .native(out)
                 })
             case "map":
-                return .hostFunction(HostFunction(name: name) { args, ctx in
-                    guard let transform = args.firstUnlabeledClosure else {
-                        throw RuntimeError(message: "map needs a transform")
-                    }
-                    return .native(try zip(dict.keys, dict.values).map { key, value in
-                        try ctx.callClosure(transform, arguments: [.native(
-                            TupleValue(labels: ["key", "value"], values: [key, value]))])
+                // `dataSource.map(\.key)` — keypath transforms apply to the
+                // (key:, value:) pair like any SE-0249 function position.
+                return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
+                    .native(try zip(dict.keys, dict.values).map { key, value in
+                        try Self.mapStep(args, name, .native(
+                            TupleValue(labels: ["key", "value"], values: [key, value])), self, ctx)
                     })
                 })
             case "sorted":
@@ -569,7 +565,11 @@ extension Interpreter {
                 }
                 current = value
             case .host(let any):
-                if let value = try nativeMember(component, on: any)
+                // Labeled tuples read their elements (`\.key` over the
+                // dictionary pair shape).
+                if let tuple = any as? TupleValue, let element = tuple.value(for: component) {
+                    current = element
+                } else if let value = try nativeMember(component, on: any)
                     ?? registry?.hostMember(component, on: any) {
                     current = value
                 } else {

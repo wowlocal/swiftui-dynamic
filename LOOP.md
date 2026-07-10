@@ -2238,3 +2238,11 @@ between iterations 35 and 183.)
   4/4; ProjectCheck 678/680 — Basic-Car-Maintenance ("map needs a
   transform" at 1853) broke at HEAD via the parallel merge, verified
   pre-existing, next histogram item.**
+- 2026-07-10 iter 204: the parallel merge's Basic-Car regression ("map
+  needs a transform") closed GENERALLY: SE-0249 keypaths now work in
+  DICTIONARY transform positions — dict map/compactMap route through
+  the same mapStep the array family uses (closures, keypaths, unapplied
+  function refs, init refs), and applyKeyPath reads LABELED-TUPLE
+  elements (`\.key` over the (key:, value:) pair; `\.key.name` chains
+  into the instance). Basic-Car renders 223 nodes / 15 actions.
+  **678 → 679/680; suite 441 → 442; TestCheck 81/50; LiveCheck 4/4.**

@@ -726,3 +726,24 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         }
     }
 }
+
+/// SE-0249 keypaths in DICTIONARY transform positions (iteration 204):
+/// `dataSource.map(\.key)` over [Vehicle: [Event]] — the Basic-Car picker.
+@Suite struct DictionaryKeyPathTransformTests {
+    @Test func dictMapAcceptsKeyPaths() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        struct Vehicle: Hashable {
+            let name: String
+        }
+
+        let dataSource: [Vehicle: [Int]] = [Vehicle(name: "Civic"): [1, 2]]
+        let vehicles = dataSource.map(\\.key)
+        let names = dataSource.compactMap(\\.key.name)
+        (vehicles.count, vehicles[0].name, names[0])
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 1)
+        #expect(tuple.values[1].stringValue == "Civic")
+        #expect(tuple.values[2].stringValue == "Civic")
+    }
+}
