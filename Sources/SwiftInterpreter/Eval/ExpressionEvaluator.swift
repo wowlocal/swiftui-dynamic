@@ -541,6 +541,16 @@ extension Interpreter {
         for conformance in instance.symbol.conformances {
             guard let proto = hostExtensionSymbols[conformance] else { continue }
             if let overloads = proto.methods[name], let firstMethod = overloads.first {
+                // PROPERTY/METHOD collision in the same extension (AnyStatus
+                // declares `var isHidden` AND `func isHidden(in:)`): a bare
+                // reference is the property when every method overload
+                // requires arguments — the instanceMember rule.
+                if let computed = proto.computedProperties[name],
+                   overloads.allSatisfy({ method in
+                       method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
+                   }) {
+                    return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
+                }
                 // Overload sets never re-enter the running declaration
                 // (IconDrawable's image(ofSize:color:) → edgeInsets form,
                 // served to conformers through the protocol-defaults walk).
@@ -570,6 +580,14 @@ extension Interpreter {
         for typeName in candidates {
             guard let symbol = hostExtensionSymbols[typeName] else { continue }
             if let overloads = symbol.methods[name], let firstOverload = overloads.first {
+                // Bare reference on a property/method collision: the
+                // property wins when every overload requires arguments.
+                if let computed = symbol.computedProperties[name],
+                   overloads.allSatisfy({ method in
+                       method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
+                   }) {
+                    return try evaluateComputed(computed, selfValue: selfValue, name: name)
+                }
                 // Overload sets never re-enter the running declaration
                 // (IconDrawable's image(ofSize:color:) delegating to the
                 // edgeInsets form).
@@ -1391,6 +1409,24 @@ extension Interpreter {
                 where !bindingError.fatal
                     && (bindingError.message.hasPrefix("missing argument")
                         || bindingError.message.hasSuffix("is not callable")) {
+                // PROPERTY/METHOD collision at a CALL site: the type's own
+                // computed property shadowed a PROTOCOL-EXTENSION method
+                // (Status's `var isHidden` vs AnyStatus's `isHidden(in:)`)
+                // — dispatch the method, as overload resolution would.
+                if case .instance(let instance) = baseValue {
+                    for conformance in instance.symbol.conformances {
+                        guard let proto = hostExtensionSymbols[conformance],
+                              let overloads = proto.methods[name] else { continue }
+                        let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                        // Only a FITTING overload rescues — a wrong-shaped
+                        // sibling must fall through to the modifier retry.
+                        guard let method = chooseFunction(from: available, for: args),
+                              let body = method.body else { continue }
+                        let closure = makeFunctionClosure(
+                            method, body: body, captured: selfEnvironment(.instance(instance)))
+                        return try invoke(.closure(closure), with: args, node: call)
+                    }
+                }
                 // A user extension OR a same-named PROPERTY can shadow a
                 // built-in modifier (`extension View { func offset(
                 // coordinateSpace:…) }`; `var offset: CGFloat` on a view
@@ -1779,6 +1815,13 @@ extension Interpreter {
         case .nilValue:
             return .nilValue // optional chaining through a nil method
         case .type(let symbol):
+            // A `Layout` conformer called with a content closure is the
+            // callAsFunction sugar (`_Layout(width:…) { views }`): headless
+            // layout is pure geometry — the CONTENT is the rendered view.
+            if symbol.conformances.contains("Layout"),
+               let content = args.firstUnlabeledClosure {
+                return try groupViews(callBuilderClosure(content, arguments: []).map { $0 })
+            }
             do {
                 return try instantiate(symbol, with: args, node: Syntax(node))
             } catch let bindingError as RuntimeError
@@ -2615,8 +2658,17 @@ extension Interpreter {
     }
 
     func resolveLValue(_ expr: ExprSyntax, in env: Environment) throws -> LValue {
+        // `_ = sideEffect()` — a discard sink.
+        if expr.is(DiscardAssignmentExprSyntax.self) {
+            return .box(Box(.void))
+        }
         if let ref = expr.as(DeclReferenceExprSyntax.self) {
             let name = ref.baseName.text
+            if Interpreter.traceStateCells, name == "statusesState" {
+                var selfDesc = "none"
+                if case .instance(let i)? = env.lookup("self") { selfDesc = i.symbol.name }
+                Swift.print("   ⌥ lvalue statusesState envBox=\(env.box(for: name) != nil) self=\(selfDesc)")
+            }
             if let box = env.box(for: name) { return .box(box) }
             if case .instance(let instance)? = env.lookup("self") {
                 let canonical = instance.symbol.canonicalPropertyName(name)

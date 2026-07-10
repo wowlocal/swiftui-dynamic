@@ -257,6 +257,19 @@ extension Interpreter {
         if let cast = matchCastSequence(expr, subject: subject, bindingInto: bindings) {
             return cast
         }
+        // `case (_, .hideAll)` — tuple patterns in expression form match
+        // ELEMENTWISE; `_` is the wildcard.
+        if expr.is(DiscardAssignmentExprSyntax.self) { return true }
+        if let tuple = expr.as(TupleExprSyntax.self), tuple.elements.count > 1,
+           let subjectTuple = subject.tupleValue,
+           tuple.elements.count == subjectTuple.values.count {
+            for (element, value) in zip(tuple.elements, subjectTuple.values) {
+                guard try matchExpression(element.expression, subject: value, bindingInto: bindings, env: env) else {
+                    return false
+                }
+            }
+            return true
+        }
         // Bare `case .error:` — compiled Swift lets a payload case be matched
         // by its payload-less spelling; only the case NAME is checked.
         if let member = expr.as(MemberAccessExprSyntax.self),
@@ -274,6 +287,8 @@ extension Interpreter {
             guard caseName == member.declName.baseName.text,
                   payloads.count == call.arguments.count else { return false }
             for (argument, payload) in zip(call.arguments, payloads) {
+                // `case .display(let items, _)` — a payload wildcard.
+                if argument.expression.is(DiscardAssignmentExprSyntax.self) { continue }
                 if let patternExpr = argument.expression.as(PatternExprSyntax.self) {
                     guard try matches(patternExpr.pattern, subject: payload, bindingInto: bindings, env: env) else {
                         return false

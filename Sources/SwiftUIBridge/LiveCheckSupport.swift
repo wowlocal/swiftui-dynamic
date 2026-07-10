@@ -182,7 +182,7 @@ public enum LiveCheckSupport {
 
         if traceLifecycle {
             print("   ◇ strings (\(strings.count)):")
-            for line in strings.prefix(40) { print("     · \(line.prefix(80))") }
+            for line in strings.prefix(1000) { print("     · \(line.prefix(80))") }
         }
         // Interaction rung: click through the first N actions.
         if actionCount > 0 {

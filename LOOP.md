@@ -198,21 +198,18 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. ICECUBES STATE WRITE INSIDE withAnimation CLOSURE (M2, language
-      class, precisely scoped iter 194): the timeline VM is IDENTITY-
-      STABLE across probe passes (⊙ trace: same vm both passes) and the
-      fetch chain completes — but `withAnimation { statusesState =
-      .displayWithGaps(items:…) }` NEVER reaches the write funnel (✍
-      trace shows only fetchFirstPage's plain-body `.loading` write;
-      updateStatusesStateWithAnimation ⟶ runs; no task death remains;
-      TraceRegistry's withAnimation DOES call the closure). So a bare
-      property assignment inside a closure passed to a registry
-      hostFunction either resolves into a non-instance box or its RHS
-      throws pre-write and is absorbed en route. Diagnose with
-      INTERP_TRACE_STATE=1 (✍ write trace + ⌘ cell trace) —
-      reproduce: @Observable VM method calling withAnimation { prop =
-      .someCase(payload:) }, called through Task→didSet like
-      TimelineViewModel.timeline's observer.
+   1. CORPUS-RUN DETERMINISM (ProjectCheck class): nextcloud-ios
+      (action #8 = its DEBUG "Crash test" button's intentional
+      fatalError) and apple-browsers (Text-extension-init nesting
+      cycle at merged 152949) FLIP between pass and fail across runs
+      of IDENTICAL binaries (both failed at HEAD standalone while
+      HEAD's full run scored 679/680). UserDefaults pollution was real
+      (~/Library/Preferences/ProjectCheck.plist accumulated corpus
+      apps' writes — now fixed: UserDefaults.standard maps to an
+      EPHEMERAL suite wiped per process) but insufficient — some other
+      cross-run state remains (seeded sandbox plists? NSCache? hash-
+      order-dependent walks?). Find it, make the metric deterministic
+      again, then diagnose the two failures on stable ground.
       (State identity note: per-identity @State persistence is OPT-IN
       via `Interpreter.persistentViewState` — LiveCheck sets it; M0
       probes keep fresh-per-instantiation state, see README divergence.
@@ -2085,3 +2082,23 @@ between iterations 35 and 183.)
   stays 🟡 on ONE scoped wall: the withAnimation-closure state write
   (queue #1, repro recipe included). **679/680 unchanged; suite
   397 → 405; LiveCheck 2/4.**
+- 2026-07-10 iter 195: LiveCheck queue #1 CLOSED — **icecubes-timeline-ui
+  GREEN (2/4 → 3/4 rungs): 20 fixture authors render in the tree.** The
+  withAnimation write mystery resolved as a CASCADE of language gaps hit
+  in sequence: payload wildcards (`case .display(let items, _)` died on
+  discardAssignmentExpr), the property/method COLLISION rule missing
+  from the protocol-defaults walk (Status's `var isHidden` vs AnyStatus's
+  `isHidden(in:)` returned the METHOD closure for a bare read → `!` on a
+  closure), the same collision at CALL sites (the own property evaluated
+  then "false is not callable" — now dispatches the FITTING protocol-
+  extension method), Layout-conformer callAsFunction sugar (media cells:
+  `_Layout(…) { content }` renders its content), `_ =` discard sinks,
+  and tuple-EXPRESSION patterns matching elementwise (`case (_,
+  .hideAll)`). Plus: CGFloat(nil-from-absorbed-environment) reads fresh
+  zero (amperfy's FFT array); UserDefaults.standard now maps to an
+  ephemeral per-process suite (corpus apps' real writes accumulated in
+  ~/Library/Preferences across runs). movieswiftui advanced too (1 → 12
+  strings, 0 → 6 closures, root app:StoreProvider). **LiveCheck 3/4;
+  suite 405 → 415; ProjectCheck 677/680 with the two failures proven
+  ENVIRONMENT-FLAKY (fail at HEAD standalone; new queue #1 =
+  determinism).**

@@ -54,9 +54,24 @@ enum ObjCTrampoline {
         }
     }
 
+    /// `UserDefaults.standard` reads/writes an EPHEMERAL per-process suite,
+    /// wiped at first use each run: round-trips stay real WITHIN a run (the
+    /// doctrine), but nothing persists across runs — corpus determinism
+    /// (nextcloud's onboarding flags and apple-browsers' cached feature
+    /// state were flipping later runs through ~/Library/Preferences).
+    static let ephemeralDefaults: UserDefaults = {
+        let suiteName = "DynamicSwiftUI.ephemeral"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
+    }()
+
     /// `UserDefaults.standard` — class singletons/statics via candidates.
     static func staticMember(_ name: String, onClassNamed className: String) -> RuntimeValue? {
         guard let cls = resolveClass(className) else { return nil }
+        if name == "standard", className == "UserDefaults" || className == "NSUserDefaults" {
+            return .native(ObjCBox(ephemeralDefaults))
+        }
         var candidates = [name, name + className.dropFirst(0)]
         if name == "standard" { candidates.append("standardUserDefaults") }
         if name == "default" { candidates += ["defaultCenter", "defaultManager"] }

@@ -231,6 +231,12 @@ public final class TraceRegistry: HostRegistry {
             }
         case "withAnimation":
             return HostFunction(name: name) { args, ctx in
+                if LiveCheckSupport.traceLifecycle {
+                    let body = args.firstUnlabeledClosure?.body.description
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "\n", with: " ") ?? "nil"
+                    print("   ⟲ withAnimation: \(body.prefix(80))")
+                }
                 guard let closure = args.firstUnlabeledClosure else { return .void }
                 return try ctx.callClosure(closure, arguments: [])
             }

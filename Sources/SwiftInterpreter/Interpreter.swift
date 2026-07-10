@@ -1467,6 +1467,10 @@ public final class Interpreter {
             if let value = operand, let z = Builtins.absorbedNumeric(value) {
                 return .native(z) // unknowables read fresh zero (iter-94 rule)
             }
+            // A NIL operand can't compile natively (the parameter is
+            // non-optional) — it's an absorbed-environment artifact
+            // (amperfy indexes a fresh-empty FFT array): fresh zero.
+            if operand?.isNil == true { return .native(0.0) }
             throw RuntimeError(message: "CGFloat needs a number")
         }
         define("Array") { args, _ in

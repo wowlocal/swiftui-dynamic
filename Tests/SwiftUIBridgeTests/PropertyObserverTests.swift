@@ -118,3 +118,224 @@ import SwiftUIBridge
         #expect(result.stringValue == "in:3;was:0;")
     }
 }
+
+/// A bare state write inside a `withAnimation { }` closure (iteration 195,
+/// the IceCubes timeline shape): the assignment must land on the instance
+/// property even when the mutation runs inside a Task spawned by a didSet.
+@Suite struct WithAnimationWriteTests {
+    @Test func withAnimationClosureWritesInstanceProperty() throws {
+        let source = """
+        enum LoadState: Equatable, Sendable {
+            enum PagingState: Equatable, Sendable {
+                case hasNextPage, none
+            }
+
+            case loading
+            case display(items: [String], nextPageState: PagingState)
+        }
+
+        actor Datasource {
+            var stored: [String] = []
+
+            func set(_ items: [String]) {
+                stored = items
+            }
+
+            func getFilteredItems() -> [String] {
+                stored
+            }
+        }
+
+        @Observable
+        @MainActor
+        final class VM {
+            var state: LoadState = .loading
+            @ObservationIgnored
+            private let datasource = Datasource()
+            private(set) var timelineTask: Task<Void, Never>?
+            var timeline: String = "unset" {
+                didSet {
+                    timelineTask?.cancel()
+                    timelineTask = Task {
+                        await refresh()
+                    }
+                }
+            }
+
+            func refresh() async {
+                await datasource.set(["alpha", "beta"])
+                await updateWithAnimation()
+            }
+
+            private func updateWithAnimation() async {
+                let items = await datasource.getFilteredItems()
+                withAnimation {
+                    state = .display(items: items, nextPageState: .hasNextPage)
+                }
+            }
+        }
+
+        struct ContentView: View {
+            @State private var vm = VM()
+
+            var body: some View {
+                content
+                    .onAppear {
+                        vm.timeline = "trending"
+                    }
+            }
+
+            @ViewBuilder
+            private var content: some View {
+                switch vm.state {
+                case .loading:
+                    Text("still loading")
+                case .display(let items, _):
+                    ForEach(items, id: \\.self) { item in
+                        Text(item)
+                    }
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("alpha") && strings.contains("beta"),
+                "the withAnimation write must land and re-render, got \(strings)")
+    }
+}
+
+/// SE-0380 if/switch EXPRESSIONS in value position (iteration 195): the
+/// IceCubes status filter opens with `let isHidden = if let filterContext
+/// { … } else { … }` — dying there silently killed the whole timeline
+/// state update (the catch was guarded by a non-empty datasource).
+@Suite struct IfSwitchExpressionTests {
+    @Test func ifAndSwitchExpressionsInValuePosition() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        func classify(_ n: Int) -> String {
+            let sign = if n < 0 { "negative" } else if n == 0 { "zero" } else { "positive" }
+            let size = switch abs(n) {
+            case 0: "empty"
+            case 1..<10: "small"
+            default: "large"
+            }
+            return "\\(sign)-\\(size)"
+        }
+
+        let flag: String? = "ctx"
+        let isHidden = if let flag { flag == "hide" } else { false }
+
+        protocol AnyItem {
+            var filtered: [String]? { get }
+        }
+
+        extension AnyItem {
+            func isHidden(in context: String) -> Bool {
+                filtered?.contains(context) == true
+            }
+
+            var isHidden: Bool {
+                filtered?.isEmpty == false
+            }
+        }
+
+        struct Item: AnyItem {
+            let filtered: [String]?
+
+            // The type's OWN computed property COLLIDES with the protocol
+            // extension's method (the Status.isHidden shape).
+            var isHidden: Bool {
+                filtered?.isEmpty == false
+            }
+        }
+
+        actor Source {
+            var filterContext: String?
+
+            func setContext(_ context: String?) {
+                filterContext = context
+            }
+
+            func shouldShow(_ item: Item) -> Bool {
+                let hidden = if let filterContext {
+                    item.isHidden(in: filterContext)
+                } else {
+                    item.isHidden
+                }
+                return !hidden
+            }
+        }
+
+        let source = Source()
+        let visibleWithoutContext = await source.shouldShow(Item(filtered: nil))
+        await source.setContext("timeline")
+        let visible = await source.shouldShow(Item(filtered: nil))
+        _ = visibleWithoutContext
+        (classify(-5), classify(0), classify(42), isHidden, visible)
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].stringValue == "negative-small")
+        #expect(tuple.values[1].stringValue == "zero-empty")
+        #expect(tuple.values[2].stringValue == "positive-large")
+        #expect(tuple.values[3].boolValue == false)
+        #expect(tuple.values[4].boolValue == true,
+                "actor-property if-let shorthand inside an if-expression must bind")
+    }
+}
+
+/// Layout-protocol conformers, tuple-expression patterns, and the discard
+/// sink (iteration 195, the walls after the state write landed).
+@Suite struct LayoutAndTuplePatternTests {
+    @Test func layoutConformerRendersItsContent() throws {
+        let source = """
+        struct FitLayout: Layout {
+            let originalWidth: CGFloat
+            let originalHeight: CGFloat
+
+            func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+                .zero
+            }
+
+            func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {}
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                FitLayout(originalWidth: 640, originalHeight: 360) {
+                    Text("media cell")
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("media cell"), "the Layout's content must render, got \(strings)")
+    }
+
+    @Test func tuplePatternsAndDiscardSink() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        enum Expand: String {
+            case hideAll, hideSensitive, show
+        }
+
+        func overlay(sensitive: Bool, expand: Expand) -> Bool {
+            switch (sensitive, expand) {
+            case (_, .hideAll), (true, .hideSensitive):
+                true
+            default: false
+            }
+        }
+
+        var log: [String] = []
+        _ = log.isEmpty
+        _ = overlay(sensitive: false, expand: .show)
+        (overlay(sensitive: false, expand: .hideAll),
+         overlay(sensitive: true, expand: .hideSensitive),
+         overlay(sensitive: false, expand: .hideSensitive),
+         overlay(sensitive: false, expand: .show))
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].boolValue == true)
+        #expect(tuple.values[1].boolValue == true)
+        #expect(tuple.values[2].boolValue == false)
+        #expect(tuple.values[3].boolValue == false)
+    }
+}
