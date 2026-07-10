@@ -1346,6 +1346,24 @@ public final class Interpreter {
         return value
     }
 
+    /// The conversion character of each %-directive in a format string,
+    /// in order (`"%d of %@"` → ["d", "@"]); `%%` is skipped.
+    static func formatDirectives(_ format: String) -> [Character] {
+        var out: [Character] = []
+        var iterator = format.makeIterator()
+        while let ch = iterator.next() {
+            guard ch == "%" else { continue }
+            // skip flags/width/precision/length up to the conversion char
+            var current = iterator.next()
+            if current == "%" { continue }
+            while let c = current, "0123456789.+-# hlLqztj*'".contains(c) {
+                current = iterator.next()
+            }
+            if let c = current { out.append(c) }
+        }
+        return out
+    }
+
     // MARK: - Global builtins
 
     private func defineGlobalBuiltins() {
@@ -1361,6 +1379,14 @@ public final class Interpreter {
             if let i = value.intValue { return .native(Swift.abs(i)) }
             if let d = value.doubleValue { return .native(Swift.abs(d)) }
             throw RuntimeError(message: "abs needs a number")
+        }
+        define("NSLocalizedString") { args, _ in
+            // No string tables headlessly: Foundation's own miss behavior —
+            // the explicit value: when non-empty, otherwise the KEY.
+            if let value = args.labeled("value")?.stringValue, !value.isEmpty {
+                return .native(value)
+            }
+            return .native(args.positional(0)?.stringValue ?? "")
         }
         define("type") { args, _ in
             // `type(of: endpoint)` — the DYNAMIC metatype, comparable with
@@ -1428,13 +1454,37 @@ public final class Interpreter {
         }
         define("String") { args, _ in
             if let format = args.labeled("format")?.stringValue {
-                // `String(format: "%.1f", per)` — real formatting; remaining
-                // positionals map to CVarArgs.
-                let varargs: [CVarArg] = args.arguments.dropFirst().compactMap { argument in
-                    if let i = argument.value.intValue { return i }
-                    if let d = argument.value.doubleValue { return d }
-                    if let s = argument.value.stringValue { return s }
-                    return nil
+                // `String(format: "%.1f", per)` — real formatting. Each
+                // vararg must MATCH its directive's expectation: `%@`
+                // dereferences an OBJECT pointer, so an Int riding under it
+                // is a SIGSEGV (the NSLocalizedString("… %@ …") genre).
+                // Scan the directives and wrap accordingly.
+                let directives = Self.formatDirectives(format)
+                var varargs: [CVarArg] = []
+                for (index, argument) in args.arguments.dropFirst().enumerated() {
+                    let directive = index < directives.count ? directives[index] : "@"
+                    let value = argument.value
+                    if directive == "@" {
+                        // Object slot: everything rides as an NSObject.
+                        if let i = value.intValue { varargs.append(NSNumber(value: i)) }
+                        else if let d = value.doubleValue { varargs.append(NSNumber(value: d)) }
+                        else if let s = value.stringValue { varargs.append(s as NSString) }
+                        else { varargs.append(value.stringified as NSString) }
+                    } else if "eEfgG".contains(directive) {
+                        varargs.append(value.doubleValue ?? 0)
+                    } else if "dDiuUxXo".contains(directive) {
+                        varargs.append(value.intValue ?? Int(value.doubleValue ?? 0))
+                    } else if directive == "s" {
+                        varargs.append(value.stringValue ?? value.stringified)
+                    } else if let i = value.intValue {
+                        varargs.append(i)
+                    } else if let d = value.doubleValue {
+                        varargs.append(d)
+                    } else if let s = value.stringValue {
+                        varargs.append(s as NSString)
+                    } else {
+                        varargs.append(value.stringified as NSString)
+                    }
                 }
                 return .native(Swift.String(format: format, arguments: varargs))
             }

@@ -224,12 +224,16 @@ Each iteration does exactly this:
    3. [DONE iter 200] @Query/@FetchRequest read the live model store
       each render (Wrapper.query + per-render refreshQueries;
       QueryLiveStoreTests — insert taps become visible rows).
-   4. TestCheck seed classes (native-baseline rule first): ControlRoom
-      subcommand argument arrays; Maccy String-index/sort-comparator;
-      OnlineStoreTCA synthesized init(from: Decoder). Run
-      `swift run TestCheck --limit N`, verify natively, fix genuine
-      classes. When TestCheck has no actionable class either, step 9's
-      material hunt or the depth-over-breadth pivot.
+   4. TestCheck classes (native-baseline rule first; scoreboard
+      2026-07-10 @ --limit 8: 79 passed / 52 failed / 12 errored).
+      Top exemplar: clean-architecture-swiftui LoadableTests.map —
+      generic enum method (`Loadable<Int>.map → Loadable<String>`),
+      optional-map with rethrows, conditional-conformance `==`, and
+      array-of-enums equality. Behind it: FreeChat PromptTemplateTests
+      (a template STRING computes to a raw UIKitStub — find which host
+      member returns the stub), Milestones Comparable/reducer classes,
+      ControlRoom subcommand arrays, Maccy String-index/sort,
+      OnlineStoreTCA Codable synthesis.
 
 ## Rules
 
@@ -2177,3 +2181,18 @@ between iterations 35 and 183.)
   tap Add → context.insert → @Query shows the row
   (QueryLiveStoreTests). **679/680 unchanged; suite 433 → 435;
   LiveCheck 4/4. Queue: TestCheck seed classes are next.**
+- 2026-07-10 iter 201: TestCheck engaged as the metric (ProjectCheck +
+  LiveCheck both saturated). Its biggest bucket's exemplar
+  (LoadableTests.valueIsMissing, natively-green) fell to ONE missing
+  builtin: **NSLocalizedString** — now returns Foundation's tableless
+  fallback (explicit value: when non-empty, else the key), so computed
+  `localizedDescription` on interpreted Errors resolves
+  (LocalizedErrorDescriptionTests). TestCheck @ --limit 8: 79 passed /
+  52 failed / 12 errored; the #expect bucket's next exemplar
+  (LoadableTests.map — generic enum map + conditional-conformance ==)
+  is documented in the queue. Landing it unlocked a LATENT SIGSEGV:
+  real `%@` formats reached String(format:) whose varargs marshaled
+  Ints under OBJECT directives — the whole corpus run crashed at
+  String.init(format:) until varargs matched their directives
+  (FormatDirectiveTests). **679/680 verified post-fix; suite 435 →
+  438; LiveCheck 4/4.**

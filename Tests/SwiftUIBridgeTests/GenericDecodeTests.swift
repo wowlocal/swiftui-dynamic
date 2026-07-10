@@ -592,3 +592,44 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(after.contains("count 2"), "two taps, two rows, got \(after)")
     }
 }
+
+/// clean-architecture-swiftui's Loadable genre (iteration 201, TestCheck):
+/// NSLocalizedString returns its key (no bundle tables headlessly), and a
+/// computed localizedDescription on an interpreted Error wins over the
+/// host Error default.
+@Suite struct LocalizedErrorDescriptionTests {
+    @Test func computedLocalizedDescriptionResolves() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        struct ValueIsMissingError: Error {
+            var localizedDescription: String {
+                NSLocalizedString("Data is missing", comment: "")
+            }
+        }
+
+        ValueIsMissingError().localizedDescription
+        """)
+        #expect(result.stringValue == "Data is missing", "got \(result.stringified)")
+    }
+}
+
+/// `String(format:)` varargs must MATCH their directives: `%@` dereferences
+/// an OBJECT pointer, so an Int riding under it was a SIGSEGV — the exact
+/// shape NSLocalizedString unlocked (`String(format: NSLocalizedString(
+/// "… %@ …"), count)`).
+@Suite struct FormatDirectiveTests {
+    @Test func objectDirectivesWrapScalars() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        let count = 42
+        let name = "shelf"
+        (String(format: NSLocalizedString("Showing %@ items", comment: ""), count),
+         String(format: "%@ on %@", name, count),
+         String(format: "%d of %.1f", count, 99.5),
+         String(format: "100%% of %@", name))
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].stringValue == "Showing 42 items")
+        #expect(tuple.values[1].stringValue == "shelf on 42")
+        #expect(tuple.values[2].stringValue == "42 of 99.5")
+        #expect(tuple.values[3].stringValue == "100% of shelf")
+    }
+}
