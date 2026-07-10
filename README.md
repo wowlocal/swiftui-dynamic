@@ -135,6 +135,23 @@ always win. The report mode (no `--emit`) prints the blocking-type histogram —
 the priority list for new coercions. Defaulted parameters are handled by
 emitting suffix variants (full call, then trailing defaults dropped).
 
+The same generator sweeps the SDK's **Foundation swiftinterface** for the
+member surface of value types (`URL`, `Data`, `Date`, `Calendar`, `UUID`,
+`Locale`, …): `Generated/GeneratedMembers.swift` holds **~209 properties and
+~58 method variants** keyed by the receiver's dynamic type
+(`"URL.lastPathComponent"`), consulted from `bridgeHostMember` after the hand
+boxes and before the ObjC trampoline. Property reads return values directly;
+methods dispatch through the same label+coercibility matcher, and a call shape
+the sweep couldn't map absorbs instead of dying. Soft-deprecation sentinels
+(`deprecated: 100000.0` — `url.path` and friends) are tolerated for members
+since real projects compile against them. The demand side is instrumented:
+every member the absorb terminus swallows on a host native lands in
+`Interpreter.absorbedHostMembers`, and LiveCheck prints the top of that
+histogram per scenario (`absorbed: URLSessionBox.webSocketTask×3`) — the
+priority list for growing the sweep's `memberTypes`/tags. Members hand-served
+below the registry (the core's `nativeMember`) are pinned in BridgeGen's
+`denyMembers` so generated entries never shadow them.
+
 ## Corpus verification
 
 `Tests/SwiftUIBridgeTests/Corpus/` holds ten realistic programs (todo list,
@@ -157,6 +174,14 @@ coverage.
   closures bind last).
 - **State resets on re-parse.** Each successful edit gets a fresh identity
   (`.id(generation)`); the old program's state may not fit the new program.
+- **Per-identity @State persistence is probe-opt-in.** Compiled SwiftUI keeps
+  @State/@StateObject storage alive across re-renders of the same position;
+  the interpreter does too when `Interpreter.persistentViewState` is set
+  (keyed by instantiation site + type + property — LiveCheck's multi-pass
+  probe needs `.onAppear` writes visible to the fetch pass). It stays off for
+  M0 render probes whose click-through replays actions against re-renders in
+  an order no native run sequences. ForEach rows share one site (positional
+  identity, above).
 - **ForEach/container identity is positional** — bodies re-evaluate wholesale,
   so `@State` inside reordered children won't track.
 - **No type checking.** Type annotations parse but are ignored; errors show up

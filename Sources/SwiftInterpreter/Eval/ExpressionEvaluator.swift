@@ -1153,6 +1153,7 @@ extension Interpreter {
                 // is an UNMERGED-package extension (`query.isReallyEmpty`
                 // from a utility dependency) — absorbs, exactly like the
                 // interpreted-instance rule.
+                recordAbsorbedHostMember(type: String(describing: type(of: any)), member: name)
                 return .native(ChainedImplicitCall(
                     base: baseValue, member: name, arguments: CallArguments()))
             }

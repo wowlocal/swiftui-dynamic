@@ -492,6 +492,208 @@ for file in interfaceFiles {
     }
 }
 
+// MARK: - Foundation member sweep
+
+/// Value types whose instance surface the generated-members tier serves.
+/// Receiver downcasts run against the host's dynamic type, so only types a
+/// `.host` value actually carries belong here (boxes like URLComponentsBox
+/// keep their own dynamic type and never reach this table).
+let memberTypes: Set<String> = [
+    "URL", "Data", "Date", "UUID", "Calendar", "TimeZone", "Locale",
+    "DateComponents", "DateInterval", "URLComponents", "URLQueryItem",
+    "URLRequest", "CharacterSet", "IndexSet",
+]
+
+func memberMapping(for normalized: String) -> TypeMapping? {
+    switch normalized {
+    case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
+    case "Bool": return .init(tag: "bool", cast: "%@ as! Bool")
+    case "Int": return .init(tag: "int", cast: "%@ as! Int")
+    case "Double", "TimeInterval": return .init(tag: "double", cast: "%@ as! Double")
+    case "Date": return .init(tag: "date", cast: "%@ as! Date")
+    case "URL": return .init(tag: "url", cast: "%@ as! URL")
+    case "Data": return .init(tag: "data", cast: "%@ as! Data")
+    case "[String]": return .init(tag: "stringArray", cast: "%@ as! [String]")
+    default: return nil
+    }
+}
+
+func analyzeMemberParameter(_ param: FunctionParameterSyntax) -> AnalyzedParam {
+    let labelText = param.firstName.text
+    let label: String? = labelText == "_" ? nil : labelText
+    let hasDefault = param.defaultValue != nil
+    var type = param.type
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        // `inout`/`borrowing` slots can't take a coerced temporary.
+        guard attributed.specifiers.isEmpty else {
+            return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "inout", usesGeneric: nil)
+        }
+        type = attributed.baseType
+    }
+    var normalized = normalize(type.trimmedDescription)
+    if normalized.hasSuffix("?") { normalized = String(normalized.dropLast()) }
+    if let mapping = memberMapping(for: normalized) {
+        return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
+    }
+    return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: normalized, usesGeneric: nil)
+}
+
+struct MemberVariant {
+    let type: String
+    let name: String
+    let params: [EmittableParam]
+
+    var key: String {
+        type + "." + name + "|" + params.map { "\($0.label ?? "_"):\($0.tag)" }.joined(separator: ",")
+    }
+}
+
+/// "Type.member" keys never emitted: hand-written coverage below the registry
+/// (the core's nativeMember stdlib table) that the generated table would
+/// otherwise shadow with a narrower overload set. Hand-written wins.
+let denyMembers: Set<String> = [
+    "Date.formatted", // nativeMember serves formatted(date:time:); the sweep can't map FormatStyle
+]
+
+var memberMethodVariants: [MemberVariant] = []
+var memberMethodSeen = Set<String>()
+var memberProperties: [(type: String, name: String)] = []
+var memberPropertySeen = Set<String>()
+var memberBlockers: [String: Int] = [:]
+var memberMethodTotal = 0
+var memberPropertyTotal = 0
+
+func hasModifier(_ modifiers: DeclModifierListSyntax, _ keyword: String) -> Bool {
+    modifiers.contains { $0.name.text == keyword }
+}
+
+/// Members tolerate Apple's soft-deprecation sentinel (`deprecated:
+/// 100000.0`): `url.path`, `appendingPathComponent(_:)` and friends carry it
+/// yet remain the idioms real projects compile against — and skipping the
+/// classic property lets its `host(percentEncoded:)` sibling shadow property
+/// reads with a function value. Hard deprecations stay excluded.
+func memberIsUsable(_ attributes: AttributeListSyntax) -> Bool {
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self) else { continue }
+        let text = attr.trimmedDescription
+        if text.contains("unavailable") || text.contains("obsoleted") { return false }
+        if text.contains("deprecated"), !text.contains("deprecated: 100000.0") { return false }
+        if attr.attributeName.trimmedDescription.hasSuffix("_spi") { return false }
+    }
+    return true
+}
+
+func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, guarded: Bool) {
+    let name = function.name.text
+    guard let first = name.first, first.isLetter, !name.hasPrefix("_") else { return } // operators, SPI
+    guard hasModifier(function.modifiers, "public"),
+          !hasModifier(function.modifiers, "static"), !hasModifier(function.modifiers, "class"),
+          !hasModifier(function.modifiers, "mutating") else { return }
+    memberMethodTotal += 1
+    guard function.signature.effectSpecifiers == nil else {
+        memberBlockers["throws/async", default: 0] += 1
+        return
+    }
+    guard function.genericParameterClause == nil, function.genericWhereClause == nil else {
+        memberBlockers["<generic>", default: 0] += 1
+        return
+    }
+    guard let returnType = function.signature.returnClause?.type.trimmedDescription,
+          !returnType.contains("some "), normalize(returnType) != "Self" else {
+        memberBlockers[function.signature.returnClause == nil ? "void return" : "opaque/Self return",
+                       default: 0] += 1
+        return
+    }
+    let parameters = function.signature.parameterClause.parameters
+    if parameters.contains(where: { $0.ellipsis != nil }) {
+        memberBlockers["variadic", default: 0] += 1
+        return
+    }
+    let analyzed = parameters.map(analyzeMemberParameter)
+    if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
+        memberBlockers[firstBlocked.blocker ?? "?", default: 0] += 1
+        return
+    }
+    if guarded || needsAvailabilityGuard(function.attributes) { return }
+    guard !denyMembers.contains(typeName + "." + name) else { return }
+
+    let maxLen = analyzed.prefix(while: { $0.mapping != nil }).count
+    var cut = maxLen
+    while true {
+        if analyzed[cut...].allSatisfy(\.hasDefault) {
+            let slice = analyzed[..<cut]
+            let variant = MemberVariant(
+                type: typeName, name: name,
+                params: slice.map { .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast) }
+            )
+            if memberMethodSeen.insert(variant.key).inserted {
+                memberMethodVariants.append(variant)
+            }
+        }
+        guard cut > 0, analyzed[cut - 1].hasDefault else { break }
+        cut -= 1
+    }
+}
+
+func processMemberProperty(_ typeName: String, _ variable: VariableDeclSyntax, guarded: Bool) {
+    guard hasModifier(variable.modifiers, "public"),
+          !hasModifier(variable.modifiers, "static"), !hasModifier(variable.modifiers, "class") else { return }
+    guard let binding = variable.bindings.first,
+          let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { return }
+    let name = pattern.identifier.text
+    guard !name.hasPrefix("_") else { return }
+    memberPropertyTotal += 1
+    if let type = binding.typeAnnotation?.type.trimmedDescription, type.contains("some ") {
+        memberBlockers["opaque property", default: 0] += 1
+        return
+    }
+    if guarded || needsAvailabilityGuard(variable.attributes) { return }
+    let key = typeName + "." + name
+    guard !denyMembers.contains(key) else { return }
+    if memberPropertySeen.insert(key).inserted {
+        memberProperties.append((typeName, name))
+    }
+}
+
+let foundationFile: SourceFileSyntax? = {
+    guard let path = interfacePath(framework: "Foundation"),
+          let source = try? String(contentsOfFile: path, encoding: .utf8) else {
+        print("warning: no swiftinterface for Foundation")
+        return nil
+    }
+    print("parsing Foundation (\(source.count) chars)…")
+    return Parser.parse(source: source)
+}()
+
+if let foundationFile {
+    for statement in foundationFile.statements {
+        guard case .decl(let decl) = statement.item else { continue }
+        var typeName: String?
+        var members: MemberBlockItemListSyntax?
+        var guarded = false
+        if let structDecl = decl.as(StructDeclSyntax.self),
+           memberTypes.contains(structDecl.name.text), isUsable(structDecl.attributes) {
+            typeName = structDecl.name.text
+            members = structDecl.memberBlock.members
+            guarded = needsAvailabilityGuard(structDecl.attributes)
+        } else if let ext = decl.as(ExtensionDeclSyntax.self),
+                  isUsable(ext.attributes), ext.genericWhereClause == nil,
+                  memberTypes.contains(normalize(ext.extendedType.trimmedDescription)) {
+            typeName = normalize(ext.extendedType.trimmedDescription)
+            members = ext.memberBlock.members
+            guarded = needsAvailabilityGuard(ext.attributes)
+        }
+        guard let typeName, let members else { continue }
+        for member in members {
+            if let function = member.decl.as(FunctionDeclSyntax.self), memberIsUsable(function.attributes) {
+                processMemberFunction(typeName, function, guarded: guarded)
+            } else if let variable = member.decl.as(VariableDeclSyntax.self), memberIsUsable(variable.attributes) {
+                processMemberProperty(typeName, variable, guarded: guarded)
+            }
+        }
+    }
+}
+
 // MARK: - Report
 
 print("""
@@ -512,6 +714,18 @@ emitted variants:       \(initVariants.count)
 ═══ Top blocking types ═══
 """)
 for (type, count) in blockers.sorted(by: { $0.value > $1.value }).prefix(25) {
+    print(String(format: "%5d  %@", count, type))
+}
+
+print("""
+
+═══ Foundation members (generated tier) ═══
+properties:             \(memberProperties.count)  (of \(memberPropertyTotal) public instance vars)
+method variants:        \(memberMethodVariants.count)  (\(Set(memberMethodVariants.map { $0.type + "." + $0.name }).count) distinct members, of \(memberMethodTotal) candidates)
+
+═══ Top member-blocking types ═══
+""")
+for (type, count) in memberBlockers.sorted(by: { $0.value > $1.value }).prefix(20) {
     print(String(format: "%5d  %@", count, type))
 }
 
@@ -623,3 +837,77 @@ viewsOutput += "}\n"
 let viewsPath = "Sources/SwiftUIBridge/Generated/GeneratedViews.swift"
 try viewsOutput.write(toFile: viewsPath, atomically: true, encoding: .utf8)
 print("wrote \(viewsPath) (\(sortedInits.count) variants)")
+
+// MARK: - Emit members
+
+func memberPropertyCode(_ type: String, _ name: String) -> String {
+    "        t[\"\(type).\(name)\"] = { ($0 as? \(type)).map { generatedMemberResult($0.\(name)) } }"
+}
+
+func memberMethodCode(_ variant: MemberVariant) -> String {
+    let specs = variant.params
+        .map { "ParamSpec(\($0.label.map { "\"\($0)\"" } ?? "nil"), .\($0.tag))" }
+        .joined(separator: ", ")
+    let argList = variant.params.enumerated()
+        .map { index, param in
+            (param.label.map { "\($0): " } ?? "") + param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
+        }
+        .joined(separator: ", ")
+    return """
+            registerMethod(&t, "\(variant.type).\(variant.name)", [\(specs)]) { base, v in
+                generatedMemberResult((base as! \(variant.type)).\(variant.name)(\(argList)))
+            }
+    """
+}
+
+let sortedProperties = memberProperties.sorted { ($0.type, $0.name) < ($1.type, $1.name) }
+let sortedMembers = memberMethodVariants.sorted { ($0.type, $0.name, $0.params.count) < ($1.type, $1.name, $1.params.count) }
+let propertyChunks = stride(from: 0, to: sortedProperties.count, by: chunkSize).map {
+    Array(sortedProperties[$0..<min($0 + chunkSize, sortedProperties.count)])
+}
+let methodChunks = stride(from: 0, to: sortedMembers.count, by: chunkSize).map {
+    Array(sortedMembers[$0..<min($0 + chunkSize, sortedMembers.count)])
+}
+
+var membersOutput = """
+// GENERATED by BridgeGen from the SDK's Foundation swiftinterface.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+// \(sortedProperties.count) properties + \(sortedMembers.count) method variants across \(memberTypes.sorted().joined(separator: ", ")).
+import Foundation
+import SwiftInterpreter
+
+extension GeneratedMembers {
+    static func buildProperties() -> [String: (Any) -> RuntimeValue?] {
+        var t: [String: (Any) -> RuntimeValue?] = [:]
+
+"""
+for index in propertyChunks.indices {
+    membersOutput += "        buildP\(index)(&t)\n"
+}
+membersOutput += "        return t\n    }\n"
+membersOutput += "\n    static func buildMethods() -> [String: [GeneratedMemberOverload]] {\n"
+membersOutput += "        var t: [String: [GeneratedMemberOverload]] = [:]\n\n"
+for index in methodChunks.indices {
+    membersOutput += "        buildM\(index)(&t)\n"
+}
+membersOutput += "        return t\n    }\n"
+
+for (index, chunk) in propertyChunks.enumerated() {
+    membersOutput += "\n    private static func buildP\(index)(_ t: inout [String: (Any) -> RuntimeValue?]) {\n"
+    for property in chunk {
+        membersOutput += memberPropertyCode(property.type, property.name) + "\n"
+    }
+    membersOutput += "    }\n"
+}
+for (index, chunk) in methodChunks.enumerated() {
+    membersOutput += "\n    private static func buildM\(index)(_ t: inout [String: [GeneratedMemberOverload]]) {\n"
+    for variant in chunk {
+        membersOutput += memberMethodCode(variant) + "\n"
+    }
+    membersOutput += "    }\n"
+}
+membersOutput += "}\n"
+
+let membersPath = "Sources/SwiftUIBridge/Generated/GeneratedMembers.swift"
+try membersOutput.write(toFile: membersPath, atomically: true, encoding: .utf8)
+print("wrote \(membersPath) (\(sortedProperties.count) properties, \(sortedMembers.count) method variants)")

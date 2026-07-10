@@ -162,6 +162,19 @@ Each iteration does exactly this:
    - *Missing view/modifier/type* → prefer teaching BridgeGen a coercion or
      mapping and regenerate (`swift run BridgeGen --emit`); hand-write in
      `ViewGateways`/`ModifierGateways` only when generation can't express it.
+   - *Missing MEMBER on a host native* (a Foundation/SDK value's property or
+     method absorbs or errors) → this is a GENERATED-MEMBERS gap, not a
+     hand-box job. Read the demand signal first: LiveCheck failure messages
+     print the absorb histogram (`absorbed: Type.member×N`), and
+     `Interpreter.absorbedHostMembers` carries it programmatically. Then fix
+     in BridgeGen's member sweep (`Sources/BridgeGen/main.swift`): add the
+     type to `memberTypes`, add a `memberMapping` entry + `ParamTag` coercion
+     for a blocked parameter type (report mode prints the member-blocking
+     histogram), or lift a sweep filter — and regenerate with `swift run
+     BridgeGen --emit`. Write a NEW hand box only for semantics generation
+     can't express (write-back mutation, stateful boxes like URLSessionBox);
+     if the core's `nativeMember` already hand-serves a member the sweep would
+     emit, pin it in `denyMembers` instead of shadowing it.
    - *iOS-only / platform-impossible API* (UIKit interop, UIScreen…) → add a
      minimal inert stub if cheap and honest (renders something reasonable),
      otherwise record the project name + reason in the Quarantine section
@@ -198,6 +211,11 @@ Each iteration does exactly this:
       honest slice of real Codable synthesis). Diagnose with
       LIVECHECK_TRACE=1 (lifecycle outcomes + decode failures) and
       INTERP_TRACE_CALLS="fetchFirstPage,…" (function-entry tracing).
+      (State identity note: per-identity @State persistence is OPT-IN
+      via `Interpreter.persistentViewState` — LiveCheck sets it; M0
+      probes keep fresh-per-instantiation state, see README divergence.
+      `URLSessionBox.webSocketTask` still absorbs — stateful hand-box
+      gap, the histogram will resurface it.)
    2. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
       Store.state + dispatch → reducer → objectWillChange.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read

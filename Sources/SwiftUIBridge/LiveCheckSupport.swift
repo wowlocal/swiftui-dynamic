@@ -16,6 +16,9 @@ public enum LiveCheckSupport {
     /// body head + outcome, so a silent absorb inside a deep fetch chain can
     /// be localized without touching the metric.
     public static var traceLifecycle = false
+    /// The absorb histogram from the last probe — the demand list for the
+    /// generated-members tier (BridgeGen --emit fills the biggest absorber).
+    public private(set) static var lastAbsorbedHostMembers: [String: Int] = [:]
 
     /// `afterActions:` — the interaction rung: after lifecycle passes,
     /// invoke up to N collected actions (each against a FRESH render, like
@@ -24,6 +27,9 @@ public enum LiveCheckSupport {
     /// row.
     public static func renderedStrings(source: String, afterActions actionCount: Int = 0) throws -> [String] {
         let interpreter = Interpreter(registry: TraceRegistry())
+        // The live-probe contract: @State/@StateObject boxes persist per view
+        // identity so the fetch pass sees .onAppear's writes.
+        interpreter.persistentViewState = true
         do {
             try interpreter.run(source: source, lazyTopLevelGlobals: true)
         } catch {
@@ -126,6 +132,7 @@ public enum LiveCheckSupport {
         }
         lastLifecycleFired = 0
         lastLifecycleErrors = []
+        lastAbsorbedHostMembers = [:]
 
         // The async-fetch pass (M2): render, FIRE retained `.task`/
         // `.onAppear` closures (fetched data lands in state), re-render and
@@ -184,6 +191,7 @@ public enum LiveCheckSupport {
                         lifecycle: &discardLifecycle, actions: &discardActions)
             strings = finalStrings
         }
+        lastAbsorbedHostMembers = interpreter.absorbedHostMembers
         return strings
     }
 
