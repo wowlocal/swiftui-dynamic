@@ -43,6 +43,39 @@ import SwiftInterpreter
         }
     }
 
+    @Test func propertyAssignmentAnnotationBinds() throws {
+        // The TimelineViewModel genre: `statuses = try await client.get()` —
+        // the TARGET property's declared type is the call-site annotation.
+        try Self.withFixture(#"[{"id": "1", "content": "hi"}, {"id": "2", "content": "yo"}]"#) { directory in
+            NetworkBridge.policy = .replay(fixturesDirectory: directory)
+            defer { NetworkBridge.policy = .absorbed }
+            let source = """
+            struct Status: Decodable {
+                let id: String
+                let content: String
+            }
+            struct Client {
+                let decoder = JSONDecoder()
+                func get<Entity: Decodable>() throws -> Entity {
+                    try decoder.decode(Entity.self, from: __fixtureData("payload"))
+                }
+            }
+            class Model {
+                var statuses: [Status] = []
+                let client = Client()
+                func fetch() throws {
+                    statuses = try client.get()
+                }
+            }
+            let model = Model()
+            try model.fetch()
+            model.statuses.map { $0.content }.joined(separator: ",")
+            """
+            let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+            #expect(result.stringValue == "hi,yo")
+        }
+    }
+
     @Test func singleObjectAnnotationBinds() throws {
         try Self.withFixture(#"{"id": "7", "content": "solo"}"#) { directory in
             NetworkBridge.policy = .replay(fixturesDirectory: directory)

@@ -216,6 +216,12 @@ Each iteration does exactly this:
       probes keep fresh-per-instantiation state, see README divergence.
       `URLSessionBox.webSocketTask` still absorbs — stateful hand-box
       gap, the histogram will resurface it.)
+      (Also landed alongside: assignment targets thread their declared
+      type as the call-site annotation — `statuses = try await
+      client.get()` binds Entity; bare type names inside a type prefer
+      NESTED types over globals — Instance.statuses: Statuses is the
+      config struct, not the endpoint enum; api_v2_instance fixture
+      recorded, /api/v2/instance hits.)
    2. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
       Store.state + dispatch → reducer → objectWillChange.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read

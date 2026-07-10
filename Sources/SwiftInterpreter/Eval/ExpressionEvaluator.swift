@@ -2163,9 +2163,29 @@ extension Interpreter {
 
     // MARK: - Operators & assignment
 
+    /// Assignment RHS carries the TARGET property's declared type as the
+    /// ambient hint (`statuses = try await client.get()` — return-position
+    /// generics bind at the call site, exactly like `let x: [Status] = …`).
+    /// Only self-rooted targets are inspected: their annotation is knowable
+    /// without evaluating anything.
+    private func assignmentAnnotationHint(_ target: ExprSyntax, in env: Environment) -> String? {
+        var propertyName: String?
+        if let ref = target.as(DeclReferenceExprSyntax.self) {
+            propertyName = ref.baseName.text
+        } else if let member = target.as(MemberAccessExprSyntax.self),
+                  member.base == nil
+                    || member.base?.as(DeclReferenceExprSyntax.self)?.baseName.text == "self" {
+            propertyName = member.declName.baseName.text
+        }
+        guard let propertyName,
+              case .instance(let instance)? = env.lookup("self") else { return nil }
+        return instance.symbol.storedProperty(named: propertyName)?.typeAnnotation?.trimmedDescription
+    }
+
     func evaluateInfix(_ infix: InfixOperatorExprSyntax, in env: Environment) throws -> RuntimeValue {
         if infix.operator.is(AssignmentExprSyntax.self) {
-            let value = try evaluate(infix.rightOperand, in: env)
+            let hint = assignmentAnnotationHint(infix.leftOperand, in: env)
+            let value = try withExpectedAnnotation(hint) { try evaluate(infix.rightOperand, in: env) }
             if infix.leftOperand.is(DiscardAssignmentExprSyntax.self) {
                 _ = value // `_ = expr` — evaluate for effect, discard
                 return .void

@@ -137,10 +137,12 @@ public enum LiveCheckSupport {
         // The async-fetch pass (M2): render, FIRE retained `.task`/
         // `.onAppear` closures (fetched data lands in state), re-render and
         // recollect — repeat while new lifecycle work appears or the tree
-        // grows (fetch → state → dependent fetch cascades), max 3 passes.
+        // grows (fetch → state → dependent fetch cascades). Native renders
+        // until quiescent; the cap only guards against ping-pong loops, and
+        // the break below exits as soon as a pass adds nothing.
         var strings: [String] = []
         var firedCount = 0
-        for _ in 0..<3 {
+        for _ in 0..<8 {
             let root = try renderRoot!()
             var passStrings: [String] = []
             var lifecycle: [ClosureValue] = []
@@ -196,6 +198,12 @@ public enum LiveCheckSupport {
             strings = finalStrings
         }
         lastAbsorbedHostMembers = interpreter.absorbedHostMembers
+        if traceLifecycle {
+            print("▶ tree strings (\(strings.count)):")
+            for string in strings.prefix(60) {
+                print("   · \(string.prefix(90))")
+            }
+        }
         return strings
     }
 

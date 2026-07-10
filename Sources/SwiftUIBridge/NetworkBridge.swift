@@ -633,7 +633,7 @@ enum JSONDecodeBridge {
             }
             let decoded = try decodeField(
                 jsonValue!, annotation: annotation, interpreter: interpreter, decoder: decoder,
-                context: "\(symbol.name).\(property.name)")
+                context: "\(symbol.name).\(property.name)", owner: symbol)
             arguments.append(.init(label: property.name, value: decoded))
         }
         return try interpreter.instantiateForBridge(symbol, arguments: CallArguments(arguments: arguments))
@@ -641,7 +641,7 @@ enum JSONDecodeBridge {
 
     private static func decodeField(
         _ json: Any, annotation: String?, interpreter: Interpreter, decoder: JSONDecoderBox,
-        context: String
+        context: String, owner: StructSymbol? = nil
     ) throws -> RuntimeValue {
         var typeName = annotation ?? ""
         if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
@@ -652,7 +652,9 @@ enum JSONDecodeBridge {
             }
             let element = String(typeName.dropFirst().dropLast())
             return .native(try items.map {
-                try decodeField($0, annotation: element, interpreter: interpreter, decoder: decoder, context: context)
+                try decodeField(
+                    $0, annotation: element, interpreter: interpreter, decoder: decoder,
+                    context: context, owner: owner)
             })
         }
         switch typeName {
@@ -681,7 +683,7 @@ enum JSONDecodeBridge {
             }
             return .native(date)
         default:
-            guard let typeValue = interpreter.typeValue(named: typeName) else {
+            guard let typeValue = interpreter.typeValue(named: typeName, within: owner) else {
                 throw RuntimeError(message: "decode(\(context)): unknown type '\(typeName)'")
             }
             return try decode(typeValue, json: json, interpreter: interpreter, decoder: decoder)

@@ -16,6 +16,12 @@ extension Interpreter {
             node: Syntax(DeclReferenceExprSyntax(baseName: .identifier("decodedInstance"))))
     }
 
+    /// Whether the type declares `init(from: Decoder)` — the bridge's decode
+    /// routes SCALARS through it (synthesized-Codable types stay structural).
+    public func declaresCodableInit(_ symbol: StructSymbol) -> Bool {
+        symbol.initializers.contains(where: Self.isCodableInit)
+    }
+
     /// A declared type by name (`.type` / `.enumType`), if the program
     /// defines one — annotation-driven decode resolves element types here.
     public func typeValue(named name: String) -> RuntimeValue? {
@@ -24,6 +30,19 @@ extension Interpreter {
         case .type, .enumType: return value
         default: return nil
         }
+    }
+
+    /// Lexically-scoped type lookup: a name used INSIDE a type prefers its
+    /// nested types over same-named globals (`Instance.statuses: Statuses`
+    /// is the nested config struct, not the merged program's endpoint enum).
+    public func typeValue(named name: String, within owner: StructSymbol?) -> RuntimeValue? {
+        if let nested = owner?.nestedTypes[name] {
+            switch nested {
+            case .type, .enumType: return nested
+            default: break
+            }
+        }
+        return typeValue(named: name)
     }
 
     /// The full EXPRESSION the app declares as its root — the first
