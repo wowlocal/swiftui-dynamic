@@ -1917,6 +1917,9 @@ extension Interpreter {
         }
         let env = Environment(parent: closure.captured)
         let writeBacks = try bindParameters(of: closure, to: args, into: env, node: node)
+        if !closure.genericParameters.isEmpty {
+            bindGenericReturnParameter(closure, into: env)
+        }
         // Copy-out for `inout` parameters whose argument wasn't a plain
         // variable (member/subscript lvalues) — applied on normal exit,
         // mirroring Swift's copy-in/copy-out.
@@ -1948,6 +1951,54 @@ extension Interpreter {
         case .breakLoop, .continueLoop:
             throw RuntimeError(message: "break/continue escaped a function body")
         }
+    }
+
+    /// Return-position generic binding: `func get<Entity: Decodable>(…) -> Entity`
+    /// invoked under `let x: [Status] = …` defines Entity as the annotation's
+    /// TYPE VALUE in the callee scope — the IceCubes client genre threads it
+    /// (get → makeEntityRequest → `decoder.decode(Entity.self, from:)`).
+    /// Nested generic calls rebind from the same ambient hint. No hint, no
+    /// binding — the parameter stays unresolved exactly as before.
+    private func bindGenericReturnParameter(_ closure: ClosureValue, into env: Environment) {
+        guard let returnName = closure.returnTypeName,
+              let hint = expectedAnnotationStack.last else { return }
+        let hintText = strippedAnnotation(hint)
+        if closure.genericParameters.contains(returnName) {
+            if let descriptor = typeDescriptor(named: hintText) {
+                env.define(returnName, descriptor)
+            }
+            return
+        }
+        // `-> [Entity]` under a `[Status]` annotation binds the ELEMENT.
+        if returnName.hasPrefix("["), returnName.hasSuffix("]"),
+           hintText.hasPrefix("["), hintText.hasSuffix("]") {
+            let element = strippedAnnotation(String(returnName.dropFirst().dropLast()))
+            guard closure.genericParameters.contains(element) else { return }
+            let hintElement = String(hintText.dropFirst().dropLast())
+            if let descriptor = typeDescriptor(named: hintElement) {
+                env.define(element, descriptor)
+            }
+        }
+    }
+
+    /// `[Status]` → the decode bridge's array-literal-of-type shape;
+    /// `Status` → the declared `.type`/`.enumType`. Unknown names: nil.
+    private func typeDescriptor(named text: String) -> RuntimeValue? {
+        let name = strippedAnnotation(text)
+        if name.hasPrefix("["), name.hasSuffix("]") {
+            let inner = String(name.dropFirst().dropLast())
+            guard !inner.contains(":") else { return nil } // dictionaries later
+            return typeDescriptor(named: inner).map { .native([$0]) }
+        }
+        return typeValue(named: name)
+    }
+
+    private func strippedAnnotation(_ text: String) -> String {
+        var name = text.trimmingCharacters(in: .whitespaces)
+        while name.hasSuffix("?") || name.hasSuffix("!") {
+            name = String(name.dropLast()).trimmingCharacters(in: .whitespaces)
+        }
+        return name
     }
 
     /// Label-aware binding: labeled arguments match parameter labels, omitted

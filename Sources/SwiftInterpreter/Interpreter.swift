@@ -109,6 +109,7 @@ public final class Interpreter {
         let returnType: TypeSyntax?
         let returnTypeName: String?
         let isBuilder: Bool
+        let genericParameters: [String]
     }
 
     struct InitializerMetadata {
@@ -118,6 +119,19 @@ public final class Interpreter {
 
     var functionMetadataCache: [SyntaxIdentifier: FunctionMetadata] = [:]
     var initializerMetadataCache: [SyntaxIdentifier: InitializerMetadata] = [:]
+
+    /// Call-site type annotations currently in scope (`let x: [Status] = …`
+    /// pushes "[Status]" around its initializer): return-position generic
+    /// parameters bind to the top, so `Entity.self` reaches decode with a
+    /// REAL type value. Textual, innermost last.
+    var expectedAnnotationStack: [String] = []
+
+    func withExpectedAnnotation<T>(_ annotation: String?, _ body: () throws -> T) rethrows -> T {
+        guard let annotation, !annotation.isEmpty else { return try body() }
+        expectedAnnotationStack.append(annotation)
+        defer { expectedAnnotationStack.removeLast() }
+        return try body()
+    }
 
     public init(registry: HostRegistry? = nil) {
         self.registry = registry
@@ -139,7 +153,8 @@ public final class Interpreter {
             shape: callableShape(from: parameters),
             returnType: returnType,
             returnTypeName: returnTypeName,
-            isBuilder: isBuilder)
+            isBuilder: isBuilder,
+            genericParameters: node.genericParameterClause?.parameters.map(\.name.text) ?? [])
         functionMetadataCache[identifier] = metadata
         return metadata
     }

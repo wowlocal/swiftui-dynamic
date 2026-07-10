@@ -665,6 +665,7 @@ extension Interpreter {
             returnTypeName: metadata.returnTypeName
         )
         closure.functionDeclID = node.id
+        closure.genericParameters = metadata.genericParameters
         return closure
     }
 

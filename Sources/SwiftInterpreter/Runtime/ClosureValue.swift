@@ -77,6 +77,9 @@ public final class ClosureValue {
     /// The FunctionDecl this closure wraps (method/function bodies):
     /// self-delegating overload calls exclude the RUNNING declaration.
     public var functionDeclID: SyntaxIdentifier?
+    /// Generic parameter NAMES (`func get<Entity: Decodable>`): return-
+    /// position ones bind to the call-site annotation at invocation.
+    public var genericParameters: [String] = []
 
     public init(
         parameters: [Parameter],
