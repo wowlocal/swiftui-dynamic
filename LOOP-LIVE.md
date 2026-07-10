@@ -51,12 +51,18 @@ The lock is a FILE outside git (instant, no merge latency):
    doctrine holds: gateways absorb rather than die; native-baseline rule:
    expectations encode what COMPILED SwiftUI does. New capability without
    a regression test doesn't count.
-6. **Verify (lane gate)**: `swift test` green AND `swift run LiveCheck` —
-   every previously-green scenario STAYS green (the four-green invariant),
+6. **Verify (lane gate, scaled to blast radius)**: mid-iteration use
+   targeted probes ONLY (`--scenario X`, `--filter Y`); the full lane
+   gate runs exactly ONCE at close: `swift test` green AND
+   `swift run LiveCheck` — every previously-green scenario STAYS green,
    your wall's scenario strictly improved. Spot-check
    `swift run ProjectCheck --limit 25` when you touched anything outside
-   SwiftUIBridge/LiveCheck. The integrator runs the FULL board + corpus
-   before main — that's not your job.
+   SwiftUIBridge/LiveCheck. Long commands get explicit timeouts; build
+   once and reuse prebuilt binaries. One patch at a time in bisects —
+   revert on metric regression, never stack onto a broken baseline.
+   The integrator runs the FULL board + corpus before main — not your
+   job. On success write `.claude/last-verify-live.txt` (`<sha> <board>
+   <time>`) and SKIP your next opening measure if HEAD is unchanged.
 7. **Commit to THIS branch** with the wall named, the ledger updated
    (LOOP.md queue item progress notes), and the attribution trailer:
    `Model: <model> (<id>), effort=<effort>` then
