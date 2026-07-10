@@ -190,6 +190,39 @@ public final class JSONDecoderBox {
     public init() {}
 }
 
+/// The `Decoder` handed to a custom `init(from: Decoder)` when the JSON
+/// value is a SCALAR (IceCubes' HTMLString decodes from a plain string via
+/// singleValueContainer) — the smallest honest slice of Codable synthesis.
+public final class DecoderStub {
+    let json: Any
+    let decoder: JSONDecoderBox
+
+    init(json: Any, decoder: JSONDecoderBox) {
+        self.json = json
+        self.decoder = decoder
+    }
+}
+
+public final class SingleValueContainerStub {
+    let json: Any
+    let decoder: JSONDecoderBox
+
+    init(json: Any, decoder: JSONDecoderBox) {
+        self.json = json
+        self.decoder = decoder
+    }
+}
+
+public final class KeyedContainerStub {
+    let object: [String: Any]
+    let decoder: JSONDecoderBox
+
+    init(object: [String: Any], decoder: JSONDecoderBox) {
+        self.object = object
+        self.decoder = decoder
+    }
+}
+
 // MARK: - Member dispatch (called from bridgeHostMember)
 
 @MainActor
@@ -288,6 +321,96 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "statusCode": return .native(box.response.statusCode)
         case "url": return box.response.url.map { .native($0) } ?? .nilValue
         default: return nil
+        }
+    }
+    if let stub = value as? DecoderStub {
+        switch name {
+        case "singleValueContainer":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native(SingleValueContainerStub(json: stub.json, decoder: stub.decoder))
+            })
+        case "container":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                guard let object = stub.json as? [String: Any] else {
+                    throw RuntimeError(message: "decode: value is not a keyed container")
+                }
+                return .native(KeyedContainerStub(object: object, decoder: stub.decoder))
+            })
+        case "unkeyedContainer":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                throw RuntimeError(message: "decode: unkeyed containers not supported")
+            })
+        case "codingPath":
+            return .native([RuntimeValue]())
+        default:
+            return nil
+        }
+    }
+    if let container = value as? SingleValueContainerStub {
+        switch name {
+        case "decode":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                guard let interpreter = ctx as? Interpreter,
+                      let typeArgument = args.positional(0) else {
+                    throw RuntimeError(message: "decode needs a type argument")
+                }
+                return try JSONDecodeBridge.decodeContainerValue(
+                    container.json, typeArgument: typeArgument, interpreter: interpreter,
+                    decoder: container.decoder, context: "singleValueContainer")
+            })
+        case "decodeNil":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native(container.json is NSNull)
+            })
+        case "codingPath":
+            return .native([RuntimeValue]())
+        default:
+            return nil
+        }
+    }
+    if let container = value as? KeyedContainerStub {
+        func keyString(_ value: RuntimeValue?) -> String? {
+            guard let value else { return nil }
+            if case .enumCase(let enumCase) = value {
+                return enumCase.rawValue.stringValue ?? enumCase.name
+            }
+            if case .implicitMember(let name) = value { return name }
+            return value.stringValue
+        }
+        switch name {
+        case "decode", "decodeIfPresent":
+            let optional = name == "decodeIfPresent"
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                guard let interpreter = ctx as? Interpreter,
+                      let typeArgument = args.positional(0),
+                      let key = keyString(args.labeled("forKey")) else {
+                    throw RuntimeError(message: "decode needs a type and a key")
+                }
+                let raw = container.object[key] ?? container.object[JSONDecodeBridge.snakeCasedKey(key)]
+                guard let jsonValue = raw, !(jsonValue is NSNull) else {
+                    if optional { return .nilValue }
+                    throw RuntimeError(message: "decode: missing key '\(key)'")
+                }
+                return try JSONDecodeBridge.decodeContainerValue(
+                    jsonValue, typeArgument: typeArgument, interpreter: interpreter,
+                    decoder: container.decoder, context: key)
+            })
+        case "contains":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let key = keyString(args.positional(0)) else { return .native(false) }
+                let present = container.object[key] ?? container.object[JSONDecodeBridge.snakeCasedKey(key)]
+                return .native(present != nil)
+            })
+        case "decodeNil":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let key = keyString(args.labeled("forKey")) else { return .native(false) }
+                let present = container.object[key] ?? container.object[JSONDecodeBridge.snakeCasedKey(key)]
+                return .native(present is NSNull)
+            })
+        case "codingPath":
+            return .native([RuntimeValue]())
+        default:
+            return nil
         }
     }
     if let decoder = value as? JSONDecoderBox {
@@ -462,6 +585,34 @@ enum JSONDecodeBridge {
     private static func decodeInstance(
         of symbol: StructSymbol, json: Any, interpreter: Interpreter, decoder: JSONDecoderBox
     ) throws -> RuntimeValue {
+        // A declared `init(from: Decoder)` runs against a Decoder stub —
+        // real Codable semantics (HTMLString decodes from a plain string
+        // via singleValueContainer; Account fills cachedDisplayName itself
+        // through a keyed container). Object-shaped types FALL BACK to the
+        // structural decode when the custom init trips an unsupported
+        // container feature, keeping the old divergence as the safety net.
+        if hasDecoderInit(symbol) {
+            let stub = CallArguments(arguments: [
+                .init(label: "from", value: .native(DecoderStub(json: json, decoder: decoder)))
+            ])
+            do {
+                return try interpreter.instantiateForBridge(symbol, arguments: stub)
+            } catch let custom {
+                guard json is [String: Any] else { throw custom }
+                do {
+                    return try structuralDecode(
+                        of: symbol, json: json, interpreter: interpreter, decoder: decoder)
+                } catch {
+                    throw custom // the custom init's error is the honest one
+                }
+            }
+        }
+        return try structuralDecode(of: symbol, json: json, interpreter: interpreter, decoder: decoder)
+    }
+
+    private static func structuralDecode(
+        of symbol: StructSymbol, json: Any, interpreter: Interpreter, decoder: JSONDecoderBox
+    ) throws -> RuntimeValue {
         guard let object = json as? [String: Any] else {
             throw RuntimeError(message: "decode(\(symbol.name)): expected a JSON object")
         }
@@ -550,6 +701,50 @@ enum JSONDecodeBridge {
         throw RuntimeError(message: "decode(\(symbol.name)): no case matches \(json)")
     }
 
+    /// `init(from decoder: Decoder)` — exactly one parameter labeled `from`
+    /// whose type ends in Decoder.
+    static func hasDecoderInit(_ symbol: StructSymbol) -> Bool {
+        symbol.initializers.contains { decl in
+            let params = decl.signature.parameterClause.parameters
+            guard params.count == 1, let only = params.first else { return false }
+            return only.firstName.text == "from"
+                && only.type.trimmedDescription.hasSuffix("Decoder")
+        }
+    }
+
+    /// The annotation string a container's TYPE argument denotes:
+    /// `String.self` arrives as the String builtin (hostFunction),
+    /// `[URL].self` as an array literal, interpreted types as .type/.enumType.
+    static func annotationName(from typeValue: RuntimeValue) -> String? {
+        if let array = typeValue.arrayValue, array.count == 1,
+           let inner = annotationName(from: array[0]) {
+            return "[" + inner + "]"
+        }
+        switch typeValue {
+        case .type(let symbol): return symbol.name
+        case .enumType(let symbol): return symbol.name
+        case .hostFunction(let fn): return fn.name
+        case .host(let any):
+            if let marker = any as? HostTypeMarker { return marker.name }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    /// Container decode shared by single-value and keyed stubs.
+    static func decodeContainerValue(
+        _ json: Any, typeArgument: RuntimeValue, interpreter: Interpreter,
+        decoder: JSONDecoderBox, context: String
+    ) throws -> RuntimeValue {
+        guard let annotation = annotationName(from: typeArgument) else {
+            throw RuntimeError(message: "decode(\(context)): unsupported type argument")
+        }
+        return try decodeField(
+            json, annotation: annotation, interpreter: interpreter, decoder: decoder,
+            context: context)
+    }
+
     private static func codingKeyMap(of symbol: StructSymbol) -> [String: String] {
         guard case .enumType(let keys)? = symbol.nestedTypes["CodingKeys"] else { return [:] }
         var map: [String: String] = [:]
@@ -564,6 +759,8 @@ enum JSONDecodeBridge {
         if let value = object[property] { return value }
         return object[snakeCased(property)]
     }
+
+    static func snakeCasedKey(_ name: String) -> String { snakeCased(name) }
 
     private static func snakeCased(_ name: String) -> String {
         var out = ""

@@ -171,6 +171,10 @@ public enum LiveCheckSupport {
             firedCount = lifecycle.count
         }
 
+        if traceLifecycle {
+            print("   ◇ strings (\(strings.count)):")
+            for line in strings.prefix(40) { print("     · \(line.prefix(80))") }
+        }
         // Interaction rung: click through the first N actions.
         if actionCount > 0 {
             for position in 0..<actionCount {
@@ -201,7 +205,9 @@ public enum LiveCheckSupport {
         actions: inout [ClosureValue],
         environment: [String: Instance] = [:], depth: Int = 0
     ) throws {
-        guard depth < 16 else { return }
+        // IceCubes' composition (scene → tabs → navigation → timeline →
+        // list → rows) nests past 16; rows vanished silently at the old cap.
+        guard depth < 48 else { return }
         strings.append(contentsOf: node.args)
         lifecycle.append(contentsOf: node.lifecycle)
         actions.append(contentsOf: node.actions.values)

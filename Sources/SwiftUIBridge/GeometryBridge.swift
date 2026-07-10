@@ -280,6 +280,18 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .native(CGPoint.zero)
         case ("CGRect", "zero"):
             return .native(CGRect.zero)
+        case ("Swift", _), ("Foundation", _):
+            // Module-qualified stdlib references (`Swift.Duration`): the
+            // module marker unwraps to the member's own type marker.
+            return .native(HostTypeMarker(name: name))
+        case ("Duration", "seconds"), ("Duration", "milliseconds"),
+             ("Duration", "microseconds"), ("Duration", "nanoseconds"):
+            // Stdlib Duration statics reached through an app enum SHADOWING
+            // the bare name (IceCubes' Env.Duration): the typed clock marker
+            // Builtins already reads (.seconds(3) → 3.0 in arithmetic).
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(ImplicitMemberCall(name: name, arguments: args))
+            })
         case ("Double", "zero"), ("CGFloat", "zero"), ("TimeInterval", "zero"):
             return .native(0.0)
         case ("Int", "zero"):

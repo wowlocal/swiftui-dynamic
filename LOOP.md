@@ -198,19 +198,19 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. SINGLE-VALUE CUSTOM Codable DECODE (M2, icecubes): the fetch
-      chain is CLOSED (iter 190) — requests LAND and the trends fixture
-      HITS (log: "/api/v1/trends/statuses hit"). The tree still shows 0
-      authors because [Status] decode throws `decode(HTMLString):
-      expected a JSON object`: HTMLString/ServerError declare custom
-      `init(from: Decoder)` reading a singleValueContainer STRING, and
-      JSONDecodeBridge only decodes objects structurally. Fix: when the
-      JSON value is a SCALAR and the interpreted type declares
-      init(from:), RUN it with a Decoder stub whose
-      singleValueContainer().decode(_:) yields the scalar (smallest
-      honest slice of real Codable synthesis). Diagnose with
-      LIVECHECK_TRACE=1 (lifecycle outcomes + decode failures) and
-      INTERP_TRACE_CALLS="fetchFirstPage,…" (function-entry tracing).
+   1. ICECUBES AUTHOR CONTENT IN ROWS (M2): decode is CLOSED (iter
+      193) — [Status] decodes through custom init(from:) stubs, rows
+      RENDER (101 → 939 strings, placeholders + action chrome), but 0
+      fixture authors appear: author text flows through EmojiTextApp
+      over HTMLString whose SwiftSoup parsing ABSORBED (asMarkdown/
+      asRawText are chains reading ""). Candidate fix: HTMLString's
+      init falls back to htmlValue for asRawText/asMarkdown when
+      parsing absorbs (or a minimal tag-strip in the bridge), so
+      cachedDisplayName/note render real text. Also probe which
+      TimelineView instance fetched (placeholders rendered TWICE — a
+      sibling tab may stay .loading; find whether the fetched tab's
+      rows carry the authors). Diagnose with LIVECHECK_TRACE=1 (now
+      dumps the first 40 strings) + INTERP_TRACE_CALLS.
       (State identity note: per-identity @State persistence is OPT-IN
       via `Interpreter.persistentViewState` — LiveCheck sets it; M0
       probes keep fresh-per-instantiation state, see README divergence.
@@ -2026,3 +2026,20 @@ between iterations 35 and 183.)
   .stateObject alongside (RealmWrapperProjectionTests). ImageDrawing's
   binding-index singleton healed via parallel merge. **677 → 679/680 —
   ZERO failures (FORTY-SECOND saturation); suite 389 → 395.**
+- 2026-07-10 iter 193: LiveCheck queue #1 (single-value custom Codable
+  decode) — custom `init(from: Decoder)` now RUNS against Decoder stubs:
+  scalar JSON through singleValueContainer (HTMLString decodes from a
+  plain string), object JSON through a keyed container (decode/
+  decodeIfPresent/contains with CodingKeys names + snake_case fallback;
+  Account computes cachedDisplayName itself), structural decode kept as
+  the fallback when a custom init trips an unsupported container
+  feature. En route: module-qualified extensions merge into the bare
+  declared type (`extension Models.Visibility` — iconName was
+  unreachable), stdlib statics answer through SHADOWING app enums
+  (Env.Duration vs Duration.seconds → typed clock marker), `Swift.`-
+  qualified markers unwrap, and the LiveCheck probe's depth guard rose
+  16 → 48 (IceCubes' composition nests past 16 — the list subtree
+  vanished silently). icecubes: 101 → 939 strings, decode errors GONE;
+  next wall named (EmojiText/HTMLString author content). **679/680
+  unchanged; suite 395 → 397; LiveCheck 2/4 with the decode class
+  ELIMINATED.**

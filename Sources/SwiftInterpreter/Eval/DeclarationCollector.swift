@@ -664,12 +664,24 @@ extension Interpreter {
 
     private func collectExtension(_ node: ExtensionDeclSyntax) throws {
         let typeName = node.extendedType.trimmedDescription
-        switch globals.lookup(typeName) {
+        // `extension Models.Visibility` — module-qualified names resolve to
+        // the declared bare type when the FULL (possibly nested-dotted)
+        // name misses; the merge has no modules.
+        var extended = globals.lookup(typeName)
+        if extended == nil, typeName.contains("."),
+           let last = typeName.split(separator: ".").last {
+            switch globals.lookup(String(last)) {
+            case .type(let symbol): extended = .type(symbol)
+            case .enumType(let symbol): extended = .enumType(symbol)
+            default: break
+            }
+        }
+        switch extended {
         case .type(let symbol):
             try collectStructMembers(node.memberBlock, into: symbol)
         case .enumType(let symbol):
-            for member in node.memberBlock.members {
-                try collectEnumMember(member.decl, into: symbol)
+            for decl in flattenedMemberDecls(node.memberBlock.members) {
+                try collectEnumMember(decl, into: symbol)
             }
         default:
             // Extensions of host types (`extension View { func … }`) collect
