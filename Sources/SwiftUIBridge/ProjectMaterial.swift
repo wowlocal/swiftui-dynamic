@@ -71,6 +71,17 @@ public enum ProjectMaterial {
         mergedSource(files: swiftFiles(under: root))
     }
 
+    /// Per-TARGET merge: a compiler never merges sibling app targets
+    /// (MovieSwiftTV with the iOS app — duplicate @main/HomeView/etc.).
+    /// Callers exclude the sibling-target directories the built product
+    /// wouldn't contain.
+    public static func mergedSource(at root: String, excludingTargets targets: [String]) -> String {
+        let files = swiftFiles(under: root).filter { path in
+            !targets.contains { path.contains("/\($0)/") }
+        }
+        return mergedSource(files: files)
+    }
+
     /// TestCheck's merge: app sources PLUS unit-test sources (UITests stay
     /// out — XCUITest drives a real process we don't have).
     public static func testMergedSource(at root: String) -> String {

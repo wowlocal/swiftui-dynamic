@@ -2027,6 +2027,7 @@ extension Interpreter {
         let writeBacks = try bindParameters(of: closure, to: args, into: env, node: node)
         if !closure.genericParameters.isEmpty {
             bindGenericReturnParameter(closure, into: env)
+            bindGenericsFromClosureArguments(closure, args: args, into: env)
         }
         // Copy-out for `inout` parameters whose argument wasn't a plain
         // variable (member/subscript lvalues) — applied on normal exit,
@@ -2072,6 +2073,108 @@ extension Interpreter {
     /// (get → makeEntityRequest → `decoder.decode(Entity.self, from:)`).
     /// Nested generic calls rebind from the same ambient hint. No hint, no
     /// binding — the parameter stays unresolved exactly as before.
+    /// `GET<T>(…, completionHandler: @escaping (Result<T, APIError>) -> Void)`
+    /// called with a literal whose parameter is annotated
+    /// `(result: Result<PaginatedResponse<Movie>, APIError>) in` — the
+    /// annotation IS the call-site type context: unify the declared
+    /// function-type parameter against the argument closure's annotations
+    /// (the APIService completion genre).
+    private func bindGenericsFromClosureArguments(
+        _ closure: ClosureValue, args: CallArguments, into env: Environment
+    ) {
+        let unbound = closure.genericParameters.filter { env.lookup($0) == nil }
+        guard !unbound.isEmpty else { return }
+        for parameter in closure.parameters {
+            guard let declared = parameter.typeAnnotation?.trimmedDescription,
+                  declared.contains("->"),
+                  unbound.contains(where: { declared.contains($0) }) else { continue }
+            let argument = args.labeled(parameter.label ?? parameter.name)
+                ?? args.lastUnlabeledClosure.map { RuntimeValue.closure($0) }
+            guard case .closure(let argClosure)? = argument else { continue }
+            let declaredParams = Self.functionTypeParameterList(declared)
+            guard declaredParams.count == argClosure.parameters.count else { continue }
+            for (declaredType, argParameter) in zip(declaredParams, argClosure.parameters) {
+                guard let actual = argParameter.typeAnnotation?.trimmedDescription else { continue }
+                unifyGeneric(declaredType, actual, unbound: unbound, into: env)
+            }
+        }
+    }
+
+    /// "(Result<T, E>) -> Void" → ["Result<T, E>"] (attributes stripped,
+    /// top-level comma split).
+    static func functionTypeParameterList(_ declared: String) -> [String] {
+        var text = declared.trimmingCharacters(in: .whitespaces)
+        while text.hasPrefix("@") {
+            guard let space = text.firstIndex(of: " ") else { return [] }
+            text = String(text[text.index(after: space)...]).trimmingCharacters(in: .whitespaces)
+        }
+        guard text.hasPrefix("("), let arrow = text.range(of: "->") else { return [] }
+        var depth = 0
+        var end: String.Index?
+        for index in text.indices {
+            let char = text[index]
+            if char == "(" { depth += 1 }
+            if char == ")" {
+                depth -= 1
+                if depth == 0 { end = index; break }
+            }
+        }
+        guard let end, end < arrow.lowerBound else { return [] }
+        let inner = String(text[text.index(after: text.startIndex)..<end])
+        return Self.splitTopLevel(inner)
+    }
+
+    static func splitTopLevel(_ text: String) -> [String] {
+        var parts: [String] = []
+        var depth = 0
+        var current = ""
+        for char in text {
+            switch char {
+            case "<", "(", "[": depth += 1; current.append(char)
+            case ">", ")", "]": depth -= 1; current.append(char)
+            case "," where depth == 0:
+                parts.append(current.trimmingCharacters(in: .whitespaces))
+                current = ""
+            default: current.append(char)
+            }
+        }
+        let last = current.trimmingCharacters(in: .whitespaces)
+        if !last.isEmpty { parts.append(last) }
+        return parts
+    }
+
+    /// Structural unification of a declared type against a concrete one:
+    /// where the declared node IS an unbound generic, bind it; generic
+    /// heads recurse argument-wise (qualification differences in heads are
+    /// tolerated — Result vs Swift.Result).
+    private func unifyGeneric(
+        _ declared: String, _ actual: String, unbound: [String], into env: Environment
+    ) {
+        let d = strippedAnnotation(declared)
+        let a = strippedAnnotation(actual)
+        if unbound.contains(d) {
+            if env.lookup(d) == nil, let descriptor = typeDescriptor(named: a) {
+                env.define(d, descriptor)
+            }
+            return
+        }
+        if d.hasPrefix("["), d.hasSuffix("]"), a.hasPrefix("["), a.hasSuffix("]"),
+           !d.contains(":"), !a.contains(":") {
+            unifyGeneric(
+                String(d.dropFirst().dropLast()), String(a.dropFirst().dropLast()),
+                unbound: unbound, into: env)
+            return
+        }
+        guard let dLt = d.firstIndex(of: "<"), d.hasSuffix(">"),
+              let aLt = a.firstIndex(of: "<"), a.hasSuffix(">") else { return }
+        let dArgs = Self.splitTopLevel(String(d[d.index(after: dLt)..<d.index(before: d.endIndex)]))
+        let aArgs = Self.splitTopLevel(String(a[a.index(after: aLt)..<a.index(before: a.endIndex)]))
+        guard dArgs.count == aArgs.count else { return }
+        for (dChild, aChild) in zip(dArgs, aArgs) {
+            unifyGeneric(dChild, aChild, unbound: unbound, into: env)
+        }
+    }
+
     private func bindGenericReturnParameter(_ closure: ClosureValue, into env: Environment) {
         guard let returnName = closure.returnTypeName,
               let hint = expectedAnnotationStack.last else { return }
@@ -2339,9 +2442,27 @@ extension Interpreter {
         case "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=":
             let target = try resolveLValue(infix.leftOperand, in: env)
             let rhs = try evaluate(infix.rightOperand, in: env)
-            try relocating(infix) {
-                let combined = try Builtins.binary(String(op.dropLast()), try target.read(self), rhs)
+            let current = try target.read(self)
+            do {
+                let combined = try relocating(infix) {
+                    try Builtins.binary(String(op.dropLast()), current, rhs)
+                }
                 try target.write(combined, self)
+            } catch let builtinError as RuntimeError where !builtinError.fatal {
+                // USER-DECLARED operator functions: the whole compound form
+                // first (`func +=(lhs: inout [Int: Movie], rhs: [Movie])` —
+                // the MovieSwiftUI reducer genre), then a declared combining
+                // form of the base operator.
+                if case .closure(let fn)? = globals.lookup(op) {
+                    let slot = InoutSlot(box: nil, target: target, current: current)
+                    _ = try callClosure(fn, arguments: [.native(slot), rhs])
+                    return .void
+                }
+                if case .closure(let fn)? = globals.lookup(String(op.dropLast())) {
+                    try target.write(try callClosure(fn, arguments: [current, rhs]), self)
+                    return .void
+                }
+                throw builtinError
             }
             return .void
         default:
