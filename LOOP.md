@@ -264,6 +264,20 @@ Each iteration does exactly this:
       CURRENT WALL: "[Sort.name, …] is not callable" @5484 — an array
       value invoked as a function (enum-case list); then walls (b)
       Bundle.module resources and (c) Combine chain remain.
+      SPINE LANDED (штурман): the inline Combine model — a publisher IS
+      its computed outcome (PublisherBox: Result(catching:).publisher /
+      dataTaskPublisher → decode/tryMap/map(incl. keypaths)/mapError/
+      replaceError/subscribe/receive/erase/sink; UNBOUND decode generics
+      wait as pendingDecode and take replaceError's argument as the type
+      WITNESS — native's backward inference, inline). BundleResources
+      serves the checkout's own files for Bundle.module/main lookups
+      (scenario-scoped roots). The Items pipeline RUNS end-to-end
+      (fetchFile×32 → sinks → processNewCategoryJSON×25, traced).
+      CombineSpineTests ×2. REMAINING to 5/5: (i) @Published PROJECTION
+      as publisher — $categories subscriptions absorb (PublishedProjection
+      inert) so section view-models stay empty (ActiveCrittersViewModel
+      crittersInfo [:]); (ii) Section(header:)/instance ARGS should
+      DESCEND (SectionHeaderView stringifies into args).
    4. TestCheck classes (native-baseline rule first; scoreboard
       2026-07-10 @ --limit 8: 79 passed / 52 failed / 12 errored).
       Top exemplar [DONE iter 202: LoadableTests.map — generic-
