@@ -630,6 +630,11 @@ extension Interpreter {
         switch value {
         case .void:
             break
+        case .nilValue:
+            // A nil in builder position renders NOTHING in every legal
+            // native spelling (skipped if-let branch, optional chaining) —
+            // never a crash (TodayMysteryIslandsSection's nil randomElement).
+            break
         case .instance(let instance) where instance.symbol.rendersLikeView:
             if let registry {
                 views.append(registry.makeRenderable(instance: instance, interpreter: self))

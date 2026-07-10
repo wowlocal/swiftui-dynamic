@@ -239,7 +239,7 @@ Each iteration does exactly this:
       (key:, value:) tuple elements (DictEnumeratedTests). Post-fix
       histogram: only Array.append (member-position) + webSocketTask +
       URL.resourceValues remain.
-   3c. M2 BREADTH: achnbrowser-items-ui scenario SEEDED (4/5 board —
+   3c. [CLAIMED штурман 20:05] M2 BREADTH: achnbrowser-items-ui scenario SEEDED (4/5 board —
       the four green stay the invariant; the fifth is the new demand).
       ACHNBrowserUI is a THIRD async genre: bundled RESOURCE data
       (repo-committed real JSON, what Bundle.module ships) rides a
@@ -255,6 +255,15 @@ Each iteration does exactly this:
       Result.publisher/decode operators unserved); (d) minor:
       FileManagerBox.containerURL (app-group), URL.appendPathExtension
       (mutating member).
+      LADDER PROGRESS (штурман, 4 closed): sheet(item:) content skips
+      on nil item and receives the UNWRAPPED item (was: eager call with
+      unbound $0 — killed the root); Date(timeInterval:since:) joins
+      the core builtin; CLASSIC EnvironmentKey defaults resolve
+      (getter's self[Key.self] → static defaultValue — currentDate);
+      nil in builder position renders nothing (ACHNLadderTests ×4).
+      CURRENT WALL: "[Sort.name, …] is not callable" @5484 — an array
+      value invoked as a function (enum-case list); then walls (b)
+      Bundle.module resources and (c) Combine chain remain.
    4. TestCheck classes (native-baseline rule first; scoreboard
       2026-07-10 @ --limit 8: 79 passed / 52 failed / 12 errored).
       Top exemplar [DONE iter 202: LoadableTests.map — generic-

@@ -947,6 +947,24 @@ public final class Interpreter {
     /// Fill `@Environment(\.key)` properties from a key→value table (the
     /// bridge reads real values off SwiftUI's Environment; headless harnesses
     /// inject honest defaults). Unknown keys are left untouched.
+    /// `self[CurrentDateKey.self]` inside an EnvironmentValues getter — the
+    /// subscripted TYPE is the EnvironmentKey whose defaultValue serves
+    /// unset reads.
+    static func environmentKeyTypeName(in node: Syntax) -> String? {
+        if let subscriptCall = node.as(SubscriptCallExprSyntax.self),
+           subscriptCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text == "self",
+           let first = subscriptCall.arguments.first,
+           let member = first.expression.as(MemberAccessExprSyntax.self),
+           member.declName.baseName.text == "self",
+           let base = member.base?.as(DeclReferenceExprSyntax.self) {
+            return base.baseName.text
+        }
+        for child in node.children(viewMode: .sourceAccurate) {
+            if let found = environmentKeyTypeName(in: child) { return found }
+        }
+        return nil
+    }
+
     public func injectEnvironmentValues(into instance: Instance, values: [String: RuntimeValue]) {
         for property in instance.symbol.storedProperties {
             guard case .environment(let key) = property.wrapper else { continue }
@@ -964,6 +982,18 @@ public final class Interpreter {
                    let initializer = declared.initializer,
                    let value = try? evaluate(initializer, in: globals) {
                     box.value = (try? resolveAnnotated(value, annotation: declared.typeAnnotation)) ?? value
+                    continue
+                }
+                // The CLASSIC key pattern: `extension EnvironmentValues {
+                // var currentDate: Date { get { self[CurrentDateKey.self] } }`
+                // — the getter names the EnvironmentKey type whose static
+                // defaultValue IS the unset reading.
+                if let envExtension = hostExtensionSymbols["EnvironmentValues"],
+                   let computed = envExtension.computedProperties[key],
+                   let keyTypeName = Self.environmentKeyTypeName(in: Syntax(computed.accessor)),
+                   case .type(let keySymbol)? = globals.lookup(keyTypeName),
+                   let value = (try? staticMember("defaultValue", of: keySymbol)) ?? nil {
+                    box.value = value
                     continue
                 }
                 let typeName = property.typeAnnotation?.trimmedDescription ?? ""
@@ -1675,6 +1705,10 @@ public final class Interpreter {
             }
             if let interval = args.labeled("timeIntervalSinceReferenceDate")?.doubleValue {
                 return .native(Date(timeIntervalSinceReferenceDate: interval))
+            }
+            if let interval = args.labeled("timeInterval")?.doubleValue,
+               case .host(let any)? = args.labeled("since"), let since = any as? Date {
+                return .native(Date(timeInterval: interval, since: since))
             }
             return .native(Date())
         }

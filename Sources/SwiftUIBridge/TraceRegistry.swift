@@ -361,8 +361,23 @@ public final class TraceRegistry: HostRegistry {
                 node.lifecycle.append(closure)
             }
             if Self.builderModifiers.contains(name) {
+                // `sheet(item:content:)` genre: the content closure receives
+                // the UNWRAPPED item, and a NIL item means the sheet isn't
+                // presented — native never runs the closure (ACHNBrowserUI's
+                // `$0.makeSheetView()` over a nil route at launch).
+                var itemValue = args.labeled("item")
+                if case .host(let any)? = itemValue, let stub = any as? BindingStub {
+                    itemValue = stub.box.value
+                }
+                let content = args.labeled("item") != nil
+                    ? (args.closure(labeled: "content") ?? args.lastUnlabeledClosure)
+                    : nil
                 for argument in args.arguments {
-                    if let closure = argument.value.closureValue, closure.parameters.isEmpty {
+                    guard let closure = argument.value.closureValue else { continue }
+                    if let content, closure === content {
+                        guard let item = itemValue, !item.isNil else { continue }
+                        node.children += try ctx.callBuilderClosure(closure, arguments: [item]).map(Self.node)
+                    } else if closure.parameters.isEmpty {
                         node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
                     }
                 }
