@@ -186,7 +186,7 @@ extension Interpreter {
         }
     }
 
-    private func makeStructSymbol(_ node: StructDeclSyntax) throws -> StructSymbol {
+    func makeStructSymbol(_ node: StructDeclSyntax) throws -> StructSymbol {
         let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
         let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
         recordGenericParameters(node.genericParameterClause, into: symbol)
@@ -492,6 +492,11 @@ extension Interpreter {
         }
         enumSymbols[symbol.name] = symbol
         globals.define(symbol.name, .enumType(symbol))
+    }
+
+    /// Local enum declarations collect WITHOUT global registration.
+    func makeLocalEnumSymbol(_ node: EnumDeclSyntax) throws -> EnumSymbol {
+        try makeEnumSymbol(node)
     }
 
     private func makeEnumSymbol(_ node: EnumDeclSyntax) throws -> EnumSymbol {

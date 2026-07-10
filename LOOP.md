@@ -1861,3 +1861,14 @@ without this.
   apple-browsers ✅ (4 nodes). **664/668 counted — ZERO failures
   (THIRTY-FOURTH saturation). 585 zips + 79 OSS repos green. Suite
   357 → 358.**
+- 2026-07-10 iter 182: step 9 — firefox-ios (2034 files, Mozilla's
+  browser) + WordPress-iOS (2582, arrival-pass) + kiwix-apple (193)
+  cloned. Firefox's chain: LOCAL type declarations collect into the
+  current scope (Danger scripts declare `struct FileCheck` inside a
+  function); BOTH-unknowable arithmetic yields a CHAIN for any
+  operator (the domain is unknowable — array concat vs signal math;
+  bare `.implicitMember` operands joined the unknowable family) —
+  with TYPED marker pairs excluded so init-elementwise and clock
+  arithmetic keep their own rules (the suite caught both shadowings).
+  firefox-ios ✅ (36 nodes, 1 action). kiwix's super-context class is
+  next. **665/670 counted. 585 zips + 81 OSS repos. Suite 358 → 360.**

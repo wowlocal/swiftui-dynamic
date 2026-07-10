@@ -2909,6 +2909,37 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// firefox-ios (iteration 182): LOCAL type declarations collect into
+    /// the current scope (Danger scripts declare `struct FileCheck` inside
+    /// a function); and BOTH-unknowable arithmetic yields a CHAIN for any
+    /// operator — the domain is unknowable (array concat vs signal math),
+    /// and a chain absorbs correctly downstream (for-in reads empty).
+    @Test func localTypesAndBothMarkerChains() throws {
+        let source = """
+        func checkForCodeUsage() -> Int {
+            struct FileCheck {
+                let message: String
+                var foundMatches: [String] = []
+            }
+
+            let check = FileCheck(message: "careful")
+            let edited = danger.git.modifiedFiles + danger.git.createdFiles
+            var seen = check.foundMatches.count
+            for _ in edited { seen += 1 }
+            return seen
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                if checkForCodeUsage() != 0 { fatalError("both-marker chain broke") }
+                return Text("dangerfile ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// apple-browsers (iteration 181): generated preview fixtures nest
     /// literals past SwiftParser's default ceiling — parsing gets 2048
     /// levels (evaluation has its own stack probe); and an interpreted

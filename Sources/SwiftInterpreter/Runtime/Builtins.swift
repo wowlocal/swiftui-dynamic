@@ -294,20 +294,37 @@ public enum Builtins {
         // String concat with an unknowable operand: the unknowable reads
         // "" (the fresh string), same doctrine as numerics reading zero —
         // NSTemporaryDirectory() + "\(Date()).mov" yields the suffix.
-        if op == "+" {
-            func isUnknowable(_ value: RuntimeValue) -> Bool {
-                if case .host(let any) = value {
-                    return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
-                }
-                if case .hostFunction = value { return true }
-                return false
+        func isUnknowable(_ value: RuntimeValue) -> Bool {
+            if case .host(let any) = value {
+                return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
             }
+            if case .hostFunction = value { return true }
+            if case .implicitMember = value { return true }
+            return false
+        }
+        if op == "+" {
             if let l = lhs.stringValue, isUnknowable(rhs) { return .native(l) }
             if let r = rhs.stringValue, isUnknowable(lhs) { return .native(r) }
             // Same doctrine for arrays: the unknowable side reads EMPTY —
             // `(target.plugins ?? []) + [.plugin(…)]` keeps the additions.
             if let l = lhs.arrayValue, isUnknowable(rhs) { return .native(l) }
             if let r = rhs.arrayValue, isUnknowable(lhs) { return .native(r) }
+        }
+        // BOTH sides unknowable — for ANY arithmetic op: the domain is
+        // unknowable too (array concat vs signal math) — a CHAIN absorbs
+        // correctly in every downstream context (numeric reads 0, for-in
+        // reads empty, strings read ""). Runs BEFORE absorbed() zeroes
+        // them — but TYPED marker pairs keep their own arithmetic:
+        // init-markers combine elementwise, clock markers read seconds.
+        func isInitMarker(_ value: RuntimeValue) -> Bool {
+            (value.hostPayload as? ImplicitMemberCall)?.name == "init"
+        }
+        if isUnknowable(lhs), isUnknowable(rhs),
+           numericMarker(lhs) == nil, numericMarker(rhs) == nil,
+           !(isInitMarker(lhs) && isInitMarker(rhs)) {
+            return .native(ChainedImplicitCall(
+                base: lhs, member: op,
+                arguments: CallArguments(arguments: [.init(label: nil, value: rhs)])))
         }
         let lhs = absorbed(lhs)
         let rhs = absorbed(rhs)
@@ -356,9 +373,7 @@ public enum Builtins {
             if case .hostFunction = value { return true }
             return false
         }
-        if isCallMarker(lhs), isCallMarker(rhs) {
-            return .native(try double(0, 0))
-        }
+
         if isCallMarker(lhs), let r = rhs.doubleValue {
             return .native(try double(0, r))
         }

@@ -199,9 +199,28 @@ extension Interpreter {
             // expansions the MacroExpansionExpr path.
             return
         }
-        if decl.is(StructDeclSyntax.self) || decl.is(ClassDeclSyntax.self)
-            || decl.is(EnumDeclSyntax.self) || decl.is(ExtensionDeclSyntax.self) {
-            throw error(decl, "types must be declared at the top level")
+        // LOCAL type declarations (`struct FileCheck { … }` inside a
+        // function — Danger scripts and helpers do this): collect the
+        // symbol into the CURRENT scope; locals shadow globals.
+        if let structDecl = decl.as(StructDeclSyntax.self) {
+            let symbol = try makeStructSymbol(structDecl)
+            env.define(symbol.name, .type(symbol))
+            return
+        }
+        if let classDecl = decl.as(ClassDeclSyntax.self) {
+            let symbol = try makeClassLikeSymbol(
+                name: classDecl.name.text, inheritanceClause: classDecl.inheritanceClause,
+                memberBlock: classDecl.memberBlock, attributes: classDecl.attributes)
+            env.define(symbol.name, .type(symbol))
+            return
+        }
+        if let enumDecl = decl.as(EnumDeclSyntax.self) {
+            let symbol = try makeLocalEnumSymbol(enumDecl)
+            env.define(symbol.name, .enumType(symbol))
+            return
+        }
+        if decl.is(ExtensionDeclSyntax.self) {
+            throw error(decl, "extensions must be declared at the top level")
         }
         throw error(decl, "unsupported declaration (\(decl.kind))")
     }
