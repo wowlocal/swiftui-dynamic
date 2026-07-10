@@ -91,12 +91,12 @@ enum ObjCTrampoline {
             return read
         }
         let object = box.object
-        return .hostFunction(HostFunction(name: name) { args, _ in
+        return .hostFunction(HostFunction(name: name) { args, ctx in
             // No matching selector / unmarshalable argument = a Swift-only
             // or unbridgeable member: absorb inert (the doctrine), so
             // Combine surfaces like NotificationCenter.publisher keep
             // flowing as markers instead of erroring.
-            guard let result = try invokeIfBridgeable(name, on: object, box: box, args: args) else {
+            guard let result = try invokeIfBridgeable(name, on: object, box: box, args: args, ctx: ctx) else {
                 return .native(ChainedImplicitCall(base: .native(box), member: name, arguments: args))
             }
             return result
@@ -122,10 +122,9 @@ enum ObjCTrampoline {
     }
 
     private static func invokeIfBridgeable(
-        _ name: String, on object: NSObject, box: ObjCBox, args: CallArguments
+        _ name: String, on object: NSObject, box: ObjCBox, args: CallArguments, ctx: EvalContext
     ) throws -> RuntimeValue? {
-        let positionals = args.arguments.filter { !$0.isTrailing }
-        guard positionals.count == args.arguments.count else { return nil } // closures aren't marshalable
+        let positionals = args.arguments
         let head = name
         // Swift-name parts: `localizedString(for:relativeTo:)` becomes
         // ["localizedStringFor", "relativeTo"] — the ObjC selector's parts
@@ -138,22 +137,30 @@ enum ObjCTrampoline {
             }
             return label
         }
-        var marshaled: [AnyObject] = []
+        var marshaled: [AnyObject?] = []
         for argument in positionals {
+            // Interpreted closures marshal as BLOCKS: the completion returns
+            // into the interpreter with the closure's own declared arity.
+            if case .closure(let closure) = argument.value {
+                marshaled.append(blockShim(for: closure, ctx: ctx))
+                continue
+            }
+            if argument.value.isNil {
+                marshaled.append(nil) // ObjC nil, not NSNull
+                continue
+            }
             guard let value = marshalToObjC(argument.value) else { return nil }
             marshaled.append(value)
         }
-        guard marshaled.count <= 2 else { return nil }
+        guard marshaled.count <= 4 else { return nil }
+        let firstLabel = positionals.first?.label ?? ""
         guard let selector = matchSelector(
             on: object, arity: positionals.count,
             exact: expectedParts.isEmpty ? head : expectedParts.map { $0 + ":" }.joined(),
-            prefixParts: expectedParts, arguments: marshaled) else { return nil }
+            prefixParts: expectedParts, arguments: marshaled,
+            firstHead: head, firstLabel: firstLabel) else { return nil }
         let result: Unmanaged<AnyObject>? = try performCatching {
-            switch marshaled.count {
-            case 0: return object.perform(selector)
-            case 1: return object.perform(selector, with: marshaled[0])
-            default: return object.perform(selector, with: marshaled[0], with: marshaled[1])
-            }
+            callIMP(object, selector, marshaled)
         }
         // perform() on a VOID method returns garbage — only read the result
         // when the encoding says an object comes back. An object-returning
@@ -162,6 +169,59 @@ enum ObjCTrampoline {
         guard returnsObject(object, selector: selector) else { return .void }
         guard let returned = result?.takeUnretainedValue() else { return .nilValue }
         return marshalToRuntime(returned)
+    }
+
+    /// Direct IMP calls: all-object encodings are pointer-uniform in the C
+    /// ABI, so fixed-shape casts cover arity 0-4 (perform() stops at 2).
+    private static func callIMP(_ object: NSObject, _ selector: Selector, _ args: [AnyObject?]) -> Unmanaged<AnyObject>? {
+        guard let method = class_getInstanceMethod(object_getClass(object), selector) else { return nil }
+        let imp = method_getImplementation(method)
+        typealias F0 = @convention(c) (AnyObject, Selector) -> Unmanaged<AnyObject>?
+        typealias F1 = @convention(c) (AnyObject, Selector, AnyObject?) -> Unmanaged<AnyObject>?
+        typealias F2 = @convention(c) (AnyObject, Selector, AnyObject?, AnyObject?) -> Unmanaged<AnyObject>?
+        typealias F3 = @convention(c) (AnyObject, Selector, AnyObject?, AnyObject?, AnyObject?) -> Unmanaged<AnyObject>?
+        typealias F4 = @convention(c) (AnyObject, Selector, AnyObject?, AnyObject?, AnyObject?, AnyObject?) -> Unmanaged<AnyObject>?
+        switch args.count {
+        case 0: return unsafeBitCast(imp, to: F0.self)(object, selector)
+        case 1: return unsafeBitCast(imp, to: F1.self)(object, selector, args[0])
+        case 2: return unsafeBitCast(imp, to: F2.self)(object, selector, args[0], args[1])
+        case 3: return unsafeBitCast(imp, to: F3.self)(object, selector, args[0], args[1], args[2])
+        default: return unsafeBitCast(imp, to: F4.self)(object, selector, args[0], args[1], args[2], args[3])
+        }
+    }
+
+    /// A completion block of the interpreted closure's own arity; arguments
+    /// marshal back and delivery hops to the main actor.
+    private static func blockShim(for closure: ClosureValue, ctx: EvalContext) -> AnyObject {
+        let deliver: ([AnyObject?]) -> Void = { raw in
+            let run = {
+                MainActor.assumeIsolated {
+                    let mapped = raw.map { any -> RuntimeValue in
+                        any.map { marshalToRuntime($0) } ?? .nilValue
+                    }
+                    _ = try? ctx.callClosure(closure, arguments: mapped)
+                }
+            }
+            if Thread.isMainThread {
+                run()
+            } else {
+                DispatchQueue.main.async(execute: run)
+            }
+        }
+        switch closure.parameters.count {
+        case 0:
+            let block: @convention(block) () -> Void = { deliver([]) }
+            return block as AnyObject
+        case 1:
+            let block: @convention(block) (AnyObject?) -> Void = { deliver([$0]) }
+            return block as AnyObject
+        case 2:
+            let block: @convention(block) (AnyObject?, AnyObject?) -> Void = { deliver([$0, $1]) }
+            return block as AnyObject
+        default:
+            let block: @convention(block) (AnyObject?, AnyObject?, AnyObject?) -> Void = { deliver([$0, $1, $2]) }
+            return block as AnyObject
+        }
     }
 
     private static func returnsObject(_ object: NSObject, selector: Selector) -> Bool {
@@ -175,7 +235,8 @@ enum ObjCTrampoline {
     /// classes (`set` + NSString matches setObject:/setValue:, never
     /// setURL:). Shortest valid match wins (deterministic).
     private static func matchSelector(
-        on object: NSObject, arity: Int, exact: String, prefixParts: [String], arguments: [AnyObject]
+        on object: NSObject, arity: Int, exact: String, prefixParts: [String], arguments: [AnyObject?],
+        firstHead: String = "", firstLabel: String = ""
     ) -> Selector? {
         let exactSelector = Selector(exact)
         if object.responds(to: exactSelector),
@@ -195,9 +256,19 @@ enum ObjCTrampoline {
                     let parts = selectorName.split(separator: ":", omittingEmptySubsequences: true).map(String.init)
                     guard parts.count == prefixParts.count,
                           selectorName.filter({ $0 == ":" }).count == arity else { continue }
-                    guard zip(parts, prefixParts).allSatisfy({ $0.lowercased().hasPrefix($1.lowercased()) }) else {
-                        continue
+                    let partsMatch = zip(parts, prefixParts).enumerated().allSatisfy { index, pair in
+                        let (part, prefix) = pair
+                        if part.lowercased().hasPrefix(prefix.lowercased()) { return true }
+                        // First part also matches the head + fused-type +
+                        // label shape: post(name:) → postNotificationName.
+                        if index == 0, !firstHead.isEmpty,
+                           part.lowercased().hasPrefix(firstHead.lowercased()),
+                           firstLabel.isEmpty || part.lowercased().contains(firstLabel.lowercased()) {
+                            return true
+                        }
+                        return false
                     }
+                    guard partsMatch else { continue }
                     guard suffixesAgreeWithArguments(parts, prefixParts, arguments) else { continue }
                     guard methodEncodingObjectOnly(methods[index], expectedArgs: arity) else { continue }
                     if best == nil || selectorName.count < best!.length {
@@ -213,14 +284,19 @@ enum ObjCTrampoline {
     /// The fused tail of each selector part names the parameter's TYPE —
     /// it must agree with what we actually pass.
     private static func suffixesAgreeWithArguments(
-        _ parts: [String], _ prefixes: [String], _ arguments: [AnyObject]
+        _ parts: [String], _ prefixes: [String], _ arguments: [AnyObject?]
     ) -> Bool {
         for (index, (part, prefix)) in zip(parts, prefixes).enumerated() {
             guard index < arguments.count else { break }
+            // Parts matched via the head+label rule (post → postNotificationName)
+            // have no clean type-tail to audit — the label containment already
+            // agreed with the argument.
+            guard part.lowercased().hasPrefix(prefix.lowercased()) else { continue }
             let suffix = String(part.dropFirst(prefix.count))
             guard !suffix.isEmpty else { continue }
+            guard let argument = arguments[index] else { continue } // nil fits any slot
             let allowed: Set<String>
-            switch arguments[index] {
+            switch argument {
             case is NSString: allowed = ["Object", "Value", "String", "Key", "Name"]
             case is NSNumber: allowed = ["Object", "Value", "Number", "Integer", "Int", "Double", "Float", "Bool", "Count"]
             case is NSDate: allowed = ["Object", "Value", "Date"]
@@ -257,6 +333,13 @@ enum ObjCTrampoline {
     // MARK: - Marshaling
 
     static func marshalToObjC(_ value: RuntimeValue) -> AnyObject? {
+        // `NSNotification.Name("ping")` / `Notification.Name(...)` markers —
+        // toll-free NSString.
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+           call.name == "Name" || call.name == "init",
+           let text = call.arguments.positional(0)?.stringValue {
+            return text as NSString
+        }
         if let text = value.stringValue { return text as NSString }
         if let number = value.intValue { return NSNumber(value: number) }
         if let number = value.doubleValue { return NSNumber(value: number) }

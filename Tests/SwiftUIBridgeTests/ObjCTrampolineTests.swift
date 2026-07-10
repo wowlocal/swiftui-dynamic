@@ -59,3 +59,29 @@ import SwiftInterpreter
         _ = try? Interpreter(registry: ViewRegistry()).run(source: source)
     }
 }
+
+/// Block shims: completion handlers of the interpreted closure's own arity
+/// return into the interpreter — the automatic tier now covers
+/// callback-based NSObject APIs.
+@Suite struct BlockShimTests {
+    @Test func notificationObserverBlockFires() throws {
+        let source = """
+        final class Inbox {
+            var received = ""
+        }
+
+        let inbox = Inbox()
+        let center = NotificationCenter.default
+        let token = center.addObserver(
+            forName: NSNotification.Name("trampoline.ping"), object: nil, queue: nil
+        ) { note in
+            inbox.received = "got it"
+        }
+        center.post(name: NSNotification.Name("trampoline.ping"), object: nil)
+        center.removeObserver(token)
+        inbox.received
+        """
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.stringValue == "got it")
+    }
+}
