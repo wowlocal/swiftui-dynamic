@@ -630,11 +630,19 @@ extension Interpreter {
             guard let symbol = hostExtensionSymbols[typeName] else { continue }
             if let overloads = symbol.methods[name], let firstOverload = overloads.first {
                 // Bare reference on a property/method collision: the
-                // property wins when every overload requires arguments.
+                // property wins when every overload requires arguments —
+                // UNLESS that property is already evaluating (its body
+                // calling the same-named METHOD must reach the method:
+                // nextcloud's `var resolvedWindow` calls
+                // `resolvedWindow(in:)`).
+                let collisionKey = "\(typeName).\(name)"
                 if let computed = symbol.computedProperties[name],
+                   !activeCollisionProperties.contains(collisionKey),
                    overloads.allSatisfy({ method in
                        method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
                    }) {
+                    activeCollisionProperties.insert(collisionKey)
+                    defer { activeCollisionProperties.remove(collisionKey) }
                     return try evaluateComputed(computed, selfValue: selfValue, name: name)
                 }
                 // Overload sets never re-enter the running declaration

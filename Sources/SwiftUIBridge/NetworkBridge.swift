@@ -148,6 +148,73 @@ public final class URLSessionBox {
     public init() {}
 }
 
+/// The URLProtocol CLIENT handed to interpreted mock protocols: records
+/// didReceive/didLoad/didFinish/didFail so data() can answer with the
+/// mock's bytes — real URLProtocol semantics distilled.
+final class URLProtocolClientRecorder {
+    var response: RuntimeValue?
+    var data = Data()
+    var error: RuntimeValue?
+    var finished = false
+}
+
+@MainActor
+func urlProtocolClientMember(_ name: String, on recorder: URLProtocolClientRecorder) -> RuntimeValue? {
+    switch name {
+    case "urlProtocol":
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            if let received = args.labeled("didReceive") {
+                recorder.response = received
+            }
+            if case .host(let any)? = args.labeled("didLoad"), let chunk = any as? Data {
+                recorder.data.append(chunk)
+            }
+            if let failure = args.labeled("didFailWithError") {
+                recorder.error = failure
+            }
+            return .void
+        })
+    case "urlProtocolDidFinishLoading":
+        return .hostFunction(HostFunction(name: name) { _, _ in
+            recorder.finished = true
+            return .void
+        })
+    default:
+        return nil
+    }
+}
+
+/// Interpreted URLProtocol mocking (the RequestMocking genre): when a
+/// declared URLProtocol subclass's canInit(with:) accepts the request,
+/// its startLoading runs against a recording client and the recorded
+/// bytes/response/error ARE the session's answer.
+@MainActor
+func interpretedProtocolResponse(
+    for requestValue: RuntimeValue, interpreter: Interpreter
+) throws -> (data: Data, response: RuntimeValue)? {
+    for symbol in interpreter.urlProtocolSymbols {
+        guard let verdict = try? interpreter.callStatic(
+            "canInit", on: symbol, arguments: [requestValue]),
+            verdict.boolValue == true else { continue }
+        let instance = Instance(symbol: symbol)
+        let recorder = URLProtocolClientRecorder()
+        instance.properties["request"] = Box(requestValue)
+        instance.properties["client"] = Box(.native(recorder))
+        _ = try interpreter.callMethod(named: "startLoading", on: instance, arguments: [])
+        // Deliveries may ride main-queue hops (asyncAfter loading delays).
+        MainQueueDrain.drain()
+        if let failure = recorder.error {
+            throw InterpretedThrow(value: failure)
+        }
+        let response = recorder.response
+            ?? .native(HTTPResponseBox(HTTPURLResponse(
+                url: NetworkBridge.url(from: requestValue) ?? URL(string: "https://interpreted.mock")!,
+                statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!))
+        return (recorder.data, response)
+    }
+    return nil
+}
+
 /// `session.dataTask(with:) { data, response, error in }` — completion runs
 /// on `resume()`, exactly like the real API (synchronously here).
 public final class DataTaskBox {
@@ -178,6 +245,15 @@ public final class URLComponentsBox {
     init(_ components: URLComponents = URLComponents()) {
         self.components = components
     }
+}
+
+/// JSONEncoder with STRUCTURAL encode of interpreted values — the decode
+/// bridge's inverse (stored properties → JSON keys through CodingKeys/
+/// snake_case; dates ISO8601; URLs absolute strings; enums raw values).
+public final class JSONEncoderBox {
+    var convertToSnakeCase = false
+
+    public init() {}
 }
 
 /// JSONDecoder with strategy writes and STRUCTURAL decode into interpreted
@@ -234,7 +310,14 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         switch name {
         case "data":
             // async forms: `let (data, response) = try await session.data(from:/for:)`
-            return .hostFunction(HostFunction(name: "data") { args, _ in
+            return .hostFunction(HostFunction(name: "data") { args, ctx in
+                let requestValue = args.labeled("from") ?? args.labeled("for") ?? args.positional(0)
+                if let interpreter = ctx as? Interpreter, let requestValue,
+                   let mocked = try interpretedProtocolResponse(for: requestValue, interpreter: interpreter) {
+                    return .native(TupleValue(labels: [nil, nil], values: [
+                        .native(mocked.data), mocked.response,
+                    ]))
+                }
                 guard let url = NetworkBridge.url(from: args.labeled("from") ?? args.labeled("for") ?? args.positional(0)) else {
                     if LiveCheckSupport.traceLifecycle {
                         let raw = args.labeled("from") ?? args.labeled("for") ?? args.positional(0)
@@ -293,6 +376,9 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         default:
             return nil
         }
+    }
+    if let recorder = value as? URLProtocolClientRecorder {
+        return urlProtocolClientMember(name, on: recorder)
     }
     if let box = value as? URLComponentsBox {
         switch name {
@@ -417,6 +503,21 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
             return nil
         }
     }
+    if let encoder = value as? JSONEncoderBox {
+        switch name {
+        case "encode":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let value = args.positional(0) else {
+                    throw RuntimeError(message: "encode needs a value")
+                }
+                let json = try JSONDecodeBridge.encodeToJSON(value, snakeCase: encoder.convertToSnakeCase)
+                let data = try JSONSerialization.data(withJSONObject: json, options: [.fragmentsAllowed])
+                return .native(data)
+            })
+        default:
+            return nil
+        }
+    }
     if let decoder = value as? JSONDecoderBox {
         switch name {
         case "decode":
@@ -455,6 +556,17 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
 
 @MainActor
 func networkHostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
+    if let encoder = value as? JSONEncoderBox {
+        switch name {
+        case "keyEncodingStrategy":
+            encoder.convertToSnakeCase = "\(newValue.stringified)".contains("convertToSnakeCase")
+            return true
+        case "outputFormatting", "dateEncodingStrategy":
+            return true // accepted; formatting is invisible to decode round-trips
+        default:
+            return false
+        }
+    }
     if let box = value as? URLComponentsBox {
         switch name {
         case "scheme":
@@ -520,6 +632,33 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
         }
     case "JSONDecoder":
         return HostFunction(name: name) { _, _ in .native(JSONDecoderBox()) }
+    case "JSONEncoder":
+        return HostFunction(name: name) { _, _ in .native(JSONEncoderBox()) }
+    case "HTTPURLResponse":
+        return HostFunction(name: name) { args, _ in
+            guard let url = NetworkBridge.url(from: args.labeled("url")),
+                  let code = args.labeled("statusCode")?.intValue else { return .nilValue }
+            var headers: [String: String]?
+            if case .host(let any)? = args.labeled("headerFields"), let dict = any as? DictValue {
+                headers = [:]
+                for (key, value) in zip(dict.keys, dict.values) {
+                    if let k = key.stringValue { headers?[k] = value.stringValue ?? value.stringified }
+                }
+            }
+            guard let response = HTTPURLResponse(
+                url: url, statusCode: code,
+                httpVersion: args.labeled("httpVersion")?.stringValue, headerFields: headers) else {
+                return .nilValue
+            }
+            return .native(HTTPResponseBox(response))
+        }
+    case "URLSession":
+        return HostFunction(name: name) { _, _ in
+            // URLSession(configuration:) — the box; interpreted URLProtocol
+            // subclasses are consulted globally by data(), so the
+            // configuration's protocolClasses need no threading.
+            .native(URLSessionBox())
+        }
     case "URLComponents":
         return HostFunction(name: name) { args, _ in
             // Failable like the real thing: URLComponents(string:) is nil
@@ -732,6 +871,56 @@ enum JSONDecodeBridge {
             }
         }
         throw RuntimeError(message: "decode(\(symbol.name)): no case matches \(json)")
+    }
+
+    /// STRUCTURAL encode — the decode direction reversed. CodingKeys raw
+    /// values name the JSON keys, then snake_case per strategy; nil
+    /// optionals are omitted (encodeIfPresent semantics).
+    static func encodeToJSON(_ value: RuntimeValue, snakeCase: Bool) throws -> Any {
+        switch value {
+        case .int(let i): return i
+        case .double(let d): return d
+        case .bool(let b): return b
+        case .nilValue: return NSNull()
+        case .enumCase(let enumCase):
+            return enumCase.rawValue.stringValue ?? enumCase.rawValue.intValue ?? enumCase.name
+        case .instance(let instance):
+            var out: [String: Any] = [:]
+            let codingKeys = codingKeyMap(of: instance.symbol)
+            for property in instance.symbol.storedProperties {
+                guard let box = instance.box(for: property.name) else { continue }
+                if box.value.isNil { continue }
+                var key = codingKeys[property.name] ?? property.name
+                if codingKeys[property.name] == nil, snakeCase { key = snakeCased(key) }
+                out[key] = try encodeToJSON(box.value, snakeCase: snakeCase)
+            }
+            return out
+        case .host(let any):
+            if let s = any as? String { return s }
+            if let data = any as? Data { return String(decoding: data, as: UTF8.self) }
+            if let date = any as? Date {
+                let formatter = ISO8601DateFormatter()
+                return formatter.string(from: date)
+            }
+            if let url = any as? URL { return url.absoluteString }
+            if let array = any as? [RuntimeValue] {
+                return try array.map { try encodeToJSON($0, snakeCase: snakeCase) }
+            }
+            if let dict = any as? DictValue {
+                var out: [String: Any] = [:]
+                for (key, entry) in zip(dict.keys, dict.values) {
+                    guard let keyText = key.stringValue else { continue }
+                    out[keyText] = try encodeToJSON(entry, snakeCase: snakeCase)
+                }
+                return out
+            }
+            if let tuple = any as? TupleValue {
+                return try tuple.values.map { try encodeToJSON($0, snakeCase: snakeCase) }
+            }
+            throw RuntimeError(message: "encode: unsupported value \(type(of: any))")
+        default:
+            throw RuntimeError(message: "encode: unsupported value \(value.stringified)")
+        }
     }
 
     /// `init(from decoder: Decoder)` — exactly one parameter labeled `from`

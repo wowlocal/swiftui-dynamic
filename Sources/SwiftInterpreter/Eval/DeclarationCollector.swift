@@ -977,6 +977,10 @@ extension Interpreter {
     }
 
     private func isStatic(_ modifiers: DeclModifierListSyntax) -> Bool {
-        modifiers.contains { $0.name.tokenKind == .keyword(.static) }
+        // `class func` members dispatch on the type exactly like statics
+        // (URLProtocol's `override class func canInit(with:)`).
+        modifiers.contains {
+            $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
+        }
     }
 }

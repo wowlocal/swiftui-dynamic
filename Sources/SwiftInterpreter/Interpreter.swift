@@ -234,6 +234,9 @@ public final class Interpreter {
     /// REAL type value. Textual, innermost last.
     var expectedAnnotationStack: [String] = []
     var pendingDottedExtensions: [ExtensionDeclSyntax] = []
+    /// Property/method collision preferences currently evaluating — the
+    /// property's own body reaching the same name falls to the METHOD.
+    var activeCollisionProperties: Set<String> = []
     var deferredExtensionRetry = false
 
     /// The DECLARED return type of each function on the call stack (nil for

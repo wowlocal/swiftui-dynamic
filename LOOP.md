@@ -2262,3 +2262,27 @@ between iterations 35 and 183.)
   elements (`\.key` over the (key:, value:) pair; `\.key.name` chains
   into the instance). Basic-Car renders 223 nodes / 15 actions.
   **678 → 679/680; suite 441 → 442; TestCheck 81/50; LiveCheck 4/4.**
+- 2026-07-10 iter 205: the URLProtocol-MOCK genre engages (TestCheck's
+  top class, the RequestMocking shape): interpreted URLProtocol
+  subclasses now gate session traffic — data() asks each declared
+  subclass's `canInit(with:)` (class-func members now collect as
+  statics), runs `startLoading` against a RECORDING client
+  (didReceive/didLoad/didFinish/didFail — real URLProtocol semantics
+  distilled), drains asyncAfter hops (main-queue asyncAfter bridged),
+  and answers with the recorded bytes/response — mocked failures throw
+  the app's own error values (InterpretedThrow). En route:
+  JSONEncoder lands (STRUCTURAL encode — the decode bridge's inverse:
+  CodingKeys reversed, snake_case strategy, dates ISO8601, nil
+  optionals omitted), HTTPURLResponse(url:statusCode:…) constructs
+  real responses, URLSession(configuration:) builds a real box.
+  End-to-end pinned by URLProtocolMockTests (mock → encode → session →
+  decode → assert). clean-architecture's remaining deltas (their
+  generic Mock/Result plumbing) are the next finer class. Post-verify
+  fallout fixed in-iteration: asyncAfter fires only ZERO-delay
+  deadlines (real delays never land within one probe frame —
+  nextcloud's self-rescheduling retries spun the drain), and the
+  iter-199 collision preference gained a RE-ENTRANCY guard (a property
+  whose body CALLS the same-named method reaches the METHOD —
+  nextcloud's resolvedWindow cycle). A fifth LiveCheck scenario
+  arrived via the steward (4/5). **TestCheck 81/51/11 (errored 12 →
+  11); ProjectCheck 679/680; suite 442 → 443; LiveCheck 4/5.**

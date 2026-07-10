@@ -747,3 +747,62 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(tuple.values[2].stringValue == "Civic")
     }
 }
+
+/// Interpreted URLProtocol mocking (iteration 205, the RequestMocking
+/// genre): a declared URLProtocol subclass whose canInit accepts a request
+/// serves session.data through startLoading against a recording client —
+/// JSONEncoder round-trips the mocked payload, HTTPURLResponse carries the
+/// code, and mocked failures throw the app's own error type.
+@Suite struct URLProtocolMockTests {
+    @Test func mockedProtocolServesSessionData() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        struct Country: Codable, Equatable {
+            let name: String
+            let population: Int
+        }
+
+        final class MocksContainer {
+            static var mocks: [(url: String, data: Data, code: Int)] = []
+        }
+
+        final class RequestMocking: URLProtocol {
+            override class func canInit(with request: URLRequest) -> Bool {
+                MocksContainer.mocks.contains { request.url?.absoluteString == $0.url }
+            }
+
+            override func startLoading() {
+                guard let mock = MocksContainer.mocks.first(where: {
+                    request.url?.absoluteString == $0.url
+                }), let url = request.url,
+                let response = HTTPURLResponse(url: url, statusCode: mock.code,
+                                               httpVersion: "HTTP/1.1", headerFields: nil) else {
+                    return
+                }
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: mock.data)
+                client?.urlProtocolDidFinishLoading(self)
+            }
+        }
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let payload = [Country(name: "Georgia", population: 3_700_000)]
+        let data = try encoder.encode(payload)
+        MocksContainer.mocks.append((url: "https://api.example.com/countries", data: data, code: 200))
+
+        let url = URL(string: "https://api.example.com/countries")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        let (received, response) = try await URLSession.shared.data(for: request)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let countries = try decoder.decode([Country].self, from: received)
+        (countries.count, countries[0].name, countries[0].population, response.statusCode)
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 1)
+        #expect(tuple.values[1].stringValue == "Georgia")
+        #expect(tuple.values[2].intValue == 3_700_000)
+        #expect(tuple.values[3].intValue == 200)
+    }
+}

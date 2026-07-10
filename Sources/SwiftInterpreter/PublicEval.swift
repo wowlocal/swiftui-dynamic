@@ -22,6 +22,25 @@ extension Interpreter {
         symbol.initializers.contains(where: Self.isCodableInit)
     }
 
+    /// Call a STATIC method on an interpreted type (the bridge's
+    /// URLProtocol shim asks `canInit(with:)`).
+    public func callStatic(
+        _ name: String, on symbol: StructSymbol, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue? {
+        guard let overloads = symbol.staticMethods[name],
+              let method = overloads.first, let body = method.body else { return nil }
+        let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(.type(symbol)))
+        return try callWithArguments(
+            closure,
+            args: CallArguments(arguments: arguments.map { .init(label: nil, value: $0) }),
+            node: nil)
+    }
+
+    /// Interpreted URLProtocol subclasses (their canInit gates mocking).
+    public var urlProtocolSymbols: [StructSymbol] {
+        structSymbols.filter { $0.superclassName == "URLProtocol" }
+    }
+
     /// A declared type by name (`.type` / `.enumType`), if the program
     /// defines one — annotation-driven decode resolves element types here.
     public func typeValue(named name: String) -> RuntimeValue? {

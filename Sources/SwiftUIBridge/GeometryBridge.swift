@@ -425,6 +425,32 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
     }
     if value is MainQueueStub {
+        if name == "asyncAfter" {
+            // ZERO-delay deadlines deliver on the next drain (mock loading
+            // times of 0); REAL delays never fire within one probe frame —
+            // exactly like a device frame, so self-rescheduling retry
+            // loops terminate instead of spinning the drain forever
+            // (nextcloud's action retries).
+            return .hostFunction(HostFunction(name: "asyncAfter") { args, ctx in
+                guard let closure = args.firstUnlabeledClosure else { return .void }
+                let deadline = args.labeled("deadline")
+                let delay = deadline.flatMap { value -> Double? in
+                    if let d = value.doubleValue { return d }
+                    if case .host(let any) = value, let chain = any as? ChainedImplicitCall {
+                        _ = chain
+                        return 0
+                    }
+                    return nil
+                } ?? 0
+                guard delay <= 0.001 else { return .void }
+                let action = ActionValue(run: {
+                    _ = try? ctx.callClosure(closure, arguments: [])
+                })
+                MainQueueDrain.pending.append(action)
+                Task { @MainActor in MainQueueDrain.drain() }
+                return .void
+            })
+        }
         if name == "async" {
             return .hostFunction(HostFunction(name: "async") { args, ctx in
                 guard let closure = args.firstUnlabeledClosure else { return .void }
