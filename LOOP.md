@@ -1988,3 +1988,15 @@ between iterations 35 and 183.)
   parallel-session merges — SwiftUIRealm/ImageDrawing/SwiftBar/
   VirtualBuddy/winston fail at HEAD, pre-existing, next queue); suite
   383 → 388; LiveCheck 2/4 with the fetch-chain class ELIMINATED.**
+- 2026-07-10 iter 191: property observers fired during INITIALIZATION
+  (parallel-merge regression, 3 projects): a declared init's self-store
+  ran willSet/didSet with the property still uninitialized — winston's
+  Nav willSet compared the void read ("cannot compare () and
+  TabIdentifier.posts"), VirtualBuddy hit the same in root init, and
+  SwiftBar's observer-writes-property shape cycled to the nesting
+  guard. Fix: `initializingInstances` bracket around runInitializer —
+  self-stores inside a declared init are DIRECT, observers fire only
+  post-init (compiled semantics; PropertyObserverTests grew the
+  winston-shaped case). **674 → 677/680; suite 388 → 389; remaining:
+  SwiftUIRealm ($task projection) + ImageDrawing (binding index) —
+  next queue.**

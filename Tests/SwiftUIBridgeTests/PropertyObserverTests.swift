@@ -42,6 +42,48 @@ import SwiftUIBridge
         #expect(result.stringValue == "will 9;did 1;")
     }
 
+    /// winston/VirtualBuddy/SwiftBar (iteration 191): a DECLARED init's
+    /// self-stores are DIRECT — observers never fire during initialization.
+    /// winston's Nav seeds `@Published var activeTab: Tab { willSet { if
+    /// activeTab == newValue … } }` from init; firing the observer there
+    /// reads the still-uninitialized property ("cannot compare () and…"),
+    /// and observer-writes-property shapes cycle (SwiftBar). Post-init
+    /// assignments observe normally.
+    @Test func declaredInitStoresBypassObservers() throws {
+        let result = try run("""
+        enum Tab: String {
+            case posts, inbox
+        }
+
+        final class Nav: ObservableObject {
+            var resets = 0
+            var changes = 0
+            @Published var activeTab: Tab {
+                willSet {
+                    if activeTab == newValue { resets += 1 }
+                }
+                didSet { changes += 1 }
+            }
+
+            init(tab: Tab) {
+                self.activeTab = tab
+            }
+        }
+
+        let nav = Nav(tab: .posts)
+        let afterInit = (nav.resets, nav.changes)
+        nav.activeTab = .posts
+        nav.activeTab = .inbox
+        (afterInit.0, afterInit.1, nav.resets, nav.changes, nav.activeTab.rawValue)
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 0, "willSet must not fire during init")
+        #expect(tuple.values[1].intValue == 0, "didSet must not fire during init")
+        #expect(tuple.values[2].intValue == 1, "same-value assignment reads the OLD value in willSet")
+        #expect(tuple.values[3].intValue == 2)
+        #expect(tuple.values[4].stringValue == "inbox")
+    }
+
     @Test func assignmentInsideDidSetDoesNotRetrigger() throws {
         let result = try run("""
         class Clamp {

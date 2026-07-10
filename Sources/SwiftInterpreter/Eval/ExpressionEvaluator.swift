@@ -2477,6 +2477,7 @@ extension Interpreter {
                         instance: ObjectIdentifier(instance), property: name)
                     let observed = (property?.willSetBody != nil || property?.didSetBody != nil)
                         && !interpreter.activePropertyObservers.contains(observerKey)
+                        && !interpreter.initializingInstances.contains(ObjectIdentifier(instance))
                     guard observed, let property else {
                         box.value = resolved
                         return

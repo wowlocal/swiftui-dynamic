@@ -46,6 +46,10 @@ public final class Interpreter {
     /// Initializer bodies currently executing — self-delegation must not
     /// re-enter the same init (extension convenience → memberwise).
     var activeInitializers: Set<SyntaxIdentifier> = []
+    /// Instances whose declared `init` body is currently executing: self-
+    /// stores inside init are DIRECT (compiled semantics — willSet/didSet
+    /// never fire during initialization).
+    var initializingInstances: Set<ObjectIdentifier> = []
     /// Function bodies currently executing — overload dispatch excludes the
     /// running declaration (`send(_:) -> StoreTask` delegating to
     /// `send(_:) -> Task?`, identical shapes, return-type disambiguated).
@@ -641,6 +645,9 @@ public final class Interpreter {
         }
         let inserted = activeInitializers.insert(chosen.id).inserted
         defer { if inserted { activeInitializers.remove(chosen.id) } }
+        let instanceKey = ObjectIdentifier(instance)
+        let instanceInserted = initializingInstances.insert(instanceKey).inserted
+        defer { if instanceInserted { initializingInstances.remove(instanceKey) } }
         let parameters = initializerMetadata(for: chosen).parameters
         let initEnv = selfEnvironment(.instance(instance))
         let closure = ClosureValue(
