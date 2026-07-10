@@ -2909,6 +2909,36 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// EhPanda at its honest root (iteration 176): annotation-less
+    /// bindings in a multi-binding declaration share the NEXT annotation
+    /// in their run (`var igneous, memberID, passHash: String?` — all
+    /// three are String?, nil until assigned); initializers break the run.
+    @Test func multiBindingSharedAnnotations() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                var igneous, memberID, passHash: String?
+                memberID = "123"
+
+                var count = 1, label: String
+                label = "ok"
+
+                let checks = [
+                    igneous == nil,
+                    memberID == "123",
+                    passHash == nil,
+                    count == 1,
+                    label == "ok",
+                ]
+                if checks.contains(false) { fatalError("shared annotations broken") }
+                return Text(label)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// home-assistant at its honest root (iteration 175): the Section
     /// shadow's retry surfaced a seven-class chain — STATIC overloads pick
     /// by call shape; keypaths compare by components; `.map(Type.init)`

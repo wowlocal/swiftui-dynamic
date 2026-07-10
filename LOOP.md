@@ -1800,3 +1800,10 @@ without this.
   + NSRange ctor) — SwiftGen's PlistDocument and their strict Version
   parser run genuinely. home-assistant ✅ at 355 nodes/8 actions (was
   27). **657/666 counted (656 → 657). Suite 348 → 351.**
+- 2026-07-10 iter 176: honest-roots queue — EhPanda. One tight class:
+  annotation-less bindings in a MULTI-BINDING declaration share the
+  NEXT annotation in their run (`var igneous, memberID, passHash:
+  String?` — all three are String?, nil until assigned; initializers
+  break the run). EhPanda ✅ at 164 nodes/20 actions. Four honest-root
+  singletons remain (Basic-Car, Rayon, Pearcleaner, Planet).
+  **658/666 counted (657 → 658). Suite 351 → 352.**

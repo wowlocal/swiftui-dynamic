@@ -87,7 +87,18 @@ extension Interpreter {
             return
         }
         if let varDecl = decl.as(VariableDeclSyntax.self) {
-            for binding in varDecl.bindings {
+            // `var igneous, memberID, passHash: String?` — annotation-less
+            // bindings share the NEXT annotation in their run (initializers
+            // break the run).
+            let allBindings = Array(varDecl.bindings)
+            func sharedAnnotation(startingAt index: Int) -> TypeSyntax? {
+                for later in allBindings[index...] {
+                    if let type = later.typeAnnotation?.type { return type }
+                    if later.initializer != nil { return nil }
+                }
+                return nil
+            }
+            for (bindingIndex, binding) in allBindings.enumerated() {
                 // `let _ = sideEffect()` — evaluate for effect, no binding.
                 if binding.pattern.is(WildcardPatternSyntax.self) {
                     if let initializer = binding.initializer?.value {
@@ -140,7 +151,8 @@ extension Interpreter {
                         env.define(ident.identifier.text, injected)
                         continue
                     }
-                    let annotationText = binding.typeAnnotation?.type.trimmedDescription ?? ""
+                    let annotationText = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
+                        .trimmedDescription ?? ""
                     if annotationText.hasSuffix("?") || annotationText.hasSuffix("!") {
                         env.define(ident.identifier.text, .nilValue) // `var x: T?`/`T!` is nil
                         continue
