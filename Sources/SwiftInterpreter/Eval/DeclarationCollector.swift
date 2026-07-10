@@ -761,6 +761,23 @@ extension Interpreter {
 
     // MARK: - Extensions
 
+    /// `extension Thing: Marker {}` — RETROACTIVE conformances join the
+    /// symbol like declaration-site ones (checked casts and the render
+    /// pipeline's view-ness both read symbol.conformances).
+    private func mergeExtensionConformances(_ node: ExtensionDeclSyntax, into symbol: StructSymbol) {
+        guard let inherited = node.inheritanceClause?.inheritedTypes else { return }
+        for type in inherited {
+            let name = type.type.trimmedDescription
+            if !symbol.conformances.contains(name) {
+                symbol.conformances.append(name)
+            }
+            if name == "View" { symbol.conformsToView = true }
+            if name == "ObservableObject" { symbol.conformsToObservableObject = true }
+            if name == "Shape" || name == "InsettableShape" { symbol.conformsToShape = true }
+            if name.hasSuffix("Representable") { symbol.isRepresentable = true }
+        }
+    }
+
     private func collectExtension(_ node: ExtensionDeclSyntax) throws {
         let typeName = node.extendedType.trimmedDescription
         // A DOTTED extended type that doesn't resolve yet may be declared
@@ -786,8 +803,17 @@ extension Interpreter {
         }
         switch extended {
         case .type(let symbol):
+            mergeExtensionConformances(node, into: symbol)
             try collectStructMembers(node.memberBlock, into: symbol)
         case .enumType(let symbol):
+            if let inherited = node.inheritanceClause?.inheritedTypes {
+                for type in inherited {
+                    let name = type.type.trimmedDescription
+                    if !symbol.conformances.contains(name) {
+                        symbol.conformances.append(name)
+                    }
+                }
+            }
             for decl in flattenedMemberDecls(node.memberBlock.members) {
                 try collectEnumMember(decl, into: symbol)
             }
