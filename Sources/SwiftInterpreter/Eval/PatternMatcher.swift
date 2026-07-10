@@ -257,6 +257,26 @@ extension Interpreter {
         if let cast = matchCastSequence(expr, subject: subject, bindingInto: bindings) {
             return cast
         }
+        // `.none` / `nil` over NATIVE optionals (payload positions recurse
+        // here): matches exactly the nil subject.
+        if expr.is(NilLiteralExprSyntax.self) { return subject.isNil }
+        if let member = expr.as(MemberAccessExprSyntax.self), member.base == nil,
+           member.declName.baseName.text == "none", caseShape(of: subject) == nil {
+            return subject.isNil
+        }
+        // `.some(length)` / `.some(let x)` over NATIVE optionals: matches
+        // when the subject holds a value, binding the inner pattern to it.
+        if let call = expr.as(FunctionCallExprSyntax.self),
+           let member = call.calledExpression.as(MemberAccessExprSyntax.self),
+           member.base == nil, member.declName.baseName.text == "some",
+           call.arguments.count == 1, let inner = call.arguments.first?.expression,
+           caseShape(of: subject) == nil {
+            if subject.isNil { return false }
+            if let patternExpr = inner.as(PatternExprSyntax.self) {
+                return try matches(patternExpr.pattern, subject: subject, bindingInto: bindings, env: env)
+            }
+            return try matchExpression(inner, subject: subject, bindingInto: bindings, env: env)
+        }
         // `case (_, .hideAll)` — tuple patterns in expression form match
         // ELEMENTWISE; `_` is the wildcard.
         if expr.is(DiscardAssignmentExprSyntax.self) { return true }
@@ -291,6 +311,16 @@ extension Interpreter {
                 if argument.expression.is(DiscardAssignmentExprSyntax.self) { continue }
                 if let patternExpr = argument.expression.as(PatternExprSyntax.self) {
                     guard try matches(patternExpr.pattern, subject: payload, bindingInto: bindings, env: env) else {
+                        return false
+                    }
+                } else if argument.expression.is(FunctionCallExprSyntax.self)
+                    || argument.expression.is(MemberAccessExprSyntax.self)
+                    || argument.expression.is(TupleExprSyntax.self) {
+                    // NESTED patterns in payload position — isowords'
+                    // `case let .edges(edges, .some(length))` — recurse as
+                    // patterns, never as expressions (the inner `let`
+                    // bindings would be unevaluatable).
+                    guard try matchExpression(argument.expression, subject: payload, bindingInto: bindings, env: env) else {
                         return false
                     }
                 } else {

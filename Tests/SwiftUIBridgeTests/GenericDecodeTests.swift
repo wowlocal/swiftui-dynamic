@@ -456,3 +456,64 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
                 "ModifiedContent(content:modifier:) runs the modifier body, got \(strings)")
     }
 }
+
+/// The `.modifier(m)` MEMBER spelling (iteration 199): interpreted
+/// ViewModifier bodies run with the modifier's OWN environment injected —
+/// custom keys read their declared @Entry defaults, absorbed nils in
+/// arithmetic read fresh zero, and nested `.some/.none` payload patterns
+/// match native optionals (the isowords AdaptivePadding switch).
+@Suite struct ModifierMemberSpellingTests {
+    @Test func modifierMemberRunsBodyWithEnvironment() throws {
+        let source = """
+        extension EnvironmentValues {
+            @Entry var inferredPadding: CGFloat = 6
+        }
+
+        struct PaddedTitle: ViewModifier {
+            @Environment(\\.inferredPadding) private var inferredPadding
+
+            func body(content: Content) -> some View {
+                let total = inferredPadding + 2
+                return content.padding(total)
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text("member spelling").modifier(PaddedTitle())
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("member spelling"),
+                "the modifier body must run and pass content through, got \(strings)")
+    }
+
+    @Test func nestedOptionalPayloadPatterns() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        enum Configuration {
+            case edgeInsets(String)
+            case edges(String, CGFloat?)
+        }
+
+        func describe(_ configuration: Configuration) -> String {
+            switch configuration {
+            case let .edgeInsets(insets):
+                return "insets " + insets
+            case let .edges(edges, .some(length)):
+                return "edges \\(edges) length \\(length)"
+            case let .edges(edges, .none):
+                return "edges \\(edges) default"
+            }
+        }
+
+        (describe(.edges("horizontal", 4)),
+         describe(.edges("vertical", nil)),
+         describe(.edgeInsets("custom")))
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].stringValue?.hasPrefix("edges horizontal length 4") == true)
+        #expect(tuple.values[1].stringValue == "edges vertical default")
+        #expect(tuple.values[2].stringValue == "insets custom")
+    }
+}

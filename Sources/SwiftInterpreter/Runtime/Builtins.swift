@@ -399,6 +399,15 @@ public enum Builtins {
         if isCallMarker(rhs), let l = lhs.doubleValue {
             return .native(try double(l, 0))
         }
+        // A NIL beside a number can't compile natively (non-optional
+        // operands) — it's an absorbed-environment artifact (a custom-
+        // wrapper keypath subscript on a fresh store): fresh zero.
+        if lhs.isNil, let r = rhs.doubleValue {
+            return .native(try double(0, r))
+        }
+        if rhs.isNil, let l = lhs.doubleValue {
+            return .native(try double(l, 0))
+        }
         throw EvalMessage(text: "'\(op)' cannot combine \(lhs.stringified) and \(rhs.stringified)")
     }
 

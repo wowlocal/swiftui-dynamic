@@ -1646,6 +1646,24 @@ extension Interpreter {
         call: FunctionCallExprSyntax,
         in env: Environment
     ) throws -> RuntimeValue? {
+        // `.modifier(TitleFont(size: 16))` — a custom ViewModifier applies
+        // by RUNNING its body(content:), with the modifier's OWN
+        // @Environment/@State properties injected first (uninjected reads
+        // were voids — the iteration-198 revert). Only the strict
+        // ViewModifier shape dispatches: declared conformance AND a body
+        // method whose single parameter is the content.
+        if name == "modifier" {
+            let args = try collectArguments(of: call, in: env)
+            if case .instance(let modifier)? = args.positional(0),
+               modifier.symbol.conformances.contains("ViewModifier"),
+               let overloads = modifier.symbol.methods["body"],
+               let method = overloads.first, method.body != nil,
+               method.signature.parameterClause.parameters.count == 1 {
+                let baseValue = try evaluate(base, in: env)
+                injectEnvironmentValues(into: modifier, values: [:])
+                return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
+            }
+        }
         // Bool.toggle() — ubiquitous in SwiftUI code (`show.toggle()`); writes
         // through the lvalue so @State/@Published notification fires.
         if name == "toggle",

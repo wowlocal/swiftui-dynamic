@@ -205,12 +205,8 @@ Each iteration does exactly this:
    claims older than ~2 hours are stale and free. Three duplicate
    implementations happened on 2026-07-10 (decoder stubs, generics,
    flux) — claims are cheaper:
-   1. `.modifier(m)` MEMBER spelling still absorbs (the interception
-      that ran interpreted ViewModifier bodies at member sites broke
-      isowords/winston/KeyboardCowboy and was removed; the
-      ModifiedContent(content:modifier:) ctor form RUNS bodies). Wire
-      the member spelling through applyViewModifier without disturbing
-      registry-modifier flows when the histogram demands it.
+   1. [DONE iter 199] `.modifier(m)` member spelling runs interpreted
+      ViewModifier bodies (strict shape + environment injection).
       (State identity note: per-identity @State persistence is OPT-IN
       via `Interpreter.persistentViewState` — LiveCheck sets it; M0
       probes keep fresh-per-instantiation state, see README divergence.
@@ -2152,3 +2148,17 @@ between iterations 35 and 183.)
   arbitrary interpreted modifier bodies at member sites is queued
   behind a safer wiring). **679/680 unchanged; suite 426 → 431;
   LiveCheck 3/4 → 4/4.**
+- 2026-07-10 iter 199: queue #1 (`.modifier(m)` member spelling) CLOSED
+  with the safe wiring the 198 revert demanded: only the STRICT
+  ViewModifier shape dispatches (declared conformance + single-content
+  body method), and the modifier instance gets its OWN environment
+  injected first — the 198 breakage was uninjected @Environment
+  properties reading voids. Unwound behind it: NESTED payload patterns
+  (`case let .edges(edges, .some(length))` recursed as expressions and
+  died on the inner PatternExpr — payload args now recurse as PATTERNS;
+  `.some(x)`/`.none`/`nil` match NATIVE optionals), and a NIL beside a
+  number in arithmetic reads fresh zero (KeyboardCowboy's custom-
+  wrapper keypath subscript on a fresh store — the CGFloat(nil)
+  doctrine extended to operators). winston GREW 121 → 189 nodes and
+  KeyboardCowboy 27 → 30 (modifier bodies render real UI). **679/680
+  unchanged; suite 431 → 433; LiveCheck 4/4.**
