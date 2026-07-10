@@ -2909,6 +2909,45 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// kiwix-apple (iteration 183): `super` in STATIC contexts — an
+    /// NSManagedObject subclass's `static func fetchRequest()` delegates to
+    /// `super.fetchRequest()`; the host superclass's statics absorb through
+    /// a type marker, interpreted superclasses dispatch their real statics.
+    @Test func staticContextSuper() throws {
+        let source = """
+        class Entity {
+            static func fetchRequest() -> String { "entity request" }
+        }
+
+        class ZimFile: Entity {
+            static func fetchRequest(predicate: String? = nil) -> String {
+                let request = super.fetchRequest()
+                return request + (predicate.map { "+\\($0)" } ?? "")
+            }
+        }
+
+        class ManagedThing: NSManagedObject {
+            static func fetchRequest(sorted: Bool) -> String {
+                let request = super.fetchRequest()
+                return request == nil ? "absorbed-nil" : "absorbed"
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let checks = [
+                    ZimFile.fetchRequest(predicate: "opened") == "entity request+opened",
+                    ManagedThing.fetchRequest(sorted: true) == "absorbed",
+                ]
+                if checks.contains(false) { fatalError("static super broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// firefox-ios (iteration 182): LOCAL type declarations collect into
     /// the current scope (Danger scripts declare `struct FileCheck` inside
     /// a function); and BOTH-unknowable arithmetic yields a CHAIN for any

@@ -1872,3 +1872,12 @@ without this.
   arithmetic keep their own rules (the suite caught both shadowings).
   firefox-ios ✅ (36 nodes, 1 action). kiwix's super-context class is
   next. **665/670 counted. 585 zips + 81 OSS repos. Suite 358 → 360.**
+- 2026-07-10 iter 183: kiwix-apple — `super` in STATIC contexts: an
+  NSManagedObject subclass's `static func fetchRequest()` delegates to
+  `super.fetchRequest()`. Interpreted superclasses dispatch their real
+  statics (.type parent); HOST superclasses absorb through a type
+  marker. kiwix ✅ (9 nodes). **666/670 counted — ZERO failures
+  (THIRTY-FIFTH saturation). 585 zips + 81 OSS repos green — Firefox,
+  DuckDuckGo, Mastodon, Bitwarden, Home Assistant, WordPress, and
+  NetNewsWire all interpreting at their declared roots. Suite
+  360 → 361.**

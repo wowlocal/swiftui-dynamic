@@ -166,10 +166,20 @@ extension Interpreter {
             }
             return .native(KeyPathStub(components: components))
         case .superExpr:
-            guard case .instance(let instance)? = env.lookup("self") else {
-                throw error(expr, "'super' can only be used inside a class body")
+            if case .instance(let instance)? = env.lookup("self") {
+                return .native(SuperReference(instance: instance))
             }
-            return .native(SuperReference(instance: instance))
+            // STATIC contexts (`static func fetchRequest() { super
+            // .fetchRequest() }` on an NSManagedObject subclass): the host
+            // superclass's statics absorb — a type marker carries the name.
+            if case .type(let symbol)? = env.lookup("self"),
+               let superName = symbol.superclassName {
+                if case .type(let parent)? = globals.lookup(superName) {
+                    return .type(parent)
+                }
+                return .native(HostTypeMarker(name: superName))
+            }
+            throw error(expr, "'super' can only be used inside a class body")
         case .inOutExpr:
             let inout_ = expr.cast(InOutExprSyntax.self)
             // `&value` — capture the lvalue so user `inout` parameters can
