@@ -226,3 +226,61 @@ import SwiftInterpreter
                 "the wrapper's environment seeding should reach the child, got \(strings)")
     }
 }
+
+/// Fresh-store doctrine v2 (M3): the model context backs a LIVE per-run
+/// store — inserted models are fetchable within the run, deletes remove,
+/// and separate interpreters never share state.
+@Suite struct LiveModelStoreTests {
+    @Test func insertFetchDeleteRoundTrip() throws {
+        let source = """
+        struct Note {
+            var title = ""
+        }
+
+        struct ContentView: View {
+            @Environment(\\.modelContext) private var context
+            @State private var summary = "pending"
+
+            var body: some View {
+                Text("result \\(summary)")
+                    .onAppear {
+                        let before = context.fetchCount(FetchDescriptor<Note>())
+                        context.insert(Note(title: "First"))
+                        context.insert(Note(title: "Second"))
+                        let notes = context.fetch(FetchDescriptor<Note>())
+                        context.delete(notes[0])
+                        let final = context.fetchCount(FetchDescriptor<Note>())
+                        summary = "\\(before)-\\(notes.count)-\\(final)"
+                    }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("result 0-2-1"), "insert→fetch→delete should round-trip, got \(strings)")
+    }
+
+    @Test func separateRunsStartEmpty() throws {
+        let source = """
+        struct Entry {
+            var name = "x"
+        }
+
+        struct ContentView: View {
+            @Environment(\\.modelContext) private var context
+            @State private var count = -1
+
+            var body: some View {
+                Text("count \\(count)")
+                    .onAppear {
+                        context.insert(Entry())
+                        count = context.fetchCount(FetchDescriptor<Entry>())
+                    }
+            }
+        }
+        """
+        let first = try LiveCheckSupport.renderedStrings(source: source)
+        let second = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(first == second, "runs must be deterministic: \(first) vs \(second)")
+        #expect(first.contains("count 1"))
+    }
+}
