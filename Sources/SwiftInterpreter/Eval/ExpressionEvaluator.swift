@@ -309,6 +309,44 @@ extension Interpreter {
     static let tracedCallNames: Set<String>? = ProcessInfo.processInfo
         .environment["INTERP_TRACE_CALLS"].map { Set($0.split(separator: ",").map(String.init)) }
 
+    /// `$selectedTab` / `self.$selectedTab` / `home.$selectedTab` — the
+    /// projected value of a wrapper property on an INSTANCE: @Published's
+    /// inert publisher, model projections for object wrappers, and
+    /// BindingStub for @State/@Binding storage.
+    func instanceProjection(
+        _ propertyName: String, on instance: Instance, node: some SyntaxProtocol
+    ) throws -> RuntimeValue {
+        // `$searchText` on a @Published property (inside the model) is
+        // the Combine publisher projection — an inert pipeline.
+        if let property = instance.symbol.storedProperty(named: propertyName),
+           property.wrapper == .published {
+            return .native(PublishedProjection())
+        }
+        // `$store` on a model property projects the model so `$store.field`
+        // can become a binding to the model's own box.
+        if let property = instance.symbol.storedProperty(named: propertyName),
+           property.wrapper == .stateObject || property.wrapper == .observedObject
+            || property.wrapper == .environmentObject {
+            let boxValue = instance.box(for: propertyName)?.value
+            guard case .instance(let model)? = boxValue else {
+                // External-package models synthesize as unknowables —
+                // their projection is equally unknowable (absorbs).
+                if case .host(let any)? = boxValue,
+                   any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+                    return boxValue ?? .nilValue
+                }
+                if case .implicitMember? = boxValue { return boxValue ?? .nilValue }
+                if case .hostFunction? = boxValue { return boxValue ?? .nilValue }
+                throw error(node, "'$\(propertyName)' has no model instance assigned")
+            }
+            return .native(ModelProjection(model: model))
+        }
+        guard let box = instance.projectedBox(for: propertyName) else {
+            throw error(node, "'$\(propertyName)' requires an @State or @Binding property named '\(propertyName)'")
+        }
+        return .native(BindingStub(box: box))
+    }
+
     func resolveIdentifier(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
         // Real Swift scoping: locals first, implicit-self members second,
         // globals LAST (a method named like a global type wins in its body).
@@ -332,35 +370,7 @@ extension Interpreter {
             guard case .instance(let instance)? = env.lookup("self") else {
                 throw error(node, "'\(name)' can only be used inside a View body")
             }
-            // `$searchText` on a @Published property (inside the model) is
-            // the Combine publisher projection — an inert pipeline.
-            if let property = instance.symbol.storedProperty(named: propertyName),
-               property.wrapper == .published {
-                return .native(PublishedProjection())
-            }
-            // `$store` on a model property projects the model so `$store.field`
-            // can become a binding to the model's own box.
-            if let property = instance.symbol.storedProperty(named: propertyName),
-               property.wrapper == .stateObject || property.wrapper == .observedObject
-                || property.wrapper == .environmentObject {
-                let boxValue = instance.box(for: propertyName)?.value
-                guard case .instance(let model)? = boxValue else {
-                    // External-package models synthesize as unknowables —
-                    // their projection is equally unknowable (absorbs).
-                    if case .host(let any)? = boxValue,
-                       any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
-                        return boxValue ?? .nilValue
-                    }
-                    if case .implicitMember? = boxValue { return boxValue ?? .nilValue }
-                    if case .hostFunction? = boxValue { return boxValue ?? .nilValue }
-                    throw error(node, "'\(name)' has no model instance assigned")
-                }
-                return .native(ModelProjection(model: model))
-            }
-            guard let box = instance.projectedBox(for: propertyName) else {
-                throw error(node, "'\(name)' requires an @State or @Binding property named '\(propertyName)'")
-            }
-            return .native(BindingStub(box: box))
+            return try instanceProjection(propertyName, on: instance, node: node)
         }
         if let selfValue = env.lookup("self"),
            let value = try selfMember(name, on: selfValue) {
@@ -463,6 +473,15 @@ extension Interpreter {
     /// Property → method → computed property → own nested types, or nil
     /// if the name is unknown.
     func instanceMember(_ rawName: String, on instance: Instance) throws -> RuntimeValue? {
+        // `self.$selectedTab` / `home.$path` — member-form projections
+        // resolve exactly like bare `$name` (the TV-home genre passes
+        // `self.$selectedTab` into a child's @Binding).
+        if rawName.hasPrefix("$"), rawName.count > 1,
+           !rawName.dropFirst().allSatisfy(\.isNumber) {
+            return try instanceProjection(
+                String(rawName.dropFirst()), on: instance,
+                node: Syntax(DeclReferenceExprSyntax(baseName: .identifier(rawName))))
+        }
         let name = instance.symbol.canonicalPropertyName(rawName)
         if name == "objectWillChange", instance.symbol.isClass {
             let signal = instance.changeSignal

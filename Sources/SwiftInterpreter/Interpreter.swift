@@ -521,6 +521,13 @@ public final class Interpreter {
     }
 
     public func instantiate(_ symbol: StructSymbol, with args: CallArguments, node: Syntax? = nil) throws -> RuntimeValue {
+        if let traced = ProcessInfo.processInfo.environment["INTERP_TRACE_INIT"],
+           symbol.name.contains(traced) {
+            let shapes = args.arguments
+                .map { "\($0.label ?? "_"): \($0.value.stringified.prefix(90))" }
+                .joined(separator: ", ")
+            Swift.print("⟶ init \(symbol.name)(\(shapes))")
+        }
         let instance = Instance(symbol: symbol)
         let notifying = Set(symbol.notifyingPropertyNames)
         for property in inheritedStoredProperties(of: symbol) {

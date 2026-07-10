@@ -220,23 +220,21 @@ Each iteration does exactly this:
       NESTED types over globals — Instance.statuses: Statuses is the
       config struct, not the endpoint enum; api_v2_instance fixture
       recorded, /api/v2/instance hits.)
-   2. MOVIESWIFTUI: REAL-APP-ONLY implicit `list` (M2): the probe
-      PIPELINE is now clean — bare-identifier writes to builtin-named
-      class properties land (write-side scoping: locals → members →
-      globals, BareMemberWriteTests — this WAS old item 4's true
-      mechanism, `log` shadowed the math builtin), weak-self dispatch
-      closures run, and dispatch-INSIDE-dispatch delivers via the
-      deterministic MainQueueDrain (a nested main-actor Task never
-      woke the probe's RunLoop pumps). The FULL SwiftUIFlux chain
-      (ForEach element → onAppear → store.dispatch → asyncActions
-      middleware → AsyncAction.execute → inner dispatch → reducer →
-      state → re-render) passes in isolation INCLUDING namespaced
-      actions (ForEachCaptureProbe). Yet the real app still absorbs:
-      6 GETs carry query-only URLs, list.endpoint() runs on an
-      implicit `list`. Remaining deltas to bisect: ConnectedView props
-      dict `props.movies[menu]` subscript, UserDefaults-driven home
-      switching (grid vs vertical), TabView(selection:)+tag under
-      trace. Diagnose in the REAL merged source with INTERP_TRACE_*.
+   2. MOVIESWIFTUI: RESPONSE INTO THE TREE (M2): the FETCH CHAIN is
+      COMPLETE — member-form dollar projections resolve
+      (`self.$selectedTab` passed to a child @Binding read as a raw
+      "(function $selectedTab)"; instanceProjection now serves bare AND
+      member forms — ForEachCaptureProbe pins the TV-home genre), and
+      all 6 GETs hit the fixture: "/3/movie/popular hit". The tree
+      still shows 12 strings / 0 titles: the RESPONSE leg remains
+      (PaginatedResponse<Movie> generic decode in the completion →
+      dispatch(SetMovieMenuList) → moviesReducer merge →
+      props.movies[menu] rows). ALSO note a TARGET-COLLISION question:
+      the merged program renders the TV HomeView (TabView) whose rows
+      are POSTERS, not title text — a compiler never merges
+      MovieSwiftTV with the iOS target; consider per-target merge
+      policy for multi-target repos (or assert titles from whichever
+      home renders natively).
    2b. OPTIMISTIC `as?` FALSE-POSITIVE on interpreted instances
       (correctness, reducer genre): `action as? DidFetch` matched a
       FetchList — reducers mutate state on WRONG action types (junk

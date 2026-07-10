@@ -8,9 +8,14 @@ import SwiftInterpreter
         struct AppState: FluxState {
             var fetched: [String] = []
         }
-        enum Menu: String, CaseIterable {
+        enum Menu: Int, CaseIterable {
             case alpha, beta
-            func title() -> String { rawValue }
+            func title() -> String {
+                switch self {
+                case .alpha: return "alpha"
+                case .beta: return "beta"
+                }
+            }
         }
         struct Home: ConnectedView {
             struct Props {
@@ -26,11 +31,33 @@ import SwiftInterpreter
                         store.dispatch(action: Actions.FetchList(list: menu, page: 1))
                     }
             }
+            struct TVHome: View {
+                @State private var selectedTab = Menu.alpha
+                var body: some View {
+                    TabView(selection: $selectedTab) {
+                        ForEach(Menu.allCases, id: \\.self) { menu in
+                            BoundRow(menu: self.$selectedTab)
+                                .tag(menu)
+                        }
+                    }
+                }
+            }
+            struct BoundRow: View {
+                @EnvironmentObject var store: Store<AppState>
+                @Binding var menu: Menu
+                var body: some View {
+                    Text("bound " + menu.title())
+                        .onAppear {
+                            store.dispatch(action: Actions.FetchList(list: self.menu, page: 99))
+                        }
+                }
+            }
             func body(props: Props) -> some View {
                 VStack {
                     Text("direct").onAppear {
                         store.dispatch(action: Actions.FetchList(list: .alpha, page: 1))
                     }
+                    TVHome()
                     List {
                         ForEach(Menu.allCases, id: \\.self) { menu in
                             Group {
@@ -77,7 +104,7 @@ import SwiftInterpreter
         let deps = "/Users/mike/src/tries/2026-07-08-swiftui-dynamic/External/deps"
         let flux = ProjectMaterial.mergedSource(at: deps + "/SwiftUIFlux/Sources")
         let strings = try LiveCheckSupport.renderedStrings(source: flux + "\n" + source)
-        #expect(strings.contains { $0.contains("fired:alpha") },
+        #expect(strings.contains { $0.contains("/p99") },
                 "ForEach element lost in lifecycle closure: \(strings)")
     }
 }
