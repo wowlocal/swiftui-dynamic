@@ -2909,6 +2909,30 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// isowords de-quarantined (iteration 184): Point-Free's `>=>`
+    /// Kleisli composition — headlessly the monadic layer absorbs, so it
+    /// composes like `>>>`.
+    @Test func kleisliCompositionComposes() throws {
+        let source = """
+        func parse(_ raw: String) -> Int? { Int(raw) }
+        func validate(_ n: Int?) -> String { (n ?? 0) > 0 ? "valid" : "invalid" }
+
+        struct ContentView: View {
+            var body: some View {
+                let pipeline = parse >=> validate
+                let checks = [
+                    pipeline("42") == "valid",
+                    pipeline("nope") == "invalid",
+                ]
+                if checks.contains(false) { fatalError("kleisli broke") }
+                return Text(pipeline("7"))
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// kiwix-apple (iteration 183): `super` in STATIC contexts — an
     /// NSManagedObject subclass's `static func fetchRequest()` delegates to
     /// `super.fetchRequest()`; the host superclass's statics absorb through

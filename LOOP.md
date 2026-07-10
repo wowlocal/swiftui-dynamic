@@ -262,18 +262,10 @@ without this.
 
 (projects excluded from the metric, with reasons — keep short)
 
-- oss:isowords — client+server monorepo; the server half (Bootstrap,
-  ApiRouter, Postgres) depends on unmerged swift-server frameworks (NIO,
-  Prelude, EitherIO). The merged-module model can't split targets; the
-  CLIENT half drove real fixes (custom operator folding, C-interop
-  absorbers, String ranges) before the server wall.
-
-- SwiftUIRealm — Realm ORM internals: `@Persisted(primaryKey:) var id:
-  ObjectId` and Object base-class storage; third-party database library,
-  not SwiftUI surface (candidate since iter 32, blocked on ObjectId since
-  iter 35).
-- RealmDataBase — Realm ORM internals: live `Results` objects and
-  `@ObservedRealmObject` backing storage.
+(empty — all three historical quarantines fell in iteration 184:
+isowords via `>=>` Kleisli composition after macros/TCA/C-interop
+machinery matured, and the Realm pair via capability that accumulated
+between iterations 35 and 183.)
 
 ## Progress log
 
@@ -1889,3 +1881,16 @@ without this.
   DuckDuckGo, Mastodon, Bitwarden, Home Assistant, WordPress, and
   NetNewsWire all interpreting at their declared roots. Suite
   360 → 361.**
+- 2026-07-10 iter 184: THE QUARANTINE EMPTIES. Re-examined all three
+  parked units against 150 iterations of accumulated capability: the
+  Realm pair (parked at iters 32-35) PASSES OUTRIGHT — @Persisted/
+  ObjectId/Results machinery absorbed by rules built long since; and
+  isowords (parked ~iter 106 for its server half) needed exactly ONE
+  class — Point-Free's `>=>` Kleisli composition (Prelude, unmerged)
+  now composes like `>>>` (the monadic layer absorbs headlessly).
+  isowords ✅ (19 nodes), SwiftUIRealm ✅, RealmDataBase ✅. The
+  quarantine map is EMPTY; the only exclusion left is MonitorControl
+  (⚪ genuinely no View structs). **669/670 counted — ZERO failures,
+  ZERO quarantines (THIRTY-SIXTH saturation). Every SwiftUI unit in
+  the corpus — 585 zips + 82 OSS repos — interprets, renders its
+  declared root, and survives its clicks. Suite 368 → 369.**

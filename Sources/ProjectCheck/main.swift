@@ -126,11 +126,7 @@ var histogram: [String: [String]] = [:]
 /// section. Last resort, never used to inflate the pass rate: these lean on
 /// third-party library INTERNALS (not SwiftUI surface) that an interpreter
 /// stub can't honestly satisfy.
-let quarantined: [String: String] = [
-    "SwiftUIRealm": "Realm ORM internals (@Persisted ObjectId primary keys, Object base-class storage)",
-    "RealmDataBase": "Realm ORM internals (Results live objects, @ObservedRealmObject backing storage)",
-    "oss:isowords": "client+server monorepo: the server half (Bootstrap/ApiRouter/Postgres) leans on unmerged swift-server frameworks (NIO, Prelude, EitherIO); the merged-module model can't split targets",
-]
+let quarantined: [String: String] = [:]
 
 for unit in units {
     if let reason = quarantined[unit.name] {

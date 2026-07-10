@@ -2252,9 +2252,11 @@ extension Interpreter {
                         .init(label: nil, value: rhs),
                     ]), node: infix)
                 }
-                if op == ">>>" || op == "<<<" {
-                    let first = op == ">>>" ? lhs : rhs
-                    let second = op == ">>>" ? rhs : lhs
+                if op == ">>>" || op == "<<<" || op == ">=>" {
+                    // `>=>` is Point-Free's Kleisli composition — headlessly
+                    // the monadic layer absorbs, so it composes like `>>>`.
+                    let first = op == "<<<" ? rhs : lhs
+                    let second = op == "<<<" ? lhs : rhs
                     let capturedNode = infix
                     return .hostFunction(HostFunction(name: op) { [weak self] args, _ in
                         guard let self else { throw RuntimeError(message: "interpreter gone") }
