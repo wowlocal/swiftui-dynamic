@@ -130,7 +130,10 @@ let scenarios: [Scenario] = [
         return failures
     },
     Scenario(name: "movieswiftui-popular-ui", fixturesDirectory: fixtures + "/tmdb-popular") {
-        guard let json = fixtureJSON(fixtures + "/tmdb-popular/3_movie_popular.json") as? [String: Any],
+        // Launch parity: the iOS home opens on NOW PLAYING
+        // (MoviesMenu.allCases.first) — expected titles come from the
+        // fixture the app actually requests at launch.
+        guard let json = fixtureJSON(fixtures + "/tmdb-popular/3_movie_now_playing.json") as? [String: Any],
               let results = json["results"] as? [[String: Any]] else {
             return ["fixture unreadable"]
         }
@@ -140,7 +143,11 @@ let scenarios: [Scenario] = [
         // upstream store/provider/connector sources join the merge (pinned
         // clone under External/deps).
         let flux = ProjectMaterial.mergedSource(at: depsRoot + "/SwiftUIFlux/Sources")
-        let source = flux + "\n" + ProjectMaterial.mergedSource(at: ossRoot + "/MovieSwiftUI")
+        // The iOS TARGET only: xcodebuild never compiles MovieSwiftTV into
+        // the iPhone app — merged sibling targets collide (@UIApplicationMain
+        // vs @main, two HomeViews) and the TV home was winning the root.
+        let source = flux + "\n" + ProjectMaterial.mergedSource(
+            at: ossRoot + "/MovieSwiftUI", excludingTargets: ["MovieSwiftTV"])
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let joined = strings.joined(separator: "\n")
         let found = expectedTitles.filter { joined.contains($0) }

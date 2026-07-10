@@ -213,21 +213,24 @@ Each iteration does exactly this:
       NESTED types over globals — Instance.statuses: Statuses is the
       config struct, not the endpoint enum; api_v2_instance fixture
       recorded, /api/v2/instance hits.)
-   2. MOVIESWIFTUI: RESPONSE INTO THE TREE (M2): the FETCH CHAIN is
-      COMPLETE — member-form dollar projections resolve
-      (`self.$selectedTab` passed to a child @Binding read as a raw
-      "(function $selectedTab)"; instanceProjection now serves bare AND
-      member forms — ForEachCaptureProbe pins the TV-home genre), and
-      all 6 GETs hit the fixture: "/3/movie/popular hit". The tree
-      still shows 12 strings / 0 titles: the RESPONSE leg remains
-      (PaginatedResponse<Movie> generic decode in the completion →
-      dispatch(SetMovieMenuList) → moviesReducer merge →
-      props.movies[menu] rows). ALSO note a TARGET-COLLISION question:
-      the merged program renders the TV HomeView (TabView) whose rows
-      are POSTERS, not title text — a compiler never merges
-      MovieSwiftTV with the iOS target; consider per-target merge
-      policy for multi-target repos (or assert titles from whichever
-      home renders natively).
+   2. MOVIESWIFTUI: GENERIC-STRUCT DECODE (M2): the iOS TARGET now
+      renders (per-target merge — mergedSource(at:excludingTargets:)
+      keeps MovieSwiftTV out, exactly like xcodebuild; root
+      scene:HomeView, 208 strings, 36 closures), the launch fetch hits
+      the recorded now_playing fixture, user-declared operator
+      functions dispatch (`func +=(lhs: inout [Int: Movie], rhs:
+      [Movie])` — UserOperatorTests), and closure-argument annotations
+      unify generics (`completionHandler: (Result<T, APIError>) ->
+      Void` against `(result: Result<PaginatedResponse<Movie>, …>)`).
+      REMAINING WALL: `decode(T.self)` with T = PaginatedResponse<Movie>
+      — typeDescriptor has no carrier for a GENERIC-APPLIED type, and
+      structural decode of a generic struct needs a SUBSTITUTION MAP
+      (`PaginatedResponse<T: Codable> { results: [T] }` must decode
+      `results` with T := Movie). Design: a generic-application type
+      value (symbol + substitutions, e.g. .native(GenericApplication))
+      that decodeInstance threads into decodeField's owner-scoped
+      lookup. Trace: "JSON Decoding Error: decode: unsupported type
+      value (function T)" ×4. Expect: titles land → LiveCheck 4/4.
    2b. OPTIMISTIC `as?` FALSE-POSITIVE on interpreted instances
       (correctness, reducer genre): `action as? DidFetch` matched a
       FetchList — reducers mutate state on WRONG action types (junk
