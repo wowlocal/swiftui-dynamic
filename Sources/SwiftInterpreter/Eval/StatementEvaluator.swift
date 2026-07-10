@@ -631,9 +631,8 @@ extension Interpreter {
         case .void:
             break
         case .nilValue:
-            // A nil in builder position renders NOTHING in every legal
-            // native spelling (skipped if-let branch, optional chaining) —
-            // never a crash (TodayMysteryIslandsSection's nil randomElement).
+            // Optional views render nothing when nil — ViewBuilder's
+            // buildExpression(Optional) (`randomIsland.map { … }`).
             break
         case .instance(let instance) where instance.symbol.rendersLikeView:
             if let registry {

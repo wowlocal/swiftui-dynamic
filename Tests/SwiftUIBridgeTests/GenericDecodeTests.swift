@@ -806,3 +806,62 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(tuple.values[3].intValue == 200)
     }
 }
+
+/// The ACHNBrowser boot chain (iteration 206): item-gated sheet content,
+/// pre-@Entry EnvironmentKey defaults, optional views in builders, and the
+/// synthesized-allCases collision with an argful static overload.
+@Suite struct ACHNBootChainTests {
+    @Test func itemSheetGatesAndEnvironmentKeyDefaults() throws {
+        let source = """
+        struct CurrentDateKey: EnvironmentKey {
+            static let defaultValue = Date()
+        }
+
+        extension EnvironmentValues {
+            var currentDate: Date {
+                self[CurrentDateKey.self]
+            }
+        }
+
+        enum Route: Identifiable {
+            case detail(name: String)
+
+            var id: String { "detail" }
+
+            func makeSheetView() -> some View {
+                Text("sheet content")
+            }
+        }
+
+        enum Sort: String, CaseIterable {
+            case name, buy
+
+            static func allCases(for category: String) -> [Sort] {
+                allCases.filter { $0 != .buy || category == "shop" }
+            }
+        }
+
+        struct ContentView: View {
+            @Environment(\\.currentDate) private var currentDate
+            @State private var route: Route?
+            let maybeExtra: String? = nil
+
+            var body: some View {
+                VStack {
+                    Text("hour \\(Calendar.current.component(.hour, from: currentDate))")
+                    Text("sorts \\(Sort.allCases(for: "museum").count)")
+                    maybeExtra.map { Text($0) }
+                }
+                .sheet(item: $route) {
+                    $0.makeSheetView()
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains { $0.hasPrefix("hour ") && !$0.contains("nil") },
+                "EnvironmentKey defaultValue must resolve, got \(strings)")
+        #expect(strings.contains("sorts 1"), "argful allCases dispatches; bare reads synthesized")
+        #expect(!strings.contains("sheet content"), "nil-item sheets stay unpresented")
+    }
+}

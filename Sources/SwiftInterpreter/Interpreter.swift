@@ -947,24 +947,6 @@ public final class Interpreter {
     /// Fill `@Environment(\.key)` properties from a key→value table (the
     /// bridge reads real values off SwiftUI's Environment; headless harnesses
     /// inject honest defaults). Unknown keys are left untouched.
-    /// `self[CurrentDateKey.self]` inside an EnvironmentValues getter — the
-    /// subscripted TYPE is the EnvironmentKey whose defaultValue serves
-    /// unset reads.
-    static func environmentKeyTypeName(in node: Syntax) -> String? {
-        if let subscriptCall = node.as(SubscriptCallExprSyntax.self),
-           subscriptCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text == "self",
-           let first = subscriptCall.arguments.first,
-           let member = first.expression.as(MemberAccessExprSyntax.self),
-           member.declName.baseName.text == "self",
-           let base = member.base?.as(DeclReferenceExprSyntax.self) {
-            return base.baseName.text
-        }
-        for child in node.children(viewMode: .sourceAccurate) {
-            if let found = environmentKeyTypeName(in: child) { return found }
-        }
-        return nil
-    }
-
     public func injectEnvironmentValues(into instance: Instance, values: [String: RuntimeValue]) {
         for property in instance.symbol.storedProperties {
             guard case .environment(let key) = property.wrapper else { continue }
@@ -984,15 +966,15 @@ public final class Interpreter {
                     box.value = (try? resolveAnnotated(value, annotation: declared.typeAnnotation)) ?? value
                     continue
                 }
-                // The CLASSIC key pattern: `extension EnvironmentValues {
-                // var currentDate: Date { get { self[CurrentDateKey.self] } }`
-                // — the getter names the EnvironmentKey type whose static
-                // defaultValue IS the unset reading.
+                // Pre-@Entry custom keys: `var currentDate: Date {
+                // self[CurrentDateKey.self] }` — the getter runs against a
+                // stub whose subscript answers the key's static
+                // defaultValue.
                 if let envExtension = hostExtensionSymbols["EnvironmentValues"],
                    let computed = envExtension.computedProperties[key],
-                   let keyTypeName = Self.environmentKeyTypeName(in: Syntax(computed.accessor)),
-                   case .type(let keySymbol)? = globals.lookup(keyTypeName),
-                   let value = (try? staticMember("defaultValue", of: keySymbol)) ?? nil {
+                   let value = try? evaluateComputed(
+                       computed, selfValue: .native(EnvironmentValuesStub()), name: key),
+                   !value.isNil {
                     box.value = value
                     continue
                 }

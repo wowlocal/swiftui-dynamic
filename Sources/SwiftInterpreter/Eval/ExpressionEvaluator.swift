@@ -284,6 +284,8 @@ extension Interpreter {
             // Type arguments are annotations we don't check —
             // `Binding<Int?>(get:set:)` evaluates as `Binding(get:set:)`.
             return try evaluate(expr.cast(GenericSpecializationExprSyntax.self).expression, in: env)
+        case .discardAssignmentExpr:
+            return .void // `_` in expression position — a write-only slot
         case .sequenceExpr:
             throw error(expr, "internal error: unfolded operator sequence")
         default:
@@ -937,7 +939,16 @@ extension Interpreter {
                 }
                 return .enumCase(EnumCaseValue(symbol: symbol, name: name))
             }
-            if name == "allCases" {
+            if name == "allCases",
+               symbol.staticComputedProperties["allCases"] == nil,
+               symbol.staticMethods["allCases"]?.contains(where: { method in
+                   !method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
+               }) != true {
+                // SYNTHESIZED CaseIterable for BARE references — an argful
+                // `static func allCases(for:)` overload dispatches at CALL
+                // sites (below), while its body's bare `allCases` still
+                // reads the synthesized array (the property/method
+                // collision rule, static flavor).
                 let all = symbol.cases.filter { !$0.hasAssociatedValues }.map {
                     RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name))
                 }
@@ -1169,6 +1180,14 @@ extension Interpreter {
                 if let member = try instanceMember(name, on: projection.model) {
                     return member
                 }
+                if assumesCompiledImports {
+                    // @dynamicMemberLookup projections (TCA's `$store.filter`
+                    // rides Store's dynamic member into State) — the
+                    // un-modeled lookup absorbs to a fresh binding.
+                    return .native(BindingStub(box: Box(.native(ChainedImplicitCall(
+                        base: .instance(projection.model), member: name,
+                        arguments: CallArguments())))))
+                }
                 throw error(node, "'$\(projection.model.symbol.name)' has no stored property '\(name)'")
             }
             if let tuple = any as? TupleValue, let value = tuple.value(for: name) {
@@ -1344,11 +1363,24 @@ extension Interpreter {
             return try evaluateComputed(computed, selfValue: .enumType(symbol), name: name)
         }
         if let overloads = symbol.staticMethods[name], let first = overloads.first {
-            let method = overloads.count > 1
-                ? (overloads.first { !activeFunctionBodies.contains($0.id) } ?? first)
-                : first
+            // A bare reference from INSIDE the running argful method reads
+            // past it — `static func allCases(for:)` whose body says
+            // `allCases.filter` means the SYNTHESIZED CaseIterable array.
+            let method = overloads.first { !activeFunctionBodies.contains($0.id) } ?? first
+            if activeFunctionBodies.contains(method.id), name == "allCases" {
+                let all = symbol.cases.filter { !$0.hasAssociatedValues }.map {
+                    RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name))
+                }
+                return .native(all)
+            }
             guard let body = method.body else { return nil }
             return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.enumType(symbol))))
+        }
+        if name == "allCases", symbol.conformances.contains("CaseIterable") {
+            let all = symbol.cases.filter { !$0.hasAssociatedValues }.map {
+                RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name))
+            }
+            return .native(all)
         }
         return nil
     }
@@ -1519,7 +1551,12 @@ extension Interpreter {
                 }
             }
             if case .enumType(let symbol) = baseValue,
-               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+               let overloads = symbol.staticMethods[name], !overloads.isEmpty,
+               !call.arguments.isEmpty || call.trailingClosure != nil
+                   || symbol.staticComputedProperties[name] == nil {
+                // Static-method CALLS dispatch even for single overloads —
+                // `Sort.allCases(for:)` must not invoke the synthesized
+                // CaseIterable ARRAY (the collision rule at call sites).
                 let args = try collectArguments(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if available.isEmpty {
@@ -1981,6 +2018,17 @@ extension Interpreter {
         switch callee {
         case .nilValue:
             return .nilValue // optional chaining through a nil method
+        case .instance(let instance) where instance.symbol.methods["callAsFunction"] != nil:
+            // SwiftUI action values (`openWindow(id:)`, OpenCocoaWindowAction)
+            // — instances invoke through callAsFunction.
+            if let overloads = instance.symbol.methods["callAsFunction"],
+               let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
+               let body = method.body {
+                let closure = makeFunctionClosure(
+                    method, body: body, captured: selfEnvironment(.instance(instance)))
+                return try callWithArguments(closure, args: args, node: Syntax(node))
+            }
+            return .void
         case .type(let symbol):
             // A `Layout` conformer called with a content closure is the
             // callAsFunction sugar (`_Layout(width:…) { views }`): headless
@@ -2953,6 +3001,12 @@ extension Interpreter {
                 }
                 if let computed = instance.symbol.computedProperties[name] {
                     guard let setter = computed.setter else {
+                        if interpreter.assumesCompiledImports {
+                            // A get-only assignment can't compile natively —
+                            // the setter lives somewhere the merge didn't
+                            // capture: the write drops (artifact doctrine).
+                            return
+                        }
                         throw EvalMessage(text: "cannot assign to get-only property '\(name)'")
                     }
                     let env = interpreter.selfEnvironment(.instance(instance))
@@ -3440,6 +3494,14 @@ extension Interpreter {
             throw error(call, "missing subscript index")
         }
         let index = try evaluate(indexExpr, in: env)
+        // EnvironmentValues getters: `self[Key.self]` reads the key type's
+        // static defaultValue (pre-@Entry EnvironmentKey conformances).
+        if case .host(let any) = base, any is EnvironmentValuesStub {
+            if case .type(let keySymbol) = index {
+                return try staticMember("defaultValue", of: keySymbol) ?? .nilValue
+            }
+            return .nilValue
+        }
         if call.arguments.first?.label?.text == "keyPath" {
             // `element[keyPath: kp]` — apply the stub's components.
             if case .host(let any) = index, let stub = any as? KeyPathStub {
@@ -3593,6 +3655,9 @@ extension Interpreter {
             // everything except `isEmpty` chains, which read TRUE (the
             // fresh store's collection is empty, agreeing with for-in).
             if let fresh = Builtins.unknowableBool(value) { return fresh }
+            // A VOID Bool can't compile natively — an absorbed-environment
+            // artifact reading fresh false.
+            if case .void = value { return false }
             // Nil from optional chains through stubs reads false too.
             if value.isNil { return false }
             throw error(node, "expected a Bool, got \(value.stringified)")

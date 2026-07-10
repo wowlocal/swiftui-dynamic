@@ -2295,3 +2295,24 @@ between iterations 35 and 183.)
   nextcloud's resolvedWindow cycle). A fifth LiveCheck scenario
   arrived via the steward (4/5). **TestCheck 81/51/11 (errored 12 →
   11); ProjectCheck 679/680; suite 442 → 443; LiveCheck 4/5.**
+- 2026-07-10 iter 206: the fifth LiveCheck scenario (achnbrowser,
+  steward-added) unblocked from scene-death to a booted app (root
+  scene:ACHelperApp, 154 strings, 9 closures; 1/20 items — the
+  bundled-JSON load is the next wall). The chain: sheet(item:) content
+  GATES on the binding's value (nil = unpresented; the item binds $0;
+  unbindable shapes like TCA's scoped-store sheets stay unpresented —
+  EhPanda EXPLODED 146 → 483 nodes when presented content started
+  rendering), pre-@Entry EnvironmentKey defaults resolve (getters run
+  against a stub whose `self[Key.self]` answers static defaultValue),
+  optional views render nothing in builders (nil skips — ViewBuilder's
+  Optional support), the synthesized-allCases/argful-overload collision
+  resolves at all three sites (bare-in-body reads the synthesized
+  array; calls dispatch the method), `_` evaluates as a write-only
+  slot, VOID Bools read fresh false, instances with callAsFunction
+  invoke, designed preconditionFailures in clicked actions record-and-
+  continue (the crash-test doctrine), get-only assignments drop in
+  compiled mode (setters the merge missed), @dynamicMemberLookup
+  projections absorb to fresh bindings (TCA's $store.filter), and
+  Date(timeInterval:since:) constructs real. **679/680; suite 448
+  green (steward merge + ACHNBootChainTests); TestCheck 81/51/11;
+  LiveCheck 4/5 — achnbrowser's bundle-loading gap is queue #1.**

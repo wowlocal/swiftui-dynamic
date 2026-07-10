@@ -361,22 +361,27 @@ public final class TraceRegistry: HostRegistry {
                 node.lifecycle.append(closure)
             }
             if Self.builderModifiers.contains(name) {
-                // `sheet(item:content:)` genre: the content closure receives
-                // the UNWRAPPED item, and a NIL item means the sheet isn't
-                // presented — native never runs the closure (ACHNBrowserUI's
-                // `$0.makeSheetView()` over a nil route at launch).
-                var itemValue = args.labeled("item")
-                if case .host(let any)? = itemValue, let stub = any as? BindingStub {
-                    itemValue = stub.box.value
+                // `sheet(item: $route) { $0.makeSheetView() }` — the content
+                // BINDS the item: it evaluates only when the binding holds a
+                // value, receiving it (nil = not presented, like device).
+                let itemValue: RuntimeValue? = args.labeled("item").map { item in
+                    if case .host(let any) = item, let stub = any as? BindingStub {
+                        return stub.box.value
+                    }
+                    return item
                 }
-                let content = args.labeled("item") != nil
-                    ? (args.closure(labeled: "content") ?? args.lastUnlabeledClosure)
-                    : nil
                 for argument in args.arguments {
                     guard let closure = argument.value.closureValue else { continue }
-                    if let content, closure === content {
-                        guard let item = itemValue, !item.isNil else { continue }
-                        node.children += try ctx.callBuilderClosure(closure, arguments: [item]).map(Self.node)
+                    if let item = itemValue {
+                        guard !item.isNil else { continue }
+                        do {
+                            node.children += try ctx.callBuilderClosure(closure, arguments: [item]).map(Self.node)
+                        } catch let unbindable as RuntimeError where !unbindable.fatal {
+                            // Content shapes the plain item can't satisfy
+                            // (TCA's scoped-store sheets) stay unpresented —
+                            // the pre-gating behavior for parameterized
+                            // closures.
+                        }
                     } else if closure.parameters.isEmpty {
                         node.children += try ctx.callBuilderClosure(closure, arguments: []).map(Self.node)
                     }

@@ -154,6 +154,12 @@ extension RuntimeValue {
     }
 }
 
+/// `self` inside an EnvironmentValues computed getter: `self[Key.self]`
+/// answers the key type's static defaultValue (the pre-@Entry pattern).
+public final class EnvironmentValuesStub {
+    public init() {}
+}
+
 /// A generic TYPE APPLICATION carried textually (`PaginatedResponse<Movie>`)
 /// — the decode bridge re-parses it to bind the struct's own generics.
 public struct GenericApplication {

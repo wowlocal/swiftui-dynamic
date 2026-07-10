@@ -90,7 +90,8 @@ public enum HeadlessVerifier {
                 do {
                     _ = try interpreter.callClosure(current[position], arguments: [])
                 } catch let designed as RuntimeError
-                    where designed.message.hasPrefix("fatalError:") {
+                    where designed.message.hasPrefix("fatalError:")
+                        || designed.message.hasPrefix("preconditionFailure:") {
                     // An EXPLICIT fatalError in a clicked action is the
                     // app's designed termination (nextcloud's DEBUG "Crash
                     // test" button) — on device the tester relaunches; the
