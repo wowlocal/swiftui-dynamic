@@ -222,6 +222,18 @@ public enum LiveCheckSupport {
         var environment = environment
         environment.merge(node.environmentModels) { _, injected in injected }
         if let instance = node.instance {
+            if traceLifecycle, ["TimelineView", "TimelineListView", "StatusesListView"].contains(instance.symbol.name) {
+                let vm = instance.box(for: "viewModel")?.value ?? instance.box(for: "fetcher")?.value ?? .void
+                var vmID = "-"
+                if case .instance(let model) = vm {
+                    vmID = String(UInt(bitPattern: ObjectIdentifier(model).hashValue) % 100000)
+                    if let state = model.box(for: "statusesState")?.value {
+                        vmID += " state=" + String(state.stringified.prefix(40))
+                    }
+                }
+                else { vmID = String(vm.stringified.prefix(30)) }
+                print("   ⊙ \(instance.symbol.name) vm=\(vmID)")
+            }
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
             interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))

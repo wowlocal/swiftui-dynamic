@@ -177,3 +177,116 @@ import SwiftInterpreter
         }
     }
 }
+
+/// The @State BACKING-store init spelling (IceCubes' StatusesListView):
+/// `_fetcher = .init(initialValue: fetcher)` seeds the state box with the
+/// PASSED value — a generic-annotated property must not decay to a marker
+/// (the switch over its members would take the first case forever).
+@Suite struct StateBackingInitTests {
+    @Test func underscoreInitSeedsGenericStateBox() throws {
+        let source = """
+        protocol Fetching {
+            var state: String { get }
+        }
+
+        @Observable
+        final class TimelineVM: Fetching {
+            var state = "loaded"
+        }
+
+        struct ListView<F: Fetching>: View {
+            @State private var fetcher: F
+
+            init(fetcher: F) {
+                _fetcher = .init(initialValue: fetcher)
+            }
+
+            var body: some View {
+                Text(fetcher.state)
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                ListView(fetcher: TimelineVM())
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("loaded"), "the seeded VM must reach the body, got \(strings)")
+    }
+}
+
+/// ForEach element-identity SALTING (iteration 194): sibling rows
+/// constructed at the same call site keep DISTINCT per-view state — the
+/// cell key carries the element identity (id/scalar/index), so row N's
+/// @State seed doesn't clobber row N+1's (the IceCubes StatusRowView
+/// shape). AttributedString's labeled ctors wrap/convert for real, and
+/// one-argument `insert` on Set-typed storage appends-if-absent.
+@Suite struct RowIdentityAndSetInsertTests {
+    @Test func forEachRowsKeepDistinctState() throws {
+        let source = """
+        struct Item: Identifiable {
+            let id: String
+            let title: String
+        }
+
+        struct RowView: View {
+            @State private var label: String
+
+            init(item: Item) {
+                _label = .init(initialValue: item.title)
+            }
+
+            var body: some View {
+                Text(label)
+            }
+        }
+
+        struct ContentView: View {
+            let items = [
+                Item(id: "a", title: "alpha"),
+                Item(id: "b", title: "beta"),
+                Item(id: "c", title: "gamma"),
+            ]
+
+            var body: some View {
+                ForEach(items) { item in
+                    RowView(item: item)
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("alpha") && strings.contains("beta") && strings.contains("gamma"),
+                "each row must keep its own @State seed, got \(strings)")
+    }
+
+    @Test func attributedStringLabeledConstructorsAndSetInsert() throws {
+        let source = """
+        final class Registry {
+            static var observed: Set<String> = []
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let _ = Registry.observed.insert("scene-1")
+                let _ = Registry.observed.insert("scene-1")
+                let _ = Registry.observed.insert("scene-2")
+                let literal = AttributedString(stringLiteral: "Sun Dog")
+                let markdown = AttributedString(markdown: "plain **bold** text")
+                return VStack {
+                    Text(literal)
+                    Text(markdown)
+                    Text("count \\(Registry.observed.count)")
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("Sun Dog"), "stringLiteral ctor must carry the text, got \(strings)")
+        #expect(strings.contains { $0.contains("plain") && $0.contains("bold") },
+                "markdown ctor must convert to readable text, got \(strings)")
+        #expect(strings.contains("count 2"), "set insert must dedupe, got \(strings)")
+    }
+}

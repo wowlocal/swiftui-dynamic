@@ -198,19 +198,21 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. ICECUBES AUTHOR CONTENT IN ROWS (M2): decode is CLOSED (iter
-      193) — [Status] decodes through custom init(from:) stubs, rows
-      RENDER (101 → 939 strings, placeholders + action chrome), but 0
-      fixture authors appear: author text flows through EmojiTextApp
-      over HTMLString whose SwiftSoup parsing ABSORBED (asMarkdown/
-      asRawText are chains reading ""). Candidate fix: HTMLString's
-      init falls back to htmlValue for asRawText/asMarkdown when
-      parsing absorbs (or a minimal tag-strip in the bridge), so
-      cachedDisplayName/note render real text. Also probe which
-      TimelineView instance fetched (placeholders rendered TWICE — a
-      sibling tab may stay .loading; find whether the fetched tab's
-      rows carry the authors). Diagnose with LIVECHECK_TRACE=1 (now
-      dumps the first 40 strings) + INTERP_TRACE_CALLS.
+   1. ICECUBES STATE WRITE INSIDE withAnimation CLOSURE (M2, language
+      class, precisely scoped iter 194): the timeline VM is IDENTITY-
+      STABLE across probe passes (⊙ trace: same vm both passes) and the
+      fetch chain completes — but `withAnimation { statusesState =
+      .displayWithGaps(items:…) }` NEVER reaches the write funnel (✍
+      trace shows only fetchFirstPage's plain-body `.loading` write;
+      updateStatusesStateWithAnimation ⟶ runs; no task death remains;
+      TraceRegistry's withAnimation DOES call the closure). So a bare
+      property assignment inside a closure passed to a registry
+      hostFunction either resolves into a non-instance box or its RHS
+      throws pre-write and is absorbed en route. Diagnose with
+      INTERP_TRACE_STATE=1 (✍ write trace + ⌘ cell trace) —
+      reproduce: @Observable VM method calling withAnimation { prop =
+      .someCase(payload:) }, called through Task→didSet like
+      TimelineViewModel.timeline's observer.
       (State identity note: per-identity @State persistence is OPT-IN
       via `Interpreter.persistentViewState` — LiveCheck sets it; M0
       probes keep fresh-per-instantiation state, see README divergence.
@@ -2049,3 +2051,21 @@ between iterations 35 and 183.)
   next wall named (EmojiText/HTMLString author content). **679/680
   unchanged; suite 395 → 397; LiveCheck 2/4 with the decode class
   ELIMINATED.**
+- 2026-07-10 iter 194: LiveCheck queue #1 (icecubes author content) —
+  four walls unwound, one precisely named: AttributedString's LABELED
+  ctors carry text (`stringLiteral:` wrapped, `markdown:` converts for
+  real — was always ""); ForEach rows SALT per-view state cells by
+  element identity (id/scalar/index — closes the documented
+  "ForEach rows share a site" divergence; placeholder rows held ONE
+  shared StatusRowViewModel), threaded through the trace ForEach AND
+  the generic recorder's data expansion; property-wrapper BACKING
+  writes (`_label = .init(initialValue:)`) unwrap the seed BEFORE
+  annotation resolution (a concrete String annotation ate the marker
+  through its own ctor); one-arg `insert` on Set-typed storage is
+  Set.insert (append-if-absent + (inserted, memberAfterInsert)) — a
+  swallowed SceneDelegate task died on Array.insert(at:) semantics.
+  Diagnostics grew: INTERP_TRACE_STATE (⌘ cell hits + ✍ property
+  writes), ⊙ VM-identity probe, ⚠ swallowed-task deaths. The rung
+  stays 🟡 on ONE scoped wall: the withAnimation-closure state write
+  (queue #1, repro recipe included). **679/680 unchanged; suite
+  397 → 405; LiveCheck 2/4.**

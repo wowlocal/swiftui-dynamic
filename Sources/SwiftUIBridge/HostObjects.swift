@@ -229,7 +229,20 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         }
     case "AttributedString":
         return HostFunction(name: name) { args, _ in
-            .native(AttributedStringBox(AttributedString(args.positional(0)?.stringValue ?? "")))
+            // `AttributedString(markdown: text)` converts for real (author
+            // names and status bodies flow through this in the EmojiText
+            // genre); `stringLiteral:`/positional wrap plainly.
+            if let markdown = args.labeled("markdown")?.stringValue {
+                let options = AttributedString.MarkdownParsingOptions(
+                    allowsExtendedAttributes: true,
+                    interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                let attributed = (try? AttributedString(markdown: markdown, options: options))
+                    ?? AttributedString(markdown)
+                return .native(AttributedStringBox(attributed))
+            }
+            let text = args.positional(0)?.stringValue
+                ?? args.labeled("stringLiteral")?.stringValue ?? ""
+            return .native(AttributedStringBox(AttributedString(text)))
         }
     case "Binding":
         // `Binding(get:set:)` — a computed binding. The box snapshots get()

@@ -1677,6 +1677,18 @@ extension Interpreter {
                     throw error(call, "append needs a value")
                 }
             case "insert":
+                // SET-typed storage synthesizes as an array: one-argument
+                // `insert(member)` (no at:) is Set.insert — append when
+                // absent, answering (inserted, memberAfterInsert).
+                if args.labeled("at") == nil, let member = args.positional(0) {
+                    let value = try resolved(member)
+                    let present = try array.contains { try Builtins.areEqual($0, value) }
+                    if !present { array.append(value) }
+                    try relocating(call) { try target.write(.native(array), self) }
+                    return .native(TupleValue(
+                        labels: ["inserted", "memberAfterInsert"],
+                        values: [.bool(!present), value]))
+                }
                 guard let value = args.positional(0), let index = args.labeled("at")?.intValue,
                       index >= 0, index <= array.count else {
                     throw error(call, "insert needs a value and a valid at: index")
@@ -2480,6 +2492,9 @@ extension Interpreter {
             case .box(let box):
                 box.value = value
             case .instanceProperty(let instance, let name):
+                if Interpreter.traceStateCells, name == "statusesState" {
+                    Swift.print("   ✍ \(instance.symbol.name)(\(UInt(bitPattern: ObjectIdentifier(instance).hashValue) % 100000)).\(name) = \(value.stringified.prefix(50))")
+                }
                 // Assigning a $binding into an @Binding property shares the
                 // parent's box instead of copying the stub (custom inits).
                 if case .host(let any) = value, let stub = any as? BindingStub,
@@ -2491,8 +2506,23 @@ extension Interpreter {
                     // Plain assignment adopts the property's annotation
                     // (`self.amount = .random(in:)`, `self.date = .now`).
                     let property = instance.symbol.storedProperty(named: name)
+                    // `_fetcher = .init(initialValue: vm)` — the property-
+                    // wrapper BACKING spelling: the box takes the WRAPPED
+                    // seed, not the `.init` marker (unwrapped BEFORE the
+                    // annotation resolves, or a concrete annotation would
+                    // eat the marker through its own constructor).
+                    var incoming = value
+                    if let property,
+                       [.state, .stateObject, .observedObject, .binding].contains(property.wrapper),
+                       case .host(let any) = incoming,
+                       let call = any as? ImplicitMemberCall, call.name == "init",
+                       let seed = call.arguments.labeled("initialValue")
+                           ?? call.arguments.labeled("wrappedValue")
+                           ?? call.arguments.labeled("projectedValue") {
+                        incoming = seed
+                    }
                     let resolved = try interpreter.resolveAnnotated(
-                        value, annotation: property?.typeAnnotation
+                        incoming, annotation: property?.typeAnnotation
                     )
                     let observerKey = Interpreter.ObserverKey(
                         instance: ObjectIdentifier(instance), property: name)

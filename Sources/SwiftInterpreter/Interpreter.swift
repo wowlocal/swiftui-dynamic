@@ -149,8 +149,21 @@ public final class Interpreter {
         let site: SyntaxIdentifier
         let type: String
         let property: String
+        /// ForEach element identity — sibling rows constructed at the SAME
+        /// call site get distinct state (compiled SwiftUI's per-ID storage).
+        let salt: String
     }
     var viewStateCells: [ViewStateKey: Box] = [:]
+    var viewIdentitySalts: [String] = []
+
+    /// Bracket a builder-row evaluation with the element's identity, so
+    /// per-view state cells key by (site, element) instead of site alone.
+    public func withViewIdentitySalt<T>(_ salt: String, _ body: () throws -> T) rethrows -> T {
+        viewIdentitySalts.append(salt)
+        defer { viewIdentitySalts.removeLast() }
+        return try body()
+    }
+    static let traceStateCells = ProcessInfo.processInfo.environment["INTERP_TRACE_STATE"] != nil
 
     /// Persistence is the LIVE-probe contract (LiveCheck's multi-pass render
     /// needs .onAppear writes visible to the fetch pass) — opt-in. M0 render
@@ -515,7 +528,12 @@ public final class Interpreter {
             switch property.wrapper {
             case .state, .stateObject:
                 if persistentViewState, symbol.conformsToView, let site = node?.id {
-                    let key = ViewStateKey(site: site, type: symbol.name, property: property.name)
+                    let key = ViewStateKey(
+                        site: site, type: symbol.name, property: property.name,
+                        salt: viewIdentitySalts.joined(separator: "/"))
+                    if Self.traceStateCells, property.name == "viewModel" || property.name == "fetcher" {
+                        Swift.print("   ⌘ \(symbol.name).\(property.name) idx=\(site.indexInTree) salt=[\(key.salt)] \(viewStateCells[key] != nil ? "HIT" : "miss") src=\(node?.description.replacingOccurrences(of: "\n", with: " ").prefix(70) ?? "")")
+                    }
                     if let existing = viewStateCells[key] {
                         instance.stateBoxes[property.name] = existing
                     } else {
@@ -523,6 +541,9 @@ public final class Interpreter {
                         instance.stateBoxes[property.name] = box
                     }
                 } else {
+                    if Self.traceStateCells, property.name == "viewModel" || property.name == "fetcher" {
+                        Swift.print("   ⌘ \(symbol.name).\(property.name) NO-SITE persistent=\(persistentViewState) view=\(symbol.conformsToView)")
+                    }
                     instance.stateBoxes[property.name] = box
                 }
             default:

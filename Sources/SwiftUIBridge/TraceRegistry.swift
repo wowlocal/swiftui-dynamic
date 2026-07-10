@@ -77,6 +77,18 @@ public final class TraceRegistry: HostRegistry {
         FileManagerBox.blobStore[path] = value
     }
 
+    /// The element's identity for state salting: an Identifiable `id`
+    /// when present, the scalar itself, else the position.
+    static func identitySalt(of element: RuntimeValue, index: Int) -> String {
+        if case .instance(let instance) = element,
+           let id = instance.box(for: "id")?.value {
+            return id.stringValue ?? id.stringified
+        }
+        if let text = element.stringValue { return text }
+        if let number = element.intValue { return String(number) }
+        return String(index)
+    }
+
     public func constructor(named name: String) -> HostFunction? {
         if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
         switch name {
@@ -237,8 +249,17 @@ public final class TraceRegistry: HostRegistry {
                 } else {
                     elements = try Self.elements(of: data)
                 }
-                for element in elements {
-                    node.children += try ctx.callBuilderClosure(content, arguments: [element]).map(Self.node)
+                for (index, element) in elements.enumerated() {
+                    let salt = Self.identitySalt(of: element, index: index)
+                    let rows: [RuntimeValue]
+                    if let interpreter = ctx as? Interpreter {
+                        rows = try interpreter.withViewIdentitySalt(salt) {
+                            try ctx.callBuilderClosure(content, arguments: [element])
+                        }
+                    } else {
+                        rows = try ctx.callBuilderClosure(content, arguments: [element])
+                    }
+                    node.children += try rows.map(Self.node)
                 }
                 return .native(node)
             }
@@ -261,8 +282,17 @@ public final class TraceRegistry: HostRegistry {
                             continue
                         }
                         if let data, let elements = try? Self.elements(of: data) {
-                            for element in elements {
-                                node.children += try ctx.callBuilderClosure(closure, arguments: [element]).map(Self.node)
+                            for (index, element) in elements.enumerated() {
+                                let salt = Self.identitySalt(of: element, index: index)
+                                let rows: [RuntimeValue]
+                                if let interpreter = ctx as? Interpreter {
+                                    rows = try interpreter.withViewIdentitySalt(salt) {
+                                        try ctx.callBuilderClosure(closure, arguments: [element])
+                                    }
+                                } else {
+                                    rows = try ctx.callBuilderClosure(closure, arguments: [element])
+                                }
+                                node.children += try rows.map(Self.node)
                             }
                         } else if closure.parameters.isEmpty {
                             do {

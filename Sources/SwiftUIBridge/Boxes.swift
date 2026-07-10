@@ -3,8 +3,12 @@ import SwiftUI
 /// AttributedString styling — `var s = AttributedString("…"); if let range =
 /// s.range(of: "x") { s[range].foregroundColor = .white }` — backed by the
 /// real Foundation type; `Text(s)` renders the styled result.
-final class AttributedStringBox {
+final class AttributedStringBox: CustomStringConvertible {
     var attributed: AttributedString
+
+    /// The plain characters — trace-arg recording and interpolation read
+    /// the text, never the type name.
+    var description: String { String(attributed.characters) }
 
     init(_ attributed: AttributedString) {
         self.attributed = attributed
