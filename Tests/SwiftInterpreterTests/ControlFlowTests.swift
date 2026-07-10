@@ -107,11 +107,14 @@ private func eval(_ source: String) throws -> RuntimeValue {
     }
 
     @Test func runawayRecursionIsAFatalLocatedError() throws {
+        // WHICH guard trips (call-depth counter vs native stack probe)
+        // depends on per-frame stack cost; the INVARIANT is a fatal,
+        // located stop either way.
         do {
             _ = try eval("func f() -> Int { return f() }\nf()")
             Issue.record("expected the depth guard to trip")
         } catch let e as RuntimeError {
-            #expect(e.message.contains("call depth"))
+            #expect(e.message.contains("call depth") || e.message.contains("nesting exceeded"))
             #expect(e.fatal)
         }
         // Self-recursive computed properties too.
@@ -119,7 +122,8 @@ private func eval(_ source: String) throws -> RuntimeValue {
             _ = try eval("struct S { var x: Int { x } }\nS().x")
             Issue.record("expected the depth guard to trip")
         } catch let e as RuntimeError {
-            #expect(e.message.contains("call depth"))
+            #expect(e.message.contains("call depth") || e.message.contains("nesting exceeded"))
+            #expect(e.fatal)
         }
     }
 

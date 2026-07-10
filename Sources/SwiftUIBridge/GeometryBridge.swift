@@ -301,6 +301,12 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             // Module-qualified stdlib references (`Swift.Duration`): the
             // module marker unwraps to the member's own type marker.
             return .native(HostTypeMarker(name: name))
+        case ("Locale", "preferredLanguages"):
+            // Stdlib statics through a SHADOWING app enum (the Duration
+            // pattern): the real host value.
+            return .native(Locale.preferredLanguages.map { RuntimeValue.native($0) })
+        case ("Locale", "current"):
+            return .native(Locale.current)
         case ("Duration", "seconds"), ("Duration", "milliseconds"),
              ("Duration", "microseconds"), ("Duration", "nanoseconds"):
             // Stdlib Duration statics reached through an app enum SHADOWING

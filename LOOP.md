@@ -198,17 +198,10 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. APPLE-BROWSERS TOP-LEVEL main() BOOT RECURSION (ProjectCheck,
-      now DETERMINISTIC at merged 152718:24): three `func main()`
-      entry points merge (AppMain.swift = the full browser boot,
-      sandbox-test-tool, NetworkProtectionSystemExtension) and the
-      bare top-level `main()` call boots the ENTIRE AppKit browser
-      headlessly; evaluation recursion trips the nesting guard with
-      the hottest frame in InlineImageText's Text-extension init.
-      Diagnose with INTERP_TRACE_STATE=1 (⊤ top-level statement trace)
-      + INTERP_TRACE_CALLS on suspect functions; consider an entry-
-      point policy (bare `main()` scripts tolerate the nesting trip
-      like script-statement errors) or find the actual recursion.
+   1. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
+      Store.state + dispatch → reducer → objectWillChange (the last
+      open LiveCheck rung-blocker; probe shows 12 strings, root
+      app:StoreProvider, 6 lifecycle closures firing).
       (State identity note: per-identity @State persistence is OPT-IN
       via `Interpreter.persistentViewState` — LiveCheck sets it; M0
       probes keep fresh-per-instantiation state, see README divergence.
@@ -2123,3 +2116,25 @@ between iterations 35 and 183.)
   enum arg into rendered text). **677 → 678/680 measured IDENTICALLY
   twice; LiveCheck 3/4 twice; suite 415 → 417. Sole failure: apple-
   browsers' main() boot recursion — new queue #1, now stable.**
+- 2026-07-10 iter 197: apple-browsers' boot "recursion" CLOSED — the
+  cycle was a generated namespace enum claiming bare `Text` (the
+  SwiftGen shape): `Text(value)` inside `extension Text { init(_
+  textItem:) }` dispatched through the .enumType init path, which had
+  NO active-initializer exclusion and a label-loose registry-crossing
+  test — 152 self-nested init frames before the stack probe (found
+  via the new gated call-stack dump ✖). Fixed: active-init exclusion
+  + POSITIVE runtime-type fit (valueIsType per argument) before
+  interpreted-vs-registry choice, in both the enumType path and the
+  hostFunction extension-init dispatcher. The unwound chain behind it:
+  DOTTED extensions now collect order-independently (`extension
+  Pixel.Event` in a file sorting before `extension Pixel { enum Event
+  }` deferred + retried post-pass; stranded synthetics reconcile),
+  Locale statics answer through shadowing enums, TimeInterval
+  constructs as Double, unary minus reads unknowables' fresh numeric,
+  and NUMBER-vs-Date comparisons bridge through the epoch (an absorbed
+  pixel store's 0.0 read predates any real date — "never fired").
+  Diagnostics: init-closure debugNames (init:/enumInit:/extInit:) +
+  nesting-guard hot-frame dumps. The DuckDuckGo monorepo (4814 files)
+  renders and clicks: 77 nodes, 4 actions. **678 → 679/680 — ZERO
+  failures (FORTY-THIRD saturation); suite 417 → 424; LiveCheck 3/4.
+  Queue: SwiftUIFlux (movieswiftui) is the top open class.**

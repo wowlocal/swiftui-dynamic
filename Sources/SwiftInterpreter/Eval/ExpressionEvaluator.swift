@@ -18,12 +18,26 @@ extension Interpreter {
             var probe: UInt8 = 0
             let current = withUnsafePointer(to: &probe) { UInt(bitPattern: $0) }
             if current > top - size, current - (top - size) < 1_572_864 {
+                if Interpreter.traceStateCells {
+                    var counts: [String: Int] = [:]
+                    for name in callStackNames { counts[name, default: 0] += 1 }
+                    let hot = counts.sorted { $0.value > $1.value }.prefix(8)
+                        .map { "\($0.key)×\($0.value)" }.joined(separator: " ")
+                    FileHandle.standardError.write(Data("   ✖ stack trip; hot frames: \(hot)\n   ✖ head: \(callStackNames.prefix(6).joined(separator: " → "))\n".utf8))
+                }
                 let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
                 throw RuntimeError(
                     message: located.message, line: located.line, column: located.column, fatal: true)
             }
         }
         guard evaluationDepth < 20_000 else {
+            if Interpreter.traceStateCells {
+                var counts: [String: Int] = [:]
+                for name in callStackNames { counts[name, default: 0] += 1 }
+                let hot = counts.sorted { $0.value > $1.value }.prefix(8)
+                    .map { "\($0.key)×\($0.value)" }.joined(separator: " ")
+                FileHandle.standardError.write(Data("   ✖ nesting trip; hot frames: \(hot)\n   ✖ tail: \(callStackNames.suffix(12).joined(separator: " → "))\n".utf8))
+            }
             let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
             throw RuntimeError(
                 message: located.message, line: located.line, column: located.column, fatal: true)
@@ -1822,6 +1836,23 @@ extension Interpreter {
         return CallArguments(arguments: arguments)
     }
 
+    /// A host-extension init fits only when labels align AND every
+    /// argument's RUNTIME type satisfies the parameter annotation.
+    private func extensionInitFits(_ decl: InitializerDeclSyntax, args: CallArguments) -> Bool {
+        let parameters = initializerMetadata(for: decl).parameters
+        var remaining = args.arguments
+        for parameter in parameters {
+            if let index = remaining.firstIndex(where: { $0.label == parameter.label }) {
+                let argument = remaining.remove(at: index)
+                guard let annotation = parameter.typeAnnotation?.trimmedDescription,
+                      valueIsType(argument.value, annotation) else { return false }
+            } else if parameter.defaultValue == nil {
+                return false
+            }
+        }
+        return remaining.isEmpty
+    }
+
     func invoke(_ callee: RuntimeValue, with args: CallArguments, node: some SyntaxProtocol) throws -> RuntimeValue {
         var args = args
         switch callee {
@@ -1877,7 +1908,12 @@ extension Interpreter {
                 let available = extensionSymbol.initializers.filter {
                     !activeInitializers.contains($0.id) && !Interpreter.isCodableInit($0)
                 }
-                if let chosen = chooseInitializerStrict(from: available, for: args),
+                // POSITIVE type match required: every argument's runtime
+                // type must satisfy the parameter annotation (`is`
+                // semantics). Merely label-shaped fits chain-walked the
+                // merge's MANY one-arg Text inits 152 deep in
+                // apple-browsers before reaching the registry.
+                if let chosen = available.first(where: { extensionInitFits($0, args: args) }),
                    let body = chosen.body {
                     let inserted = activeInitializers.insert(chosen.id).inserted
                     defer { if inserted { activeInitializers.remove(chosen.id) } }
@@ -1886,6 +1922,7 @@ extension Interpreter {
                     let parameters = initializerMetadata(for: chosen).parameters
                     let closure = ClosureValue(
                         parameters: parameters, body: body.statements, captured: env)
+                    closure.debugName = "extInit:\(function.name)"
                     _ = try callWithArguments(closure, args: args, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void
                     if case .void = assigned {
@@ -1913,7 +1950,9 @@ extension Interpreter {
             // the final self resolves against the enum's own type context.
             // Codable inits (init(from: Decoder)) are decoder-only — a
             // positional value tries RAW-VALUE matching instead.
-            let constructible = symbol.initializers.filter { !Interpreter.isCodableInit($0) }
+            let constructible = symbol.initializers.filter {
+                !Interpreter.isCodableInit($0) && !activeInitializers.contains($0.id)
+            }
             if constructible.isEmpty, args.arguments.count == 1,
                let raw = args.positional(0) {
                 if let matched = symbol.cases
@@ -1922,11 +1961,14 @@ extension Interpreter {
                 }
             }
             // Generated NAMESPACE enums claim ubiquitous names (SwiftGen's
-            // Loc.Text registering bare `Text`): when nothing enum-shaped
-            // fits and a host constructor shares the name, real overload
-            // resolution crosses the module boundary — Text(verbatim:) is
-            // SwiftUI's.
-            if chooseInitializerStrict(from: constructible, for: args) == nil,
+            // Loc.Text registering bare `Text`): unless an init POSITIVELY
+            // fits the arguments' runtime types, and a host constructor
+            // shares the name, real overload resolution crosses the module
+            // boundary — Text(verbatim:) is SwiftUI's. A label-shaped loose
+            // fit chain-walked apple-browsers' Text extension inits 152
+            // deep (`Text(value)` inside `init(_ textItem:)` re-entered —
+            // the exclusion above plus this positive gate end the cycle).
+            if constructible.first(where: { extensionInitFits($0, args: args) }) == nil,
                !args.arguments.isEmpty,
                let ctor = registry?.constructor(named: symbol.name) {
                 return try ctor.invoke(args, self)
@@ -1936,10 +1978,13 @@ extension Interpreter {
                 guard let body = chosen.body else {
                     throw error(node, "init of '\(symbol.name)' has no body")
                 }
+                let bracketed = activeInitializers.insert(chosen.id).inserted
+                defer { if bracketed { activeInitializers.remove(chosen.id) } }
                 let env = Environment(parent: globals)
                 env.define("self", .void)
                 let parameters = initializerMetadata(for: chosen).parameters
                 let closure = ClosureValue(parameters: parameters, body: body.statements, captured: env)
+                closure.debugName = "enumInit:\(symbol.name)"
                 _ = try callWithArguments(closure, args: args, node: Syntax(node))
                 let assigned = env.lookup("self") ?? .void
                 return try resolveAnnotated(assigned, typeName: symbol.name)
@@ -2050,6 +2095,13 @@ extension Interpreter {
         }
         enclosingReturnAnnotations.append(closure.returnTypeName)
         defer { enclosingReturnAnnotations.removeLast() }
+        if Interpreter.traceStateCells {
+            let label = closure.debugName ?? "closure{" + closure.body.description
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\n", with: " ").prefix(48) + "}"
+            callStackNames.append(String(label))
+        }
+        defer { if Interpreter.traceStateCells, !callStackNames.isEmpty { callStackNames.removeLast() } }
         if let names = Self.tracedCallNames, let name = closure.debugName, names.contains(name) {
             Swift.print("⟶ \(name)")
         }

@@ -98,6 +98,90 @@ extension Interpreter {
         }
     }
 
+    /// Deferred dotted extensions retry after every declaration pass
+    /// completed (full name first, then the module-qualified last
+    /// component) — declaration order stops mattering.
+    func processDeferredExtensions() {
+        deferredExtensionRetry = true
+        defer { deferredExtensionRetry = false }
+        let pending = pendingDottedExtensions
+        pendingDottedExtensions = []
+        for node in pending {
+            try? collectExtension(node)
+        }
+    }
+
+    /// Extensions collected BEFORE their extended type existed (an
+    /// `extension Pixel.Event` in a file that sorts before the
+    /// `extension Pixel { enum Event }` that declares it) strand their
+    /// members in a synthetic host-extension symbol. Real Swift is
+    /// declaration-order-independent: after all passes, members whose
+    /// extended type NOW resolves migrate into the real symbol.
+    func reconcileStrandedExtensions() {
+        for (typeName, stranded) in hostExtensionSymbols {
+            var target = globals.lookup(typeName)
+            if target == nil, typeName.contains("."),
+               let last = typeName.split(separator: ".").last {
+                target = globals.lookup(String(last))
+            }
+            switch target {
+            case .type(let symbol):
+                guard symbol !== stranded else { continue }
+                for (name, overloads) in stranded.methods {
+                    symbol.methods[name, default: []].append(contentsOf: overloads)
+                }
+                for (name, computed) in stranded.computedProperties
+                where symbol.computedProperties[name] == nil {
+                    symbol.computedProperties[name] = computed
+                }
+                for (name, overloads) in stranded.staticMethods {
+                    symbol.staticMethods[name, default: []].append(contentsOf: overloads)
+                }
+                for (name, property) in stranded.staticProperties
+                where symbol.staticProperties[name] == nil {
+                    symbol.staticProperties[name] = property
+                }
+                for (name, computed) in stranded.staticComputedProperties
+                where symbol.staticComputedProperties[name] == nil {
+                    symbol.staticComputedProperties[name] = computed
+                }
+                for (name, nested) in stranded.nestedTypes
+                where symbol.nestedTypes[name] == nil {
+                    symbol.nestedTypes[name] = nested
+                }
+                symbol.initializers.append(contentsOf: stranded.initializers)
+                hostExtensionSymbols[typeName] = nil
+            case .enumType(let symbol):
+                for (name, overloads) in stranded.methods {
+                    symbol.methods[name, default: []].append(contentsOf: overloads)
+                }
+                for (name, computed) in stranded.computedProperties
+                where symbol.computedProperties[name] == nil {
+                    symbol.computedProperties[name] = computed
+                }
+                for (name, overloads) in stranded.staticMethods {
+                    symbol.staticMethods[name, default: []].append(contentsOf: overloads)
+                }
+                for (name, property) in stranded.staticProperties
+                where symbol.staticProperties[name] == nil {
+                    symbol.staticProperties[name] = property
+                }
+                for (name, computed) in stranded.staticComputedProperties
+                where symbol.staticComputedProperties[name] == nil {
+                    symbol.staticComputedProperties[name] = computed
+                }
+                for (name, nested) in stranded.nestedTypes
+                where symbol.nestedTypes[name] == nil {
+                    symbol.nestedTypes[name] = nested
+                }
+                symbol.initializers.append(contentsOf: stranded.initializers)
+                hostExtensionSymbols[typeName] = nil
+            default:
+                continue // genuine host types (View, String…) stay synthetic
+            }
+        }
+    }
+
     /// Only plain identifier bindings hoist; tuple/computed bindings run
     /// in statement order.
     func isHoistableGlobal(_ varDecl: VariableDeclSyntax) -> Bool {
@@ -671,6 +755,15 @@ extension Interpreter {
 
     private func collectExtension(_ node: ExtensionDeclSyntax) throws {
         let typeName = node.extendedType.trimmedDescription
+        // A DOTTED extended type that doesn't resolve yet may be declared
+        // by a LATER extension in the same pass (`extension Pixel.Event`
+        // in a file sorting before `extension Pixel { enum Event }`) —
+        // defer it; the post-pass retries once every type exists.
+        if globals.lookup(typeName) == nil, typeName.contains("."),
+           !deferredExtensionRetry {
+            pendingDottedExtensions.append(node)
+            return
+        }
         // `extension Models.Visibility` — module-qualified names resolve to
         // the declared bare type when the FULL (possibly nested-dotted)
         // name misses; the merge has no modules.

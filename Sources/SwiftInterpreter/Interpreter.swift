@@ -200,6 +200,8 @@ public final class Interpreter {
         return try body()
     }
     static let traceStateCells = ProcessInfo.processInfo.environment["INTERP_TRACE_STATE"] != nil
+    /// Gated call-stack names for cycle diagnosis (nesting-guard dumps).
+    var callStackNames: [String] = []
 
     /// Persistence is the LIVE-probe contract (LiveCheck's multi-pass render
     /// needs .onAppear writes visible to the fetch pass) — opt-in. M0 render
@@ -222,6 +224,8 @@ public final class Interpreter {
     /// parameters bind to the top, so `Entity.self` reaches decode with a
     /// REAL type value. Textual, innermost last.
     var expectedAnnotationStack: [String] = []
+    var pendingDottedExtensions: [ExtensionDeclSyntax] = []
+    var deferredExtensionRetry = false
 
     /// The DECLARED return type of each function on the call stack (nil for
     /// annotation-less closures, which mask the enclosing hint). An explicit
@@ -401,6 +405,8 @@ public final class Interpreter {
         // identifier there is an unmerged import, never a typo.
         assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: file)
+        processDeferredExtensions()
+        reconcileStrandedExtensions()
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void
@@ -448,7 +454,7 @@ public final class Interpreter {
             if Self.traceStateCells {
                 let head = item.description.trimmingCharacters(in: .whitespacesAndNewlines)
                     .replacingOccurrences(of: "\n", with: " ")
-                Swift.print("   ⊤ \(head.prefix(90))")
+                FileHandle.standardError.write(Data("   ⊤ \(head.prefix(90))\n".utf8))
             }
             do {
                 result = try execute(item, in: globals)
@@ -745,6 +751,7 @@ public final class Interpreter {
             body: body.statements,
             captured: initEnv
         )
+        closure.debugName = "init:\(instance.symbol.name)"
         let outcome: RuntimeValue
         do {
             outcome = try callWithArguments(closure, args: args, node: node)
@@ -1462,6 +1469,15 @@ public final class Interpreter {
             if let d = value.doubleValue { return .native(d) }
             if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
             if let z = Builtins.absorbedNumeric(value) { return .native(z) }
+            return .nilValue
+        }
+        define("TimeInterval") { args, _ in
+            // TimeInterval IS Double (Foundation's typealias).
+            guard let value = args.positional(0) ?? args.labeled("exactly") else { return .native(0.0) }
+            if let d = value.doubleValue { return .native(d) }
+            if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            if let z = Builtins.absorbedNumeric(value) { return .native(z) }
+            if value.isNil { return .native(0.0) }
             return .nilValue
         }
         define("Float") { args, _ in

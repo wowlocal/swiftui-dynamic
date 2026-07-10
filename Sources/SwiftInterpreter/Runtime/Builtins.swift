@@ -198,6 +198,8 @@ public enum Builtins {
         case "-":
             if let i = value.intValue { return .native(-i) }
             if let d = value.doubleValue { return .native(-d) }
+            // Unknowables negate their fresh numeric reading (0 → 0).
+            if let z = absorbedNumeric(value) { return .native(-z) }
             throw EvalMessage(text: "unary '-' requires a numeric operand")
         case "!":
             if let b = value.boolValue { return .native(!b) }
@@ -594,6 +596,14 @@ public enum Builtins {
     }
 
     private static func compare(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
+        // A NUMBER against a real Date compares through the epoch (an
+        // absorbed store's fresh read is 0.0 = the epoch — "never fired").
+        if case .host(let any) = rhs, let date = any as? Date, let n = lhs.doubleValue {
+            return try compare(op, .native(n), .native(date.timeIntervalSince1970))
+        }
+        if case .host(let any) = lhs, let date = any as? Date, let n = rhs.doubleValue {
+            return try compare(op, .native(date.timeIntervalSince1970), .native(n))
+        }
         // Tuples compare LEXICOGRAPHICALLY — the version-triple idiom
         // (`(lhs.major, lhs.minor, lhs.patch) < (rhs.major, …)`).
         if let l = lhs.tupleValue, let r = rhs.tupleValue, l.values.count == r.values.count {
@@ -675,6 +685,14 @@ public enum Builtins {
             case ">": return l > r
             default: return l >= r
             }
+        }
+        // A NUMBER against a Date compares through the epoch — an absorbed
+        // store's fresh read (0.0) is "never fired" against any real date.
+        if case .host(let la) = lhs, let l = la as? Date, let r = rhs.doubleValue {
+            return try compare(op, .native(l.timeIntervalSince1970), .native(r))
+        }
+        if case .host(let ra) = rhs, let r = ra as? Date, let l = lhs.doubleValue {
+            return try compare(op, .native(l), .native(r.timeIntervalSince1970))
         }
         if let l = lhs.stringValue, let r = rhs.stringValue {
             switch op {

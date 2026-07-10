@@ -398,3 +398,106 @@ import SwiftUIBridge
         #expect(report.actionsInvoked == 3, "all actions click through, the designed crash included")
     }
 }
+
+/// A bare top-level `main()` entry (system-extension tools): the absorbed
+/// boot calls return instead of recursing (iteration 197).
+@Suite struct TopLevelMainTests {
+    @Test func systemExtensionMainAbsorbs() throws {
+        let source = """
+        func main() -> Never {
+            autoreleasepool {
+                NEProvider.startSystemExtensionMode()
+            }
+
+            dispatchMain()
+        }
+
+        main()
+
+        struct ContentView: View {
+            var body: some View {
+                Text("booted")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+}
+
+/// The apple-browsers boot chain (iteration 197): a generated namespace
+/// enum claiming `Text` must not chain-walk extension inits (active-init
+/// exclusion + POSITIVE runtime-type fit before crossing to the registry);
+/// dotted extensions collect independent of declaration order; and
+/// absorbed-store reads bridge honestly (number-vs-Date through the epoch,
+/// unary minus on unknowables, TimeInterval construction).
+@Suite struct NamespaceEnumAndOrderTests {
+    @Test func namespaceEnumTextInitDoesNotCycle() throws {
+        let source = """
+        enum Loc {
+            enum Text {
+                static let title = "loc-title"
+            }
+        }
+
+        enum InlineTextItem {
+            case text(String, isBold: Bool)
+        }
+
+        extension Text {
+            init(_ textItem: InlineTextItem) {
+                switch textItem {
+                case .text(let value, let isBold):
+                    var text = Text(value)
+                    if isBold {
+                        text = text.bold()
+                    }
+                    self = text
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    Text("plain string")
+                    Text(InlineTextItem.text("segment", isBold: true))
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("plain string"), "String args cross to the registry ctor, got \(strings)")
+        #expect(strings.contains("segment"), "enum args dispatch the extension init, got \(strings)")
+    }
+
+    @Test func dottedExtensionBeforeDeclarationAndEpochCompare() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        // The extension of Pixel.Event appears BEFORE the extension that
+        // declares the nested enum (file-sort order in apple-browsers).
+        extension Pixel.Event {
+            func hasBeenFiredSince(date: Date) -> Bool {
+                let lastFired = 0.0
+                return lastFired >= date
+            }
+        }
+
+        class Pixel {
+        }
+
+        extension Pixel {
+            enum Event {
+                case copyUsername
+            }
+        }
+
+        let debounce = 5
+        let interval = -TimeInterval(debounce)
+        let fired = Pixel.Event.copyUsername.hasBeenFiredSince(date: Date())
+        (interval, fired)
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].doubleValue == -5.0)
+        #expect(tuple.values[1].boolValue == false, "epoch-zero read predates any real date")
+    }
+}
