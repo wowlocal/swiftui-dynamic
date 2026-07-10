@@ -3,3 +3,6 @@
 .DS_Store
 External/
 .claude/worktrees/
+
+# Multi-agent claims lock — out-of-band, never merged
+.claude/claims.md

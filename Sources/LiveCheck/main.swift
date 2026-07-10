@@ -173,6 +173,8 @@ let scenarios: [Scenario] = [
         // subscribe(on:) → sink into @Published). The repo's committed
         // JSON IS the fixture — real bytes the compiled app ships in
         // Bundle.module.
+        BundleResources.roots = [ossRoot + "/ACHNBrowserUI"]
+        defer { BundleResources.roots = [] }
         let resource = ossRoot + "/ACHNBrowserUI/ACHNBrowserUI/Packages/Backend/Sources/Backend/Resources/json/fish"
         guard let json = fixtureJSON(resource) as? [String: Any],
               let results = json["results"] as? [[String: Any]] else {

@@ -234,10 +234,19 @@ func valuePublisherMember(_ name: String, on box: ValuePublisherBox) -> RuntimeV
         })
     case "map":
         return .hostFunction(HostFunction(name: name) { args, ctx in
-            guard case .success(let value) = box.outcome,
-                  let transform = args.firstUnlabeledClosure else { return .native(box) }
+            guard case .success(let value) = box.outcome else { return .native(box) }
             if case .host(let any) = value, any is PendingDecode { return .native(box) }
-            return .native(ValuePublisherBox(.success(try ctx.callClosure(transform, arguments: [value]))))
+            if let transform = args.firstUnlabeledClosure {
+                return .native(ValuePublisherBox(.success(try ctx.callClosure(transform, arguments: [value]))))
+            }
+            // `.map(\.data)` — dataTaskPublisher's (data, response) tuple
+            // reads through the keypath.
+            if case .host(let any)? = args.positional(0), let keyPath = any as? KeyPathStub,
+               let component = keyPath.components.first,
+               let tuple = value.tupleValue, let read = tuple.value(for: component) {
+                return .native(ValuePublisherBox(.success(read)))
+            }
+            return .native(box)
         })
     case "mapError":
         return .hostFunction(HostFunction(name: name) { args, ctx in
@@ -502,6 +511,22 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .native(TupleValue(labels: [nil, nil], values: [
                     .native(data), .native(HTTPResponseBox(response)),
                 ]))
+            })
+        case "dataTaskPublisher":
+            // Combine networking source — same inline model as the value
+            // publishers: the outcome is computed at the call.
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let url = NetworkBridge.url(from: args.labeled("for") ?? args.positional(0)) else {
+                    return .native(ValuePublisherBox(.failure(.native("dataTaskPublisher: no URL"))))
+                }
+                do {
+                    let (data, response) = try NetworkBridge.respond(to: url)
+                    return .native(ValuePublisherBox(.success(.native(TupleValue(
+                        labels: ["data", "response"],
+                        values: [.native(data), .native(HTTPResponseBox(response))])))))
+                } catch {
+                    return .native(ValuePublisherBox(.failure(.native("\(error)"))))
+                }
             })
         case "dataTask":
             return .hostFunction(HostFunction(name: "dataTask") { args, _ in

@@ -65,6 +65,46 @@ func interpretedTaskConstructor(named name: String) -> HostFunction? {
 /// their own tables.
 /// Real bundle identity (URL/path — path-climbing idioms terminate) with
 /// ABSORBING resource lookups (nothing is bundled headlessly).
+/// Project-tree resource resolution for merged programs: the COMPILED app
+/// ships each target's Resources, so the live probe serves the same files
+/// straight from the checkout. Roots are set per LiveCheck scenario and
+/// empty everywhere else — M0 keeps the absorbed-resources doctrine.
+public enum BundleResources {
+    public static var roots: [String] = [] {
+        didSet { index = nil }
+    }
+    private static var index: [String: String]?
+
+    static func url(forResource name: String, extension ext: String?) -> URL? {
+        guard !roots.isEmpty else { return nil }
+        let fileName = (ext?.isEmpty == false) ? "\(name).\(ext!)" : name
+        if index == nil { buildIndex() }
+        return index?[fileName].map { URL(fileURLWithPath: $0) }
+    }
+
+    private static func buildIndex() {
+        var built: [String: String] = [:]
+        for root in roots {
+            guard let enumerator = FileManager.default.enumerator(atPath: root) else { continue }
+            for case let path as String in enumerator {
+                guard !path.contains(".git"), !path.contains(".build"),
+                      !path.contains("Tests/") else { continue }
+                let name = (path as NSString).lastPathComponent
+                let full = root + "/" + path
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: full, isDirectory: &isDirectory),
+                      !isDirectory.boolValue else { continue }
+                // Resources-dir files beat stray same-named files.
+                if built[name] == nil
+                    || (path.contains("/Resources/") && !built[name]!.contains("/Resources/")) {
+                    built[name] = full
+                }
+            }
+        }
+        index = built
+    }
+}
+
 final class BundleBox {
     /// The MERGE's project root: bundled resources (SPM Resources/ dirs,
     /// asset JSON) resolve against the repo's committed files — the same
@@ -633,6 +673,12 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                             (seeded as NSDictionary).write(to: url, atomically: true)
                         }
                         return .native(url)
+                    }
+                    // The checkout's own Resources — what Bundle.module
+                    // ships compiled (LiveCheck sets the roots).
+                    if let found = BundleResources.url(
+                        forResource: resource, extension: ext.isEmpty ? nil : ext) {
+                        return .native(found)
                     }
                     return .native(ChainedImplicitCall(
                         base: .implicitMember("Bundle"), member: name, arguments: args))
