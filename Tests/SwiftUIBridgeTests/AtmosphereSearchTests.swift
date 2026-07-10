@@ -62,6 +62,25 @@ import SwiftInterpreter
         #expect(result.stringValue == "ran")
     }
 
+    @Test func numericContentTransitionRendersWithRealRegistry() throws {
+        let source = """
+        struct ContentView: View {
+            @State var value = 20
+
+            var body: some View {
+                Text("\\(value)°")
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.4), value: value)
+            }
+        }
+        """
+        let outcome = InterpreterHost().render(source: source)
+        if case .failure(let error) = outcome {
+            Issue.record("numeric content transition failed: \(error)")
+        }
+        #expect(ViewRegistry().modifier(named: "contentTransition") != nil)
+    }
+
     @Test func suggestionsDebounceAndReachTheModel() async throws {
         let root = repositoryRoot()
         let source = ProjectMaterial.mergedSource(
@@ -160,7 +179,17 @@ import SwiftInterpreter
         let celsiusDashboardTree = try TraceRegistry.node(
             interpreter.evaluateBody(of: celsiusDashboard)
         )
-        #expect(celsiusDashboardTree.findAll("Text").contains { $0.args.first == "20°" })
+        let celsiusTemperature = try #require(celsiusDashboardTree.findAll("Text").first {
+            $0.args.first == "20°"
+        })
+        #expect(celsiusTemperature.modifiers.contains { $0.hasPrefix("contentTransition") })
+        #expect(celsiusTemperature.modifiers.contains { $0.hasPrefix("animation") })
+        var actions: [ClosureValue] = []
+        _ = try HeadlessVerifier.deepRender(
+            interpreter,
+            celsiusDashboardTree,
+            actions: &actions
+        )
         let unitButton = try #require(celsiusTree.findAll("Button").first {
             $0.findAll("Text").contains { $0.args.first == "°C" }
         })

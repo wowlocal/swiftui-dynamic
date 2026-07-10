@@ -79,6 +79,8 @@ struct WeatherMetricTile: View {
             Text(value)
                 .font(.system(size: 28, weight: .regular))
                 .monospaced()
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.42, extraBounce: 0.04), value: value)
             Text(detail)
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.68))
@@ -98,6 +100,7 @@ struct WeatherMetricTile: View {
 
 struct AQIRing: View {
     var air: CurrentAir
+    @State private var ringVisible = false
 
     var body: some View {
         WeatherPanel {
@@ -109,14 +112,23 @@ struct AQIRing: View {
                         Circle()
                             .stroke(Color.white.opacity(0.12), lineWidth: 8)
                         Circle()
-                            .trim(from: 0, to: min(1.0, Double(air.aqi) / 100.0))
+                            .trim(
+                                from: 0,
+                                to: ringVisible ? min(1.0, Double(air.aqi) / 100.0) : 0
+                            )
                             .stroke(aqiColor(air.aqi), lineWidth: 8)
                             .rotationEffect(.degrees(-90))
+                            .animation(
+                                .easeOut(duration: 0.85).delay(0.22),
+                                value: ringVisible
+                            )
                         VStack(spacing: 0) {
                             Text("\(air.aqi)")
                                 .font(.title2)
                                 .bold()
                                 .monospaced()
+                                .contentTransition(.numericText())
+                                .animation(.snappy(duration: 0.4), value: air.aqi)
                             Text("EAQI")
                                 .font(.caption2)
                                 .foregroundStyle(.white.opacity(0.58))
@@ -138,6 +150,9 @@ struct AQIRing: View {
                     Spacer()
                 }
             }
+        }
+        .onAppear {
+            ringVisible = true
         }
     }
 

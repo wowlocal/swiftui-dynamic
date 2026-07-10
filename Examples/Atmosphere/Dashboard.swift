@@ -6,13 +6,23 @@ struct AtmosphereDashboard: View {
     var air: AirQuality
     var isNight: Bool
     var usesFahrenheit: Bool
+    @State private var revealed = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
                 hero
+                    .opacity(revealed ? 1.0 : 0.0)
+                    .offset(y: revealed ? 0 : 12)
+                    .animation(.easeOut(duration: 0.52), value: revealed)
                 hourlyForecast
+                    .opacity(revealed ? 1.0 : 0.0)
+                    .offset(y: revealed ? 0 : 14)
+                    .animation(.easeOut(duration: 0.56).delay(0.07), value: revealed)
                 dailyForecast
+                    .opacity(revealed ? 1.0 : 0.0)
+                    .offset(y: revealed ? 0 : 14)
+                    .animation(.easeOut(duration: 0.56).delay(0.14), value: revealed)
 
                 HStack(alignment: .top, spacing: 12) {
                     WeatherMetricTile(
@@ -28,6 +38,9 @@ struct AtmosphereDashboard: View {
                         detail: "Relative humidity at the latest observation."
                     )
                 }
+                .opacity(revealed ? 1.0 : 0.0)
+                .offset(y: revealed ? 0 : 14)
+                .animation(.easeOut(duration: 0.56).delay(0.21), value: revealed)
 
                 HStack(alignment: .top, spacing: 12) {
                     WeatherMetricTile(
@@ -43,18 +56,32 @@ struct AtmosphereDashboard: View {
                         detail: uvDescription(air.current.uvIndex)
                     )
                 }
+                .opacity(revealed ? 1.0 : 0.0)
+                .offset(y: revealed ? 0 : 14)
+                .animation(.easeOut(duration: 0.56).delay(0.28), value: revealed)
 
                 AQIRing(air: air.current)
+                    .opacity(revealed ? 1.0 : 0.0)
+                    .offset(y: revealed ? 0 : 14)
+                    .animation(.easeOut(duration: 0.56).delay(0.35), value: revealed)
                 sunCard
+                    .opacity(revealed ? 1.0 : 0.0)
+                    .offset(y: revealed ? 0 : 14)
+                    .animation(.easeOut(duration: 0.56).delay(0.42), value: revealed)
 
                 Text("Weather by Open-Meteo • Air quality by CAMS")
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.48))
                     .padding(.vertical, 8)
+                    .opacity(revealed ? 1.0 : 0.0)
+                    .animation(.easeOut(duration: 0.5).delay(0.48), value: revealed)
             }
             .frame(maxWidth: 560)
             .padding(.horizontal, 16)
             .padding(.bottom, 28)
+        }
+        .onAppear {
+            revealed = true
         }
     }
 
@@ -70,11 +97,15 @@ struct AtmosphereDashboard: View {
             Text("\(displayTemperature(forecast.current.temperature))°")
                 .font(.system(size: 88, weight: .thin))
                 .padding(.top, 3)
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.46, extraBounce: 0.04), value: usesFahrenheit)
 
             Text(conditionName(forecast.current.weatherCode))
                 .font(.title3)
             Text("H:\(displayTemperature(forecast.daily.highs.first ?? 0))°  L:\(displayTemperature(forecast.daily.lows.first ?? 0))°")
                 .font(.headline)
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.46, extraBounce: 0.04), value: usesFahrenheit)
 
             HStack(spacing: 5) {
                 Image(systemName: "clock")
@@ -97,6 +128,8 @@ struct AtmosphereDashboard: View {
                 Text(hourlyNarrative)
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.82))
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.3), value: usesFahrenheit)
 
                 Divider()
                     .opacity(0.18)
@@ -120,6 +153,8 @@ struct AtmosphereDashboard: View {
                                 ))
                                 Text("\(displayTemperature(forecast.hourly.temperatures[index]))°")
                                     .font(.headline)
+                                    .contentTransition(.numericText())
+                                    .animation(.snappy(duration: 0.42), value: usesFahrenheit)
                                 if forecast.hourly.rainChance[index] > 0 {
                                     Text("\(forecast.hourly.rainChance[index])%")
                                         .font(.caption2)
@@ -146,6 +181,8 @@ struct AtmosphereDashboard: View {
                     Text("\(displayTemperature(forecast.hourly.temperatures.min() ?? 0))° — \(displayTemperature(forecast.hourly.temperatures.max() ?? 0))°")
                         .font(.caption)
                         .monospaced()
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.42), value: usesFahrenheit)
                 }
 
                 ZStack {
@@ -155,8 +192,13 @@ struct AtmosphereDashboard: View {
                         endPoint: .bottom
                     )
                     TemperatureCurve(values: forecast.hourly.temperatures)
+                        .trim(from: 0, to: revealed ? 1.0 : 0.0)
                         .stroke(Color.white.opacity(0.88), lineWidth: 2)
                         .padding(.vertical, 7)
+                        .animation(
+                            .easeOut(duration: 0.9).delay(0.22),
+                            value: revealed
+                        )
                 }
                 .frame(height: 72)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -189,6 +231,8 @@ struct AtmosphereDashboard: View {
                             .foregroundStyle(.white.opacity(0.54))
                             .monospaced()
                             .frame(width: 34, alignment: .trailing)
+                            .contentTransition(.numericText())
+                            .animation(.snappy(duration: 0.42), value: usesFahrenheit)
 
                         ZStack(alignment: .leading) {
                             Capsule()
@@ -202,14 +246,20 @@ struct AtmosphereDashboard: View {
                                         endPoint: .trailing
                                     )
                                 )
-                                .frame(width: rangeWidth(index), height: 5)
+                                .frame(width: revealed ? rangeWidth(index) : 0, height: 5)
                                 .offset(x: rangeOffset(index))
+                                .animation(
+                                    .easeOut(duration: 0.72).delay(0.2),
+                                    value: revealed
+                                )
                         }
                         .frame(width: 58)
 
                         Text("\(displayTemperature(forecast.daily.highs[index]))°")
                             .monospaced()
                             .frame(width: 34, alignment: .trailing)
+                            .contentTransition(.numericText())
+                            .animation(.snappy(duration: 0.42), value: usesFahrenheit)
                     }
                     .padding(.vertical, 10)
 
@@ -256,7 +306,7 @@ struct AtmosphereDashboard: View {
                 }
 
                 GeometryReader { proxy in
-                    let progress = sunProgress()
+                    let progress = revealed ? sunProgress() : 0.0
                     let x = 9 + (proxy.size.width - 18) * CGFloat(progress)
                     let heightRatio = 4.0 * progress * (1.0 - progress)
                     let y = proxy.size.height - 8 - (proxy.size.height - 16) * CGFloat(heightRatio)
@@ -267,6 +317,10 @@ struct AtmosphereDashboard: View {
                     Image(systemName: isNight ? "moon.fill" : "sun.max.fill")
                         .foregroundStyle(isNight ? Color.white : Color.yellow)
                         .position(x: x, y: y)
+                        .animation(
+                            .easeOut(duration: 1.0).delay(0.38),
+                            value: revealed
+                        )
                 }
                 .frame(height: 62)
             }

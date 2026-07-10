@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var store = AtmosphereStore()
     @State private var usesFahrenheit = false
+    @State private var ambientMotion = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -10,6 +11,9 @@ struct ContentView: View {
 
             VStack(spacing: 0) {
                 searchBar
+                    .opacity(ambientMotion ? 1.0 : 0.0)
+                    .offset(y: ambientMotion ? 0 : -8)
+                    .animation(.easeOut(duration: 0.48), value: ambientMotion)
 
                 if let place = store.place,
                    let forecast = store.forecast,
@@ -21,25 +25,32 @@ struct ContentView: View {
                         isNight: currentIsNight,
                         usesFahrenheit: usesFahrenheit
                     )
+                    .id(place.id)
+                    .opacity(store.isLoading ? 0.82 : 1.0)
+                    .scaleEffect(store.isLoading ? 0.985 : 1.0)
+                    .animation(.easeInOut(duration: 0.36), value: store.isLoading)
+                    .transition(.opacity)
                 } else if store.isLoading {
                     loadingView
+                        .transition(.opacity)
                 } else {
                     unavailableView
+                        .transition(.opacity)
                 }
             }
             .foregroundStyle(.white)
 
-                if !store.suggestions.isEmpty {
-                    suggestionMenu
-                        .padding(.horizontal, 16)
-                        .padding(.top, 64)
-                        .zIndex(10)
-                } else if !store.suggestionMessage.isEmpty {
-                    suggestionStatus
-                        .padding(.horizontal, 16)
-                        .padding(.top, 64)
-                        .zIndex(10)
-                } else if !store.errorMessage.isEmpty && store.forecast != nil {
+            if !store.suggestions.isEmpty {
+                suggestionMenu
+                    .padding(.horizontal, 16)
+                    .padding(.top, 64)
+                    .zIndex(10)
+            } else if !store.suggestionMessage.isEmpty {
+                suggestionStatus
+                    .padding(.horizontal, 16)
+                    .padding(.top, 64)
+                    .zIndex(10)
+            } else if !store.errorMessage.isEmpty && store.forecast != nil {
                 errorBanner
                     .padding(.horizontal, 16)
                     .padding(.top, 64)
@@ -51,6 +62,13 @@ struct ContentView: View {
                 await store.load()
             }
         }
+        .onAppear {
+            ambientMotion = true
+        }
+        .animation(.easeInOut(duration: 0.32), value: store.isLoading)
+        .animation(.snappy(duration: 0.34, extraBounce: 0.02), value: store.suggestions.count)
+        .animation(.easeInOut(duration: 0.28), value: store.suggestionMessage)
+        .animation(.easeInOut(duration: 0.28), value: store.errorMessage)
     }
 
     var atmosphericBackground: some View {
@@ -60,23 +78,46 @@ struct ContentView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+            .animation(.easeInOut(duration: 1.1), value: backgroundSymbol)
 
             Circle()
                 .fill((currentIsNight ? Color.indigo : Color.cyan).opacity(0.25))
                 .frame(width: 330, height: 330)
                 .blur(radius: 55)
-                .offset(x: 125, y: -80)
+                .scaleEffect(ambientMotion ? 1.08 : 0.94)
+                .offset(
+                    x: ambientMotion ? 98 : 125,
+                    y: ambientMotion ? -54 : -80
+                )
+                .animation(
+                    .easeInOut(duration: 7.5).repeatForever(autoreverses: true),
+                    value: ambientMotion
+                )
 
             Circle()
                 .fill(Color.blue.opacity(0.18))
                 .frame(width: 260, height: 260)
                 .blur(radius: 60)
-                .offset(x: -270, y: 470)
+                .scaleEffect(ambientMotion ? 0.92 : 1.07)
+                .offset(
+                    x: ambientMotion ? -235 : -270,
+                    y: ambientMotion ? 435 : 470
+                )
+                .animation(
+                    .easeInOut(duration: 9.0).repeatForever(autoreverses: true),
+                    value: ambientMotion
+                )
 
             Image(systemName: backgroundSymbol)
                 .font(.system(size: 250, weight: .ultraLight))
                 .foregroundStyle(.white.opacity(0.055))
                 .offset(x: 68, y: 90)
+                .rotationEffect(.degrees(ambientMotion ? 3.0 : -3.0))
+                .scaleEffect(ambientMotion ? 1.03 : 0.97)
+                .animation(
+                    .easeInOut(duration: 10.0).repeatForever(autoreverses: true),
+                    value: ambientMotion
+                )
 
             LinearGradient(
                 colors: [Color.clear, Color.black.opacity(0.24)],
@@ -134,14 +175,23 @@ struct ContentView: View {
             }
 
             Button {
-                usesFahrenheit = !usesFahrenheit
+                withAnimation(.snappy(duration: 0.42, extraBounce: 0.08)) {
+                    usesFahrenheit = !usesFahrenheit
+                }
             } label: {
                 Text(usesFahrenheit ? "°F" : "°C")
                     .font(.caption)
                     .bold()
                     .frame(width: 27)
+                    .padding(.vertical, 4)
+                    .background(
+                        (usesFahrenheit ? Color.orange : Color.cyan).opacity(0.2)
+                    )
+                    .cornerRadius(9)
+                    .contentTransition(.numericText())
             }
             .buttonStyle(.plain)
+            .animation(.snappy(duration: 0.42, extraBounce: 0.08), value: usesFahrenheit)
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: 560)
@@ -245,6 +295,7 @@ struct ContentView: View {
         .background(.regularMaterial)
         .cornerRadius(16)
         .shadow(radius: 14, y: 6)
+        .transition(.opacity)
     }
 
     var errorBanner: some View {
@@ -268,6 +319,7 @@ struct ContentView: View {
         .background(.regularMaterial)
         .cornerRadius(16)
         .shadow(radius: 14, y: 6)
+        .transition(.opacity)
     }
 
     var loadingView: some View {
@@ -275,6 +327,11 @@ struct ContentView: View {
             Image(systemName: backgroundSymbol)
                 .font(.system(size: 50, weight: .thin))
                 .foregroundStyle(.white.opacity(0.8))
+                .scaleEffect(ambientMotion ? 1.08 : 0.94)
+                .animation(
+                    .easeInOut(duration: 1.35).repeatForever(autoreverses: true),
+                    value: ambientMotion
+                )
             ProgressView()
             Text("Loading Weather")
                 .font(.headline)
@@ -290,6 +347,11 @@ struct ContentView: View {
             Image(systemName: "cloud.slash.fill")
                 .font(.system(size: 46, weight: .thin))
                 .foregroundStyle(.white.opacity(0.75))
+                .offset(y: ambientMotion ? -3 : 3)
+                .animation(
+                    .easeInOut(duration: 2.4).repeatForever(autoreverses: true),
+                    value: ambientMotion
+                )
             Text(store.query.isEmpty ? "Search for a City" : "Weather Unavailable")
                 .font(.title3)
                 .bold()

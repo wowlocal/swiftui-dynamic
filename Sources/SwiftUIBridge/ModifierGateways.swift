@@ -211,6 +211,30 @@ extension ViewRegistry {
             return AnyView(view.animation(animation, value: value))
         }
 
+        register("contentTransition") { view, args, _ in
+            guard let value = args.positional(0) else {
+                throw RuntimeError(message: ".contentTransition needs a transition")
+            }
+            let transition: ContentTransition
+            switch value {
+            case .implicitMember("opacity"):
+                transition = .opacity
+            case .implicitMember("interpolate"):
+                transition = .interpolate
+            case .implicitMember("identity"):
+                transition = .identity
+            case .host(let any):
+                guard let call = any as? ImplicitMemberCall, call.name == "numericText" else {
+                    throw RuntimeError(message: "unsupported content transition")
+                }
+                let countsDown = call.arguments.labeled("countsDown")?.boolValue ?? false
+                transition = .numericText(countsDown: countsDown)
+            default:
+                throw RuntimeError(message: "expected .numericText(), .opacity, .interpolate, or .identity")
+            }
+            return AnyView(view.contentTransition(transition))
+        }
+
         register("transition") { view, _, _ in view } // accepted, ignored in v1
 
         // MARK: Events
