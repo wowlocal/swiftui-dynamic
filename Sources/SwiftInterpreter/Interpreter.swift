@@ -24,6 +24,42 @@ public final class Interpreter {
     var hostExtensionSymbols: [String: StructSymbol] = [:]
     var assumesCompiledImports = false
 
+    /// Interpreted protocol declarations' inheritance (`protocol
+    /// ConnectedView: View`) — conformance through a protocol must count as
+    /// View-ness for the render pipeline.
+    var protocolInheritance: [String: [String]] = [:]
+
+    func protocolReachesView(_ name: String, seen: inout Set<String>) -> Bool {
+        guard seen.insert(name).inserted else { return false }
+        guard let inherited = protocolInheritance[name] else { return false }
+        if inherited.contains("View") { return true }
+        return inherited.contains { protocolReachesView($0, seen: &seen) }
+    }
+
+    func resolveTransitiveViewConformance() {
+        guard !protocolInheritance.isEmpty else { return }
+        for symbol in structSymbols where !symbol.conformsToView {
+            var seen = Set<String>()
+            if symbol.conformances.contains(where: { protocolReachesView($0, seen: &seen) }) {
+                symbol.conformsToView = true
+            }
+        }
+    }
+
+    /// The symbol's body accessor: its OWN computed property, or a
+    /// protocol-extension default (SwiftUIFlux's ConnectedView serves `body`
+    /// from `extension ConnectedView`).
+    func bodyProperty(of symbol: StructSymbol) -> ComputedProperty? {
+        if let own = symbol.computedProperties["body"] { return own }
+        for conformance in symbol.conformances {
+            if let ext = hostExtensionSymbols[conformance],
+               let body = ext.computedProperties["body"] {
+                return body
+            }
+        }
+        return nil
+    }
+
     /// Demand signal for the generated-members tier: every (dynamic type,
     /// member) pair the absorb terminus swallowed on a host native. Feeding
     /// this histogram back into BridgeGen's member sweep is how the generated
@@ -352,6 +388,7 @@ public final class Interpreter {
         // identifier there is an unmerged import, never a typo.
         assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: file)
+        resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void
         for item in expandedTopLevelItems(file.statements) {
@@ -776,7 +813,7 @@ public final class Interpreter {
     /// Multiple top-level views are grouped by the registry (TupleView stand-in).
     public func evaluateBody(of instance: Instance) throws -> RuntimeValue {
         steps = 0
-        guard let computed = instance.symbol.computedProperties["body"] else {
+        guard let computed = bodyProperty(of: instance.symbol) else {
             throw RuntimeError(message: "'\(instance.symbol.name)' has no body property")
         }
         let views = try collectBuilderViews(computed.accessor, in: selfEnvironment(.instance(instance)))

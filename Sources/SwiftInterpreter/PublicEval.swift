@@ -64,7 +64,7 @@ extension Interpreter {
             for decls in symbol.methods.values {
                 for decl in decls where decl.description.contains("HostingController") {
                     if let hosted = Self.hostedRootExpression(in: Syntax(decl)) {
-                        return (nil, hosted)
+                        return (nil, Self.resolvingLocalReference(hosted, in: Syntax(decl)))
                     }
                 }
             }
@@ -167,13 +167,38 @@ extension Interpreter {
             for decls in symbol.methods.values {
                 for decl in decls where decl.description.contains("HostingController") {
                     if let hosted = Self.hostedRootExpression(in: Syntax(decl)),
-                       let name = Self.firstViewName(in: Syntax(hosted), among: viewNames) {
+                       let name = Self.firstViewName(
+                           in: Syntax(Self.resolvingLocalReference(hosted, in: Syntax(decl))),
+                           among: viewNames) {
                         return name
                     }
                 }
             }
         }
         return nil
+    }
+
+    /// `let view = StoreProvider(store:) {…}; UIHostingController(rootView:
+    /// view)` — a bare reference resolves to its LOCAL declaration's
+    /// initializer, so the probe evaluates the real wrapper expression
+    /// instead of an undefined global name.
+    static func resolvingLocalReference(_ expr: ExprSyntax, in method: Syntax) -> ExprSyntax {
+        guard let ref = expr.as(DeclReferenceExprSyntax.self) else { return expr }
+        let name = ref.baseName.text
+        var result: ExprSyntax?
+        func walk(_ node: Syntax) {
+            if let varDecl = node.as(VariableDeclSyntax.self) {
+                for binding in varDecl.bindings
+                where binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text == name {
+                    if let initializer = binding.initializer?.value {
+                        result = initializer
+                    }
+                }
+            }
+            for child in node.children(viewMode: .sourceAccurate) { walk(child) }
+        }
+        walk(method)
+        return result ?? expr
     }
 
     private static func hostedRootExpression(in node: Syntax) -> ExprSyntax? {

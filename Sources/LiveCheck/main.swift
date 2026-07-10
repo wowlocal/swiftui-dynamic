@@ -14,6 +14,7 @@ import SwiftUIBridge
 let repoRoot = FileManager.default.currentDirectoryPath
 let fixtures = repoRoot + "/Fixtures"
 let ossRoot = "/Users/mike/src/tries/2026-07-08-swiftui-dynamic/External/oss"
+let depsRoot = "/Users/mike/src/tries/2026-07-08-swiftui-dynamic/External/deps"
 
 var filter: String?
 var iterator = CommandLine.arguments.dropFirst().makeIterator()
@@ -116,14 +117,30 @@ let scenarios: [Scenario] = [
             return ["fixture unreadable"]
         }
         let expectedTitles = results.compactMap { $0["title"] as? String }.prefix(10)
-        let source = ProjectMaterial.mergedSource(at: ossRoot + "/MovieSwiftUI")
+        // MovieSwiftUI imports SwiftUIFlux as an SPM dependency — the live
+        // probe compiles WITH dependencies like SPM does, so the real
+        // upstream store/provider/connector sources join the merge (pinned
+        // clone under External/deps).
+        let flux = ProjectMaterial.mergedSource(at: depsRoot + "/SwiftUIFlux/Sources")
+        let source = flux + "\n" + ProjectMaterial.mergedSource(at: ossRoot + "/MovieSwiftUI")
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let joined = strings.joined(separator: "\n")
         let found = expectedTitles.filter { joined.contains($0) }
         if found.count >= 3 {
             return []
         }
-        return ["only \(found.count)/10 fixture titles reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"]
+        var message = "only \(found.count)/10 fixture titles reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"
+        for error in LiveCheckSupport.lastLifecycleErrors.prefix(3) {
+            message += "\n     lifecycle error: \(error.prefix(160))"
+        }
+        message += "\n     network: \(NetworkBridge.requestLog.isEmpty ? "NO REQUESTS" : NetworkBridge.requestLog.prefix(6).joined(separator: ", "))"
+        let absorbed = LiveCheckSupport.lastAbsorbedHostMembers
+            .sorted { $0.value > $1.value }.prefix(8)
+            .map { "\($0.key)×\($0.value)" }
+        if !absorbed.isEmpty {
+            message += "\n     absorbed: \(absorbed.joined(separator: ", "))"
+        }
+        return [message]
     },
     Scenario(name: "icecubes-timeline-ui", fixturesDirectory: fixtures + "/mastodon-public-timeline") {
         // Launch parity: an UNAUTHENTICATED IceCubes shows TRENDING —

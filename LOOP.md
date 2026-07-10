@@ -222,8 +222,23 @@ Each iteration does exactly this:
       NESTED types over globals — Instance.statuses: Statuses is the
       config struct, not the endpoint enum; api_v2_instance fixture
       recorded, /api/v2/instance hits.)
-   2. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
-      Store.state + dispatch → reducer → objectWillChange.
+   2. MOVIESWIFTUI FETCH CHAIN (M2): the SwiftUIFlux WALL IS DOWN —
+      the dependency's real sources join the LiveCheck merge (pinned
+      clone at External/deps/SwiftUIFlux, like SPM compiles deps), and
+      five classes closed to get the tree rendering: reduce's combiner
+      is the second/trailing argument (a closure ACCUMULATOR was being
+      called as the combine — SwiftUIFlux folds middleware into a
+      dispatch function), delegate-hosted `rootView: view` local
+      references resolve to their initializer, protocol inheritance is
+      transitive for View-ness (`ConnectedView: View`), and protocol-
+      EXTENSION `body` serves conformers (ProtocolViewConformanceTests).
+      Now: root app:StoreProvider renders, 6 onAppear closures dispatch
+      FetchMoviesMenuList through the real store+middleware, but
+      network shows NO REQUESTS — the AsyncAction.execute →
+      APIService.shared.GET → URLSession chain absorbs before
+      NetworkBridge.respond (12 strings, no titles). Dig APIService's
+      GET (URLComponents/queryItems/dataTask shapes) with
+      LIVECHECK_TRACE; expectation: fixture titles reach the tree.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read
       LiveModelStore and refresh on store writes (see TestCheck Ledger).
    4. Bare-identifier mutating member call on a class property (language

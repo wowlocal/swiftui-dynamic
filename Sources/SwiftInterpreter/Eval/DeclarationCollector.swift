@@ -34,6 +34,13 @@ extension Interpreter {
                 try collectActor(actorDecl)
             } else if let enumDecl = decl.as(EnumDeclSyntax.self) {
                 try collectEnum(enumDecl)
+            } else if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
+                // Only the INHERITANCE is recorded (requirements carry no
+                // bodies; defaults live in the protocol's extensions).
+                protocolInheritance[protocolDecl.name.text] =
+                    protocolDecl.inheritanceClause?.inheritedTypes.map {
+                        $0.type.trimmedDescription
+                    } ?? []
             } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
                 try defineFunction(funcDecl, in: globals)
             } else if let varDecl = decl.as(VariableDeclSyntax.self), isHoistableGlobal(varDecl) {

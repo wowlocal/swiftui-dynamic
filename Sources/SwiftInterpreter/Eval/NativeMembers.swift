@@ -306,7 +306,11 @@ extension Interpreter {
                 guard let initial = args.positional(0) else {
                     throw RuntimeError(message: "reduce needs an initial value")
                 }
-                let call = try Self.requiredCallable(args, name)
+                // The accumulator may ITSELF be a closure (SwiftUIFlux folds
+                // middleware into a dispatch function) — the combiner is the
+                // second/trailing argument, never the initial value.
+                let combineArgs = CallArguments(arguments: Array(args.arguments.dropFirst()))
+                let call = try Self.requiredCallable(combineArgs, name)
                 var accumulator = initial
                 for element in array {
                     accumulator = try call(ctx, [accumulator, element])
