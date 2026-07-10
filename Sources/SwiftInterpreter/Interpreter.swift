@@ -213,13 +213,22 @@ public final class Interpreter {
             requiredLabels: requiredLabels)
     }
 
+    /// Formatting recoveries that parse to a CORRECT tree — the compiler
+    /// accepts these spellings too.
+    public static func isToleratedParseRecovery(_ message: String) -> Bool {
+        message.contains("extraneous whitespace")
+            || message.contains("expected '(' to start function type")
+            || message.contains("expected ')' in function type")
+    }
+
     /// True when the source has HARD parse errors (recovered formatting
     /// diagnostics don't count) — such a file can't be a member of any
-    /// compiling target (Sourcery inline-scratch fragments).
+    /// compiling target (Sourcery scratch fragments, abandoned files with
+    /// editor placeholders).
     public static func sourceHasHardErrors(_ source: String) -> Bool {
         let tree = Parser.parse(source: source)
         return ParseDiagnosticsGenerator.diagnostics(for: tree).contains {
-            $0.diagMessage.severity == .error && !$0.message.contains("extraneous whitespace")
+            $0.diagMessage.severity == .error && !isToleratedParseRecovery($0.message)
         }
     }
 
@@ -236,11 +245,7 @@ public final class Interpreter {
 
         let diagnostics = ParseDiagnosticsGenerator.diagnostics(for: tree)
         if let firstError = diagnostics.first(where: {
-            $0.diagMessage.severity == .error
-                // Formatting recoveries parse to a CORRECT tree — the
-                // compiler accepts them too (`@Environment (\.colorScheme)`
-                // with a stray space builds in Xcode).
-                && !$0.message.contains("extraneous whitespace")
+            $0.diagMessage.severity == .error && !Self.isToleratedParseRecovery($0.message)
         }) {
             let location = converter.location(for: firstError.position)
             throw RuntimeError(message: firstError.message, line: location.line, column: location.column)

@@ -2933,6 +2933,41 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// iTorrent (iteration 186): `(@MainActor() async -> Void)?` with no
+    /// space is a formatting recovery Xcode accepts; and a file with HARD
+    /// parse errors (editor placeholders, half-written members) can't be
+    /// in any compiling target — the merge now drops such files
+    /// universally, mirroring Xcode's target membership.
+    @Test func attributeParenRecoveryAndHardErrorExclusion() throws {
+        let root = NSTemporaryDirectory() + "hard-error-probe-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try """
+        class Overlay {
+            var clickEvent: (@MainActor() async -> Void)?
+            func fire() -> String { clickEvent == nil ? "idle" : "armed" }
+        }
+
+        struct ContentView: View {
+            var body: some View { Text(Overlay().fire()) }
+        }
+        """.write(toFile: root + "/Overlay.swift", atomically: true, encoding: .utf8)
+        try """
+        class Abandoned {
+            func f() {
+                UserDefaults.standard.publisher(for: <#T##KeyPath<UserDefaults, Value>#>)
+                notification.
+            }
+        }
+        """.write(toFile: root + "/Abandoned.swift", atomically: true, encoding: .utf8)
+
+        let merged = ProjectMaterial.mergedSource(at: root)
+        #expect(!merged.contains("Abandoned"))
+        #expect(merged.contains("clickEvent"))
+        let report = try HeadlessVerifier.verify(source: merged, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// kiwix-apple (iteration 183): `super` in STATIC contexts — an
     /// NSManagedObject subclass's `static func fetchRequest()` delegates to
     /// `super.fetchRequest()`; the host superclass's statics absorb through

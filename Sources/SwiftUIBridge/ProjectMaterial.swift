@@ -31,10 +31,14 @@ public enum ProjectMaterial {
         var merged = ""
         for path in files {
             guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
-            // Sourcery's inline-scratch files hold BARE fragments meant for
-            // inlining elsewhere — hard parse errors prove a file isn't a
-            // member of any compiling target.
-            if content.contains("sourcery:inline:"),
+            // Hard parse errors prove a file isn't a member of any
+            // compiling target: Sourcery inline-scratch fragments,
+            // abandoned files with editor placeholders and half-written
+            // expressions (iTorrent ships one). The standalone parse is
+            // ~1ms/file — gated on the two signatures so 30k-file corpora
+            // don't pay it everywhere (a universal check measured 14.5min
+            // for the full corpus vs ~2).
+            if content.contains("sourcery:inline:") || content.contains("<#"),
                Interpreter.sourceHasHardErrors(content) {
                 continue
             }

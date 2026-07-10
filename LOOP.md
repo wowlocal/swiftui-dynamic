@@ -1901,3 +1901,15 @@ between iterations 35 and 183.)
   saturation). 585 zips + 84 OSS repos; the sole exclusion remains
   MonitorControl (⚪ no View structs). Suite 369 (unchanged — no new
   capability, no new test).**
+- 2026-07-10 iter 186: step 9 — iTorrent (185 files), amperfy (382,
+  arrival-pass), Unwatched (473, arrival-pass) cloned. iTorrent's
+  chain: `(@MainActor() async -> Void)?` with no space is a formatting
+  recovery Xcode accepts (the tolerance list gained the function-type
+  pair, now SHARED between the parse gate and sourceHasHardErrors);
+  and a file with HARD errors (a literal editor placeholder + a
+  half-written member access in LiveActivityService.swift) can't be in
+  any compiling target — the merge drops such files, gated on the two
+  signatures (`<#`, sourcery:inline) after a universal per-file parse
+  measured 14.5min corpus-wide vs 8. iTorrent ✅ (8 nodes, 2 actions).
+  **674/675 counted — ZERO failures (THIRTY-EIGHTH saturation).
+  585 zips + 89 OSS repos. Suite 369 → 373.**
