@@ -1172,3 +1172,218 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("first")?.stringified == "Goldfish")
     }
 }
+
+@Suite struct LexicalTypeScopingTests {
+    // clean-architecture's triangle: module-level APIError, a conforming
+    // test double whose EXTENSION nests a DIFFERENT APIError, and
+    // protocol-extension bodies throwing bare `APIError.…` — natively
+    // those bare names resolve LEXICALLY (module scope), never through
+    // the runtime self's nested types.
+    @Test func protocolExtensionSeesModuleScope() throws {
+        let source = """
+        enum APIError: Swift.Error, Equatable {
+            case invalidURL
+            case unexpectedResponse
+        }
+        protocol APICall {
+            var path: String { get }
+        }
+        extension APICall {
+            func urlRequest(baseURL: String) throws -> String {
+                guard !path.isEmpty else {
+                    throw APIError.invalidURL
+                }
+                return baseURL + path
+            }
+        }
+        protocol WebRepositoryProto {
+            var baseURL: String { get }
+        }
+        extension WebRepositoryProto {
+            func call(endpoint: APICall) throws -> String {
+                let request = try endpoint.urlRequest(baseURL: baseURL)
+                guard request.hasPrefix("https") else {
+                    throw APIError.unexpectedResponse
+                }
+                return request
+            }
+        }
+        final class TestWebRepository: WebRepositoryProto {
+            let baseURL = "http://test.com"
+        }
+        extension TestWebRepository {
+            enum API: APICall {
+                case test
+                case urlError
+                var path: String {
+                    if self == .urlError { return "" }
+                    return "/path"
+                }
+            }
+        }
+        extension TestWebRepository {
+            enum APIError: Swift.Error {
+                case fail
+            }
+        }
+        final class RepoTests {
+            let sut = TestWebRepository()
+            func loadURLError() -> Bool {
+                do {
+                    _ = try sut.call(endpoint: TestWebRepository.API.urlError)
+                    return false
+                } catch let error as APIError {
+                    return error == APIError.invalidURL
+                } catch {
+                    return false
+                }
+            }
+            func loadBadScheme() -> Bool {
+                do {
+                    _ = try sut.call(endpoint: TestWebRepository.API.test)
+                    return false
+                } catch let error as APIError {
+                    return error == APIError.unexpectedResponse
+                } catch {
+                    return false
+                }
+            }
+        }
+        let tests = RepoTests()
+        let urlErrorMatches = tests.loadURLError()
+        let schemeErrorMatches = tests.loadBadScheme()
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("urlErrorMatches")?.stringified == "true")
+        #expect(interpreter.globals.lookup("schemeErrorMatches")?.stringified == "true")
+    }
+}
+
+@Suite struct URLProtocolMockStoreTests {
+    // clean-architecture's RequestMocking store: an NSLock-guarded static
+    // container, mocks matched by real URL equality against a URLRequest
+    // built in a protocol extension.
+    @Test func lockGuardedStoreMatchesRequestURL() throws {
+        let source = """
+        struct MockedResponse {
+            let url: URL
+            let payload: String
+        }
+        final class MocksContainer {
+            var mocks: [MockedResponse] = []
+        }
+        enum Store {
+            static private let container = MocksContainer()
+            static private let lock = NSLock()
+            static func add(mock: MockedResponse) {
+                lock.withLock {
+                    container.mocks.append(mock)
+                }
+            }
+            static func mock(for request: URLRequest) -> MockedResponse? {
+                return lock.withLock {
+                    container.mocks.first { $0.url == request.url }
+                }
+            }
+            static func canInit(with request: URLRequest) -> Bool {
+                return mock(for: request) != nil
+            }
+        }
+        protocol Call {
+            var path: String { get }
+        }
+        extension Call {
+            func urlRequest(baseURL: String) throws -> URLRequest {
+                guard let url = URL(string: baseURL + path) else {
+                    fatalError("bad url")
+                }
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                return request
+            }
+        }
+        enum API: Call {
+            case test
+            var path: String { "/test/path" }
+        }
+        let baseURL = "https://test.com"
+        Store.add(mock: MockedResponse(url: URL(string: baseURL + "/test/path")!, payload: "hi"))
+        let request = try API.test.urlRequest(baseURL: baseURL)
+        let matched = Store.canInit(with: request)
+        let found = Store.mock(for: request)?.payload ?? "NONE"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("matched")?.stringified == "true")
+        #expect(interpreter.globals.lookup("found")?.stringified == "hi")
+    }
+}
+
+@Suite struct DottedExtensionInitTests {
+    // RequestMocking.MockedResponse: the throwing custom init lives in a
+    // DOTTED extension of the nested struct — instantiation must run it.
+    @Test func dottedExtensionInitRuns() throws {
+        let source = """
+        final class RequestMocking {}
+        extension RequestMocking {
+            struct MockedResponse {
+                let url: URL
+                let payload: String
+            }
+        }
+        extension RequestMocking.MockedResponse {
+            init(apiCall: String, baseURL: String) throws {
+                guard let url = URL(string: baseURL + apiCall) else {
+                    fatalError("bad url")
+                }
+                self.url = url
+                self.payload = "made"
+            }
+        }
+        let mock = try RequestMocking.MockedResponse(apiCall: "/x", baseURL: "https://t.co")
+        let madeURL = mock.url.absoluteString
+        let payload = mock.payload
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("madeURL")?.stringified == "https://t.co/x")
+        #expect(interpreter.globals.lookup("payload")?.stringified == "made")
+    }
+}
+
+@Suite struct DelayedAsyncAfterTests {
+    // RequestMocking's startLoading delivers through
+    // DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) — bounded
+    // delays run once per drain (never spin like self-rescheduling
+    // retries).
+    @Test func boundedDelayDeliversOnDrain() throws {
+        // A rendering test may have flipped the demo's wall-clock mode on
+        // (a global): probes drain.
+        let previous = MainQueueDrain.schedulesRealTimers
+        MainQueueDrain.schedulesRealTimers = false
+        defer { MainQueueDrain.schedulesRealTimers = previous }
+        let source = """
+        final class Recorder {
+            var fired = false
+        }
+        let recorder = Recorder()
+        let loadingTime: TimeInterval = 0.1
+        DispatchQueue.main.asyncAfter(deadline: .now() + loadingTime) { [weak recorder] in
+            guard let recorder else { return }
+            recorder.fired = true
+        }
+        let before = recorder.fired
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("before")?.stringified == "false")
+        MainQueueDrain.drain()
+        let recorder = interpreter.globals.lookup("recorder")
+        guard case .instance(let instance)? = recorder else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(instance.box(for: "fired")?.value.stringified == "true")
+    }
+}

@@ -388,6 +388,29 @@ extension Interpreter {
     }
 
     func resolveIdentifier(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
+        if let probe = ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"], probe == name {
+            let result = Result { try resolveIdentifierCore(name, in: env, node: node) }
+            let location = error(node, "").line
+            let owners = lexicalOwnerFrames.map {
+                ($0 as? StructSymbol)?.name ?? ($0 as? EnumSymbol)?.name ?? "?"
+            }
+            switch result {
+            case .success(let value):
+                var detail = value.stringified.prefix(60).description
+                if case .enumType(let symbol) = value {
+                    detail += "(cases: \(symbol.cases.map(\.name).prefix(4).joined(separator: ",")))"
+                }
+                Swift.print("   ⌖ \(name)@\(location) → \(detail) owners=\(owners)")
+                return value
+            case .failure(let failure):
+                Swift.print("   ⌖ \(name)@\(location) → THREW \(failure) owners=\(owners)")
+                throw failure
+            }
+        }
+        return try resolveIdentifierCore(name, in: env, node: node)
+    }
+
+    private func resolveIdentifierCore(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
         // Real Swift scoping: locals first, implicit-self members second,
         // globals LAST (a method named like a global type wins in its body).
         if let box = env.box(for: name, before: globals) { return try force(box) }

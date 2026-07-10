@@ -406,3 +406,34 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
 - APPEND your one-line entry to LOOP_LOG.md (same format as before).
 - READ only `tail -20 LOOP_LOG.md` when you need recent history.
 - Never move the log back into this file.
+- 2026-07-11 iter 208: the LEXICAL-SCOPING family — names inside a
+  method body resolve in the scope that DECLARED the method, never
+  through the runtime self. Infrastructure: collection stamps every
+  method's declaring symbol (declLexicalOwners; extension merges
+  re-home), closures carry it, callWithArguments pushes a frame. Three
+  leaks closed: bare NESTED TYPES (`throw APIError.unexpectedResponse`
+  inside `extension WebRepository` saw the conforming test double's
+  shadowing APIError — clean-architecture), bare SIBLING STATICS (the
+  same leak through instanceMember's staticMember fallback), and
+  parameter ANNOTATIONS (resolveAnnotated prefers the owner's nested
+  types AND member typealiases — `func mock(_ apiCall: API)` where
+  `API = TestWebRepository.API`; unresolved member typealiases now
+  retry after the extension pass). Downstream, the URLProtocol mock
+  TRANSPORT came alive: URLRequest(url:) constructs a real config bag,
+  NSLock/NSRecursiveLock's withLock RUNS its body (LockBox), host URLs
+  compare for real, and BOUNDED asyncAfter delays (mock loadingTime:
+  0.1) deliver once-per-drain — a self-rescheduling retry fires once
+  per drain instead of spinning; the demo facade opts into wall-clock
+  timers via MainQueueDrain.schedulesRealTimers (reset per
+  verification). RequestMocking now matches, loads and delivers real
+  bytes end-to-end. Diagnostics: ⌖ INTERP_TRACE_IDENT resolution
+  tracer, ⌗ enum-registration trace, TESTCHECK_DUMP merged-source dump,
+  TestCheck honors LIVECHECK_TRACE, readStatic. Pins:
+  LexicalTypeScopingTests (native-verified), URLProtocolMockStoreTests,
+  DottedExtensionInitTests, DelayedAsyncAfterTests. WATCH: ProjectCheck
+  wall time roughly doubled (~10 min) — the delayed-drain work is the
+  suspect; profile next saturation pause. **679/680; suite 479 green
+  (+4 suites); LiveCheck 5/5; TestCheck 81→82 passed / 51→50 failed —
+  strictly improved. Top open class stays clean-architecture's 6×
+  did-not-throw (now transport-unblocked: the remaining wall is the
+  generic `decoder.decode(Value.self)` + interactor plumbing).**

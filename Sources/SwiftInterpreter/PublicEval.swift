@@ -36,6 +36,11 @@ extension Interpreter {
             node: nil)
     }
 
+    /// Read a STATIC property/let of an interpreted type (diagnostics).
+    public func readStatic(_ name: String, of symbol: StructSymbol) -> RuntimeValue? {
+        try? staticMember(name, of: symbol)
+    }
+
     /// Interpreted URLProtocol subclasses (their canInit gates mocking).
     public var urlProtocolSymbols: [StructSymbol] {
         structSymbols.filter { $0.superclassName == "URLProtocol" }

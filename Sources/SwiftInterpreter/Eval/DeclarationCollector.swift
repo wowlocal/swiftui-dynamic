@@ -101,6 +101,15 @@ extension Interpreter {
     /// Deferred dotted extensions retry after every declaration pass
     /// completed (full name first, then the module-qualified last
     /// component) — declaration order stops mattering.
+    func resolvePendingMemberAliases() {
+        for (symbol, aliasName, target) in pendingMemberAliases {
+            guard symbol.nestedTypes[aliasName] == nil,
+                  let value = globals.lookup(target) else { continue }
+            symbol.nestedTypes[aliasName] = value
+        }
+        pendingMemberAliases.removeAll()
+    }
+
     func processDeferredExtensions() {
         deferredExtensionRetry = true
         defer { deferredExtensionRetry = false }
@@ -128,6 +137,7 @@ extension Interpreter {
             case .type(let symbol):
                 guard symbol !== stranded else { continue }
                 for (name, overloads) in stranded.methods {
+                    for decl in overloads { declLexicalOwners[decl.id] = symbol }
                     symbol.methods[name, default: []].append(contentsOf: overloads)
                 }
                 for (name, computed) in stranded.computedProperties
@@ -153,6 +163,7 @@ extension Interpreter {
                 hostExtensionSymbols[typeName] = nil
             case .enumType(let symbol):
                 for (name, overloads) in stranded.methods {
+                    for decl in overloads { declLexicalOwners[decl.id] = symbol }
                     symbol.methods[name, default: []].append(contentsOf: overloads)
                 }
                 for (name, computed) in stranded.computedProperties
@@ -353,6 +364,7 @@ extension Interpreter {
             if let varDecl = member.decl.as(VariableDeclSyntax.self) {
                 try collectProperties(varDecl, into: symbol)
             } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
+                declLexicalOwners[funcDecl.id] = symbol
                 if isStatic(funcDecl.modifiers) {
                     symbol.staticMethods[funcDecl.name.text, default: []].append(funcDecl)
                 } else {
@@ -371,6 +383,12 @@ extension Interpreter {
                     if globals.lookup(alias.name.text) == nil {
                         globals.define(alias.name.text, value)
                     }
+                } else {
+                    // The target may only exist after the extension pass
+                    // (`typealias API = TestWebRepository.API` where API is
+                    // declared by a LATER `extension TestWebRepository`) —
+                    // retry once every type exists.
+                    pendingMemberAliases.append((symbol, alias.name.text, target))
                 }
                 if enumSymbols[alias.name.text] == nil, let enumSymbol = enumSymbols[target] {
                     enumSymbols[alias.name.text] = enumSymbol
@@ -389,6 +407,9 @@ extension Interpreter {
                 symbol.subscripts.append(.init(
                     parameters: parameters, getter: accessors.getter, setter: accessors.setter))
             } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
+                if ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"] == nestedEnum.name.text {
+                    Swift.print("   ⌗ nestedEnum \(symbol.name).\(nestedEnum.name.text) bareTaken=\(enumSymbols[nestedEnum.name.text] != nil)")
+                }
                 // Nested types register under `Outer.Name` (for annotations)
                 // and the bare name when unclaimed (for in-scope references).
                 let nested = try makeEnumSymbol(nestedEnum)
@@ -576,11 +597,14 @@ extension Interpreter {
 
     private func collectEnum(_ node: EnumDeclSyntax) throws {
         let symbol = try makeEnumSymbol(node)
+        if ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"] == symbol.name {
+            Swift.print("   ⌗ collectEnum \(symbol.name) cases=\(symbol.cases.map(\.name).prefix(4).joined(separator: ",")) existing=\(enumSymbols[symbol.name] != nil)")
+        }
         if let existing = enumSymbols[symbol.name], existing !== symbol {
             // SIBLING app targets in a monorepo declare the same namespace
             // (Rayon + mRayon both ship `enum UIBridge`): members UNION —
             // separate targets never collide on device.
-            Self.union(symbol, into: existing)
+            union(symbol, into: existing)
             return
         }
         enumSymbols[symbol.name] = symbol
@@ -588,12 +612,13 @@ extension Interpreter {
     }
 
     /// Union `symbol`'s members into `existing` (sibling-target namespaces).
-    static func union(_ symbol: EnumSymbol, into existing: EnumSymbol) {
+    func union(_ symbol: EnumSymbol, into existing: EnumSymbol) {
         for enumCase in symbol.cases
         where !existing.cases.contains(where: { $0.name == enumCase.name }) {
             existing.cases.append(enumCase)
         }
         for (name, overloads) in symbol.methods {
+            for decl in overloads { declLexicalOwners[decl.id] = existing }
             existing.methods[name, default: []].append(contentsOf: overloads)
         }
         for (name, overloads) in symbol.staticMethods {
@@ -720,6 +745,7 @@ extension Interpreter {
                 }
             }
         } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
+            declLexicalOwners[funcDecl.id] = symbol
             if isStatic(funcDecl.modifiers) {
                 symbol.staticMethods[funcDecl.name.text, default: []].append(funcDecl)
             } else {
@@ -857,6 +883,7 @@ extension Interpreter {
             returnTypeName: metadata.returnTypeName
         )
         closure.functionDeclID = node.id
+        closure.lexicalOwner = declLexicalOwners[node.id]
         closure.genericParameters = metadata.genericParameters
         closure.debugName = node.name.text
         return closure

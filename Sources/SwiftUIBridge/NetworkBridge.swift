@@ -374,9 +374,12 @@ func interpretedProtocolResponse(
     for requestValue: RuntimeValue, interpreter: Interpreter
 ) throws -> (data: Data, response: RuntimeValue)? {
     for symbol in interpreter.urlProtocolSymbols {
-        guard let verdict = try? interpreter.callStatic(
-            "canInit", on: symbol, arguments: [requestValue]),
-            verdict.boolValue == true else { continue }
+        let rawVerdict = try? interpreter.callStatic(
+            "canInit", on: symbol, arguments: [requestValue])
+        if LiveCheckSupport.traceLifecycle {
+            print("   ⚡ \(symbol.name).canInit → \(rawVerdict?.stringified ?? "THREW") request.url=\(NetworkBridge.url(from: requestValue)?.absoluteString ?? "nil")")
+        }
+        guard let verdict = rawVerdict, verdict.boolValue == true else { continue }
         let instance = Instance(symbol: symbol)
         let recorder = URLProtocolClientRecorder()
         instance.properties["request"] = Box(requestValue)
@@ -384,6 +387,9 @@ func interpretedProtocolResponse(
         _ = try interpreter.callMethod(named: "startLoading", on: instance, arguments: [])
         // Deliveries may ride main-queue hops (asyncAfter loading delays).
         MainQueueDrain.drain()
+        if LiveCheckSupport.traceLifecycle {
+            print("   ⚡ \(symbol.name) recorder: data=\(recorder.data.count)b response=\(recorder.response != nil) error=\(recorder.error != nil)")
+        }
         if let failure = recorder.error {
             throw InterpretedThrow(value: failure)
         }

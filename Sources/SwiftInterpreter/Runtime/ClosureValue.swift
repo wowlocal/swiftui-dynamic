@@ -77,6 +77,10 @@ public final class ClosureValue {
     /// The FunctionDecl this closure wraps (method/function bodies):
     /// self-delegating overload calls exclude the RUNNING declaration.
     public var functionDeclID: SyntaxIdentifier?
+    /// The type whose body/extension LEXICALLY declares this function —
+    /// bare type names inside it resolve against THIS scope, not the
+    /// runtime self (protocol-extension bodies see module scope).
+    public var lexicalOwner: AnyObject?
     /// Generic parameter NAMES (`func get<Entity: Decodable>`): return-
     /// position ones bind to the call-site annotation at invocation.
     public var genericParameters: [String] = []

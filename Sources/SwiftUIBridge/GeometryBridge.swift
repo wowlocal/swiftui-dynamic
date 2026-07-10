@@ -172,9 +172,29 @@ struct MainQueueStub {}
 /// otherwise sit past the probe's RunLoop pumps (the SwiftUIFlux
 /// dispatch-inside-dispatch genre).
 public enum MainQueueDrain {
+    /// Interactive sessions (the demo app) run real wall-clock timers for
+    /// positive asyncAfter delays; headless probes (Project/Test/LiveCheck)
+    /// deliver bounded delays on the next drain instead — a probe frame
+    /// never spans real time.
+    public static var schedulesRealTimers = false
     static var pending: [ActionValue] = []
+    /// Bounded asyncAfter deliveries (URLProtocol mocks' loadingTime).
+    /// Each runs AT MOST ONCE per drain — a delayed action that
+    /// re-schedules itself (nextcloud's retry loop) waits for the NEXT
+    /// drain instead of spinning this one.
+    static var delayedPending: [ActionValue] = []
 
     public static func drain() {
+        runZeroDelay()
+        let delayed = delayedPending
+        delayedPending = []
+        for action in delayed {
+            action.run()
+            runZeroDelay()
+        }
+    }
+
+    private static func runZeroDelay() {
         while !pending.isEmpty {
             let batch = pending
             pending = []
@@ -464,13 +484,23 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                     _ = try? ctx.callClosure(closure, arguments: [])
                 })
                 if delay > 0.001 {
-                    guard let interpreter = ctx as? Interpreter,
-                          interpreter.registry is ViewRegistry else { return .void }
-                    Task { @MainActor in
-                        try? await Task.sleep(
-                            nanoseconds: UInt64(max(0, delay) * 1_000_000_000)
-                        )
-                        action.run()
+                    if MainQueueDrain.schedulesRealTimers {
+                        Task { @MainActor in
+                            try? await Task.sleep(
+                                nanoseconds: UInt64(max(0, delay) * 1_000_000_000)
+                            )
+                            action.run()
+                        }
+                        return .void
+                    }
+                    // Trace mode: BOUNDED delays deliver on the next drain,
+                    // once per drain (URLProtocol mocks ship loadingTime:
+                    // 0.1 — the await in the test spans it on device).
+                    // Far-future timers stay inert: no probe frame would
+                    // ever contain them.
+                    if delay <= 30 {
+                        MainQueueDrain.delayedPending.append(action)
+                        Task { @MainActor in MainQueueDrain.drain() }
                     }
                     return .void
                 }

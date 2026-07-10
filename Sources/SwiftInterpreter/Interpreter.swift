@@ -263,6 +263,9 @@ public final class Interpreter {
     /// REAL type value. Textual, innermost last.
     var expectedAnnotationStack: [String] = []
     var pendingDottedExtensions: [ExtensionDeclSyntax] = []
+    /// Member typealiases whose targets resolve only after the extension
+    /// pass (typealias API = TestWebRepository.API).
+    var pendingMemberAliases: [(StructSymbol, String, String)] = []
     /// Property/method collision preferences currently evaluating — the
     /// property's own body reaching the same name falls to the METHOD.
     var activeCollisionProperties: Set<String> = []
@@ -447,6 +450,7 @@ public final class Interpreter {
         assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: file)
         processDeferredExtensions()
+        resolvePendingMemberAliases()
         reconcileStrandedExtensions()
         resolveTransitiveViewConformance()
 
@@ -1307,7 +1311,26 @@ public final class Interpreter {
         if let angle = typeName.firstIndex(of: "<"), typeName.hasSuffix(">") {
             typeName = String(typeName[..<angle])
         }
-        if let symbol = enumSymbols[typeName] {
+        // Annotation names resolve in the LEXICAL scope of the declaration
+        // they annotate: the running function's declaring type sees its own
+        // nested types AND member typealiases first (WebRepositoryTests'
+        // `typealias API = TestWebRepository.API` beats whichever same-named
+        // nested enum claimed the bare global slot).
+        var scopedEnum = enumSymbols[typeName]
+        var scopedStruct: StructSymbol?
+        if case .type(let symbol)? = globals.lookup(typeName) { scopedStruct = symbol }
+        if let owner = lexicalOwnerFrames.last {
+            let nested = (owner as? StructSymbol)?.nestedTypes[typeName]
+                ?? (owner as? EnumSymbol)?.nestedTypes[typeName]
+            if case .enumType(let symbol)? = nested {
+                scopedEnum = symbol
+                scopedStruct = nil
+            } else if case .type(let symbol)? = nested {
+                scopedStruct = symbol
+                scopedEnum = nil
+            }
+        }
+        if let symbol = scopedEnum {
             if case .implicitMember(let name) = value,
                let info = symbol.caseInfo(named: name), !info.hasAssociatedValues {
                 return .enumCase(EnumCaseValue(symbol: symbol, name: name))
@@ -1334,7 +1357,7 @@ public final class Interpreter {
         }
 
         // User structs/classes: `= .init(...)`, static factories, static values.
-        if case .type(let symbol)? = globals.lookup(typeName) {
+        if let symbol = scopedStruct {
             if case .host(let any) = value, let call = any as? ImplicitMemberCall {
                 if call.name == "init" {
                     return try instantiate(symbol, with: call.arguments)

@@ -42,6 +42,9 @@ while let argument = iterator.next() {
     }
 }
 
+// The bridge's gated diagnostics (⚠/⇢/⚡) follow the same env switch here.
+LiveCheckSupport.traceLifecycle = ProcessInfo.processInfo.environment["LIVECHECK_TRACE"] == "1"
+
 let fm = FileManager.default
 
 struct Unit {
@@ -70,6 +73,11 @@ var failureClasses: [String: (count: Int, example: String)] = [:]
 for unit in units {
     guard checked < limit else { break }
     let source = ProjectMaterial.testMergedSource(at: unit.directory)
+    if let dumpDir = ProcessInfo.processInfo.environment["TESTCHECK_DUMP"] {
+        // Located errors point into the MERGE — the dump is what they index.
+        try? source.write(
+            toFile: "\(dumpDir)/\(unit.name).merged.swift", atomically: true, encoding: .utf8)
+    }
     guard source.contains("XCTestCase") || source.contains("@Test") else { continue }
     checked += 1
 

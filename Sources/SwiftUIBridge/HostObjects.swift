@@ -136,6 +136,22 @@ final class BundleBox {
 func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     if let network = networkHostObjectConstructor(named: name) { return network }
     switch name {
+    case "URLRequest":
+        // A real config bag: member writes memoize (request.httpMethod =
+        // "POST"), and NetworkBridge.url(from:) reads config["url"] — the
+        // URLProtocol mock gate compares real URLs.
+        return HostFunction(name: name) { args, _ in
+            let bag = UIKitStub()
+            if let url = args.labeled("url") ?? args.positional(0) {
+                bag.config["url"] = url
+            }
+            return .native(bag)
+        }
+    case "NSLock", "NSRecursiveLock", "NSCondition":
+        // Single-threaded probes hold every lock trivially: withLock RUNS
+        // its body and returns the result (clean-architecture's mock store
+        // wraps all access in lock.withLock { … }).
+        return HostFunction(name: name) { _, _ in .native(LockBox()) }
     case "NSRegularExpression":
         return HostFunction(name: name) { args, _ in
             // REAL regex — the host-hardware doctrine: patterns compile and
@@ -598,12 +614,31 @@ private func nsFont(from value: RuntimeValue) -> NSFont? {
 
 /// Readable members on host objects (extends bridgeHostMember's coverage).
 /// A REAL NSRegularExpression (host-executable regex).
+/// NSLock/NSRecursiveLock stand-in: single-threaded probes hold every
+/// lock trivially; withLock runs its body.
+public final class LockBox {}
+
 final class RegexBox {
     let regex: NSRegularExpression
     init(regex: NSRegularExpression) { self.regex = regex }
 }
 
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if value is LockBox {
+        switch name {
+        case "withLock", "sync":
+            // Runs the body and returns its result — the lock is always
+            // free in a single-threaded probe.
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                guard let body = args.firstUnlabeledClosure else { return .void }
+                return try ctx.callClosure(body, arguments: [])
+            })
+        case "lock", "unlock", "signal", "broadcast", "wait":
+            return .hostFunction(HostFunction(name: name) { _, _ in .void })
+        default:
+            return nil
+        }
+    }
     if let box = value as? RegexBox {
         switch name {
         case "numberOfCaptureGroups": return .native(box.regex.numberOfCaptureGroups)

@@ -15,6 +15,9 @@ public enum HeadlessVerifier {
     public static func resetBridgeEnvironment() {
         FileManagerBox.resetSandbox()
         ObjCTrampoline.resetEphemeralDefaults()
+        // A prior interactive render (the demo facade) may have switched
+        // asyncAfter to wall-clock timers; probes drain instead.
+        MainQueueDrain.schedulesRealTimers = false
     }
 
     @discardableResult

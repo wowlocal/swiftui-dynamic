@@ -8,6 +8,9 @@ public struct InterpreterHost {
     public init() {}
 
     public func render(source: String, lazyTopLevelGlobals: Bool = false) -> Result<AnyView, RuntimeError> {
+        // The demo is INTERACTIVE: debounces and delayed retries run on
+        // real wall-clock timers (headless probes drain them instead).
+        MainQueueDrain.schedulesRealTimers = true
         HeadlessVerifier.resetBridgeEnvironment()
         let registry = ViewRegistry()
         let interpreter = Interpreter(registry: registry)

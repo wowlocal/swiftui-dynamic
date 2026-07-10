@@ -420,6 +420,12 @@ public enum Builtins {
            case .host(let r) = rhs, let rk = r as? KeyPathStub {
             return lk.components == rk.components
         }
+        // Real Foundation values compare for real (URL mock gates match
+        // request URLs against recorded ones).
+        if case .host(let l) = lhs, let lu = l as? URL,
+           case .host(let r) = rhs, let ru = r as? URL {
+            return lu == ru
+        }
         if lhs.isNil || rhs.isNil { return lhs.isNil && rhs.isNil }
         // Chained markers compare by their final member name — honestly
         // false for `.current.orientation == .landscapeRight`.
