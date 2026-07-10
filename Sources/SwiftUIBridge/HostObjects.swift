@@ -849,7 +849,17 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     case "string":
         return .hostFunction(HostFunction(name: "string") { args, _ in
             guard let date = dateArg(args.labeled("from") ?? args.positional(0)) else {
-                throw RuntimeError(message: "string(from:) needs a Date")
+                // An UNKNOWABLE operand (a date the merge couldn't produce)
+                // formats as the fresh string — "" — like every string
+                // context; genuinely wrong values still throw.
+                let operand = args.labeled("from") ?? args.positional(0)
+                if let operand, Coerce.isUnknowable(operand) || operand.isNil {
+                    return .native("")
+                }
+                if case .double(let interval)? = operand {
+                    return .native(box.formatter.string(from: Date(timeIntervalSince1970: interval)))
+                }
+                throw RuntimeError(message: "string(from:) needs a Date, got \(operand?.stringified ?? "nothing")")
             }
             return .native(box.formatter.string(from: date))
         })

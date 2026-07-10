@@ -5,6 +5,18 @@ import SwiftInterpreter
 /// the SwiftUI type a gateway parameter expects — the "expected type context"
 /// trick reduced to lookup tables, dodging real type inference.
 enum Coerce {
+    /// The shared unknowable test: markers, chains, inert stubs, bound
+    /// host functions — the fresh-state absorption family.
+    static func isUnknowable(_ value: RuntimeValue) -> Bool {
+        if let payload = value.hostPayload {
+            return payload is InertCallable || payload is ChainedImplicitCall
+                || payload is ImplicitMemberCall
+        }
+        if case .implicitMember = value { return true }
+        if case .hostFunction = value { return true }
+        return false
+    }
+
     // MARK: - Bindings
 
     static func bindingBox(_ value: RuntimeValue) throws -> Box {

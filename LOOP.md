@@ -1777,3 +1777,11 @@ without this.
   class-backed instances and host objects by reference. winston ✅ —
   121 nodes and 14 actions at the honest root (the heuristic root saw
   1 node). **655/666 counted (654 → 655). Suite 346 → 347.**
+- 2026-07-10 iter 174: honest-roots queue — the biggest class had grown
+  to TWO units (SwiftBar's hook advanced into it + pocket-casts):
+  `DateFormatter.string(from:)` with an UNKNOWABLE operand now formats
+  as the fresh string ("" — the string-context absorption; numeric
+  intervals format as real epoch dates; wrong values still throw, now
+  with the operand named). Coerce.isUnknowable is the shared test.
+  SwiftBar ✅, pocket-casts ✅ (20 nodes, 4 actions at the honest
+  root). **656/666 counted (654 → 656). Suite 347 → 348.**

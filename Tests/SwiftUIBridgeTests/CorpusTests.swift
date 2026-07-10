@@ -2909,6 +2909,31 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// SwiftBar + pocket-casts (iteration 174): DateFormatter.string(from:)
+    /// with an UNKNOWABLE operand formats as the fresh string ("" — every
+    /// string context's absorption); numeric intervals format as real
+    /// epoch dates; real Dates format really.
+    @Test func formatterAbsorbsUnknowableDates() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy"
+                let fresh = formatter.string(from: unmergedClock.lastSyncDate)
+                let real = formatter.string(from: Date(timeIntervalSince1970: 0))
+                let checks = [
+                    fresh == "",
+                    real == "1970",
+                ]
+                if checks.contains(false) { fatalError("formatter absorption broken: \\(fresh)/\\(real)") }
+                return Text(real)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// winston at its honest root (iteration 173): KEYED subscript
     /// assignment auto-vivifies the dictionary when the store is deferred,
     /// nil, or an absorbed marker (`self.routers[tab] = router` where
