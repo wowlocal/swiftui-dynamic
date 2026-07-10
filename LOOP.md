@@ -197,7 +197,14 @@ Each iteration does exactly this:
    iteration otherwise. Never fabricate passing material. The async-fetch
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
-   actionable classes, so material hunts don't resume until they close:
+   actionable classes, so material hunts don't resume until they close.
+   CLAIMS: two agents work this repo (the ralph loop and the steering
+   worktree (штурман)). Before STARTING a queue item, prepend `[CLAIMED <agent>
+   <HH:MM>]` to its first line (loop: edit in your iteration commit;
+   steward: via the worktree merge). Skip items with a fresh claim;
+   claims older than ~2 hours are stale and free. Three duplicate
+   implementations happened on 2026-07-10 (decoder stubs, generics,
+   flux) — claims are cheaper:
    1. `.modifier(m)` MEMBER spelling still absorbs (the interception
       that ran interpreted ViewModifier bodies at member sites broke
       isowords/winston/KeyboardCowboy and was removed; the
@@ -215,24 +222,6 @@ Each iteration does exactly this:
       NESTED types over globals — Instance.statuses: Statuses is the
       config struct, not the endpoint enum; api_v2_instance fixture
       recorded, /api/v2/instance hits.)
-   2. MOVIESWIFTUI: GENERIC-STRUCT DECODE (M2): the iOS TARGET now
-      renders (per-target merge — mergedSource(at:excludingTargets:)
-      keeps MovieSwiftTV out, exactly like xcodebuild; root
-      scene:HomeView, 208 strings, 36 closures), the launch fetch hits
-      the recorded now_playing fixture, user-declared operator
-      functions dispatch (`func +=(lhs: inout [Int: Movie], rhs:
-      [Movie])` — UserOperatorTests), and closure-argument annotations
-      unify generics (`completionHandler: (Result<T, APIError>) ->
-      Void` against `(result: Result<PaginatedResponse<Movie>, …>)`).
-      REMAINING WALL: `decode(T.self)` with T = PaginatedResponse<Movie>
-      — typeDescriptor has no carrier for a GENERIC-APPLIED type, and
-      structural decode of a generic struct needs a SUBSTITUTION MAP
-      (`PaginatedResponse<T: Codable> { results: [T] }` must decode
-      `results` with T := Movie). Design: a generic-application type
-      value (symbol + substitutions, e.g. .native(GenericApplication))
-      that decodeInstance threads into decodeField's owner-scoped
-      lookup. Trace: "JSON Decoding Error: decode: unsupported type
-      value (function T)" ×4. Expect: titles land → LiveCheck 4/4.
    2b. OPTIMISTIC `as?` FALSE-POSITIVE on interpreted instances
       (correctness, reducer genre): `action as? DidFetch` matched a
       FetchList — reducers mutate state on WRONG action types (junk
@@ -242,12 +231,6 @@ Each iteration does exactly this:
       HOST/unknowable values.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read
       LiveModelStore and refresh on store writes (see TestCheck Ledger).
-   4. Bare-identifier mutating member call on a class property (language
-      class): `log.append(x)` inside a method fails with "unsupported
-      member 'append' on Array<RuntimeValue>" while `self.log.append(x)`
-      works — the bare-identifier write path doesn't funnel through the
-      instance-property box (repro: any class with an array property and
-      a method that appends without `self.`).
 
 ## Rules
 
@@ -283,7 +266,9 @@ if compiled in Xcode. Milestones, each with its measuring queue:
   window raises as before]
 - **M1 Computes** — TestCheck: the project's own tests pass interpreted,
   native-baseline verified.
-- **M2 Live data** — LiveCheck rungs: fetch → decode → strings in tree →
+- **M2 Live data** — GREEN 2026-07-10: LiveCheck 4/4 (icecubes + movieswiftui
+  full launch chains). Breadth grows by adding scenarios; the rung ladder:
+  fetch → decode → strings in tree →
   nonblank pixels.
 - **M3 Interactive persistence** — in-session data is REAL: insert →
   query returns it, tap a row → its detail renders that row's data, state
