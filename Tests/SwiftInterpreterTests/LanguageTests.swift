@@ -158,6 +158,30 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "ok: done, err 404")
     }
 
+    @Test func barePatternMatchesPayloadCase() throws {
+        // Compiled Swift accepts the payload-less spelling for payload cases:
+        // `case .error:` matches `.error(anything)`.
+        let source = """
+        enum State {
+            case loading
+            case display(items: Int)
+            case error(code: Int)
+        }
+        func label(s: State) -> String {
+            switch s {
+            case .loading:
+                return "loading"
+            case .display:
+                return "display"
+            case .error:
+                return "error"
+            }
+        }
+        label(s: .loading) + " " + label(s: .display(items: 3)) + " " + label(s: .error(code: 404))
+        """
+        #expect(try eval(source).stringValue == "loading display error")
+    }
+
     @Test func switchOverRangesAndValues() throws {
         let source = """
         func bucket(n: Int) -> String {

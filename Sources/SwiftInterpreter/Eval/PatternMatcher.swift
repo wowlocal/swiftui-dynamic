@@ -257,6 +257,13 @@ extension Interpreter {
         if let cast = matchCastSequence(expr, subject: subject, bindingInto: bindings) {
             return cast
         }
+        // Bare `case .error:` — compiled Swift lets a payload case be matched
+        // by its payload-less spelling; only the case NAME is checked.
+        if let member = expr.as(MemberAccessExprSyntax.self),
+           let (caseName, _) = caseShape(of: subject),
+           member.declName.baseName.text == caseName {
+            return true
+        }
         // `.finished(let message)` / `Status.finished(let message)` — enum
         // payload patterns arrive as call expressions whose arguments may be
         // nested patterns. Subjects that never got type context arrive as
