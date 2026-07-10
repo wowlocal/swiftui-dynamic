@@ -2697,7 +2697,10 @@ extension Interpreter {
                 if case .instance(let i)? = env.lookup("self") { selfDesc = i.symbol.name }
                 Swift.print("   ⌥ lvalue statusesState envBox=\(env.box(for: name) != nil) self=\(selfDesc)")
             }
-            if let box = env.box(for: name) { return .box(box) }
+            // Real Swift scoping, write side: locals first, implicit-self
+            // members second, globals LAST — a property named like a global
+            // builtin (`log`, `min`) must not write into the builtin's box.
+            if let box = env.box(for: name, before: globals) { return .box(box) }
             if case .instance(let instance)? = env.lookup("self") {
                 let canonical = instance.symbol.canonicalPropertyName(name)
                 if instance.box(for: canonical) != nil || instance.symbol.computedProperties[canonical] != nil {
@@ -2741,6 +2744,8 @@ extension Interpreter {
                 box.onChange = { symbol.staticCache[name] = box.value }
                 return .box(box)
             }
+            // No local or member claimed the name — top-level globals last.
+            if let box = globals.box(for: name) { return .box(box) }
             throw error(ref, "cannot assign to '\(name)'")
         }
         if let member = expr.as(MemberAccessExprSyntax.self), let base = member.base {

@@ -166,6 +166,23 @@ final class UIKitStub: InertCallable {
 /// `DispatchQueue.main` — async dispatches through the real main queue.
 struct MainQueueStub {}
 
+/// Deliveries queued by `DispatchQueue.main.async`: a Task drains them on
+/// the live main loop, and the render probe drains SYNCHRONOUSLY between
+/// passes — a task spawned from within another task's delivery would
+/// otherwise sit past the probe's RunLoop pumps (the SwiftUIFlux
+/// dispatch-inside-dispatch genre).
+public enum MainQueueDrain {
+    static var pending: [ActionValue] = []
+
+    public static func drain() {
+        while !pending.isEmpty {
+            let batch = pending
+            pending = []
+            for action in batch { action.run() }
+        }
+    }
+}
+
 /// Members on host-native values — shared by the real and trace registries
 /// via their `hostMember` hooks. Numbers come back as Double so interpreted
 /// arithmetic works on them.
@@ -407,8 +424,19 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 guard let closure = args.firstUnlabeledClosure else { return .void }
                 // A main-actor Task hop matches DispatchQueue.main.async
                 // semantics and, unlike raw GCD, also drains under swift test.
-                let action = ActionValue(run: { _ = try? ctx.callClosure(closure, arguments: []) })
-                Task { @MainActor in action.run() }
+                let action = ActionValue(run: {
+                    do {
+                        _ = try ctx.callClosure(closure, arguments: [])
+                    } catch {
+                        // Deliveries swallow errors like GCD would crash-
+                        // free harnesses; the trace surfaces them.
+                        if LiveCheckSupport.traceLifecycle {
+                            print("   ⚠ main.async delivery threw: \(error)")
+                        }
+                    }
+                })
+                MainQueueDrain.pending.append(action)
+                Task { @MainActor in MainQueueDrain.drain() }
                 return .void
             })
         }

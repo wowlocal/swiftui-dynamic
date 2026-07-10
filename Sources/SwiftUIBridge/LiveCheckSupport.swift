@@ -144,7 +144,15 @@ public enum LiveCheckSupport {
         // the break below exits as soon as a pass adds nothing.
         var strings: [String] = []
         var firedCount = 0
-        for _ in 0..<8 {
+        for renderPass in 0..<8 {
+            // Deliver main-queue hops queued at the END of the previous
+            // pass (a dispatch fired INSIDE another dispatch's delivery —
+            // the AsyncAction execute → response-dispatch chain) BEFORE
+            // rendering, so the quiescence check sees their state writes.
+            if renderPass > 0 {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+                MainQueueDrain.drain()
+            }
             let root = try renderRoot!()
             var passStrings: [String] = []
             var lifecycle: [ClosureValue] = []
@@ -179,6 +187,7 @@ public enum LiveCheckSupport {
             // synchronous loop — a short RunLoop pump delivers them, like
             // the real main loop would between frames.
             RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            MainQueueDrain.drain()
         }
 
         if traceLifecycle {

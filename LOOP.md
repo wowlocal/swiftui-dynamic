@@ -220,24 +220,30 @@ Each iteration does exactly this:
       NESTED types over globals — Instance.statuses: Statuses is the
       config struct, not the endpoint enum; api_v2_instance fixture
       recorded, /api/v2/instance hits.)
-   2. MOVIESWIFTUI DISPATCH-CLOSURE ENUM IS IMPLICIT (M2): requests
-      now FIRE — the probe drains main-queue hops between passes
-      (RunLoop pump; SwiftUIFlux's Store.dispatch hops through
-      DispatchQueue.main.async), and Dictionary.enumerated() serves the
-      APIService params loop. But the 6 GETs carry a QUERY-ONLY URL:
-      `list.endpoint().path()` absorbs because the ACTION's `list`
-      arrives as an implicitMember — the dispatch closure's enum value
-      (ForEach element / @Binding-carried MoviesMenu) reads as
-      unresolved implicit while the SAME value renders fine in section
-      headers (menu.title() → "Now Playing"…"Genres"). Evidence chain:
-      generated .appendingPathComponent no-overload trace shows arg =
-      ChainedImplicitCall(path on ImplicitMemberCall(endpoint)).
-      Diagnostics landed: dataTask()/URLComponents(url:)/generated
-      no-match all trace under LIVECHECK_TRACE. Find where the closure
-      captures/reads the element as implicit (tag(_:)? tabItem? the
-      ForEach element binding in MoviesHomeGrid/MoviesView), fix the
-      read, expect titles ≥3/10. (Minor: Locale.preferredLanguages
-      absorbs — language query item rides empty, harmless for replay.)
+   2. MOVIESWIFTUI: REAL-APP-ONLY implicit `list` (M2): the probe
+      PIPELINE is now clean — bare-identifier writes to builtin-named
+      class properties land (write-side scoping: locals → members →
+      globals, BareMemberWriteTests — this WAS old item 4's true
+      mechanism, `log` shadowed the math builtin), weak-self dispatch
+      closures run, and dispatch-INSIDE-dispatch delivers via the
+      deterministic MainQueueDrain (a nested main-actor Task never
+      woke the probe's RunLoop pumps). The FULL SwiftUIFlux chain
+      (ForEach element → onAppear → store.dispatch → asyncActions
+      middleware → AsyncAction.execute → inner dispatch → reducer →
+      state → re-render) passes in isolation INCLUDING namespaced
+      actions (ForEachCaptureProbe). Yet the real app still absorbs:
+      6 GETs carry query-only URLs, list.endpoint() runs on an
+      implicit `list`. Remaining deltas to bisect: ConnectedView props
+      dict `props.movies[menu]` subscript, UserDefaults-driven home
+      switching (grid vs vertical), TabView(selection:)+tag under
+      trace. Diagnose in the REAL merged source with INTERP_TRACE_*.
+   2b. OPTIMISTIC `as?` FALSE-POSITIVE on interpreted instances
+      (correctness, reducer genre): `action as? DidFetch` matched a
+      FetchList — reducers mutate state on WRONG action types (junk
+      ChainedImplicitCall strings land in state, see ForEachCaptureProbe
+      output). Interpreted-instance casts against interpreted types
+      should check symbol identity/inheritance; keep optimism only for
+      HOST/unknowable values.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read
       LiveModelStore and refresh on store writes (see TestCheck Ledger).
    4. Bare-identifier mutating member call on a class property (language
