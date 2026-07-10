@@ -1894,3 +1894,10 @@ between iterations 35 and 183.)
   ZERO quarantines (THIRTY-SIXTH saturation). Every SwiftUI unit in
   the corpus — 585 zips + 82 OSS repos — interprets, renders its
   declared root, and survives its clicks. Suite 368 → 369.**
+- 2026-07-10 iter 185: step 9 — Signal-iOS (2522 files, the last
+  untried giant) + ProtonMail ios-mail (960) cloned. BOTH PASSED ON
+  ARRIVAL — the fourth all-arrival iteration (139/160/167 precedents).
+  **671/672 counted — ZERO failures, ZERO quarantines (THIRTY-SEVENTH
+  saturation). 585 zips + 84 OSS repos; the sole exclusion remains
+  MonitorControl (⚪ no View structs). Suite 369 (unchanged — no new
+  capability, no new test).**
