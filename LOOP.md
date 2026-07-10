@@ -185,24 +185,31 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. STATE IDENTITY ACROSS PROBE RE-RENDERS (M2/M3, core-shaped;
-      blocks icecubes AND movieswiftui): `@State var viewModel =
-      TimelineViewModel()` re-initializes on EVERY probe pass, so the
-      client assigned by pass-N's .onAppear is invisible to pass-N+1's
-      fetch — NetworkBridge.requestLog stays EMPTY (proof: LiveCheck
-      icecubes diagnostics print "network: NO REQUESTS" while 12
-      lifecycle closures fire without errors and the toolbar renders).
-      Interpreted @State/@StateObject/@Observable-owned values need
-      per-VIEW-IDENTITY persistence across re-evaluations within one
-      probe run (position-keyed store, like compiled SwiftUI's
-      per-identity state), so onAppear writes survive into the next
-      render pass. Fixture for the unauth trending fetch is recorded
+   1. ICECUBES FETCH CHAIN ABSORBS BEFORE NetworkBridge.respond (M2):
+      state identity is DONE (per-identity @State store keyed by
+      instantiation site + type + property, ViewStateIdentityTests;
+      property observers run with compiled semantics,
+      PropertyObserverTests; bare `case .error:` matches payload cases)
+      — the scenario now renders through the error branch: 12 lifecycle
+      closures fire, statusesState reaches .error(.noData), yet
+      requestLog stays "NO REQUESTS". So the Task-spawned fetch RUNS but
+      Client.get(endpoint:) → URLComponents/URLRequest → URLSession
+      absorbs somewhere before NetworkBridge.respond. Find the absorbing
+      link (URLComponentsBox exists; check the URLSession call shape
+      IceCubes uses — `session.data(for: request)` vs our gateway's
+      accepted shapes) and make the request land. Fixture recorded
       (api_v1_trends_statuses.json — native unauth IceCubes shows
       TRENDING, launch parity).
    2. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
       Store.state + dispatch → reducer → objectWillChange.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read
       LiveModelStore and refresh on store writes (see TestCheck Ledger).
+   4. Bare-identifier mutating member call on a class property (language
+      class): `log.append(x)` inside a method fails with "unsupported
+      member 'append' on Array<RuntimeValue>" while `self.log.append(x)`
+      works — the bare-identifier write path doesn't funnel through the
+      instance-property box (repro: any class with an array property and
+      a method that appends without `self.`).
 
 ## Rules
 
