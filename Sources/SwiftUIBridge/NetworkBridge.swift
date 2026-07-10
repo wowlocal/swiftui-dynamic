@@ -151,6 +151,17 @@ public final class HTTPResponseBox {
     }
 }
 
+/// Real `URLComponents` semantics — the client-genre `makeURL` builds its
+/// request URL through scheme/host/path/queryItems writes and reads `.url`
+/// back; an absorbed bag here would kill every fetch downstream.
+public final class URLComponentsBox {
+    var components: URLComponents
+
+    init(_ components: URLComponents = URLComponents()) {
+        self.components = components
+    }
+}
+
 /// JSONDecoder with strategy writes and STRUCTURAL decode into interpreted
 /// types (see JSONDecodeBridge). Custom `init(from:)` bodies don't run —
 /// documented divergence until real Codable synthesis lands.
@@ -223,6 +234,32 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
             return nil
         }
     }
+    if let box = value as? URLComponentsBox {
+        switch name {
+        case "url":
+            return box.components.url.map { .native($0) } ?? .nilValue
+        case "string":
+            return box.components.string.map { .native($0) } ?? .nilValue
+        case "scheme": return box.components.scheme.map { .native($0) } ?? .nilValue
+        case "host": return box.components.host.map { .native($0) } ?? .nilValue
+        case "path": return .native(box.components.path)
+        case "port": return box.components.port.map { .int($0) } ?? .nilValue
+        case "query": return box.components.query.map { .native($0) } ?? .nilValue
+        case "fragment": return box.components.fragment.map { .native($0) } ?? .nilValue
+        case "queryItems":
+            guard let items = box.components.queryItems else { return .nilValue }
+            return .native(items.map { RuntimeValue.native($0) })
+        default:
+            return nil
+        }
+    }
+    if let query = value as? URLQueryItem {
+        switch name {
+        case "name": return .native(query.name)
+        case "value": return query.value.map { .native($0) } ?? .nilValue
+        default: return nil
+        }
+    }
     if let box = value as? HTTPResponseBox {
         switch name {
         case "statusCode": return .native(box.response.statusCode)
@@ -263,6 +300,42 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
 
 @MainActor
 func networkHostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
+    if let box = value as? URLComponentsBox {
+        switch name {
+        case "scheme":
+            box.components.scheme = newValue.stringValue
+            return true
+        case "host":
+            box.components.host = newValue.stringValue
+            return true
+        case "path":
+            box.components.path = newValue.stringValue ?? ""
+            return true
+        case "port":
+            box.components.port = newValue.intValue
+            return true
+        case "query":
+            box.components.query = newValue.stringValue
+            return true
+        case "fragment":
+            box.components.fragment = newValue.stringValue
+            return true
+        case "queryItems":
+            if let items = newValue.arrayValue {
+                box.components.queryItems = items.compactMap { item in
+                    if case .host(let any) = item, let query = any as? URLQueryItem {
+                        return query
+                    }
+                    return nil
+                }
+            } else if newValue.isNil {
+                box.components.queryItems = nil
+            }
+            return true
+        default:
+            return false
+        }
+    }
     guard let decoder = value as? JSONDecoderBox else { return false }
     switch name {
     case "keyDecodingStrategy":
@@ -292,6 +365,26 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
         }
     case "JSONDecoder":
         return HostFunction(name: name) { _, _ in .native(JSONDecoderBox()) }
+    case "URLComponents":
+        return HostFunction(name: name) { args, _ in
+            // Failable like the real thing: URLComponents(string:) is nil
+            // on garbage; the bare init starts empty.
+            if let text = args.labeled("string")?.stringValue {
+                return URLComponents(string: text).map { .native(URLComponentsBox($0)) } ?? .nilValue
+            }
+            if let url = NetworkBridge.url(from: args.labeled("url")) {
+                let resolve = args.labeled("resolvingAgainstBaseURL")?.boolValue ?? false
+                return URLComponents(url: url, resolvingAgainstBaseURL: resolve)
+                    .map { .native(URLComponentsBox($0)) } ?? .nilValue
+            }
+            return .native(URLComponentsBox())
+        }
+    case "URLQueryItem":
+        return HostFunction(name: name) { args, _ in
+            let itemName = args.labeled("name")?.stringValue ?? args.positional(0)?.stringValue ?? ""
+            let itemValue = args.labeled("value") ?? args.positional(1)
+            return .native(URLQueryItem(name: itemName, value: itemValue?.stringValue))
+        }
     case "__fixtureData":
         // Harness-only: LiveCheck's decode scenarios read recorded bytes.
         return HostFunction(name: name) { args, _ in
