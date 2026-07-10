@@ -1,3 +1,4 @@
+import Foundation
 import SwiftInterpreter
 
 /// LiveCheck's render probe: interpret a merged project, deep-render every
@@ -171,6 +172,12 @@ public enum LiveCheckSupport {
                 lastLifecycleFired += 1
             }
             firedCount = lifecycle.count
+            // Drain main-queue hops before the next render pass:
+            // `DispatchQueue.main.async` (SwiftUIFlux's Store.dispatch)
+            // bridges through Task{@MainActor}, which never runs inside a
+            // synchronous loop — a short RunLoop pump delivers them, like
+            // the real main loop would between frames.
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
         }
 
         if traceLifecycle {

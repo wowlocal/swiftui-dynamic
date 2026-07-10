@@ -298,6 +298,12 @@ extension GeneratedDispatch {
         }
         // A shape the sweep couldn't map (blocked param type, unemitted
         // overload) absorbs like the trampoline does — never dies mid-render.
+        if LiveCheckSupport.traceLifecycle {
+            let shapes = args.arguments
+                .map { "\($0.label ?? "_"): \($0.value.stringified.prefix(220))" }
+                .joined(separator: ", ")
+            print("   ⚠ generated .\(name) on \(type(of: base)): no overload for (\(shapes))")
+        }
         return .native(ChainedImplicitCall(base: .native(base), member: name, arguments: args))
     }
 }

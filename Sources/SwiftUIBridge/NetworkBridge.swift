@@ -251,6 +251,10 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "dataTask":
             return .hostFunction(HostFunction(name: "dataTask") { args, _ in
                 let url = NetworkBridge.url(from: args.labeled("with") ?? args.positional(0))
+                if LiveCheckSupport.traceLifecycle {
+                    let raw = args.labeled("with") ?? args.positional(0)
+                    print("   ⇢ dataTask(): url=\(url?.absoluteString ?? "nil") from \(raw?.stringified.prefix(120) ?? "nil")")
+                }
                 let completion: ClosureValue? = args.arguments
                     .compactMap { if case .closure(let c) = $0.value { c } else { nil } }
                     .first
@@ -527,6 +531,9 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
                 let resolve = args.labeled("resolvingAgainstBaseURL")?.boolValue ?? false
                 return URLComponents(url: url, resolvingAgainstBaseURL: resolve)
                     .map { .native(URLComponentsBox($0)) } ?? .nilValue
+            }
+            if LiveCheckSupport.traceLifecycle, let raw = args.labeled("url") {
+                print("   ⚠ URLComponents(url:): no URL in \(raw.stringified.prefix(160))")
             }
             return .native(URLComponentsBox())
         }

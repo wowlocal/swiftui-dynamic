@@ -131,6 +131,18 @@ extension Interpreter {
             case "isEmpty": return .native(dict.isEmpty)
             case "keys": return .native(dict.keys)
             case "values": return .native(dict.values)
+            case "enumerated":
+                // `for (_, value) in params.enumerated()` (the APIService
+                // genre): (offset, (key:, value:)) pairs, so `value.key` /
+                // `value.value` read through the inner labeled tuple.
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    .native(zip(dict.keys, dict.values).enumerated().map { index, pair in
+                        RuntimeValue.native(TupleValue(labels: [nil, nil], values: [
+                            .native(index),
+                            .native(TupleValue(labels: ["key", "value"], values: [pair.0, pair.1])),
+                        ]))
+                    })
+                })
             default: return nil
             }
         }

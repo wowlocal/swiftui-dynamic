@@ -224,23 +224,24 @@ Each iteration does exactly this:
       NESTED types over globals — Instance.statuses: Statuses is the
       config struct, not the endpoint enum; api_v2_instance fixture
       recorded, /api/v2/instance hits.)
-   2. MOVIESWIFTUI FETCH CHAIN (M2): the SwiftUIFlux WALL IS DOWN —
-      the dependency's real sources join the LiveCheck merge (pinned
-      clone at External/deps/SwiftUIFlux, like SPM compiles deps), and
-      five classes closed to get the tree rendering: reduce's combiner
-      is the second/trailing argument (a closure ACCUMULATOR was being
-      called as the combine — SwiftUIFlux folds middleware into a
-      dispatch function), delegate-hosted `rootView: view` local
-      references resolve to their initializer, protocol inheritance is
-      transitive for View-ness (`ConnectedView: View`), and protocol-
-      EXTENSION `body` serves conformers (ProtocolViewConformanceTests).
-      Now: root app:StoreProvider renders, 6 onAppear closures dispatch
-      FetchMoviesMenuList through the real store+middleware, but
-      network shows NO REQUESTS — the AsyncAction.execute →
-      APIService.shared.GET → URLSession chain absorbs before
-      NetworkBridge.respond (12 strings, no titles). Dig APIService's
-      GET (URLComponents/queryItems/dataTask shapes) with
-      LIVECHECK_TRACE; expectation: fixture titles reach the tree.
+   2. MOVIESWIFTUI DISPATCH-CLOSURE ENUM IS IMPLICIT (M2): requests
+      now FIRE — the probe drains main-queue hops between passes
+      (RunLoop pump; SwiftUIFlux's Store.dispatch hops through
+      DispatchQueue.main.async), and Dictionary.enumerated() serves the
+      APIService params loop. But the 6 GETs carry a QUERY-ONLY URL:
+      `list.endpoint().path()` absorbs because the ACTION's `list`
+      arrives as an implicitMember — the dispatch closure's enum value
+      (ForEach element / @Binding-carried MoviesMenu) reads as
+      unresolved implicit while the SAME value renders fine in section
+      headers (menu.title() → "Now Playing"…"Genres"). Evidence chain:
+      generated .appendingPathComponent no-overload trace shows arg =
+      ChainedImplicitCall(path on ImplicitMemberCall(endpoint)).
+      Diagnostics landed: dataTask()/URLComponents(url:)/generated
+      no-match all trace under LIVECHECK_TRACE. Find where the closure
+      captures/reads the element as implicit (tag(_:)? tabItem? the
+      ForEach element binding in MoviesHomeGrid/MoviesView), fix the
+      read, expect titles ≥3/10. (Minor: Locale.preferredLanguages
+      absorbs — language query item rides empty, harmless for replay.)
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read
       LiveModelStore and refresh on store writes (see TestCheck Ledger).
    4. Bare-identifier mutating member call on a class property (language
