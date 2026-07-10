@@ -2857,6 +2857,8 @@ extension Interpreter {
                 return marker.name
             }
             if case .hostFunction(let fn) = base { return fn.name } // ctor catch-all
+            if case .enumType(let symbol) = base { return symbol.name } // vendored store
+            if case .type(let symbol) = base { return symbol.name }
             return nil
         }()
         guard let storeTypeName,
@@ -2990,6 +2992,22 @@ extension Interpreter {
                 let start = bytes.index(bytes.startIndex, offsetBy: range.lowerBound)
                 let end = bytes.index(bytes.startIndex, offsetBy: range.upperBound)
                 return .native(Data(bytes[start..<end]))
+            }
+        }
+        // A TYPE base that isn't a declared-default store: in compiled
+        // mode the subscript is a static-subscript surface the merge can't
+        // model (a vendored Defaults shim shadowed by a design-token
+        // namespace) — absorbs.
+        if assumesCompiledImports {
+            if case .enumType = base {
+                return .native(ChainedImplicitCall(
+                    base: base, member: "subscript",
+                    arguments: CallArguments(arguments: [.init(label: nil, value: index)])))
+            }
+            if case .type = base {
+                return .native(ChainedImplicitCall(
+                    base: base, member: "subscript",
+                    arguments: CallArguments(arguments: [.init(label: nil, value: index)])))
             }
         }
         // Subscripting an unknowable host collection (Bundle.main

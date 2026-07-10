@@ -223,6 +223,9 @@ public final class Interpreter {
             || message.contains("expected '(' to start function type")
             || message.contains("expected ')' in function type")
             || message.contains("expected '(', type, and ')' in function type")
+            // `throws async` — the parser recovers by normalizing effect
+            // order; the tree carries both effects correctly.
+            || message.contains("must precede 'throws'")
     }
 
     /// True when the source has HARD parse errors (recovered formatting

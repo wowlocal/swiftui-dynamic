@@ -302,6 +302,12 @@ extension Interpreter {
                 let nested = try makeEnumSymbol(nestedEnum)
                 symbol.nestedTypes[nested.name] = .enumType(nested)
                 enumSymbols["\(symbol.name).\(nested.name)"] = nested
+                // Bare-name registration is FIRST-WINS, never a union:
+                // sibling nested enums are distinct types (EhPanda's
+                // generated-strings namespace vs its settings enum) whose
+                // extension members attach to the specific dotted symbol.
+                // Inside an enclosing type, its OWN nested enum wins via
+                // nestedTypes regardless of the bare claimant.
                 if enumSymbols[nested.name] == nil { enumSymbols[nested.name] = nested }
                 globals.define("\(symbol.name).\(nested.name)", .enumType(nested))
                 if globals.lookup(nested.name) == nil {
@@ -457,41 +463,46 @@ extension Interpreter {
             // SIBLING app targets in a monorepo declare the same namespace
             // (Rayon + mRayon both ship `enum UIBridge`): members UNION —
             // separate targets never collide on device.
-            for enumCase in symbol.cases
-            where !existing.cases.contains(where: { $0.name == enumCase.name }) {
-                existing.cases.append(enumCase)
-            }
-            for (name, overloads) in symbol.methods {
-                existing.methods[name, default: []].append(contentsOf: overloads)
-            }
-            for (name, overloads) in symbol.staticMethods {
-                existing.staticMethods[name, default: []].append(contentsOf: overloads)
-            }
-            for (name, property) in symbol.staticProperties
-            where existing.staticProperties[name] == nil {
-                existing.staticProperties[name] = property
-            }
-            for (name, computed) in symbol.computedProperties
-            where existing.computedProperties[name] == nil {
-                existing.computedProperties[name] = computed
-            }
-            for (name, computed) in symbol.staticComputedProperties
-            where existing.staticComputedProperties[name] == nil {
-                existing.staticComputedProperties[name] = computed
-            }
-            for (name, nested) in symbol.nestedTypes
-            where existing.nestedTypes[name] == nil {
-                existing.nestedTypes[name] = nested
-            }
-            existing.initializers.append(contentsOf: symbol.initializers)
-            for conformance in symbol.conformances
-            where !existing.conformances.contains(conformance) {
-                existing.conformances.append(conformance)
-            }
+            Self.union(symbol, into: existing)
             return
         }
         enumSymbols[symbol.name] = symbol
         globals.define(symbol.name, .enumType(symbol))
+    }
+
+    /// Union `symbol`'s members into `existing` (sibling-target namespaces).
+    static func union(_ symbol: EnumSymbol, into existing: EnumSymbol) {
+        for enumCase in symbol.cases
+        where !existing.cases.contains(where: { $0.name == enumCase.name }) {
+            existing.cases.append(enumCase)
+        }
+        for (name, overloads) in symbol.methods {
+            existing.methods[name, default: []].append(contentsOf: overloads)
+        }
+        for (name, overloads) in symbol.staticMethods {
+            existing.staticMethods[name, default: []].append(contentsOf: overloads)
+        }
+        for (name, property) in symbol.staticProperties
+        where existing.staticProperties[name] == nil {
+            existing.staticProperties[name] = property
+        }
+        for (name, computed) in symbol.computedProperties
+        where existing.computedProperties[name] == nil {
+            existing.computedProperties[name] = computed
+        }
+        for (name, computed) in symbol.staticComputedProperties
+        where existing.staticComputedProperties[name] == nil {
+            existing.staticComputedProperties[name] = computed
+        }
+        for (name, nested) in symbol.nestedTypes
+        where existing.nestedTypes[name] == nil {
+            existing.nestedTypes[name] = nested
+        }
+        existing.initializers.append(contentsOf: symbol.initializers)
+        for conformance in symbol.conformances
+        where !existing.conformances.contains(conformance) {
+            existing.conformances.append(conformance)
+        }
     }
 
     /// Local enum declarations collect WITHOUT global registration.
@@ -510,8 +521,8 @@ extension Interpreter {
         let rawIsString = symbol.conformances.contains("String")
 
         var nextIntRaw = 0
-        for member in node.memberBlock.members {
-            if let caseDecl = member.decl.as(EnumCaseDeclSyntax.self) {
+        for decl in flattenedMemberDecls(node.memberBlock.members) {
+            if let caseDecl = decl.as(EnumCaseDeclSyntax.self) {
                 for element in caseDecl.elements {
                     // `case \`default\`` — backticks normalize away, like
                     // parameters and labels everywhere else.
@@ -529,10 +540,27 @@ extension Interpreter {
                     symbol.cases.append(.init(name: caseName, associatedLabels: labels, rawValue: raw))
                 }
             } else {
-                try collectEnumMember(member.decl, into: symbol)
+                try collectEnumMember(decl, into: symbol)
             }
         }
         return symbol
+    }
+
+    /// Member declarations with `#if` blocks expanded to their active clause
+    /// (design-token enums split statics across canImport(UIKit)/AppKit).
+    private func flattenedMemberDecls(_ members: MemberBlockItemListSyntax) -> [DeclSyntax] {
+        var result: [DeclSyntax] = []
+        for member in members {
+            if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
+                if let clause = activeIfConfigClause(ifConfig),
+                   case .decls(let nested)? = clause.elements {
+                    result.append(contentsOf: flattenedMemberDecls(nested))
+                }
+                continue
+            }
+            result.append(member.decl)
+        }
+        return result
     }
 
     private func collectEnumMember(_ decl: DeclSyntax, into symbol: EnumSymbol) throws {

@@ -1946,3 +1946,20 @@ between iterations 35 and 183.)
   iteration. **677/678 counted — ZERO failures (FORTIETH saturation).
   585 zips + 92 OSS repos; sole exclusion MonitorControl (⚪). Suite
   375 (unchanged — no new capability, no new test).**
+- 2026-07-10 iter 189: step 9 — blink (arrival-pass at 8 nodes) +
+  Provenance (1989 files) cloned; Provenance's five-wall chain:
+  Dangerfile.swift hard-errors out of the merge (Danger's Ruby-ish
+  DSL), `throws async` effect-order recovery tolerated, type-base
+  subscripts absorb in compiled mode (vendored Defaults shim shadowed
+  by a design-token namespace), and — the big one — `#if` members
+  inside ENUM bodies now expand to their active clause (theme palettes
+  split `enum Colors` statics across canImport branches; collected
+  ZERO before) with the same expansion for SWITCH arms (amperfy gates
+  `case .developer` + its arm behind `#if DEBUG` — caught as a
+  mid-iteration regression when the case appeared but the arm didn't).
+  A speculative sibling-namespace UNION for nested enums was tried and
+  REVERTED: EhPanda proved extension members attach to the specific
+  dotted symbol, so franken-cases lose them; bare names stay
+  first-wins, own-nested-types win in scope. **679/680 counted — ZERO
+  failures (FORTY-FIRST saturation). 585 zips + 94 OSS repos. Suite
+  375 → 377.**

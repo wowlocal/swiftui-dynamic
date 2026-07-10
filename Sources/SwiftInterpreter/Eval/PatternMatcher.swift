@@ -17,7 +17,7 @@ extension Interpreter {
                 return .normal(.void) // `break` inside a case exits the SWITCH
             }
             if falls, case .normal = result,
-               let next = Self.caseStatements(after: selected.caseIndex, in: switchExpr) {
+               let next = caseStatements(after: selected.caseIndex, in: switchExpr) {
                 // `fallthrough` runs the NEXT case's body, no re-match.
                 selected = (next.index, next.statements, Environment(parent: env))
                 continue
@@ -35,7 +35,7 @@ extension Interpreter {
                 ? CodeBlockItemListSyntax(Array(selected.statements.dropLast()))
                 : selected.statements
             views += try collectBuilderViews(body, in: selected.env)
-            if falls, let next = Self.caseStatements(after: selected.caseIndex, in: switchExpr) {
+            if falls, let next = caseStatements(after: selected.caseIndex, in: switchExpr) {
                 selected = (next.index, next.statements, Environment(parent: env))
                 continue
             }
@@ -49,18 +49,37 @@ extension Interpreter {
         return stmt.is(FallThroughStmtSyntax.self)
     }
 
-    private static func caseStatements(
+    /// Switch arms with `#if` blocks expanded to their active clause
+    /// (amperfy gates a `case .developer:` arm — and the enum case itself —
+    /// behind `#if DEBUG`). Indices into this array are the caseIndex
+    /// currency `fallthrough` navigation uses.
+    func flattenedSwitchCases(_ switchExpr: SwitchExprSyntax) -> [SwitchCaseSyntax] {
+        flattenSwitchCaseList(switchExpr.cases)
+    }
+
+    private func flattenSwitchCaseList(_ list: SwitchCaseListSyntax) -> [SwitchCaseSyntax] {
+        var result: [SwitchCaseSyntax] = []
+        for element in list {
+            switch element {
+            case .switchCase(let switchCase):
+                result.append(switchCase)
+            case .ifConfigDecl(let ifConfig):
+                if let clause = activeIfConfigClause(ifConfig),
+                   case .switchCases(let nested)? = clause.elements {
+                    result.append(contentsOf: flattenSwitchCaseList(nested))
+                }
+            }
+        }
+        return result
+    }
+
+    private func caseStatements(
         after index: Int, in switchExpr: SwitchExprSyntax
     ) -> (index: Int, statements: CodeBlockItemListSyntax)? {
-        let elements = Array(switchExpr.cases)
-        var cursor = index + 1
-        while cursor < elements.count {
-            if case .switchCase(let switchCase) = elements[cursor] {
-                return (cursor, switchCase.statements)
-            }
-            cursor += 1
-        }
-        return nil
+        let elements = flattenedSwitchCases(switchExpr)
+        let cursor = index + 1
+        guard cursor < elements.count else { return nil }
+        return (cursor, elements[cursor].statements)
     }
 
     private func selectCase(
@@ -69,9 +88,9 @@ extension Interpreter {
     ) throws -> (caseIndex: Int, statements: CodeBlockItemListSyntax, env: Environment) {
         let subject = try evaluate(switchExpr.subject, in: env)
         var defaultCase: (Int, CodeBlockItemListSyntax)?
+        let cases = flattenedSwitchCases(switchExpr)
 
-        for (index, element) in switchExpr.cases.enumerated() {
-            guard case .switchCase(let switchCase) = element else { continue }
+        for (index, switchCase) in cases.enumerated() {
             switch switchCase.label {
             case .default:
                 defaultCase = (index, switchCase.statements)
@@ -96,9 +115,8 @@ extension Interpreter {
         // (the same doctrine as synthesis picking the first enum case),
         // with payload bindings bound to unknowable chains.
         if isUnknowable(subject) {
-            for (index, element) in switchExpr.cases.enumerated() {
-                guard case .switchCase(let switchCase) = element,
-                      case .case(let label) = switchCase.label,
+            for (index, switchCase) in cases.enumerated() {
+                guard case .case(let label) = switchCase.label,
                       let item = label.caseItems.first else { continue }
                 let child = Environment(parent: env)
                 bindPatternsToUnknowables(item.pattern, into: child)

@@ -38,7 +38,8 @@ public enum ProjectMaterial {
             // ~1ms/file — gated on the two signatures so 30k-file corpora
             // don't pay it everywhere (a universal check measured 14.5min
             // for the full corpus vs ~2).
-            if content.contains("sourcery:inline:") || content.contains("<#"),
+            if content.contains("sourcery:inline:") || content.contains("<#")
+                || path.hasSuffix("Dangerfile.swift"),
                Interpreter.sourceHasHardErrors(content) {
                 continue
             }

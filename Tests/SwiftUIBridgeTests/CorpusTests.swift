@@ -4573,6 +4573,104 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// Provenance (iteration 189): a Dangerfile.swift holds Danger's
+    /// Ruby-ish DSL (`if git.commits.any { … } { … }`) — hard parse errors
+    /// prove it isn't target source, so the merge skips it; and a
+    /// wrong-order effect list (`throws async`) is a RECOVERED parse
+    /// ("'async' must precede 'throws'"), tolerated like the other
+    /// recovery messages.
+    @Test func dangerfileAndEffectOrderTolerance() throws {
+        let root = NSTemporaryDirectory() + "danger-probe-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try """
+        let danger = Danger()
+        if git.commits.any {
+          return $0.message.contains("Merge branch")
+        } {
+          fail("Please rebase to get rid of the merge commits in this PR ")
+        }
+        """.write(toFile: root + "/Dangerfile.swift", atomically: true, encoding: .utf8)
+        try """
+        struct Loader {
+            func load() throws async -> Int { 3 }
+        }
+        struct ContentView: View {
+            var body: some View {
+                Text("merged app source")
+            }
+        }
+        """.write(toFile: root + "/ContentView.swift", atomically: true, encoding: .utf8)
+
+        let merged = ProjectMaterial.mergedSource(at: root)
+        #expect(!merged.contains("rebase"))
+        #expect(merged.contains("merged app source"))
+        let report = try HeadlessVerifier.verify(source: merged, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
+    /// Provenance (iteration 189): theme palettes each nest a design-token
+    /// `enum Colors` whose statics live inside `#if canImport(UIKit)`
+    /// blocks — enum bodies expand if-configs like struct bodies do; inside
+    /// a palette its OWN nested enum wins over the sibling that claimed the
+    /// bare name (NO union across siblings — extension members attach to
+    /// the specific symbol, so franken-cases would lose them). Library-style
+    /// subscripts on a bare type (`Defaults[.key]`) with no declared
+    /// subscript absorb in compiled mode.
+    @Test func paletteNamespacesIfConfigMembersAndTypeSubscripts() throws {
+        let source = """
+        struct DarkPalette {
+            enum Colors {
+                static let accent = 1
+            }
+            var accentValue: Int { Colors.accent }
+        }
+        struct RetroPalette {
+            enum Colors {
+                #if canImport(UIKit)
+                static let retroBlack = 5
+                #else
+                static let retroBlack = 7
+                #endif
+            }
+            var background: Int { Colors.retroBlack }
+        }
+        enum Defaults {
+            static let spacing = 8
+        }
+        enum NavigationTarget: String, CaseIterable {
+            case general
+            #if DEBUG
+            case developer = "developer"
+            #endif
+
+            var title: String {
+                switch self {
+                case .general: "General"
+                #if DEBUG
+                case .developer: "Developer"
+                #endif
+                }
+            }
+        }
+        struct ContentView: View {
+            var body: some View {
+                if DarkPalette().accentValue != 1 { fatalError("own nested enum lost to sibling") }
+                if RetroPalette().background != 5 { fatalError("#if members missing from enum body") }
+                if Colors.accent != 1 { fatalError("bare claimant should stay first-wins") }
+                if NavigationTarget.developer.title != "Developer" {
+                    fatalError("#if switch arm missing")
+                }
+                let stored = Defaults[.hasLaunched]
+                if stored { fatalError("type-base subscript should absorb to false") }
+                return Text("\\(Defaults.spacing)")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     @Test(arguments: corpusFiles)
     func hostedRealRender(file: String) throws {
         RenderDiagnostics.reset()
