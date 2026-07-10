@@ -1104,9 +1104,9 @@ private func eval(_ source: String) throws -> RuntimeValue {
         }
     }
 
-    @Test func propertyObserversAreInertStoredProperties() throws {
-        // didSet/willSet observers parse as stored properties whose observers
-        // don't run — documented divergence.
+    @Test func propertyObserversRunWithCompiledSemantics() throws {
+        // didSet runs on assignment; assigning to the property INSIDE its
+        // own didSet writes without re-triggering — native output is 999.
         let source = """
         struct Counter {
             var count = 0 {
@@ -1119,7 +1119,7 @@ private func eval(_ source: String) throws -> RuntimeValue {
         c.count = 5
         c.count
         """
-        #expect(try eval(source).intValue == 5)
+        #expect(try eval(source).intValue == 999)
     }
 
     @Test func boolToggle() throws {

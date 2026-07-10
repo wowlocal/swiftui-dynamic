@@ -2459,9 +2459,35 @@ extension Interpreter {
                 if let box = instance.box(for: name) {
                     // Plain assignment adopts the property's annotation
                     // (`self.amount = .random(in:)`, `self.date = .now`).
-                    box.value = try interpreter.resolveAnnotated(
-                        value, annotation: instance.symbol.storedProperty(named: name)?.typeAnnotation
+                    let property = instance.symbol.storedProperty(named: name)
+                    let resolved = try interpreter.resolveAnnotated(
+                        value, annotation: property?.typeAnnotation
                     )
+                    let observerKey = Interpreter.ObserverKey(
+                        instance: ObjectIdentifier(instance), property: name)
+                    let observed = (property?.willSetBody != nil || property?.didSetBody != nil)
+                        && !interpreter.activePropertyObservers.contains(observerKey)
+                    guard observed, let property else {
+                        box.value = resolved
+                        return
+                    }
+                    // willSet(newValue) → write → didSet(oldValue), never
+                    // re-entrant on the same property (compiled semantics;
+                    // initialization bypasses this funnel entirely).
+                    interpreter.activePropertyObservers.insert(observerKey)
+                    defer { interpreter.activePropertyObservers.remove(observerKey) }
+                    let oldValue = box.value
+                    if let willSet = property.willSetBody {
+                        let env = interpreter.selfEnvironment(.instance(instance))
+                        env.define(property.willSetParameter, resolved)
+                        _ = try interpreter.executeBlock(willSet, in: env)
+                    }
+                    box.value = resolved
+                    if let didSet = property.didSetBody {
+                        let env = interpreter.selfEnvironment(.instance(instance))
+                        env.define(property.didSetParameter, oldValue)
+                        _ = try interpreter.executeBlock(didSet, in: env)
+                    }
                     return
                 }
                 if let computed = instance.symbol.computedProperties[name] {

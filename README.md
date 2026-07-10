@@ -238,8 +238,10 @@ coverage.
   are accepted and ignored; marker comparisons are name-based
   (`authorizationStatus(for: .video) == .authorized` is false — fresh
   system state).
-- **Property observers are inert.** `willSet`/`didSet` bindings parse as plain
-  stored properties; the observer bodies never run.
+- **Property observers run with compiled semantics.** `willSet` (newValue) and
+  `didSet` (oldValue) fire on assignment through the write funnel, never on
+  initialization, and assigning to the property inside its own observer does
+  not re-trigger. Custom parameter names bind.
 - **`$published` pipelines are silent.** The Combine projection inside a
   model (`$searchText.debounce(…).sink {…}`) chains inertly and never
   emits — debounce schedulers and timers don't run headlessly, so sinks

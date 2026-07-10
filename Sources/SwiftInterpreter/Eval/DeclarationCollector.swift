@@ -408,7 +408,7 @@ extension Interpreter {
             let name = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
             // A binding with an accessor block is computed only if it has a
             // getter; willSet/didSet-only observers mean a stored property
-            // (observers are inert — documented divergence).
+            // whose observers run on assignment (see the write funnel).
             if let accessorBlock = binding.accessorBlock,
                let accessors = parseAccessors(of: accessorBlock) {
                 let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
@@ -450,6 +450,24 @@ extension Interpreter {
                     isBuilderClosure: hasBuilderAttribute
                 )
                 stored.isLazy = varDecl.modifiers.contains { $0.name.text == "lazy" }
+                // `var timeline: Filter = .home { didSet { … } }` — the
+                // fetch-trigger genre lives in observers.
+                if let accessorBlock = binding.accessorBlock,
+                   case .accessors(let list) = accessorBlock.accessors {
+                    for accessor in list {
+                        guard let body = accessor.body?.statements else { continue }
+                        switch accessor.accessorSpecifier.tokenKind {
+                        case .keyword(.willSet):
+                            stored.willSetBody = body
+                            stored.willSetParameter = accessor.parameters?.name.text ?? "newValue"
+                        case .keyword(.didSet):
+                            stored.didSetBody = body
+                            stored.didSetParameter = accessor.parameters?.name.text ?? "oldValue"
+                        default:
+                            break
+                        }
+                    }
+                }
                 symbol.storedProperties.append(stored)
             }
         }
