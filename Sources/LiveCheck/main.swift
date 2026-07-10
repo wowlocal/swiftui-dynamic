@@ -123,10 +123,16 @@ let scenarios: [Scenario] = [
         return ["only \(found.count)/10 fixture titles reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"]
     },
     Scenario(name: "icecubes-timeline-ui", fixturesDirectory: fixtures + "/mastodon-public-timeline") {
-        guard let json = fixtureJSON(fixtures + "/mastodon-public-timeline/api_v1_timelines_public.json") as? [[String: Any]] else {
-            return ["fixture unreadable"]
+        // Launch parity: an UNAUTHENTICATED IceCubes shows TRENDING —
+        // expected authors come from whichever fixture the app requests.
+        var authorPool: [String] = []
+        for fixture in ["api_v1_trends_statuses", "api_v1_timelines_public"] {
+            if let json = fixtureJSON(fixtures + "/mastodon-public-timeline/\(fixture).json") as? [[String: Any]] {
+                authorPool += json.compactMap { ($0["account"] as? [String: Any])?["username"] as? String }
+            }
         }
-        let expectedAuthors = json.compactMap { ($0["account"] as? [String: Any])?["username"] as? String }.prefix(10)
+        guard !authorPool.isEmpty else { return ["fixtures unreadable"] }
+        let expectedAuthors = authorPool.prefix(20)
         let source = ProjectMaterial.mergedSource(at: ossRoot + "/IceCubesApp")
         let strings = try LiveCheckSupport.renderedStrings(source: source)
         let joined = strings.joined(separator: "\n")
@@ -134,10 +140,11 @@ let scenarios: [Scenario] = [
         if found.count >= 3 {
             return []
         }
-        var message = "only \(found.count)/10 fixture authors reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"
+        var message = "only \(found.count)/\(expectedAuthors.count) fixture authors reached the tree (\(strings.count) strings, root \(LiveCheckSupport.lastRootSymbol), \(LiveCheckSupport.lastLifecycleFired) lifecycle closures fired)"
         for error in LiveCheckSupport.lastLifecycleErrors.prefix(3) {
             message += "\n     lifecycle error: \(error.prefix(160))"
         }
+        message += "\n     network: \(NetworkBridge.requestLog.isEmpty ? "NO REQUESTS" : NetworkBridge.requestLog.prefix(6).joined(separator: ", "))"
         return [message]
     },
 ]
@@ -149,6 +156,7 @@ for scenario in scenarios {
     if let filter, !scenario.name.localizedCaseInsensitiveContains(filter) { continue }
     ran += 1
     NetworkBridge.policy = .replay(fixturesDirectory: scenario.fixturesDirectory)
+    NetworkBridge.requestLog = []
     defer { NetworkBridge.policy = .absorbed }
     do {
         let failures = try scenario.run()

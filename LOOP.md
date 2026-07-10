@@ -151,6 +151,11 @@ Each iteration does exactly this:
    When ProjectCheck's histogram is all-singletons or a known wall, a
    LiveCheck rung class or a native-verified TestCheck class outranks
    render singletons — functional-app progress beats breadth.
+   SATURATION OVERRIDE: when ProjectCheck counts ZERO failures in its
+   window, "most projects blocked" stops being the metric — the biggest
+   class is the TOP OPEN LiveCheck/TestCheck class (step-9 queue, oldest
+   first), and new-material arrival-passes do NOT count as a fixed class.
+   M0 breadth is done; the mission ladder (M2/M3) is the metric now.
 4. **Classify and fix properly** (no per-project hacks):
    - *Language gap* (unsupported syntax/semantics) → implement in
      `Sources/SwiftInterpreter/` following existing evaluator patterns.
@@ -180,15 +185,20 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. icecubes fetch chain (M2): makeURL real (URLComponentsTests),
-      generic decode threads (GenericDecodeTests), scene root honest
-      (scene:IceCubesApp — extension scene properties resolve;
-      SceneUnwrapTests). 12 lifecycle closures fire with ZERO thrown
-      errors yet 0/10 authors render — the wall is a SILENT guard exit
-      in the app's own flow; top suspect: TimelineViewModel.client is
-      nil (environment-object injection into deep views / the
-      `.environment(client)` seeding chain), then the
-      statusesState-render loop.
+   1. STATE IDENTITY ACROSS PROBE RE-RENDERS (M2/M3, core-shaped;
+      blocks icecubes AND movieswiftui): `@State var viewModel =
+      TimelineViewModel()` re-initializes on EVERY probe pass, so the
+      client assigned by pass-N's .onAppear is invisible to pass-N+1's
+      fetch — NetworkBridge.requestLog stays EMPTY (proof: LiveCheck
+      icecubes diagnostics print "network: NO REQUESTS" while 12
+      lifecycle closures fire without errors and the toolbar renders).
+      Interpreted @State/@StateObject/@Observable-owned values need
+      per-VIEW-IDENTITY persistence across re-evaluations within one
+      probe run (position-keyed store, like compiled SwiftUI's
+      per-identity state), so onAppear writes survive into the next
+      render pass. Fixture for the unauth trending fetch is recorded
+      (api_v1_trends_statuses.json — native unauth IceCubes shows
+      TRENDING, launch parity).
    2. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
       Store.state + dispatch → reducer → objectWillChange.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read

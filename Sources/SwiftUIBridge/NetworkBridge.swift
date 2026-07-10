@@ -20,6 +20,10 @@ public enum NetworkPolicy {
 public enum NetworkBridge {
     public static var policy: NetworkPolicy = .absorbed
 
+    /// Replay-mode request log (`/path hit|miss`) — the LiveCheck
+    /// histogram's view into WHICH requests the app actually made.
+    public static var requestLog: [String] = []
+
     /// Fixture lookup: `/api/v1/timelines/public` → `api_v1_timelines_public.json`
     /// (host-independent, so any Mastodon instance an app picks matches).
     /// Parameterized paths fall back to `_` wildcard segments:
@@ -70,6 +74,12 @@ public enum NetworkBridge {
         case .absorbed:
             throw RuntimeError(message: "network is absorbed in this mode (URLSession)")
         case .replay(let directory):
+            defer {
+                if requestLog.count < 40 {
+                    let hit = isImageRequest(url) || fixtureData(forPath: url.path, in: directory) != nil
+                    requestLog.append("\(url.path) \(hit ? "hit" : "MISS")")
+                }
+            }
             if isImageRequest(url) {
                 let response = HTTPURLResponse(
                     url: url, statusCode: 200, httpVersion: "HTTP/1.1",
