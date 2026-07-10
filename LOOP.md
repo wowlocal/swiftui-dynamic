@@ -180,10 +180,15 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. icecubes fetch chain (M2): makeURL now yields a real URL
-      (URLComponentsTests); next wall is the generic decode —
-      `get<Entity: Decodable>` must thread the call-site annotation
-      through to `decoder.decode(Entity.self, from:)`.
+   1. icecubes fetch chain (M2): makeURL real (URLComponentsTests),
+      generic decode threads (GenericDecodeTests), scene root honest
+      (scene:IceCubesApp — extension scene properties resolve;
+      SceneUnwrapTests). 12 lifecycle closures fire with ZERO thrown
+      errors yet 0/10 authors render — the wall is a SILENT guard exit
+      in the app's own flow; top suspect: TimelineViewModel.client is
+      nil (environment-object injection into deep views / the
+      `.environment(client)` seeding chain), then the
+      statusesState-render loop.
    2. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
       Store.state + dispatch → reducer → objectWillChange.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read
