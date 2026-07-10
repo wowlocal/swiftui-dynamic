@@ -447,6 +447,14 @@ extension Interpreter {
         if case .hostFunction(let fn)? = args.positional(0) {
             return try fn.invoke(CallArguments(arguments: [.init(label: nil, value: element)]), ctx)
         }
+        // Init references: `.map(LocationZoneItem.init)` constructs per
+        // element.
+        if case .type(let symbol)? = args.positional(0), let interpreter {
+            return try interpreter.instantiate(
+                symbol,
+                with: CallArguments(arguments: [.init(label: nil, value: element)]),
+                node: nil)
+        }
         throw RuntimeError(message: "\(name) needs a closure or key path")
     }
 

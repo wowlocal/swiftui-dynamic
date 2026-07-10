@@ -1785,3 +1785,18 @@ without this.
   with the operand named). Coerce.isUnknowable is the shared test.
   SwiftBar ✅, pocket-casts ✅ (20 nodes, 4 actions at the honest
   root). **656/666 counted (654 → 656). Suite 347 → 348.**
+- 2026-07-10 iter 175: honest-roots queue — home-assistant-ios. The
+  Section-shadow retry kept failing DOWNSTREAM, unwinding a seven-class
+  chain: STATIC overloads pick by call shape (KioskRow.label(_:
+  systemSymbol:) vs (_:icon:) — .type/.enumType member-call dispatch
+  mirrored the instance branch); keypaths compare by components;
+  `.map(Type.init)` constructs per element; TYPE-declared operator
+  functions run with Comparable DERIVATION (<=/>/>= from the declared
+  <); tuples compare LEXICOGRAPHICALLY (the version-triple idiom);
+  Info.plist loads REAL from a seeded sandbox file (BundleBox
+  url(forResource:) writes minimal version stand-ins; real
+  NSDictionary/NSArray(contentsOf:) constructors); NSRegularExpression
+  is the REAL Foundation regex (RegexBox + NSTextCheckingResult ranges
+  + NSRange ctor) — SwiftGen's PlistDocument and their strict Version
+  parser run genuinely. home-assistant ✅ at 355 nodes/8 actions (was
+  27). **657/666 counted (656 → 657). Suite 348 → 351.**

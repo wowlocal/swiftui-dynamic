@@ -39,6 +39,57 @@ final class BundleBox {
 func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     if let network = networkHostObjectConstructor(named: name) { return network }
     switch name {
+    case "NSRegularExpression":
+        return HostFunction(name: name) { args, _ in
+            // REAL regex — the host-hardware doctrine: patterns compile and
+            // match genuinely (version parsers, validators).
+            guard let pattern = (args.labeled("pattern") ?? args.positional(0))?.stringValue else {
+                return .nilValue
+            }
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { return .nilValue }
+            return .native(RegexBox(regex: regex))
+        }
+    case "NSRange":
+        return HostFunction(name: name) { args, _ in
+            if let location = args.labeled("location")?.intValue,
+               let length = args.labeled("length")?.intValue {
+                return .native(NSRange(location: location, length: length))
+            }
+            // NSRange(text.startIndex..., in: text) — the whole string.
+            if let text = args.labeled("in")?.stringValue {
+                return .native(NSRange(text.startIndex..., in: text))
+            }
+            return .native(NSRange(location: 0, length: 0))
+        }
+    case "NSDictionary":
+        return HostFunction(name: name) { args, _ in
+            // Real plist loads from real URLs (the seeded sandbox
+            // Info.plist); unknowable URLs honestly fail (nil).
+            if case .host(let any)? = args.labeled("contentsOf"), let url = any as? URL,
+               let dict = NSDictionary(contentsOf: url) as? [String: Any] {
+                let out = DictValue()
+                for (key, value) in dict {
+                    if let text = value as? String { try? out.update(.native(key), to: .native(text)) }
+                    else if let number = value as? Int { try? out.update(.native(key), to: .native(number)) }
+                    else if let number = value as? Double { try? out.update(.native(key), to: .native(number)) }
+                    else if let flag = value as? Bool { try? out.update(.native(key), to: .native(flag)) }
+                }
+                return .native(out)
+            }
+            return .nilValue
+        }
+    case "NSArray":
+        return HostFunction(name: name) { args, _ in
+            if case .host(let any)? = args.labeled("contentsOf"), let url = any as? URL,
+               let array = NSArray(contentsOf: url) as? [Any] {
+                return .native(array.compactMap { item -> RuntimeValue? in
+                    if let text = item as? String { return .native(text) }
+                    if let number = item as? Int { return .native(number) }
+                    return nil
+                })
+            }
+            return .nilValue
+        }
     case "Bundle":
         return HostFunction(name: name) { args, _ in
             // The host process is real: Bundle(url:)/(path:)/(identifier:)
@@ -388,7 +439,57 @@ private func nsFont(from value: RuntimeValue) -> NSFont? {
 }
 
 /// Readable members on host objects (extends bridgeHostMember's coverage).
+/// A REAL NSRegularExpression (host-executable regex).
+final class RegexBox {
+    let regex: NSRegularExpression
+    init(regex: NSRegularExpression) { self.regex = regex }
+}
+
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let box = value as? RegexBox {
+        switch name {
+        case "numberOfCaptureGroups": return .native(box.regex.numberOfCaptureGroups)
+        case "firstMatch", "matches":
+            let isFirst = name == "firstMatch"
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let text = args.labeled("in")?.stringValue else { return .nilValue }
+                let range: NSRange
+                if case .host(let any)? = args.labeled("range"), let r = any as? NSRange {
+                    range = r
+                } else {
+                    range = NSRange(text.startIndex..., in: text)
+                }
+                if isFirst {
+                    return box.regex.firstMatch(in: text, range: range)
+                        .map { RuntimeValue.native($0) } ?? .nilValue
+                }
+                return .native(box.regex.matches(in: text, range: range).map { RuntimeValue.native($0) })
+            })
+        case "stringByReplacingMatches":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let text = args.labeled("in")?.stringValue else { return .native("") }
+                let range = NSRange(text.startIndex..., in: text)
+                let template = args.labeled("withTemplate")?.stringValue ?? ""
+                return .native(box.regex.stringByReplacingMatches(
+                    in: text, range: range, withTemplate: template))
+            })
+        default: return nil
+        }
+    }
+    if let match = value as? NSTextCheckingResult {
+        switch name {
+        case "numberOfRanges": return .native(match.numberOfRanges)
+        case "range":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                if let index = (args.labeled("at") ?? args.positional(0))?.intValue,
+                   index < match.numberOfRanges {
+                    return .native(match.range(at: index))
+                }
+                return .native(match.range)
+            })
+        default: return nil
+        }
+    }
     if let box = value as? BundleBox {
         switch name {
         case "bundleURL": return .native(box.bundle.bundleURL)
@@ -400,10 +501,63 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             // (the ScreenStub representative-default doctrine).
             return .native(box.bundle.bundleIdentifier ?? "interpreted.host.app")
         default:
-            // Identity is real; RESOURCES and METADATA aren't (nothing is
-            // bundled headlessly): path(forResource:)/infoDictionary/
-            // object(forInfoDictionaryKey:) and unmerged extensions absorb
-            // exactly as the old marker did.
+            // Identity is real; RESOURCES aren't (nothing is bundled
+            // headlessly). VERSION metadata gets representative stand-ins —
+            // a device app always has them, and version-gate code
+            // fatalErrors on their absence (the bundleIdentifier doctrine).
+            if name == "url" {
+                // `url(forResource: "Info.plist", …)` — SwiftGen's plist
+                // readers hard-require it. The sandbox gets a REAL minimal
+                // Info.plist seeded with the version stand-ins; other
+                // resources stay absorbed (nothing else is bundled).
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    let resource = (args.labeled("forResource") ?? args.positional(0))?.stringValue ?? ""
+                    let ext = args.labeled("withExtension")?.stringValue ?? ""
+                    if resource.contains("Info"), resource.hasSuffix(".plist") || ext == "plist" {
+                        let url = FileManagerBox.sandboxRoot.appendingPathComponent("Seeded-Info.plist")
+                        try? FileManager.default.createDirectory(
+                            at: FileManagerBox.sandboxRoot, withIntermediateDirectories: true)
+                        if !FileManager.default.fileExists(atPath: url.path) {
+                            let seeded: [String: Any] = [
+                                "CFBundleShortVersionString": box.bundle
+                                    .object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0",
+                                "CFBundleVersion": box.bundle
+                                    .object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1",
+                                "CFBundleName": "InterpretedApp",
+                            ]
+                            (seeded as NSDictionary).write(to: url, atomically: true)
+                        }
+                        return .native(url)
+                    }
+                    return .native(ChainedImplicitCall(
+                        base: .implicitMember("Bundle"), member: name, arguments: args))
+                })
+            }
+            if name == "object" || name == "infoDictionary" {
+                let versionKeys: [String: String] = [
+                    "CFBundleShortVersionString": box.bundle
+                        .object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0",
+                    "CFBundleVersion": box.bundle
+                        .object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1",
+                    "CFBundleName": box.bundle
+                        .object(forInfoDictionaryKey: "CFBundleName") as? String ?? "InterpretedApp",
+                ]
+                if name == "infoDictionary" {
+                    let dict = DictValue()
+                    for (key, value) in versionKeys {
+                        try? dict.update(.native(key), to: .native(value))
+                    }
+                    return .native(dict)
+                }
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    if let key = args.labeled("forInfoDictionaryKey")?.stringValue,
+                       let known = versionKeys[key] {
+                        return .native(known)
+                    }
+                    return .native(ChainedImplicitCall(
+                        base: .implicitMember("Bundle"), member: name, arguments: args))
+                })
+            }
             return .hostFunction(HostFunction(name: name) { args, _ in
                 .native(ChainedImplicitCall(
                     base: .implicitMember("Bundle"), member: name, arguments: args))

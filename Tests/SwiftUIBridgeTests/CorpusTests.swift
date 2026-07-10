@@ -2909,6 +2909,62 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// home-assistant at its honest root (iteration 175): the Section
+    /// shadow's retry surfaced a seven-class chain — STATIC overloads pick
+    /// by call shape; keypaths compare by components; `.map(Type.init)`
+    /// constructs per element; TYPE-declared operator functions run with
+    /// Comparable derivation (<= from <); tuples compare lexicographically;
+    /// Info.plist loads REAL from a seeded sandbox file via real
+    /// NSDictionary(contentsOf:); and NSRegularExpression is the REAL
+    /// Foundation regex.
+    @Test func homeAssistantHonestRootChain() throws {
+        let source = """
+        struct KioskRow {
+            static func label(_ title: String, icon: String) -> String { "icon:" + title }
+            static func label(_ title: String, systemSymbol: String) -> String { "symbol:" + title }
+        }
+
+        struct Version: Comparable {
+            let major: Int, minor: Int, patch: Int
+            static func < (lhs: Version, rhs: Version) -> Bool {
+                (lhs.major, lhs.minor, lhs.patch) < (rhs.major, rhs.minor, rhs.patch)
+            }
+        }
+
+        struct Item { let name: String; init(_ name: String) { self.name = name } }
+
+        struct ContentView: View {
+            var body: some View {
+                let picked = KioskRow.label("Preview", systemSymbol: "eye")
+                let older = Version(major: 15, minor: 0, patch: 0)
+                let newer = Version(major: 16, minor: 3, patch: 9)
+                let items = ["a", "b"].map(Item.init)
+
+                let url = Bundle.main.url(forResource: "Info.plist", withExtension: nil)
+                let info = url.flatMap { NSDictionary(contentsOf: $0) as? [String: Any] }
+                let version = (info?["CFBundleShortVersionString"] as? String) ?? "missing"
+
+                let regex = NSRegularExpression(pattern: "([0-9]+)\\\\.([0-9]+)\\\\.([0-9]+)")
+                let match = regex.firstMatch(in: version, range: NSRange(version.startIndex..., in: version))
+
+                let checks = [
+                    picked == "symbol:Preview",
+                    older <= newer,
+                    !(newer <= older),
+                    (\\Version.major == \\Version.major),
+                    items.count == 2 && items[0].name == "a",
+                    version == "1.0.0",
+                    match != nil,
+                ]
+                if checks.contains(false) { fatalError("honest-root chain broken") }
+                return Text(version)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// SwiftBar + pocket-casts (iteration 174): DateFormatter.string(from:)
     /// with an UNKNOWABLE operand formats as the fresh string ("" — every
     /// string context's absorption); numeric intervals format as real

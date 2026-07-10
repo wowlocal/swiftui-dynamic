@@ -1317,6 +1317,38 @@ extension Interpreter {
                     return try invoke(.closure(closure), with: args, node: call)
                 }
             }
+            // STATIC overloads pick by call shape too:
+            // KioskRow.label(_:systemSymbol:) vs label(_:icon:).
+            if case .type(let symbol) = baseValue,
+               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: baseValue, member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.type(symbol)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
+            if case .enumType(let symbol) = baseValue,
+               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: baseValue, member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.enumType(symbol)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
             let callee = try accessMember(name, on: baseValue, node: member, env: env)
             let args = try collectArguments(of: call, in: env)
             do {
@@ -1700,6 +1732,9 @@ extension Interpreter {
                 do {
                     return try ctor.invoke(args, self)
                 } catch {
+                    if symbol.name == "Section" {
+                        FileHandle.standardError.write(Data("SECTION RETRY FAILED: \(error)\n".utf8))
+                    }
                     throw bindingError
                 }
             }
@@ -2102,6 +2137,52 @@ extension Interpreter {
             do {
                 return try relocating(infix) { try Builtins.binary(op, lhs, rhs) }
             } catch let builtinError as RuntimeError where !builtinError.fatal {
+                // TYPE-declared operator functions — `static func < (lhs:
+                // Self, rhs: Self)` Comparable conformances. Swift derives
+                // <=/>/>= from the declared `<`.
+                func operatorHome(_ value: RuntimeValue) -> (StructSymbol?, EnumSymbol?) {
+                    if case .instance(let instance) = value { return (instance.symbol, nil) }
+                    if case .enumCase(let caseValue) = value { return (nil, caseValue.symbol) }
+                    return (nil, nil)
+                }
+                func declared(_ name: String) -> (FunctionDeclSyntax, RuntimeValue)? {
+                    for operand in [lhs, rhs] {
+                        let (structSym, enumSym) = operatorHome(operand)
+                        if let method = structSym?.staticMethods[name]?.first {
+                            return (method, .type(structSym!))
+                        }
+                        if let method = enumSym?.staticMethods[name]?.first {
+                            return (method, .enumType(enumSym!))
+                        }
+                    }
+                    return nil
+                }
+                func runOperator(_ method: FunctionDeclSyntax, _ selfValue: RuntimeValue,
+                                 _ a: RuntimeValue, _ b: RuntimeValue) throws -> RuntimeValue {
+                    guard let body = method.body else { throw builtinError }
+                    let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
+                    return try callWithArguments(closure, args: CallArguments(arguments: [
+                        .init(label: nil, value: a), .init(label: nil, value: b),
+                    ]), node: nil)
+                }
+                if ["<", "<=", ">", ">="].contains(op) {
+                    if let (method, home) = declared(op) {
+                        return try runOperator(method, home, lhs, rhs)
+                    }
+                    if let (less, home) = declared("<") {
+                        switch op {
+                        case ">": return try runOperator(less, home, rhs, lhs)
+                        case "<=":
+                            let greater = try runOperator(less, home, rhs, lhs)
+                            return .native(!(greater.boolValue ?? false))
+                        default: // ">="
+                            let lesser = try runOperator(less, home, lhs, rhs)
+                            return .native(!(lesser.boolValue ?? false))
+                        }
+                    }
+                } else if let (method, home) = declared(op) {
+                    return try runOperator(method, home, lhs, rhs)
+                }
                 // User-defined infix operators (`|>` pipe-forward, `~=`
                 // overloads) — top-level operator functions.
                 if case .closure(let closure)? = globals.lookup(op) {

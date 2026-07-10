@@ -413,6 +413,11 @@ public enum Builtins {
     }
 
     static func areEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
+        // KeyPaths compare by their component chains (`kp == \\.zone`).
+        if case .host(let l) = lhs, let lk = l as? KeyPathStub,
+           case .host(let r) = rhs, let rk = r as? KeyPathStub {
+            return lk.components == rk.components
+        }
         if lhs.isNil || rhs.isNil { return lhs.isNil && rhs.isNil }
         // Chained markers compare by their final member name — honestly
         // false for `.current.orientation == .landscapeRight`.
@@ -540,6 +545,15 @@ public enum Builtins {
     }
 
     private static func compare(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
+        // Tuples compare LEXICOGRAPHICALLY — the version-triple idiom
+        // (`(lhs.major, lhs.minor, lhs.patch) < (rhs.major, …)`).
+        if let l = lhs.tupleValue, let r = rhs.tupleValue, l.values.count == r.values.count {
+            for (a, b) in zip(l.values, r.values) {
+                if (try? areEqual(a, b)) == true { continue }
+                return try compare(op, a, b)
+            }
+            return op == "<=" || op == ">=" // fully equal
+        }
         // Enum-case ORDERED comparisons: synthesized Comparable orders by
         // DECLARATION position (`stage > .welcome`), ignoring raw values;
         // an enum case against a NUMBER compares through its numeric raw.
