@@ -176,10 +176,18 @@ Each iteration does exactly this:
    expansion — new-material hunts (GitHub apps, 10–40 files, stars > 100,
    cloned into `External/oss/<name>`) are the fallback when LiveCheck and
    TestCheck have no actionable class either, and at most every THIRD
-   iteration otherwise. Never fabricate passing material. Current standing
-   M2 target: the async-fetch class — `.task`/`.onAppear` closures must
-   execute in deep-render probes (with the re-render observed) so fetched
-   fixture data reaches the tree; it blocks both open LiveCheck scenarios.
+   iteration otherwise. Never fabricate passing material. The async-fetch
+   class is CLOSED (lifecycle closures fire in the probe; pinned by
+   AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
+   actionable classes, so material hunts don't resume until they close:
+   1. icecubes fetch chain (M2): makeURL now yields a real URL
+      (URLComponentsTests); next wall is the generic decode —
+      `get<Entity: Decodable>` must thread the call-site annotation
+      through to `decoder.decode(Entity.self, from:)`.
+   2. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
+      Store.state + dispatch → reducer → objectWillChange.
+   3. @Query/@FetchRequest live-store wiring (M3): boxes must read
+      LiveModelStore and refresh on store writes (see TestCheck Ledger).
 
 ## Rules
 
