@@ -234,6 +234,13 @@ polishes an already-saturated one — e.g. the async-fetch class (M2)
 outranks five M0 render singletons. M0 saturation sweeps remain the health
 backstop, not the main line, once its histogram is all-singletons.
 
+**Doctrine v2 status:** ModelContext insert/delete/save/fetch/fetchCount
+back a LIVE per-Interpreter store (LiveModelStore; runs start empty —
+deterministic; pinned by LiveModelStoreTests). REMAINING named class:
+@Query/@FetchRequest boxes still flatten to a static `[]` — they must read
+the live store and refresh on store writes (flatten-site + state-adoption
+semantics, core-shaped work).
+
 **Doctrine upgrade — live fresh stores (M3, replaces fresh-EMPTY):**
 @Query/@FetchRequest/@ObservedResults-shaped wrappers and ModelContext
 insert/delete/save now back onto a LIVE per-run in-memory store: what the

@@ -250,6 +250,19 @@ final class DateComponentsBox {
 /// and ignored, fetches return empty.
 struct ModelContextStub {}
 
+/// `FetchDescriptor<Item>()` arrives as an absorbed marker/stub — its
+/// stringified form carries the generic argument naming the model type.
+func modelFetchTypeName(from descriptor: RuntimeValue) -> String? {
+    let text = descriptor.stringified
+    guard let open = text.firstIndex(of: "<"),
+          let close = text[open...].firstIndex(of: ">") else { return nil }
+    let inner = text[text.index(after: open)..<close]
+    let name = inner.split(separator: ",").first.map {
+        $0.trimmingCharacters(in: .whitespaces)
+    }
+    return (name?.isEmpty == false) ? name : nil
+}
+
 private func dateArg(_ value: RuntimeValue?) -> Date? {
     if case .host(let any)? = value, let date = any as? Date { return date }
     if case .implicitMember("now")? = value { return Date() }
@@ -776,13 +789,36 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
     }
     if value is ModelContextStub {
+        // Fresh-store doctrine v2 (M3): the context backs a LIVE per-run
+        // store — inserts are fetchable, deletes remove, save is a no-op,
+        // and every run still starts empty (determinism holds).
         switch name {
-        case "insert", "delete", "save":
+        case "insert":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                if let inserted = args.positional(0) {
+                    LiveModelStore.for(ctx).insert(inserted)
+                }
+                return .void
+            })
+        case "delete":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                if let deleted = args.positional(0) {
+                    LiveModelStore.for(ctx).delete(deleted)
+                }
+                return .void
+            })
+        case "save":
             return .hostFunction(HostFunction(name: name) { _, _ in .void })
         case "fetch":
-            return .hostFunction(HostFunction(name: name) { _, _ in .native([RuntimeValue]()) })
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                let typeName = args.positional(0).flatMap(modelFetchTypeName(from:))
+                return .native(LiveModelStore.for(ctx).fetch(typeName: typeName))
+            })
         case "fetchCount":
-            return .hostFunction(HostFunction(name: name) { _, _ in .native(0) })
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                let typeName = args.positional(0).flatMap(modelFetchTypeName(from:))
+                return .native(LiveModelStore.for(ctx).fetch(typeName: typeName).count)
+            })
         case "autosaveEnabled":
             return .native(true)
         default:
