@@ -239,6 +239,22 @@ Each iteration does exactly this:
       (key:, value:) tuple elements (DictEnumeratedTests). Post-fix
       histogram: only Array.append (member-position) + webSocketTask +
       URL.resourceValues remain.
+   3c. M2 BREADTH: achnbrowser-items-ui scenario SEEDED (4/5 board —
+      the four green stay the invariant; the fifth is the new demand).
+      ACHNBrowserUI is a THIRD async genre: bundled RESOURCE data
+      (repo-committed real JSON, what Bundle.module ships) rides a
+      COMBINE pipeline (Result.publisher → decode(type:decoder:) →
+      mapError → subscribe(on:) → sink into @Published). First-run
+      walls, outermost first: (a) root sceneExprError "expected a view,
+      got ImplicitMemberCall(makeSheetView)" — the scene expression
+      calls a helper the evaluator loses (fallback renders
+      SettingsView); (b) Bundle.module.url(forResource:) must resolve
+      against the project's Resources dirs (a BundleResourcePolicy like
+      NetworkPolicy.replay — the compiled app HAS these files); (c) the
+      Combine chain itself (absorbed: URLSessionBox.dataTaskPublisher×3;
+      Result.publisher/decode operators unserved); (d) minor:
+      FileManagerBox.containerURL (app-group), URL.appendPathExtension
+      (mutating member).
    4. TestCheck classes (native-baseline rule first; scoreboard
       2026-07-10 @ --limit 8: 79 passed / 52 failed / 12 errored).
       Top exemplar: clean-architecture-swiftui LoadableTests.map —
