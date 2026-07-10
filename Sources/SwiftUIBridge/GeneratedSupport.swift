@@ -16,6 +16,8 @@ enum ParamTag: String {
     case visibility, axisSet, edgeInsets, gradient, gridItems
     case axis, colorArray
     case builder, action, equatable
+    // Foundation-value tags for the generated-members tier.
+    case date, url, data, stringArray
 }
 
 struct ParamSpec {
@@ -160,6 +162,21 @@ enum GeneratedDispatch {
             return ActionValue(run: { _ = try? ctx.callClosure(closure, arguments: []) })
         case .equatable:
             return value.stringified
+        case .date:
+            guard let date = value.hostPayload as? Date else { throw RuntimeError(message: "expected a Date") }
+            return date
+        case .url:
+            guard let url = value.hostPayload as? URL else { throw RuntimeError(message: "expected a URL") }
+            return url
+        case .data:
+            guard let data = value.hostPayload as? Data else { throw RuntimeError(message: "expected Data") }
+            return data
+        case .stringArray:
+            guard let array = value.arrayValue else { throw RuntimeError(message: "expected [String]") }
+            return try array.map { element -> String in
+                guard let s = element.stringValue else { throw RuntimeError(message: "expected [String]") }
+                return s
+            }
         }
     }
 
@@ -204,6 +221,96 @@ enum GeneratedDispatch {
         let shape = args.arguments.map { $0.label ?? "_" }.joined(separator: ":")
         throw RuntimeError(message: "no matching initializer for \(name)(\(shape):) — argument types or labels don't fit")
     }
+}
+
+// MARK: - Generated members (Foundation value types)
+
+/// One overload of a generated instance method: receiver arrives as the raw
+/// host `Any`, arguments pre-coerced by ParamTag.
+struct GeneratedMemberOverload {
+    let params: [ParamSpec]
+    let invoke: (Any, [Any]) throws -> RuntimeValue
+}
+
+struct GeneratedMemberSet {
+    let byArity: [Int: [GeneratedMemberOverload]]
+
+    init(_ overloads: [GeneratedMemberOverload]) {
+        var byArity: [Int: [GeneratedMemberOverload]] = [:]
+        for overload in overloads {
+            byArity[overload.params.count, default: []].append(overload)
+        }
+        self.byArity = byArity
+    }
+}
+
+/// Namespace the generated members file extends with `buildProperties()` /
+/// `buildMethods()`. Keys are "TypeName.memberName" against the receiver's
+/// dynamic type, so a failed downcast (name collision with a non-SDK type)
+/// falls through to the next dispatch tier instead of erroring.
+enum GeneratedMembers {
+    static let properties: [String: (Any) -> RuntimeValue?] = buildProperties()
+
+    static let methods: [String: GeneratedMemberSet] = {
+        var grouped: [String: GeneratedMemberSet] = [:]
+        for (key, overloads) in buildMethods() {
+            grouped[key] = GeneratedMemberSet(overloads)
+        }
+        return grouped
+    }()
+
+    static func registerMethod(
+        _ table: inout [String: [GeneratedMemberOverload]],
+        _ key: String,
+        _ params: [ParamSpec],
+        _ invoke: @escaping (Any, [Any]) throws -> RuntimeValue
+    ) {
+        table[key, default: []].append(GeneratedMemberOverload(params: params, invoke: invoke))
+    }
+
+    /// The bridgeHostMember hook: hand-written boxes have already refused by
+    /// the time this runs; the ObjC trampoline and ad-hoc cases follow it.
+    static func member(_ name: String, on value: Any) -> RuntimeValue? {
+        let key = "\(type(of: value)).\(name)"
+        if let getter = properties[key] {
+            return getter(value)
+        }
+        if let set = methods[key] {
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                try GeneratedDispatch.member(name: name, overloads: set, base: value, args: args, ctx: ctx)
+            })
+        }
+        return nil
+    }
+}
+
+extension GeneratedDispatch {
+    static func member(
+        name: String,
+        overloads: GeneratedMemberSet,
+        base: Any,
+        args: CallArguments,
+        ctx: EvalContext
+    ) throws -> RuntimeValue {
+        for overload in overloads.byArity[args.arguments.count] ?? [] {
+            guard let values = matches(overload.params, args, ctx) else { continue }
+            return try overload.invoke(base, values)
+        }
+        // A shape the sweep couldn't map (blocked param type, unemitted
+        // overload) absorbs like the trampoline does — never dies mid-render.
+        return .native(ChainedImplicitCall(base: .native(base), member: name, arguments: args))
+    }
+}
+
+/// Wraps a generated member's result: Optionals flatten (nil → .nilValue),
+/// everything else hosts through the normalizing `.native` constructors.
+func generatedMemberResult(_ value: Any) -> RuntimeValue {
+    let mirror = Mirror(reflecting: value)
+    if mirror.displayStyle == .optional {
+        guard let child = mirror.children.first else { return .nilValue }
+        return generatedMemberResult(child.value)
+    }
+    return .native(value)
 }
 
 /// Namespace the generated file extends with `build()`.

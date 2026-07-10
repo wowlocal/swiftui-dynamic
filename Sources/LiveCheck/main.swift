@@ -148,6 +148,12 @@ let scenarios: [Scenario] = [
             message += "\n     lifecycle error: \(error.prefix(160))"
         }
         message += "\n     network: \(NetworkBridge.requestLog.isEmpty ? "NO REQUESTS" : NetworkBridge.requestLog.prefix(6).joined(separator: ", "))"
+        let absorbed = LiveCheckSupport.lastAbsorbedHostMembers
+            .sorted { $0.value > $1.value }.prefix(8)
+            .map { "\($0.key)×\($0.value)" }
+        if !absorbed.isEmpty {
+            message += "\n     absorbed: \(absorbed.joined(separator: ", "))"
+        }
         return [message]
     },
 ]

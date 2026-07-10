@@ -24,6 +24,18 @@ public final class Interpreter {
     var hostExtensionSymbols: [String: StructSymbol] = [:]
     var assumesCompiledImports = false
 
+    /// Demand signal for the generated-members tier: every (dynamic type,
+    /// member) pair the absorb terminus swallowed on a host native. Feeding
+    /// this histogram back into BridgeGen's member sweep is how the generated
+    /// surface grows — fill the biggest absorber, regenerate, re-measure.
+    public private(set) var absorbedHostMembers: [String: Int] = [:]
+
+    func recordAbsorbedHostMember(type typeName: String, member: String) {
+        let key = "\(typeName).\(member)"
+        if absorbedHostMembers[key] == nil, absorbedHostMembers.count >= 512 { return }
+        absorbedHostMembers[key, default: 0] += 1
+    }
+
     var locationConverter: SourceLocationConverter?
     var steps = 0
     /// Guards against `while true {}` freezing the UI: evaluation is main-actor.
@@ -139,6 +151,14 @@ public final class Interpreter {
         let property: String
     }
     var viewStateCells: [ViewStateKey: Box] = [:]
+
+    /// Persistence is the LIVE-probe contract (LiveCheck's multi-pass render
+    /// needs .onAppear writes visible to the fetch pass) — opt-in. M0 render
+    /// probes keep fresh-per-instantiation state: their click-through replays
+    /// collected actions against re-renders in an order no native run
+    /// sequences, and persistent boxes turned that into stale index bindings
+    /// (ImageDrawing) and shared-row projections (SwiftUIRealm).
+    public var persistentViewState = false
 
     /// (instance, property) pairs whose observer is RUNNING — assignment
     /// inside one's own didSet must not re-trigger (compiled semantics).
@@ -494,7 +514,7 @@ public final class Interpreter {
             }
             switch property.wrapper {
             case .state, .stateObject:
-                if symbol.conformsToView, let site = node?.id {
+                if persistentViewState, symbol.conformsToView, let site = node?.id {
                     let key = ViewStateKey(site: site, type: symbol.name, property: property.name)
                     if let existing = viewStateCells[key] {
                         instance.stateBoxes[property.name] = existing

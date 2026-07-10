@@ -176,6 +176,11 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let member = networkBridgeMember(name, on: value) {
         return member
     }
+    // The generated Foundation tier (BridgeGen --emit over the SDK's
+    // swiftinterface) serves value-type members no hand box claimed.
+    if let member = GeneratedMembers.member(name, on: value) {
+        return member
+    }
     if let member = objcTrampolineMember(name, on: value) {
         return member
     }
