@@ -211,7 +211,11 @@ public final class Interpreter {
     // MARK: - Parsing
 
     public func parse(source: String) throws -> SourceFileSyntax {
-        let tree = Parser.parse(source: source)
+        // SwiftParser's default nesting ceiling (~256) trips on generated
+        // preview fixtures (apple-browsers nests bookmark literals dozens
+        // deep). Evaluation has its own stack probe; parsing gets headroom.
+        var parser = Parser(source, maximumNestingLevel: 2_048)
+        let tree = SourceFileSyntax.parse(from: &parser)
         let converter = SourceLocationConverter(fileName: "input.swift", tree: tree)
         locationConverter = converter
 

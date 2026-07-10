@@ -1848,3 +1848,16 @@ without this.
   saturation, the FIRST at the honest DECLARED roots). 585 zips + 77
   OSS repos green, actions clicking on real app roots end-to-end.
   Suite 356 → 357.**
+- 2026-07-10 iter 181: step 9 — apple-browsers (4814 files, the
+  DuckDuckGo macOS+iOS monorepo — the new biggest by 1.5×, a
+  half-million-line merge) + WordPress-iOS (2582, arrival-pass)
+  cloned. Two classes: SwiftParser's default nesting ceiling (~256)
+  trips on generated preview fixtures (bookmark literals nested dozens
+  deep) — parsing gets 2048 levels while evaluation keeps its own
+  stack probe (densified to every-16th check + 1.5MB headroom after
+  the regression test out-ran the 64-step sampling); an interpreted
+  throw ESCAPING the launch hook is an absorbed-environment failure
+  (didFinishLaunching can't throw in compiled Swift) and is tolerated.
+  apple-browsers ✅ (4 nodes). **664/668 counted — ZERO failures
+  (THIRTY-FOURTH saturation). 585 zips + 79 OSS repos green. Suite
+  357 → 358.**

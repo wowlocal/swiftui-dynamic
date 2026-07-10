@@ -12,12 +12,12 @@ extension Interpreter {
         // when under 1MB of headroom remains, stop with a located error.
         evaluationDepth += 1
         defer { evaluationDepth -= 1 }
-        if evaluationDepth & 63 == 0 {
+        if evaluationDepth & 15 == 0 {
             let top = UInt(bitPattern: pthread_get_stackaddr_np(pthread_self()))
             let size = UInt(pthread_get_stacksize_np(pthread_self()))
             var probe: UInt8 = 0
             let current = withUnsafePointer(to: &probe) { UInt(bitPattern: $0) }
-            if current > top - size, current - (top - size) < 1_048_576 {
+            if current > top - size, current - (top - size) < 1_572_864 {
                 let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
                 throw RuntimeError(
                     message: located.message, line: located.line, column: located.column, fatal: true)

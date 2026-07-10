@@ -2909,6 +2909,37 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// apple-browsers (iteration 181): generated preview fixtures nest
+    /// literals past SwiftParser's default ceiling — parsing gets 2048
+    /// levels (evaluation has its own stack probe); and an interpreted
+    /// throw ESCAPING the launch hook is an absorbed-environment failure
+    /// (didFinishLaunching can't throw in compiled Swift).
+    @Test func deepLiteralNestingAndHookThrowTolerance() throws {
+        var literal = "Folder(children: ["
+        for _ in 0..<120 { literal = "Folder(children: [" + literal }
+        literal += "])"
+        for _ in 0..<120 { literal += "])" }
+        let source = """
+        struct Folder { var children: [Folder] = [] }
+
+        class AppDelegate: NSObject, NSApplicationDelegate {
+            func applicationDidFinishLaunching(_ notification: Notification) {
+                throw unmergedEnvironment.failure
+            }
+        }
+
+        let fixture = \(literal)
+
+        struct ContentView: View {
+            var body: some View {
+                Text("depth ok \\(fixture.children.count)")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// Planet at its honest root (iteration 180): GLOBAL function
     /// overloads pick by call shape with the running-declaration exclusion
     /// (L10n's variadic form delegates to its single-argument sibling —

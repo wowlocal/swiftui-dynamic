@@ -36,6 +36,10 @@ public enum HeadlessVerifier {
                     named: "applicationDidFinishLaunching", on: delegate, arguments: [hook])
             } catch let error as RuntimeError where !error.fatal {
                 // absorbed-environment failures inside the hook are tolerated
+            } catch is InterpretedThrow {
+                // an interpreted throw that escaped the delegate's own
+                // catches — always rooted in an absorbed environment
+                // (didFinishLaunching can't throw in compiled Swift)
             } catch {
                 throw RuntimeError(message: "launch hook threw: \(error)")
             }
