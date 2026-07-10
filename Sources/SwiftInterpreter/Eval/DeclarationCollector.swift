@@ -644,6 +644,9 @@ extension Interpreter {
             return
         }
         env.define(node.name.text, .closure(makeFunctionClosure(node, body: body, captured: env)))
+        if env === globals {
+            globalFunctionOverloads[node.name.text, default: []].append(node)
+        }
     }
 
     func makeFunctionClosure(_ node: FunctionDeclSyntax, body: CodeBlockSyntax, captured: Environment) -> ClosureValue {

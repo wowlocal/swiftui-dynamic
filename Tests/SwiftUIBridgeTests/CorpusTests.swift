@@ -2909,6 +2909,47 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Planet at its honest root (iteration 180): GLOBAL function
+    /// overloads pick by call shape with the running-declaration exclusion
+    /// (L10n's variadic form delegates to its single-argument sibling —
+    /// globals hold one closure per name, so a side table carries the
+    /// set); and `Self.member = value` assigns statics from INSTANCE
+    /// contexts (Self is the instance's type).
+    @Test func globalOverloadsAndInstanceSelfStatics() throws {
+        let source = """
+        func L10n(_ key: String) -> String {
+            key.uppercased()
+        }
+
+        func L10n(_ key: String, _ arguments: CVarArg...) -> String {
+            String(format: L10n(key), arguments: arguments)
+        }
+
+        class PlanetStore {
+            static var isSharedReady = false
+
+            func setup() {
+                Self.isSharedReady = true
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                PlanetStore().setup()
+                let checks = [
+                    L10n("hello") == "HELLO",
+                    L10n("count %d", 3) == "COUNT %D" || L10n("count %d", 3).hasPrefix("COUNT"),
+                    PlanetStore.isSharedReady == true,
+                ]
+                if checks.contains(false) { fatalError("global overloads broken") }
+                return Text(L10n("done"))
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// Pearcleaner at its honest root (iteration 179): [RuntimeValue]
     /// bridges to NSObject and would smuggle interpreter boxes into
     /// Foundation — trampoline marshaling converts arrays ELEMENT-WISE

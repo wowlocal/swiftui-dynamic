@@ -50,6 +50,10 @@ public final class Interpreter {
     /// running declaration (`send(_:) -> StoreTask` delegating to
     /// `send(_:) -> Task?`, identical shapes, return-type disambiguated).
     var activeFunctionBodies: Set<SyntaxIdentifier> = []
+    /// GLOBAL function overload sets (`func L10n(_:)` beside
+    /// `func L10n(_:_ arguments: CVarArg...)`): globals hold one closure
+    /// per name, so calls consult this table for shape choice.
+    var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]
 
     /// Call-shape and closure metadata are properties of syntax declarations,
     /// not of individual invocations. Cache them by SwiftSyntax identity so

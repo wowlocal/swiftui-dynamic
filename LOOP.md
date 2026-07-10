@@ -1837,3 +1837,14 @@ without this.
   of throwing. Pearcleaner ✅ at 54 nodes/2 actions. Planet's init
   cycle is the LAST honest-root singleton. **661/666 counted
   (660 → 661). Suite 355 → 356.**
+- 2026-07-10 iter 180: honest-roots queue — Planet, the LAST singleton.
+  Two classes: GLOBAL function overloads pick by call shape with the
+  running-declaration exclusion (L10n's variadic form delegates to its
+  single-argument sibling; globals hold one closure per name, so a
+  side table carries the set — the sixth and final home of the
+  overload-delegation family); `Self.member = value` assigns statics
+  from INSTANCE contexts (Self is the instance's type). Planet ✅ at
+  170 nodes/7 actions. **662/666 counted — ZERO failures (THIRTY-THIRD
+  saturation, the FIRST at the honest DECLARED roots). 585 zips + 77
+  OSS repos green, actions clicking on real app roots end-to-end.
+  Suite 356 → 357.**

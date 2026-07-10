@@ -1404,6 +1404,23 @@ extension Interpreter {
                 let args = try collectArguments(of: call, in: env)
                 return .native(url.path(percentEncoded: args.labeled("percentEncoded")?.boolValue ?? true))
             }
+            // GLOBAL function overloads pick by call shape with the
+            // running-declaration exclusion (L10n's variadic form delegates
+            // to its single-argument sibling).
+            if let overloads = globalFunctionOverloads[name], overloads.count > 1,
+               env.box(for: name, before: globals) == nil {
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: .implicitMember(name), member: "call", arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(method, body: body, captured: globals)
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instance.symbol.methods[name],
                overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
@@ -2507,6 +2524,12 @@ extension Interpreter {
                 var typeValue = globals.lookup(typeName)
                 if typeName == "Self", let selfValue = env.lookup("self") {
                     typeValue = selfValue
+                    // Instance contexts: Self IS the instance's type.
+                    if case .instance(let instance) = selfValue {
+                        typeValue = .type(instance.symbol)
+                    } else if case .enumCase(let caseValue) = selfValue {
+                        typeValue = .enumType(caseValue.symbol)
+                    }
                 }
                 var staticSymbol: StructSymbol?
                 if case .type(let symbol)? = typeValue {
