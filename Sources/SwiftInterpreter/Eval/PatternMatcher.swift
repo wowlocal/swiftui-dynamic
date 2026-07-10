@@ -276,6 +276,12 @@ extension Interpreter {
         if let range = value.rangeValue, let i = subject.intValue {
             return range.contains(i)
         }
+        // Double interval patterns (`case oneGigabyte...Double
+        // .greatestFiniteMagnitude:` over a file size).
+        if case .host(let any) = value, let d = subject.doubleValue {
+            if let closed = any as? ClosedRange<Double> { return closed.contains(d) }
+            if let open = any as? Range<Double> { return open.contains(d) }
+        }
         return try relocating(expr) { try Builtins.areEqual(subject, value) }
     }
 

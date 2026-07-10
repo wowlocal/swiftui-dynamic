@@ -599,6 +599,10 @@ extension Interpreter {
             return .native(string.first!.isLetter)
         case "isWhitespace" where string.count == 1:
             return .native(string.first!.isWhitespace)
+        case "appending":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                .native(string + (args.positional(0)?.stringValue ?? ""))
+            })
         case "elementsEqual":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 .native(args.positional(0)?.stringValue == string)

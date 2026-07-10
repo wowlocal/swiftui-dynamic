@@ -217,8 +217,12 @@ public final class Interpreter {
     /// accepts these spellings too.
     public static func isToleratedParseRecovery(_ message: String) -> Bool {
         message.contains("extraneous whitespace")
+            // The `(@MainActor() -> Void)?` no-space family: the attribute
+            // swallows the parens, SwiftParser recovers to a correct tree,
+            // and Xcode accepts the spelling.
             || message.contains("expected '(' to start function type")
             || message.contains("expected ')' in function type")
+            || message.contains("expected '(', type, and ')' in function type")
     }
 
     /// True when the source has HARD parse errors (recovered formatting
@@ -333,7 +337,22 @@ public final class Interpreter {
                 }
                 if alreadyForced { continue }
             }
-            let result = try execute(item, in: globals)
+            let result: StatementResult
+            do {
+                result = try execute(item, in: globals)
+            } catch is InterpretedThrow where assumesCompiledImports {
+                // A top-level statement's uncaught throw crashes only the
+                // SCRIPT file that threw on device (session-ios ships repo
+                // tooling whose file reads legitimately fail in the
+                // sandbox); the merged unit's other files are independent.
+                continue
+            } catch let scriptError as RuntimeError
+                where assumesCompiledImports && !scriptError.fatal {
+                // Same doctrine for trap guards (`fatalError("Source file
+                // had no content")` in tooling): the script's crash is its
+                // own; budget/stack trips stay fatal.
+                continue
+            }
             switch result {
             case .normal(let value):
                 last = value

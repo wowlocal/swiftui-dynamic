@@ -2933,6 +2933,50 @@ enum Corpus {
         #expect(report.nodeCount >= 1)
     }
 
+    /// session-ios (iteration 187): merged tooling SCRIPTS whose
+    /// top-level statements throw or trap fail alone (their crash is the
+    /// script's, not the app's); Double INTERVAL patterns match by
+    /// containment (`case oneGigabyte...Double.greatestFiniteMagnitude:`);
+    /// and `String.appending` is a real native so the optional-taking
+    /// extension overload delegates instead of recursing.
+    @Test func sessionScriptToleranceIntervalsAndAppending() throws {
+        let source = """
+        let doomed = try Data(contentsOf: URL(fileURLWithPath: "/definitely/missing/Package.resolved"))
+        fatalError("Source file had no content")
+
+        extension String {
+            func appending(_ other: String?) -> String {
+                guard let value: String = other else { return self }
+                return self.appending(value)
+            }
+        }
+
+        func fileSize(_ size: Double) -> String {
+            switch size {
+            case 1_073_741_824...Double.greatestFiniteMagnitude: return "GB"
+            case 1_048_576...Double.greatestFiniteMagnitude: return "MB"
+            default: return "B"
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let checks = [
+                    fileSize(2_000_000_000) == "GB",
+                    fileSize(5_000_000) == "MB",
+                    fileSize(12) == "B",
+                    "session".appending(nil) == "session",
+                    "file".appending(".txt") == "file.txt",
+                ]
+                if checks.contains(false) { fatalError("session classes broken") }
+                return Text("ok")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// iTorrent (iteration 186): `(@MainActor() async -> Void)?` with no
     /// space is a formatting recovery Xcode accepts; and a file with HARD
     /// parse errors (editor placeholders, half-written members) can't be

@@ -1918,3 +1918,15 @@ between iterations 35 and 183.)
   measured 14.5min corpus-wide vs 8. iTorrent ✅ (8 nodes, 2 actions).
   **674/675 counted — ZERO failures (THIRTY-EIGHTH saturation).
   585 zips + 89 OSS repos. Suite 369 → 373.**
+- 2026-07-10 iter 187: step 9 — session-ios (993 files, the Signal
+  fork) cloned; ProtonVPN/Grocy repos are gone from GitHub. Four
+  classes: the THIRD `@MainActor()`-recovery sibling message joins the
+  tolerance list; merged tooling SCRIPTS whose top-level statements
+  throw or trap fail ALONE (their crash is the script's, not the
+  app's — InterpretedThrow and non-fatal traps tolerate per-statement
+  in compiled mode; budget/stack stay fatal); Double INTERVAL patterns
+  match by containment (`case oneGigabyte...greatestFiniteMagnitude:`);
+  `String.appending` is a real native so the optional-taking extension
+  overload delegates instead of recursing. session-ios ✅ (7 nodes).
+  **675/676 counted — ZERO failures (THIRTY-NINTH saturation).
+  585 zips + 90 OSS repos. Suite 373 → 375.**
