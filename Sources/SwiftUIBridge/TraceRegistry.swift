@@ -159,6 +159,9 @@ public final class TraceRegistry: HostRegistry {
                         _ = try ctx.callBackgroundClosure(body, arguments: [])
                     } catch let error as RuntimeError where !error.fatal {
                         // unhandled task error: logged on device, silent here
+                        if LiveCheckSupport.traceLifecycle {
+                            print("   ⚠ task body died: \(error)")
+                        }
                     }
                 }
                 return .native(TraceNode(kind: name))

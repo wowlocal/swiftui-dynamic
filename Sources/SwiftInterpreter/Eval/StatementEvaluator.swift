@@ -267,7 +267,12 @@ extension Interpreter {
             return .normal(try evaluate(exprStmt.expression, in: env))
         }
         if let returnStmt = stmt.as(ReturnStmtSyntax.self) {
-            let value = try returnStmt.expression.map { try evaluate($0, in: env) } ?? .void
+            // Return position carries the enclosing function's DECLARED
+            // return type as the ambient hint (generic-return binding).
+            let hint = enclosingReturnAnnotations.last.flatMap { $0 }
+            let value = try withExpectedAnnotation(hint) {
+                try returnStmt.expression.map { try evaluate($0, in: env) } ?? .void
+            }
             return .returnValue(value)
         }
         if let guardStmt = stmt.as(GuardStmtSyntax.self) {

@@ -304,6 +304,11 @@ extension Interpreter {
         return value
     }
 
+    /// Diagnostics: INTERP_TRACE_CALLS="a,b,c" prints each entry into a
+    /// matching declared function — localizing silent absorbs in deep chains.
+    static let tracedCallNames: Set<String>? = ProcessInfo.processInfo
+        .environment["INTERP_TRACE_CALLS"].map { Set($0.split(separator: ",").map(String.init)) }
+
     func resolveIdentifier(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
         // Real Swift scoping: locals first, implicit-self members second,
         // globals LAST (a method named like a global type wins in its body).
@@ -1940,6 +1945,11 @@ extension Interpreter {
             }
             return try groupViews(items)
         }
+        enclosingReturnAnnotations.append(closure.returnTypeName)
+        defer { enclosingReturnAnnotations.removeLast() }
+        if let names = Self.tracedCallNames, let name = closure.debugName, names.contains(name) {
+            Swift.print("⟶ \(name)")
+        }
         let result = try executeBlock(closure.body, in: env)
         try applyInoutWriteBacks()
         switch result {
@@ -3051,19 +3061,12 @@ extension Interpreter {
     func expectBool(_ value: RuntimeValue, node: some SyntaxProtocol) throws -> Bool {
         guard let b = value.boolValue else {
             // Hosted-object truths (`context.canEvaluatePolicy(…)`,
-            // `engine.isRunning`) read FALSE — fresh system state: no
-            // biometrics, nothing running headlessly.
-            if case .host(let any) = value,
-               any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
-                return false
-            }
-            // A bound host-member FUNCTION in Bool position is equally an
-            // artifact of stub reads — fresh-state false.
-            if case .hostFunction = value { return false }
+            // `engine.isRunning`) read their fresh-state value — FALSE for
+            // everything except `isEmpty` chains, which read TRUE (the
+            // fresh store's collection is empty, agreeing with for-in).
+            if let fresh = Builtins.unknowableBool(value) { return fresh }
             // Nil from optional chains through stubs reads false too.
             if value.isNil { return false }
-            // Bare `.member` markers (unresolved host statics) read false.
-            if case .implicitMember = value { return false }
             throw error(node, "expected a Bool, got \(value.stringified)")
         }
         return b

@@ -150,6 +150,12 @@ public final class Interpreter {
     /// REAL type value. Textual, innermost last.
     var expectedAnnotationStack: [String] = []
 
+    /// The DECLARED return type of each function on the call stack (nil for
+    /// annotation-less closures, which mask the enclosing hint). An explicit
+    /// `return expr` evaluates under the top entry, so `return try await
+    /// client.get(…)` inside `-> [Status]` binds the callee's generic.
+    var enclosingReturnAnnotations: [String?] = []
+
     func withExpectedAnnotation<T>(_ annotation: String?, _ body: () throws -> T) rethrows -> T {
         guard let annotation, !annotation.isEmpty else { return try body() }
         expectedAnnotationStack.append(annotation)
@@ -767,10 +773,34 @@ public final class Interpreter {
     /// instance of the type is synthesized once and reused — the same
     /// fresh-store doctrine as @Query.
     public func injectEnvironmentObjects(into instance: Instance, models: [String: Instance]) throws {
-        for property in instance.symbol.storedProperties where property.wrapper == .environmentObject {
-            var typeName = property.typeAnnotation?.trimmedDescription ?? ""
+        for property in instance.symbol.storedProperties {
+            // Observation's TYPED environment (`@Environment(MastodonClient
+            // .self) var client`) resolves from the same ambient-models
+            // dict — `.environment(model)` injections key by symbol name.
+            // Keypath keys (`\.dismiss`) are lowercase and stay with
+            // injectEnvironmentValues.
+            var typeName: String
+            var typedEnvironment = false
+            switch property.wrapper {
+            case .environmentObject:
+                typeName = property.typeAnnotation?.trimmedDescription ?? ""
+            case .environment(let name) where name.first?.isUppercase == true:
+                typeName = name
+                typedEnvironment = true
+            default:
+                continue
+            }
             if let generic = typeName.firstIndex(of: "<") {
                 typeName = String(typeName[..<generic]) // generics drop everywhere
+            }
+            // Typed-environment properties fill ONLY from what the app
+            // actually injected (or an earlier synthesis) — a missing
+            // injection stays an absorbed read (on device it would crash;
+            // headlessly the fresh canvas absorbs), never a fresh instance
+            // with side-effecting init.
+            if typedEnvironment, models[typeName] == nil,
+               synthesizedEnvironmentModels[typeName] == nil {
+                continue
             }
             let model: Instance
             if let ambient = models[typeName] {
@@ -1218,6 +1248,25 @@ public final class Interpreter {
             if let i = value.intValue { return .native(Swift.abs(i)) }
             if let d = value.doubleValue { return .native(Swift.abs(d)) }
             throw RuntimeError(message: "abs needs a number")
+        }
+        define("type") { args, _ in
+            // `type(of: endpoint)` — the DYNAMIC metatype, comparable with
+            // `X.self` (MastodonClient branches its URL path on it).
+            guard let value = args.labeled("of") else {
+                throw RuntimeError(message: "type(of:) needs a value")
+            }
+            switch value {
+            case .instance(let instance): return .type(instance.symbol)
+            case .enumCase(let enumCase): return .enumType(enumCase.symbol)
+            case .type, .enumType: return value
+            case .int: return .native(HostTypeMarker(name: "Int"))
+            case .double: return .native(HostTypeMarker(name: "Double"))
+            case .bool: return .native(HostTypeMarker(name: "Bool"))
+            case .host(let any):
+                return .native(HostTypeMarker(name: String(describing: Swift.type(of: any))))
+            default:
+                return .native(HostTypeMarker(name: "Void"))
+            }
         }
         func defineUnaryMath(_ name: String, _ op: @escaping (Double) -> Double) {
             define(name) { args, _ in

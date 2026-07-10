@@ -129,6 +129,14 @@ public enum NetworkBridge {
                 }
                 if let text = stub.config["url"]?.stringValue { return URL(string: text) }
             }
+            if let node = any as? TraceNode {
+                // Under the TRACE registry the same catch-all bag is a
+                // TraceNode — the url rides in its config identically.
+                if case .host(let inner)? = node.config["url"], let url = inner as? URL {
+                    return url
+                }
+                if let text = node.config["url"]?.stringValue { return URL(string: text) }
+            }
         }
         if let text = value.stringValue { return URL(string: text) }
         return nil
@@ -195,8 +203,13 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
             // async forms: `let (data, response) = try await session.data(from:/for:)`
             return .hostFunction(HostFunction(name: "data") { args, _ in
                 guard let url = NetworkBridge.url(from: args.labeled("from") ?? args.labeled("for") ?? args.positional(0)) else {
+                    if LiveCheckSupport.traceLifecycle {
+                        let raw = args.labeled("from") ?? args.labeled("for") ?? args.positional(0)
+                        print("   ⚠ data(): no URL in \(raw?.stringified ?? "nil")")
+                    }
                     throw RuntimeError(message: "URLSession.data needs a URL")
                 }
+                if LiveCheckSupport.traceLifecycle { print("   ⇢ data(): \(url)") }
                 let (data, response) = try NetworkBridge.respond(to: url)
                 return .native(TupleValue(labels: [nil, nil], values: [
                     .native(data), .native(HTTPResponseBox(response)),
@@ -297,8 +310,13 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 } catch {
                     throw RuntimeError(message: "decode: invalid JSON — \(error.localizedDescription)")
                 }
-                return try JSONDecodeBridge.decode(
-                    typeValue, json: json, interpreter: interpreter, decoder: decoder)
+                do {
+                    return try JSONDecodeBridge.decode(
+                        typeValue, json: json, interpreter: interpreter, decoder: decoder)
+                } catch {
+                    if LiveCheckSupport.traceLifecycle { print("   ⚠ decode failed: \(error)") }
+                    throw error
+                }
             })
         default:
             // keyDecodingStrategy/dateDecodingStrategy land via hostSetMember.

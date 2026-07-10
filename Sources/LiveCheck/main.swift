@@ -20,6 +20,9 @@ var iterator = CommandLine.arguments.dropFirst().makeIterator()
 while let argument = iterator.next() {
     if argument == "--scenario" { filter = iterator.next() }
 }
+// LIVECHECK_TRACE=1 prints each fired lifecycle closure + outcome —
+// diagnostics only, never part of the metric.
+LiveCheckSupport.traceLifecycle = ProcessInfo.processInfo.environment["LIVECHECK_TRACE"] != nil
 
 struct Scenario {
     let name: String

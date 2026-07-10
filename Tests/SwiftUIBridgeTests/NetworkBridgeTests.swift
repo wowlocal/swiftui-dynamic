@@ -70,6 +70,237 @@ import SwiftInterpreter
         }
     }
 
+    /// IceCubes' full client chain (iteration 190): an ACTOR builds the URL
+    /// through URLComponents, wraps it in `URLRequest(url:)`, sets method +
+    /// header, and calls `session.data(for: request)` — every link must
+    /// stay real for the replay fixture to land.
+    @Test func actorClientRequestChainLandsInReplay() throws {
+        NetworkBridge.policy = .replay(fixturesDirectory: Self.fixturesRoot + "/mastodon-public-timeline")
+        defer { NetworkBridge.policy = .absorbed }
+        NetworkBridge.requestLog = []
+        let source = """
+        struct Account: Codable {
+            let username: String
+        }
+
+        struct Status: Codable {
+            let id: String
+            let account: Account
+        }
+
+        protocol Endpoint {
+            func path() -> String
+            func queryItems() -> [URLQueryItem]?
+        }
+
+        enum Oauth: Endpoint {
+            case authorize
+            func path() -> String { "oauth/authorize" }
+            func queryItems() -> [URLQueryItem]? { nil }
+        }
+
+        enum Trends: Endpoint {
+            case tags
+            case statuses(offset: Int?)
+
+            func path() -> String {
+                switch self {
+                case .tags:
+                    "trends/tags"
+                case .statuses:
+                    "trends/statuses"
+                }
+            }
+
+            func queryItems() -> [URLQueryItem]? {
+                switch self {
+                case let .statuses(offset):
+                    if let offset {
+                        return [.init(name: "offset", value: String(offset))]
+                    }
+                    return nil
+                default:
+                    return nil
+                }
+            }
+        }
+
+        struct OauthToken: Codable {
+            let accessToken: String
+        }
+
+        @Observable
+        final class Client: Equatable, Identifiable, Sendable {
+            static func == (lhs: Client, rhs: Client) -> Bool {
+                lhs.server == rhs.server
+            }
+
+            enum Version: String, Sendable {
+                case v1, v2
+            }
+
+            enum ClientError: Error {
+                case unexpectedRequest
+            }
+
+            let server: String
+            let version: Version
+            private let urlSession: URLSession
+            private let decoder = JSONDecoder()
+
+            private let critical: OSAllocatedUnfairLock<Critical>
+            private struct Critical: Sendable {
+                var oauthToken: OauthToken?
+                var connections: Set<String> = []
+            }
+
+            init(server: String, version: Version = .v1, oauthToken: OauthToken? = nil) {
+                self.server = server
+                self.version = version
+                critical = .init(initialState: Critical(oauthToken: oauthToken, connections: [server]))
+                urlSession = URLSession.shared
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+            }
+
+            private func makeURL(
+                scheme: String = "https", endpoint: Endpoint, forceVersion: Version? = nil
+            ) throws -> URL {
+                var components = URLComponents()
+                components.scheme = scheme
+                components.host = server
+                if type(of: endpoint) == Oauth.self {
+                    components.path += "/\\(endpoint.path())"
+                } else {
+                    components.path += "/api/\\(forceVersion?.rawValue ?? version.rawValue)/\\(endpoint.path())"
+                }
+                components.queryItems = endpoint.queryItems()
+                guard let url = components.url else {
+                    throw ClientError.unexpectedRequest
+                }
+                return url
+            }
+
+            private func makeURLRequest(url: URL, endpoint: Endpoint, httpMethod: String) -> URLRequest {
+                var request = URLRequest(url: url)
+                request.httpMethod = httpMethod
+                if let oauthToken = critical.withLock({ $0.oauthToken }) {
+                    request.setValue("Bearer \\(oauthToken.accessToken)", forHTTPHeaderField: "Authorization")
+                }
+                return request
+            }
+
+            func get<Entity: Decodable>(endpoint: Endpoint, forceVersion: Version? = nil) async throws
+                -> Entity
+            {
+                try await makeEntityRequest(endpoint: endpoint, method: "GET", forceVersion: forceVersion)
+            }
+
+            private func makeEntityRequest<Entity: Decodable>(
+                endpoint: Endpoint, method: String, forceVersion: Version? = nil
+            ) async throws -> Entity {
+                let url = try makeURL(endpoint: endpoint, forceVersion: forceVersion)
+                let request = makeURLRequest(url: url, endpoint: endpoint, httpMethod: method)
+                let (data, _) = try await urlSession.data(for: request)
+                return try decoder.decode(Entity.self, from: data)
+            }
+        }
+
+        protocol TimelineStatusFetching: Sendable {
+            func fetchFirstPage(client: Client?) async throws -> [Status]
+        }
+
+        struct DefaultStatusFetcher: TimelineStatusFetching {
+            func fetchFirstPage(client: Client?) async throws -> [Status] {
+                guard let client else { throw Client.ClientError.unexpectedRequest }
+                return try await client.get(endpoint: Trends.statuses(offset: nil))
+            }
+        }
+
+        let fetcher: TimelineStatusFetching = DefaultStatusFetcher()
+        let client = Client(server: "mastodon.social")
+        let statuses = try await fetcher.fetchFirstPage(client: client)
+        (statuses.count, statuses[0].account.username)
+        """
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect((tuple.values[0].intValue ?? 0) >= 10,
+                "fixture statuses should decode, got \(tuple.values[0].stringified); log: \(NetworkBridge.requestLog)")
+        #expect((tuple.values[1].stringValue ?? "").isEmpty == false)
+        #expect(NetworkBridge.requestLog.contains { $0.contains("trends/statuses") && $0.contains("hit") },
+                "the request should land in the replay log, got \(NetworkBridge.requestLog)")
+    }
+
+    /// The IceCubes TRIGGER shape (iteration 190): `.onAppear` assigns a
+    /// property whose didSet spawns `Task { await fetch() }` — the observer
+    /// runs, the task body executes inline, and the request lands.
+    @Test func didSetTaskFetchLandsRequest() throws {
+        NetworkBridge.policy = .replay(fixturesDirectory: Self.fixturesRoot + "/mastodon-public-timeline")
+        defer { NetworkBridge.policy = .absorbed }
+        NetworkBridge.requestLog = []
+        let source = """
+        struct Account: Codable {
+            let username: String
+        }
+
+        struct Status: Codable {
+            let id: String
+            let account: Account
+        }
+
+        @Observable
+        @MainActor
+        final class TimelineVM {
+            var client: String?
+            var loadedCount = 0
+            var timelineTask: Task<Void, Never>?
+            var timeline: String = "unset" {
+                didSet {
+                    timelineTask?.cancel()
+                    timelineTask = Task {
+                        await fetchNewestStatuses()
+                    }
+                }
+            }
+
+            func fetchNewestStatuses() async {
+                guard let client else { return }
+                do {
+                    let url = URL(string: "https://\\(client)/api/v1/trends/statuses")!
+                    // URLRequest wraps as the registry's catch-all bag —
+                    // under the TRACE registry too, data(for:) must find
+                    // the url riding in the bag's config.
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "GET"
+                    let (data, _) = try await URLSession.shared.data(for: request)
+                    let decoder = JSONDecoder()
+                    decoder.keyDecodingStrategy = .convertFromSnakeCase
+                    let statuses = try decoder.decode([Status].self, from: data)
+                    loadedCount = statuses.count
+                } catch {}
+            }
+        }
+
+        struct ContentView: View {
+            @State private var viewModel = TimelineVM()
+
+            var body: some View {
+                Text("loaded \\(viewModel.loadedCount)")
+                    .onAppear {
+                        if viewModel.client == nil {
+                            viewModel.client = "mastodon.social"
+                        }
+                        viewModel.timeline = "trending"
+                    }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(NetworkBridge.requestLog.contains { $0.contains("trends/statuses") },
+                "didSet's Task should fetch, log: \(NetworkBridge.requestLog)")
+        #expect(strings.contains { $0.contains("loaded 20") },
+                "fetched count should reach the tree, got \(strings)")
+    }
+
     @Test func codingKeysAndRawEnumsDecode() throws {
         let directory = NSTemporaryDirectory() + "livecheck-tests-\(ProcessInfo.processInfo.processIdentifier)"
         try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
@@ -108,6 +339,74 @@ import SwiftInterpreter
         #expect(tuple.values[2].doubleValue == 9.5)
         #expect(tuple.values[3].intValue == 2)
         #expect(tuple.values[4].boolValue == true)
+    }
+}
+
+/// Fresh-state doctrine: an unknowable's `isEmpty` reads TRUE — the same
+/// fresh collection iterates EMPTY in for-in and equals zero through
+/// `count == 0`, so all three readings agree. IceCubes' cache guard
+/// (`if let cached = await getCachedItems(), !cached.isEmpty`) must fall
+/// to the NETWORK branch, exactly as on a fresh install.
+@Suite struct FreshEmptinessTests {
+    @Test func absorbedCacheGuardFallsToNetworkBranch() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                let cached = DiskCache.shared.items(for: "timeline")
+                let branch: String
+                if !cached.isEmpty {
+                    branch = "cache"
+                } else {
+                    branch = "network"
+                }
+                var iterated = 0
+                for _ in cached { iterated += 1 }
+                if cached.isEmpty != true || iterated != 0 || cached.count != 0 {
+                    fatalError("fresh readings disagree")
+                }
+                return Text(branch)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+}
+
+/// Observation's TYPED environment: `.environment(model)` seeds by symbol
+/// name; `@Environment(Model.self) var model` reads the SAME instance (the
+/// IceCubes client-injection shape).
+@Suite struct TypedEnvironmentTests {
+    @Test func typedEnvironmentModelReachesChild() throws {
+        let source = """
+        @Observable
+        final class MastodonClient {
+            var server = "mastodon.social"
+        }
+
+        struct TimelineView: View {
+            @Environment(MastodonClient.self) private var client
+
+            var body: some View {
+                Text("server: \\(client.server)")
+            }
+        }
+
+        @main
+        struct FeedApp: App {
+            @State var client = MastodonClient()
+
+            var body: some Scene {
+                WindowGroup {
+                    TimelineView()
+                        .environment(client)
+                }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("server: mastodon.social"),
+                "the typed environment model should reach the child, got \(strings)")
     }
 }
 

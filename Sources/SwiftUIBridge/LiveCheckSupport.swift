@@ -12,6 +12,10 @@ public enum LiveCheckSupport {
     /// Errors swallowed while firing lifecycle closures — the histogram's
     /// raw material (a silent `try?` here hides the next wall).
     public private(set) static var lastLifecycleErrors: [String] = []
+    /// Diagnostic tracing: when set, each fired lifecycle closure prints its
+    /// body head + outcome, so a silent absorb inside a deep fetch chain can
+    /// be localized without touching the metric.
+    public static var traceLifecycle = false
 
     /// `afterActions:` — the interaction rung: after lifecycle passes,
     /// invoke up to N collected actions (each against a FRESH render, like
@@ -142,10 +146,18 @@ public enum LiveCheckSupport {
                 break
             }
             for closure in pending {
+                if traceLifecycle {
+                    let head = closure.body.description
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "\n", with: " ⏎ ")
+                    print("▶ lifecycle[\(lastLifecycleFired)]: \(head.prefix(110))")
+                }
                 do {
                     _ = try interpreter.callBackgroundClosure(closure, arguments: [])
+                    if traceLifecycle { print("   ✓ completed") }
                 } catch {
                     lastLifecycleErrors.append("\(error)")
+                    if traceLifecycle { print("   ✗ \(error)") }
                 }
                 lastLifecycleFired += 1
             }

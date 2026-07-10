@@ -80,6 +80,8 @@ public final class ClosureValue {
     /// Generic parameter NAMES (`func get<Entity: Decodable>`): return-
     /// position ones bind to the call-site annotation at invocation.
     public var genericParameters: [String] = []
+    /// The declared function name, for diagnostics tracing only.
+    public var debugName: String?
 
     public init(
         parameters: [Parameter],

@@ -185,21 +185,19 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. ICECUBES FETCH CHAIN ABSORBS BEFORE NetworkBridge.respond (M2):
-      state identity is DONE (per-identity @State store keyed by
-      instantiation site + type + property, ViewStateIdentityTests;
-      property observers run with compiled semantics,
-      PropertyObserverTests; bare `case .error:` matches payload cases)
-      — the scenario now renders through the error branch: 12 lifecycle
-      closures fire, statusesState reaches .error(.noData), yet
-      requestLog stays "NO REQUESTS". So the Task-spawned fetch RUNS but
-      Client.get(endpoint:) → URLComponents/URLRequest → URLSession
-      absorbs somewhere before NetworkBridge.respond. Find the absorbing
-      link (URLComponentsBox exists; check the URLSession call shape
-      IceCubes uses — `session.data(for: request)` vs our gateway's
-      accepted shapes) and make the request land. Fixture recorded
-      (api_v1_trends_statuses.json — native unauth IceCubes shows
-      TRENDING, launch parity).
+   1. SINGLE-VALUE CUSTOM Codable DECODE (M2, icecubes): the fetch
+      chain is CLOSED (iter 190) — requests LAND and the trends fixture
+      HITS (log: "/api/v1/trends/statuses hit"). The tree still shows 0
+      authors because [Status] decode throws `decode(HTMLString):
+      expected a JSON object`: HTMLString/ServerError declare custom
+      `init(from: Decoder)` reading a singleValueContainer STRING, and
+      JSONDecodeBridge only decodes objects structurally. Fix: when the
+      JSON value is a SCALAR and the interpreted type declares
+      init(from:), RUN it with a Decoder stub whose
+      singleValueContainer().decode(_:) yields the scalar (smallest
+      honest slice of real Codable synthesis). Diagnose with
+      LIVECHECK_TRACE=1 (lifecycle outcomes + decode failures) and
+      INTERP_TRACE_CALLS="fetchFirstPage,…" (function-entry tracing).
    2. SwiftUIFlux gateway (M2, movieswiftui): vendored Redux store —
       Store.state + dispatch → reducer → objectWillChange.
    3. @Query/@FetchRequest live-store wiring (M3): boxes must read
@@ -1970,3 +1968,23 @@ between iterations 35 and 183.)
   first-wins, own-nested-types win in scope. **679/680 counted — ZERO
   failures (FORTY-FIRST saturation). 585 zips + 94 OSS repos. Suite
   375 → 377.**
+- 2026-07-10 iter 190: LiveCheck queue #1 (icecubes fetch chain absorbs
+  before respond) — SIX links unwound to make the request land:
+  `type(of:)` builtin + metatype equality (MastodonClient's makeURL
+  branches on `type(of: endpoint) == Oauth.self` — was "unresolved
+  identifier 'type'"), return-position generic binding (`return try
+  await client.get(…)` inside `-> [Status]` binds Entity via
+  enclosingReturnAnnotations), `URLRequest(url:)`-as-TraceNode bags
+  yield their url to `data(for:)` (THE silent wall: the trace
+  registry's catch-all, not ViewRegistry's), unknowable `isEmpty` reads
+  TRUE (agreeing with for-in-empty and count==0; IceCubes' cache guard
+  falls to the network branch as on a fresh install; Bool equality
+  compares through the fresh reading), Observation's typed environment
+  (`@Environment(Client.self)`) fills from ambient `.environment(model)`
+  injections (ambient-only — no fresh instantiation). Requests now
+  land: "trends/statuses hit"; next wall named (HTMLString single-value
+  custom decode → queue #1). Diagnostics added: LIVECHECK_TRACE +
+  INTERP_TRACE_CALLS. **674/680 ProjectCheck (baseline moved -5 by
+  parallel-session merges — SwiftUIRealm/ImageDrawing/SwiftBar/
+  VirtualBuddy/winston fail at HEAD, pre-existing, next queue); suite
+  383 → 388; LiveCheck 2/4 with the fetch-chain class ELIMINATED.**

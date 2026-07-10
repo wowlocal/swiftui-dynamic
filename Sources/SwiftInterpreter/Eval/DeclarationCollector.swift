@@ -712,6 +712,7 @@ extension Interpreter {
         )
         closure.functionDeclID = node.id
         closure.genericParameters = metadata.genericParameters
+        closure.debugName = node.name.text
         return closure
     }
 

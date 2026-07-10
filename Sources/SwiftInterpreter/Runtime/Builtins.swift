@@ -201,17 +201,34 @@ public enum Builtins {
             throw EvalMessage(text: "unary '-' requires a numeric operand")
         case "!":
             if let b = value.boolValue { return .native(!b) }
-            // Hosted-object truths negate from their fresh-state false.
-            if case .host(let any) = value,
-               any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
-                return .native(true)
-            }
-            if case .hostFunction = value { return .native(true) }
-            if case .implicitMember = value { return .native(true) }
+            // Hosted-object truths negate from their fresh-state reading.
+            if let fresh = unknowableBool(value) { return .native(!fresh) }
             throw EvalMessage(text: "'!' requires a Bool operand, got \(value.stringified)")
         default:
             throw EvalMessage(text: "unsupported prefix operator '\(op)'")
         }
+    }
+
+    /// The fresh-state Bool reading of an unknowable value: an `isEmpty`
+    /// chain reads TRUE — the same fresh collection iterates EMPTY in
+    /// for-in and equals zero through `count == 0`, so all three readings
+    /// agree (IceCubes' cache guard `!cachedItems.isEmpty` must fall to the
+    /// network branch, as on a fresh install). Everything else reads FALSE
+    /// (no biometrics, nothing running headlessly). Nil for real values.
+    public static func unknowableBool(_ value: RuntimeValue) -> Bool? {
+        if case .host(let any) = value {
+            if let chain = any as? ChainedImplicitCall {
+                return chain.member == "isEmpty"
+            }
+            if let call = any as? ImplicitMemberCall {
+                return call.name == "isEmpty"
+            }
+            if any is InertCallable { return false }
+            return nil
+        }
+        if case .hostFunction = value { return false }
+        if case .implicitMember(let name) = value { return name == "isEmpty" }
+        return nil
     }
 
     /// The fresh-state numeric reading of an unknowable value: well-known
@@ -500,6 +517,9 @@ public enum Builtins {
             if let l = la as? ImplicitMemberCall, let r = ra as? ImplicitMemberCall {
                 return l.name == r.name
             }
+            if let l = la as? HostTypeMarker, let r = ra as? HostTypeMarker {
+                return l.name == r.name
+            }
             if let l = la as? UUID, let r = ra as? UUID { return l == r }
             if let l = la as? AnyHashable, let r = ra as? AnyHashable { return l == r }
             if let l = la as? Date, let r = ra as? Date { return l == r }
@@ -521,6 +541,14 @@ public enum Builtins {
             return c.name == m && c.associated.isEmpty
         case (.implicitMember(let l), .implicitMember(let r)):
             return l == r
+        // Metatypes (`type(of: endpoint) == Oauth.self`) compare by symbol
+        // identity, falling back to name (sibling-target re-declarations).
+        case (.type(let l), .type(let r)):
+            return l === r || l.name == r.name
+        case (.enumType(let l), .enumType(let r)):
+            return l === r || l.name == r.name
+        case (.type, .enumType), (.enumType, .type):
+            return false
         default:
             // Unknowable vs CONCRETE equality is false — a fresh chain
             // can't equal a specific value (marker-vs-concrete doctrine).
@@ -535,8 +563,14 @@ public enum Builtins {
             if isUnknowable(lhs) != isUnknowable(rhs) {
                 // Unknowable vs a concrete NUMBER compares through the
                 // fresh zero (uname(&info) == 0 succeeds — status codes);
+                // vs a concrete BOOL through the fresh Bool reading
+                // (`cached.isEmpty == true` on a fresh store holds);
                 // vs any other concrete it's simply unequal.
+                let unknowable = isUnknowable(lhs) ? lhs : rhs
                 let concrete = isUnknowable(lhs) ? rhs : lhs
+                if let b = concrete.boolValue {
+                    return b == (unknowableBool(unknowable) ?? false)
+                }
                 if let n = concrete.doubleValue { return n == 0 }
                 return false
             }
