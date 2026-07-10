@@ -52,6 +52,12 @@ public final class StructSymbol {
         /// `lazy var keychain = KeychainManager(service: keychainService)` —
         /// the initializer defers to first access with self bound.
         public var isLazy: Bool = false
+        /// Property OBSERVERS: assignment through the write funnel runs
+        /// them (initialization does not, matching compiled Swift).
+        public var willSetBody: CodeBlockItemListSyntax?
+        public var willSetParameter: String = "newValue"
+        public var didSetBody: CodeBlockItemListSyntax?
+        public var didSetParameter: String = "oldValue"
 
         /// Function-typed or @ViewBuilder: what a trailing closure can fill.
         public var acceptsTrailingClosure: Bool {

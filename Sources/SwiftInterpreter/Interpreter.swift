@@ -120,6 +120,30 @@ public final class Interpreter {
     var functionMetadataCache: [SyntaxIdentifier: FunctionMetadata] = [:]
     var initializerMetadataCache: [SyntaxIdentifier: InitializerMetadata] = [:]
 
+    /// Per-view-IDENTITY state cells: compiled SwiftUI keeps @State/
+    /// @StateObject storage alive across re-renders of the same position;
+    /// re-evaluating a view tree must not reset interpreted state, or
+    /// probe passes never see each other's writes (a TimelineViewModel's
+    /// client assigned in .onAppear was invisible to the fetch pass).
+    /// Identity = instantiation SITE + type + property. The initializer
+    /// still evaluates each time and is DISCARDED on a known identity —
+    /// exactly the @State autoclosure contract. ForEach rows share a
+    /// site (documented divergence until element-id salting).
+    struct ViewStateKey: Hashable {
+        let site: SyntaxIdentifier
+        let type: String
+        let property: String
+    }
+    var viewStateCells: [ViewStateKey: Box] = [:]
+
+    /// (instance, property) pairs whose observer is RUNNING — assignment
+    /// inside one's own didSet must not re-trigger (compiled semantics).
+    var activePropertyObservers: Set<ObserverKey> = []
+    struct ObserverKey: Hashable {
+        let instance: ObjectIdentifier
+        let property: String
+    }
+
     /// Call-site type annotations currently in scope (`let x: [Status] = …`
     /// pushes "[Status]" around its initializer): return-position generic
     /// parameters bind to the top, so `Entity.self` reaches decode with a
@@ -457,7 +481,17 @@ public final class Interpreter {
             }
             switch property.wrapper {
             case .state, .stateObject:
-                instance.stateBoxes[property.name] = box
+                if symbol.conformsToView, let site = node?.id {
+                    let key = ViewStateKey(site: site, type: symbol.name, property: property.name)
+                    if let existing = viewStateCells[key] {
+                        instance.stateBoxes[property.name] = existing
+                    } else {
+                        viewStateCells[key] = box
+                        instance.stateBoxes[property.name] = box
+                    }
+                } else {
+                    instance.stateBoxes[property.name] = box
+                }
             default:
                 instance.properties[property.name] = box
             }
