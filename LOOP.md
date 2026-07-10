@@ -2018,3 +2018,11 @@ between iterations 35 and 183.)
   winston-shaped case). **674 → 677/680; suite 388 → 389; remaining:
   SwiftUIRealm ($task projection) + ImageDrawing (binding index) —
   next queue.**
+- 2026-07-10 iter 192: Realm observation wrappers project
+  (SwiftUIRealm): `@ObservedRealmObject var task` was an unmapped
+  wrapper, so `$task.taskStatus.wrappedValue = .missed` threw "'$task'
+  requires an @State or @Binding property" — mapped to .observedObject
+  (@Bindable-shaped member projections) with @StateRealmObject →
+  .stateObject alongside (RealmWrapperProjectionTests). ImageDrawing's
+  binding-index singleton healed via parallel merge. **677 → 679/680 —
+  ZERO failures (FORTY-SECOND saturation); suite 389 → 395.**

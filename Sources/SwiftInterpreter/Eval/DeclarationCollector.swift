@@ -767,11 +767,15 @@ extension Interpreter {
         }
         if hasAttribute(attributes, named: "Published") { return (.published, nil) }
         if hasAttribute(attributes, named: "StateObject") { return (.stateObject, nil) }
+        // Realm's @StateRealmObject owns its object like @StateObject.
+        if hasAttribute(attributes, named: "StateRealmObject") { return (.stateObject, nil) }
         if hasAttribute(attributes, named: "ObservedObject") { return (.observedObject, nil) }
         // @Bindable wraps an observable reference type; `$store.field`
         // projects bindings into the model — @ObservedObject-shaped in our
-        // box-level notification model.
+        // box-level notification model. Realm's @ObservedRealmObject
+        // projects member bindings the same way ($task.taskStatus).
         if hasAttribute(attributes, named: "Bindable") { return (.observedObject, nil) }
+        if hasAttribute(attributes, named: "ObservedRealmObject") { return (.observedObject, nil) }
         if hasAttribute(attributes, named: "EnvironmentObject") { return (.environmentObject, nil) }
         // DI-container wrappers (FactoryKit's @InjectedObservable/@Injected):
         // a container provides shared instances — environment-object shaped,

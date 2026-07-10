@@ -2,6 +2,50 @@ import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
 
+/// Realm's observation wrappers project like their SwiftUI cousins
+/// (SwiftUIRealm, iteration 192): `@ObservedRealmObject var task` gives
+/// `$task.member.wrappedValue = …` member bindings (@Bindable-shaped),
+/// `@StateRealmObject` owns its object like @StateObject.
+@Suite struct RealmWrapperProjectionTests {
+    @Test func observedRealmObjectProjectsMemberBindings() throws {
+        let source = """
+        enum TaskStatus: String {
+            case pending, missed, completed
+        }
+
+        final class TaskItem: ObservableObject {
+            @Published var title = "write tests"
+            @Published var taskStatus: TaskStatus = .pending
+        }
+
+        struct TaskRow: View {
+            @ObservedRealmObject var task: TaskItem
+
+            var body: some View {
+                VStack {
+                    Text(task.title)
+                    Button("Mark Missed") {
+                        $task.taskStatus.wrappedValue = .missed
+                    }
+                    Text(task.taskStatus.rawValue)
+                }
+            }
+        }
+
+        struct ContentView: View {
+            @StateRealmObject var task = TaskItem()
+
+            var body: some View {
+                TaskRow(task: task)
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+        #expect(report.actionsInvoked == 1, "the Mark Missed action must click through the projection")
+    }
+}
+
 /// `$state` projections: writes through the bound box must be visible on the
 /// next body evaluation and fire the state change hook — the same loop
 /// Toggle/Slider/TextField drive through their real `Binding` setters.
