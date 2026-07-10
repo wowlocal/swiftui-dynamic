@@ -11,6 +11,24 @@ import SwiftUIBridge
 //
 // Usage: swift run LiveCheck [--scenario substring]
 
+
+// The metric must be REPRODUCIBLE: Swift's per-process seeded hashing
+// makes Set/Dictionary iteration order vary per launch, and interpreter
+// behavior downstream of any ordered walk varies with it (nextcloud-ios
+// flipped failure classes across identical runs). Re-exec once with
+// deterministic hashing so every run of this tool sees the same order.
+if ProcessInfo.processInfo.environment["SWIFT_DETERMINISTIC_HASHING"] == nil {
+    var environment = ProcessInfo.processInfo.environment
+    environment["SWIFT_DETERMINISTIC_HASHING"] = "1"
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+    process.arguments = Array(CommandLine.arguments.dropFirst())
+    process.environment = environment
+    try? process.run()
+    process.waitUntilExit()
+    exit(process.terminationStatus)
+}
+
 let repoRoot = FileManager.default.currentDirectoryPath
 let fixtures = repoRoot + "/Fixtures"
 let ossRoot = "/Users/mike/src/tries/2026-07-08-swiftui-dynamic/External/oss"

@@ -1848,6 +1848,34 @@ extension Interpreter {
         case .closure(let closure):
             return try callWithArguments(closure, args: args, node: Syntax(node))
         case .hostFunction(let function):
+            // Host-type EXTENSION inits are real overloads of the registry
+            // constructor: a STRICTLY-fitting one wins (apple-browsers'
+            // `extension Text { init(_ item: InlineTextItem) }` beats
+            // stringification). The RUNNING init is excluded, so its inner
+            // `Text(value)` reaches the registry instead of recursing; the
+            // body runs with a writable `self` like enum inits.
+            if let extensionSymbol = hostExtensionSymbols[function.name] {
+                let available = extensionSymbol.initializers.filter {
+                    !activeInitializers.contains($0.id) && !Interpreter.isCodableInit($0)
+                }
+                if let chosen = chooseInitializerStrict(from: available, for: args),
+                   let body = chosen.body {
+                    let inserted = activeInitializers.insert(chosen.id).inserted
+                    defer { if inserted { activeInitializers.remove(chosen.id) } }
+                    let env = Environment(parent: globals)
+                    env.define("self", .void)
+                    let parameters = initializerMetadata(for: chosen).parameters
+                    let closure = ClosureValue(
+                        parameters: parameters, body: body.statements, captured: env)
+                    _ = try callWithArguments(closure, args: args, node: Syntax(node))
+                    let assigned = env.lookup("self") ?? .void
+                    if case .void = assigned {
+                        // `self` never assigned — fall through to the ctor.
+                    } else {
+                        return assigned
+                    }
+                }
+            }
             do {
                 return try function.invoke(args, self)
             } catch let e as RuntimeError where e.line == 0 {

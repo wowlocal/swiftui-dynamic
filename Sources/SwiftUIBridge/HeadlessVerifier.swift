@@ -10,10 +10,18 @@ public enum HeadlessVerifier {
         public let actionsInvoked: Int
     }
 
+    /// Fresh-container guarantee: every verification starts with an empty
+    /// sandbox, blob store, and defaults suite — corpus determinism.
+    public static func resetBridgeEnvironment() {
+        FileManagerBox.resetSandbox()
+        ObjCTrampoline.resetEphemeralDefaults()
+    }
+
     @discardableResult
     public static func verify(
         source: String, interactions: Bool = true, lazyTopLevelGlobals: Bool = false
     ) throws -> Report {
+        resetBridgeEnvironment()
         let interpreter = Interpreter(registry: TraceRegistry())
         do {
             try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
@@ -80,6 +88,14 @@ public enum HeadlessVerifier {
                 guard position < current.count else { break }
                 do {
                     _ = try interpreter.callClosure(current[position], arguments: [])
+                } catch let designed as RuntimeError
+                    where designed.message.hasPrefix("fatalError:") {
+                    // An EXPLICIT fatalError in a clicked action is the
+                    // app's designed termination (nextcloud's DEBUG "Crash
+                    // test" button) — on device the tester relaunches; the
+                    // click-through moves to the next control. Fatals
+                    // during RENDER stay fatal — they are interpreter
+                    // canaries.
                 } catch {
                     throw RuntimeError(message: "action #\(position) threw: \(error)")
                 }

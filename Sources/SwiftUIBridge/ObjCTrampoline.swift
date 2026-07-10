@@ -59,12 +59,18 @@ enum ObjCTrampoline {
     /// doctrine), but nothing persists across runs — corpus determinism
     /// (nextcloud's onboarding flags and apple-browsers' cached feature
     /// state were flipping later runs through ~/Library/Preferences).
+    static let ephemeralSuiteName = "DynamicSwiftUI.ephemeral"
+
     static let ephemeralDefaults: UserDefaults = {
-        let suiteName = "DynamicSwiftUI.ephemeral"
-        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = UserDefaults(suiteName: ephemeralSuiteName) ?? .standard
+        defaults.removePersistentDomain(forName: ephemeralSuiteName)
         return defaults
     }()
+
+    /// Per-verification wipe — project N's writes must not reach N+1.
+    static func resetEphemeralDefaults() {
+        ephemeralDefaults.removePersistentDomain(forName: ephemeralSuiteName)
+    }
 
     /// `UserDefaults.standard` — class singletons/statics via candidates.
     static func staticMember(_ name: String, onClassNamed className: String) -> RuntimeValue? {

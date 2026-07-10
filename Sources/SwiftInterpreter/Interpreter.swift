@@ -445,6 +445,11 @@ public final class Interpreter {
                 if alreadyForced { continue }
             }
             let result: StatementResult
+            if Self.traceStateCells {
+                let head = item.description.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "\n", with: " ")
+                Swift.print("   ⊤ \(head.prefix(90))")
+            }
             do {
                 result = try execute(item, in: globals)
             } catch is InterpretedThrow where assumesCompiledImports {

@@ -8,6 +8,7 @@ public struct InterpreterHost {
     public init() {}
 
     public func render(source: String, lazyTopLevelGlobals: Bool = false) -> Result<AnyView, RuntimeError> {
+        HeadlessVerifier.resetBridgeEnvironment()
         let registry = ViewRegistry()
         let interpreter = Interpreter(registry: registry)
         do {

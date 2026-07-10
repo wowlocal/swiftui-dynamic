@@ -27,6 +27,7 @@ public enum LiveCheckSupport {
     /// with the live model store, an Add button's insert becomes a visible
     /// row.
     public static func renderedStrings(source: String, afterActions actionCount: Int = 0) throws -> [String] {
+        HeadlessVerifier.resetBridgeEnvironment()
         let interpreter = Interpreter(registry: TraceRegistry())
         // The live-probe contract: @State/@StateObject boxes persist per view
         // identity so the fetch pass sees .onAppear's writes.

@@ -198,18 +198,17 @@ Each iteration does exactly this:
    class is CLOSED (lifecycle closures fire in the probe; pinned by
    AsyncFetchProbeTests). Current standing queue, oldest first — these ARE
    actionable classes, so material hunts don't resume until they close:
-   1. CORPUS-RUN DETERMINISM (ProjectCheck class): nextcloud-ios
-      (action #8 = its DEBUG "Crash test" button's intentional
-      fatalError) and apple-browsers (Text-extension-init nesting
-      cycle at merged 152949) FLIP between pass and fail across runs
-      of IDENTICAL binaries (both failed at HEAD standalone while
-      HEAD's full run scored 679/680). UserDefaults pollution was real
-      (~/Library/Preferences/ProjectCheck.plist accumulated corpus
-      apps' writes — now fixed: UserDefaults.standard maps to an
-      EPHEMERAL suite wiped per process) but insufficient — some other
-      cross-run state remains (seeded sandbox plists? NSCache? hash-
-      order-dependent walks?). Find it, make the metric deterministic
-      again, then diagnose the two failures on stable ground.
+   1. APPLE-BROWSERS TOP-LEVEL main() BOOT RECURSION (ProjectCheck,
+      now DETERMINISTIC at merged 152718:24): three `func main()`
+      entry points merge (AppMain.swift = the full browser boot,
+      sandbox-test-tool, NetworkProtectionSystemExtension) and the
+      bare top-level `main()` call boots the ENTIRE AppKit browser
+      headlessly; evaluation recursion trips the nesting guard with
+      the hottest frame in InlineImageText's Text-extension init.
+      Diagnose with INTERP_TRACE_STATE=1 (⊤ top-level statement trace)
+      + INTERP_TRACE_CALLS on suspect functions; consider an entry-
+      point policy (bare `main()` scripts tolerate the nesting trip
+      like script-statement errors) or find the actual recursion.
       (State identity note: per-identity @State persistence is OPT-IN
       via `Interpreter.persistentViewState` — LiveCheck sets it; M0
       probes keep fresh-per-instantiation state, see README divergence.
@@ -2102,3 +2101,21 @@ between iterations 35 and 183.)
   suite 405 → 415; ProjectCheck 677/680 with the two failures proven
   ENVIRONMENT-FLAKY (fail at HEAD standalone; new queue #1 =
   determinism).**
+- 2026-07-10 iter 196: ProjectCheck queue #1 (corpus-run determinism)
+  CLOSED — the metric is REPRODUCIBLE again: (1) the check tools
+  re-exec themselves under SWIFT_DETERMINISTIC_HASHING (per-process
+  seeded hashing flipped nextcloud between failure CLASSES across
+  identical runs); (2) per-VERIFICATION bridge resets — fresh sandbox
+  root + blob store + ephemeral-defaults wipe (project N's files/
+  defaults leaked into project N+1 within one --all run); (3) test-
+  INFRASTRUCTURE exclusions (apple-browsers' `tests-server` web-server
+  tool, `TestUtilities` RunLoop wrappers, `scripts/` repo tooling —
+  its db-decrypt CLI runs a REPL loop at top level); (4) a clicked
+  action's EXPLICIT fatalError is the app's designed termination
+  (nextcloud's DEBUG "Crash test" button — record, continue clicking;
+  render-time fatals stay fatal); (5) host-extension INITS dispatch as
+  real ctor overloads when they strictly fit, running-init excluded
+  (browsers' `extension Text { init(_ item:) }` was stringifying its
+  enum arg into rendered text). **677 → 678/680 measured IDENTICALLY
+  twice; LiveCheck 3/4 twice; suite 415 → 417. Sole failure: apple-
+  browsers' main() boot recursion — new queue #1, now stable.**

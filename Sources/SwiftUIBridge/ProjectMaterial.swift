@@ -12,6 +12,14 @@ public enum ProjectMaterial {
     static let excludedPathComponents = [
         "Tests", "UITests", "Preview Content", "__MACOSX", ".build",
         "DerivedData", ".docc",
+        // Test-SUPPORT infrastructure is test-target source too:
+        // apple-browsers ships a `tests-server` web-server tool (its
+        // top-level RunLoop.main.run() script is not app code) and
+        // `TestUtilities` packages whose RunLoop wrappers self-recurse.
+        "tests-server", "TestUtilities",
+        // Repo tooling in scripts/ dirs (apple-browsers' db-decrypt CLI
+        // runs a REPL loop at top level) — never compiled into apps.
+        "scripts/", "Scripts/",
     ]
 
     public static func swiftFiles(under directory: String) -> [String] {

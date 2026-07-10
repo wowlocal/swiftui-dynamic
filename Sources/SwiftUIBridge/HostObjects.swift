@@ -274,10 +274,26 @@ public final class FileManagerBox {
     /// In-run persistence for interpreted encode→write→read→decode cycles.
     static var blobStore: [String: RuntimeValue] = [:]
 
-    static let sandboxRoot: URL = FileManager.default.temporaryDirectory
-        .appendingPathComponent(
-            "DynamicSwiftUI-Sandbox-\(ProcessInfo.processInfo.processIdentifier)",
+    private static var sandboxGeneration = 0
+
+    static var sandboxRoot: URL = FileManagerBox.freshSandboxRoot()
+
+    private static func freshSandboxRoot() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent(
+            "DynamicSwiftUI-Sandbox-\(ProcessInfo.processInfo.processIdentifier)-\(sandboxGeneration)",
             isDirectory: true)
+    }
+
+    /// A fresh app container per VERIFICATION: without this, project N's
+    /// files and blobs leak into project N+1 within one corpus run —
+    /// order-dependent behavior that made full runs diverge from
+    /// standalone runs (the determinism class).
+    static func resetSandbox() {
+        try? FileManager.default.removeItem(at: sandboxRoot)
+        sandboxGeneration += 1
+        sandboxRoot = freshSandboxRoot()
+        blobStore.removeAll()
+    }
 
     let manager = FileManager.default
 

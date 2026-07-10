@@ -339,3 +339,62 @@ import SwiftUIBridge
         #expect(tuple.values[3].boolValue == false)
     }
 }
+
+/// A HOST-type extension init that calls the host constructor inside its
+/// own body (apple-browsers: `extension Text { init(_ item:) { var text =
+/// Text(value) … self = text } }`) must not re-enter itself.
+@Suite struct HostExtensionInitTests {
+    @Test func textExtensionInitBuildsThroughRegistry() throws {
+        let source = """
+        enum InlineTextItem {
+            case text(String, isBold: Bool)
+        }
+
+        extension Text {
+            init(_ textItem: InlineTextItem) {
+                switch textItem {
+                case .text(let value, let isBold):
+                    var text = Text(value)
+                    if isBold {
+                        text = text.bold()
+                    }
+                    self = text
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Text(InlineTextItem.text("styled segment", isBold: true))
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("styled segment"),
+                "the extension init must build through the registry ctor, got \(strings)")
+    }
+}
+
+/// A clicked action whose body is an EXPLICIT fatalError (nextcloud's
+/// DEBUG "Crash test" button) is the app's designed termination: the
+/// click-through records it and continues — render-time fatals stay fatal.
+@Suite struct DesignedCrashActionTests {
+    @Test func crashTestButtonDoesNotFailTheRun() throws {
+        let source = """
+        struct ContentView: View {
+            @State private var count = 0
+
+            var body: some View {
+                VStack {
+                    Text("count \\(count)")
+                    Button("Increment") { count += 1 }
+                    Button("Crash test") { fatalError("🔥 Crash test") }
+                    Button("Increment again") { count += 1 }
+                }
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.actionsInvoked == 3, "all actions click through, the designed crash included")
+    }
+}
