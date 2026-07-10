@@ -37,8 +37,17 @@ public enum LiveCheckSupport {
         // environment seeding evaluate for real, e.g. StoreProvider(store:)
         // around the tab view); fall back to instantiating the root symbol.
         var renderRoot: (() throws -> TraceNode)?
-        if let rootExpression = interpreter.declaredRootViewExpression(),
-           let value = try? interpreter.evaluateGlobalExpression(rootExpression) {
+        if let declared = interpreter.declaredRootViewExpression() {
+            // The App instance's stored/@StateObject properties evaluate
+            // once (its init runs), then the scene expression sees them as
+            // self — launch-faithful environment seeding.
+            var appInstance: Instance?
+            if let appSymbol = declared.app,
+               case .instance(let app)? = try? interpreter.instantiateRoot(appSymbol) {
+                appInstance = app
+            }
+            let rootExpression = declared.expression
+            if let value = try? interpreter.evaluateAppRootExpression(rootExpression, app: appInstance) {
             if case .instance(let instance) = value {
                 lastRootSymbol = "app:" + instance.symbol.name
                 try interpreter.injectEnvironmentObjects(into: instance, models: [:])
@@ -48,9 +57,11 @@ public enum LiveCheckSupport {
                 }
             } else if (try? TraceRegistry.node(value)) != nil {
                 lastRootSymbol = "expr:" + rootExpression.trimmedDescription.prefix(40)
+                let app = appInstance
                 renderRoot = {
-                    try TraceRegistry.node(interpreter.evaluateGlobalExpression(rootExpression))
+                    try TraceRegistry.node(interpreter.evaluateAppRootExpression(rootExpression, app: app))
                 }
+            }
             }
         }
         if renderRoot == nil {
