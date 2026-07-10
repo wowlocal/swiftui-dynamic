@@ -226,10 +226,10 @@ Each iteration does exactly this:
       QueryLiveStoreTests — insert taps become visible rows).
    4. TestCheck classes (native-baseline rule first; scoreboard
       2026-07-10 @ --limit 8: 79 passed / 52 failed / 12 errored).
-      Top exemplar: clean-architecture-swiftui LoadableTests.map —
-      generic enum method (`Loadable<Int>.map → Loadable<String>`),
-      optional-map with rethrows, conditional-conformance `==`, and
-      array-of-enums equality. Behind it: FreeChat PromptTemplateTests
+      Top exemplar [DONE iter 202: LoadableTests.map — generic-
+      application annotations resolve by HEAD; user-declared `static
+      func ==` WINS over structural equality with structural fallback
+      when its body trips; enumCase hashValue synthesized]. Behind it: FreeChat PromptTemplateTests
       (a template STRING computes to a raw UIKitStub — find which host
       member returns the stub), Milestones Comparable/reducer classes,
       ControlRoom subcommand arrays, Maccy String-index/sort,
@@ -2196,3 +2196,16 @@ between iterations 35 and 183.)
   String.init(format:) until varargs matched their directives
   (FormatDirectiveTests). **679/680 verified post-fix; suite 435 →
   438; LiveCheck 4/4.**
+- 2026-07-10 iter 202: TestCheck's top exemplar (LoadableTests.map,
+  natively green) unwound into TWO general semantics: (1) generic-
+  APPLICATION annotations resolve by their head (`-> Loadable<V>`
+  return coercion never turned `.loaded(x)` markers into cases — the
+  angle-bracket text missed the enum table); (2) a USER-DECLARED
+  `static func ==` on an interpreted type now WINS over structural
+  equality (Loadable's == ignores its cancelBag; structural payload
+  comparison could not) — with a structural FALLBACK when the declared
+  body trips an absorbed member (damus's Route == compares hashValues;
+  enumCase hashValue is now synthesized name+payload hashing, and the
+  fallback keeps equality throw-free). **TestCheck 79 → 80 passed / 51
+  failed; ProjectCheck 679/680 (damus regression caught and healed
+  in-iteration); suite 438 → 439; LiveCheck 4/4.**

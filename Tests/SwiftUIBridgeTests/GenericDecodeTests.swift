@@ -633,3 +633,84 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(tuple.values[3].stringValue == "100% of shelf")
     }
 }
+
+/// LoadableTests.map distilled (iteration 202): generic enum map with
+/// optional-map rethrows and conditional-conformance equality.
+@Suite struct LoadableMapTests {
+    @Test func loadableMapTransformsAndCompares() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        final class CancelBag {
+            static var test: CancelBag { CancelBag() }
+        }
+
+        enum Loadable<T> {
+            case notRequested
+            case isLoading(last: T?, cancelBag: CancelBag)
+            case loaded(T)
+            case failed(Error)
+
+            var value: T? {
+                switch self {
+                case let .loaded(value): return value
+                case let .isLoading(last, _): return last
+                default: return nil
+                }
+            }
+
+            func map<V>(_ transform: (T) throws -> V) -> Loadable<V> {
+                do {
+                    switch self {
+                    case .notRequested: return .notRequested
+                    case let .failed(error): return .failed(error)
+                    case let .isLoading(value, cancelBag):
+                        return .isLoading(last: try value.map { try transform($0) },
+                                          cancelBag: cancelBag)
+                    case let .loaded(value):
+                        return .loaded(try transform(value))
+                    }
+                } catch {
+                    return .failed(error)
+                }
+            }
+        }
+
+        extension Loadable: Equatable where T: Equatable {
+            static func == (lhs: Loadable<T>, rhs: Loadable<T>) -> Bool {
+                switch (lhs, rhs) {
+                case (.notRequested, .notRequested): return true
+                case let (.isLoading(lhsV, _), .isLoading(rhsV, _)): return lhsV == rhsV
+                case let (.loaded(lhsV), .loaded(rhsV)): return lhsV == rhsV
+                case let (.failed(lhsE), .failed(rhsE)):
+                    return lhsE.localizedDescription == rhsE.localizedDescription
+                default: return false
+                }
+            }
+        }
+
+        let error = NSError(domain: "test", code: 0)
+        let values: [Loadable<Int>] = [
+            .notRequested,
+            .isLoading(last: nil, cancelBag: CancelBag()),
+            .isLoading(last: 5, cancelBag: CancelBag()),
+            .loaded(7),
+            .failed(error)
+        ]
+        let expect: [Loadable<String>] = [
+            .notRequested,
+            .isLoading(last: nil, cancelBag: .test),
+            .isLoading(last: "5", cancelBag: .test),
+            .loaded("7"),
+            .failed(error)
+        ]
+        let sut = values.map { value in
+            value.map { "\\($0)" }
+        }
+        (sut[0] == expect[0], sut[1] == expect[1], sut[2] == expect[2],
+         sut[3] == expect[3], sut[4] == expect[4])
+        """)
+        let tuple = try #require(result.tupleValue)
+        for (index, value) in tuple.values.enumerated() {
+            #expect(value.boolValue == true, "element \(index) mismatched: \(value.stringified)")
+        }
+    }
+}

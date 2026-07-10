@@ -1233,6 +1233,12 @@ public final class Interpreter {
             return .native(try array.map { try resolveAnnotated($0, typeName: elementType) })
         }
 
+        // `Loadable<V>` — generic applications resolve by their HEAD
+        // (generics drop everywhere): a generic enum method's return
+        // annotation must still turn `.loaded(x)` markers into cases.
+        if let angle = typeName.firstIndex(of: "<"), typeName.hasSuffix(">") {
+            typeName = String(typeName[..<angle])
+        }
         if let symbol = enumSymbols[typeName] {
             if case .implicitMember(let name) = value,
                let info = symbol.caseInfo(named: name), !info.hasAssociatedValues {

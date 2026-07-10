@@ -705,6 +705,16 @@ extension Interpreter {
     }
 
     private func enumCaseMember(_ name: String, on value: EnumCaseValue) throws -> RuntimeValue? {
+        if name == "hashValue" {
+            // Synthesized Hashable: equal cases hash equal (name +
+            // stringified payloads — deterministic under the tools'
+            // SWIFT_DETERMINISTIC_HASHING re-exec).
+            var hasher = Hasher()
+            hasher.combine(value.symbol.name)
+            hasher.combine(value.name)
+            for payload in value.associated { hasher.combine(payload.stringified) }
+            return .native(hasher.finalize())
+        }
         if name == "rawValue" { return value.rawValue }
         if let overloads = value.symbol.methods[name], let first = overloads.first {
             // Overload sets never re-enter the running declaration
@@ -2643,6 +2653,28 @@ extension Interpreter {
             let allowCalls = op == "==" || op == "!="
             lhs = try adoptHostType(of: rhs, for: lhs, allowCalls: allowCalls)
             rhs = try adoptHostType(of: lhs, for: rhs, allowCalls: allowCalls)
+            // A USER-DECLARED `static func ==` on an interpreted type WINS
+            // over structural equality — Loadable ignores its cancelBag in
+            // its own ==, while payload-wise comparison would not (the
+            // clean-architecture LoadableTests genre). `!=` negates it.
+            if op == "==" || op == "!=",
+               let declared = declaredEqualsOperator(lhs) ?? declaredEqualsOperator(rhs) {
+                do {
+                    let result = try callWithArguments(
+                        declared,
+                        args: CallArguments(arguments: [
+                            .init(label: nil, value: lhs), .init(label: nil, value: rhs),
+                        ]),
+                        node: Syntax(infix))
+                    if let b = result.boolValue {
+                        return .bool(op == "==" ? b : !b)
+                    }
+                } catch let opError as RuntimeError where !opError.fatal {
+                    // A declared == whose body trips an absorbed member
+                    // falls back to STRUCTURAL equality (damus's Route ==
+                    // compares hashValues) — never let equality throw.
+                }
+            }
             // Host-typed operators the core can't know (`Text("a") + Text("b")`).
             if let registry, let combined = registry.combineValues(op, lhs, rhs) {
                 return combined
@@ -2985,6 +3017,28 @@ extension Interpreter {
                 try base.write(.native(mutated), interpreter)
             }
         }
+    }
+
+    /// The `static func ==` a value's own type (or its extensions)
+    /// declares, as a callable — nil when the type doesn't customize
+    /// equality or the declaration is already running (its body's inner
+    /// `==` on payloads must fall through to structural equality).
+    private func declaredEqualsOperator(_ value: RuntimeValue) -> ClosureValue? {
+        let overloads: [FunctionDeclSyntax]?
+        let selfValue: RuntimeValue
+        switch value {
+        case .enumCase(let caseValue):
+            overloads = caseValue.symbol.staticMethods["=="]
+            selfValue = .enumType(caseValue.symbol)
+        case .instance(let instance):
+            overloads = instance.symbol.staticMethods["=="]
+            selfValue = .type(instance.symbol)
+        default:
+            return nil
+        }
+        guard let method = overloads?.first(where: { !activeFunctionBodies.contains($0.id) }),
+              let body = method.body else { return nil }
+        return makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
     }
 
     func resolveLValue(_ expr: ExprSyntax, in env: Environment) throws -> LValue {
