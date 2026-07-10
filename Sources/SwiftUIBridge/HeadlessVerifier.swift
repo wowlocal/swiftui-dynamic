@@ -66,11 +66,12 @@ public enum HeadlessVerifier {
         }
         try interpreter.injectEnvironmentObjects(into: instance, models: [:])
         interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+        LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
 
         var actions: [ClosureValue] = []
         let root: TraceNode
         do {
-            root = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            root = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
         } catch let e {
             throw RuntimeError(message: "root body threw: \(e)")
         }
@@ -83,7 +84,7 @@ public enum HeadlessVerifier {
             // real SwiftUI where old rows disappear).
             for position in 0..<actions.count {
                 var current: [ClosureValue] = []
-                let tree = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                let tree = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
                 _ = try deepRender(interpreter, tree, actions: &current)
                 guard position < current.count else { break }
                 do {
@@ -102,7 +103,7 @@ public enum HeadlessVerifier {
                 invoked += 1
             }
             var ignored: [ClosureValue] = []
-            let rerendered = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            let rerendered = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
             _ = try deepRender(interpreter, rerendered, actions: &ignored)
         }
         return Report(nodeCount: nodeCount, actionsInvoked: invoked)
@@ -126,7 +127,8 @@ public enum HeadlessVerifier {
         if let instance = node.instance {
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
             interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
-            let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+            let body = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
             count += try deepRender(interpreter, body, actions: &actions, environment: environment, depth: depth + 1)
         }
         for child in node.children {

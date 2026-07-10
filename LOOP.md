@@ -218,15 +218,18 @@ Each iteration does exactly this:
       NESTED types over globals — Instance.statuses: Statuses is the
       config struct, not the endpoint enum; api_v2_instance fixture
       recorded, /api/v2/instance hits.)
-   2b. OPTIMISTIC `as?` FALSE-POSITIVE on interpreted instances
-      (correctness, reducer genre): `action as? DidFetch` matched a
-      FetchList — reducers mutate state on WRONG action types (junk
-      ChainedImplicitCall strings land in state, see ForEachCaptureProbe
-      output). Interpreted-instance casts against interpreted types
-      should check symbol identity/inheritance; keep optimism only for
-      HOST/unknowable values.
-   3. @Query/@FetchRequest live-store wiring (M3): boxes must read
-      LiveModelStore and refresh on store writes (see TestCheck Ledger).
+   2b. [DONE iter 198/200] `as?` strict-nil on definite interpreted
+      mismatches (transitive protocol inheritance; class up/downcasts;
+      pinned by CastFalsePositiveTests).
+   3. [DONE iter 200] @Query/@FetchRequest read the live model store
+      each render (Wrapper.query + per-render refreshQueries;
+      QueryLiveStoreTests — insert taps become visible rows).
+   4. TestCheck seed classes (native-baseline rule first): ControlRoom
+      subcommand argument arrays; Maccy String-index/sort-comparator;
+      OnlineStoreTCA synthesized init(from: Decoder). Run
+      `swift run TestCheck --limit N`, verify natively, fix genuine
+      classes. When TestCheck has no actionable class either, step 9's
+      material hunt or the depth-over-breadth pivot.
 
 ## Rules
 
@@ -2162,3 +2165,15 @@ between iterations 35 and 183.)
   doctrine extended to operators). winston GREW 121 → 189 nodes and
   KeyboardCowboy 27 → 30 (modifier bodies render real UI). **679/680
   unchanged; suite 431 → 433; LiveCheck 4/4.**
+- 2026-07-10 iter 200: queue #2b verified already-fixed (198's strict
+  `as?` covers concrete types, protocols transitively, and class
+  up/downcasts — pinned by CastFalsePositiveTests) and queue #3
+  (@Query/@FetchRequest live-store wiring, M3) CLOSED: a new
+  Wrapper.query case reads the LIVE per-run model store on EVERY
+  render (LiveModelStore.refreshQueries at all injection points AND
+  inside each root-render closure — the setup-only refresh missed
+  post-click re-renders). @ObservedResults stays @State-shaped for
+  Realm's projection semantics. The todo-app loop closes end to end:
+  tap Add → context.insert → @Query shows the row
+  (QueryLiveStoreTests). **679/680 unchanged; suite 433 → 435;
+  LiveCheck 4/4. Queue: TestCheck seed classes are next.**

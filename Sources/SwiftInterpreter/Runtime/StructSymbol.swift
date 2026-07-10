@@ -32,6 +32,8 @@ public final class StructSymbol {
     public enum Wrapper: Equatable {
         case none
         case state
+        /// @Query/@FetchRequest — reads the LIVE model store each render.
+        case query
         case binding
         case published
         case stateObject

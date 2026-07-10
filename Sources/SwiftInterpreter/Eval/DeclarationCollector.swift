@@ -877,12 +877,15 @@ extension Interpreter {
         where hasAttribute(attributes, named: stateLike) {
             return (.state, nil)
         }
-        // Store-query wrappers (@Query — SwiftData, @ObservedResults — Realm,
-        // @FetchRequest — CoreData) flatten to @State over a fresh-store
-        // default: empty results (documented divergence — no persistence,
-        // like the state-like list).
-        for queryLike in ["Query", "ObservedResults", "FetchRequest", "SectionedFetchRequest"]
+        // Store-query wrappers (@Query — SwiftData, @FetchRequest —
+        // CoreData) read the LIVE per-run model store each render — what
+        // the UI inserts, its queries show (M3). @ObservedResults stays
+        // @State-shaped for Realm's `$results.append/remove` projections.
+        for queryLike in ["Query", "FetchRequest", "SectionedFetchRequest"]
         where hasAttribute(attributes, named: queryLike) {
+            return (.query, nil)
+        }
+        if hasAttribute(attributes, named: "ObservedResults") {
             return (.state, nil)
         }
         if hasAttribute(attributes, named: "Published") { return (.published, nil) }

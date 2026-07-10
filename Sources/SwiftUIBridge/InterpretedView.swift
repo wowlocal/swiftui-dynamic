@@ -150,6 +150,7 @@ public struct InterpretedView: View {
         })
         environmentValues["self"] = .native(EnvironmentValuesStub(values: environmentValues))
         interpreter.injectEnvironmentValues(into: instance, values: environmentValues)
+        LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
         store.adopt(into: instance)
         return interpretedBody
     }

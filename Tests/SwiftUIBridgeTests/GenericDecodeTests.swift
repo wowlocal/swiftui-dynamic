@@ -517,3 +517,78 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(tuple.values[2].stringValue == "insets custom")
     }
 }
+
+@Suite struct CastFalsePositiveTests {
+    @Test func interpretedInstanceCastsCheckIdentity() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        protocol Action {}
+
+        struct FetchList: Action {
+            let page: Int
+        }
+
+        struct DidFetch: Action {
+            let items: [String]
+        }
+
+        class ParentModel {}
+        class ChildModel: ParentModel {}
+
+        func classify(_ action: Action) -> String {
+            if let didFetch = action as? DidFetch {
+                return "did-fetch \\(didFetch.items.count)"
+            }
+            if action as? FetchList != nil {
+                return "fetch-list"
+            }
+            return "other"
+        }
+
+        let child: ParentModel = ChildModel()
+        (classify(FetchList(page: 1)),
+         classify(DidFetch(items: ["a"])),
+         child as? ChildModel != nil,
+         child as? ParentModel != nil)
+        """)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].stringValue == "fetch-list")
+        #expect(tuple.values[1].stringValue == "did-fetch 1")
+        #expect(tuple.values[2].boolValue == true, "downcast to the real dynamic type holds")
+        #expect(tuple.values[3].boolValue == true, "upcast to the superclass holds")
+    }
+}
+
+/// @Query reads the LIVE model store (iteration 200, M3): what the UI
+/// inserts through the model context, its queries show on the next
+/// render — the todo-app loop closes end to end.
+@Suite struct QueryLiveStoreTests {
+    @Test func queryReflectsContextInserts() throws {
+        let source = """
+        struct Note {
+            var title = ""
+        }
+
+        struct ContentView: View {
+            @Environment(\\.modelContext) private var context
+            @Query private var notes: [Note]
+
+            var body: some View {
+                VStack {
+                    Button("Add") {
+                        context.insert(Note(title: "Bought milk"))
+                    }
+                    ForEach(0..<notes.count) { index in
+                        Text(notes[index].title)
+                    }
+                    Text("count \\(notes.count)")
+                }
+            }
+        }
+        """
+        let before = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(before.contains("count 0"), "fresh store starts empty, got \(before)")
+        let after = try LiveCheckSupport.renderedStrings(source: source, afterActions: 2)
+        #expect(after.contains("Bought milk"), "inserted rows render through @Query, got \(after)")
+        #expect(after.contains("count 2"), "two taps, two rows, got \(after)")
+    }
+}

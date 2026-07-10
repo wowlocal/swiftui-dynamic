@@ -42,6 +42,23 @@ public final class LiveModelStore {
         return instances.filter { $0.typeName == typeName }.map(\.value)
     }
 
+    /// Fill @Query/@FetchRequest boxes from the live store — called at the
+    /// same points as environment injection, so every body evaluation sees
+    /// the store's current rows (insertion order; sort descriptors and
+    /// predicates are documented divergences until the histogram demands
+    /// them).
+    public static func refreshQueries(into instance: Instance, interpreter: Interpreter) {
+        for property in instance.symbol.storedProperties where property.wrapper == .query {
+            var element = property.typeAnnotation?.trimmedDescription ?? ""
+            if element.hasPrefix("["), element.hasSuffix("]") {
+                element = String(element.dropFirst().dropLast())
+            }
+            if let angle = element.firstIndex(of: "<") { element = String(element[..<angle]) }
+            let rows = LiveModelStore.for(interpreter).fetch(typeName: element)
+            instance.box(for: property.name)?.value = .native(rows)
+        }
+    }
+
     private static func typeName(of value: RuntimeValue) -> String {
         if case .instance(let instance) = value {
             return instance.symbol.name

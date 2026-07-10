@@ -97,8 +97,10 @@ public enum LiveCheckSupport {
                 lastRootSymbol = "app:" + instance.symbol.name
                 try interpreter.injectEnvironmentObjects(into: instance, models: [:])
                 interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+                LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
                 renderRoot = {
-                    try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                    LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+                    return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
                 }
             } else if (try? TraceRegistry.node(value)) != nil {
                 lastRootSymbol = "expr:" + rootExpression.trimmedDescription.prefix(40)
@@ -128,8 +130,10 @@ public enum LiveCheckSupport {
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: [:])
             interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+            LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             renderRoot = {
-                try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+                LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+                return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
             }
         }
         lastLifecycleFired = 0
@@ -253,6 +257,7 @@ public enum LiveCheckSupport {
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
             interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+            LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
             try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,
                         actions: &actions, environment: environment, depth: depth + 1)
