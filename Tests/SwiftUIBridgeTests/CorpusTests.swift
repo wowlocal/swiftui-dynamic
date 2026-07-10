@@ -2909,6 +2909,43 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Basic-Car-Maintenance at its honest root (iteration 177): a
+    /// PROPERTY/METHOD name collision — `var filteredReadings` beside
+    /// `func filteredReadings(for:)`. A bare reference is the property
+    /// when every method overload requires arguments; the labeled call
+    /// still dispatches the method.
+    @Test func propertyMethodCollisionsPreferPropertyBare() throws {
+        let source = """
+        struct Reading: Identifiable { let id: Int; let vehicleID: Int }
+
+        struct OdometerView: View {
+            let readings = [Reading(id: 1, vehicleID: 7), Reading(id: 2, vehicleID: 8)]
+
+            private var filteredReadings: [Reading] { readings }
+
+            private func filteredReadings(for vehicleID: Int) -> [Reading] {
+                readings.filter { $0.vehicleID == vehicleID }
+            }
+
+            var body: some View {
+                let scoped = filteredReadings(for: 7)
+                if scoped.count != 1 { fatalError("method call broke") }
+                return List {
+                    ForEach(filteredReadings) { reading in
+                        Text("reading \\(reading.id)")
+                    }
+                }
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View { OdometerView() }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source)
+        #expect(report.nodeCount >= 3)
+    }
+
     /// EhPanda at its honest root (iteration 176): annotation-less
     /// bindings in a multi-binding declaration share the NEXT annotation
     /// in their run (`var igneous, memberID, passHash: String?` — all

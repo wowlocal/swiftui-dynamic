@@ -470,6 +470,17 @@ extension Interpreter {
         // the inherited definition), THEN interpreted-superclass members
         // dispatch with self unchanged, walking the chain.
         if let overloads = instance.symbol.methods[name], let first = overloads.first {
+            // A PROPERTY/METHOD name collision (`var filteredReadings` +
+            // `func filteredReadings(for:)`): a bare reference is the
+            // property when every method overload requires arguments.
+            if instance.symbol.computedProperties[name] != nil,
+               overloads.allSatisfy({ method in
+                   method.signature.parameterClause.parameters.contains { $0.defaultValue == nil }
+               }) {
+                return try evaluateComputed(
+                    instance.symbol.computedProperties[name]!,
+                    selfValue: .instance(instance), name: name)
+            }
             // Within an OVERLOAD SET the running declaration never re-enters
             // itself: `send(_:) -> StoreTask` delegates to its identically-
             // shaped sibling (return-type disambiguation). A set exhausted
@@ -1300,7 +1311,8 @@ extension Interpreter {
             // OVERLOADED methods pick by call shape ('func error(_: Error)'
             // vs 'error(localized:args:)') — bare-name member access can't.
             if case .instance(let instance) = baseValue,
-               let overloads = instance.symbol.methods[name], overloads.count > 1 {
+               let overloads = instance.symbol.methods[name],
+               overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
                 let args = try collectArguments(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if available.isEmpty {
@@ -1387,7 +1399,8 @@ extension Interpreter {
                 return .native(url.path(percentEncoded: args.labeled("percentEncoded")?.boolValue ?? true))
             }
             if case .instance(let instance)? = env.lookup("self"),
-               let overloads = instance.symbol.methods[name], overloads.count > 1 {
+               let overloads = instance.symbol.methods[name],
+               overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
                 let args = try collectArguments(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if available.isEmpty {

@@ -1807,3 +1807,12 @@ without this.
   break the run). EhPanda ✅ at 164 nodes/20 actions. Four honest-root
   singletons remain (Basic-Car, Rayon, Pearcleaner, Planet).
   **658/666 counted (657 → 658). Suite 351 → 352.**
+- 2026-07-10 iter 177: honest-roots queue — Basic-Car-Maintenance.
+  PROPERTY/METHOD name collisions (`var filteredReadings` beside
+  `func filteredReadings(for:)`): a BARE reference is the property when
+  every method overload requires arguments; CALLS still dispatch the
+  method (the unqualified and member call branches now engage on
+  collisions even with a single overload — the regression test caught
+  the call side going to the property). Basic-Car ✅ at 93 nodes/9
+  actions. Three honest-root singletons remain (Rayon, Pearcleaner,
+  Planet). **659/666 counted (658 → 659). Suite 352 → 354.**
