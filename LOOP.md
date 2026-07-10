@@ -1826,3 +1826,14 @@ without this.
   device). Rayon ✅ at 157 nodes/15 actions (actions click now). Two
   honest-root singletons remain (Pearcleaner, Planet). **660/666
   counted (659 → 660). Suite 354 → 355.**
+- 2026-07-10 iter 179: honest-roots queue — Pearcleaner. Two classes:
+  [RuntimeValue] BRIDGES to NSObject (NSArray) and smuggled interpreter
+  boxes into Foundation — trampoline marshaling now converts arrays
+  ELEMENT-WISE before the NSObject cast, so
+  UserDefaults.set(stringArray, forKey:) genuinely round-trips (the
+  exception text showed RuntimeValue.host boxes inside the NSArray);
+  UNMERGED environment-object types (an external package's Updater)
+  absorb — a bag stands in for the App shell's real injection instead
+  of throwing. Pearcleaner ✅ at 54 nodes/2 actions. Planet's init
+  cycle is the LAST honest-root singleton. **661/666 counted
+  (660 → 661). Suite 355 → 356.**

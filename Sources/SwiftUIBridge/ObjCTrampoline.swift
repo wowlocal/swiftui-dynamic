@@ -261,15 +261,19 @@ enum ObjCTrampoline {
         if let number = value.intValue { return NSNumber(value: number) }
         if let number = value.doubleValue { return NSNumber(value: number) }
         if let flag = value.boolValue { return NSNumber(value: flag) }
+        // Arrays FIRST: a Swift [RuntimeValue] bridges to NSObject
+        // (NSArray) and would smuggle interpreter boxes into Foundation —
+        // elements must marshal individually.
+        if let array = value.arrayValue {
+            return array.compactMap { marshalToObjC($0) } as NSArray
+        }
         if case .host(let any) = value {
-            if let object = any as? NSObject { return object }
+            if any is [RuntimeValue] { return nil } // guarded above; belt+braces
             if let date = any as? Date { return date as NSDate }
             if let url = any as? URL { return url as NSURL }
             if let data = any as? Data { return data as NSData }
             if let box = any as? ObjCBox { return box.object }
-        }
-        if let array = value.arrayValue {
-            return array.compactMap { marshalToObjC($0) } as NSArray
+            if let object = any as? NSObject { return object }
         }
         return nil
     }

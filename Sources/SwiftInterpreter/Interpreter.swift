@@ -699,6 +699,14 @@ public final class Interpreter {
                 // synthesis roots get (inits with required params work).
                 synthesizedEnvironmentModels[typeName] = fresh
                 model = fresh
+            } else if assumesCompiledImports {
+                // UNMERGED model types (an external package's Updater): the
+                // device's App shell injected something real — an absorbing
+                // bag stands in (reads chain, writes accepted).
+                instance.box(for: property.name)?.value = registry?.absorbedCValue(named: typeName)
+                    ?? .native(ChainedImplicitCall(
+                        base: .implicitMember(typeName), member: "shared", arguments: CallArguments()))
+                continue
             } else {
                 throw RuntimeError(message: "no ObservableObject of type '\(typeName)' in the environment — inject it with .environmentObject(_:)")
             }

@@ -2909,6 +2909,34 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// Pearcleaner at its honest root (iteration 179): [RuntimeValue]
+    /// bridges to NSObject and would smuggle interpreter boxes into
+    /// Foundation — trampoline marshaling converts arrays ELEMENT-WISE
+    /// first, so UserDefaults.set(stringArray, forKey:) genuinely
+    /// round-trips; and UNMERGED environment-object types absorb (a bag
+    /// stands in for the App shell's real injection).
+    @Test func trampolineArraysAndUnmergedEnvModels() throws {
+        let source = """
+        struct SettingsView: View {
+            @EnvironmentObject var updater: ExternalPackageUpdater
+
+            var body: some View {
+                let paths = ["/Applications", "/Users/me/Applications"]
+                UserDefaults.standard.set(paths, forKey: "settings.folders.apps")
+                let restored = UserDefaults.standard.stringArray(forKey: "settings.folders.apps") ?? []
+                if restored.count != 2 { fatalError("plist round-trip broken: \\(restored.count)") }
+                return Text("paths \\(restored.count)")
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View { SettingsView() }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 2)
+    }
+
     /// Rayon at its honest root (iteration 178): bare sibling STATICS are
     /// visible from any member context (an init parameter defaulting to
     /// `defaultBlurRadius`, a static let); and sibling app targets in a
