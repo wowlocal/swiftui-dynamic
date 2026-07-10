@@ -462,6 +462,9 @@ extension Interpreter {
         symbol.conformances = node.inheritanceClause?.inheritedTypes.map {
             $0.type.trimmedDescription
         } ?? []
+        symbol.attributeNames = node.attributes.compactMap {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+        }
         let rawIsString = symbol.conformances.contains("String")
 
         var nextIntRaw = 0

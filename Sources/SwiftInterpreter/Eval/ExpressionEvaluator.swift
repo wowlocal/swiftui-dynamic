@@ -835,6 +835,14 @@ extension Interpreter {
             if let member = registry?.hostMember(name, on: HostTypeMarker(name: symbol.name)) {
                 return member
             }
+            if assumesCompiledImports, name.first?.isUppercase == true,
+               symbol.attributeNames.contains(where: { $0.first?.isUppercase == true }) {
+                // MACRO-ATTRIBUTED enums (@Reducer) generate nested types
+                // the merge can't see (State/Action): an absorbing type
+                // marker. Plain enums keep the fast throw — launch-hook
+                // tolerance depends on it.
+                return .native(HostTypeMarker(name: "\(symbol.name).\(name)"))
+            }
             throw error(node, "'\(symbol.name)' has no case or static member '\(name)'")
 
         case .type(let symbol):
@@ -1761,6 +1769,14 @@ extension Interpreter {
             return .native(ChainedImplicitCall(base: chained.base, member: chained.member, arguments: args))
         case .host(let any) where any is HostTypeMarker:
             let marker = any as! HostTypeMarker
+            if assumesCompiledImports, marker.name.contains("."),
+               let ctor = registry?.constructor(named: marker.name) {
+                // Macro-generated NESTED types called as constructors
+                // (TicTacToe.State() from @Reducer): absorbing bags. Plain
+                // markers keep the fast throw — launch-hook tolerance
+                // depends on it.
+                return try ctor.invoke(args, self)
+            }
             throw error(node, "'\(marker.name)' has no interpreter constructor — only its static members (like \(marker.name).something) are supported")
         case .host(let any) where any is KeyPathStub:
             // SE-0249 keypath-as-function: `(\.feature1)(subject)` reads the

@@ -1750,3 +1750,14 @@ without this.
   extension — the iter-158 member-form rule, bare flavor).
   NetNewsWire ✅ (22 nodes, 9 actions — richer than the heuristic
   root ever reached). **653/666 counted (652 → 653). Suite 341 → 342.**
+- 2026-07-10 iter 172: honest-roots queue — swift-composable-
+  architecture. `'TicTacToe' has no case or static member 'State'`:
+  @Reducer on an ENUM generates nested State/Action at compile time —
+  macro artifacts the merge can't see. MACRO-ATTRIBUTED enums (an
+  uppercase attached attribute) absorb uppercase member misses as type
+  markers, and DOTTED markers called as constructors build registry
+  bags (TicTacToe.State()). Two collateral rounds tightened the gates:
+  a broad absorb + plain-marker calls sent SwiftBar's launch hook into
+  budget exhaustion — plain enums keep the fast throw the hook
+  tolerance depends on. SCA ✅ (6 nodes, 2 actions at its honest
+  root). **654/666 counted (653 → 654). Suite 342 → 344.**

@@ -2909,6 +2909,34 @@ enum Corpus {
         #expect(report.nodeCount >= 5)
     }
 
+    /// swift-composable-architecture at its honest root (iteration 172):
+    /// @Reducer on an enum GENERATES nested State/Action at compile time —
+    /// macro artifacts the merge can't see. Uppercase misses on enum
+    /// namespaces absorb as type markers (so State() builds a bag);
+    /// lowercase misses chain.
+    @Test func macroGeneratedNestedTypesAbsorb() throws {
+        let source = """
+        @Reducer
+        public enum TicTacToe {
+            case login(String)
+            case newGame(Int)
+
+            public static var body: Int { 0 }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                let initial = TicTacToe.State()
+                let store = Store(initialState: initial) { TicTacToe.body }
+                if store == nil { fatalError("absorbed store must be present") }
+                return Text("game on")
+            }
+        }
+        """
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.nodeCount >= 1)
+    }
+
     /// NetNewsWire at its honest root (iteration 171): `value is Type`
     /// really checks checkable shapes (primitives, interpreted symbols,
     /// host natives) and reads FALSE for unknowables (fresh

@@ -16,6 +16,9 @@ public final class EnumSymbol {
     /// Inheritance-clause entries (raw type + protocols): protocol-extension
     /// members dispatch through these.
     public internal(set) var conformances: [String] = []
+    /// Attached ATTRIBUTES (@Reducer, @ObservableState): macro-attributed
+    /// enums generate nested types the merge can't see.
+    public internal(set) var attributeNames: [String] = []
     public internal(set) var cases: [Case] = []
     public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
