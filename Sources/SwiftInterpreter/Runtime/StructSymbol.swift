@@ -66,7 +66,9 @@ public final class StructSymbol {
     }
 
     public let name: String
-    public let conformsToView: Bool
+    /// Direct `: View` at declaration; the collector's post-pass also sets
+    /// it for TRANSITIVE protocol conformance (`ConnectedView: View`).
+    public internal(set) var conformsToView: Bool
 
     /// Renderable duck-typing: View conformers, representables, and any
     /// protocol-with-body shape (ToolbarContent, Commands, custom Scene
