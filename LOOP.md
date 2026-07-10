@@ -1930,3 +1930,9 @@ between iterations 35 and 183.)
   overload delegates instead of recursing. session-ios ✅ (7 nodes).
   **675/676 counted — ZERO failures (THIRTY-NINTH saturation).
   585 zips + 90 OSS repos. Suite 373 → 375.**
+- 2026-07-10 iter 188: step 9 — dimeapp (94 files, arrival-pass at 255
+  nodes/14 actions — the expense tracker renders its full dashboard)
+  + nextcloud-ios (406, arrival-pass) cloned. The fifth all-arrival
+  iteration. **677/678 counted — ZERO failures (FORTIETH saturation).
+  585 zips + 92 OSS repos; sole exclusion MonitorControl (⚪). Suite
+  375 (unchanged — no new capability, no new test).**
