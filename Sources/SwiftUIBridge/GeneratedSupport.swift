@@ -270,7 +270,14 @@ enum GeneratedMembers {
 
     /// The bridgeHostMember hook: hand-written boxes have already refused by
     /// the time this runs; the ObjC trampoline and ad-hoc cases follow it.
+    /// A BOX that refused still exposes its wrapped value — the generated
+    /// table serves the members the hand box never implemented
+    /// (ParityCheck finding: boxes were SHADOWING ~40 generated members).
     static func member(_ name: String, on value: Any) -> RuntimeValue? {
+        if let carrier = value as? GeneratedMemberCarrier,
+           let unwrapped = member(name, on: carrier.generatedMemberValue) {
+            return unwrapped
+        }
         let key = "\(type(of: value)).\(name)"
         if let getter = properties[key] {
             return getter(value)
@@ -432,4 +439,11 @@ extension Coerce {
         }
         throw RuntimeError(message: "expected Gradient(colors:) or [Color]")
     }
+}
+
+
+/// Hand boxes adopt this so the generated table can serve the members the
+/// box itself never implemented (the wrapped value IS the SDK value).
+protocol GeneratedMemberCarrier {
+    var generatedMemberValue: Any { get }
 }

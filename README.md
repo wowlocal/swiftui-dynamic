@@ -175,6 +175,18 @@ priority list for growing the sweep's `memberTypes`/tags. Members hand-served
 below the registry (the core's `nativeMember`) are pinned in BridgeGen's
 `denyMembers` so generated entries never shadow them.
 
+**The parity harness closes the confidence loop**: `swift run BridgeGen
+--emit --probes` also generates one expression probe per generated member
+(deterministic seeds, textually identical on both sides) into a COMPILED
+twin (`ParityTwin`) and an interpreter-side table; `swift run ParityCheck`
+runs the twin twice (auto-filtering clock/locale-volatile members),
+interprets every probe, normalizes representations, and diffs — the
+native-baseline doctrine mechanized for APIs. First sweep: 125/267
+matched and the report itself named the fixes (hand boxes SHADOWING the
+generated surface — solved by the GeneratedMemberCarrier unwrap — missing
+constructors, box descriptions); three passes later 220/267 match with
+the remaining divergences enumerated for the loop.
+
 ## Corpus verification
 
 `Tests/SwiftUIBridgeTests/Corpus/` holds ten realistic programs (todo list,

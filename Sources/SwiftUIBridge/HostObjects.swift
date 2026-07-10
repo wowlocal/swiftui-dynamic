@@ -251,6 +251,23 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             }
             return .native(Data())
         }
+    case "CharacterSet":
+        return HostFunction(name: name) { args, _ in
+            if let text = args.labeled("charactersIn")?.stringValue {
+                return .native(CharacterSet(charactersIn: text))
+            }
+            return .native(CharacterSet())
+        }
+    case "IndexSet":
+        return HostFunction(name: name) { args, _ in
+            if let values = args.positional(0)?.arrayValue {
+                return .native(IndexSet(values.compactMap { $0.intValue }))
+            }
+            if let single = args.labeled("integer")?.intValue {
+                return .native(IndexSet(integer: single))
+            }
+            return .native(IndexSet())
+        }
     case "Locale":
         return HostFunction(name: name) { args, _ in
             guard let identifier = args.labeled("identifier")?.stringValue else {
@@ -1350,4 +1367,15 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
     default:
         return false
     }
+}
+
+
+extension CalendarBox: GeneratedMemberCarrier, CustomStringConvertible {
+    var generatedMemberValue: Any { calendar }
+    public var description: String { String(describing: calendar) }
+}
+
+extension DateComponentsBox: GeneratedMemberCarrier, CustomStringConvertible {
+    var generatedMemberValue: Any { components }
+    public var description: String { String(describing: components) }
 }

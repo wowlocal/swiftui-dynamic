@@ -49,6 +49,14 @@ let package = Package(
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
+            name: "ParityTwin"
+        ),
+        .executableTarget(
+            name: "ParityCheck",
+            dependencies: ["SwiftUIBridge"],
+            swiftSettings: mainActorByDefault
+        ),
+        .executableTarget(
             name: "InterpreterBench",
             dependencies: ["SwiftUIBridge"],
             swiftSettings: mainActorByDefault
