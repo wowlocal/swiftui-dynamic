@@ -5,6 +5,7 @@ struct AtmosphereDashboard: View {
     var forecast: Forecast
     var air: AirQuality
     var isNight: Bool
+    var usesFahrenheit: Bool
 
     var body: some View {
         ScrollView {
@@ -17,7 +18,7 @@ struct AtmosphereDashboard: View {
                     WeatherMetricTile(
                         icon: "thermometer.medium",
                         title: "Feels Like",
-                        value: "\(Int(forecast.current.feelsLike.rounded()))°",
+                        value: "\(displayTemperature(forecast.current.feelsLike))°",
                         detail: feelsLikeDetail
                     )
                     WeatherMetricTile(
@@ -66,13 +67,13 @@ struct AtmosphereDashboard: View {
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.65))
 
-            Text("\(Int(forecast.current.temperature.rounded()))°")
+            Text("\(displayTemperature(forecast.current.temperature))°")
                 .font(.system(size: 88, weight: .thin))
                 .padding(.top, 3)
 
             Text(conditionName(forecast.current.weatherCode))
                 .font(.title3)
-            Text("H:\(Int(forecast.daily.highs.first ?? 0))°  L:\(Int(forecast.daily.lows.first ?? 0))°")
+            Text("H:\(displayTemperature(forecast.daily.highs.first ?? 0))°  L:\(displayTemperature(forecast.daily.lows.first ?? 0))°")
                 .font(.headline)
 
             HStack(spacing: 5) {
@@ -117,7 +118,7 @@ struct AtmosphereDashboard: View {
                                     forecast.hourly.weatherCodes[index],
                                     night: night(at: forecast.hourly.time[index])
                                 ))
-                                Text("\(Int(forecast.hourly.temperatures[index].rounded()))°")
+                                Text("\(displayTemperature(forecast.hourly.temperatures[index]))°")
                                     .font(.headline)
                                 if forecast.hourly.rainChance[index] > 0 {
                                     Text("\(forecast.hourly.rainChance[index])%")
@@ -138,11 +139,11 @@ struct AtmosphereDashboard: View {
                     .opacity(0.18)
 
                 HStack {
-                    Text("24-HOUR TEMPERATURE")
+                    Text(usesFahrenheit ? "24-HOUR TEMPERATURE • °F" : "24-HOUR TEMPERATURE • °C")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.55))
                     Spacer()
-                    Text("\(Int(forecast.hourly.temperatures.min() ?? 0))° — \(Int(forecast.hourly.temperatures.max() ?? 0))°")
+                    Text("\(displayTemperature(forecast.hourly.temperatures.min() ?? 0))° — \(displayTemperature(forecast.hourly.temperatures.max() ?? 0))°")
                         .font(.caption)
                         .monospaced()
                 }
@@ -184,7 +185,7 @@ struct AtmosphereDashboard: View {
 
                         Spacer()
 
-                        Text("\(Int(forecast.daily.lows[index].rounded()))°")
+                        Text("\(displayTemperature(forecast.daily.lows[index]))°")
                             .foregroundStyle(.white.opacity(0.54))
                             .monospaced()
                             .frame(width: 34, alignment: .trailing)
@@ -206,7 +207,7 @@ struct AtmosphereDashboard: View {
                         }
                         .frame(width: 58)
 
-                        Text("\(Int(forecast.daily.highs[index].rounded()))°")
+                        Text("\(displayTemperature(forecast.daily.highs[index]))°")
                             .monospaced()
                             .frame(width: 34, alignment: .trailing)
                     }
@@ -274,15 +275,15 @@ struct AtmosphereDashboard: View {
 
     var hourlyNarrative: String {
         let rain = forecast.hourly.rainChance.max() ?? 0
-        let high = Int((forecast.hourly.temperatures.max() ?? forecast.current.temperature).rounded())
+        let high = forecast.hourly.temperatures.max() ?? forecast.current.temperature
         if rain >= 50 {
             return "Rain is likely during the next 24 hours."
         }
         if rain >= 20 {
             return "There is a chance of rain later today."
         }
-        if high > Int(forecast.current.temperature.rounded()) + 2 {
-            return "Temperatures will rise to around \(high)° today."
+        if high > forecast.current.temperature + 2 {
+            return "Temperatures will rise to around \(displayTemperature(high))° today."
         }
         return "\(conditionName(forecast.current.weatherCode)) conditions will continue for the next several hours."
     }
@@ -395,6 +396,11 @@ struct AtmosphereDashboard: View {
             return "High — reduce midday exposure."
         }
         return "Very high — use extra protection."
+    }
+
+    func displayTemperature(_ value: Double) -> Int {
+        let converted = usesFahrenheit ? value * 9.0 / 5.0 + 32.0 : value
+        return Int(converted.rounded())
     }
 
     func rangeOffset(_ index: Int) -> CGFloat {

@@ -95,4 +95,90 @@ import SwiftInterpreter
         #expect(NetworkBridge.requestLog[0].contains("name=Lon"))
         #expect(NetworkBridge.requestLog[0].contains("count=6"))
     }
+
+    @Test func clearAndDismissControlsResetSearchState() throws {
+        let root = repositoryRoot()
+        let source = ProjectMaterial.mergedSource(
+            at: root.appendingPathComponent("Examples/Atmosphere").path
+        )
+        let interpreter = Interpreter(registry: ViewRegistry())
+        try interpreter.run(source: source, lazyTopLevelGlobals: true)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let rootView) = try interpreter.instantiateRoot(symbol),
+              case .instance(let store)? = rootView.box(for: "store")?.value else {
+            Issue.record("Atmosphere store was not instantiated")
+            return
+        }
+
+        store.box(for: "query")?.value = .native("Berlin")
+        store.box(for: "suggestionMessage")?.value = .native("No matching cities found.")
+        store.box(for: "errorMessage")?.value = .native("Previous error")
+        store.box(for: "isSuggesting")?.value = .native(true)
+        _ = try interpreter.callMethod(named: "dismissSuggestions", on: store, arguments: [])
+
+        #expect(store.box(for: "query")?.value.stringValue == "Berlin")
+        #expect(store.box(for: "suggestionMessage")?.value.stringValue == "")
+        #expect(store.box(for: "isSuggesting")?.value.boolValue == false)
+
+        store.box(for: "isLoading")?.value = .native(true)
+        _ = try interpreter.callMethod(named: "clearSearch", on: store, arguments: [])
+
+        #expect(store.box(for: "query")?.value.stringValue == "")
+        #expect(store.box(for: "errorMessage")?.value.stringValue == "")
+        #expect(store.box(for: "isLoading")?.value.boolValue == false)
+    }
+
+    @Test func temperatureUnitButtonRerendersDashboard() throws {
+        let root = repositoryRoot()
+        let source = ProjectMaterial.mergedSource(
+            at: root.appendingPathComponent("Examples/Atmosphere").path
+        )
+        NetworkBridge.policy = .replay(
+            fixturesDirectory: root.appendingPathComponent("Fixtures/open-meteo-lisbon").path
+        )
+        defer { NetworkBridge.policy = .absorbed }
+
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source, lazyTopLevelGlobals: true)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let rootView) = try interpreter.instantiateRoot(symbol) else {
+            Issue.record("Atmosphere root was not instantiated")
+            return
+        }
+
+        let initialTree = try TraceRegistry.node(interpreter.evaluateBody(of: rootView))
+        let search = try #require(initialTree.findAll("Button").first)
+        _ = try interpreter.callClosure(
+            try #require(search.actions["action"]),
+            arguments: []
+        )
+
+        let celsiusTree = try TraceRegistry.node(interpreter.evaluateBody(of: rootView))
+        let celsiusDashboard = try #require(
+            celsiusTree.findAll("View:AtmosphereDashboard").first?.instance
+        )
+        let celsiusDashboardTree = try TraceRegistry.node(
+            interpreter.evaluateBody(of: celsiusDashboard)
+        )
+        #expect(celsiusDashboardTree.findAll("Text").contains { $0.args.first == "20°" })
+        let unitButton = try #require(celsiusTree.findAll("Button").first {
+            $0.findAll("Text").contains { $0.args.first == "°C" }
+        })
+        _ = try interpreter.callClosure(
+            try #require(unitButton.actions["action"]),
+            arguments: []
+        )
+
+        let fahrenheitTree = try TraceRegistry.node(interpreter.evaluateBody(of: rootView))
+        let fahrenheitDashboard = try #require(
+            fahrenheitTree.findAll("View:AtmosphereDashboard").first?.instance
+        )
+        let fahrenheitDashboardTree = try TraceRegistry.node(
+            interpreter.evaluateBody(of: fahrenheitDashboard)
+        )
+        #expect(fahrenheitDashboardTree.findAll("Text").contains { $0.args.first == "68°" })
+        #expect(fahrenheitTree.findAll("Button").contains {
+            $0.findAll("Text").contains { $0.args.first == "°F" }
+        })
+    }
 }

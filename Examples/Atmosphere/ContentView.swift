@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var store = AtmosphereStore()
+    @State private var usesFahrenheit = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -17,7 +18,8 @@ struct ContentView: View {
                         place: place,
                         forecast: forecast,
                         air: air,
-                        isNight: currentIsNight
+                        isNight: currentIsNight,
+                        usesFahrenheit: usesFahrenheit
                     )
                 } else if store.isLoading {
                     loadingView
@@ -27,12 +29,17 @@ struct ContentView: View {
             }
             .foregroundStyle(.white)
 
-            if !store.suggestions.isEmpty {
-                suggestionMenu
-                    .padding(.horizontal, 16)
-                    .padding(.top, 64)
-                    .zIndex(10)
-            } else if !store.errorMessage.isEmpty && store.forecast != nil {
+                if !store.suggestions.isEmpty {
+                    suggestionMenu
+                        .padding(.horizontal, 16)
+                        .padding(.top, 64)
+                        .zIndex(10)
+                } else if !store.suggestionMessage.isEmpty {
+                    suggestionStatus
+                        .padding(.horizontal, 16)
+                        .padding(.top, 64)
+                        .zIndex(10)
+                } else if !store.errorMessage.isEmpty && store.forecast != nil {
                 errorBanner
                     .padding(.horizontal, 16)
                     .padding(.top, 64)
@@ -78,6 +85,9 @@ struct ContentView: View {
             )
         }
         .ignoresSafeArea()
+        .onTapGesture {
+            store.dismissSuggestions()
+        }
     }
 
     var searchBar: some View {
@@ -94,19 +104,44 @@ struct ContentView: View {
                     Task { await store.load() }
                 }
 
-            if store.isLoading || store.isSuggesting {
+            if store.isSuggesting {
+                ProgressView()
+                    .scaleEffect(0.72)
+            }
+
+            if store.isLoading {
                 ProgressView()
                     .scaleEffect(0.72)
             } else {
                 Button {
                     Task { await store.load() }
                 } label: {
-                    Image(systemName: "arrow.right.circle.fill")
+                    Image(systemName: store.searchActionIcon)
                         .font(.title3)
                 }
                 .buttonStyle(.plain)
                 .disabled(store.query.count < 2)
             }
+
+            if !store.query.isEmpty {
+                Button {
+                    store.clearSearch()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.white.opacity(0.48))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                usesFahrenheit = !usesFahrenheit
+            } label: {
+                Text(usesFahrenheit ? "°F" : "°C")
+                    .font(.caption)
+                    .bold()
+                    .frame(width: 27)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: 560)
@@ -124,6 +159,26 @@ struct ContentView: View {
 
     var suggestionMenu: some View {
         VStack(spacing: 0) {
+            HStack {
+                Text("CITY SUGGESTIONS")
+                    .font(.caption2)
+                    .tracking(0.5)
+                    .foregroundStyle(.white.opacity(0.58))
+                Spacer()
+                Button {
+                    store.dismissSuggestions()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 13)
+            .padding(.vertical, 9)
+
+            Divider()
+                .opacity(0.16)
+
             ForEach(store.suggestions) { suggestion in
                 Button {
                     store.select(suggestion)
@@ -169,6 +224,29 @@ struct ContentView: View {
         .transition(.opacity)
     }
 
+    var suggestionStatus: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "mappin.slash")
+                .foregroundStyle(.cyan)
+            Text(store.suggestionMessage)
+                .font(.caption)
+                .lineLimit(2)
+            Spacer()
+            Button {
+                store.dismissSuggestions()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: 560)
+        .padding(12)
+        .background(.regularMaterial)
+        .cornerRadius(16)
+        .shadow(radius: 14, y: 6)
+    }
+
     var errorBanner: some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -212,10 +290,10 @@ struct ContentView: View {
             Image(systemName: "cloud.slash.fill")
                 .font(.system(size: 46, weight: .thin))
                 .foregroundStyle(.white.opacity(0.75))
-            Text("Weather Unavailable")
+            Text(store.query.isEmpty ? "Search for a City" : "Weather Unavailable")
                 .font(.title3)
                 .bold()
-            Text(store.errorMessage)
+            Text(store.query.isEmpty ? "Enter a city name above to load its forecast." : store.errorMessage)
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.62))
                 .multilineTextAlignment(.center)
