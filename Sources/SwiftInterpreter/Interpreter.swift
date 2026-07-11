@@ -263,6 +263,9 @@ public final class Interpreter {
     /// REAL type value. Textual, innermost last.
     var expectedAnnotationStack: [String] = []
     var pendingDottedExtensions: [ExtensionDeclSyntax] = []
+    /// Top-level typealias heads (`LoadableSubject` → `Binding`), for
+    /// canonicalizing extension targets before resolution.
+    var aliasHeads: [String: String] = [:]
     /// Member typealiases whose targets resolve only after the extension
     /// pass (typealias API = TestWebRepository.API).
     var pendingMemberAliases: [(StructSymbol, String, String)] = []

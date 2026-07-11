@@ -1133,6 +1133,14 @@ extension Interpreter {
                     // carries through unchanged.
                     return .hostFunction(HostFunction(name: name) { _, _ in baseValue })
                 default:
+                    // REAL members win over @dynamicMemberLookup, exactly as
+                    // in compiled Swift: app `extension Binding { func load }`
+                    // methods dispatch before any member projection
+                    // (clean-architecture's Loadable bindings).
+                    if let value = try hostExtensionMember(
+                        name, candidates: ["Binding"], selfValue: baseValue) {
+                        return value
+                    }
                     // Binding is @dynamicMemberLookup: `$item.field` projects
                     // a binding to the field. Instance fields bind their own
                     // box (reference-backed); tuple elements write through
@@ -1193,8 +1201,15 @@ extension Interpreter {
             // bridge-served members — they intentionally override our stubs
             // (`extension Color { var isDarkColor }` on a real Color,
             // `extension UIColor { … }` on a recorded UIColor node).
-            if let typeName = registry?.hostTypeName(of: any),
-               let value = try hostExtensionMember(name, candidates: [typeName], selfValue: baseValue) {
+            // Core stubs the bridge can't name map explicitly (Binding).
+            var extensionCandidates: [String] = []
+            if let typeName = registry?.hostTypeName(of: any) {
+                extensionCandidates.append(typeName)
+            }
+            if any is BindingStub { extensionCandidates.append("Binding") }
+            if !extensionCandidates.isEmpty,
+               let value = try hostExtensionMember(
+                   name, candidates: extensionCandidates, selfValue: baseValue) {
                 return value
             }
             // The bridge gets first refusal on host natives (GeometryProxy,
@@ -3054,6 +3069,12 @@ extension Interpreter {
                 }
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
             case .hostProperty(let any, let name):
+                if let stub = any as? BindingStub, name == "wrappedValue" {
+                    // Extension methods on Binding write through the box —
+                    // onChange fires the set-closure of computed bindings.
+                    stub.box.value = value
+                    return
+                }
                 guard interpreter.registry?.hostSetMember(name, on: any, to: value) == true else {
                     throw EvalMessage(text: "cannot assign to '\(name)' on \(type(of: any))")
                 }
@@ -3297,6 +3318,15 @@ extension Interpreter {
                 let box = Box((try? staticMember(name, of: symbol)) ?? .void)
                 box.onChange = { symbol.staticCache[name] = box.value }
                 return .box(box)
+            }
+            // Host-typed implicit self (extension-of-host-type bodies):
+            // `wrappedValue = …` inside `extension Binding { func load }`
+            // writes through the binding's box. Restricted to the binding's
+            // OWN properties — other bare names must still reach globals
+            // (an absorbing host self would swallow them).
+            if case .host(let any)? = env.lookup("self"), any is BindingStub,
+               name == "wrappedValue" || name == "projectedValue" {
+                return .hostProperty(any, name)
             }
             // No local or member claimed the name — top-level globals last.
             if let box = globals.box(for: name) { return .box(box) }

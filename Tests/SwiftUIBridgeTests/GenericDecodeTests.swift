@@ -1661,3 +1661,40 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(report.errored == 0)
     }
 }
+
+@Suite struct BindingExtensionMethodTests {
+    // clean-architecture's LoadableTests: a hand-built
+    // Binding<Loadable<String>>.init(get:set:) receiving an app
+    // extension method (`extension Binding { func load }`) that writes
+    // through wrappedValue.
+    @Test func extensionMethodDispatchesOnBuiltBinding() throws {
+        let source = """
+        enum Loadable<T> {
+            case notRequested
+            case loaded(T)
+        }
+        typealias LoadableSubject<T> = Binding<Loadable<T>>
+        extension LoadableSubject {
+            func setLoaded<T>(_ value: T) where Value == Loadable<T> {
+                wrappedValue = .loaded(value)
+            }
+        }
+        var values: [Loadable<String>] = []
+        let sut = Binding<Loadable<String>>.init(get: {
+            return values.last ?? .notRequested
+        }, set: {
+            values.append($0)
+        })
+        sut.setLoaded("test")
+        let count = values.count
+        var loadedText = "NONE"
+        if case let .loaded(text) = values.last ?? .notRequested {
+            loadedText = text
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("count")?.stringified == "1")
+        #expect(interpreter.globals.lookup("loadedText")?.stringified == "test")
+    }
+}

@@ -524,3 +524,22 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   rejected. **679/680 (nextcloud recovered); suite 485 green;
   LiveCheck 5/5; TestCheck 91→93 passed / 31→29 failed — strictly
   improved.**
+- 2026-07-11 iter 213: the `BindingStub is not callable` class
+  (clean-architecture's LoadableTests) ELIMINATED — three connected
+  gaps. (1) App `extension Binding { func load }` members now dispatch
+  BEFORE @dynamicMemberLookup projection (native precedence: real
+  members beat dynamic lookup); the late extension walk also maps core
+  stubs the bridge can't name (BindingStub → "Binding") — narrowly,
+  after a hostCandidates-broadening attempt regressed 2 tests
+  (isViewValue nodes started walking `extension View` first; caught by
+  a stash-baseline diff, 48→46→48). (2) `wrappedValue = …` inside a
+  Binding extension writes through the box (host-self lvalue,
+  restricted to the binding's own properties so bare globals still
+  reach globals). (3) `extension LoadableSubject` — a TYPEALIAS of
+  Binding<Loadable<T>> — canonicalizes through a new aliasHeads
+  prepass, so alias extensions collect into the real host symbol.
+  Pinned by BindingExtensionMethodTests (typealias shape included).
+  The two Loadable tests now RUN and fail honestly on a finer class
+  (Loadable sequence equality/timing — errored 11 → 9, failed +2).
+  **679/680; suite 486 green; LiveCheck 5/5; TestCheck 93/31/9/10 —
+  class eliminated.**

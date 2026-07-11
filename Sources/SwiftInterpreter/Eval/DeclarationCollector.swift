@@ -75,6 +75,19 @@ extension Interpreter {
                 }
             }
         }
+        // Alias HEADS first: `typealias LoadableSubject<T> = Binding<…>`
+        // makes `extension LoadableSubject` a Binding extension — the
+        // mapping must exist before extensions collect.
+        for item in expandedTopLevelItems(file.statements) {
+            guard case .decl(let decl) = item.item,
+                  let alias = decl.as(TypeAliasDeclSyntax.self) else { continue }
+            var target = alias.initializer.value.trimmedDescription
+            if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
+            target = target.trimmingCharacters(in: .whitespaces)
+            if target.first?.isUppercase == true, !target.contains("(") {
+                aliasHeads[alias.name.text] = target
+            }
+        }
         for item in expandedTopLevelItems(file.statements) {
             guard case .decl(let decl) = item.item,
                   let extensionDecl = decl.as(ExtensionDeclSyntax.self) else { continue }
@@ -846,10 +859,18 @@ extension Interpreter {
         default:
             // Extensions of host types (`extension View { func … }`) collect
             // into synthetic symbols, resolved on matching host values.
-            let symbol = hostExtensionSymbols[typeName]
-                ?? StructSymbol(name: typeName, conformsToView: false)
+            // Typealias heads canonicalize (`extension LoadableSubject`
+            // IS a Binding extension), so candidate walks find them.
+            var canonical = typeName
+            var hops = 0
+            while let target = aliasHeads[canonical], hops < 8 {
+                canonical = target
+                hops += 1
+            }
+            let symbol = hostExtensionSymbols[canonical]
+                ?? StructSymbol(name: canonical, conformsToView: false)
             try collectStructMembers(node.memberBlock, into: symbol)
-            hostExtensionSymbols[typeName] = symbol
+            hostExtensionSymbols[canonical] = symbol
         }
     }
 
