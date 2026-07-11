@@ -183,15 +183,36 @@ public enum MainQueueDrain {
     /// re-schedules itself (nextcloud's retry loop) waits for the NEXT
     /// drain instead of spinning this one.
     static var delayedPending: [ActionValue] = []
+    /// A probe frame spans FINITE time: self-rescheduling retries fire a
+    /// bounded number of times per verification, then go quiet (LiveCheck
+    /// pumps drain dozens of times per pass — unbounded retries turned a
+    /// 90s board into 5+ minutes).
+    static var delayedFireBudget = 64
 
     public static func drain() {
         runZeroDelay()
+        guard !delayedPending.isEmpty else { return }
         let delayed = delayedPending
         delayedPending = []
         for action in delayed {
+            guard delayedFireBudget > 0 else {
+                delayedPending.removeAll()
+                return
+            }
+            delayedFireBudget -= 1
             action.run()
             runZeroDelay()
         }
+    }
+
+    /// Per-verification isolation: DELAYED deliveries from one program
+    /// must never fire inside the next (corpus determinism). Zero-delay
+    /// items stay: they self-drain within a tick, and clearing them races
+    /// CONCURRENT unit tests' in-flight deliveries (Swift Testing
+    /// interleaves async tests on the main actor).
+    public static func reset() {
+        delayedPending = []
+        delayedFireBudget = 64
     }
 
     private static func runZeroDelay() {

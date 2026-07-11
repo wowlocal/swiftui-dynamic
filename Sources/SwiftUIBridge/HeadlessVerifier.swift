@@ -16,8 +16,10 @@ public enum HeadlessVerifier {
         FileManagerBox.resetSandbox()
         ObjCTrampoline.resetEphemeralDefaults()
         // A prior interactive render (the demo facade) may have switched
-        // asyncAfter to wall-clock timers; probes drain instead.
+        // asyncAfter to wall-clock timers; probes drain instead — and its
+        // QUEUES empty: one program's deliveries never fire in the next.
         MainQueueDrain.schedulesRealTimers = false
+        MainQueueDrain.reset()
     }
 
     @discardableResult

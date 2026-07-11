@@ -1593,3 +1593,31 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("matched")?.stringified == "b")
     }
 }
+
+@Suite struct DrainIsolationTests {
+    // One program's queued deliveries must never fire inside the next
+    // verification (corpus determinism).
+    @Test func resetClearsQueuedDeliveries() throws {
+        let previous = MainQueueDrain.schedulesRealTimers
+        MainQueueDrain.schedulesRealTimers = false
+        defer { MainQueueDrain.schedulesRealTimers = previous }
+        let source = """
+        final class Recorder {
+            var fired = false
+        }
+        let recorder = Recorder()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            recorder.fired = true
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        HeadlessVerifier.resetBridgeEnvironment()
+        MainQueueDrain.drain()
+        guard case .instance(let instance)? = interpreter.globals.lookup("recorder") else {
+            Issue.record("recorder missing")
+            return
+        }
+        #expect(instance.box(for: "fired")?.value.stringified == "false")
+    }
+}

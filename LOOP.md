@@ -464,3 +464,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   time; fix + profile next iteration). **679/680; suite 483 green
   (+4 suites); LiveCheck 5/5; TestCheck 82→92 passed / 50→40 failed —
   top class eliminated.**
+- 2026-07-11 iter 210: the queued DRAIN-ISOLATION invariant — one
+  program's queued deliveries must never fire inside the next
+  verification. resetBridgeEnvironment now clears DELAYED deliveries
+  and restores a per-verification FIRE BUDGET (64): self-rescheduling
+  retries fire a bounded number of times per verification then go
+  quiet (a probe frame spans finite time). Zero-delay items stay —
+  they self-drain within a tick, and clearing them RACED concurrent
+  unit tests' in-flight deliveries (Swift Testing interleaves async
+  tests; the dispatchQueueMainAsync test lost its queued action to
+  another test's reset — caught in-iteration, suite green).
+  DrainIsolationTests pins the delayed-clearing. The wall-time
+  watch-item is ANSWERED BY MEASUREMENT, not fixed: ProjectCheck 615s
+  / LiveCheck 458s, both CPU-bound (user≈real) — the cost is
+  iter-207/208 coverage (destination walks, mock deliveries), not
+  queue leakage; a profiling pass (sample/Instruments on one slow
+  scenario) is the queued follow-up. **679/680; suite 484 green;
+  LiveCheck 5/5; TestCheck 92/40/11 — all held under the invariant
+  fix.**
