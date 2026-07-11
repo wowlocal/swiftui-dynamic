@@ -450,9 +450,14 @@ Each iteration does exactly this:
 - R2 DETERMINISM (probed 2026-07-11 16:0x, twin run-to-run): 7 of 8
   screens are AE=0 stable — content, truck, donuts, orders and all
   leaf cards can ratchet straight to AE=0, no frozen-clock machinery
-  needed. ONLY socialfeed drifts (0.183%) — its content is randomized
-  upstream; find its seed or give that one screen a documented fuzz
-  floor (never widen it to other screens).
+  needed. ONLY socialfeed drifts (0.183%) — SOURCE FOUND:
+  SocialFeedContent.swift:73 rolls the UNSEEDED system RNG for post
+  dates (-60 * .random(in: 5...30)) so relative timestamps shift every
+  run — while OrderGenerator uses SeededRandomGenerator(seed: 1), which
+  is why every other screen is AE=0 stable. The drift is upstream-REAL
+  (a compiled app varies the same way): the socialfeed rung gets a
+  documented fuzz floor (0.25%), never a patch, and the floor never
+  widens to other screens.
 - `Scripts/foodtruck-r2.sh` — the R2 BOARD: captures both sides and
   prints per-screen AE. Convention: twin → /tmp/foodtruck-twin/<id>.png,
   interp → /tmp/foodtruck-interp/<id>.png; matching ids get diffed.
