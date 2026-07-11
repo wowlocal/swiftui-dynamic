@@ -906,3 +906,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   iter-224-regressed projects re-verified individually; suite 522
   green; LiveCheck 5/5. ProjectCheck --all completing in background
   (user-requested immediate resume); verdict lands next iteration.
+- 2026-07-11 iter 226: biggest fixable class (2×) — ImageWebRepository,
+  ELIMINATED (clean-architecture 68 → 70). Root chain, distilled and
+  pinned end to end: (1) `URLSession.download(from:)` was unbridged
+  (the tuple-binding wall) — bridged with REAL download semantics:
+  mocked bytes land in a temp file the caller reads back, failure
+  mocks throw the ORIGINAL NSError; (2) bare URLs wrap in a
+  URLRequest before URLProtocol.canInit (download AND data(from:) —
+  the session's native behavior; the mock store matched requests,
+  never raw URLs); (3) UIGraphicsImageRenderer/UIImageBox — real
+  pixel-exact bitmaps (bitmap-rep render, NOT lockFocus which
+  rasterizes at backing scale), UIImage(data:) decodes failably;
+  (4) absorbed UIColor/NSColor statics (SwiftUI Colors) dispatch
+  user extensions of the UIKit faces via hostCandidates. Pin:
+  ImageDownloadPipelineTests. Gates: suite 524 green; TestCheck
+  118→120 passed / 10→9 failed / 5→4 errored; LiveCheck 5/5.
+  ProjectCheck 677/680: the two ❌ (MakeItSo, Mythic — action index
+  errors) REPRODUCE ON COMMITTED HEAD WITHOUT THIS ITERATION'S
+  CHANGES (stash-verified) — they arrived with the parallel lane's
+  Food Truck merge (3b76f49/c13a84a); attributed there, queued as
+  next iteration's health check if unclaimed.

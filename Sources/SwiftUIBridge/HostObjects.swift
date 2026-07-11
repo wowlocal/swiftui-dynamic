@@ -61,6 +61,60 @@ public final class ProcessInfoBox {
     public static var extraEnvironment: [String: String] = [:]
 }
 
+/// UIKit's image face on macOS: a REAL bitmap (rendered via NSImage) so
+/// `pngData()`/`size` round-trip — the UIColor.image(_:) test-helper genre.
+public final class UIImageBox {
+    let size: CGSize
+    let pngData: Data?
+
+    init(size: CGSize, pngData: Data?) {
+        self.size = size
+        self.pngData = pngData
+    }
+
+    /// A solid-fill bitmap of the requested size (the renderer's honest
+    /// headless output — fills happen, pixels exist, color is uniform).
+    /// Rendered at EXACT pixel dimensions (scale 1, the renderer-format
+    /// default in test helpers) — lockFocus would rasterize at the
+    /// screen's backing scale and double the decoded size.
+    static func solid(size: CGSize) -> UIImageBox {
+        let width = max(1, Int(size.width))
+        let height = max(1, Int(size.height))
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
+            return UIImageBox(size: size, pngData: nil)
+        }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        NSColor.red.setFill()
+        NSRect(x: 0, y: 0, width: width, height: height).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        let png = rep.representation(using: .png, properties: [:])
+        return UIImageBox(size: size, pngData: png)
+    }
+
+    static func decoding(_ data: Data) -> UIImageBox? {
+        guard let image = NSImage(data: data) else { return nil }
+        // Pixel size, not point size — UIImage(data:) semantics (scale 1).
+        let pixelSize = NSBitmapImageRep(data: data).map {
+            CGSize(width: $0.pixelsWide, height: $0.pixelsHigh)
+        } ?? image.size
+        return UIImageBox(size: pixelSize, pngData: data)
+    }
+}
+
+/// `UIGraphicsImageRenderer(size:format:)` — carries the size; `image { }`
+/// runs the drawing closure (fills absorb) and returns the solid bitmap.
+public final class GraphicsRendererBox {
+    let size: CGSize
+
+    init(size: CGSize) {
+        self.size = size
+    }
+}
+
 func interpretedTaskConstructor(named name: String) -> HostFunction? {
     guard name == "Task" || name == "MainActor" else { return nil }
     return HostFunction(name: name) { args, context in
@@ -146,6 +200,27 @@ final class BundleBox {
 func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     if let network = networkHostObjectConstructor(named: name) { return network }
     switch name {
+    case "UIGraphicsImageRenderer":
+        return HostFunction(name: name) { args, _ in
+            var size = CGSize(width: 1, height: 1)
+            if case .host(let any)? = args.labeled("size"), let real = any as? CGSize {
+                size = real
+            }
+            return .native(GraphicsRendererBox(size: size))
+        }
+    case "UIImage", "NSImage":
+        return HostFunction(name: name) { args, _ in
+            // `UIImage(data:)` decodes for REAL (failable, like native).
+            if case .host(let any)? = args.labeled("data"), let data = any as? Data {
+                return UIImageBox.decoding(data).map { .native($0) } ?? .nilValue
+            }
+            // named:/systemName:/other forms keep the absorbing-bag doctrine.
+            let stub = UIKitStub(roles: [name])
+            for argument in args.arguments {
+                if let label = argument.label { stub.config[label] = argument.value }
+            }
+            return .native(stub)
+        }
     case "URLRequest":
         // REAL when the url resolves (member reads ride the generated
         // table via the carrier; writes go through networkHostSetMember);
@@ -998,6 +1073,28 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             MainQueueDrain.drain()
             return .void
         })
+    }
+    if let renderer = value as? GraphicsRendererBox, name == "image" {
+        return .hostFunction(HostFunction(name: name) { args, ctx in
+            if let closure = args.firstUnlabeledClosure {
+                // The drawing closure runs (its fills absorb) — side effects
+                // in user code still happen.
+                _ = try? ctx.callClosure(closure, arguments: [.native(UIKitStub())])
+            }
+            return .native(UIImageBox.solid(size: renderer.size))
+        })
+    }
+    if let image = value as? UIImageBox {
+        switch name {
+        case "size":
+            return .native(image.size)
+        case "pngData", "jpegData":
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                image.pngData.map { .native($0) } ?? .nilValue
+            })
+        default:
+            break
+        }
     }
     if let marker = value as? HostTypeMarker, marker.name == "ProcessInfo", name == "processInfo" {
         return .native(ProcessInfoBox())

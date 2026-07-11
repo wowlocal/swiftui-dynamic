@@ -1358,6 +1358,98 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct ImageDownloadPipelineTests {
+    // clean-architecture's ImageWebRepositoryTests genre, end to end:
+    // `UIColor.red.image(size)` renders a REAL pixel-exact bitmap through
+    // the UIGraphicsImageRenderer bridge (UIColor extensions dispatch on
+    // absorbed Colors), `session.download(from: url)` wraps the bare URL
+    // in a URLRequest before URLProtocol.canInit, serves mocked bytes via
+    // a temp file, and failure mocks throw the ORIGINAL NSError. Native
+    // baseline: the app's own upstream-passing tests.
+    @Test func downloadRoundTripAndFailureDomain() throws {
+        let source = """
+        import Foundation
+        import UIKit
+
+        struct MockedResponse {
+            let url: URL
+            let result: Result<Data, Swift.Error>
+        }
+        final class MocksContainer {
+            var mocks: [MockedResponse] = []
+        }
+        final class RequestMocking: URLProtocol {
+            static let container = MocksContainer()
+            static func add(_ mock: MockedResponse) { container.mocks.append(mock) }
+            static func removeAll() { container.mocks.removeAll() }
+            static func mock(for request: URLRequest) -> MockedResponse? {
+                container.mocks.first { $0.url == request.url }
+            }
+            override class func canInit(with request: URLRequest) -> Bool {
+                mock(for: request) != nil
+            }
+            override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+            override func startLoading() {
+                guard let mock = RequestMocking.mock(for: request), let url = request.url,
+                      let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil) else { return }
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                switch mock.result {
+                case let .success(data):
+                    client?.urlProtocol(self, didLoad: data)
+                    client?.urlProtocolDidFinishLoading(self)
+                case let .failure(error):
+                    client?.urlProtocol(self, didFailWithError: error)
+                }
+            }
+            override func stopLoading() { }
+        }
+
+        extension URLSession {
+            static var mocked: URLSession {
+                let configuration = URLSessionConfiguration.default
+                configuration.protocolClasses = [RequestMocking.self]
+                return URLSession(configuration: configuration)
+            }
+        }
+
+        extension UIColor {
+            func image(_ size: CGSize) -> UIImage {
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                return UIGraphicsImageRenderer(size: size, format: format).image { rendererContext in
+                    setFill()
+                    rendererContext.fill(CGRect(origin: .zero, size: size))
+                }
+            }
+        }
+
+        let session = URLSession.mocked
+        let url = URL(string: "https://image.service.com/myimage.png")!
+        let testImage = UIColor.red.image(CGSize(width: 40, height: 40))
+        RequestMocking.add(MockedResponse(url: url, result: .success(testImage.pngData()!)))
+        let (localURL, _) = try await session.download(from: url)
+        let bytes = try Data(contentsOf: localURL)
+        let decoded = UIImage(data: bytes)
+        let sizeMatches = decoded?.size == testImage.size
+
+        RequestMocking.removeAll()
+        let refError = NSError(domain: "test", code: 7)
+        RequestMocking.add(MockedResponse(url: url, result: .failure(refError)))
+        var caughtDomain = ""
+        do {
+            _ = try await session.download(from: url)
+        } catch {
+            let nsError = error as NSError
+            caughtDomain = nsError.domain
+        }
+        """
+        let interpreter = Interpreter(registry: ViewRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("sizeMatches")?.stringified == "true")
+        #expect(interpreter.globals.lookup("caughtDomain")?.stringified == "test")
+    }
+}
+
 @Suite struct HostEnumExtensionTests {
     // clean-architecture's UNAuthorizationStatus.map: user extensions of a
     // HOST enum dispatch on TYPED markers (minted at `Type.case` and at

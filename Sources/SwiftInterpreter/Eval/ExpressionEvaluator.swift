@@ -777,6 +777,13 @@ extension Interpreter {
         if any is Double { names.append("Double"); names.append("CGFloat") }
         if any is Bool { names.append("Bool") }
         if any is Date { names.append("Date") }
+        // UIColor/NSColor statics absorb into SwiftUI Colors (the asset
+        // doctrine) — user extensions of the UIKit faces still dispatch
+        // on them (`UIColor.red.image(size)` test helpers).
+        if names.contains("Color") {
+            names.append("UIColor")
+            names.append("NSColor")
+        }
         if any is BindingStub { names.append("Binding") }
         if any is DictValue { names.append("Dictionary") }
         if any is Data { names.append("Data") }

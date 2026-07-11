@@ -646,7 +646,11 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "data":
             // async forms: `let (data, response) = try await session.data(from:/for:)`
             return .hostFunction(HostFunction(name: "data") { args, ctx in
-                let requestValue = args.labeled("from") ?? args.labeled("for") ?? args.positional(0)
+                var requestValue = args.labeled("from") ?? args.labeled("for") ?? args.positional(0)
+                // `data(from: url)` wraps bare URLs exactly like download.
+                if case .host(let any)? = requestValue, let url = any as? URL {
+                    requestValue = .native(URLRequestBox(request: URLRequest(url: url)))
+                }
                 if let interpreter = ctx as? Interpreter, let requestValue,
                    let mocked = try interpretedProtocolResponse(for: requestValue, interpreter: interpreter) {
                     return .native(TupleValue(labels: [nil, nil], values: [
@@ -664,6 +668,38 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 let (data, response) = try NetworkBridge.respond(to: url)
                 return .native(TupleValue(labels: [nil, nil], values: [
                     .native(data), .native(HTTPResponseBox(response)),
+                ]))
+            })
+        case "download":
+            // `let (localURL, response) = try await session.download(from:)`
+            // — real download semantics: the bytes land in a TEMP FILE the
+            // caller reads back (`Data(contentsOf: localURL)`). Mocked
+            // protocols serve the bytes (and failures) exactly like data().
+            return .hostFunction(HostFunction(name: "download") { args, ctx in
+                var requestValue = args.labeled("from") ?? args.labeled("for") ?? args.positional(0)
+                // `download(from: url)` — the session wraps bare URLs in a
+                // URLRequest before URLProtocol.canInit sees them.
+                if case .host(let any)? = requestValue, let url = any as? URL {
+                    requestValue = .native(URLRequestBox(request: URLRequest(url: url)))
+                }
+                func tempFile(_ data: Data) -> URL {
+                    let fileURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("interpreted-download-\(UUID().uuidString)")
+                    try? data.write(to: fileURL)
+                    return fileURL
+                }
+                if let interpreter = ctx as? Interpreter, let requestValue,
+                   let mocked = try interpretedProtocolResponse(for: requestValue, interpreter: interpreter) {
+                    return .native(TupleValue(labels: [nil, nil], values: [
+                        .native(tempFile(mocked.data)), mocked.response,
+                    ]))
+                }
+                guard let url = NetworkBridge.url(from: requestValue) else {
+                    throw RuntimeError(message: "URLSession.download needs a URL")
+                }
+                let (data, response) = try NetworkBridge.respond(to: url)
+                return .native(TupleValue(labels: [nil, nil], values: [
+                    .native(tempFile(data)), .native(HTTPResponseBox(response)),
                 ]))
             })
         case "dataTaskPublisher":
