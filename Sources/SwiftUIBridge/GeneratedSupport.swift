@@ -273,12 +273,20 @@ enum GeneratedMembers {
     /// A BOX that refused still exposes its wrapped value — the generated
     /// table serves the members the hand box never implemented
     /// (ParityCheck finding: boxes were SHADOWING ~40 generated members).
+    /// Runtime type names that differ from the swiftinterface's spelling
+    /// (Decimal IS the imported C struct NSDecimal — `type(of:)` prints the
+    /// runtime name, the table keys on the Swift one).
+    static func keyTypeName(of value: Any) -> String {
+        let name = String(describing: type(of: value))
+        return name == "NSDecimal" ? "Decimal" : name
+    }
+
     static func member(_ name: String, on value: Any) -> RuntimeValue? {
         if let carrier = value as? GeneratedMemberCarrier,
            let unwrapped = member(name, on: carrier.generatedMemberValue) {
             return unwrapped
         }
-        let key = "\(type(of: value)).\(name)"
+        let key = "\(keyTypeName(of: value)).\(name)"
         if let getter = properties[key] {
             return getter(value)
         }
@@ -294,7 +302,7 @@ enum GeneratedMembers {
            let unwrapped = method(name, on: carrier.generatedMemberValue) {
             return unwrapped
         }
-        let key = "\(type(of: value)).\(name)"
+        let key = "\(keyTypeName(of: value)).\(name)"
         guard let set = methods[key] else { return nil }
         return .hostFunction(HostFunction(name: name) { args, ctx in
             try GeneratedDispatch.member(name: name, overloads: set, base: value, args: args, ctx: ctx)

@@ -502,6 +502,7 @@ let memberTypes: Set<String> = [
     "URL", "Data", "Date", "UUID", "Calendar", "TimeZone", "Locale",
     "DateComponents", "DateInterval", "URLComponents", "URLQueryItem",
     "URLRequest", "CharacterSet", "IndexSet",
+    "Decimal", "IndexPath", "PersonNameComponents",
 ]
 
 func memberMapping(for normalized: String) -> TypeMapping? {
@@ -937,6 +938,9 @@ let seedQueryItem = URLQueryItem(name: "k", value: "v")
 let seedRequest = URLRequest(url: seedURL)
 let seedCharset = CharacterSet(charactersIn: "abcxyz")
 let seedIndexSet = IndexSet([1, 2, 3, 9])
+let seedDecimal = Decimal(string: "3.14159")!
+let seedIndexPath = IndexPath(indexes: [1, 3])
+let seedPersonName = PersonNameComponents(givenName: "Ada", familyName: "Lovelace")
 """
 
 let seedReceivers: [String: String] = [
@@ -945,6 +949,8 @@ let seedReceivers: [String: String] = [
     "DateComponents": "seedComponents", "DateInterval": "seedInterval",
     "URLComponents": "seedURLComponents", "URLQueryItem": "seedQueryItem",
     "URLRequest": "seedRequest", "CharacterSet": "seedCharset", "IndexSet": "seedIndexSet",
+    "Decimal": "seedDecimal", "IndexPath": "seedIndexPath",
+    "PersonNameComponents": "seedPersonName",
 ]
 
 func probeArgument(for tag: String) -> String? {

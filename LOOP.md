@@ -202,8 +202,13 @@ Each iteration does exactly this:
      narrow question.
    - CLOSING gate, exactly ONCE: full `swift test` green AND ProjectCheck
      pass count strictly improved (or same count with the top class
-     eliminated). On success WRITE `.claude/last-verify.txt`:
-     `<HEAD sha> <suite count> <corpus pass/total> <UTC time>`.
+     eliminated). The cache write is PART OF the gate, not a follow-up —
+     after the commit in step 7, run LITERALLY:
+     `git rev-parse HEAD > .claude/last-verify.txt`
+     (two iterations have skipped this since 2026-07-11; the opening-sweep
+     skip has never engaged, which costs a full corpus run EVERY
+     iteration. If you end an iteration without writing it, say why in
+     the log entry.)
    - Long commands: give explicit timeouts (never a chained
      build+suite+corpus under the default 10m — it WILL be killed);
      build once, then invoke prebuilt binaries (.build/debug/…).
@@ -332,13 +337,15 @@ Each iteration does exactly this:
 
 - `swift run ParityCheck` — API parity vs a compiled twin (generated
   members surface; regenerate probes with `swift run BridgeGen --emit
-  --probes`). Current: 253 match / 0 diverge / 0 error / 14 unstable of 267
-  (ratchet: never regress 253 — the full stable surface matches). New
-  divergences appear when the sweep grows (new types/members regenerate
-  more probes): each is a real divergence or a missing seed/constructor —
-  burn down when it tops the queue. Property/method name collisions
-  (url.query vs query(percentEncoded:)) dispatch call-aware now: a
-  non-callable or nil property at a call site retries the methods-only
+  --probes`). Current: 292 match / 0 diverge / 0 error / 17 unstable of 309
+  (ratchet: never regress 292 — the full stable surface matches; 17 types
+  swept). Growing the surface is the cheap move now: add a type to
+  BridgeGen's memberTypes + a seed to parityPrelude/seedReceivers,
+  regenerate, and every finding ParityCheck reports is a real interpreter
+  gap (missing constructor, alias mismatch — Decimal's runtime name is
+  NSDecimal, see GeneratedMembers.keyTypeName). Property/method name
+  collisions (url.query vs query(percentEncoded:)) dispatch call-aware:
+  a non-callable or nil property at a call site retries the methods-only
   generated table (registry hostMethod hook).
 - `INTERP_ABSORB_CENSUS=1 swift run ProjectCheck --all` — corpus-wide
   absorbed-member demand curve.
@@ -352,10 +359,9 @@ Each iteration does exactly this:
   changed sources and rebuild before trusting exit-138 crashes.
 - Write large patch payloads to files, not inline heredocs per turn —
   context overflow ("Prompt is too long") killed iteration 140's tail.
-- Step 6's OPENING-sweep skip only works if you WRITE
-  `.claude/last-verify.txt` at every closing gate — the file doesn't
-  exist yet, so every iteration still pays the opening sweep. One echo
-  line at commit time pays for itself immediately.
+- After EVERY commit: `git rev-parse HEAD > .claude/last-verify.txt` —
+  this is what arms step 6's opening-sweep skip. Still unwritten as of
+  2026-07-11; every iteration is paying a ~2 min corpus sweep for it.
 - Failed `Edit` on unread files: Read the region first or use the
   python patcher directly — dead tool calls otherwise.
 

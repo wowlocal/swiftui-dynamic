@@ -301,6 +301,44 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             }
             return .native(IndexSet())
         }
+    case "Decimal":
+        return HostFunction(name: name) { args, _ in
+            // Real Decimal semantics: the string parse is honestly nil on junk.
+            if let s = args.labeled("string")?.stringValue {
+                return Decimal(string: s).map { RuntimeValue.native($0) } ?? .nilValue
+            }
+            if let arg = args.positional(0) {
+                if case .int(let i) = arg { return .native(Decimal(i)) }
+                if let d = arg.doubleValue { return .native(Decimal(d)) }
+            }
+            return .native(Decimal.zero)
+        }
+    case "IndexPath":
+        return HostFunction(name: name) { args, _ in
+            if let values = args.labeled("indexes")?.arrayValue {
+                return .native(IndexPath(indexes: values.compactMap { $0.intValue }))
+            }
+            // UIKit/AppKit conveniences the corpus uses: (item|row:section:).
+            if let section = args.labeled("section")?.intValue {
+                let leaf = args.labeled("item")?.intValue ?? args.labeled("row")?.intValue ?? 0
+                return .native(IndexPath(indexes: [section, leaf]))
+            }
+            if let single = args.labeled("index")?.intValue {
+                return .native(IndexPath(index: single))
+            }
+            return .native(IndexPath())
+        }
+    case "PersonNameComponents":
+        return HostFunction(name: name) { args, _ in
+            var components = PersonNameComponents()
+            if let v = args.labeled("namePrefix")?.stringValue { components.namePrefix = v }
+            if let v = args.labeled("givenName")?.stringValue { components.givenName = v }
+            if let v = args.labeled("middleName")?.stringValue { components.middleName = v }
+            if let v = args.labeled("familyName")?.stringValue { components.familyName = v }
+            if let v = args.labeled("nameSuffix")?.stringValue { components.nameSuffix = v }
+            if let v = args.labeled("nickname")?.stringValue { components.nickname = v }
+            return .native(components)
+        }
     case "Locale":
         return HostFunction(name: name) { args, _ in
             guard let identifier = args.labeled("identifier")?.stringValue else {
