@@ -171,6 +171,54 @@ extension ViewRegistry {
             }))
         }
 
+        constructors["TableColumn"] = HostFunction(name: "TableColumn") { args, _ in
+            // A column SPEC — consumed by the Table gateway below.
+            let title = args.positional(0)?.stringValue ?? ""
+            var keyPath: KeyPathStub?
+            if case .host(let any)? = args.labeled("value"), let stub = any as? KeyPathStub {
+                keyPath = stub
+            }
+            let content = args.arguments.last(where: { $0.value.closureValue != nil })?.value.closureValue
+            return .native(TableColumnSpec(title: title, keyPath: keyPath, content: content))
+        }
+
+        constructors["TableRow"] = HostFunction(name: "TableRow") { args, _ in
+            // Rows-builder marks: the ACTIVE Table gateway collects the row
+            // value; the returned view is a placeholder the builder discards.
+            TableRowCollector.active?.append(args.positional(0) ?? .void)
+            return .native(AnyView(EmptyView()))
+        }
+
+        constructors["Table"] = HostFunction(name: "Table") { args, ctx in
+            guard let interpreter = ctx as? Interpreter else {
+                return .native(AnyView(EmptyView()))
+            }
+            let closures = args.arguments.filter { $0.value.closureValue != nil }
+            guard let columnsClosure = closures.first?.value.closureValue else {
+                throw RuntimeError(message: "Table needs a columns builder")
+            }
+            // Column specs from the DSL.
+            let columnValues = try ctx.callBuilderClosure(columnsClosure, arguments: [])
+            var specs: [TableColumnSpec] = []
+            for value in columnValues {
+                if case .host(let any) = value, let spec = any as? TableColumnSpec {
+                    specs.append(spec)
+                }
+            }
+            // Row values: `Table(data)` positional, or the rows: builder
+            // (TableRow marks collected while it evaluates).
+            var rowValues = args.positional(0)?.arrayValue ?? []
+            if rowValues.isEmpty,
+               let rowsClosure = (args.closure(labeled: "rows") ?? closures.dropFirst().first?.value.closureValue) {
+                TableRowCollector.active = []
+                _ = try? ctx.callBuilderClosure(rowsClosure, arguments: [])
+                rowValues = TableRowCollector.active ?? []
+                TableRowCollector.active = nil
+            }
+            guard !specs.isEmpty else { return .native(AnyView(EmptyView())) }
+            return .native(try Self.realTable(rows: rowValues, specs: specs, interpreter: interpreter))
+        }
+
         constructors["ScrollView"] = HostFunction(name: "ScrollView") { args, ctx in
             var axes: Axis.Set = .vertical
             if case .implicitMember(let name)? = args.positional(0) {
@@ -648,5 +696,108 @@ private final class GeometryContentCarrier: @unchecked Sendable {
             }
         }
         return result
+    }
+}
+
+/// Column spec + rows collector for the Table gateway.
+struct TableColumnSpec {
+    let title: String
+    let keyPath: KeyPathStub?
+    let content: ClosureValue?
+}
+
+enum TableRowCollector {
+    nonisolated(unsafe) static var active: [RuntimeValue]?
+}
+
+extension ViewRegistry {
+    /// A REAL SwiftUI Table (NSTableView-backed — headers, stripes, row
+    /// metrics all native) over PREBUILT interpreted cells. Sorting stays
+    /// with the app (it sorts before the Table sees rows).
+    struct TableShimRow: Identifiable {
+        let id: Int
+    }
+
+    private final class CellGrid: @unchecked Sendable {
+        let cells: [[AnyView]]
+        init(_ cells: [[AnyView]]) { self.cells = cells }
+        func cell(_ row: Int, _ column: Int) -> AnyView {
+            guard cells.indices.contains(row), cells[row].indices.contains(column) else {
+                return AnyView(EmptyView())
+            }
+            return cells[row][column]
+        }
+    }
+
+    static func realTable(
+        rows: [RuntimeValue], specs: [TableColumnSpec], interpreter: Interpreter
+    ) throws -> AnyView {
+        var built: [[AnyView]] = []
+        for row in rows {
+            var line: [AnyView] = []
+            for spec in specs {
+                if let content = spec.content {
+                    let views = (try? interpreter.callBuilderClosure(content, arguments: [row])) ?? []
+                    let anyViews = views.compactMap { try? ViewRegistry.anyView($0) }
+                    if anyViews.count == 1 {
+                        line.append(anyViews[0])
+                    } else if anyViews.isEmpty {
+                        line.append(AnyView(EmptyView()))
+                    } else {
+                        line.append(AnyView(HStack { ForEach(anyViews.indices, id: \.self) { anyViews[$0] } }))
+                    }
+                } else if let keyPath = spec.keyPath {
+                    let value = (try? interpreter.applyKeyPathForBridge(keyPath, to: row)) ?? .void
+                    line.append(AnyView(Text(value.stringValue ?? value.stringified)))
+                } else {
+                    line.append(AnyView(EmptyView()))
+                }
+            }
+            built.append(line)
+        }
+        let grid = CellGrid(built)
+        let shims = rows.indices.map { TableShimRow(id: $0) }
+        let titles = specs.map(\.title)
+        switch specs.count {
+        case 1:
+            return AnyView(Table(shims) {
+                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
+            })
+        case 2:
+            return AnyView(Table(shims) {
+                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
+                TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }
+            })
+        case 3:
+            return AnyView(Table(shims) {
+                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
+                TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }
+                TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }
+            })
+        case 4:
+            return AnyView(Table(shims) {
+                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
+                TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }
+                TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }
+                TableColumn(titles[3]) { (r: TableShimRow) in grid.cell(r.id, 3) }
+            })
+        case 5:
+            return AnyView(Table(shims) {
+                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
+                TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }
+                TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }
+                TableColumn(titles[3]) { (r: TableShimRow) in grid.cell(r.id, 3) }
+                TableColumn(titles[4]) { (r: TableShimRow) in grid.cell(r.id, 4) }
+            })
+        default:
+            return AnyView(Table(shims) {
+                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
+                TableColumn(titles.count > 1 ? titles[1] : "") { (r: TableShimRow) in grid.cell(r.id, 1) }
+                TableColumn(titles.count > 2 ? titles[2] : "") { (r: TableShimRow) in grid.cell(r.id, 2) }
+                TableColumn(titles.count > 3 ? titles[3] : "") { (r: TableShimRow) in grid.cell(r.id, 3) }
+                TableColumn(titles.count > 4 ? titles[4] : "") { (r: TableShimRow) in grid.cell(r.id, 4) }
+                TableColumn(titles.count > 5 ? titles[5] : "") { (r: TableShimRow) in grid.cell(r.id, 5) }
+            })
+        }
     }
 }

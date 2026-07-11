@@ -232,7 +232,7 @@ extension Interpreter {
            let callee = call.calledExpression.as(DeclReferenceExprSyntax.self) {
             let argument = call.arguments.first?.expression.trimmedDescription ?? ""
             switch callee.baseName.text {
-            case "os": return argument == "iOS"
+            case "os": return argument == Interpreter.interpretsAsPlatform
             case "canImport": return true
             case "swift", "compiler": return true
             case "targetEnvironment": return false

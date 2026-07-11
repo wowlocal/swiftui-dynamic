@@ -127,6 +127,11 @@ extension ViewRegistry {
                 let content = views.count == 1 ? views[0] : AnyView(ZStack { Self.indexed(views) })
                 return AnyView(view.background(content))
             }
+            // `.background(in: shape)` — the style-less form fills with the
+            // ambient background style (OrderRow's status icon plate).
+            if args.positional(0) == nil, let shapeArg = args.labeled("in") {
+                return AnyView(view.background(in: try Coerce.shape(shapeArg)))
+            }
             guard let first = args.positional(0) else {
                 throw RuntimeError(message: ".background needs a style or view")
             }
@@ -335,6 +340,13 @@ extension ViewRegistry {
         // (the twin's captures show none either) — the view passes through;
         // toolbar ACTIONS become R3 surface, not R2 pixels.
         register("toolbar") { view, _, _ in view }
+        register("tableStyle") { view, args, _ in
+            switch args.positional(0) {
+            case .implicitMember("inset"): return AnyView(view.tableStyle(.inset))
+            case .implicitMember("bordered"): return AnyView(view.tableStyle(.bordered))
+            default: return AnyView(view.tableStyle(.automatic))
+            }
+        }
         register("toolbarRole") { view, _, _ in view }
         register("task") { view, args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return view }

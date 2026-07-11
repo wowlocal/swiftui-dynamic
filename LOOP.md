@@ -1091,3 +1091,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   orders stays 100% (Table gateway, queued); truck 64.5%/content
   52.5% unchanged. **GATE GREEN: suite 531; corpus 678/680; live
   5/5; parity 345/0/0.**
+- 2026-07-11 iter 235 (FoodTruck R2): orders 100% → **12.27%**,
+  socialfeed → 27.4%. Three layers, bisected with real-capture diag
+  probes: (1) REAL Table gateway — NSTableView-backed SwiftUI Table
+  from the interpreted TableColumn DSL (columns-only form + rows:
+  builder of TableRow marks via a rows collector; cells prebuilt per
+  row through the interpreter; native headers/stripes/metrics);
+  tableStyle(.inset/.bordered) real; `.background(in: shape)` fills
+  the ambient style. (2) THE PLATFORM KNOB —
+  Interpreter.interpretsAsPlatform: `#if os(...)` interpreted as
+  macOS for the FoodTruck target (matching the twin build) while the
+  corpus doctrine stays iOS; OrdersView's `displayAsList` had taken
+  the iOS sizeClass branch (marker == .compact read TRUE) and blanked
+  the whole screen. R1 holds 9/9 under macOS interpretation. Pins:
+  RealTableGatewayTests (+ corpus-default knob assert). Remaining
+  board: truck 64.5% / content 52.5% / card-orders 51.4% (frozen
+  clock + seeded RNG next), socialfeed 27.4% (.black opacity chain),
+  donuts 4.86%. **GATE GREEN: suite 532; corpus 678/680; live 5/5;
+  parity 345/0/0.**

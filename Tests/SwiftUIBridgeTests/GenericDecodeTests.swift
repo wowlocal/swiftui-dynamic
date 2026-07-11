@@ -1358,6 +1358,52 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct RealTableGatewayTests {
+    // FoodTruck R2's orders screen: a REAL SwiftUI Table (NSTableView-
+    // backed) builds from the interpreted TableColumn DSL — columns-only
+    // form with a rows: builder of TableRow marks — and `#if os(...)`
+    // interprets per Interpreter.interpretsAsPlatform (macOS for the twin,
+    // iOS corpus default).
+    @Test func tableBuildsAndPlatformKnobHolds() throws {
+        #expect(Interpreter.interpretsAsPlatform == "iOS") // corpus default
+        let registry = ViewRegistry()
+        #expect(registry.constructor(named: "Table") != nil)
+        #expect(registry.constructor(named: "TableColumn") != nil)
+        #expect(registry.modifier(named: "tableStyle") != nil)
+        let source = """
+        struct Row: Identifiable {
+            let id: Int
+            let name: String
+        }
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Table(selection: .constant(Set<Int>())) {
+                        TableColumn("Name") { (row: Row) in
+                            Text(row.name)
+                        }
+                        TableColumn("Id") { (row: Row) in
+                            Text(String(row.id))
+                        }
+                    } rows: {
+                        ForEach([Row(id: 1, name: "a"), Row(id: 2, name: "b")]) { row in
+                            TableRow(row)
+                        }
+                    }
+                    .tableStyle(.inset)
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success = rendered else {
+            Issue.record("table render failed")
+            return
+        }
+    }
+}
+
 @Suite struct RealRegistryChromeTests {
     // FoodTruck R2's blank-screen class: `.toolbar`/`.toolbarRole` were
     // unregistered in the REAL registry, so the whole modified subtree

@@ -41,6 +41,11 @@ extension Interpreter {
         try? staticMember(name, of: symbol)
     }
 
+    /// Bridge-side key-path application (the Table gateway's value columns).
+    public func applyKeyPathForBridge(_ stub: KeyPathStub, to value: RuntimeValue) throws -> RuntimeValue {
+        try applyKeyPath(stub, to: value)
+    }
+
     /// Bridge-side annotation resolution: turn markers into the named
     /// type's cases/statics/inits (`Binding<Loadable<String>>`'s get()
     /// returning `.notRequested` becomes the real case).

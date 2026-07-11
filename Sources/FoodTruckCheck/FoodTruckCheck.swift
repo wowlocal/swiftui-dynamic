@@ -35,6 +35,8 @@ struct FoodTruckCheckMain {
         let sampleRoot = FileManager.default.currentDirectoryPath
             + "/Examples/FoodTruckBuildingASwiftUIMultiplatformApp"
 
+        // The twin is a macOS build — interpret the app the same way.
+        Interpreter.interpretsAsPlatform = "macOS"
         LiveCheckSupport.traceLifecycle =
             ProcessInfo.processInfo.environment["LIVECHECK_TRACE"] != nil
 
@@ -203,6 +205,44 @@ struct FoodTruckCheckMain {
             // diagnosis rungs for blank screens.
             capturePNG("diag-grid", source: probeMergeBase + probeApp(
                 "ScrollView { DonutGalleryGrid(donuts: model.donuts, width: 1000) }.background(Color.white)"), size: screenSize)
+            capturePNG("diag-table", source: probeMergeBase + probeApp(
+                "OrdersTable(model: model, selection: .constant([]), completedOrder: .constant(nil), searchText: .constant(String())).background(Color.white)"), size: screenSize)
+            capturePNG("diag-mods", source: probeMergeBase + probeApp(
+                "OrdersTable(model: model, selection: .constant([]), completedOrder: .constant(nil), searchText: .constant(String())).tableStyle(.inset).searchable(text: .constant(String()))"), size: screenSize)
+            capturePNG("diag-zstack", source: probeMergeBase + probeApp(
+                "ZStack { OrdersTable(model: model, selection: .constant([]), completedOrder: .constant(nil), searchText: .constant(String())).tableStyle(.inset) }"), size: screenSize)
+            capturePNG("diag-navtitle", source: probeMergeBase + probeApp(
+                "OrdersTable(model: model, selection: .constant([]), completedOrder: .constant(nil), searchText: .constant(String())).navigationTitle(String())"), size: screenSize)
+            capturePNG("diag-navdest", source: probeMergeBase + probeApp(
+                "OrdersTable(model: model, selection: .constant([]), completedOrder: .constant(nil), searchText: .constant(String())).navigationDestination(for: Int.self) { _ in EmptyView() }"), size: screenSize)
+            let diagIfDecl = """
+
+            struct __DiagIf: View {
+                #if os(iOS)
+                @Environment(\\.horizontalSizeClass) private var sizeClass
+                #endif
+                var displayAsList: Bool {
+                    #if os(iOS)
+                    return sizeClass == .compact
+                    #else
+                    return false
+                    #endif
+                }
+                var body: some View {
+                    ZStack {
+                        if displayAsList {
+                            Text(verbatim: String(describing: 1))
+                        } else {
+                            Rectangle().fill(Color.red).frame(width: 600, height: 400)
+                        }
+                    }
+                }
+            }
+            """
+            capturePNG("diag-if", source: probeMergeBase + diagIfDecl + probeApp(
+                "__DiagIf()"), size: screenSize)
+            capturePNG("diag-ordersview", source: probeMergeBase + probeApp(
+                "OrdersView(model: model)"), size: screenSize)
             capturePNG("diag-geo", source: probeMergeBase + probeApp(
                 "GeometryReader { p in ScrollView { DonutGalleryGrid(donuts: model.donuts, width: p.size.width) } }.background(Color.white)"), size: screenSize)
             return

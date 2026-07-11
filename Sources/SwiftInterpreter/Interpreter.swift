@@ -23,6 +23,11 @@ public final class Interpreter {
     /// keyed by the extended host type's name.
     var hostExtensionSymbols: [String: StructSymbol] = [:]
     var assumesCompiledImports = false
+    /// Which `#if os(...)` platform the interpretation compiles as. The
+    /// corpus doctrine is iOS (587 iPhone-shaped samples); the FoodTruck
+    /// PRIMARY TARGET interprets as macOS to match its native twin
+    /// pixel-for-pixel.
+    public static var interpretsAsPlatform = "iOS"
 
     /// Interpreted protocol declarations' inheritance (`protocol
     /// ConnectedView: View`) — conformance through a protocol must count as
