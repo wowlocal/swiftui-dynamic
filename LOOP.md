@@ -458,6 +458,11 @@ Each iteration does exactly this:
   (a compiled app varies the same way): the socialfeed rung gets a
   documented fuzz floor (0.25%), never a patch, and the floor never
   widens to other screens.
+- `Scripts/foodtruck-r3-spec.md` — the R3 function-parity protocol:
+  model-API mutation (never event injection) → re-capture → diff at the
+  screen's R2 floor; six scenarios coded against FoodTruckKit's public
+  API (updateDonut, markOrderAsCompleted, orderBinding, popularity
+  sort, Panel selection). Build R3 rungs from it when R2 saturates.
 - `Scripts/foodtruck-r2.sh` — the R2 BOARD: captures both sides and
   prints per-screen AE. Convention: twin → /tmp/foodtruck-twin/<id>.png,
   interp → /tmp/foodtruck-interp/<id>.png; matching ids get diffed.
