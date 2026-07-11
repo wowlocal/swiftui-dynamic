@@ -904,6 +904,26 @@ public final class Interpreter {
                 let isClosure = value.closureValue != nil
                 score += (wantsArray == isArray) ? 1 : -1
                 score += (wantsClosure == isClosure) ? 1 : -1
+                // NOMINAL dimension: `init(appState: Store<AppState>)` must
+                // lose to `init(appState: AppState)` when the argument IS an
+                // AppState (typealias heads canonicalize: Store →
+                // CurrentValueSubject). Weighted above shape hints.
+                var head = annotation.trimmingCharacters(in: .whitespaces)
+                if head.hasSuffix("?") || head.hasSuffix("!") { head = String(head.dropLast()) }
+                if let angle = head.firstIndex(of: "<") { head = String(head[..<angle]) }
+                head = aliasHeads[head] ?? head
+                var dynamicNames: [String] = []
+                if case .instance(let instance) = value {
+                    dynamicNames = [instance.symbol.name] + instance.symbol.conformances
+                } else if case .enumCase(let caseValue) = value {
+                    dynamicNames = [caseValue.symbol.name] + caseValue.symbol.conformances
+                } else if case .host(let any) = value,
+                          let hostName = registry?.hostTypeName(of: any) {
+                    dynamicNames = [hostName]
+                }
+                if !head.isEmpty, head.first?.isUppercase == true, !dynamicNames.isEmpty {
+                    score += dynamicNames.contains(head) ? 2 : -2
+                }
             }
             return score
         }

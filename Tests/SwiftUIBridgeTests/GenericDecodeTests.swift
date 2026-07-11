@@ -1819,3 +1819,65 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("firstTitle")?.stringified == "B")
     }
 }
+
+@Suite struct ChainedStoreSubscriptTests {
+    // DeepLinksHandler's shape: the store reached through a CONTAINER
+    // property chain (`self.container.appState[\\.routing] = x`), under
+    // the harness registry.
+    @Test func chainedBaseSubscriptWritesThroughSetter() throws {
+        let source = """
+        import XCTest
+        import Combine
+
+        struct Routing: Equatable {
+            var countryCode: String? = nil
+        }
+        struct AppState: Equatable {
+            var routing = Routing()
+        }
+        typealias Store<State> = CurrentValueSubject<State, Never>
+
+        extension Store {
+            subscript<T>(keyPath: WritableKeyPath<Output, T>) -> T where T: Equatable {
+                get { value[keyPath: keyPath] }
+                set {
+                    var value = self.value
+                    if value[keyPath: keyPath] != newValue {
+                        value[keyPath: keyPath] = newValue
+                        self.value = value
+                    }
+                }
+            }
+        }
+
+        struct DIContainer {
+            let appState: Store<AppState>
+        }
+
+        final class Handler {
+            let container: DIContainer
+            init(container: DIContainer) {
+                self.container = container
+            }
+            func reset() {
+                var routing = Routing()
+                routing.countryCode = "US"
+                self.container.appState[\\.routing] = routing
+            }
+        }
+
+        final class DeepLinkTests: XCTestCase {
+            func testRoutingWrite() {
+                let container = DIContainer(appState: Store<AppState>(AppState()))
+                let handler = Handler(container: container)
+                handler.reset()
+                XCTAssertEqual(container.appState.value.routing.countryCode, "US")
+            }
+        }
+        """
+        let report = try TestHarness.run(source: source)
+        #expect(report.passed == 1)
+        #expect(report.failed == 0)
+        #expect(report.errored == 0)
+    }
+}

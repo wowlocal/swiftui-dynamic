@@ -601,3 +601,22 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   persist + forEach case-path routing). **679/680; suite 488 green;
   LiveCheck 5/5; TestCheck 95→99 passed / 29→25 failed — strictly
   improved.**
+- 2026-07-11 iter 216: the oldest 2-count — DeepLinks' `subscript
+  assignment requires an Int index` — was an INITIALIZER OVERLOAD
+  mis-pick, not a subscript gap: `DIContainer(appState: initialState,
+  interactors:)` with an AppState argument chose the DESIGNATED
+  `init(appState: Store<AppState>…)` by LABELS, storing a raw AppState
+  where a store belongs (the ⌖ tracer showed
+  `DIContainer(appState: AppState(…))`); the convenience
+  `init(appState: AppState,…)` that wraps into a Store never ran.
+  chooseInitializerStrict's type dimension gains a NOMINAL score:
+  parameter annotation heads (typealias-canonicalized, Store →
+  CurrentValueSubject) match the argument's dynamic name (instance
+  symbol + conformances, enumCase symbol, host type name), weighted
+  above the array/closure shape hints. Pinned by
+  ChainedStoreSubscriptTests (the DIContainer chain shape, harness-
+  level — it passed pre-fix through the DIRECT init; the suite path
+  exercised the convenience). The two DeepLinks tests now RUN and fail
+  honestly on routing-state comparison (errored 9 → 7, failed +2).
+  **679/680; suite 489 green; LiveCheck 5/5; TestCheck 99/27/7/10 —
+  class eliminated.**
