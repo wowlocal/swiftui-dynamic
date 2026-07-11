@@ -946,3 +946,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (with Widgets). **suite 525 green; TestCheck 120/9/4 held; LiveCheck
   5/5; ProjectCheck 678/680 = documented baseline (2 ledgered
   native-real failures).**
+- 2026-07-11 iter 228: FOODTRUCKCHECK BOOTSTRAPPED (the PRIMARY
+  TARGET's instrument, per the restructured loop). `swift run
+  FoodTruckCheck [--screen substring]`: R0 renders the real @main
+  FoodTruckApp shell (scene:FoodTruckApp with @StateObject
+  model/accountStore); R1 renders each sidebar panel through a probe
+  app (DetailColumn + one Panel selection + FoodTruckModel — App.swift
+  swaps for the probe, the twin's documented divergence; app sources
+  READ-ONLY). Markers are app-source-derived strings. Deterministic
+  (SWIFT_DETERMINISTIC_HASHING re-exec), rung score strictly-
+  improving. SwiftPM gotcha: new executable targets with
+  defaultIsolation reject top-level code in main.swift — @main struct
+  form instead. **BASELINE: 3/9 rungs** (R0-shell, socialFeed,
+  donutEditor ✅). Histogram, biggest first: (1) String(localized:
+  bundle:comment:) returns EMPTY — kills donut/city names across
+  donuts/salesHistory/topFive/truck markers; (2) Order `<` comparator
+  (sort over Comparable Order) throws; (3) `max(...)` shadowed by a
+  non-ctor in city (6464:32); (4) truck renders 1 string (mostly
+  absorbed). Suite 525 green (instrument-only change).
