@@ -447,6 +447,13 @@ Each iteration does exactly this:
   classes in the first diff: String(format:) unapplied ("Order#121%02d"),
   detail-column layout collapse (dot column vs card grid). Sidebar with
   real model data (panels + Cities) already renders.
+- `Scripts/foodtruck-r2.sh` — the R2 BOARD: captures both sides and
+  prints per-screen AE. Convention: twin → /tmp/foodtruck-twin/<id>.png,
+  interp → /tmp/foodtruck-interp/<id>.png; matching ids get diffed.
+  FoodTruckCheck's R2 wiring should WRITE interp panel captures into
+  that directory with the twin's ids (truck, donuts, orders, socialfeed,
+  card-donuts, card-orders, donut-view) — each new capture joins the
+  board automatically. Per-screen AE only ever decreases.
 - `swift Scripts/pixel-ae.swift a.png b.png [--fuzz N]` — the R2 pixel
   primitive: AE count between twin and interpreter captures; exit 0 only
   at AE=0; SIZE-MISMATCH is a finding (same point size + backing scale
