@@ -438,6 +438,10 @@ Each iteration does exactly this:
   projects (2026-07-11) — M0-level host-API demand is fully served; a
   nonzero census after new corpus material is the signal to grow the
   sweep again.
+- `swift Scripts/pixel-ae.swift a.png b.png [--fuzz N]` — the R2 pixel
+  primitive: AE count between twin and interpreter captures; exit 0 only
+  at AE=0; SIZE-MISMATCH is a finding (same point size + backing scale
+  both sides, never resample). A rung's fuzz may only tighten toward 0.
 - `Scripts/gate.sh` — THE closing gate: one build, all boards parallel,
   red if any board is red. Use it instead of serial gate commands.
 - `swift run FoodTruckCheck` — the PRIMARY TARGET's rung board (bootstrap
