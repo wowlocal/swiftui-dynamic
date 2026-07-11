@@ -111,6 +111,7 @@ func sourcesFingerprint() -> String? {
 
 let cacheEligible = limit == .max && filter == nil && !force
     && ProcessInfo.processInfo.environment["INTERP_ABSORB_CENSUS"] == nil
+    && ProcessInfo.processInfo.environment["INTERP_APPSHELL_CENSUS"] == nil
 if ProcessInfo.processInfo.environment["INTERP_VERIFY_DEBUG"] != nil {
     print("verify-cache: at start \(sourcesFingerprint() ?? "<degenerate>") root \(repoRoot)")
 }
@@ -216,6 +217,55 @@ func failureClass(_ message: String) -> String {
     }
     out = out.replacingOccurrences(of: #"'[^']*'"#, with: "'…'", options: .regularExpression)
     return String(out.prefix(90))
+}
+
+// MARK: - App-shell divergence census (INTERP_APPSHELL_CENSUS=1)
+//
+// The M4 sizing instrument: how many projects declare a real @main App
+// shell, how many of those shells the static root walk resolves, and how
+// much App-body semantics (environment seeding, multi-scene, onOpenURL)
+// today's root-selection DROPS when it instantiates the root view fresh.
+// The counts weight the M4 milestone; classes name the work.
+if ProcessInfo.processInfo.environment["INTERP_APPSHELL_CENSUS"] != nil {
+    var appProjects = 0, resolvedRoots = 0, opaqueShells: [String] = []
+    var envSeeding: [String] = [], stateObjectApps: [String] = []
+    var multiScene: [String] = [], openURL: [String] = [], uninspectable = 0
+    for unit in units {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        guard (try? interpreter.run(source: mergedSource(of: unit), lazyTopLevelGlobals: true)) != nil else {
+            uninspectable += 1
+            continue
+        }
+        guard let app = interpreter.structSymbols.first(where: { $0.conformances.contains("App") }) else {
+            continue
+        }
+        appProjects += 1
+        let bodyText = app.computedProperties["body"].map { String(describing: $0.accessor) } ?? ""
+        if interpreter.declaredRootViewExpression() != nil {
+            resolvedRoots += 1
+        } else {
+            opaqueShells.append(unit.name)
+        }
+        if bodyText.contains(".environmentObject(") || bodyText.contains(".environment(") {
+            envSeeding.append(unit.name)
+        }
+        if app.storedProperties.contains(where: { $0.wrapper == .stateObject }) {
+            stateObjectApps.append(unit.name)
+        }
+        let sceneMarkers = ["WindowGroup", "Settings {", "MenuBarExtra", "DocumentGroup", "Window("]
+        if sceneMarkers.reduce(0, { $0 + bodyText.components(separatedBy: $1).count - 1 }) > 1 {
+            multiScene.append(unit.name)
+        }
+        if bodyText.contains("onOpenURL") { openURL.append(unit.name) }
+    }
+    print("═══ app-shell census: \(appProjects) @main App shells in \(units.count) projects (\(uninspectable) uninspectable) ═══")
+    print(String(format: "%5d  root resolved by static walk", resolvedRoots))
+    print(String(format: "%5d  OPAQUE shells (fallback guesses)  e.g. %@", opaqueShells.count, opaqueShells.prefix(5).joined(separator: ", ")))
+    print(String(format: "%5d  App seeds ENVIRONMENT the root loses  e.g. %@", envSeeding.count, envSeeding.prefix(5).joined(separator: ", ")))
+    print(String(format: "%5d  @StateObject on the App struct  e.g. %@", stateObjectApps.count, stateObjectApps.prefix(5).joined(separator: ", ")))
+    print(String(format: "%5d  multi-scene shells  e.g. %@", multiScene.count, multiScene.prefix(5).joined(separator: ", ")))
+    print(String(format: "%5d  onOpenURL handlers  e.g. %@", openURL.count, openURL.prefix(5).joined(separator: ", ")))
+    exit(0)
 }
 
 var passed = 0

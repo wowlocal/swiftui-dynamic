@@ -9,11 +9,74 @@ framework behavior to gateways (hand-written overrides + BridgeGen-generated
 tables from the SDK's swiftinterfaces), stub types (`InterpretedView`) for
 protocol conformance. See README.md for what already works.
 
-**North-star metric: `swift run ProjectCheck` pass rate.** 587 real zipped
-SwiftUI sample projects sit in `/Users/mike/Documents/sample-projects`. The
-runner extracts them (into gitignored `External/`), merges each project's
-`.swift` files, interprets, deep-renders every View body, and clicks every
-action. Its failure-class histogram is the priority queue.
+## PRIMARY TARGET: Food Truck — pixel-perfect, fully functional (user directive 2026-07-11)
+
+Apple's WWDC sample at `Examples/FoodTruckBuildingASwiftUIMultiplatformApp`
+(82 files; App/ + dependency-free FoodTruckKit SPM package) must run through
+the interpreter **identical to the same app compiled natively with Xcode on
+macOS: pixel-perfect on every screen, and functional** — navigation works,
+the donut editor edits, orders complete, state flows exactly as compiled.
+This target OUTRANKS every other queue: a FoodTruck failure class beats any
+corpus/TestCheck/LiveCheck class of any size. The other boards are
+regression backstops — they must never regress, but they no longer set
+direction.
+
+**The instrument: `swift run FoodTruckCheck` — bootstrap it first.** Rung
+ladder per screen, strictly-improving total-rungs score, same discipline as
+LiveCheck (deterministic, <3 min, per-screen timeout):
+- R0 shell: merged App+Kit sources interpret; the @main FoodTruckApp scene
+  renders through the app-shell path (its @StateObject model/accountStore
+  MUST seed ContentView — never synthesized stand-ins).
+- R1 render: each sidebar panel deep-renders with the app's own sample data
+  visible in the tree (truck, orders, socialFeed, account, salesHistory,
+  donuts, donutEditor, topFive, city) + order detail + store screen.
+- R2 pixel: per-screen image diff against the NATIVE TWIN (below), AE=0 the
+  end state; per-screen thresholds may ratchet down but never up.
+- R3 function: scripted interactions — sidebar navigation lands the right
+  panel, donut editor mutations show in the gallery, order status flow
+  (placed → preparing → complete) updates the table, exactly as compiled.
+- R4 identical: all screens AE=0 AND the R3 checklist green.
+
+**The native twin (the only source of expectations).** FoodTruckKit builds
+with plain `swift build`; the twin harness compiles Kit + App sources into a
+scratch macOS executable (the Examples/ExpenseTrackerNative pattern) that
+ImageRenderer-captures each screen headlessly at a FIXED size/appearance.
+Expectations — pixels, strings, counts — are captured from the twin, never
+hand-written. Known headless trap: macOS NavigationSplitView chrome can
+blank headless — if it blanks in the TWIN it may blank in the interpreter
+(fair comparison, native-baseline rule); pixel rungs then compare per-panel
+CONTENT views at fixed sizes.
+
+**Determinism rules (both sides, or the diff is noise):**
+- Frozen clock: FoodTruckModel generates orders/sales from Date() — both
+  twin and interpreter pin the same fixed date (env-injected), or rungs
+  compare only date-independent screens until a clock policy lands.
+- The app's OWN sample/preview data is the fixture — never invent data.
+- App sources are READ-ONLY. Never patch the sample to pass; every gap is
+  interpreter/gateway work (absorbed-environment doctrine as usual).
+- Assets (Assets.xcassets in App and Kit) resolve through the Bundle
+  machinery; missing-asset renders are a failure class, not a skip.
+
+**Scope quarantine (auth doctrine extended, still must RENDER):** Sign in
+with Apple flow, StoreKit purchase flow, live WeatherKit fetches — the
+FLOWS are environmental (they don't run headless natively either), but the
+Account/Store/City screens must still render pixel-identically in their
+signed-out/unpurchased/sample-weather states. Widgets/, ActivityKit, and
+AppIntents surfaces are OUT (extension processes, not the app window).
+
+**Framework gaps this target will surface (build as gateways when the
+histogram demands, biggest first):** Swift Charts (salesHistory, topFive),
+StoreKit 2 models/SubscriptionStoreView, AuthenticationServices,
+WeatherKit types, CoreLocation, MapKit. The generated-members sweep +
+parity harness (Instruments below) is the cheap way in for value-type
+surface; hand gateways for view-producing API.
+
+**North-star metric: FoodTruckCheck total rungs**, then `swift run
+ProjectCheck` pass rate as the health backstop. 587 real zipped SwiftUI
+sample projects sit in `/Users/mike/Documents/sample-projects`. The runner
+extracts them (into gitignored `External/`), merges each project's `.swift`
+files, interprets, deep-renders every View body, and clicks every action.
+Its failure-class histogram is the priority queue WITHIN the backstop.
 
 **Second queue: `swift run TestCheck [root] --limit N` — semantic fidelity.**
 Runs each OSS project's OWN unit tests over the interpreted code (TestHarness
@@ -190,20 +253,28 @@ Each iteration does exactly this:
 5. **Add regression coverage**: a corpus program under
    `Tests/SwiftUIBridgeTests/Corpus/` or a unit test that captures the fixed
    class. New capability without a test doesn't count.
-6. **Verify — scaled to blast radius** (methodology audit 2026-07-10;
-   verification had grown to ~2.6 full-corpus runs per iteration and
-   10× iteration cost):
-   - OPENING sweep: just run `ProjectCheck --all` — it SELF-CACHES. A
-     full sweep fingerprints Sources/ + Package.swift and records its
-     verdict in `.claude/last-verify.txt` (gitignored); over unchanged
-     sources it returns the cached verdict in <1s and prints "cached".
-     `--force` re-sweeps; census runs always sweep. Nothing to remember.
-   - MID-iteration: targeted probes ONLY (single project, single
-     scenario, single test filter). Never a full sweep to answer a
-     narrow question.
-   - CLOSING gate, exactly ONCE: full `swift test` green AND ProjectCheck
-     pass count strictly improved (or same count with the top class
-     eliminated).
+6. **Verify — cheap by structure, never by weakening** (user directive
+   2026-07-11: reduce iteration cost AND allow no regressions — the two
+   are reconciled by parallelism and caching, never by skipping checks):
+   - THE NO-REGRESSION COVENANT: every board is a ratchet — suite count,
+     ProjectCheck pass count, LiveCheck 5/5, ParityCheck zero-tail,
+     FoodTruckCheck total rungs. None may decrease, tests are never
+     deleted/weakened to go green, and the closing gate always runs ALL
+     boards at full strength. Cost is cut by running them in parallel
+     from ONE build and by skipping only VERIFIED-UNCHANGED states.
+   - OPENING sweep: just run `ProjectCheck --all` — it SELF-CACHES
+     (fingerprints Sources/ + Package.swift into `.claude/last-verify.txt`;
+     unchanged sources return the recorded verdict in <1s; `--force`
+     re-sweeps). The cache can only ever cause an EXTRA sweep, never a
+     wrong skip.
+   - MID-iteration: targeted probes ONLY — `swift test --filter <Suite>`,
+     `ProjectCheck --project X`, single scenario. Never a full sweep to
+     answer a narrow question; the full sweep happens once, at the gate.
+   - CLOSING gate, exactly ONCE: `Scripts/gate.sh` — one build, then
+     suite + ProjectCheck + LiveCheck + ParityCheck in PARALLEL from
+     prebuilt binaries (~build + max(board) instead of their sum), red if
+     ANY board is red. Pass counts must strictly improve or hold with the
+     top class eliminated.
    - Long commands: give explicit timeouts (never a chained
      build+suite+corpus under the default 10m — it WILL be killed);
      build once, then invoke prebuilt binaries (.build/debug/…).
@@ -211,7 +282,9 @@ Each iteration does exactly this:
      the metric regresses, REVERT before continuing (never patch on a
      broken baseline). Cap a bisect at ~10 rebuild cycles per
      iteration — past that, commit a WIP checkpoint of findings to the
-     log and finish next iteration.
+     log and finish next iteration. Rebuilds dominate iteration cost:
+     batch related edits into one build; probe with `--filter` between
+     builds, not full suites.
 7. **Commit** with the failure class named in the message.
 8. **Update the Progress log below** (date, pass rate, what was fixed). Keep
    entries to one line.
@@ -357,6 +430,19 @@ Each iteration does exactly this:
   projects (2026-07-11) — M0-level host-API demand is fully served; a
   nonzero census after new corpus material is the signal to grow the
   sweep again.
+- `Scripts/gate.sh` — THE closing gate: one build, all boards parallel,
+  red if any board is red. Use it instead of serial gate commands.
+- `swift run FoodTruckCheck` — the PRIMARY TARGET's rung board (bootstrap
+  it on the first iteration under the FoodTruck directive; ladder spec in
+  the PRIMARY TARGET section).
+- `INTERP_APPSHELL_CENSUS=1 swift run ProjectCheck --all` — M4 sizing
+  (2026-07-11): 585/586 projects declare @main App shells; the static
+  root walk resolves 584 (selection is NOT the M4 work). The real M4
+  class: 15 projects seed ENVIRONMENT in the App body that fresh root
+  instantiation loses (6 via @StateObject on the App struct —
+  DeepLinkApp, Timer, TabBarSheet, PomodoroTimer…), 7 multi-scene
+  shells, 4 onOpenURL handlers. They pass M0 on synthesized stand-ins;
+  M4 = the App instance's own objects flow into the root's environment.
 
 ## Field notes (iteration-invariant facts — keep to ~12 lines)
 
@@ -376,7 +462,10 @@ Each iteration does exactly this:
 ## Mission ladder (functional parity with Xcode builds)
 
 The end state: any GitHub SwiftUI project launches and FULLY functions as
-if compiled in Xcode. Milestones, each with its measuring queue:
+if compiled in Xcode. **The PRIMARY TARGET section above (Food Truck) is
+the concrete embodiment — it exercises every rung of this ladder on one
+real Apple app and takes priority over the generic queues.** Milestones,
+each with its measuring queue:
 
 - **M0 Renders** — ProjectCheck (deep-render + clicks). [~97%: keep gated
   window raises as before]

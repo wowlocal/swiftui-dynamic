@@ -130,7 +130,13 @@ extension Interpreter {
         return try evaluate(expression, in: selfEnvironment(.instance(app)))
     }
 
-    private static let sceneContainers: Set<String> = ["WindowGroup", "Window", "DocumentGroup"]
+    private static let sceneContainers: Set<String> = [
+        "WindowGroup", "Window", "DocumentGroup",
+        // Menu-bar and settings apps: their FIRST scene is the primary UI
+        // (a MenuBarExtra-first app's launch surface IS the menu content) —
+        // the last opaque shell in the app-shell census.
+        "MenuBarExtra", "Settings",
+    ]
 
     /// The App's scene-builder call, following ONE level of indirection:
     /// `var body: some Scene { appScene; otherScenes }` references
