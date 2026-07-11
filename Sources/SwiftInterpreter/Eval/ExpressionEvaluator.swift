@@ -65,7 +65,7 @@ extension Interpreter {
             return .native(try array.elements.map { try evaluate($0.expression, in: env) })
         case .dictionaryExpr:
             let dict = expr.cast(DictionaryExprSyntax.self)
-            let value = DictValue()
+            var value = DictValue()
             if case .elements(let elements) = dict.content {
                 for element in elements {
                     try relocating(element) {
@@ -83,7 +83,8 @@ extension Interpreter {
                 return .implicitMember(member.declName.baseName.text)
             }
             let baseValue = try evaluate(base, in: env)
-            return try accessMember(member.declName.baseName.text, on: baseValue, node: member, env: env)
+            return try accessMember(
+                member.declName.baseName.text, on: baseValue, node: member, env: env)
         case .functionCallExpr:
             return try evaluateCall(expr.cast(FunctionCallExprSyntax.self), in: env)
         case .closureExpr:

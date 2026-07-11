@@ -269,7 +269,13 @@ extension Interpreter {
                 }
             }
         }
-        return ClosureValue(parameters: parameters, body: closure.statements, captured: env)
+        let value = ClosureValue(parameters: parameters, body: closure.statements, captured: env)
+        // A closure carries its declaration's lexical type even when a host
+        // bridge invokes it later from a different member context. Capturing
+        // only the value environment lets same-named nested types resolve in
+        // the eventual caller instead of where the closure was written.
+        value.lexicalOwner = lexicalOwnerFrames.last
+        return value
     }
 
     func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {

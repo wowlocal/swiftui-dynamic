@@ -155,6 +155,7 @@ extension Interpreter {
                 }
                 for (name, computed) in stranded.computedProperties
                 where symbol.computedProperties[name] == nil {
+                    if let id = computed.declarationID { declLexicalOwners[id] = symbol }
                     symbol.computedProperties[name] = computed
                 }
                 for (name, overloads) in stranded.staticMethods {
@@ -166,11 +167,15 @@ extension Interpreter {
                 }
                 for (name, computed) in stranded.staticComputedProperties
                 where symbol.staticComputedProperties[name] == nil {
+                    if let id = computed.declarationID { declLexicalOwners[id] = symbol }
                     symbol.staticComputedProperties[name] = computed
                 }
                 for (name, nested) in stranded.nestedTypes
                 where symbol.nestedTypes[name] == nil {
                     symbol.nestedTypes[name] = nested
+                }
+                for initializer in stranded.initializers {
+                    declLexicalOwners[initializer.id] = symbol
                 }
                 symbol.initializers.append(contentsOf: stranded.initializers)
                 hostExtensionSymbols[typeName] = nil
@@ -181,6 +186,7 @@ extension Interpreter {
                 }
                 for (name, computed) in stranded.computedProperties
                 where symbol.computedProperties[name] == nil {
+                    if let id = computed.declarationID { declLexicalOwners[id] = symbol }
                     symbol.computedProperties[name] = computed
                 }
                 for (name, overloads) in stranded.staticMethods {
@@ -192,11 +198,15 @@ extension Interpreter {
                 }
                 for (name, computed) in stranded.staticComputedProperties
                 where symbol.staticComputedProperties[name] == nil {
+                    if let id = computed.declarationID { declLexicalOwners[id] = symbol }
                     symbol.staticComputedProperties[name] = computed
                 }
                 for (name, nested) in stranded.nestedTypes
                 where symbol.nestedTypes[name] == nil {
                     symbol.nestedTypes[name] = nested
+                }
+                for initializer in stranded.initializers {
+                    declLexicalOwners[initializer.id] = symbol
                 }
                 symbol.initializers.append(contentsOf: stranded.initializers)
                 hostExtensionSymbols[typeName] = nil
@@ -394,6 +404,7 @@ extension Interpreter {
                     symbol.methods[funcDecl.name.text, default: []].append(funcDecl)
                 }
             } else if let initDecl = member.decl.as(InitializerDeclSyntax.self) {
+                declLexicalOwners[initDecl.id] = symbol
                 symbol.initializers.append(initDecl)
             } else if let deinitDecl = member.decl.as(DeinitializerDeclSyntax.self) {
                 symbol.deinitBody = deinitDecl.body
@@ -549,11 +560,14 @@ extension Interpreter {
             // whose observers run on assignment (see the write funnel).
             if let accessorBlock = binding.accessorBlock,
                let accessors = parseAccessors(of: accessorBlock) {
+                declLexicalOwners[binding.id] = symbol
                 let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
                 let computed = ComputedProperty(
                     accessor: accessors.getter,
                     isBuilder: hasBuilderAttribute || returnsView,
-                    setter: accessors.setter
+                    setter: accessors.setter,
+                    typeAnnotation: binding.typeAnnotation?.type,
+                    declarationID: binding.id
                 )
                 if isStaticDecl {
                     symbol.staticComputedProperties[name] = computed
@@ -655,15 +669,20 @@ extension Interpreter {
         }
         for (name, computed) in symbol.computedProperties
         where existing.computedProperties[name] == nil {
+            if let id = computed.declarationID { declLexicalOwners[id] = existing }
             existing.computedProperties[name] = computed
         }
         for (name, computed) in symbol.staticComputedProperties
         where existing.staticComputedProperties[name] == nil {
+            if let id = computed.declarationID { declLexicalOwners[id] = existing }
             existing.staticComputedProperties[name] = computed
         }
         for (name, nested) in symbol.nestedTypes
         where existing.nestedTypes[name] == nil {
             existing.nestedTypes[name] = nested
+        }
+        for initializer in symbol.initializers {
+            declLexicalOwners[initializer.id] = existing
         }
         existing.initializers.append(contentsOf: symbol.initializers)
         for conformance in symbol.conformances
@@ -732,6 +751,7 @@ extension Interpreter {
 
     private func collectEnumMember(_ decl: DeclSyntax, into symbol: EnumSymbol) throws {
         if let initDecl = decl.as(InitializerDeclSyntax.self) {
+            declLexicalOwners[initDecl.id] = symbol
             symbol.initializers.append(initDecl)
             return
         }
@@ -748,19 +768,24 @@ extension Interpreter {
                 let memberName = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
                 if let accessorBlock = binding.accessorBlock,
                    let accessors = parseAccessors(of: accessorBlock) {
+                    declLexicalOwners[binding.id] = symbol
                     let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
                     if isStaticDecl {
                         symbol.staticComputedProperties[memberName] = ComputedProperty(
                             accessor: accessors.getter,
                             isBuilder: hasBuilderAttribute || returnsView,
-                            setter: accessors.setter
+                            setter: accessors.setter,
+                            typeAnnotation: binding.typeAnnotation?.type,
+                            declarationID: binding.id
                         )
                         continue
                     }
                     symbol.computedProperties[memberName] = ComputedProperty(
                         accessor: accessors.getter,
                         isBuilder: hasBuilderAttribute || returnsView,
-                        setter: accessors.setter
+                        setter: accessors.setter,
+                        typeAnnotation: binding.typeAnnotation?.type,
+                        declarationID: binding.id
                     )
                 } else if isStaticDecl, let initializer = binding.initializer?.value {
                     symbol.staticProperties[memberName] = .init(

@@ -201,7 +201,7 @@ extension Interpreter {
     private func selfMember(_ name: String, on selfValue: RuntimeValue) throws -> RuntimeValue? {
         switch selfValue {
         case .instance(let instance):
-            return try instanceMember(name, on: instance)
+            return try instanceMember(name, on: instance, preferHostSuperclassProperty: true)
         case .enumCase(let value):
             return try enumCaseMember(name, on: value)
         case .type(let symbol):
@@ -231,7 +231,10 @@ extension Interpreter {
 
     /// Property → method → computed property → own nested types, or nil
     /// if the name is unknown.
-    func instanceMember(_ rawName: String, on instance: Instance) throws -> RuntimeValue? {
+    func instanceMember(
+        _ rawName: String, on instance: Instance,
+        preferHostSuperclassProperty: Bool = false
+    ) throws -> RuntimeValue? {
         // `self.$selectedTab` / `home.$path` — member-form projections
         // resolve exactly like bare `$name` (the TV-home genre passes
         // `self.$selectedTab` into a child's @Binding).
@@ -275,6 +278,23 @@ extension Interpreter {
                 return try evaluateComputed(
                     instance.symbol.computedProperties[name]!,
                     selfValue: .instance(instance), name: name)
+            }
+            // Host superclasses can contribute a property whose name is
+            // reused by an argument-taking subclass method
+            // (`NSWindowController.window` and delegate `window(_:)`). Bare
+            // access is the inherited property; call syntax is dispatched
+            // directly by CallEvaluator. Carry the unavailable property as
+            // an inert marker.
+            if preferHostSuperclassProperty,
+               let superName = instance.symbol.superclassName,
+               !isInterpretedType(superName),
+               overloads.allSatisfy({ method in
+                   method.signature.parameterClause.parameters.contains {
+                       $0.defaultValue == nil
+                   }
+               }) {
+                return .native(ChainedImplicitCall(
+                    base: .instance(instance), member: name, arguments: CallArguments()))
             }
             // Within an OVERLOAD SET the running declaration never re-enters
             // itself: `send(_:) -> StoreTask` delegates to its identically-
@@ -599,6 +619,12 @@ extension Interpreter {
         guard callDepth < callDepthLimit else {
             throw RuntimeError(message: "call depth exceeded evaluating '\(name)' (possible infinite recursion)", fatal: true)
         }
+        var pushedLexicalOwner = false
+        if let id = computed.declarationID, let owner = declLexicalOwners[id] {
+            lexicalOwnerFrames.append(owner)
+            pushedLexicalOwner = true
+        }
+        defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
         let env = selfEnvironment(selfValue)
         if computed.isBuilder {
             let views = try collectBuilderViews(computed.accessor, in: env)
@@ -606,7 +632,11 @@ extension Interpreter {
         }
         let result = try executeBlock(computed.accessor, in: env)
         switch result {
-        case .normal(let value), .returnValue(let value): return value
+        case .normal(let value), .returnValue(let value):
+            // Keep contextual markers lazy. Receiver operations that require
+            // the concrete type (notably user subscripts) resolve this value
+            // against the annotation at their dispatch boundary.
+            return value
         default: throw RuntimeError(message: "control flow escaped computed property '\(name)'")
         }
     }
@@ -692,7 +722,9 @@ extension Interpreter {
                     return .void
                 })
             }
-            if let value = try instanceMember(name, on: instance) {
+            if let value = try instanceMember(
+                name, on: instance, preferHostSuperclassProperty: true
+            ) {
                 // A nil STORED closure sharing a modifier's name
                 // (`.onSubmit { }` on a Representable declaring
                 // `var onSubmit: (() -> Void)?`): real overload resolution
@@ -946,7 +978,7 @@ extension Interpreter {
                             let parent = stub.box
                             let element = Box(tuple.values[index])
                             element.onChange = {
-                                guard let current = parent.value.tupleValue,
+                                guard var current = parent.value.tupleValue,
                                       current.values.indices.contains(index) else { return }
                                 current.values[index] = element.value
                                 parent.value = .native(current)

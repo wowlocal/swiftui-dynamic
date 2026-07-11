@@ -302,6 +302,9 @@ extension Interpreter {
             body: body.statements,
             captured: initEnv
         )
+        // Initializers have their declaration's lexical scope just like
+        // methods; otherwise a nested name can resolve in the caller's type.
+        closure.lexicalOwner = declLexicalOwners[chosen.id] ?? instance.symbol
         closure.debugName = "init:\(instance.symbol.name)"
         let outcome: RuntimeValue
         do {
@@ -427,6 +430,12 @@ extension Interpreter {
         guard let computed = bodyProperty(of: instance.symbol) else {
             throw RuntimeError(message: "'\(instance.symbol.name)' has no body property")
         }
+        var pushedLexicalOwner = false
+        if let id = computed.declarationID, let owner = declLexicalOwners[id] {
+            lexicalOwnerFrames.append(owner)
+            pushedLexicalOwner = true
+        }
+        defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
         let views = try collectBuilderViews(computed.accessor, in: selfEnvironment(.instance(instance)))
         return try groupViews(views)
     }
@@ -576,6 +585,11 @@ extension Interpreter {
     /// parameters) receive synthesized FRESH values — the fresh-state
     /// doctrine applied to view parameters.
     public func instantiateRoot(_ symbol: StructSymbol) throws -> RuntimeValue {
+        // This is an external evaluation entry point, just like callClosure
+        // and evaluateBody. A large merged library can legitimately consume
+        // most of run(source:)'s budget while initializing unrelated globals;
+        // root construction must receive its own bounded budget.
+        steps = 0
         var seen: Set<String> = [symbol.name]
         let args = try synthesizedArguments(for: symbol, seen: &seen)
         return try instantiate(symbol, with: args)

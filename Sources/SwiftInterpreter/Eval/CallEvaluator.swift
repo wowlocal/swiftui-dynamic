@@ -159,13 +159,20 @@ extension Interpreter {
                 return result
             }
             let baseValue = try evaluate(baseExpr, in: env)
-            // OVERLOADED methods pick by call shape ('func error(_: Error)'
-            // vs 'error(localized:args:)') — bare-name member access can't.
+            // Methods dispatch from call syntax, where labels disambiguate
+            // overloads and a host-superclass property can coexist with a
+            // same-named subclass method (`window` vs `window(_:)`).
             if case .instance(let instance) = baseValue,
                let overloads = instance.symbol.methods[name],
-               overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
+               shouldDirectlyDispatchInstanceCall(
+                   named: name, on: instance, overloads: overloads
+               ) {
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                // A single declaration may recurse legitimately. Running-
+                // body exclusion only disambiguates overload sets.
+                let available = overloads.count > 1
+                    ? overloads.filter { !activeFunctionBodies.contains($0.id) }
+                    : overloads
                 if available.isEmpty {
                     // Every overload is already running (send#StoreTask ↔
                     // send#Task mutual delegation): the device's return-type
@@ -319,9 +326,15 @@ extension Interpreter {
             }
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instance.symbol.methods[name],
-               overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
+               shouldDirectlyDispatchInstanceCall(
+                   named: name, on: instance, overloads: overloads
+               ) {
                 let args = try collectArguments(of: call, in: env)
-                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                // Preserve recursion for a unique method; only overload sets
+                // route around the currently executing declaration.
+                let available = overloads.count > 1
+                    ? overloads.filter { !activeFunctionBodies.contains($0.id) }
+                    : overloads
                 if available.isEmpty {
                     return .native(ChainedImplicitCall(
                         base: .instance(instance), member: name, arguments: args))
@@ -352,6 +365,28 @@ extension Interpreter {
         let callee = try evaluate(call.calledExpression, in: env)
         let args = try collectArguments(of: call, in: env)
         return try invoke(callee, with: args, node: call)
+    }
+
+    /// Direct call-site dispatch is only needed when bare member lookup is
+    /// ambiguous. Ordinary unique methods must stay on the normal lexical
+    /// path: eagerly selecting every same-named method can steal calls from
+    /// local/global declarations and can bypass constructor or subscript
+    /// resolution in large merged modules.
+    private func shouldDirectlyDispatchInstanceCall(
+        named name: String,
+        on instance: Instance,
+        overloads: [FunctionDeclSyntax]
+    ) -> Bool {
+        if overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
+            return true
+        }
+        guard let superclassName = instance.symbol.superclassName,
+              !isInterpretedType(superclassName) else { return false }
+        return overloads.allSatisfy { method in
+            method.signature.parameterClause.parameters.contains {
+                $0.defaultValue == nil
+            }
+        }
     }
 
     /// The value a retried modifier applies to: view values directly,
@@ -600,6 +635,12 @@ extension Interpreter {
                     return .native(TupleValue(
                         labels: ["inserted", "memberAfterInsert"],
                         values: [.bool(!present), value]))
+                }
+                if let contents = args.labeled("contentsOf")?.arrayValue,
+                   let index = args.labeled("at")?.intValue,
+                   index >= 0, index <= array.count {
+                    array.insert(contentsOf: try contents.map(resolved), at: index)
+                    break
                 }
                 guard let value = args.positional(0), let index = args.labeled("at")?.intValue,
                       index >= 0, index <= array.count else {

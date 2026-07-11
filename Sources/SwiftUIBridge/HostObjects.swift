@@ -305,7 +305,7 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             // Info.plist); unknowable URLs honestly fail (nil).
             if case .host(let any)? = args.labeled("contentsOf"), let url = any as? URL,
                let dict = NSDictionary(contentsOf: url) as? [String: Any] {
-                let out = DictValue()
+                var out = DictValue()
                 for (key, value) in dict {
                     if let text = value as? String { try? out.update(.native(key), to: .native(text)) }
                     else if let number = value as? Int { try? out.update(.native(key), to: .native(number)) }
@@ -1056,7 +1056,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                         .object(forInfoDictionaryKey: "CFBundleName") as? String ?? "InterpretedApp",
                 ]
                 if name == "infoDictionary" {
-                    let dict = DictValue()
+                    var dict = DictValue()
                     for (key, value) in versionKeys {
                         try? dict.update(.native(key), to: .native(value))
                     }

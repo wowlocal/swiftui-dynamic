@@ -17,11 +17,23 @@ public struct ComputedProperty {
     public let accessor: CodeBlockItemListSyntax
     public let isBuilder: Bool
     public let setter: Setter?
+    /// The declared result type supplies contextual type information to
+    /// implicit-member returns such as `var manager: Manager { .shared }`.
+    public let typeAnnotation: TypeSyntax?
+    /// The pattern binding identifies the declaration's nominal lexical
+    /// owner through Interpreter.declLexicalOwners without retaining it.
+    public let declarationID: SyntaxIdentifier?
 
-    public init(accessor: CodeBlockItemListSyntax, isBuilder: Bool, setter: Setter? = nil) {
+    public init(
+        accessor: CodeBlockItemListSyntax, isBuilder: Bool,
+        setter: Setter? = nil, typeAnnotation: TypeSyntax? = nil,
+        declarationID: SyntaxIdentifier? = nil
+    ) {
         self.accessor = accessor
         self.isBuilder = isBuilder
         self.setter = setter
+        self.typeAnnotation = typeAnnotation
+        self.declarationID = declarationID
     }
 }
 

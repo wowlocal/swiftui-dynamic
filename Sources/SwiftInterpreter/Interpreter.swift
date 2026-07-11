@@ -262,11 +262,23 @@ public final class Interpreter {
     /// `throw APIError.unexpectedResponse` inside `extension WebRepository`
     /// must not see the conforming test double's nested APIError).
     func lexicalNestedType(_ name: String, runtime: StructSymbol) -> RuntimeValue? {
-        guard let owner = lexicalOwnerFrames.last else {
+        guard !lexicalOwnerFrames.isEmpty else {
             return runtime.nestedTypes[name]
         }
-        if let symbol = owner as? StructSymbol { return symbol.nestedTypes[name] }
-        if let symbol = owner as? EnumSymbol { return symbol.nestedTypes[name] }
+        // Deferred builder closures can nest several declaration scopes
+        // (GeneralView → Container → Row). Search from the innermost scope
+        // outward; an inner type that has no such declaration must not erase
+        // the enclosing closure's nested type and fall through to globals.
+        for owner in lexicalOwnerFrames.reversed() {
+            if let symbol = owner as? StructSymbol,
+               let nested = symbol.nestedTypes[name] {
+                return nested
+            }
+            if let symbol = owner as? EnumSymbol,
+               let nested = symbol.nestedTypes[name] {
+                return nested
+            }
+        }
         return nil
     }
 

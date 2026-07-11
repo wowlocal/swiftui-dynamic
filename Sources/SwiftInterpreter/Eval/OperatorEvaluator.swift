@@ -228,7 +228,9 @@ extension Interpreter {
         case instanceProperty(Instance, String)
         case hostProperty(Any, String)
         case element(LValue, Int)
-        case dictElement(DictValue, RuntimeValue, fallback: RuntimeValue? = nil)
+        /// Dictionary writes are read-modify-write through their owning
+        /// lvalue, preserving value semantics and outer-container write-back.
+        case dictElement(LValue, RuntimeValue, fallback: RuntimeValue? = nil)
         /// `trigger.0 = …` / `pair.label = …` — writes mutate the tuple and
         /// re-write the base, so state boxes still notify.
         case tupleElement(LValue, Int)
@@ -287,7 +289,11 @@ extension Interpreter {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
                 return array[index]
-            case .dictElement(let dict, let key, let fallback):
+            case .dictElement(let base, let key, let fallback):
+                let current = try base.read(interpreter)
+                guard let dict = current.dictValue else {
+                    throw EvalMessage(text: "dictionary lvalue contains \(current.stringified), not a dictionary")
+                }
                 let found = try dict.lookup(key)
                 // `sales[key, default: 0] += v` — missing keys read the
                 // default before the mutation, exactly like native.
@@ -415,6 +421,9 @@ extension Interpreter {
                     stub.box.value = value
                     return
                 }
+                if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
+                    return // writes through unavailable host properties absorb
+                }
                 guard interpreter.registry?.hostSetMember(name, on: any, to: value) == true else {
                     throw EvalMessage(text: "cannot assign to '\(name)' on \(type(of: any))")
                 }
@@ -426,10 +435,15 @@ extension Interpreter {
                 }
                 array[index] = value
                 try base.write(.native(array), interpreter)
-            case .dictElement(let dict, let key, _):
+            case .dictElement(let base, let key, _):
+                let current = try base.read(interpreter)
+                guard var dict = current.dictValue else {
+                    throw EvalMessage(text: "dictionary lvalue contains \(current.stringified), not a dictionary")
+                }
                 try dict.update(key, to: value)
+                try base.write(.native(dict), interpreter)
             case .tupleElement(let base, let index):
-                guard let tuple = try base.read(interpreter).tupleValue,
+                guard var tuple = try base.read(interpreter).tupleValue,
                       tuple.values.indices.contains(index) else {
                     throw EvalMessage(text: "tuple element \(index) out of range")
                 }
@@ -887,18 +901,20 @@ extension Interpreter {
             guard let indexExpr = subscriptCall.arguments.first?.expression else {
                 throw error(subscriptCall, "missing subscript index")
             }
-            let baseValue = try? evaluate(subscriptCall.calledExpression, in: env)
+            let baseValue = try? evaluateContextualReceiver(
+                subscriptCall.calledExpression, in: env)
             if case .instance(let instance)? = baseValue, !instance.symbol.subscripts.isEmpty {
                 let indexArgs = CallArguments(arguments: try subscriptCall.arguments.map {
                     .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
                 })
                 return .instanceSubscript(instance, indexArgs)
             }
-            if let dict = baseValue?.dictValue {
+            if baseValue?.dictValue != nil {
                 let fallback = try subscriptCall.arguments
                     .first(where: { $0.label?.text == "default" })
                     .map { try evaluate($0.expression, in: env) }
-                return .dictElement(dict, try evaluate(indexExpr, in: env), fallback: fallback)
+                let base = try resolveLValue(subscriptCall.calledExpression, in: env)
+                return .dictElement(base, try evaluate(indexExpr, in: env), fallback: fallback)
             }
             // `element[keyPath: kp] = value` — keypath writes walk to the
             // last component's owner and assign the property.
@@ -968,10 +984,10 @@ extension Interpreter {
                 if current.isNil || isVoid || isMarker {
                     let dict = DictValue()
                     try base.write(.native(dict), self)
-                    return .dictElement(dict, indexValue, fallback: fallback)
+                    return .dictElement(base, indexValue, fallback: fallback)
                 }
-                if let dict = current.dictValue {
-                    return .dictElement(dict, indexValue, fallback: fallback)
+                if current.dictValue != nil {
+                    return .dictElement(base, indexValue, fallback: fallback)
                 }
                 throw error(subscriptCall, "subscript assignment requires an Int index")
             }

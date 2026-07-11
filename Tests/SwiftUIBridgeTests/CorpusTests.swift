@@ -1738,6 +1738,38 @@ enum Corpus {
         #expect(report.nodeCount >= 3)
     }
 
+    /// A host superclass property may share a base name with an interpreted
+    /// delegate method. Bare access selects the unavailable host property;
+    /// call syntax still dispatches the interpreted method by labels.
+    @Test func hostSuperclassPropertyMethodCollisionUsesCallContext() throws {
+        let source = """
+        class SupportWindowController: NSWindowController {
+            var callbackRan = false
+
+            func window(_ window: NSWindow, changed flag: Bool) {
+                callbackRan = flag
+            }
+
+            func exercise() -> Bool {
+                self.window?.isReleasedWhenClosed = true
+                window(NSWindow(), changed: true)
+                return callbackRan
+            }
+        }
+
+        struct ContentView: View {
+            var body: some View {
+                Button("Exercise") {
+                    precondition(SupportWindowController().exercise())
+                }
+            }
+        }
+        """
+
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.actionsInvoked == 1)
+    }
+
     /// METHOD OVERLOADS pick by call shape — the Log idiom where
     /// `error(localized:)` forwards to `error(_ msg:)` must not
     /// self-recurse through a last-wins method table.

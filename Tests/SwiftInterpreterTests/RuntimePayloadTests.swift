@@ -4,7 +4,7 @@ import Testing
 
 @Suite("Typed runtime storage")
 struct RuntimePayloadTests {
-    @Test func classifiesSwiftShapedValuesBeforeTheHostBoundary() {
+    @Test func classifiesSwiftShapedValuesBeforeTheHostBoundary() throws {
         let string = RuntimeValue.native("hello")
         if case .string("hello") = string {} else {
             Issue.record("String should use dedicated runtime storage")
@@ -30,12 +30,13 @@ struct RuntimePayloadTests {
         let dictionary = DictValue(keys: [.native("key")], values: [.native(7)])
         let dictionaryValue = RuntimeValue.native(dictionary)
         if case .dictionary(let value) = dictionaryValue {
-            #expect(value === dictionary)
+            #expect(value.count == dictionary.count)
+            #expect(try value.lookup(.native("key")).intValue == 7)
         } else {
             Issue.record("Dictionary should use dedicated runtime storage")
         }
         if case .dictionary(let value) = dictionaryValue.payload {
-            #expect(value === dictionary)
+            #expect(value.count == dictionary.count)
         } else {
             Issue.record("Dictionary should have a typed payload")
         }
@@ -43,12 +44,13 @@ struct RuntimePayloadTests {
         let tuple = TupleValue(labels: ["value"], values: [.native(3)])
         let tupleValue = RuntimeValue.native(tuple)
         if case .tuple(let value) = tupleValue {
-            #expect(value === tuple)
+            #expect(value.labels == tuple.labels)
+            #expect(value.values.first?.intValue == 3)
         } else {
             Issue.record("Tuple should use dedicated runtime storage")
         }
         if case .tuple(let value) = tupleValue.payload {
-            #expect(value === tuple)
+            #expect(value.labels == tuple.labels)
         } else {
             Issue.record("Tuple should have a typed payload")
         }

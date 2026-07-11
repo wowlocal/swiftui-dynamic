@@ -159,7 +159,7 @@ extension Interpreter {
             // `Dictionary(uniqueKeysWithValues:)` / `Dictionary(grouping:by:)`
             // — the FoodTruck summaries genre. Bare `Dictionary()` is empty.
             if let pairs = args.labeled("uniqueKeysWithValues")?.arrayValue {
-                let dict = DictValue()
+                var dict = DictValue()
                 for pair in pairs {
                     if let tuple = pair.tupleValue, tuple.values.count == 2 {
                         try dict.update(tuple.values[0], to: tuple.values[1])
@@ -169,7 +169,7 @@ extension Interpreter {
             }
             if let elements = args.labeled("grouping")?.arrayValue,
                let by = args.closure(labeled: "by") {
-                let dict = DictValue()
+                var dict = DictValue()
                 for element in elements {
                     let key = try ctx.callClosure(by, arguments: [element])
                     var bucket = (try dict.lookup(key)).arrayValue ?? []

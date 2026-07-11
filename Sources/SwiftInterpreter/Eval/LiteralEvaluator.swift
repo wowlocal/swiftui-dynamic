@@ -95,8 +95,69 @@ extension Interpreter {
         return keyAny
     }
 
+    /// A computed receiver can return an implicit static (`var manager:
+    /// Manager { .shared }`). Keep getters lazy in general, but resolve that
+    /// marker when an operation needs the receiver's declared semantics.
+    func evaluateContextualReceiver(
+        _ expression: ExprSyntax, in env: Environment
+    ) throws -> RuntimeValue {
+        let value: RuntimeValue
+        var annotation: TypeSyntax?
+
+        // Evaluate a member base exactly once. Re-evaluating it merely to
+        // discover the computed property's annotation would duplicate side
+        // effects in expressions such as `makeOwner().manager[token]`.
+        if let member = expression.as(MemberAccessExprSyntax.self),
+           let ownerExpression = member.base {
+            let owner = try evaluate(ownerExpression, in: env)
+            value = try accessMember(
+                member.declName.baseName.text, on: owner, node: member, env: env)
+            switch owner {
+            case .instance(let instance):
+                annotation = instance.symbol.computedProperties[
+                    member.declName.baseName.text]?.typeAnnotation
+            case .type(let symbol):
+                annotation = symbol.staticComputedProperties[
+                    member.declName.baseName.text]?.typeAnnotation
+            case .enumType(let symbol):
+                annotation = symbol.staticComputedProperties[
+                    member.declName.baseName.text]?.typeAnnotation
+            default:
+                break
+            }
+        } else {
+            value = try evaluate(expression, in: env)
+            if let reference = expression.as(DeclReferenceExprSyntax.self) {
+                switch env.lookup("self") {
+                case .instance(let instance)?:
+                    annotation = instance.symbol.computedProperties[
+                        reference.baseName.text]?.typeAnnotation
+                case .type(let symbol)?:
+                    annotation = symbol.staticComputedProperties[
+                        reference.baseName.text]?.typeAnnotation
+                case .enumType(let symbol)?:
+                    annotation = symbol.staticComputedProperties[
+                        reference.baseName.text]?.typeAnnotation
+                default:
+                    break
+                }
+            }
+        }
+
+        let unresolved: Bool = {
+            if case .implicitMember = value { return true }
+            if case .host(let any) = value {
+                return any is ImplicitMemberCall || any is ChainedImplicitCall
+            }
+            return false
+        }()
+        guard unresolved else { return value }
+        guard let annotation else { return value }
+        return try resolveAnnotated(value, annotation: annotation)
+    }
+
     func evaluateSubscript(_ call: SubscriptCallExprSyntax, in env: Environment) throws -> RuntimeValue {
-        let base = try evaluate(call.calledExpression, in: env)
+        let base = try evaluateContextualReceiver(call.calledExpression, in: env)
         if base.isNil { return .nilValue }
         guard let indexExpr = call.arguments.first?.expression else {
             throw error(call, "missing subscript index")

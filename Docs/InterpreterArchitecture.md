@@ -38,19 +38,25 @@ ranges in dedicated enum cases. `RuntimeValue.host(Any)` is the escape hatch
 for opaque framework or embedder objects such as `AnyView`, `Date`, and `URL`.
 `RuntimePayload` and the typed accessors form the stable dispatch surface, and
 `hostPayload` boxes a core value only when a host gateway explicitly asks for
-one.
+one. Arrays use Swift's copy-on-write storage; `TupleValue` and `DictValue` are
+value types, and collection lvalues perform read-modify-write through their
+owner so nested updates retain value semantics.
+
+Declaration bodies also retain lexical ownership independently of their
+runtime caller. Functions, initializers, computed properties, view bodies,
+and deferred closures push their declaring type onto an outward-searching
+scope stack. This keeps nested types deterministic when merged projects contain
+several private declarations with the same bare name.
 
 The remaining semantic migration is deliberately ordered:
 
-1. Convert tuple and dictionary storage from shared reference containers to
-   value-backed or copy-on-write storage.
-2. Separate value-backed interpreted structs from reference-backed classes and
+1. Separate value-backed interpreted structs from reference-backed classes and
    observable models.
-3. Enforce copy-in/copy-out semantics at assignment, argument, `inout`, return,
-   capture, and collection-mutation boundaries.
-4. Make evaluator suspension and cancellation explicit before adding real
+2. Extend copy-in/copy-out semantics to source structs, captures, and their
+   mutating-method boundaries.
+3. Make evaluator suspension and cancellation explicit before adding real
    concurrent task execution.
-5. Replace dynamically interpreted host calls with parsed, validated
+4. Replace dynamically interpreted host calls with parsed, validated
    signatures while retaining the injected `HostRegistry` boundary.
 
 New core code should not downcast `host(Any)` to a Swift-shaped value. Direct

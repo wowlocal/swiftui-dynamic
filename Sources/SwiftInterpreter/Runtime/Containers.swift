@@ -1,6 +1,6 @@
 /// A tuple value with optional element labels: `(x: 1, y: 2)` or `(1, "a")`.
 /// Members are accessed as `.0`/`.1` or by label.
-public final class TupleValue: CustomStringConvertible {
+public struct TupleValue: CustomStringConvertible {
     public let labels: [String?]
     public var values: [RuntimeValue]
 
@@ -23,9 +23,10 @@ public final class TupleValue: CustomStringConvertible {
     }
 }
 
-/// An order-preserving dictionary of RuntimeValues. Reference-backed (like all
-/// interpreted containers that need in-place mutation through `subscript =`).
-public final class DictValue: CustomStringConvertible {
+/// An order-preserving dictionary of RuntimeValues. The struct storage gives
+/// assignments native value semantics; dictionary lvalues use explicit
+/// read-modify-write so nested mutations propagate to their owning box.
+public struct DictValue: CustomStringConvertible {
     public private(set) var keys: [RuntimeValue] = []
     public private(set) var values: [RuntimeValue] = []
 
@@ -46,7 +47,7 @@ public final class DictValue: CustomStringConvertible {
         return .nilValue
     }
 
-    public func update(_ key: RuntimeValue, to value: RuntimeValue) throws {
+    public mutating func update(_ key: RuntimeValue, to value: RuntimeValue) throws {
         for (index, existing) in keys.enumerated() where try Builtins.areEqual(existing, key) {
             if value.isNil {
                 keys.remove(at: index)

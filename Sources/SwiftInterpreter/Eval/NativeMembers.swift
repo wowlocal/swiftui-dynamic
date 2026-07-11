@@ -439,8 +439,9 @@ extension Interpreter {
             })
         case "reduce":
             return .hostFunction(HostFunction(name: name) { args, ctx in
-                // `reduce(into: [:]) { acc, el in … }` — the accumulator is
-                // reference-backed (DictValue) so mutations stick.
+                // `reduce(into: [:]) { acc, el in … }` — pass a real inout
+                // box so value-backed accumulators copy in and out just like
+                // the standard library implementation.
                 if var into = args.labeled("into") {
                     // A marker seed (`reduce(into: .empty)`) resolves against
                     // the ambient expected type — the enclosing return
@@ -451,10 +452,12 @@ extension Interpreter {
                         into = try interpreter.resolveAnnotated(into, typeName: hint)
                     }
                     let closure = try Self.requiredClosure(args, name)
+                    let accumulator = Box(into)
                     for element in array {
-                        _ = try ctx.callClosure(closure, arguments: [into, element])
+                        let slot = InoutSlot(box: accumulator, target: nil, current: accumulator.value)
+                        _ = try ctx.callClosure(closure, arguments: [.native(slot), element])
                     }
-                    return into
+                    return accumulator.value
                 }
                 guard let initial = args.positional(0) else {
                     throw RuntimeError(message: "reduce needs an initial value")
