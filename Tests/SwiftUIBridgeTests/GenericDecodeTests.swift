@@ -1358,6 +1358,34 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct SortedUsingComparatorTests {
+    // FoodTruck's OrdersView: `.sorted(using: [KeyPathComparator(\\.status,
+    // order: .reverse)])` over Comparable enums (SE-0266: declaration
+    // order) and navigationTitle chrome counting as rendered content.
+    // Native run (scratch swiftc): first=3 last=2 less=true.
+    @Test func keyPathComparatorSort() throws {
+        let source = """
+        enum Status: Int, Codable, Comparable {
+            case placed, preparing, ready, completed
+        }
+        struct Order2 {
+            let id: Int
+            let status: Status
+        }
+        let orders = [Order2(id: 1, status: .ready), Order2(id: 2, status: .placed), Order2(id: 3, status: .completed)]
+        let sorted = orders.sorted(using: [KeyPathComparator(\\Order2.status, order: .reverse)])
+        let first = sorted.first?.id ?? -1
+        let last = sorted.last?.id ?? -1
+        let less = Status.placed < Status.ready
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("first")?.stringified == "3")
+        #expect(interpreter.globals.lookup("last")?.stringified == "2")
+        #expect(interpreter.globals.lookup("less")?.stringified == "true")
+    }
+}
+
 @Suite struct DictionaryPipelineTests {
     // FoodTruck's order-summary pipeline: Dictionary(uniqueKeysWithValues:)
     // and (grouping:by:) construct real dictionaries, for-in yields

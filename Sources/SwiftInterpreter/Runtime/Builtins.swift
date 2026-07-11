@@ -661,6 +661,16 @@ public enum Builtins {
         if case .host(let any) = lhs, let date = any as? Date, let n = rhs.doubleValue {
             return try compare(op, .native(date.timeIntervalSince1970), .native(n))
         }
+        // Same-enum cases compare by DECLARATION ORDER — SE-0266's
+        // synthesized Comparable (payload-less cases; OrderStatus's
+        // placed < preparing < ready < completed).
+        if case .enumCase(let l) = lhs, case .enumCase(let r) = rhs,
+           l.symbol === r.symbol || l.symbol.name == r.symbol.name,
+           l.associated.isEmpty, r.associated.isEmpty,
+           let leftIndex = l.symbol.cases.firstIndex(where: { $0.name == l.name }),
+           let rightIndex = r.symbol.cases.firstIndex(where: { $0.name == r.name }) {
+            return try compare(op, .native(leftIndex), .native(rightIndex))
+        }
         // Tuples compare LEXICOGRAPHICALLY — the version-triple idiom
         // (`(lhs.major, lhs.minor, lhs.patch) < (rhs.major, …)`).
         if let l = lhs.tupleValue, let r = rhs.tupleValue, l.values.count == r.values.count {

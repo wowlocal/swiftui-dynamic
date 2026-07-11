@@ -429,6 +429,12 @@ public final class TraceRegistry: HostRegistry {
                     }
                 }
             }
+            // Title chrome IS rendered content natively (the navigation
+            // bar shows it) — surface it to the strings collector.
+            if ["navigationTitle", "navigationBarTitle"].contains(name),
+               let title = args.positional(0)?.stringValue {
+                node.args.append(title)
+            }
             let argText = args.arguments
                 .map { ($0.label.map { "\($0): " } ?? "") + $0.value.stringified }
                 .joined(separator: ", ")

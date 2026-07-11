@@ -1003,3 +1003,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   4267:35; topFive renders 18 strings sans title). orders (`<` on
   Order) and city (`max` ctor shadow) unchanged, queued. **GATE
   GREEN: suite 527; corpus 678/680; live 5/5; parity 345/0/0.**
+- 2026-07-11 iter 231 (FoodTruck ladder): THREE RUNGS FLIPPED — 4/9 →
+  7/9 (truck, orders, topFive ✅). Class: OrdersView's `.sorted(using:
+  [KeyPathComparator(\.status, order: .reverse)])` — the comparator
+  ctor absorbed (positional key path dropped) and sorted fell back to
+  raw `<` on Order. Fixed, all native-verified via scratch swiftc and
+  pinned by SortedUsingComparatorTests: (1) KeyPathComparator/
+  SortDescriptor builtins → KeyPathComparatorBox (key path +
+  direction); (2) `sorted(using:)` applies comparators via
+  applyKeyPath, earlier comparators win ties, reverse honored,
+  unknowable comparators keep input order; (3) same-enum payload-less
+  cases compare by DECLARATION ORDER (SE-0266 synthesized
+  Comparable). Plus: navigationTitle/navigationBarTitle strings
+  surface to the strings collector — title chrome IS rendered content
+  natively (flipped truck + topFive markers alongside orders' 74-
+  string table). Remaining: salesHistory (dict-of-summaries member
+  at 4267:35), city (`max` ctor shadow). **GATE GREEN: suite 528;
+  corpus 678/680; live 5/5; parity 345/0/0.**

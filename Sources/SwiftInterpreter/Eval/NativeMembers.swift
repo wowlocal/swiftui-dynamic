@@ -441,6 +441,39 @@ extension Interpreter {
             })
         case "sorted":
             return .hostFunction(HostFunction(name: name) { args, ctx in
+                if let usingValue = args.labeled("using") {
+                    // `sorted(using: [KeyPathComparator(...)])` — key-path
+                    // values compare per comparator, earlier comparators win.
+                    var comparators: [KeyPathComparatorBox] = []
+                    if let list = usingValue.arrayValue {
+                        for entry in list {
+                            if case .host(let a) = entry, let box = a as? KeyPathComparatorBox {
+                                comparators.append(box)
+                            }
+                        }
+                    } else if case .host(let a) = usingValue, let box = a as? KeyPathComparatorBox {
+                        comparators.append(box)
+                    }
+                    guard !comparators.isEmpty, let interpreter = ctx as? Interpreter else {
+                        return .native(array) // unknowable comparator: input order
+                    }
+                    var failure: Error?
+                    let out = array.sorted { a, b in
+                        if failure != nil { return false }
+                        do {
+                            for comparator in comparators {
+                                let left = try interpreter.applyKeyPath(comparator.keyPath, to: a)
+                                let right = try interpreter.applyKeyPath(comparator.keyPath, to: b)
+                                if try Builtins.areEqual(left, right) { continue }
+                                let less = try interpreter.evaluateBinary("<", left, right).boolValue == true
+                                return comparator.ascending ? less : !less
+                            }
+                            return false
+                        } catch { failure = error; return false }
+                    }
+                    if let failure { throw failure }
+                    return .native(out)
+                }
                 if let call = try? Self.requiredCallable(args, name) {
                     var failure: Error?
                     let out = array.sorted { a, b in

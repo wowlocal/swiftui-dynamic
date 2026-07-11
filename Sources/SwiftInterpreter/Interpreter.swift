@@ -1815,6 +1815,22 @@ public final class Interpreter {
             }
             return .native(DictValue())
         }
+        for comparatorName in ["KeyPathComparator", "SortDescriptor"] {
+            define(comparatorName) { args, _ in
+                // `KeyPathComparator(\Order.status, order: .reverse)` — the
+                // sorted(using:) carrier. Unknowable key paths still build a
+                // comparator (identity order downstream).
+                var stub = KeyPathStub(components: ["self"])
+                if case .host(let any)? = args.positional(0), let real = any as? KeyPathStub {
+                    stub = real
+                }
+                var ascending = true
+                if case .implicitMember(let order)? = args.labeled("order"), order == "reverse" {
+                    ascending = false
+                }
+                return .native(KeyPathComparatorBox(keyPath: stub, ascending: ascending))
+            }
+        }
         define("Int") { args, _ in
             guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
             if let i = value.intValue { return .native(i) }

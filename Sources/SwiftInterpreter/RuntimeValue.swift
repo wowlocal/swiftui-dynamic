@@ -298,6 +298,18 @@ public struct KeyPathStub {
     }
 }
 
+/// `KeyPathComparator(\Order.status, order: .reverse)` / `SortDescriptor`:
+/// a key path + direction, applied by `sorted(using:)`.
+public struct KeyPathComparatorBox {
+    public let keyPath: KeyPathStub
+    public let ascending: Bool
+
+    public init(keyPath: KeyPathStub, ascending: Bool) {
+        self.keyPath = keyPath
+        self.ascending = ascending
+    }
+}
+
 /// An uppercase identifier that resolved to no known type or constructor —
 /// assumed to be a host type used for static access (`Color.red`,
 /// `UIScreen.main`). Member access on it yields an implicit member; calling
