@@ -12,6 +12,15 @@ extension Interpreter {
             Swift.print(args.arguments.map { $0.value.stringValue ?? $0.value.stringified }.joined(separator: " "))
             return .void
         }
+        define("Task") { args, context in
+            if let body = args.firstUnlabeledClosure ?? args.closure(labeled: "operation") {
+                return try context.spawnBackgroundTask(body, arguments: [])
+            }
+            if let hostValue = try context.invokeHostConstructor(named: "Task", arguments: args) {
+                return hostValue
+            }
+            throw RuntimeError(message: "Task needs an operation closure")
+        }
         define("abs") { args, _ in
             guard let value = args.positional(0) else { throw RuntimeError(message: "abs needs a number") }
             if let i = value.intValue { return .native(Swift.abs(i)) }

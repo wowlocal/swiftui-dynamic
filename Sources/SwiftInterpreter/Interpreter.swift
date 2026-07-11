@@ -122,6 +122,13 @@ public final class Interpreter {
     let callDepthLimit = 200
     var evaluationDepth = 0
     var resolveAnnotatedDepth = 0
+    /// `runAsync` schedules source `Task {}` bodies on real Swift tasks. The
+    /// synchronous entry point retains deterministic inline execution until
+    /// the evaluator migration is complete.
+    var asyncSessionDepth = 0
+    var synchronousTaskDepth = 0
+    var scheduledTasks: [RuntimeTaskHandle] = []
+    let scheduledTaskLimit = 1_024
     /// Host-extension method frames currently executing (recursion guard:
     /// re-entrant same-name dispatch prefers the registry gateway).
     var activeExtensionFrames: Set<ExtensionFrame> = []

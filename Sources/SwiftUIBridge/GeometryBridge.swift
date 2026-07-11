@@ -943,6 +943,7 @@ func bridgeHostMutatedCopy(settingMember name: String, on value: Any, to newValu
 /// (`extension Cancellable { func store(in:) }`) dispatch through these.
 func bridgeHostProtocolCandidates(of value: Any) -> [String] {
     switch value {
+    case is RuntimeTaskHandle: return ["Task", "Cancellable"]
     case is AnyCancellableBox: return ["AnyCancellable", "Cancellable"]
     case is PassthroughSubjectBox: return ["PassthroughSubject", "Publisher"]
     case let stub as UIKitStub: return stub.roles
@@ -952,6 +953,7 @@ func bridgeHostProtocolCandidates(of value: Any) -> [String] {
 
 func bridgeHostTypeName(of value: Any) -> String? {
     switch value {
+    case is RuntimeTaskHandle: return "Task"
     case is AppStub: return "UIApplication"
     case is ResultBox: return "Result"
     case is CurrentValueSubjectBox: return "CurrentValueSubject"

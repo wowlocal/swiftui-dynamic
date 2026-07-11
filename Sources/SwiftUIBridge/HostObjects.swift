@@ -27,32 +27,6 @@ final class NumberFormatterBox {
     let formatter = NumberFormatter()
 }
 
-/// Executes interpreted `Task { ... }` bodies for the real registry. The
-/// interpreter's async model is synchronous, but a bounded background slice
-/// preserves the important behavior: UI callbacks actually run their work,
-/// while recursive task scheduling cannot lock the host app.
-@MainActor
-private enum InterpretedTaskRunner {
-    static var activeContexts: Set<ObjectIdentifier> = []
-
-    static func run(_ args: CallArguments, in context: EvalContext) throws {
-        guard let body = args.firstUnlabeledClosure ?? args.closure(labeled: "operation") else {
-            return
-        }
-        let identity = ObjectIdentifier(context)
-        guard !activeContexts.contains(identity) else { return }
-        activeContexts.insert(identity)
-        defer { activeContexts.remove(identity) }
-        do {
-            _ = try context.callBackgroundClosure(body, arguments: [])
-        } catch let error as RuntimeError where !error.fatal {
-            if LiveCheckSupport.traceLifecycle {
-                print("   ⚠ task body died: \(error)")
-            }
-        }
-    }
-}
-
 /// The interpreted face of `ProcessInfo.processInfo`. `extraEnvironment`
 /// lets the TEST HARNESS present the native test environment
 /// (XCTestConfigurationFilePath is set under real XCTest runs, and apps
@@ -116,12 +90,14 @@ public final class GraphicsRendererBox {
 }
 
 func interpretedTaskConstructor(named name: String) -> HostFunction? {
-    guard name == "Task" || name == "MainActor" else { return nil }
+    // Task itself is a SwiftInterpreter core builtin. MainActor remains a
+    // host execution-context stand-in until actor isolation is modeled.
+    guard name == "MainActor" else { return nil }
     return HostFunction(name: name) { args, context in
-        try InterpretedTaskRunner.run(args, in: context)
-        // The handle plays Task + Cancellable so `task.store(in: cancelBag)`
-        // (extension Task: Cancellable) dispatches user extensions.
-        return .native(UIKitStub(roles: ["Task", "Cancellable"]))
+        if let body = args.firstUnlabeledClosure ?? args.closure(labeled: "operation") {
+            _ = try context.callBackgroundClosure(body, arguments: [])
+        }
+        return .native(UIKitStub(roles: ["MainActor"]))
     }
 }
 

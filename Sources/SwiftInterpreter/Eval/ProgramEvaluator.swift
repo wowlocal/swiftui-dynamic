@@ -4,6 +4,72 @@ import SwiftSyntax
 extension Interpreter {
     // MARK: - Running programs
 
+    /// Evaluate a program in an async session. Source `Task {}` bodies are
+    /// scheduled as real Swift tasks and this call waits for the complete
+    /// task tree, including child tasks spawned by interpreted task bodies.
+    ///
+    /// Expression evaluation is still single-actor and deterministic; the
+    /// suspension boundary here is task creation. Async host-call propagation
+    /// is the next migration layer.
+    @discardableResult
+    public func runAsync(
+        source: String, lazyTopLevelGlobals: Bool = false
+    ) async throws -> RuntimeValue {
+        try Task.checkCancellation()
+        let firstTask = scheduledTasks.count
+        asyncSessionDepth += 1
+        defer { asyncSessionDepth -= 1 }
+
+        let result: RuntimeValue
+        do {
+            result = try run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+        } catch {
+            cancelScheduledTasks(startingAt: firstTask)
+            await waitForScheduledTasks(startingAt: firstTask)
+            discardScheduledTasks(startingAt: firstTask)
+            throw error
+        }
+
+        do {
+            var index = firstTask
+            // Task bodies may enqueue children. Reading count on every pass
+            // makes this a structured session even though source Task handles
+            // remain unstructured values.
+            while index < scheduledTasks.count {
+                try Task.checkCancellation()
+                await scheduledTasks[index].wait()
+                index += 1
+            }
+            try Task.checkCancellation()
+        } catch {
+            cancelScheduledTasks(startingAt: firstTask)
+            await waitForScheduledTasks(startingAt: firstTask)
+            discardScheduledTasks(startingAt: firstTask)
+            throw error
+        }
+        discardScheduledTasks(startingAt: firstTask)
+        return result
+    }
+
+    private func cancelScheduledTasks(startingAt index: Int) {
+        guard index < scheduledTasks.count else { return }
+        for handle in scheduledTasks[index...] { handle.cancel() }
+    }
+
+    private func waitForScheduledTasks(startingAt index: Int) async {
+        guard index < scheduledTasks.count else { return }
+        var current = index
+        while current < scheduledTasks.count {
+            await scheduledTasks[current].wait()
+            current += 1
+        }
+    }
+
+    private func discardScheduledTasks(startingAt index: Int) {
+        guard index < scheduledTasks.count else { return }
+        scheduledTasks.removeSubrange(index...)
+    }
+
     /// Parse and run a whole program: type/function declarations are hoisted,
     /// then top-level statements execute in order. Returns the value of the
     /// last top-level expression (handy for tests and for `ContentView()` as

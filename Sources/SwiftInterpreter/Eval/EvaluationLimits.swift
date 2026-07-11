@@ -11,6 +11,9 @@ extension Interpreter {
     }
 
     func tick(_ node: some SyntaxProtocol) throws {
+        if Task.isCancelled {
+            throw CancellationError()
+        }
         steps += 1
         if steps > stepBudget {
             let located = error(node, "evaluation budget exceeded (possible infinite loop)")

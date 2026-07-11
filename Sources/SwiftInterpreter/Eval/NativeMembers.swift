@@ -41,6 +41,27 @@ extension Interpreter {
     /// This is the compatibility path for opaque framework values. Swift-shaped
     /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
+        if let handle = any as? RuntimeTaskHandle {
+            switch name {
+            case "cancel":
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    handle.cancel()
+                    return .void
+                })
+            case "isCancelled":
+                return .native(handle.isCancelled)
+            case "isCompleted":
+                return .native(handle.isCompleted)
+            case "state":
+                return .native(handle.state.rawValue)
+            case "value", "result":
+                return handle.result ?? .void
+            case "failureDescription":
+                return handle.failureDescription.map(RuntimeValue.native) ?? .nilValue
+            default:
+                return nil
+            }
+        }
         if let array = any as? [RuntimeValue] {
             return try arrayMember(name, array)
         }

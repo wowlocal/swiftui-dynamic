@@ -466,6 +466,10 @@ extension Interpreter {
             names.append("NSColor")
         }
         if any is BindingStub { names.append("Binding") }
+        if any is RuntimeTaskHandle {
+            names.append("Task")
+            names.append("Cancellable")
+        }
         if any is DictValue { names.append("Dictionary") }
         if any is Data { names.append("Data") }
         if any is URL { names.append("URL") }
@@ -847,6 +851,19 @@ extension Interpreter {
         case .hostFunction(let function):
             if name == "init" {
                 return baseValue // `NSNumber.init(value:)` ≡ `NSNumber(value:)`
+            }
+            if function.name == "Task" {
+                switch name {
+                case "isCancelled":
+                    return .native(Task.isCancelled)
+                case "checkCancellation":
+                    return .hostFunction(HostFunction(name: name) { _, _ in
+                        try Task.checkCancellation()
+                        return .void
+                    })
+                default:
+                    break
+                }
             }
             // Host TYPE names (Color, UIScreen, …) resolve to constructor
             // functions. The bridge may serve real statics (UIScreen.main);

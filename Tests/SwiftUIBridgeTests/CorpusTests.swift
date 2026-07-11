@@ -1770,6 +1770,25 @@ enum Corpus {
         #expect(report.actionsInvoked == 1)
     }
 
+    /// A generated/imported model may legitimately be named `Task`. The
+    /// concurrency builtin owns operation-closure calls only; constructor
+    /// shapes such as Core Data's `Task(context:)` stay on the host boundary.
+    @Test func concurrencyTaskDefersNonClosureCallsToHostTaskTypes() throws {
+        let source = """
+        struct ContentView: View {
+            var body: some View {
+                Button("Create") {
+                    let task = Task(context: ModelContext())
+                    task.title = "created"
+                }
+            }
+        }
+        """
+
+        let report = try HeadlessVerifier.verify(source: source, lazyTopLevelGlobals: true)
+        #expect(report.actionsInvoked == 1)
+    }
+
     /// METHOD OVERLOADS pick by call shape — the Log idiom where
     /// `error(localized:)` forwards to `error(_ msg:)` must not
     /// self-recurse through a last-wins method table.

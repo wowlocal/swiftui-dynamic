@@ -7,6 +7,73 @@ extension Interpreter: EvalContext {
         return try callWithArguments(closure, args: args, node: nil)
     }
 
+    public func spawnBackgroundTask(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        let handle = RuntimeTaskHandle()
+        let arguments = arguments
+
+        // Existing synchronous clients cannot suspend to await child work.
+        // Preserve their deterministic contract while returning the same
+        // observable handle used by async sessions.
+        guard asyncSessionDepth > 0 else {
+            // Compatibility runs historically execute one task body inline
+            // but suppress recursively-created tasks. Without this guard,
+            // each nested body resets its background slice and can evade the
+            // evaluator budget indefinitely.
+            guard synchronousTaskDepth == 0 else {
+                handle.succeed(with: .void)
+                return .native(handle)
+            }
+            synchronousTaskDepth += 1
+            defer { synchronousTaskDepth -= 1 }
+            do {
+                let value = try callBackgroundClosure(closure, arguments: arguments)
+                handle.succeed(with: value)
+            } catch is CancellationError {
+                handle.cancel()
+                throw CancellationError()
+            } catch let error as RuntimeError where !error.fatal {
+                handle.fail(with: error)
+            }
+            return .native(handle)
+        }
+
+        guard scheduledTasks.count < scheduledTaskLimit else {
+            throw RuntimeError(
+                message: "interpreted task limit exceeded", fatal: true)
+        }
+
+        let task = Task { @MainActor [weak self, weak handle] in
+            // A newly-created Task never runs inline with its constructor.
+            await Task.yield()
+            guard let self, let handle else { return }
+            guard !Task.isCancelled, handle.begin() else {
+                handle.cancel()
+                return
+            }
+            do {
+                let value = try self.callBackgroundClosure(closure, arguments: arguments)
+                try Task.checkCancellation()
+                handle.succeed(with: value)
+            } catch is CancellationError {
+                handle.cancel()
+            } catch {
+                handle.fail(with: error)
+            }
+        }
+        handle.attach(task)
+        scheduledTasks.append(handle)
+        return .native(handle)
+    }
+
+    public func invokeHostConstructor(
+        named name: String, arguments: CallArguments
+    ) throws -> RuntimeValue? {
+        guard let constructor = registry?.constructor(named: name) else { return nil }
+        return try constructor.invoke(arguments, self)
+    }
+
     /// Background work (`Task { … }` bodies). On device these run
     /// concurrently, so an INTENTIONALLY infinite loop (`while true {
     /// poll(); try? await Task.sleep }`) is legitimate there — it suspends

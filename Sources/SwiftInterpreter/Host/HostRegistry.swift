@@ -95,6 +95,14 @@ public struct HostModifier {
 /// mode (container content).
 public protocol EvalContext: AnyObject {
     func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
+    /// Create an interpreted Task. Async interpreter sessions schedule it on
+    /// a real Swift task; synchronous compatibility sessions execute it
+    /// deterministically before returning.
+    func spawnBackgroundTask(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
+    /// Let a core builtin with a colliding Swift name defer non-builtin call
+    /// shapes to the injected host type (`Task(context:)` for a generated
+    /// Core Data entity versus concurrency `Task {}`).
+    func invokeHostConstructor(named name: String, arguments: CallArguments) throws -> RuntimeValue?
     /// Task-body semantics: runs on a bounded slice, parks (returns quietly)
     /// on slice exhaustion, and never charges the caller's step budget.
     func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue

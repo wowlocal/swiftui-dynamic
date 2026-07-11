@@ -48,14 +48,28 @@ and deferred closures push their declaring type onto an outward-searching
 scope stack. This keeps nested types deterministic when merged projects contain
 several private declarations with the same bare name.
 
+## Async execution migration
+
+`runAsync` is the async session entry point. Source `Task {}` bodies become
+real Swift main-actor tasks, never run inline with their constructor, and the
+session waits for the complete descendant-task tree. `RuntimeTaskHandle`
+exposes pending/running/succeeded/cancelled/failed state and drives real task
+cancellation. The evaluator checks native cancellation at every budget tick,
+so cancellation cannot be swallowed by interpreted `do`/`catch`.
+
+The synchronous `run` entry point deliberately keeps inline task execution for
+existing render and embedding clients. Await expressions and host calls are
+still synchronous inside either session; propagating suspension through those
+evaluator and registry boundaries is the next migration step.
+
 The remaining semantic migration is deliberately ordered:
 
 1. Separate value-backed interpreted structs from reference-backed classes and
    observable models.
 2. Extend copy-in/copy-out semantics to source structs, captures, and their
    mutating-method boundaries.
-3. Make evaluator suspension and cancellation explicit before adding real
-   concurrent task execution.
+3. Propagate suspension through awaited expressions and host calls; task
+   creation, lifecycle, and cancellation are already explicit.
 4. Replace dynamically interpreted host calls with parsed, validated
    signatures while retaining the injected `HostRegistry` boundary.
 
