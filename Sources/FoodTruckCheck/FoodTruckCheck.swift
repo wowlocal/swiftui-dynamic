@@ -33,6 +33,9 @@ struct FoodTruckCheckMain {
         let sampleRoot = FileManager.default.currentDirectoryPath
             + "/Examples/FoodTruckBuildingASwiftUIMultiplatformApp"
 
+        LiveCheckSupport.traceLifecycle =
+            ProcessInfo.processInfo.environment["LIVECHECK_TRACE"] != nil
+
         var screenFilter: String?
         var iterator = CommandLine.arguments.dropFirst().makeIterator()
         while let argument = iterator.next() {
@@ -129,6 +132,9 @@ struct FoodTruckCheckMain {
                 }
                 """
                 let strings = try LiveCheckSupport.renderedStrings(source: probeMergeBase + probe)
+                if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                    print("   strings(\(screen.name)): \(strings)")
+                }
                 var problems: [String] = []
                 for marker in screen.markers where !strings.contains(where: { $0.contains(marker) }) {
                     problems.append("missing \"\(marker)\" (rendered \(strings.count) strings)")

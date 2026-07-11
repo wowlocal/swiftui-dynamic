@@ -1358,6 +1358,24 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct LocalizedStringInitTests {
+    // FoodTruck's donut/city names: `String(localized:bundle:comment:)` —
+    // no catalogs load headlessly, so the KEY is the development-language
+    // value (identical to an unlocalized native run).
+    @Test func localizedInitYieldsKey() throws {
+        let source = """
+        import Foundation
+
+        let name = String(localized: "The Classic", bundle: .module, comment: "A donut-flavor name.")
+        let bare = String(localized: "Blueberry Frosted")
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("name")?.stringified == "The Classic")
+        #expect(interpreter.globals.lookup("bare")?.stringified == "Blueberry Frosted")
+    }
+}
+
 @Suite struct ArrayIndexArithmeticTests {
     // MakeItSo's computeOrder genre: Collection index arithmetic on the
     // Int-indexed array model — index(after:)/index(before:)/

@@ -964,3 +964,22 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (sort over Comparable Order) throws; (3) `max(...)` shadowed by a
   non-ctor in city (6464:32); (4) truck renders 1 string (mostly
   absorbed). Suite 525 green (instrument-only change).
+- 2026-07-11 iter 229 (FoodTruck ladder): biggest histogram class —
+  String(localized:bundle:comment:) returned EMPTY (every donut/city
+  name blank). The String builtin had no `localized:` arm, so the
+  all-labeled call fell to the positional fallback and yielded "".
+  Fixed: the KEY is the development-language value, exactly what an
+  unlocalized native run surfaces. Pin: LocalizedStringInitTests.
+  CLASS ELIMINATED — names now populate everywhere (Order dumps show
+  real donut/city/parking names). Rungs hold 3/9: the donuts marker
+  now bottoms out in a DIFFERENT root, precisely staked via direct
+  probes — DonutGalleryGrid renders donut names standalone, but
+  `model.donuts(sortedBy: .popularity(.month))` returns EMPTY: the
+  combinedOrderSummary → Dictionary.sales → `.sorted($0.value/$0.key)`
+  pipeline collapses (next class; also behind topFive/salesHistory
+  and adjacent to orders' `<` comparator). Harness gained
+  FTCHECK_TRACE strings dump + LIVECHECK_TRACE wiring. gate.sh
+  corpus board fixed: grep the ═══ summary (tail -1 grabbed the
+  histogram's e.g. line) + ledger floor 678/680 (Widgets + Mythic
+  documented; ratchets up only). **GATE GREEN: suite 526; corpus
+  678/680 (ledgered, cached); live 5/5; parity 345/0/0.**

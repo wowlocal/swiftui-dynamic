@@ -1779,6 +1779,14 @@ public final class Interpreter {
                 let value = args.labeled("cString") ?? args.labeled("validatingUTF8")
                 return .native(value?.stringValue ?? "")
             }
+            if let key = args.labeled("localized") {
+                // `String(localized: "The Classic", bundle: .module,
+                // comment: …)` — no string catalogs load headlessly, so the
+                // KEY is the development-language value, exactly what an
+                // unlocalized native run surfaces (FoodTruck's donut/city
+                // names ride this).
+                return .native(key.stringValue ?? key.stringified)
+            }
             guard let value = args.positional(0) ?? args.labeled("describing") else { return .native("") }
             return .native(value.stringValue ?? value.stringified)
         }

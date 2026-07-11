@@ -20,7 +20,7 @@ out=$(mktemp -d)
 echo "── boards (parallel) ──"
 ( swift test --skip-build 2>&1 | tail -1 > "$out/suite" ) &
 suite_pid=$!
-( .build/debug/ProjectCheck --all 2>/dev/null | tail -1 > "$out/corpus" ) &
+( .build/debug/ProjectCheck --all 2>/dev/null | grep "═══" | tail -1 > "$out/corpus" ) &
 corpus_pid=$!
 ( .build/debug/LiveCheck 2>/dev/null | tail -1 > "$out/live" ) &
 live_pid=$!
@@ -35,7 +35,12 @@ for board in suite corpus live parity; do
     echo "$board: $line"
     case "$board:$line" in
         suite:*" passed"*) ;;
-        corpus:*"projects pass"*) ;;
+        corpus:*"projects pass"*)
+            # Ledger floor (LOOP.md TestCheck Ledger): Widgets + Mythic are
+            # documented native-real failures — 678/680 is the baseline,
+            # ratchets UP only.
+            passed=$(echo "$line" | sed -E 's/.*═══ ([0-9]+)\/680.*/\1/')
+            [ "${passed:-0}" -ge 678 ] || red=1 ;;
         live:*"scenarios pass"*) ;;
         parity:*"0 diverge / 0 interp-error"*) ;;
         *) red=1 ;;
