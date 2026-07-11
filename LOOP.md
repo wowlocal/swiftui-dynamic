@@ -357,6 +357,14 @@ Each iteration does exactly this:
   projects (2026-07-11) — M0-level host-API demand is fully served; a
   nonzero census after new corpus material is the signal to grow the
   sweep again.
+- `INTERP_APPSHELL_CENSUS=1 swift run ProjectCheck --all` — M4 sizing
+  (2026-07-11): 585/586 projects declare @main App shells; the static
+  root walk resolves 584 (selection is NOT the M4 work). The real M4
+  class: 15 projects seed ENVIRONMENT in the App body that fresh root
+  instantiation loses (6 via @StateObject on the App struct —
+  DeepLinkApp, Timer, TabBarSheet, PomodoroTimer…), 7 multi-scene
+  shells, 4 onOpenURL handlers. They pass M0 on synthesized stand-ins;
+  M4 = the App instance's own objects flow into the root's environment.
 
 ## Field notes (iteration-invariant facts — keep to ~12 lines)
 
