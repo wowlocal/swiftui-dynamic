@@ -353,7 +353,10 @@ Each iteration does exactly this:
   a non-callable or nil property at a call site retries the methods-only
   generated table (registry hostMethod hook).
 - `INTERP_ABSORB_CENSUS=1 swift run ProjectCheck --all` — corpus-wide
-  absorbed-member demand curve.
+  absorbed-member demand curve. Current: ZERO absorptions across 586
+  projects (2026-07-11) — M0-level host-API demand is fully served; a
+  nonzero census after new corpus material is the signal to grow the
+  sweep again.
 
 ## Field notes (iteration-invariant facts — keep to ~12 lines)
 
