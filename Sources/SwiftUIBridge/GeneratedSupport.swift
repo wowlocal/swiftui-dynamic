@@ -282,12 +282,23 @@ enum GeneratedMembers {
         if let getter = properties[key] {
             return getter(value)
         }
-        if let set = methods[key] {
-            return .hostFunction(HostFunction(name: name) { args, ctx in
-                try GeneratedDispatch.member(name: name, overloads: set, base: value, args: args, ctx: ctx)
-            })
+        return method(name, on: value, unwrapCarrier: false)
+    }
+
+    /// Methods-only lookup for CALL-site collision rescue: the property
+    /// `url.query` already answered the access, but the call shape names
+    /// `query(percentEncoded:)` — native overload resolution picks the
+    /// method, so the rescue asks this table directly.
+    static func method(_ name: String, on value: Any, unwrapCarrier: Bool = true) -> RuntimeValue? {
+        if unwrapCarrier, let carrier = value as? GeneratedMemberCarrier,
+           let unwrapped = method(name, on: carrier.generatedMemberValue) {
+            return unwrapped
         }
-        return nil
+        let key = "\(type(of: value)).\(name)"
+        guard let set = methods[key] else { return nil }
+        return .hostFunction(HostFunction(name: name) { args, ctx in
+            try GeneratedDispatch.member(name: name, overloads: set, base: value, args: args, ctx: ctx)
+        })
     }
 }
 

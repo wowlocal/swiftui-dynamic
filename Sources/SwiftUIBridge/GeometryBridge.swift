@@ -730,6 +730,10 @@ extension ViewRegistry {
         bridgeHostMember(name, on: value)
     }
 
+    public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
+        GeneratedMembers.method(name, on: value)
+    }
+
     public func hostTypeName(of value: Any) -> String? {
         bridgeHostTypeName(of: value)
     }

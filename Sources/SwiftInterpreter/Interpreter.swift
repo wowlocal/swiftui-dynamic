@@ -1763,7 +1763,14 @@ public final class Interpreter {
             // optimistic everywhere in the interpreter).
             args.positional(0) ?? .void
         }
-        define("UUID") { _, _ in .native(UUID()) }
+        define("UUID") { args, _ in
+            // Real UUID semantics: uuidString parses (invalid → nil),
+            // the argless form is a fresh random UUID.
+            if let s = args.labeled("uuidString")?.stringValue {
+                return UUID(uuidString: s).map { RuntimeValue.native($0) } ?? .nilValue
+            }
+            return .native(UUID())
+        }
         define("URL") { args, _ in
             // Real URL semantics: invalid strings are honestly nil.
             if let s = (args.labeled("string") ?? args.positional(0))?.stringValue {

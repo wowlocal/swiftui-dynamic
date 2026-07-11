@@ -1646,6 +1646,15 @@ extension Interpreter {
             }
             let callee = try accessMember(name, on: baseValue, node: member, env: env)
             let args = try collectArguments(of: call, in: env)
+            // A nil PROPERTY at a call site never throws (nil-call absorbs),
+            // so the collision rescue below can't fire — pre-check it. The
+            // property `timeZone.nextDaylightSavingTimeTransition` is
+            // honestly nil (a zone with no future DST), but the call shape
+            // names the METHOD form (after:), which answers for real.
+            if case .nilValue = callee, let any = baseValue.hostPayload,
+               let method = registry?.hostMethod(name, on: any) {
+                return try invoke(method, with: args, node: call)
+            }
             do {
                 return try invoke(callee, with: args, node: call)
             } catch let bindingError as RuntimeError
@@ -1669,6 +1678,15 @@ extension Interpreter {
                             method, body: body, captured: selfEnvironment(.instance(instance)))
                         return try invoke(.closure(closure), with: args, node: call)
                     }
+                }
+                // The SAME collision on a HOST value: the generated table's
+                // property answered the access (`url.query` → "x=1&y=2"),
+                // but the call shape names the METHOD
+                // (`query(percentEncoded:)`) — re-dispatch through the
+                // methods-only table, as native overload resolution would.
+                if let any = baseValue.hostPayload,
+                   let method = registry?.hostMethod(name, on: any) {
+                    return try invoke(method, with: args, node: call)
                 }
                 // A user extension OR a same-named PROPERTY can shadow a
                 // built-in modifier (`extension View { func offset(

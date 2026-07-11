@@ -142,6 +142,11 @@ public protocol HostRegistry: AnyObject {
     /// Value-type member writes (`size.width = 300`): return the MUTATED
     /// COPY, or nil when the member isn't writable this way.
     func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any?
+    /// CALL-site rescue for property/method name collisions on host values:
+    /// `url.query` (property) shadowed `query(percentEncoded:)` — when the
+    /// property's value turns out not to be callable, this asks for the
+    /// METHOD by name, as native overload resolution would have picked.
+    func hostMethod(_ name: String, on value: Any) -> RuntimeValue?
 }
 
 extension HostRegistry {
@@ -149,6 +154,7 @@ extension HostRegistry {
     public func hostTypeName(of value: Any) -> String? { nil }
     public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
+    public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? { nil }
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool { false }
     public func hostObjectConstructor(named name: String) -> HostFunction? { nil }
