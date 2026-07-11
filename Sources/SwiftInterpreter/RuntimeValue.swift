@@ -206,6 +206,13 @@ public struct PublishedProjection: InertCallable {
 /// (`vc.present(alert, animated: true)` on a UIKit hosting stub).
 public protocol InertCallable {}
 
+/// Host values that stand for enum cases (the bridge's Result carrier):
+/// pattern matching and bare-case comparisons read this shape.
+public protocol CaseShaped {
+    var caseName: String { get }
+    var casePayloads: [RuntimeValue] { get }
+}
+
 /// `/AppAction.milestone` — the CasePaths/TCA case-path prefix operator.
 /// The path itself is inert: whatever consumes it (reducer scoping,
 /// pullbacks) is external framework machinery that absorbs markers.

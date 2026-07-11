@@ -161,13 +161,25 @@ public enum ValueOutcome {
     case failure(RuntimeValue)
 }
 
-/// `Result(catching:)` — success/failure carried for `.publisher` and
-/// pattern access.
-public final class ResultBox {
+/// `Result(catching:)` / `.success(x)` / `.failure(e)` — success/failure
+/// carried for `.publisher`, `.get()`, and pattern access.
+public final class ResultBox: CaseShaped {
     let outcome: ValueOutcome
 
     init(_ outcome: ValueOutcome) {
         self.outcome = outcome
+    }
+
+    public var caseName: String {
+        if case .success = outcome { return "success" }
+        return "failure"
+    }
+
+    public var casePayloads: [RuntimeValue] {
+        switch outcome {
+        case .success(let value): return [value]
+        case .failure(let error): return [error]
+        }
     }
 }
 
@@ -584,10 +596,22 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         return valuePublisherMember(name, on: box)
     }
     if let result = value as? ResultBox {
-        if name == "publisher" {
+        switch name {
+        case "publisher":
             return .native(ValuePublisherBox(result.outcome))
+        case "get":
+            // `try result.get()` — the failure throws the app's OWN error
+            // value (clean-architecture's mocks: `responses.removeFirst()
+            // .get()`).
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                switch result.outcome {
+                case .success(let value): return value
+                case .failure(let error): throw InterpretedThrow(value: error)
+                }
+            })
+        default:
+            return nil
         }
-        return nil
     }
     if let recorder = value as? URLProtocolClientRecorder {
         return urlProtocolClientMember(name, on: recorder)

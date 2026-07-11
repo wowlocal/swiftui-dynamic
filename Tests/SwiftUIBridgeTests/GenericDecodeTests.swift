@@ -1387,3 +1387,209 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(instance.box(for: "fired")?.value.stringified == "true")
     }
 }
+
+@Suite struct GenericCallDecodeTests {
+    // clean-architecture's WebRepository.call<Value: Decodable>: the
+    // decode runs INSIDE the generic body (`decoder.decode(Value.self,
+    // from: data)`) — natively Value pins from the CALLER's typed let.
+    @Test func typedLetPinsGenericDecode() throws {
+        let source = """
+        struct CountryDetails: Codable, Equatable {
+            let capital: String
+        }
+        enum APIError: Swift.Error {
+            case unexpectedResponse
+        }
+        struct Repo {
+            func call<Value>(json: String) throws -> Value where Value: Decodable {
+                let decoder = JSONDecoder()
+                let data = json.data(using: .utf8)!
+                do {
+                    return try decoder.decode(Value.self, from: data)
+                } catch {
+                    throw APIError.unexpectedResponse
+                }
+            }
+            func details() throws -> CountryDetails {
+                let response: [CountryDetails] = try call(json: #"[{"capital": "London"}]"#)
+                guard let details = response.first else {
+                    throw APIError.unexpectedResponse
+                }
+                return details
+            }
+            func emptyDetails() throws -> CountryDetails {
+                let response: [CountryDetails] = try call(json: "[]")
+                guard let details = response.first else {
+                    throw APIError.unexpectedResponse
+                }
+                return details
+            }
+        }
+        let repo = Repo()
+        let capital = (try? repo.details())?.capital ?? "NONE"
+        var threw = false
+        do {
+            _ = try repo.emptyDetails()
+        } catch {
+            threw = true
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("capital")?.stringified == "London")
+        #expect(interpreter.globals.lookup("threw")?.stringified == "true")
+    }
+}
+
+@Suite struct AsyncGenericCallDecodeTests {
+    // The REAL shape: async throws, TWO generic params (Decoder defaulted
+    // to JSONDecoder()), the caller pinning Value through `try await`.
+    @Test func awaitWrappedTypedLetPinsGenericDecode() throws {
+        let source = """
+        struct CountryDetails: Codable, Equatable {
+            let capital: String
+        }
+        enum APIError: Swift.Error {
+            case unexpectedResponse
+        }
+        protocol WebRepositoryProto {}
+        extension WebRepositoryProto {
+            func call<Value, Decoder>(
+                json: String,
+                decoder: Decoder = JSONDecoder()
+            ) async throws -> Value
+            where Value: Decodable, Decoder: TopLevelDecoder, Decoder.Input == Data {
+                let data = json.data(using: .utf8)!
+                do {
+                    return try decoder.decode(Value.self, from: data)
+                } catch {
+                    throw APIError.unexpectedResponse
+                }
+            }
+        }
+        struct Repo: WebRepositoryProto {
+            func details() async throws -> CountryDetails {
+                let response: [CountryDetails] = try await call(json: #"[{"capital": "London"}]"#)
+                guard let details = response.first else {
+                    throw APIError.unexpectedResponse
+                }
+                return details
+            }
+            func emptyDetails() async throws -> CountryDetails {
+                let response: [CountryDetails] = try await call(json: "[]")
+                guard let details = response.first else {
+                    throw APIError.unexpectedResponse
+                }
+                return details
+            }
+        }
+        let repo = Repo()
+        var capital = "NONE"
+        var threw = false
+        Task {
+            capital = (try? await repo.details())?.capital ?? "NONE"
+            do {
+                _ = try await repo.emptyDetails()
+            } catch {
+                threw = true
+            }
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("capital")?.stringified == "London")
+        #expect(interpreter.globals.lookup("threw")?.stringified == "true")
+    }
+}
+
+@Suite struct InheritedInitializerTests {
+    // The test-suite subclass pattern: `@Suite class Base { init() {…} }`
+    // + `final class CaseTests: Base` — a class with NO initializers
+    // inherits its superclass's designated init (self = the subclass).
+    @Test func subclassRunsInheritedDesignatedInit() throws {
+        let source = """
+        class MockRepo {
+            var responses: [String] = []
+        }
+        class BaseTests {
+            let mock: MockRepo
+            let label: String
+            init() {
+                mock = MockRepo()
+                mock.responses = ["seeded"]
+                label = "ready"
+            }
+        }
+        final class CaseTests: BaseTests {
+            func probe() -> String {
+                label + ":" + (mock.responses.first ?? "empty")
+            }
+        }
+        let probed = CaseTests().probe()
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("probed")?.stringified == "ready:seeded")
+    }
+}
+
+@Suite struct ResultValueSemanticsTests {
+    // clean-architecture's mock plumbing: `[Result<T, Error>]` arrays of
+    // implicit `.success`/`.failure`, drained by `removeFirst().get()`,
+    // matched by `case .success` patterns. Void success (`.success(())`)
+    // rides too.
+    @Test func annotatedResultsGetAndMatch() throws {
+        let source = """
+        struct Item: Equatable {
+            let name: String
+        }
+        enum MockError: Swift.Error {
+            case valueNotSet
+        }
+        final class MockStore {
+            var responses: [Result<[Item], Error>] = []
+            var storeResults: [Result<Void, Error>] = []
+            func fetch() throws -> [Item] {
+                guard !responses.isEmpty else { throw MockError.valueNotSet }
+                return try responses.removeFirst().get()
+            }
+            func store() throws {
+                guard !storeResults.isEmpty else { throw MockError.valueNotSet }
+                try storeResults.removeFirst().get()
+            }
+        }
+        struct TestError: Swift.Error, Equatable {
+            let code: Int
+        }
+        let store = MockStore()
+        store.responses = [.success([Item(name: "a")]), .failure(TestError(code: 7))]
+        store.storeResults = [.success(())]
+        let first = (try? store.fetch())?.first?.name ?? "NONE"
+        var caught = TestError(code: 0)
+        do {
+            _ = try store.fetch()
+        } catch let error as TestError {
+            caught = error
+        } catch {}
+        var stored = false
+        do {
+            try store.store()
+            stored = true
+        } catch {}
+        let describedResult: Result<[Item], Error> = .success([Item(name: "b")])
+        var matched = "none"
+        switch describedResult {
+        case let .success(items):
+            matched = items.first?.name ?? "empty"
+        case .failure:
+            matched = "failure"
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("first")?.stringified == "a")
+        #expect(interpreter.globals.lookup("caught")?.stringified.contains("7") == true)
+        #expect(interpreter.globals.lookup("stored")?.stringified == "true")
+        #expect(interpreter.globals.lookup("matched")?.stringified == "b")
+    }
+}

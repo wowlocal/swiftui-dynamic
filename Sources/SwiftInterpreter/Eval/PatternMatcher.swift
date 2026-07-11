@@ -423,6 +423,9 @@ extension Interpreter {
         if case .host(let any) = subject, let call = any as? ImplicitMemberCall {
             return (call.name, call.arguments.arguments.map(\.value))
         }
+        if case .host(let any) = subject, let shaped = any as? CaseShaped {
+            return (shaped.caseName, shaped.casePayloads)
+        }
         return nil
     }
 }

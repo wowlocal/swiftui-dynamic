@@ -370,6 +370,14 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 throw RuntimeError(message: "Double.random(in:) needs a numeric range")
             })
+        case ("Result", "success"), ("Result", "failure"):
+            // Annotation-typed implicit members (`: Result<T, Error> =
+            // .success(x)`, mock response arrays) construct the carrier.
+            let isSuccess = name == "success"
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let payload = args.positional(0) ?? .void
+                return .native(ResultBox(isSuccess ? .success(payload) : .failure(payload)))
+            })
         case ("Color", _), ("UIColor", _), ("NSColor", _):
             // Asset-catalog accessors (SwiftGen's `Color.haPrimary`) are
             // build-time generated — no source can ever declare them, so a
@@ -843,6 +851,7 @@ func bridgeHostMutatedCopy(settingMember name: String, on value: Any, to newValu
 func bridgeHostTypeName(of value: Any) -> String? {
     switch value {
     case is AppStub: return "UIApplication"
+    case is ResultBox: return "Result"
     case is BundleBox: return "Bundle"
     case is WindowStub: return "UIWindow"
     case is WindowSceneStub: return "UIWindowScene"

@@ -657,9 +657,28 @@ public final class Interpreter {
         // inits don't suppress the memberwise init (SeparatorHStack's
         // closure-taking convenience delegates to the synthesized
         // value-taking form).
-        let available = symbol.initializers.filter { !activeInitializers.contains($0.id) }
+        // Swift init INHERITANCE: a class that declares no initializers
+        // inherits its superclass's designated inits (the test-suite
+        // subclass pattern: `@Suite class Base { init() { sut = … } }` +
+        // `final class CaseTests: Base` — instantiating the subclass runs
+        // the base init with self = the subclass instance).
+        var effectiveInitializers = symbol.initializers
+        if effectiveInitializers.isEmpty {
+            var parentName = symbol.superclassName
+            var walked: Set<ObjectIdentifier> = []
+            while let name = parentName,
+                  case .type(let parent)? = globals.lookup(name),
+                  walked.insert(ObjectIdentifier(parent)).inserted {
+                if !parent.initializers.isEmpty {
+                    effectiveInitializers = parent.initializers
+                    break
+                }
+                parentName = parent.superclassName
+            }
+        }
+        let available = effectiveInitializers.filter { !activeInitializers.contains($0.id) }
         let strictChoice = chooseInitializerStrict(from: available, for: args)
-        var memberwise = symbol.initializers.isEmpty
+        var memberwise = effectiveInitializers.isEmpty
         if !memberwise, strictChoice == nil {
             let propertyNames = Set(inheritedStoredProperties(of: symbol).map(\.name))
             let labels = args.arguments.compactMap(\.label)
@@ -762,7 +781,7 @@ public final class Interpreter {
                 throw RuntimeError(message: message)
             }
             return try runInitializer(
-                strictChoice ?? chooseInitializer(from: symbol.initializers, for: args),
+                strictChoice ?? chooseInitializer(from: effectiveInitializers, for: args),
                 on: instance, args: args, node: node)
         }
         return .instance(instance)
@@ -1398,6 +1417,14 @@ public final class Interpreter {
         if case .implicitMember(let memberName) = value,
            let member = registry?.hostMember(memberName, on: HostTypeMarker(name: typeName)) {
             return member
+        }
+        // `.success(x)` against a host-typed annotation (`Result<T, Error>`):
+        // the marker's static FUNCTION constructs the value (the bridge's
+        // Result carrier; head-only names — generics dropped above).
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+           case .hostFunction(let factory)? =
+               registry?.hostMember(call.name, on: HostTypeMarker(name: typeName)) {
+            return try factory.invoke(call.arguments, self)
         }
         // `.now.startOfMonth` — chained markers resolve their base against
         // the type, then the member (host natives and user extensions both).

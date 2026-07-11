@@ -437,3 +437,30 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   strictly improved. Top open class stays clean-architecture's 6×
   did-not-throw (now transport-unblocked: the remaining wall is the
   generic `decoder.decode(Value.self)` + interactor plumbing).**
+- 2026-07-11 iter 209: TestCheck's top class (6× did-not-throw,
+  clean-architecture) ELIMINATED — two general fixes. (1) CLASS INIT
+  INHERITANCE, the decisive one: a class declaring no initializers now
+  inherits its nearest interpreted ancestor's designated inits, run
+  with self = the subclass instance (the test-suite pattern
+  `@Suite class Base { init() { sut = … } }` + `final class CaseTests:
+  Base` left every inherited stored property VOID — `sut.refresh()`
+  absorbed instead of throwing; InheritedInitializerTests). (2) RESULT
+  AS A VALUE: implicit `.success(x)`/`.failure(e)` against Result-
+  annotated storage construct the ResultBox carrier (incl. void
+  `.success(())`) via marker statics + a resolveAnnotated path that
+  invokes marker FACTORY functions; `try result.get()` throws the
+  app's own error (InterpretedThrow); patterns match through a new
+  core CaseShaped protocol (PatternMatcher reads host case shapes);
+  thrown NSErrors compare with expectations (isEqual);
+  hostTypeName(ResultBox) = "Result" so app extensions dispatch
+  (ResultValueSemanticsTests). Distilled-but-passing scaffolds kept as
+  pins: GenericCallDecodeTests/AsyncGenericCallDecodeTests (typed-let
+  pins Value through `try await call()` — the machinery already
+  worked; the real wall was the void sut). clean-architecture
+  38 → 48 passed / 30 → 20 failed within the suite. QUEUE:
+  resetBridgeEnvironment does NOT clear MainQueueDrain
+  pending/delayedPending — delayed actions leak across verifications
+  (determinism + the prime suspect for the doubled ProjectCheck wall
+  time; fix + profile next iteration). **679/680; suite 483 green
+  (+4 suites); LiveCheck 5/5; TestCheck 82→92 passed / 50→40 failed —
+  top class eliminated.**

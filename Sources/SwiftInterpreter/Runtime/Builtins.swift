@@ -421,10 +421,15 @@ public enum Builtins {
             return lk.components == rk.components
         }
         // Real Foundation values compare for real (URL mock gates match
-        // request URLs against recorded ones).
+        // request URLs against recorded ones; thrown NSErrors compare with
+        // their expectations).
         if case .host(let l) = lhs, let lu = l as? URL,
            case .host(let r) = rhs, let ru = r as? URL {
             return lu == ru
+        }
+        if case .host(let l) = lhs, let le = l as? NSError,
+           case .host(let r) = rhs, let re = r as? NSError {
+            return le.isEqual(re)
         }
         if lhs.isNil || rhs.isNil { return lhs.isNil && rhs.isNil }
         // Chained markers compare by their final member name — honestly
