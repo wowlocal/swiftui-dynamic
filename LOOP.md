@@ -217,7 +217,11 @@ Each iteration does exactly this:
      broken baseline). Cap a bisect at ~10 rebuild cycles per
      iteration — past that, commit a WIP checkpoint of findings to the
      log and finish next iteration.
-7. **Commit** with the failure class named in the message.
+7. **Commit** with the failure class named in the message. The commit
+   command IS this two-step line — run it exactly (the second half arms
+   step 6's opening-sweep skip; it has been skipped every iteration
+   since 2026-07-11 and costs a full corpus sweep each time):
+   `git commit -F /tmp/commit-msg.txt && git rev-parse HEAD > .claude/last-verify.txt`
 8. **Update the Progress log below** (date, pass rate, what was fixed). Keep
    entries to one line.
 9. If ProjectCheck passes everything in the current window: raise `--limit`
@@ -342,8 +346,13 @@ Each iteration does exactly this:
   swept, 115 method variants). Two growth axes, both cheap: (a) new TYPE →
   memberTypes + seed in parityPrelude/seedReceivers; (b) new PARAM TAG →
   memberMapping (BridgeGen) + ParamTag/coerce (GeneratedSupport) +
-  probeArgument — the blocker histogram in BridgeGen's output is the
-  queue (top remaining: throws/async 24, void-mutating 20, generics 13).
+  probeArgument. SATURATION VERDICT (2026-07-11, verified with
+  `BRIDGEGEN_DUMP_BLOCKED=1 swift run BridgeGen`): the remaining blocker
+  histogram for the current 17 types is ALL plumbing — encode(to:)/
+  hash(into:) protocol machinery, rethrows-closure shapes, inout/pointer
+  params, filesystem-volatile URL methods, opaque-Sequence iterators.
+  Do NOT chase those counts; growth is NEW TYPES (absorb census names
+  demand) or the JIT-thunk tier (chartered separately).
   Every finding ParityCheck reports is a real interpreter gap (missing
   constructor; alias mismatch — Decimal prints NSDecimal, see
   GeneratedMembers.keyTypeName). Hand-box members must NEVER shadow swept
