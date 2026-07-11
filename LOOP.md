@@ -447,6 +447,12 @@ Each iteration does exactly this:
   classes in the first diff: String(format:) unapplied ("Order#121%02d"),
   detail-column layout collapse (dot column vs card grid). Sidebar with
   real model data (panels + Cities) already renders.
+- R2 DETERMINISM (probed 2026-07-11 16:0x, twin run-to-run): 7 of 8
+  screens are AE=0 stable — content, truck, donuts, orders and all
+  leaf cards can ratchet straight to AE=0, no frozen-clock machinery
+  needed. ONLY socialfeed drifts (0.183%) — its content is randomized
+  upstream; find its seed or give that one screen a documented fuzz
+  floor (never widen it to other screens).
 - `Scripts/foodtruck-r2.sh` — the R2 BOARD: captures both sides and
   prints per-screen AE. Convention: twin → /tmp/foodtruck-twin/<id>.png,
   interp → /tmp/foodtruck-interp/<id>.png; matching ids get diffed.
