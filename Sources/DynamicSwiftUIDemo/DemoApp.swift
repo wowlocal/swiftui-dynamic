@@ -142,6 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let window = NSWindow(contentRect: hosting.frame, styleMask: .borderless, backing: .buffered, defer: false)
             window.appearance = NSAppearance(named: .aqua)
             window.contentView = hosting
+            window.orderFrontRegardless()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             hosting.layoutSubtreeIfNeeded()
             window.displayIfNeeded()
             guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {

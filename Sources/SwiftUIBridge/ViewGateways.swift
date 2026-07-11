@@ -147,6 +147,28 @@ extension ViewRegistry {
             return .native(AnyView(Form { Self.indexed(content) }))
         }
 
+        constructors["Grid"] = HostFunction(name: "Grid") { args, ctx in
+            let alignment = try args.labeled("alignment").map(Coerce.alignment) ?? .center
+            let horizontalSpacing = try args.labeled("horizontalSpacing").map(Coerce.cgFloat)
+            let verticalSpacing = try args.labeled("verticalSpacing").map(Coerce.cgFloat)
+            let content = try Self.builderContent(args, ctx)
+            return .native(AnyView(Grid(
+                alignment: alignment,
+                horizontalSpacing: horizontalSpacing,
+                verticalSpacing: verticalSpacing
+            ) {
+                Self.indexed(content)
+            }))
+        }
+
+        constructors["GridRow"] = HostFunction(name: "GridRow") { args, ctx in
+            let alignment = try args.labeled("alignment").map(Coerce.verticalAlignment)
+            let content = try Self.builderContent(args, ctx)
+            return .native(AnyView(GridRow(alignment: alignment) {
+                Self.indexed(content)
+            }))
+        }
+
         constructors["Section"] = HostFunction(name: "Section") { args, ctx in
             let content = try Self.builderContent(args, ctx)
             var header: AnyView?
@@ -215,7 +237,33 @@ extension ViewRegistry {
         constructors["NavigationStack"] = navigationStack
         constructors["NavigationView"] = navigationStack // old samples
 
+        constructors["NavigationSplitView"] = HostFunction(name: "NavigationSplitView") { args, ctx in
+            guard let sidebarClosure = args.closure(labeled: "sidebar") ?? args.firstUnlabeledClosure else {
+                throw RuntimeError(message: "NavigationSplitView needs sidebar content")
+            }
+            guard let detailClosure = args.closure(labeled: "detail") else {
+                throw RuntimeError(message: "NavigationSplitView needs detail content")
+            }
+            let sidebar = try ctx.callBuilderClosure(sidebarClosure, arguments: []).map(Self.anyView)
+            let detail = try ctx.callBuilderClosure(detailClosure, arguments: []).map(Self.anyView)
+            return .native(AnyView(NavigationSplitView {
+                Self.indexed(sidebar)
+            } detail: {
+                Self.indexed(detail)
+            }))
+        }
+
         constructors["NavigationLink"] = HostFunction(name: "NavigationLink") { [unowned self] args, ctx in
+            let labelClosure = args.closure(labeled: "label") ?? args.firstUnlabeledClosure
+            if let value = args.labeled("value"), let labelClosure {
+                let views = try ctx.callBuilderClosure(labelClosure, arguments: []).map(Self.anyView)
+                let label = views.count == 1 ? views[0] : AnyView(HStack { Self.indexed(views) })
+                // Dynamic interpreted values cannot satisfy a static generic
+                // Hashable constraint. Their stable textual identity keeps the
+                // real NavigationLink behavior and rendering intact.
+                return .native(AnyView(NavigationLink(value: value.stringified) { label }))
+            }
+
             let destination: AnyView
             if let value = args.labeled("destination") {
                 if let closure = value.closureValue {
@@ -231,7 +279,7 @@ extension ViewRegistry {
                 throw RuntimeError(message: "NavigationLink needs a destination")
             }
 
-            if let labelClosure = args.closure(labeled: "label") {
+            if let labelClosure {
                 let views = try ctx.callBuilderClosure(labelClosure, arguments: []).map(Self.anyView)
                 let label = views.count == 1 ? views[0] : AnyView(HStack { Self.indexed(views) })
                 return .native(AnyView(NavigationLink(destination: destination) { label }))

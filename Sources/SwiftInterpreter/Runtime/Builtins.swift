@@ -508,6 +508,17 @@ public enum Builtins {
         }
         if let l = lhs.rangeValue, let r = rhs.rangeValue { return try l.isEqual(to: r) }
         if case .host(let la) = lhs, case .host(let ra) = rhs {
+            // Dictionaries compare by entries, order-independent (native
+            // Dictionary ==): every key exists on both sides, equal values.
+            if let l = la as? DictValue, let r = ra as? DictValue {
+                guard l.count == r.count else { return false }
+                for (key, value) in zip(l.keys, l.values) {
+                    let other = try r.lookup(key)
+                    if other.isNil, !value.isNil { return false }
+                    if try !areEqual(value, other) { return false }
+                }
+                return true
+            }
             // Marker-call vs marker-call: name equality is the best truth
             // available (`.video == .video`); differing names are unequal.
             if let l = la as? ImplicitMemberCall, let r = ra as? ImplicitMemberCall {

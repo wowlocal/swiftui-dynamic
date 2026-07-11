@@ -546,10 +546,14 @@ public final class SingleValueContainerStub {
 public final class KeyedContainerStub {
     let object: [String: Any]
     let decoder: JSONDecoderBox
+    /// The `keyedBy:` CodingKeys enum — case RAW VALUES name the JSON keys
+    /// (`case flag = "alpha2Code"`), so key lookups resolve through it.
+    let keySymbol: EnumSymbol?
 
-    init(object: [String: Any], decoder: JSONDecoderBox) {
+    init(object: [String: Any], decoder: JSONDecoderBox, keySymbol: EnumSymbol? = nil) {
         self.object = object
         self.decoder = decoder
+        self.keySymbol = keySymbol
     }
 }
 
@@ -788,11 +792,16 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 .native(SingleValueContainerStub(json: stub.json, decoder: stub.decoder))
             })
         case "container":
-            return .hostFunction(HostFunction(name: name) { _, _ in
+            return .hostFunction(HostFunction(name: name) { args, _ in
                 guard let object = stub.json as? [String: Any] else {
                     throw RuntimeError(message: "decode: value is not a keyed container")
                 }
-                return .native(KeyedContainerStub(object: object, decoder: stub.decoder))
+                var keySymbol: EnumSymbol?
+                if case .enumType(let symbol)? = args.labeled("keyedBy") ?? args.positional(0) {
+                    keySymbol = symbol
+                }
+                return .native(KeyedContainerStub(
+                    object: object, decoder: stub.decoder, keySymbol: keySymbol))
             })
         case "unkeyedContainer":
             return .hostFunction(HostFunction(name: name) { _, _ in
@@ -832,7 +841,14 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
             if case .enumCase(let enumCase) = value {
                 return enumCase.rawValue.stringValue ?? enumCase.name
             }
-            if case .implicitMember(let name) = value { return name }
+            if case .implicitMember(let name) = value {
+                // `.flag` rides unresolved — the keyedBy enum's case raw
+                // value IS the JSON key (`case flag = "alpha2Code"`).
+                if let declared = container.keySymbol?.cases.first(where: { $0.name == name }) {
+                    return declared.rawValue.stringValue ?? name
+                }
+                return name
+            }
             return value.stringValue
         }
         switch name {
@@ -1268,6 +1284,31 @@ enum JSONDecodeBridge {
                     context: context, owner: owner)
             })
         }
+        // `[String: V]` dictionaries (JSON objects; keys are strings by the
+        // format). `null` entries decode to nil — the `[String: String?]`
+        // shape (clean-architecture's Country.translations).
+        if typeName.hasPrefix("["), typeName.hasSuffix("]"),
+           let colon = typeName.firstIndex(of: ":") {
+            guard let object = json as? [String: Any] else {
+                throw RuntimeError(message: "decode(\(context)): expected object")
+            }
+            let valueAnnotation = String(
+                typeName[typeName.index(after: colon)..<typeName.index(before: typeName.endIndex)]
+            ).trimmingCharacters(in: .whitespaces)
+            var keys: [RuntimeValue] = []
+            var values: [RuntimeValue] = []
+            for (key, entry) in object {
+                keys.append(.native(key))
+                if entry is NSNull {
+                    values.append(.nilValue)
+                } else {
+                    values.append(try decodeField(
+                        entry, annotation: valueAnnotation, interpreter: interpreter,
+                        decoder: decoder, context: context, owner: owner))
+                }
+            }
+            return .native(DictValue(keys: keys, values: values))
+        }
         switch typeName {
         case "String":
             guard let text = json as? String else {
@@ -1382,6 +1423,14 @@ enum JSONDecodeBridge {
         if let array = typeValue.arrayValue, array.count == 1,
            let inner = annotationName(from: array[0]) {
             return "[" + inner + "]"
+        }
+        // `[String: String?].self` — a dictionary TYPE literal: one entry
+        // whose key/value are themselves type values.
+        if case .host(let any) = typeValue, let dict = any as? DictValue,
+           dict.keys.count == 1,
+           let key = annotationName(from: dict.keys[0]),
+           let value = annotationName(from: dict.values[0]) {
+            return "[" + key + ": " + value + "]"
         }
         switch typeValue {
         case .type(let symbol): return symbol.name

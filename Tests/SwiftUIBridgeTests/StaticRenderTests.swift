@@ -149,6 +149,57 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         }
     }
 
+    @Test func realRegistryRendersNavigationSplitViewAndValueLink() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: """
+        NavigationSplitView {
+            NavigationLink(value: "truck") {
+                Text("Truck")
+            }
+        } detail: {
+            Text("Dashboard")
+        }
+        """)
+
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func realRegistryAcceptsLegacyOneParameterOnChange() throws {
+        let outcome = InterpreterHost().render(source: """
+        struct ContentView: View {
+            @State var selection = "truck"
+
+            var body: some View {
+                Text(selection)
+                    .onChange(of: selection) { newValue in
+                        selection = newValue
+                    }
+            }
+        }
+        """)
+
+        if case .failure(let error) = outcome {
+            Issue.record("render failed: \(error)")
+        }
+    }
+
+    @Test func realRegistryRendersGridRowsAndEmptyBackground() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: """
+        Grid(horizontalSpacing: 12, verticalSpacing: 8) {
+            GridRow {
+                Text("Orders")
+                Text("Weather")
+            }
+        }
+        .background()
+        """)
+
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func animationCombinatorChainRenders() throws {
         let source = """
         struct ContentView: View {

@@ -110,6 +110,9 @@ extension ViewRegistry {
         register("foregroundColor", foreground)
 
         register("background") { [unowned self] view, args, ctx in
+            if args.isEmpty {
+                return AnyView(view.background())
+            }
             if let closure = args.firstUnlabeledClosure {
                 let views = try ctx.callBuilderClosure(closure, arguments: []).map(Self.anyView)
                 let content = views.count == 1 ? views[0] : AnyView(ZStack { Self.indexed(views) })
@@ -254,6 +257,23 @@ extension ViewRegistry {
         register("onSubmit") { view, args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.onSubmit { _ = try? ctx.callClosure(closure, arguments: []) })
+        }
+        register("onChange") { view, args, ctx in
+            guard let value = args.labeled("of") else {
+                throw RuntimeError(message: ".onChange needs of:")
+            }
+            guard let closure = args.firstUnlabeledClosure else { return view }
+            let identity = value.stringified
+            let initial = args.labeled("initial")?.boolValue ?? false
+            return AnyView(view.onChange(of: identity, initial: initial) { oldValue, newValue in
+                let arguments: [RuntimeValue]
+                switch closure.parameters.count {
+                case 0: arguments = []
+                case 1: arguments = [value]
+                default: arguments = [.native(oldValue), .native(newValue)]
+                }
+                _ = try? ctx.callClosure(closure, arguments: arguments)
+            })
         }
         // Metal flattening with an explicit color mode (2048's board).
         register("drawingGroup") { view, args, _ in

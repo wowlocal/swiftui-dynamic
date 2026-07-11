@@ -1320,6 +1320,142 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct CountryModelRoundTripTests {
+    // The exact ApiModel.Country shape: [String: String?] translations, an
+    // optional URL under a REMAPPED CodingKey (flag <-> alpha2Code), and a
+    // custom init(from:) that structural decode SKIPS (documented
+    // divergence). Native: the encode->decode round trip preserves equality.
+    @Test func encodeDecodeRoundTripPreservesEquality() throws {
+        let source = """
+        import Foundation
+
+        struct Country: Codable, Equatable {
+            let name: String
+            let translations: [String: String?]
+            let population: Int
+            let flag: URL?
+            let alpha3Code: String
+
+            enum CodingKeys: String, CodingKey {
+                case name
+                case translations
+                case population
+                case flag = "alpha2Code"
+                case alpha3Code
+            }
+
+            init(name: String, translations: [String: String?], population: Int, flag: URL?, alpha3Code: String) {
+                self.name = name
+                self.translations = translations
+                self.population = population
+                self.flag = flag
+                self.alpha3Code = alpha3Code
+            }
+
+            init(from decoder: Decoder) throws {
+                let values = try decoder.container(keyedBy: CodingKeys.self)
+                name = try values.decode(String.self, forKey: .name)
+                translations = try values.decode([String: String?].self, forKey: .translations)
+                population = try values.decode(Int.self, forKey: .population)
+                if let alpha2orFlagURL = try? values.decode(String.self, forKey: .flag) {
+                    let urlString = alpha2orFlagURL.count == 2 ?
+                    "https://flagcdn.com/w640/\\(alpha2orFlagURL.lowercased()).jpg" : alpha2orFlagURL
+                    flag = URL(string: urlString)
+                } else { flag = nil }
+                alpha3Code = try values.decode(String.self, forKey: .alpha3Code)
+            }
+        }
+
+        let data = [
+            Country(name: "United States", translations: [:], population: 125000000,
+                    flag: URL(string: "https://flagcdn.com/w640/us.jpg"), alpha3Code: "USA"),
+            Country(name: "Georgia", translations: [:], population: 2340000, flag: nil, alpha3Code: "GEO")
+        ]
+        var thrown = ""
+        var equal = false
+        var count = 0
+        var fieldDiff = ""
+        do {
+            let bytes = try JSONEncoder().encode(data)
+            let decoded = try JSONDecoder().decode([Country].self, from: bytes)
+            equal = decoded == data
+            count = decoded.count
+            if count == 2 {
+                for i in 0 ..< 2 {
+                    let a = decoded[i], b = data[i]
+                    if a.name != b.name { fieldDiff += "name\\(i):\\(a.name)|" }
+                    if a.translations != b.translations { fieldDiff += "translations\\(i):\\(a.translations)|" }
+                    if a.population != b.population { fieldDiff += "population\\(i):\\(a.population)|" }
+                    if a.flag != b.flag { fieldDiff += "flag\\(i):\\(String(describing: a.flag)) vs \\(String(describing: b.flag))|" }
+                    if a.alpha3Code != b.alpha3Code { fieldDiff += "alpha3\\(i):\\(a.alpha3Code)|" }
+                }
+            }
+        } catch {
+            thrown = "\\(error)"
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("thrown")?.stringified == "")
+        #expect(interpreter.globals.lookup("count")?.stringified == "2")
+        #expect(interpreter.globals.lookup("fieldDiff")?.stringified == "")
+        #expect(interpreter.globals.lookup("equal")?.stringified == "true")
+    }
+
+    // countryDetailsSuccess's shape: namespaced nested models, a nested
+    // struct ARRAY, and an optional array member.
+    @Test func namespacedNestedModelRoundTrip() throws {
+        let source = """
+        import Foundation
+
+        enum ApiModel { }
+
+        extension ApiModel {
+            struct Currency: Codable, Equatable {
+                let code: String
+                let symbol: String?
+                let name: String
+            }
+        }
+
+        extension ApiModel {
+            struct CountryDetails: Codable, Equatable {
+                let capital: String
+                let currencies: [Currency]
+                let borders: [String]?
+            }
+        }
+
+        let value = ApiModel.CountryDetails(
+            capital: "London",
+            currencies: [ApiModel.Currency(code: "12", symbol: "$", name: "US dollar")],
+            borders: ["USA", "GEO", "CAN"])
+        var thrown = ""
+        var equal = false
+        var diff = ""
+        do {
+            let bytes = try JSONEncoder().encode([value])
+            let decoded = try JSONDecoder().decode([ApiModel.CountryDetails].self, from: bytes)
+            if let first = decoded.first {
+                equal = first == value
+                if first.capital != value.capital { diff += "capital:\\(first.capital)|" }
+                if first.currencies != value.currencies { diff += "currencies:\\(first.currencies)|" }
+                if first.borders != value.borders { diff += "borders:\\(String(describing: first.borders))|" }
+            } else {
+                diff = "EMPTY"
+            }
+        } catch {
+            thrown = "\\(error)"
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("thrown")?.stringified == "")
+        #expect(interpreter.globals.lookup("diff")?.stringified == "")
+        #expect(interpreter.globals.lookup("equal")?.stringified == "true")
+    }
+}
+
 @Suite struct StoreValueSemanticsTests {
     // clean-architecture's DeepLinksHandlerTests genre: the Store
     // (CurrentValueSubject) has NATIVE value semantics at its boundary —

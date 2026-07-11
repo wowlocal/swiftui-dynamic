@@ -761,3 +761,24 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   now a 1× in the web-repository genre, queued. **679/680; suite 501
   green; LiveCheck 5/5; TestCheck 114→116 passed / 13→11 failed —
   class eliminated.**
+- 2026-07-11 iter 223: biggest cluster (4×) — the web-repository
+  decode genre (allCountriesSuccess ERRORED — a regression exposed
+  when the steward's container stubs made custom `init(from:)` RUN —
+  plus countryDetailsSuccess/loadImage*). Root chain, distilled and
+  pinned: (1) structural decode had NO dictionary arm —
+  `[String: String?]` (Country.translations) threw "unsupported type
+  argument"; decodeField gains `[String: V]` (JSON objects, null →
+  nil), and annotationName names dictionary TYPE literals
+  (`[String: String?].self`). (2) areEqual had no DictValue arm —
+  even `[:] == [:]` was false; dictionaries now compare by entries,
+  order-independent. (3) `container(keyedBy: CodingKeys.self)`
+  DISCARDED the key type, so `.flag` markers lost their raw value
+  (`case flag = "alpha2Code"`) and keyed lookups missed;
+  KeyedContainerStub carries the keyedBy enum and resolves marker
+  keys through case raw values. Pins: CountryModelRoundTripTests
+  (full Country shape round trip + namespaced nested models).
+  countryDetailsSuccess persists (distilled round trip PASSES — the
+  residual root is deeper in the mock chain, queued with loadImage*).
+  clean-architecture 66 → 67. **679/680; suite 502 green; LiveCheck
+  5/5; TestCheck 116→117 passed / 6→5 errored — class strictly
+  improved.**
