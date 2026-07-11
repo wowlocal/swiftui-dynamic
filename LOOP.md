@@ -895,3 +895,14 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   522 green; LiveCheck 5/5; TestCheck 117→118 passed / 11→10 failed
   — class strictly improved. ProjectCheck rerun in flight at commit
   (user-requested commit); verified next iteration.**
+- 2026-07-11 iter 225: HEALTH RESTORATION — iter 224's post-commit
+  ProjectCheck landed 678/680: Expense_Tracker broke on a NESTED
+  `.system` marker reaching a view slot. Root: the new call-dispatch
+  arm re-minted EVERY called ImplicitMemberCall — including markers
+  that already carried arguments (a re-call), whose "not callable"
+  throw callers' gateway fallbacks depend on. Narrowed: only
+  EMPTY-args (member-access) markers re-mint on call; argument-
+  carrying markers keep the throw. Expense_Tracker passes; all six
+  iter-224-regressed projects re-verified individually; suite 522
+  green; LiveCheck 5/5. ProjectCheck --all completing in background
+  (user-requested immediate resume); verdict lands next iteration.

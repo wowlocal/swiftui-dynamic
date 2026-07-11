@@ -2452,10 +2452,13 @@ extension Interpreter {
             throw error(node, "'\(symbol.name)' has no matching initializer")
         case .implicitMember(let name):
             return .native(ImplicitMemberCall(name: name, arguments: args))
-        case .host(let any) where any is ImplicitMemberCall:
+        case .host(let any) where any is ImplicitMemberCall
+            && (any as! ImplicitMemberCall).arguments.arguments.isEmpty:
             // A TYPED marker called (`AnyTransition.asymmetric(…)` where the
             // program extends AnyTransition): the call re-mints with its
-            // arguments, exactly like a bare implicit member.
+            // arguments, exactly like a bare implicit member. Markers that
+            // ALREADY carry arguments keep the not-callable throw — callers'
+            // fallbacks (gateway retries) depend on it.
             let call = any as! ImplicitMemberCall
             return .native(ImplicitMemberCall(
                 name: call.name, arguments: args, typeHint: call.typeHint))
