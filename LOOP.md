@@ -340,6 +340,10 @@ Each iteration does exactly this:
   changed sources and rebuild before trusting exit-138 crashes.
 - Write large patch payloads to files, not inline heredocs per turn —
   context overflow ("Prompt is too long") killed iteration 140's tail.
+- Step 6's OPENING-sweep skip only works if you WRITE
+  `.claude/last-verify.txt` at every closing gate — the file doesn't
+  exist yet, so every iteration still pays the opening sweep. One echo
+  line at commit time pays for itself immediately.
 - Failed `Edit` on unread files: Read the region first or use the
   python patcher directly — dead tool calls otherwise.
 
