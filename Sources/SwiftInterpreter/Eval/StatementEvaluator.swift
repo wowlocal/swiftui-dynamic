@@ -502,6 +502,12 @@ extension Interpreter {
             elements = []
         } else if case .host(let dataAny) = sequence, let bytes = dataAny as? Data {
             elements = bytes.map { .native(Int($0)) } // byte collection
+        } else if case .host(let dictAny) = sequence, let dict = dictAny as? DictValue {
+            // `for (id, count) in sales` — native Dictionary iteration
+            // yields (key, value) tuples, in the dict's stable order.
+            elements = zip(dict.keys, dict.values).map { key, value in
+                .native(TupleValue(labels: ["key", "value"], values: [key, value]))
+            }
         } else {
             throw error(forStmt.sequence, "for-in requires a range or an array, got \(sequence.stringified)")
         }

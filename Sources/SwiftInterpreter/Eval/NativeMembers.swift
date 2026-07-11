@@ -410,7 +410,15 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { args, ctx in
                 // `reduce(into: [:]) { acc, el in … }` — the accumulator is
                 // reference-backed (DictValue) so mutations stick.
-                if let into = args.labeled("into") {
+                if var into = args.labeled("into") {
+                    // A marker seed (`reduce(into: .empty)`) resolves against
+                    // the ambient expected type — the enclosing return
+                    // annotation, exactly where native inference reads it.
+                    if case .implicitMember = into,
+                       let interpreter = ctx as? Interpreter,
+                       let hint = interpreter.expectedAnnotationStack.last {
+                        into = try interpreter.resolveAnnotated(into, typeName: hint)
+                    }
                     let closure = try Self.requiredClosure(args, name)
                     for element in array {
                         _ = try ctx.callClosure(closure, arguments: [into, element])

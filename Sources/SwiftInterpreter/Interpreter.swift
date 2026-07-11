@@ -1790,6 +1790,31 @@ public final class Interpreter {
             guard let value = args.positional(0) ?? args.labeled("describing") else { return .native("") }
             return .native(value.stringValue ?? value.stringified)
         }
+        define("Dictionary") { args, ctx in
+            // `Dictionary(uniqueKeysWithValues:)` / `Dictionary(grouping:by:)`
+            // — the FoodTruck summaries genre. Bare `Dictionary()` is empty.
+            if let pairs = args.labeled("uniqueKeysWithValues")?.arrayValue {
+                let dict = DictValue()
+                for pair in pairs {
+                    if let tuple = pair.tupleValue, tuple.values.count == 2 {
+                        try dict.update(tuple.values[0], to: tuple.values[1])
+                    }
+                }
+                return .native(dict)
+            }
+            if let elements = args.labeled("grouping")?.arrayValue,
+               let by = args.closure(labeled: "by") {
+                let dict = DictValue()
+                for element in elements {
+                    let key = try ctx.callClosure(by, arguments: [element])
+                    var bucket = (try dict.lookup(key)).arrayValue ?? []
+                    bucket.append(element)
+                    try dict.update(key, to: .native(bucket))
+                }
+                return .native(dict)
+            }
+            return .native(DictValue())
+        }
         define("Int") { args, _ in
             guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
             if let i = value.intValue { return .native(i) }

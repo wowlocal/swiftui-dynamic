@@ -983,3 +983,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   histogram's e.g. line) + ledger floor 678/680 (Widgets + Mythic
   documented; ratchets up only). **GATE GREEN: suite 526; corpus
   678/680 (ledgered, cached); live 5/5; parity 345/0/0.**
+- 2026-07-11 iter 230 (FoodTruck ladder): the staked popularity-sort
+  pipeline — THREE stdlib gaps, distilled and pinned: (1) NO
+  `Dictionary(...)` builtin — `Dictionary(uniqueKeysWithValues:)`
+  (the dailyOrderSummaries seed) absorbed into a stub, so every
+  summary was empty; ctor added (+ grouping:by:, bare init). (2)
+  for-in over a Dictionary threw — now yields (key, value) tuples in
+  stable order. (3) `reduce(into: .empty)` never resolved its marker
+  seed — it resolves against the ambient return annotation, exactly
+  where native inference reads it; and `sales[key, default: 0] += v`
+  read nil→Double — dictionary subscripts (rvalue, and BOTH lvalue
+  arms) now honor `default:`. Pin: DictionaryPipelineTests.
+  **RUNG FLIPPED: donuts ✅ — 3/9 → 4/9.** salesHistory/topFive
+  advanced into real data (new roots: dict-of-summaries member at
+  4267:35; topFive renders 18 strings sans title). orders (`<` on
+  Order) and city (`max` ctor shadow) unchanged, queued. **GATE
+  GREEN: suite 527; corpus 678/680; live 5/5; parity 345/0/0.**

@@ -1358,6 +1358,50 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct DictionaryPipelineTests {
+    // FoodTruck's order-summary pipeline: Dictionary(uniqueKeysWithValues:)
+    // and (grouping:by:) construct real dictionaries, for-in yields
+    // (key, value) tuples, and reduce(into: .empty) resolves its marker
+    // seed against the ambient return annotation — stdlib semantics.
+    @Test func summariesGenreRoundTrip() throws {
+        let source = """
+        struct Summary: Equatable {
+            var sales: [Int: Int] = [:]
+            static let empty = Summary()
+            mutating func formUnion(_ other: Summary) {
+                for (key, value) in other.sales {
+                    sales[key, default: 0] += value
+                }
+            }
+        }
+
+        let pairs = [(1, Summary(sales: [7: 2])), (2, Summary(sales: [7: 3, 9: 1]))]
+        let byCity = Dictionary(uniqueKeysWithValues: pairs)
+        let cityCount = byCity.count
+
+        func combined() -> Summary {
+            return byCity.values.reduce(into: .empty) { partialResult, summary in
+                partialResult.formUnion(summary)
+            }
+        }
+        let total = combined()
+        let sevenTotal = total.sales[7] ?? 0
+        let nineTotal = total.sales[9] ?? 0
+
+        let grouped = Dictionary(grouping: [1, 2, 3, 4, 5], by: { $0 % 2 })
+        let evens = grouped[0]?.count ?? 0
+        let odds = grouped[1]?.count ?? 0
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("cityCount")?.stringified == "2")
+        #expect(interpreter.globals.lookup("sevenTotal")?.stringified == "5")
+        #expect(interpreter.globals.lookup("nineTotal")?.stringified == "1")
+        #expect(interpreter.globals.lookup("evens")?.stringified == "2")
+        #expect(interpreter.globals.lookup("odds")?.stringified == "3")
+    }
+}
+
 @Suite struct LocalizedStringInitTests {
     // FoodTruck's donut/city names: `String(localized:bundle:comment:)` —
     // no catalogs load headlessly, so the KEY is the development-language

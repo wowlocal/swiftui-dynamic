@@ -3153,7 +3153,7 @@ extension Interpreter {
         case instanceProperty(Instance, String)
         case hostProperty(Any, String)
         case element(LValue, Int)
-        case dictElement(DictValue, RuntimeValue)
+        case dictElement(DictValue, RuntimeValue, fallback: RuntimeValue? = nil)
         /// `trigger.0 = …` / `pair.label = …` — writes mutate the tuple and
         /// re-write the base, so state boxes still notify.
         case tupleElement(LValue, Int)
@@ -3212,8 +3212,12 @@ extension Interpreter {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
                 return array[index]
-            case .dictElement(let dict, let key):
-                return try dict.lookup(key)
+            case .dictElement(let dict, let key, let fallback):
+                let found = try dict.lookup(key)
+                // `sales[key, default: 0] += v` — missing keys read the
+                // default before the mutation, exactly like native.
+                if found.isNil, let fallback { return fallback }
+                return found
             case .tupleElement(let base, let index):
                 guard let tuple = try base.read(interpreter).tupleValue,
                       tuple.values.indices.contains(index) else {
@@ -3347,7 +3351,7 @@ extension Interpreter {
                 }
                 array[index] = value
                 try base.write(.native(array), interpreter)
-            case .dictElement(let dict, let key):
+            case .dictElement(let dict, let key, _):
                 try dict.update(key, to: value)
             case .tupleElement(let base, let index):
                 guard let tuple = try base.read(interpreter).tupleValue,
@@ -3791,7 +3795,10 @@ extension Interpreter {
                 return .instanceSubscript(instance, indexArgs)
             }
             if let dict = baseValue?.dictValue {
-                return .dictElement(dict, try evaluate(indexExpr, in: env))
+                let fallback = try subscriptCall.arguments
+                    .first(where: { $0.label?.text == "default" })
+                    .map { try evaluate($0.expression, in: env) }
+                return .dictElement(dict, try evaluate(indexExpr, in: env), fallback: fallback)
             }
             // `element[keyPath: kp] = value` — keypath writes walk to the
             // last component's owner and assign the property.
@@ -3855,13 +3862,16 @@ extension Interpreter {
                     if case .hostFunction = current { return true }
                     return false
                 }()
+                let fallback = try subscriptCall.arguments
+                    .first(where: { $0.label?.text == "default" })
+                    .map { try evaluate($0.expression, in: env) }
                 if current.isNil || isVoid || isMarker {
                     let dict = DictValue()
                     try base.write(.native(dict), self)
-                    return .dictElement(dict, indexValue)
+                    return .dictElement(dict, indexValue, fallback: fallback)
                 }
                 if let dict = current.dictValue {
-                    return .dictElement(dict, indexValue)
+                    return .dictElement(dict, indexValue, fallback: fallback)
                 }
                 throw error(subscriptCall, "subscript assignment requires an Int index")
             }
@@ -4007,7 +4017,13 @@ extension Interpreter {
             throw error(call, "array index out of range")
         }
         if let dict = base.dictValue {
-            return try relocating(call) { try dict.lookup(index) }
+            let found = try relocating(call) { try dict.lookup(index) }
+            // `sales[key, default: 0]` — missing keys read the default.
+            if found.isNil,
+               let defaultExpr = call.arguments.first(where: { $0.label?.text == "default" })?.expression {
+                return try evaluate(defaultExpr, in: env)
+            }
+            return found
         }
         if let range = base.rangeValue, let i = index.intValue {
             guard let materialized = range.integerValues() else {
