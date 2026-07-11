@@ -1320,6 +1320,270 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct AliasedRangeStaticDefaultTests {
+    // clean-architecture's `httpCodes: HTTPCodes = .success` default, where
+    // `typealias HTTPCodes = Range<HTTPCode>` and the static lives in
+    // `extension HTTPCodes`. The extension collects under the canonical
+    // head "Range"; annotation resolution must canonicalize the same way.
+    @Test func staticDefaultResolvesThroughAlias() throws {
+        let source = """
+        typealias HTTPCode = Int
+        typealias HTTPCodes = Range<HTTPCode>
+        extension HTTPCodes {
+            static let success = 200 ..< 300
+        }
+        func check(codes: HTTPCodes = .success) -> Bool {
+            codes.contains(250)
+        }
+        let ok = check()
+        let range = "\\(HTTPCodes.success)"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("ok")?.stringified == "true")
+        #expect(interpreter.globals.lookup("range")?.stringified == "200..<300")
+    }
+}
+
+@Suite struct WebRepositoryMockPipelineTests {
+    // clean-architecture's CountriesWebRepositoryTests genre, END TO END:
+    // URLProtocol subclass + NSLock static store + `URLSession
+    // .mockedResponsesOnly` (a static computed property on a HOST-type
+    // extension) + async `session.data(for:)` + JSONEncoder/Decoder round
+    // trip. Native swiftc scratch run: roundTripped == true.
+    @Test func mockedSessionServesEncodedFixture() throws {
+        let source = """
+        import Foundation
+        import Combine
+
+        struct Payload: Codable, Equatable {
+            let name: String
+            let number: Int
+        }
+
+        struct MockedResponse {
+            let url: URL
+            let data: Data
+            init<T: Encodable>(url: URL, value: T) throws {
+                self.url = url
+                self.data = try JSONEncoder().encode(value)
+            }
+        }
+
+        extension RequestMocking {
+            private final class MocksContainer: @unchecked Sendable {
+                var mocks: [MockedResponse] = []
+            }
+            static private let container = MocksContainer()
+            static private let lock = NSLock()
+            static func add(mock: MockedResponse) {
+                lock.withLock { container.mocks.append(mock) }
+            }
+            static private func mock(for request: URLRequest) -> MockedResponse? {
+                return lock.withLock { container.mocks.first { $0.url == request.url } }
+            }
+        }
+
+        final class RequestMocking: URLProtocol {
+            override class func canInit(with request: URLRequest) -> Bool {
+                return mock(for: request) != nil
+            }
+            override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+            override func startLoading() {
+                if let mock = RequestMocking.mock(for: request),
+                   let url = request.url,
+                   let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil) {
+                    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                    client?.urlProtocol(self, didLoad: mock.data)
+                    client?.urlProtocolDidFinishLoading(self)
+                }
+            }
+            override func stopLoading() { }
+        }
+
+        extension URLSession {
+            static var mockedResponsesOnly: URLSession {
+                let configuration = URLSessionConfiguration.default
+                configuration.protocolClasses = [RequestMocking.self]
+                configuration.timeoutIntervalForRequest = 1
+                return URLSession(configuration: configuration)
+            }
+        }
+
+        typealias HTTPCode = Int
+        typealias HTTPCodes = Range<HTTPCode>
+        extension HTTPCodes {
+            static let success = 200 ..< 300
+        }
+        protocol WebRepository {
+            var session: URLSession { get }
+            var baseURL: String { get }
+        }
+        extension WebRepository {
+            func call<Value, Decoder>(
+                path: String,
+                decoder: Decoder = JSONDecoder(),
+                httpCodes: HTTPCodes = .success
+            ) async throws -> Value
+            where Value: Decodable, Decoder: TopLevelDecoder, Decoder.Input == Data {
+                let request = URLRequest(url: URL(string: baseURL + path)!)
+                let (data, response) = try await session.data(for: request)
+                guard let code = (response as? HTTPURLResponse)?.statusCode else {
+                    throw NSError(domain: "unexpectedResponse", code: 0)
+                }
+                guard httpCodes.contains(code) else {
+                    throw NSError(domain: "httpCode", code: 0)
+                }
+                return try decoder.decode(Value.self, from: data)
+            }
+        }
+        struct Repo: WebRepository {
+            let session: URLSession
+            let baseURL: String
+            func load() async throws -> [Payload] {
+                try await call(path: "/items")
+            }
+        }
+
+        let sut = Repo(session: .mockedResponsesOnly, baseURL: "https://test.example")
+        let expected = [Payload(name: "one", number: 1), Payload(name: "two", number: 2)]
+        try RequestMocking.add(mock: MockedResponse(url: URL(string: "https://test.example/items")!, value: expected))
+        var roundTripped = false
+        var count = 0
+        var thrownDomain = ""
+        do {
+            let items = try await sut.load()
+            roundTripped = items == expected
+            count = items.count
+        } catch {
+            thrownDomain = "\\(error)"
+        }
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("thrownDomain")?.stringified == "")
+        #expect(interpreter.globals.lookup("roundTripped")?.stringified == "true")
+        #expect(interpreter.globals.lookup("count")?.stringified == "2")
+    }
+
+    // The SAME pipeline through the harness: a final-class @Suite holding
+    // `private let sut = Repo(session: .mockedResponsesOnly)` — the stored
+    // property's ctor call resolves the implicit member against the
+    // DECLARED init's parameter annotation.
+    @Test func suiteStoredPropertySessionResolves() throws {
+        let source = """
+        import Foundation
+        import Combine
+        import Testing
+
+        struct Payload: Codable, Equatable {
+            let name: String
+        }
+
+        struct MockedResponse {
+            let url: URL
+            let data: Data
+            init<T: Encodable>(url: URL, value: T) throws {
+                self.url = url
+                self.data = try JSONEncoder().encode(value)
+            }
+        }
+
+        extension RequestMocking {
+            private final class MocksContainer: @unchecked Sendable {
+                var mocks: [MockedResponse] = []
+            }
+            static private let container = MocksContainer()
+            static private let lock = NSLock()
+            static func add(mock: MockedResponse) {
+                lock.withLock { container.mocks.append(mock) }
+            }
+            static func removeAllMocks() {
+                lock.withLock { container.mocks.removeAll() }
+            }
+            static private func mock(for request: URLRequest) -> MockedResponse? {
+                return lock.withLock { container.mocks.first { $0.url == request.url } }
+            }
+        }
+
+        final class RequestMocking: URLProtocol {
+            override class func canInit(with request: URLRequest) -> Bool {
+                return mock(for: request) != nil
+            }
+            override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+            override func startLoading() {
+                if let mock = RequestMocking.mock(for: request),
+                   let url = request.url,
+                   let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil) {
+                    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                    client?.urlProtocol(self, didLoad: mock.data)
+                    client?.urlProtocolDidFinishLoading(self)
+                }
+            }
+            override func stopLoading() { }
+        }
+
+        extension URLSession {
+            static var mockedResponsesOnly: URLSession {
+                let configuration = URLSessionConfiguration.default
+                configuration.protocolClasses = [RequestMocking.self]
+                return URLSession(configuration: configuration)
+            }
+        }
+
+        protocol WebRepository {
+            var session: URLSession { get }
+            var baseURL: String { get }
+        }
+        extension WebRepository {
+            func call<Value>(path: String) async throws -> Value where Value: Decodable {
+                let request = URLRequest(url: URL(string: baseURL + path)!)
+                let (data, response) = try await session.data(for: request)
+                guard let code = (response as? HTTPURLResponse)?.statusCode, code == 200 else {
+                    throw NSError(domain: "http", code: 1)
+                }
+                return try JSONDecoder().decode(Value.self, from: data)
+            }
+        }
+
+        protocol ItemsWebRepository: WebRepository {
+            func load() async throws -> [Payload]
+        }
+
+        struct Repo: ItemsWebRepository {
+            let session: URLSession
+            let baseURL: String
+            init(session: URLSession) {
+                self.session = session
+                self.baseURL = "https://real.example/v2"
+            }
+            func load() async throws -> [Payload] {
+                return try await call(path: "/items")
+            }
+        }
+
+        @Suite(.serialized) final class RepoTests {
+            private let sut = Repo(session: .mockedResponsesOnly)
+
+            deinit {
+                RequestMocking.removeAllMocks()
+            }
+
+            @Test func loadsMockedPayloads() async throws {
+                let expected = [Payload(name: "one")]
+                try RequestMocking.add(mock: MockedResponse(url: URL(string: "https://real.example/v2/items")!, value: expected))
+                let response = try await sut.load()
+                #expect(response == expected)
+            }
+        }
+        """
+        let report = try TestHarness.run(source: source)
+        #expect(report.passed == 1)
+        #expect(report.failed == 0)
+        #expect(report.errored == 0)
+    }
+}
+
 @Suite struct DottedExtensionInitTests {
     // RequestMocking.MockedResponse: the throwing custom init lives in a
     // DOTTED extension of the nested struct — instantiation must run it.

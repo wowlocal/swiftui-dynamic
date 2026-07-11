@@ -386,6 +386,8 @@ extension Interpreter {
                 }
             } else if let initDecl = member.decl.as(InitializerDeclSyntax.self) {
                 symbol.initializers.append(initDecl)
+            } else if let deinitDecl = member.decl.as(DeinitializerDeclSyntax.self) {
+                symbol.deinitBody = deinitDecl.body
             } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
                 // Member typealiases resolve like nested types (bare name
                 // when unclaimed); generic arguments drop.

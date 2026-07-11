@@ -89,6 +89,41 @@ import SwiftInterpreter
         #expect(report.failed == 1)
     }
 
+    // clean-architecture's RequestMocking genre: the suite clears a STATIC
+    // mock store in `deinit`. Swift Testing deallocates the per-test
+    // instance right after its test (deinit is the documented tearDown
+    // replacement), so each test starts with an empty store — without it,
+    // stale mocks accumulate and first-match serves the wrong response.
+    @Test func deinitRunsBetweenSuiteTests() throws {
+        let source = """
+        final class Registry {
+            static var mocks: [String] = []
+            static func add(_ mock: String) { mocks.append(mock) }
+            static func removeAll() { mocks.removeAll() }
+        }
+
+        @Suite(.serialized) final class MockLifecycleTests {
+            deinit {
+                Registry.removeAll()
+            }
+
+            @Test func first() {
+                Registry.add("A")
+                #expect(Registry.mocks == ["A"])
+            }
+
+            @Test func second() {
+                Registry.add("B")
+                #expect(Registry.mocks == ["B"])
+            }
+        }
+        """
+        let report = try TestHarness.run(source: source)
+        #expect(report.results.count == 2)
+        #expect(report.passed == 2)
+        #expect(report.failed == 0)
+    }
+
     @Test func parameterizedSingleCollection() throws {
         let source = """
         @Suite struct EvenTests {

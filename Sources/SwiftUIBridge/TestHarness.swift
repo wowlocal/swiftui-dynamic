@@ -137,11 +137,13 @@ public enum TestHarness {
         // `@Test(arguments: collection)` — one case per element. Multi-
         // collection (cartesian/zip) forms are skipped honestly.
         guard case .argumentList(let list)? = attribute.arguments else {
-            return [runSingle(testName, of: symbol, interpreter: interpreter, recorder: recorder)]
+            return [runSingle(testName, of: symbol, interpreter: interpreter,
+                              recorder: recorder, invokesDeinit: true)]
         }
         let elements = Array(list)
         guard let argumentsIndex = elements.firstIndex(where: { $0.label?.text == "arguments" }) else {
-            return [runSingle(testName, of: symbol, interpreter: interpreter, recorder: recorder)]
+            return [runSingle(testName, of: symbol, interpreter: interpreter,
+                              recorder: recorder, invokesDeinit: true)]
         }
         guard argumentsIndex == elements.count - 1 else {
             return [TestResult(className: symbol.name, testName: testName,
@@ -161,7 +163,8 @@ public enum TestHarness {
         }
         return collection.enumerated().map { index, element in
             runSingle("\(testName)[\(index)]", methodName: testName, of: symbol,
-                      arguments: [element], interpreter: interpreter, recorder: recorder)
+                      arguments: [element], interpreter: interpreter, recorder: recorder,
+                      invokesDeinit: true)
         }
     }
 
@@ -170,7 +173,8 @@ public enum TestHarness {
     private static func runSingle(
         _ displayName: String, methodName: String? = nil, of symbol: StructSymbol,
         arguments: [RuntimeValue] = [],
-        interpreter: Interpreter, recorder: AssertionRecorder
+        interpreter: Interpreter, recorder: AssertionRecorder,
+        invokesDeinit: Bool = false
     ) -> TestResult {
         let method = methodName ?? displayName
         recorder.reset()
@@ -186,6 +190,13 @@ public enum TestHarness {
             defer {
                 for hook in ["tearDown", "tearDownWithError"] where symbol.methods[hook] != nil {
                     _ = try? interpreter.callMethod(named: hook, on: instance, arguments: [])
+                }
+                // Swift Testing deallocates the per-test suite instance as
+                // soon as its test finishes — deinit IS the documented
+                // teardown hook. XCTest instances live to the end of the
+                // run natively, so their deinit stays un-run.
+                if invokesDeinit {
+                    interpreter.runDeinitializer(on: instance)
                 }
             }
             _ = try interpreter.callMethod(named: method, on: instance, arguments: arguments)

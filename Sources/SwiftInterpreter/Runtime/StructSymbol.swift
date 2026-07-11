@@ -106,6 +106,10 @@ public final class StructSymbol {
     /// Declared with `class` — matters for observation; reference semantics
     /// are the default for ALL instances (the documented struct divergence).
     public internal(set) var isClass = false
+    /// Declared `deinit` body. The interpreter has no reference counting, so
+    /// this only runs where a deallocation point is KNOWN — the test harness
+    /// discards each Swift Testing suite instance right after its test.
+    public internal(set) var deinitBody: CodeBlockSyntax?
     public internal(set) var conformsToObservableObject = false
     public internal(set) var observableViaMacro = false
     public struct StaticProperty {

@@ -656,8 +656,10 @@ extension Interpreter {
             return value
         }
         // Protocol-extension defaults: `extension GameLogic { func start() … }`
-        // serves conformers that don't define the member themselves.
-        for conformance in instance.symbol.conformances {
+        // serves conformers that don't define the member themselves —
+        // through protocol REFINEMENT too (CountriesWebRepository:
+        // WebRepository reaches WebRepository's `call(endpoint:)`).
+        for conformance in transitiveConformances(of: instance.symbol) {
             guard let proto = hostExtensionSymbols[conformance] else { continue }
             if let overloads = proto.methods[name], let firstMethod = overloads.first {
                 // PROPERTY/METHOD collision in the same extension (AnyStatus
@@ -1776,7 +1778,7 @@ extension Interpreter {
                 // (Status's `var isHidden` vs AnyStatus's `isHidden(in:)`)
                 // — dispatch the method, as overload resolution would.
                 if case .instance(let instance) = baseValue {
-                    for conformance in instance.symbol.conformances {
+                    for conformance in transitiveConformances(of: instance.symbol) {
                         guard let proto = hostExtensionSymbols[conformance],
                               let overloads = proto.methods[name] else { continue }
                         let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
@@ -2507,7 +2509,33 @@ extension Interpreter {
         if let names = Self.tracedCallNames, let name = closure.debugName, names.contains(name) {
             Swift.print("⟶ \(name)")
         }
-        let result = try executeBlock(closure.body, in: env)
+        // An IMPLICIT single-expression return is return-position too: the
+        // lone expression evaluates under the declared return type, exactly
+        // like an explicit `return expr` (`func countries() -> [Country] {
+        // try await call(endpoint:) }` binds the callee's generic Value).
+        let singleExpressionBody: Bool = {
+            guard closure.body.count == 1, let item = closure.body.first?.item else { return false }
+            if case .expr = item { return true }
+            return false
+        }()
+        // A generic function's OWN `-> Entity` must not mask the caller's
+        // concrete hint — the ambient annotation is what binds nested hops
+        // (`get<Entity> -> Entity { makeRequest(…) }` threads the typed-let).
+        let hintIsOwnGeneric: Bool = {
+            guard let hint = closure.returnTypeName else { return true }
+            return closure.genericParameters.contains { param in
+                hint.split(whereSeparator: { !($0.isLetter || $0.isNumber || $0 == "_") })
+                    .contains(Substring(param))
+            }
+        }()
+        let result: StatementResult
+        if singleExpressionBody, !hintIsOwnGeneric, let returnHint = closure.returnTypeName {
+            result = try withExpectedAnnotation(returnHint) {
+                try executeBlock(closure.body, in: env)
+            }
+        } else {
+            result = try executeBlock(closure.body, in: env)
+        }
         try applyInoutWriteBacks()
         switch result {
         case .normal(let value), .returnValue(let value):

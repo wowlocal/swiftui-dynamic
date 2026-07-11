@@ -690,3 +690,31 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   mutation) — a different class, queued. clean-architecture 56 → 58.
   **679/680; suite 493 green; LiveCheck 5/5; TestCheck 105→108
   passed / 21→18 failed — class eliminated.**
+- 2026-07-11 iter 220: biggest cluster (4×) — the web-repository mock
+  genre (CountriesWebRepositoryTests 3× + ImageWebRepository). End-to-
+  end distillation found FOUR stacked general gaps, each pinned:
+  (1) Swift Testing suites clean their static mock store in `deinit`,
+  which never ran — TestHarness now runs declared deinit bodies
+  (superclass chain, native order) on the per-test instance right
+  after tearDown, Swift Testing only (XCTest instances natively live
+  to run end); StructSymbol.deinitBody + Interpreter
+  .runDeinitializer. Pin: deinitRunsBetweenSuiteTests. (2)
+  `httpCodes: HTTPCodes = .success` — typealias-annotated statics:
+  resolveAnnotated now canonicalizes annotation heads through
+  aliasHeads (guarded: declared types/nested/owner win), so extension
+  statics collected under "Range" resolve. Pin:
+  AliasedRangeStaticDefaultTests. (3) IMPLICIT single-expression
+  bodies are return-position: they evaluate under the declared return
+  annotation (like explicit `return`), skipped when the return type
+  names the closure's own generic (the ambient caller hint must
+  thread). Pin: WebRepositoryMockPipelineTests. (4) protocol-
+  extension defaults resolve through protocol REFINEMENT
+  (transitiveConformances: CountriesWebRepository: WebRepository
+  reaches `call(endpoint:)`); applied to member lookup, call-site
+  collision rescue, and bodyProperty. Pin: harness-shaped
+  suiteStoredPropertySessionResolves. allCountriesSuccess +
+  countryDetailsWhenDetailsAreEmpty flipped; countryDetailsSuccess
+  remains (nested [Currency] decode — different root, queued).
+  clean-architecture 58 → 61. **679/680; suite 497 green; LiveCheck
+  5/5; TestCheck 108→111 passed / 18→16 failed / 7→6 errored — class
+  strictly improved.**

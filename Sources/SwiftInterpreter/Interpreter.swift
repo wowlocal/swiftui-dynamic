@@ -55,12 +55,29 @@ public final class Interpreter {
         }
     }
 
+    /// A symbol's conformances CLOSED over protocol refinement — extension
+    /// defaults on `WebRepository` serve a type declared only as
+    /// `CountriesWebRepository: WebRepository` (member lookup order stays
+    /// declaration-first: direct conformances precede inherited ones).
+    func transitiveConformances(of symbol: StructSymbol) -> [String] {
+        var out: [String] = []
+        var queue = symbol.conformances
+        var seen = Set<String>()
+        while !queue.isEmpty {
+            let name = queue.removeFirst()
+            guard seen.insert(name).inserted else { continue }
+            out.append(name)
+            queue.append(contentsOf: protocolInheritance[name] ?? [])
+        }
+        return out
+    }
+
     /// The symbol's body accessor: its OWN computed property, or a
     /// protocol-extension default (SwiftUIFlux's ConnectedView serves `body`
     /// from `extension ConnectedView`).
     func bodyProperty(of symbol: StructSymbol) -> ComputedProperty? {
         if let own = symbol.computedProperties["body"] { return own }
-        for conformance in symbol.conformances {
+        for conformance in transitiveConformances(of: symbol) {
             if let ext = hostExtensionSymbols[conformance],
                let body = ext.computedProperties["body"] {
                 return body
@@ -974,6 +991,30 @@ public final class Interpreter {
         return try callClosure(closure, arguments: arguments)
     }
 
+    /// Run the declared `deinit` bodies for an instance being discarded —
+    /// own class first, then up the superclass chain, native order. The
+    /// interpreter has no reference counting, so callers invoke this at
+    /// KNOWN deallocation points (the test harness discards each Swift
+    /// Testing suite instance right after its test). deinit is non-throwing
+    /// in Swift; interpreter errors in a body are swallowed like native
+    /// cleanup that cannot propagate.
+    public func runDeinitializer(on instance: Instance) {
+        var byName: [String: StructSymbol] = [:]
+        for symbol in structSymbols { byName[symbol.name] = symbol }
+        var cursor: StructSymbol? = instance.symbol
+        var hops = 0
+        while let symbol = cursor, hops < 16 {
+            if let body = symbol.deinitBody {
+                let closure = ClosureValue(
+                    parameters: [], body: body.statements,
+                    captured: selfEnvironment(.instance(instance)))
+                _ = try? callClosure(closure, arguments: [])
+            }
+            cursor = symbol.superclassName.flatMap { byName[$0] }
+            hops += 1
+        }
+    }
+
     /// Fill `@EnvironmentObject` properties from ambient models (keyed by type
     /// name). The SwiftUI bridge reads the models off the real Environment;
     /// headless harnesses thread them down the trace tree. When no ambient
@@ -1404,6 +1445,31 @@ public final class Interpreter {
         // annotation must still turn `.loaded(x)` markers into cases.
         if let angle = typeName.firstIndex(of: "<"), typeName.hasSuffix(">") {
             typeName = String(typeName[..<angle])
+        }
+        // Typealias annotations canonicalize to their target HEAD when no
+        // declared type claims the name (`httpCodes: HTTPCodes = .success`
+        // where `typealias HTTPCodes = Range<HTTPCode>` — the extension's
+        // statics were collected under "Range", so the lookup must follow).
+        let ownerHasNested: Bool = {
+            guard let owner = lexicalOwnerFrames.last else { return false }
+            return (owner as? StructSymbol)?.nestedTypes[typeName] != nil
+                || (owner as? EnumSymbol)?.nestedTypes[typeName] != nil
+        }()
+        let globalDeclaredType: Bool = {
+            switch globals.lookup(typeName) {
+            case .type, .enumType: return true
+            default: return false
+            }
+        }()
+        if enumSymbols[typeName] == nil, !globalDeclaredType,
+           !ownerHasNested, aliasHeads[typeName] != nil {
+            var canonical = typeName
+            var hops = 0
+            while let target = aliasHeads[canonical], hops < 8 {
+                canonical = target
+                hops += 1
+            }
+            typeName = canonical
         }
         // Annotation names resolve in the LEXICAL scope of the declaration
         // they annotate: the running function's declaring type sees its own
