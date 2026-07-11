@@ -150,6 +150,9 @@ public enum NetworkBridge {
 /// URLs still fall back to the bag at the constructor.
 public final class URLRequestBox {
     var request: URLRequest
+    /// Ecosystem EXTENSION properties (Alamofire's `request.headers`)
+    /// memoize here — writes round-trip, replay semantics unaffected.
+    var config: [String: RuntimeValue] = [:]
 
     init(request: URLRequest) {
         self.request = request
@@ -542,6 +545,7 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .native(headerValue)
             })
         default:
+            if let stored = box.config[name] { return stored }
             break
         }
     }
@@ -866,7 +870,11 @@ func networkHostSetMember(_ name: String, on value: Any, to newValue: RuntimeVal
              "allowsCellularAccess":
             return true // accepted; invisible to replay semantics
         default:
-            return false
+            // Ecosystem extension properties (Alamofire's `headers`):
+            // accept and memoize — a native `var headers: HTTPHeaders`
+            // extension write can't be rejected by the compiler.
+            box.config[name] = newValue
+            return true
         }
     }
     if let box = value as? URLComponentsBox {

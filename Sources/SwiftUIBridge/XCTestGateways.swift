@@ -75,10 +75,14 @@ extension ViewRegistry {
             ("XCTAssertLessThanOrEqual", "<="),
         ]
         for (name, op) in comparisons {
-            constructors[name] = HostFunction(name: name) { args, _ in
+            constructors[name] = HostFunction(name: name) { args, ctx in
                 guard let a = args.positional(0), let b = args.positional(1) else { return .void }
                 do {
-                    if try Builtins.compareValues(op, a, b).boolValue != true {
+                    // Declared `static func <` (Comparable) wins over the
+                    // raw builtin, exactly like infix expressions.
+                    let verdict = try (ctx as? Interpreter)?.evaluateBinary(op, a, b)
+                        ?? Builtins.compareValues(op, a, b)
+                    if verdict.boolValue != true {
                         recorder.record("\(name) failed: \(a.stringified) \(op) \(b.stringified)\(message(args, 2))")
                     }
                 } catch {

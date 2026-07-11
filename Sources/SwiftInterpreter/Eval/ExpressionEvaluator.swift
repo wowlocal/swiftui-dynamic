@@ -2797,51 +2797,8 @@ extension Interpreter {
             do {
                 return try relocating(infix) { try Builtins.binary(op, lhs, rhs) }
             } catch let builtinError as RuntimeError where !builtinError.fatal {
-                // TYPE-declared operator functions — `static func < (lhs:
-                // Self, rhs: Self)` Comparable conformances. Swift derives
-                // <=/>/>= from the declared `<`.
-                func operatorHome(_ value: RuntimeValue) -> (StructSymbol?, EnumSymbol?) {
-                    if case .instance(let instance) = value { return (instance.symbol, nil) }
-                    if case .enumCase(let caseValue) = value { return (nil, caseValue.symbol) }
-                    return (nil, nil)
-                }
-                func declared(_ name: String) -> (FunctionDeclSyntax, RuntimeValue)? {
-                    for operand in [lhs, rhs] {
-                        let (structSym, enumSym) = operatorHome(operand)
-                        if let method = structSym?.staticMethods[name]?.first {
-                            return (method, .type(structSym!))
-                        }
-                        if let method = enumSym?.staticMethods[name]?.first {
-                            return (method, .enumType(enumSym!))
-                        }
-                    }
-                    return nil
-                }
-                func runOperator(_ method: FunctionDeclSyntax, _ selfValue: RuntimeValue,
-                                 _ a: RuntimeValue, _ b: RuntimeValue) throws -> RuntimeValue {
-                    guard let body = method.body else { throw builtinError }
-                    let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
-                    return try callWithArguments(closure, args: CallArguments(arguments: [
-                        .init(label: nil, value: a), .init(label: nil, value: b),
-                    ]), node: nil)
-                }
-                if ["<", "<=", ">", ">="].contains(op) {
-                    if let (method, home) = declared(op) {
-                        return try runOperator(method, home, lhs, rhs)
-                    }
-                    if let (less, home) = declared("<") {
-                        switch op {
-                        case ">": return try runOperator(less, home, rhs, lhs)
-                        case "<=":
-                            let greater = try runOperator(less, home, rhs, lhs)
-                            return .native(!(greater.boolValue ?? false))
-                        default: // ">="
-                            let lesser = try runOperator(less, home, lhs, rhs)
-                            return .native(!(lesser.boolValue ?? false))
-                        }
-                    }
-                } else if let (method, home) = declared(op) {
-                    return try runOperator(method, home, lhs, rhs)
+                if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) {
+                    return viaDeclared
                 }
                 // User-defined infix operators (`|>` pipe-forward, `~=`
                 // overloads) — top-level operator functions.
@@ -3146,6 +3103,84 @@ extension Interpreter {
     /// through it (`sut == expect` over [Loadable<String>]). nil when no
     /// declared operator is involved; a declared body that trips an
     /// absorbed member falls back to structural (equality never throws).
+    /// TYPE-declared operator functions — `static func < (lhs: Self,
+    /// rhs: Self)` Comparable conformances and friends. Swift derives
+    /// <=/>/>= from a declared `<`. nil when neither operand's type
+    /// declares the operator.
+    func declaredOperatorValue(
+        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> RuntimeValue? {
+        func operatorHome(_ value: RuntimeValue) -> (StructSymbol?, EnumSymbol?) {
+            if case .instance(let instance) = value { return (instance.symbol, nil) }
+            if case .enumCase(let caseValue) = value { return (nil, caseValue.symbol) }
+            return (nil, nil)
+        }
+        func declared(_ name: String) -> (FunctionDeclSyntax, RuntimeValue)? {
+            for operand in [lhs, rhs] {
+                let (structSym, enumSym) = operatorHome(operand)
+                if let method = structSym?.staticMethods[name]?.first {
+                    return (method, .type(structSym!))
+                }
+                if let method = enumSym?.staticMethods[name]?.first {
+                    return (method, .enumType(enumSym!))
+                }
+            }
+            return nil
+        }
+        func runOperator(_ method: FunctionDeclSyntax, _ selfValue: RuntimeValue,
+                         _ a: RuntimeValue, _ b: RuntimeValue) throws -> RuntimeValue {
+            guard let body = method.body else {
+                throw RuntimeError(message: "operator '\(op)' has no body")
+            }
+            let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
+            return try callWithArguments(closure, args: CallArguments(arguments: [
+                .init(label: nil, value: a), .init(label: nil, value: b),
+            ]), node: nil)
+        }
+        if ["<", "<=", ">", ">="].contains(op) {
+            if let (method, home) = declared(op) {
+                return try runOperator(method, home, lhs, rhs)
+            }
+            if let (less, home) = declared("<") {
+                switch op {
+                case ">": return try runOperator(less, home, rhs, lhs)
+                case "<=":
+                    let greater = try runOperator(less, home, rhs, lhs)
+                    return .native(!(greater.boolValue ?? false))
+                default: // ">="
+                    let lesser = try runOperator(less, home, lhs, rhs)
+                    return .native(!(lesser.boolValue ?? false))
+                }
+            }
+            return nil
+        }
+        if let (method, home) = declared(op) {
+            return try runOperator(method, home, lhs, rhs)
+        }
+        return nil
+    }
+
+    /// Binary evaluation with full operator semantics for GATEWAYS
+    /// (XCTAssert comparisons): declared `==`/`<` and derived forms win
+    /// over structural/builtin comparison, exactly like infix expressions.
+    public func evaluateBinary(
+        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> RuntimeValue {
+        if op == "==" || op == "!=",
+           let viaDeclared = try equalsViaDeclaredOperator(lhs, rhs, node: nil) {
+            return .bool(op == "==" ? viaDeclared : !viaDeclared)
+        }
+        do {
+            return try Builtins.binary(op, lhs, rhs)
+        } catch let builtinError as RuntimeError where !builtinError.fatal {
+            if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) { return viaDeclared }
+            throw builtinError
+        } catch let message as EvalMessage {
+            if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) { return viaDeclared }
+            throw message
+        }
+    }
+
     private func equalsViaDeclaredOperator(
         _ lhs: RuntimeValue, _ rhs: RuntimeValue, node: Syntax?
     ) throws -> Bool? {

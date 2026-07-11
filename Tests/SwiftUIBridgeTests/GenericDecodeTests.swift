@@ -1621,3 +1621,43 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(instance.box(for: "fired")?.value.stringified == "false")
     }
 }
+
+@Suite struct DeclaredComparableGatewayTests {
+    // Milestones' genre: XCTAssertLessThan over a type whose Comparable
+    // is a declared `static func <` comparing TUPLES lexicographically —
+    // the gateway must dispatch the declared operator like infix does.
+    // Native (verified 2026-07-11): A<B true, B<A false, earlier date wins.
+    @Test func gatewayDispatchesDeclaredLessThan() throws {
+        let source = """
+        import XCTest
+
+        struct Milestone: Equatable, Comparable {
+            var title: String
+            var date: Date
+
+            static func < (lhs: Milestone, rhs: Milestone) -> Bool {
+                (lhs.date, lhs.title) < (rhs.date, rhs.title)
+            }
+        }
+
+        final class ComparableTests: XCTestCase {
+            func testTitleOrders() {
+                let a = Milestone(title: "A", date: Date(timeIntervalSinceReferenceDate: 604800))
+                let b = Milestone(title: "B", date: Date(timeIntervalSinceReferenceDate: 604800))
+                XCTAssertLessThan(a, b)
+                XCTAssertGreaterThan(b, a)
+            }
+            func testDateOrdersFirst() {
+                let late = Milestone(title: "A", date: Date(timeIntervalSinceReferenceDate: 604800))
+                let early = Milestone(title: "Z", date: Date(timeIntervalSinceReferenceDate: 0))
+                XCTAssertLessThan(early, late)
+                XCTAssertLessThanOrEqual(early, early)
+            }
+        }
+        """
+        let report = try TestHarness.run(source: source)
+        #expect(report.passed == 2)
+        #expect(report.failed == 0)
+        #expect(report.errored == 0)
+    }
+}

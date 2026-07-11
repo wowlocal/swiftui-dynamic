@@ -506,3 +506,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   LiveCheck 5/5 stand from iter 210 (no interpreter/bridge-behavior
   edits this iteration); suite 484 green; TestCheck 91 passed /
   31 failed / 11 errored / 10 skipped.**
+- 2026-07-11 iter 212: the oldest 2-count class — Milestones' declared
+  Comparable (`XCTAssertLessThan could not compare`). The infix path
+  already dispatched `static func <` (and derived <=/>/>= from it);
+  the GATEWAYS bypassed it via raw Builtins. The declared-operator
+  dispatch is now extracted (declaredOperatorValue) and a public
+  evaluateBinary(op:lhs:rhs:) serves gateways — XCTAssert comparisons
+  dispatch declared operators exactly like infix expressions (tuple
+  lexicographic `<` inside the operator body already worked). Native-
+  verified via a distilled swiftc run (A<B true, B<A false, earlier
+  date wins); pinned by DeclaredComparableGatewayTests (TestHarness-
+  level). Milestones 15 → 17 passed. EN ROUTE a steward-lane parity
+  commit (28ba319, real URLRequestBox) landed mid-iteration and broke
+  nextcloud-ios (`cannot assign to 'headers'` — Alamofire's extension
+  property): the box now ACCEPTS-AND-MEMOIZES unknown members (config
+  bag; reads consult it) — ecosystem extension writes can't be
+  rejected. **679/680 (nextcloud recovered); suite 485 green;
+  LiveCheck 5/5; TestCheck 91→93 passed / 31→29 failed — strictly
+  improved.**
