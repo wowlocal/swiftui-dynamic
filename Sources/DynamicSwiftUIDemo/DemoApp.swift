@@ -135,9 +135,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Samples are components — size to fit. Projects are full-screen
             // apps (scroll/GeometryReader roots collapse fittingSize to
             // nothing); give them an iPhone-ish canvas instead.
-            let size = DemoApp.projectDirectory == nil
+            var size = DemoApp.projectDirectory == nil
                 ? hosting.fittingSize
                 : NSSize(width: 470, height: 780)
+            // --size WxH: match a native twin's fixed canvas (FoodTruck R2
+            // captures compare at identical point size + 1x scale).
+            if let index = CommandLine.arguments.firstIndex(of: "--size"),
+               CommandLine.arguments.indices.contains(index + 1) {
+                let parts = CommandLine.arguments[index + 1].split(separator: "x")
+                if parts.count == 2, let w = Double(parts[0]), let h = Double(parts[1]) {
+                    size = NSSize(width: w, height: h)
+                }
+            }
             hosting.frame = NSRect(origin: .zero, size: size)
             let window = NSWindow(contentRect: hosting.frame, styleMask: .borderless, backing: .buffered, defer: false)
             window.appearance = NSAppearance(named: .aqua)
