@@ -438,6 +438,14 @@ Each iteration does exactly this:
   projects (2026-07-11) — M0-level host-API demand is fully served; a
   nonzero census after new corpus material is the signal to grow the
   sweep again.
+- R2 FINDING (2026-07-11 18:5x, steward): content stuck at 52.45% even
+  after the truck-grid fix — the DynamicTypeSize/platform-canvas
+  environment reaches FoodTruckCheck's PANEL probe but NOT the
+  app-shell root render (DemoApp/HeadlessVerifier scene route): the
+  embedded TruckView inside ContentView still collapses to the dot
+  column with "Order#121%02d". Class: environment parity between the
+  two render routes — whatever env the panel probe seeds, the shell
+  route must seed identically (one env-defaults path, two consumers).
 - R2 BASELINE (2026-07-11 14:55): interpreted FoodTruck root vs native
   twin at 1000x650@1x — AE 52.470%. Both capture paths pinned to
   explicit 1x bitmaps. Interp render commands:
