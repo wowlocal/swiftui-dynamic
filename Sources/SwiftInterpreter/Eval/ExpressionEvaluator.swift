@@ -1415,6 +1415,13 @@ extension Interpreter {
                         base: baseValue, member: name, arguments: args))
                 })
             }
+            if let caught = any as? RuntimeError,
+               name == "localizedDescription" || name == "description" || name == "message" {
+                // A caught interpreter error in an interpreted `catch`: its
+                // message IS what a compiled error would surface (the last
+                // absorb-census entry — now served for real).
+                return .native(caught.message)
+            }
             if assumesCompiledImports {
                 // Compiled sources: an unknown member on a NATIVE that
                 // survived every dispatch (host members, extensions, stdlib)
