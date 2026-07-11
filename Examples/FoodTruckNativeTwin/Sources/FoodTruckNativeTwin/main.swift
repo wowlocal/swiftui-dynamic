@@ -93,7 +93,64 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
                 TruckOrdersCard(model: model).padding(10).background(Color.white))
         capture("donut-view", size: cardSize,
                 DonutView(donut: model.donuts[0]).padding(10).background(Color.white))
+
+        // R3 function scenarios (Scripts/foodtruck-r3-spec.md): mutate
+        // through the model's OWN public API, then re-capture — the
+        // post-mutation captures are the parity expectations. A fresh
+        // model per scenario keeps them independent.
+        if let scenario = argument("--scenario") {
+            runScenarios(scenario == "all"
+                ? ["donut-rename", "order-completes", "order-steps",
+                   "popularity-moves", "nav-selection"]
+                : [scenario])
+        }
         exit(0)
+    }
+
+    @MainActor
+    private func runScenarios(_ names: [String]) {
+        for name in names {
+            let model = FoodTruckModel()
+            switch name {
+            case "donut-rename":
+                var donut = model.donuts[0]
+                donut.name = "Parity Deluxe"
+                model.updateDonut(id: donut.id, to: donut)
+                capture("donuts-after-rename", size: screenSize, DonutGallery(model: model))
+                capture("donut-view-after-rename", size: cardSize,
+                        DonutView(donut: model.donut(id: donut.id)).padding(10).background(Color.white))
+            case "order-completes":
+                if let first = model.orders.first(where: { !$0.isComplete }) {
+                    model.markOrderAsCompleted(id: first.id)
+                }
+                capture("orders-after-complete", size: screenSize, OrdersView(model: model))
+            case "order-steps":
+                if let first = model.orders.first(where: { !$0.isComplete }) {
+                    let binding = model.orderBinding(for: first.id)
+                    binding.wrappedValue.markAsPreparing()
+                    capture("orders-after-preparing", size: screenSize, OrdersView(model: model))
+                    binding.wrappedValue.markAsComplete()
+                    capture("orders-after-steps", size: screenSize, OrdersView(model: model))
+                }
+            case "popularity-moves":
+                for order in model.orders where !order.isComplete {
+                    model.markOrderAsCompleted(id: order.id)
+                }
+                capture("donuts-after-popularity", size: screenSize, DonutGallery(model: model))
+                capture("card-donuts-after-popularity", size: cardSize,
+                        TruckDonutsCard(donuts: Array(model.donuts(sortedBy: .popularity(.month)).prefix(15)))
+                            .padding(10).background(Color.white))
+            case "nav-selection":
+                capture("detail-truck", size: screenSize,
+                        DetailColumn(selection: .constant(.truck), model: model))
+                capture("detail-orders", size: screenSize,
+                        DetailColumn(selection: .constant(.orders), model: model))
+                capture("detail-donuts", size: screenSize,
+                        DetailColumn(selection: .constant(.donuts), model: model))
+            default:
+                print("unknown-scenario\t\(name)")
+            }
+        }
     }
 }
 
