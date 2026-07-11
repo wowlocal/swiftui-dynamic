@@ -57,26 +57,51 @@ public enum HeadlessVerifier {
                 throw RuntimeError(message: "launch hook threw: \(error)")
             }
         }
-        guard let symbol = interpreter.rootViewSymbol() else {
-            throw RuntimeError(message: "no View-conforming struct found")
+        // M4: the app's OWN shell renders when it declares one — the scene
+        // builder evaluates with the App instance as self, so @StateObject
+        // props and .environmentObject seeding flow exactly as at launch
+        // (census 2026-07-11: 15 shells seed environment that fresh root
+        // instantiation dropped). Name-based selection stays the fallback,
+        // so a shell the builder can't evaluate loses nothing.
+        var renderTree: (() throws -> TraceNode)?
+        if let scene = interpreter.declaredAppSceneRoot(),
+           let probe = try? interpreter.sceneViews(app: scene.app, sceneBody: scene.sceneBody),
+           let first = probe.first, (try? TraceRegistry.node(first)) != nil {
+            renderTree = {
+                let fresh = try interpreter.sceneViews(app: scene.app, sceneBody: scene.sceneBody)
+                guard let view = fresh.first else {
+                    throw RuntimeError(message: "scene produced no views")
+                }
+                return try TraceRegistry.node(view)
+            }
         }
-        let rootValue: RuntimeValue
-        do {
-            rootValue = try interpreter.instantiateRoot(symbol)
-        } catch {
-            throw RuntimeError(message: "root init threw: \(error)")
+        if renderTree == nil {
+            guard let symbol = interpreter.rootViewSymbol() else {
+                throw RuntimeError(message: "no View-conforming struct found")
+            }
+            let rootValue: RuntimeValue
+            do {
+                rootValue = try interpreter.instantiateRoot(symbol)
+            } catch {
+                throw RuntimeError(message: "root init threw: \(error)")
+            }
+            guard case .instance(let instance) = rootValue else {
+                throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
+            }
+            try interpreter.injectEnvironmentObjects(into: instance, models: [:])
+            interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+            LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+            renderTree = {
+                LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+                return try TraceRegistry.node(interpreter.evaluateBody(of: instance))
+            }
         }
-        guard case .instance(let instance) = rootValue else {
-            throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
-        }
-        try interpreter.injectEnvironmentObjects(into: instance, models: [:])
-        interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
-        LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
+        let renderRoot = renderTree!
 
         var actions: [ClosureValue] = []
         let root: TraceNode
         do {
-            root = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
+            root = try renderRoot()
         } catch let e {
             throw RuntimeError(message: "root body threw: \(e)")
         }
@@ -89,7 +114,7 @@ public enum HeadlessVerifier {
             // real SwiftUI where old rows disappear).
             for position in 0..<actions.count {
                 var current: [ClosureValue] = []
-                let tree = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
+                let tree = try renderRoot()
                 _ = try deepRender(interpreter, tree, actions: &current)
                 guard position < current.count else { break }
                 do {
@@ -109,7 +134,7 @@ public enum HeadlessVerifier {
                 invoked += 1
             }
             var ignored: [ClosureValue] = []
-            let rerendered = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
+            let rerendered = try renderRoot()
             _ = try deepRender(interpreter, rerendered, actions: &ignored)
         }
         return Report(nodeCount: nodeCount, actionsInvoked: invoked)
