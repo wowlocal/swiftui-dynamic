@@ -45,6 +45,14 @@ while let argument = iterator.next() {
 // The bridge's gated diagnostics (⚠/⇢/⚡) follow the same env switch here.
 LiveCheckSupport.traceLifecycle = ProcessInfo.processInfo.environment["LIVECHECK_TRACE"] == "1"
 
+// The TestCheck Ledger (LOOP.md): upstream-broken suites, never counted.
+TestHarness.upstreamBrokenClasses = [
+    "PromptTemplateTests": "references Llama2Template/Vicuna/ChatML/Alpaca "
+        + "types that exist NOWHERE in the FreeChat checkout or its four "
+        + "package dependencies — the test target cannot compile natively "
+        + "(verified 2026-07-11)",
+]
+
 let fm = FileManager.default
 
 struct Unit {

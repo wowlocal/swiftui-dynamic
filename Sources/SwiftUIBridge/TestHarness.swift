@@ -40,6 +40,11 @@ public enum TestHarness {
         public var skipped: Int { results.filter { if case .skipped = $0.outcome { true } else { false } }.count }
     }
 
+    /// Upstream-broken suites (the LOOP.md TestCheck Ledger): test classes
+    /// that CANNOT compile against their own checkout — running them would
+    /// count phantom failures. Reported as skipped with the native verdict.
+    public static var upstreamBrokenClasses: [String: String] = [:]
+
     public static func run(source: String) throws -> Report {
         let recorder = AssertionRecorder()
         let registry = ViewRegistry()
@@ -82,6 +87,14 @@ public enum TestHarness {
                 }
                 cursor = current.superclassName.flatMap { byName[$0] }
                 hops += 1
+            }
+            if let verdict = upstreamBrokenClasses[symbol.name] {
+                for testName in testNames.sorted() {
+                    results.append(TestResult(
+                        className: symbol.name, testName: testName,
+                        outcome: .skipped(reason: "upstream-broken: \(verdict)")))
+                }
+                continue
             }
             for testName in testNames.sorted() {
                 results.append(runSingle(testName, of: symbol, interpreter: interpreter, recorder: recorder))

@@ -132,7 +132,15 @@ tmdb-fixture-decode — the full decoder pipeline works). Open classes:
 ## TestCheck Ledger
 
 (upstream-broken or natively-unrunnable tests, with the native verdict —
-keep short; these never count against the metric)
+keep short; these never count against the metric. Encoded mechanically in
+TestCheck's `TestHarness.upstreamBrokenClasses` — entries report as
+SKIPPED, keeping the histogram a true priority queue.)
+
+- FreeChat.PromptTemplateTests (all 10): references Llama2Template/
+  VicunaTemplate/ChatMLTemplate/AlpacaTemplate — types that exist NOWHERE
+  in the checkout or its four package dependencies (markdown-ui,
+  KeyboardShortcuts, Splash, EventSource). The test target cannot compile
+  natively. Verified 2026-07-11 (iter 211).
 
 ## The iteration algorithm (never invent the next step)
 
@@ -486,3 +494,15 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   scenario) is the queued follow-up. **679/680; suite 484 green;
   LiveCheck 5/5; TestCheck 92/40/11 — all held under the invariant
   fix.**
+- 2026-07-11 iter 211: the biggest TestCheck root (8 failures across 4
+  message-classes — FreeChat's PromptTemplateTests) resolved by the
+  NATIVE-BASELINE RULE, not a fix: Llama2Template/Vicuna/ChatML/Alpaca
+  exist nowhere in the checkout or its package dependencies — the test
+  target cannot compile natively → upstream-broken → Ledger. The Ledger
+  is now MECHANICAL: TestHarness.upstreamBrokenClasses reports ledgered
+  suites as SKIPPED with the verdict (FreeChat: 10 skipped; its lone
+  "pass" was as phantom as its failures). Histogram is now all
+  2-count classes — Milestones Comparable is next by age. **679/680 and
+  LiveCheck 5/5 stand from iter 210 (no interpreter/bridge-behavior
+  edits this iteration); suite 484 green; TestCheck 91 passed /
+  31 failed / 11 errored / 10 skipped.**
