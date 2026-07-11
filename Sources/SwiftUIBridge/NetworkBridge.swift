@@ -590,10 +590,13 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let subject = value as? CurrentValueSubjectBox {
         switch name {
         case "value":
-            return subject.value
+            // Copy-out: a read is a VALUE, never a live view of the store.
+            return Builtins.valueSemanticsCopy(subject.value)
         case "send":
             return .hostFunction(HostFunction(name: name) { args, _ in
-                if let newValue = args.positional(0) { subject.value = newValue }
+                if let newValue = args.positional(0) {
+                    subject.value = Builtins.valueSemanticsCopy(newValue)
+                }
                 return .void
             })
         default:
@@ -933,7 +936,9 @@ func networkHostSetMember(_ name: String, on value: Any, to newValue: RuntimeVal
         }
     }
     if let subject = value as? CurrentValueSubjectBox, name == "value" {
-        subject.value = newValue
+        // Copy-in, like the ctor and send: native value semantics at the
+        // subject boundary.
+        subject.value = Builtins.valueSemanticsCopy(newValue)
         return true
     }
     if let box = value as? URLRequestBox {
@@ -1048,7 +1053,9 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { _, _ in .native(JSONEncoderBox()) }
     case "CurrentValueSubject":
         return HostFunction(name: name) { args, _ in
-            .native(CurrentValueSubjectBox(args.positional(0) ?? .void))
+            // Native value semantics at the subject boundary: the seed is
+            // COPIED, so the store never aliases the caller's value.
+            .native(CurrentValueSubjectBox(Builtins.valueSemanticsCopy(args.positional(0) ?? .void)))
         }
     case "PassthroughSubject":
         return HostFunction(name: name) { _, _ in

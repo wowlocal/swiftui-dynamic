@@ -49,6 +49,11 @@ public enum TestHarness {
         let recorder = AssertionRecorder()
         let registry = ViewRegistry()
         registry.registerXCTestGateways(recorder)
+        // Native XCTest sets this in every test process; apps branch on it
+        // (`isRunningTests`). The harness IS the test runner, so it presents
+        // the same environment.
+        ProcessInfoBox.extraEnvironment["XCTestConfigurationFilePath"] =
+            "/interpreted/harness.xctestconfiguration"
         let interpreter = Interpreter(registry: registry)
         do {
             try interpreter.run(source: source, lazyTopLevelGlobals: true)

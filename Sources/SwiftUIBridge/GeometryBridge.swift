@@ -506,7 +506,12 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             // grow timers), but the real SwiftUI registry schedules them so
             // interactive code can debounce user input.
             return .hostFunction(HostFunction(name: "asyncAfter") { args, ctx in
-                guard let closure = args.firstUnlabeledClosure else { return .void }
+                // `asyncAfter(deadline:execute:)` passes the work LABELED —
+                // and often as a closure VALUE (`execute: routeToDestination`),
+                // not a literal.
+                guard let closure = args.closure(labeled: "execute")
+                    ?? args.firstUnlabeledClosure
+                    ?? args.arguments.compactMap({ $0.value.closureValue }).last else { return .void }
                 let deadline = args.labeled("deadline")
                 let delay = deadline.flatMap { value -> Double? in
                     if let d = value.doubleValue { return d }
@@ -906,6 +911,7 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is ScreenStub: return "UIScreen"
     case is Color: return "Color"
     case is CalendarBox: return "Calendar"
+    case is ProcessInfoBox: return "ProcessInfo"
     case is FileManagerBox: return "FileManager"
     case is Locale: return "Locale"
     case is DateFormatterBox: return "DateFormatter"

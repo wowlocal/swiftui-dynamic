@@ -53,6 +53,14 @@ private enum InterpretedTaskRunner {
     }
 }
 
+/// The interpreted face of `ProcessInfo.processInfo`. `extraEnvironment`
+/// lets the TEST HARNESS present the native test environment
+/// (XCTestConfigurationFilePath is set under real XCTest runs, and apps
+/// branch on it — clean-architecture's `isRunningTests`).
+public final class ProcessInfoBox {
+    public static var extraEnvironment: [String: String] = [:]
+}
+
 func interpretedTaskConstructor(named name: String) -> HostFunction? {
     guard name == "Task" || name == "MainActor" else { return nil }
     return HostFunction(name: name) { args, context in
@@ -979,6 +987,44 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if let marker = value as? HostTypeMarker, marker.name == "Date", name == "now" {
         return .native(Date())
+    }
+    if let marker = value as? HostTypeMarker, marker.name == "Task",
+       name == "sleep" || name == "yield" {
+        // `try await Task.sleep(…)` — inline await means no real clock;
+        // yielding to the main loop IS the observable behavior, so pending
+        // main-queue deliveries (asyncAfter hops) run now, like a native
+        // sleep letting the runloop turn.
+        return .hostFunction(HostFunction(name: name) { _, _ in
+            MainQueueDrain.drain()
+            return .void
+        })
+    }
+    if let marker = value as? HostTypeMarker, marker.name == "ProcessInfo", name == "processInfo" {
+        return .native(ProcessInfoBox())
+    }
+    if let box = value as? ProcessInfoBox {
+        switch name {
+        case "environment":
+            var keys: [RuntimeValue] = []
+            var values: [RuntimeValue] = []
+            for (key, entry) in ProcessInfo.processInfo.environment {
+                keys.append(.native(key))
+                values.append(.native(entry))
+            }
+            for (key, entry) in ProcessInfoBox.extraEnvironment {
+                keys.append(.native(key))
+                values.append(.native(entry))
+            }
+            return .native(DictValue(keys: keys, values: values))
+        case "arguments":
+            return .native(ProcessInfo.processInfo.arguments.map { RuntimeValue.native($0) })
+        case "processIdentifier":
+            return .native(Int(ProcessInfo.processInfo.processIdentifier))
+        case "processName":
+            return .native(ProcessInfo.processInfo.processName)
+        default:
+            break
+        }
     }
     if let marker = value as? HostTypeMarker, marker.name == "Calendar", name == "current" {
         return .native(CalendarBox())

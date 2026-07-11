@@ -707,3 +707,46 @@ public enum Builtins {
         }
     }
 }
+
+extension Builtins {
+    /// A deep copy with NATIVE value semantics: struct instances copy
+    /// recursively, classes stay references (native reference semantics),
+    /// enum payloads/arrays/tuples/dictionaries copy element-wise, and
+    /// everything else passes through. The CurrentValueSubject boundary
+    /// uses this so stored state never aliases caller-held values —
+    /// `let initial = AppState(); Store(initial)` then mutating the store
+    /// leaves `initial` untouched, exactly like compiled Swift.
+    public static func valueSemanticsCopy(_ value: RuntimeValue) -> RuntimeValue {
+        switch value {
+        case .instance(let instance):
+            guard !instance.symbol.isClass else { return value }
+            let copy = Instance(symbol: instance.symbol)
+            for (name, box) in instance.properties {
+                copy.properties[name] = Box(valueSemanticsCopy(box.value))
+            }
+            for (name, box) in instance.stateBoxes {
+                copy.stateBoxes[name] = Box(valueSemanticsCopy(box.value))
+            }
+            return .instance(copy)
+        case .enumCase(let caseValue):
+            guard !caseValue.associated.isEmpty else { return value }
+            return .enumCase(EnumCaseValue(
+                symbol: caseValue.symbol, name: caseValue.name,
+                associated: caseValue.associated.map(valueSemanticsCopy)))
+        case .host(let any):
+            if let array = any as? [RuntimeValue] {
+                return .host(array.map(valueSemanticsCopy))
+            }
+            if let tuple = any as? TupleValue {
+                return .host(TupleValue(labels: tuple.labels, values: tuple.values.map(valueSemanticsCopy)))
+            }
+            if let dict = any as? DictValue {
+                return .host(DictValue(keys: dict.keys.map(valueSemanticsCopy),
+                                       values: dict.values.map(valueSemanticsCopy)))
+            }
+            return value
+        default:
+            return value
+        }
+    }
+}

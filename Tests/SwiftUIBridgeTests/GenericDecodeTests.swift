@@ -1320,6 +1320,53 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct StoreValueSemanticsTests {
+    // clean-architecture's DeepLinksHandlerTests genre: the Store
+    // (CurrentValueSubject) has NATIVE value semantics at its boundary —
+    // the seed is copied in, reads copy out, so mutating the store never
+    // touches caller-held values and earlier reads stay frozen. Native
+    // run (scratch swiftc): all four flags true.
+    @Test func storeBoundaryCopies() throws {
+        let source = """
+        import Combine
+
+        struct Routing: Equatable { var code: String? }
+        struct AppState: Equatable { var routing = Routing() }
+
+        typealias Store<State> = CurrentValueSubject<State, Never>
+
+        extension Store {
+            subscript<T>(keyPath: WritableKeyPath<Output, T>) -> T where Failure == Never {
+                get { value[keyPath: keyPath] }
+                set {
+                    var value = self.value
+                    value[keyPath: keyPath] = newValue
+                    self.value = value
+                }
+            }
+        }
+
+        let initialState = AppState()
+        let store = Store<AppState>(initialState)
+        store[\\.routing.code] = "ITA"
+        let localUntouched = initialState.routing.code == nil
+        let storeUpdated = store.value.routing.code == "ITA"
+        var expected = AppState()
+        expected.routing.code = "ITA"
+        let equalsExpected = store.value == expected
+        let earlier = store.value
+        store[\\.routing.code] = "FRA"
+        let earlierReadUnaffected = earlier.routing.code == "ITA"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("localUntouched")?.stringified == "true")
+        #expect(interpreter.globals.lookup("storeUpdated")?.stringified == "true")
+        #expect(interpreter.globals.lookup("equalsExpected")?.stringified == "true")
+        #expect(interpreter.globals.lookup("earlierReadUnaffected")?.stringified == "true")
+    }
+}
+
 @Suite struct LoadableBindingSequenceTests {
     // clean-architecture's LoadableTests.loadSuccess, end to end: the
     // Binding's generic argument resolves get()/set() values to real cases,

@@ -737,3 +737,27 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   OnBuiltBinding, replaceErrorFallbackResolvesDeferredDecode).
   clean-architecture 61 → 64. **679/680; suite 499 green; LiveCheck
   5/5; TestCheck 111→114 passed / 16→13 failed — class eliminated.**
+- 2026-07-11 iter 222: biggest fixable class (2×) — DeepLinks routing
+  (`.value` reference-aliasing; the ViewInspector 2× wall was assessed
+  and deferred: its DSL needs render-tree introspection TestHarness's
+  ViewRegistry can't answer — queued as its own arc). Root: the
+  interpreter's reference-backed structs alias across the Store
+  boundary (`DIContainer(appState: initialState)` — mutating the store
+  mutated the caller's local). Fix: NATIVE value semantics at the
+  CurrentValueSubject boundary — Builtins.valueSemanticsCopy (struct
+  instances copy recursively, classes stay references, enum payloads/
+  arrays/tuples/dicts element-wise) applied at ctor seed, `.value`
+  get/set, and send. Second half (openingDeeplinkFromNonDefaultRouting)
+  stacked three more gaps: ProcessInfo.processInfo bridged
+  (ProcessInfoBox; environment/arguments/processIdentifier) with
+  TestHarness presenting XCTestConfigurationFilePath exactly like
+  native XCTest (isRunningTests → delay 0); asyncAfter accepts
+  `execute:`-LABELED closure VALUES (the delivery was silently
+  dropped); `Task.sleep`/`yield` drain the main queue (a sleep IS the
+  runloop turn). Pins: StoreValueSemanticsTests (native-verified via
+  scratch swiftc), executeLabeledAsyncAfterDeliversOnSleep (harness-
+  level). clean-architecture 64 → 66. Steward-merge note: b5caaf9
+  flipped allCountriesSuccess passed→errored (unexpectedResponse) —
+  now a 1× in the web-repository genre, queued. **679/680; suite 501
+  green; LiveCheck 5/5; TestCheck 114→116 passed / 13→11 failed —
+  class eliminated.**

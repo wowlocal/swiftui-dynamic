@@ -124,6 +124,42 @@ import SwiftInterpreter
         #expect(report.failed == 0)
     }
 
+    // clean-architecture's openingDeeplinkFromNonDefaultRouting genre:
+    // `isRunningTests` sees XCTestConfigurationFilePath (the harness presents
+    // the native test environment), `asyncAfter(deadline:execute:)` carries
+    // its work LABELED as a closure VALUE, and `try await Task.sleep` yields
+    // the main queue so the deferred delivery lands before the assertion —
+    // exactly the native runloop turn.
+    @Test func executeLabeledAsyncAfterDeliversOnSleep() throws {
+        let source = """
+        import Foundation
+        import Testing
+
+        var log: [String] = []
+        func routeToDestination() { log.append("routed") }
+
+        extension ProcessInfo {
+            var isRunningTests: Bool {
+                environment["XCTestConfigurationFilePath"] != nil
+            }
+        }
+
+        @Suite struct DeferredTests {
+            @Test func deferredRouting() async throws {
+                let route = { routeToDestination() }
+                let delay: DispatchTime = .now() + (ProcessInfo.processInfo.isRunningTests ? 0 : 1.5)
+                DispatchQueue.main.asyncAfter(deadline: delay, execute: route)
+                try await Task.sleep(nanoseconds: 10_000_000)
+                #expect(log == ["routed"])
+            }
+        }
+        """
+        let report = try TestHarness.run(source: source)
+        #expect(report.passed == 1)
+        #expect(report.failed == 0)
+        #expect(report.errored == 0)
+    }
+
     @Test func parameterizedSingleCollection() throws {
         let source = """
         @Suite struct EvenTests {
