@@ -201,6 +201,26 @@ struct FoodTruckCheckMain {
                 "TruckOrdersCard(model: model).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("donut-view", source: probeMergeBase + probeApp(
                 "DonutView(donut: model.donuts[0]).padding(10).background(Color.white)"), size: cardSize)
+            capturePNG("diag-layout", source: probeMergeBase + probeApp(
+                "DonutStackView(donuts: Array(model.donuts.prefix(3))).frame(width: 120, height: 120).background(Color.white)"), size: cardSize)
+            let diagMiniLayoutDecl = """
+
+            struct __MiniLayout: Layout {
+                func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+                    return CGSize(width: 120, height: 120)
+                }
+                func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+                    for index in subviews.indices {
+                        subviews[index].place(
+                            at: CGPoint(x: bounds.minX + 10, y: bounds.minY + Double(index) * 30 + 10),
+                            anchor: .topLeading,
+                            proposal: ProposedViewSize(width: 60, height: 20))
+                    }
+                }
+            }
+            """
+            capturePNG("diag-minilayout", source: probeMergeBase + diagMiniLayoutDecl + probeApp(
+                "__MiniLayout { Text(String(\"aa\")); Text(String(\"bb\")) }.background(Color.white)"), size: cardSize)
             // Bisect probes (diag-*): not compared by the AE board — pure
             // diagnosis rungs for blank screens.
             capturePNG("diag-grid", source: probeMergeBase + probeApp(

@@ -1171,3 +1171,34 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   string-interpolation specifiers (Order ids read "Order#121%02d").
   Pin: DynamicTypeAndPlatformEnvTests. **GATE GREEN: suite 534;
   corpus 678/680; live 5/5; parity 345/0/0; R1 9/9.**
+- 2026-07-11 iter 239 (FoodTruck R2): custom Layouts EXECUTE — the
+  interpreted sizeThatFits/placeSubviews run through a real SwiftUI
+  Layout (InterpretedLayout, the InterpretedShape carrier pattern),
+  replacing the default-flow VStack. Three roots closed: (1) the
+  direct spelling `SomeLayout { … }` SHORT-CIRCUITED to groupViews
+  before instantiation (a pre-layout-era arm) — it now instantiates,
+  stashes children, and wraps renderable like the parenthesized
+  form; (2) ForEach children reach layouts one-subview-PER-ELEMENT
+  via a ForEachFan carrier the layout arm splices (native-verified:
+  AnyView does NOT block variadic expansion — a scratch compiled
+  Layout counts AnyView(ForEach(0..<3)) as 3 subviews); (3) host
+  geometry the layout math needs: CGRect(origin:size:)/
+  (x:y:width:height:), UnitPoint(x:y:) ctors + host-UnitPoint
+  coercion (tiles placed at (0,0) anchor .zero without them).
+  card-orders now renders hero + 2×2 tiles at native-identical
+  offsets (PLACE trace matches the compiled math exactly);
+  HeroSquareTilingLayout sees 5 subviews, DiagonalDonutStackLayout
+  3/3/3/3/2 — the native structure. Board: donuts 4.86%→0.44%,
+  orders 11.73%→9.79%, donut-view 0.000%, card-donuts 0.339%;
+  content 54.4%/truck 66.5%/card-orders 55.2% tick UP ~2-4pp — real
+  layout geometry no longer accidentally aligns with the twin while
+  CardNavigationHeader renders nothing (cards sit ~13px high, every
+  square edge double-counts). NEXT (staked): card chrome —
+  CardNavigationHeader + card white backgrounds — should drop all
+  three together; then Swift Charts (forecast card), `%02d`
+  interpolation specifiers, socialfeed opacity chain. Diagnostics
+  kept: FTCHECK_TRACE prints LAYOUTSTASH/MAKELAYOUT/LAYOUT/PLACE/
+  FOREACH; diag-layout + diag-minilayout capture probes. Pins:
+  InterpretedLayoutTests (pixel-placement through a RENDERED
+  interpreted layout + geometry-ctor evaluation). **GATE GREEN:
+  suite 536; corpus 678/680; live 5/5; parity 345/0/0; R1 9/9.**

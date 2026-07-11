@@ -2358,12 +2358,17 @@ extension Interpreter {
             }
             return .void
         case .type(let symbol):
-            // A `Layout` conformer called with a content closure is the
-            // callAsFunction sugar (`_Layout(width:…) { views }`): headless
-            // layout is pure geometry — the CONTENT is the rendered view.
+            // `SomeLayout { views }` — Layout.callAsFunction sugar. The
+            // children stash on the instance; the registry wraps it in a
+            // REAL Layout whose sizeThatFits/placeSubviews run interpreted
+            // (headless registries keep the flow fallback).
             if symbol.conformances.contains("Layout"),
-               let content = args.firstUnlabeledClosure {
-                return try groupViews(callBuilderClosure(content, arguments: []).map { $0 })
+               args.firstUnlabeledClosure != nil {
+                let instance = try instantiate(symbol, with: args, node: Syntax(node))
+                guard case .instance(let layoutInstance) = instance, let registry else {
+                    return instance
+                }
+                return registry.makeRenderable(instance: layoutInstance, interpreter: self)
             }
             do {
                 return try instantiate(symbol, with: args, node: Syntax(node))

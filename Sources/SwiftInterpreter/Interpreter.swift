@@ -786,6 +786,10 @@ public final class Interpreter {
                         let closure = argument.value.closureValue!
                         let children = try callBuilderClosure(closure, arguments: [])
                         instance.properties[StructSymbol.layoutChildrenKey] = Box(.native(children))
+                        if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                            FileHandle.standardError.write(Data(
+                                "LAYOUTSTASH \(symbol.name) children=\(children.count)\n".utf8))
+                        }
                         continue
                     }
                     guard let property = symbol.storedProperties.first(where: {

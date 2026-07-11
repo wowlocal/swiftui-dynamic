@@ -471,6 +471,16 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         // the storage is fresh-store results: empty (same doctrine as the
         // wrapper flatten).
         return HostFunction(name: name) { _, _ in .native([RuntimeValue]()) }
+    case "ProposedViewSize":
+        return HostFunction(name: name) { args, _ in
+            if case .host(let any)? = args.positional(0), let size = any as? CGSize {
+                return .native(ProposedViewSize(size))
+            }
+            let width = args.labeled("width")?.doubleValue
+            let height = args.labeled("height")?.doubleValue
+            return .native(ProposedViewSize(
+                width: width.map { CGFloat($0) }, height: height.map { CGFloat($0) }))
+        }
     case "CGSize":
         return HostFunction(name: name) { args, _ in
             .native(CGSize(
@@ -481,6 +491,29 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     case "CGPoint":
         return HostFunction(name: name) { args, _ in
             .native(CGPoint(
+                x: try Coerce.cgFloat(args.labeled("x") ?? .native(0)),
+                y: try Coerce.cgFloat(args.labeled("y") ?? .native(0))
+            ))
+        }
+    case "CGRect":
+        return HostFunction(name: name) { args, _ in
+            if case .host(let any)? = args.labeled("origin"), let origin = any as? CGPoint {
+                var size = CGSize.zero
+                if case .host(let sized)? = args.labeled("size"), let s = sized as? CGSize {
+                    size = s
+                }
+                return .native(CGRect(origin: origin, size: size))
+            }
+            return .native(CGRect(
+                x: try Coerce.cgFloat(args.labeled("x") ?? .native(0)),
+                y: try Coerce.cgFloat(args.labeled("y") ?? .native(0)),
+                width: try Coerce.cgFloat(args.labeled("width") ?? .native(0)),
+                height: try Coerce.cgFloat(args.labeled("height") ?? .native(0))
+            ))
+        }
+    case "UnitPoint":
+        return HostFunction(name: name) { args, _ in
+            .native(UnitPoint(
                 x: try Coerce.cgFloat(args.labeled("x") ?? .native(0)),
                 y: try Coerce.cgFloat(args.labeled("y") ?? .native(0))
             ))
@@ -834,6 +867,7 @@ final class RegexBox {
 }
 
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let layout = layoutHostMember(name, on: value) { return layout }
     if let container = value as? ModelContainerBox {
         if name == "mainContext" { return .native(container.context) }
         return nil

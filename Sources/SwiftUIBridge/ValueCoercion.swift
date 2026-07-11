@@ -316,6 +316,9 @@ enum Coerce {
     }
 
     static func unitPoint(_ value: RuntimeValue) throws -> UnitPoint {
+        if case .host(let any) = value, let real = any as? UnitPoint {
+            return real
+        }
         guard case .implicitMember(let name) = value else {
             throw RuntimeError(message: "expected a unit point like .top")
         }

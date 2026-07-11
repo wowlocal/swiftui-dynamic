@@ -115,7 +115,7 @@ public final class ViewRegistry: HostRegistry {
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .host(let any) = value {
             if any is AnyView || any is ImageBox || any is ShapeBox || any is LinearGradient
-                || any is PathDrawStub {
+                || any is PathDrawStub || any is ForEachFan {
                 return true
             }
         }
@@ -129,11 +129,27 @@ public final class ViewRegistry: HostRegistry {
             return .native(AnyView(EmptyView()))
         }
         if instance.symbol.conformsToLayout {
-            // Children in a default flow; the interpreted sizeThatFits/
-            // placeSubviews never run (documented divergence).
+            // REAL layout: the interpreted sizeThatFits/placeSubviews run
+            // through InterpretedLayout (the InterpretedShape pattern).
             let children = instance.properties[StructSymbol.layoutChildrenKey]?.value.arrayValue ?? []
-            let views = (try? children.map(Self.anyView)) ?? []
-            return .native(AnyView(VStack(alignment: .leading) { Self.indexed(views) }))
+            // ForEach fans SPLICE: the layout must see one subview per
+            // element, exactly like native variadic expansion.
+            var views: [AnyView] = []
+            for child in children {
+                if case .host(let any) = child, let fan = any as? ForEachFan {
+                    views += fan.views
+                } else if let view = try? Self.anyView(child) {
+                    views.append(view)
+                }
+            }
+            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                FileHandle.standardError.write(Data(
+                    "MAKELAYOUT \(instance.symbol.name) children=\(children.count) views=\(views.count)\n".utf8))
+            }
+            let layout = InterpretedLayout(instance: instance, interpreter: interpreter)
+            return .native(AnyView(layout {
+                Self.indexed(views)
+            }))
         }
         if instance.symbol.conformsToShape {
             // Shape-typed so .fill/.stroke/.trim apply; the real path comes
@@ -153,6 +169,7 @@ public final class ViewRegistry: HostRegistry {
     static func anyView(_ value: RuntimeValue) throws -> AnyView {
         if case .host(let any) = value {
             if let view = any as? AnyView { return view }
+            if let fan = any as? ForEachFan { return AnyView(Self.indexed(fan.views)) }
             if any is UIKitStub || any is ImplicitMemberCall || any is ChainedImplicitCall {
                 // Unknown SDK views render empty — the documented inert
                 // degrade (Lottie precedent), live-render edition.

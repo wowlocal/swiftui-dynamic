@@ -1,0 +1,124 @@
+import AppKit
+import SwiftUI
+import Testing
+@testable import SwiftInterpreter
+@testable import SwiftUIBridge
+
+/// FoodTruck R2 card-orders: custom `Layout` conformers must RUN their
+/// interpreted sizeThatFits/placeSubviews (HeroSquareTilingLayout,
+/// DiagonalDonutStackLayout), not fall back to a VStack flow. The direct
+/// trailing-closure spelling (`MiniLayout { … }`) previously short-circuited
+/// to groupViews before instantiation; ForEach children reach the layout as
+/// one subview PER ELEMENT (native variadic expansion — verified natively:
+/// AnyView does NOT block expansion, `AnyView(ForEach(0..<3))` presents 3
+/// subviews to a Layout).
+@Suite struct InterpretedLayoutTests {
+    @MainActor
+    @Test func directSpellingLayoutPlacesForEachChildrenDiagonally() throws {
+        let source = """
+        struct __PinLayout: Layout {
+            func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+                let size = proposal.replacingUnspecifiedDimensions(by: CGSize(width: 90, height: 90))
+                return CGSize(width: size.width, height: size.height)
+            }
+            func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+                let cell = CGSize(width: 20, height: 20)
+                let rect = CGRect(origin: CGPoint(x: bounds.minX, y: bounds.minY), size: cell)
+                for index in subviews.indices {
+                    let point = CGPoint(
+                        x: rect.minX + Double(index) * 30,
+                        y: rect.minY + Double(index) * 30
+                    )
+                    subviews[index].place(
+                        at: point,
+                        anchor: UnitPoint(x: 0, y: 0),
+                        proposal: ProposedViewSize(width: cell.width, height: cell.height)
+                    )
+                }
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    __PinLayout {
+                        ForEach(0..<3) { _ in
+                            Rectangle().fill(Color.black)
+                        }
+                    }
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+
+        let size = NSSize(width: 200, height: 200)
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
+            Issue.record("no bitmap")
+            return
+        }
+        rep.size = size
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+
+        func luminance(_ x: Int, _ y: Int) -> CGFloat {
+            guard let color = rep.colorAt(x: x, y: y) else { return -1 }
+            return (color.redComponent + color.greenComponent + color.blueComponent) / 3
+        }
+        // The interpreted placeSubviews puts 20×20 black squares at
+        // (0,0), (30,30), (60,60) — the same placement the compiled layout
+        // produces. The VStack fallback would center-stack them instead.
+        #expect(luminance(10, 10) < 0.3, "square 0 missing at (10,10)")
+        #expect(luminance(40, 40) < 0.3, "square 1 missing at (40,40)")
+        #expect(luminance(70, 70) < 0.3, "square 2 missing at (70,70)")
+        #expect(luminance(10, 40) > 0.9, "off-diagonal should be white")
+        #expect(luminance(150, 150) > 0.9, "beyond the diagonal should be white")
+    }
+
+    // The geometry the layout math relies on: CGRect(origin:size:) /
+    // CGRect(x:y:width:height:) / UnitPoint(x:y:) constructions and CGRect
+    // members flow through the interpreter as REAL host values.
+    @Test func hostGeometryConstructorsEvaluate() throws {
+        let source = """
+        let rect = CGRect(origin: CGPoint(x: 5, y: 7), size: CGSize(width: 30, height: 40))
+        let minX = rect.minX
+        let maxY = rect.maxY
+        let width = rect.width
+        let flat = CGRect(x: 1, y: 2, width: 3, height: 4)
+        let flatHeight = flat.height
+        let anchor = UnitPoint(x: 1, y: 0.5)
+        """
+        let interpreter = Interpreter(registry: ViewRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("minX")?.doubleValue == 5)
+        #expect(interpreter.globals.lookup("maxY")?.doubleValue == 47)
+        #expect(interpreter.globals.lookup("width")?.doubleValue == 30)
+        #expect(interpreter.globals.lookup("flatHeight")?.doubleValue == 4)
+        guard case .host(let any)? = interpreter.globals.lookup("anchor"),
+              let unit = any as? UnitPoint else {
+            Issue.record("UnitPoint(x:y:) did not evaluate to a host UnitPoint")
+            return
+        }
+        #expect(unit.x == 1)
+        #expect(unit.y == 0.5)
+    }
+}

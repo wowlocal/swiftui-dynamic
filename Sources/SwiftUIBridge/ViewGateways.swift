@@ -576,7 +576,10 @@ extension ViewRegistry {
             for element in elements {
                 views += try ctx.callBuilderClosure(content, arguments: [element]).map(Self.anyView)
             }
-            return .native(AnyView(Self.indexed(views)))
+            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                FileHandle.standardError.write(Data("FOREACH elements=\(elements.count) views=\(views.count)\n".utf8))
+            }
+            return .native(ForEachFan(views: views))
         }
 
         constructors["withAnimation"] = HostFunction(name: "withAnimation") { args, ctx in

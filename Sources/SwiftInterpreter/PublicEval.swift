@@ -41,6 +41,22 @@ extension Interpreter {
         try? staticMember(name, of: symbol)
     }
 
+    /// Labeled method invocation for bridge shims (the Layout protocol's
+    /// sizeThatFits(proposal:subviews:cache:) genre).
+    public func callMethodLabeled(
+        named name: String, on instance: Instance,
+        arguments: [(label: String?, value: RuntimeValue)]
+    ) throws -> RuntimeValue {
+        guard let member = try instanceMember(name, on: instance),
+              let closure = member.closureValue else {
+            throw RuntimeError(message: "'\(instance.symbol.name)' has no method '\(name)'")
+        }
+        let args = CallArguments(arguments: arguments.map {
+            .init(label: $0.label, value: $0.value)
+        })
+        return try callWithArguments(closure, args: args, node: nil)
+    }
+
     /// Bridge-side key-path application (the Table gateway's value columns).
     public func applyKeyPathForBridge(_ stub: KeyPathStub, to value: RuntimeValue) throws -> RuntimeValue {
         try applyKeyPath(stub, to: value)

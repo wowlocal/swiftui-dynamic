@@ -55,3 +55,14 @@ final class ShapeBox {
         self.shape = AnyShape(shape)
     }
 }
+
+/// ForEach's per-element views, carried un-erased so N-aware containers
+/// (custom Layouts) splice REAL subviews; anyView() collapses it to the
+/// indexed ForEach for every ordinary consumer.
+final class ForEachFan {
+    let views: [AnyView]
+
+    init(views: [AnyView]) {
+        self.views = views
+    }
+}
