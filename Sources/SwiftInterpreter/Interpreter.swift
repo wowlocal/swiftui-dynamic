@@ -1599,6 +1599,14 @@ public final class Interpreter {
                let staticValue = try staticMember(memberName, of: hostSymbol) {
                 return staticValue
             }
+            // A bare case of an EXTENDED host type (`authorizationStatus:
+            // UNAuthorizationStatus` seeded with `.authorized`): keep it a
+            // marker, but a TYPED one, so the extension's instance members
+            // (`.map`) dispatch on later reads.
+            if case .implicitMember(let memberName) = value {
+                return .host(ImplicitMemberCall(
+                    name: memberName, arguments: CallArguments(), typeHint: typeName))
+            }
             if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                let overloads = hostSymbol.staticMethods[call.name],
                let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,

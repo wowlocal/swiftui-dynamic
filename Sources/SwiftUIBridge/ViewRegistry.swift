@@ -71,10 +71,12 @@ public final class ViewRegistry: HostRegistry {
             // Unknown TYPE-looking constructors (external SDKs: KeychainSwift,
             // ChatClient) build absorbing bags, the live-render analog of the
             // trace registry's opaque recorder. Lowercase names stay
-            // unresolved so genuine errors surface.
+            // unresolved so genuine errors surface. The bag PLAYS the type
+            // (roles), so user extensions of the host type dispatch on it
+            // (`UNAuthorizationStatus(rawValue: 10)?.map`).
             guard name.first?.isUppercase == true else { return nil }
             return HostFunction(name: name) { args, _ in
-                let stub = UIKitStub()
+                let stub = UIKitStub(roles: [name])
                 for argument in args.arguments {
                     if let label = argument.label { stub.config[label] = argument.value }
                 }

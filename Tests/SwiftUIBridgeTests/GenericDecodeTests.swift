@@ -1320,6 +1320,88 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct StoreKeyPathAppendingTests {
+    // clean-architecture's pushFirstResolveStatus: the permission keyPath is
+    // BUILT (`pathToPermissions.appending(path: \.push)`) then drives the
+    // Store subscript write — native KeyPath concatenation.
+    @Test func appendedKeyPathWritesThroughStore() throws {
+        let source = """
+        import Combine
+
+        struct Permissions: Equatable { var push: String = "unknown" }
+        struct AppState: Equatable {
+            var permissions = Permissions()
+            static func permissionKeyPath() -> WritableKeyPath<AppState, String> {
+                let pathToPermissions = \\AppState.permissions
+                return pathToPermissions.appending(path: \\.push)
+            }
+        }
+        typealias Store<State> = CurrentValueSubject<State, Never>
+        extension Store {
+            subscript<T>(keyPath: WritableKeyPath<Output, T>) -> T where Failure == Never {
+                get { value[keyPath: keyPath] }
+                set {
+                    var value = self.value
+                    value[keyPath: keyPath] = newValue
+                    self.value = value
+                }
+            }
+        }
+        let store = Store<AppState>(AppState())
+        let keyPath = AppState.permissionKeyPath()
+        store[keyPath] = "granted"
+        let after = store.value.permissions.push
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("after")?.stringified == "granted")
+    }
+}
+
+@Suite struct HostEnumExtensionTests {
+    // clean-architecture's UNAuthorizationStatus.map: user extensions of a
+    // HOST enum dispatch on TYPED markers (minted at `Type.case` and at
+    // stored-property annotations), and `switch self` inside the extension
+    // matches marker case names. Native run: all three flags true.
+    @Test func extensionMemberOnHostEnumMarker() throws {
+        let source = """
+        import UserNotifications
+
+        enum Permission {
+            case pushNotifications
+            enum Status: Equatable { case unknown, notRequested, granted, denied }
+        }
+
+        extension UNAuthorizationStatus {
+            var map: Permission.Status {
+                switch self {
+                case .denied: return .denied
+                case .authorized: return .granted
+                case .notDetermined, .provisional, .ephemeral: return .notRequested
+                @unknown default: return .notRequested
+                }
+            }
+        }
+
+        struct Settings {
+            var authorizationStatus: UNAuthorizationStatus
+        }
+
+        let mappedNotDetermined = UNAuthorizationStatus.notDetermined.map == .notRequested
+        let mappedAuthorized = UNAuthorizationStatus.authorized.map == .granted
+        let s = Settings(authorizationStatus: .authorized)
+        let viaProperty = s.authorizationStatus.map == .granted
+        let unknownRaw = UNAuthorizationStatus(rawValue: 10)?.map == Permission.Status.notRequested
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("mappedNotDetermined")?.stringified == "true")
+        #expect(interpreter.globals.lookup("mappedAuthorized")?.stringified == "true")
+        #expect(interpreter.globals.lookup("viaProperty")?.stringified == "true")
+        #expect(interpreter.globals.lookup("unknownRaw")?.stringified == "true")
+    }
+}
+
 @Suite struct CountryModelRoundTripTests {
     // The exact ApiModel.Country shape: [String: String?] translations, an
     // optional URL under a REMAPPED CodingKey (flag <-> alpha2Code), and a

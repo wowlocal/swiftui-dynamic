@@ -782,3 +782,27 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   clean-architecture 66 → 67. **679/680; suite 502 green; LiveCheck
   5/5; TestCheck 116→117 passed / 6→5 errored — class strictly
   improved.**
+- 2026-07-11 iter 224: biggest class (2×) — UserPermissions. Four
+  general fixes, distilled + pinned: (1) TYPED markers — member access
+  on host types the program EXTENDS mints ImplicitMemberCall with a
+  typeHint (both the ctor-function and HostTypeMarker arms), and
+  hostCandidates dispatches the extension's members through it
+  (`UNAuthorizationStatus.notDetermined.map`); resolveAnnotated tags
+  bare markers under extended-host-type annotations (the stored-
+  property path). (2) ImplicitMemberCall is CaseShaped — `switch self`
+  inside host-enum extensions matches marker case names. (3)
+  KeyPathStub.appending(path:) — native KeyPath concatenation
+  (`pathToPermissions.appending(path: \.push)` drives the Store
+  subscript write). (4) ViewRegistry's catch-all ctor bags carry
+  their type as roles. pushFirstResolveStatus flipped;
+  authorizationStatusMapping 4/5 assertions pass (rawValue:10
+  singleton queued). FIRST GATE RUN caught typed-marker fallout:
+  five projects failed "is not callable" (static CALLS on extended
+  types) and LiveCheck dropped 4/5 — fixed by a call-dispatch arm
+  re-minting typed markers with arguments, and absorbedNumeric
+  reading named constants (.pi) off typed markers; LiveCheck
+  RESTORED 5/5. Pins: HostEnumExtensionTests,
+  StoreKeyPathAppendingTests. clean-architecture 67 → 68. **suite
+  522 green; LiveCheck 5/5; TestCheck 117→118 passed / 11→10 failed
+  — class strictly improved. ProjectCheck rerun in flight at commit
+  (user-requested commit); verified next iteration.**

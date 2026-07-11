@@ -767,6 +767,11 @@ extension Interpreter {
         if let protocols = registry?.hostProtocolCandidates(of: any), !protocols.isEmpty {
             names.append(contentsOf: protocols)
         }
+        // TYPED markers dispatch their minting type's user extensions
+        // (`UNAuthorizationStatus.notDetermined.map`).
+        if let call = any as? ImplicitMemberCall, let hint = call.typeHint {
+            names.append(hint)
+        }
         if any is String { names.append("String") }
         if any is Int { names.append("Int") }
         if any is Double { names.append("Double"); names.append("CGFloat") }
@@ -1155,6 +1160,13 @@ extension Interpreter {
                let value = try staticMember(name, of: symbol) {
                 return value
             }
+            // The program EXTENDS this host type: mint a TYPED marker so the
+            // extension's instance members dispatch on it
+            // (`UNAuthorizationStatus.notDetermined.map`).
+            if hostExtensionSymbols[function.name] != nil {
+                return .native(ImplicitMemberCall(
+                    name: name, arguments: CallArguments(), typeHint: function.name))
+            }
             return .implicitMember(name)
 
         case .int, .double, .bool, .host:
@@ -1317,7 +1329,14 @@ extension Interpreter {
             if let value = registry?.hostMember(name, on: any) {
                 return value
             }
-            if any is HostTypeMarker {
+            if let marker = any as? HostTypeMarker {
+                // `UNAuthorizationStatus.notDetermined` where the program
+                // EXTENDS the host type: mint a TYPED marker so `.map`
+                // (the extension's member) dispatches on it.
+                if hostExtensionSymbols[marker.name] != nil {
+                    return .native(ImplicitMemberCall(
+                        name: name, arguments: CallArguments(), typeHint: marker.name))
+                }
                 // `Color.red` ≡ `.red` — resolved by expected type at gateways.
                 return .implicitMember(name)
             }
@@ -1424,6 +1443,19 @@ extension Interpreter {
                 // message IS what a compiled error would surface (the last
                 // absorb-census entry — now served for real).
                 return .native(caught.message)
+            }
+            if let stub = any as? KeyPathStub, name == "appending" {
+                // `pathToPermissions.appending(path: \.push)` — native
+                // KeyPath concatenation; `\.self` roots contribute nothing.
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard case .host(let other)? = args.labeled("path") ?? args.positional(0),
+                          let tail = other as? KeyPathStub else {
+                        throw RuntimeError(message: "appending(path:) needs a key path")
+                    }
+                    let head = stub.components.filter { $0 != "self" }
+                    let rest = tail.components.filter { $0 != "self" }
+                    return .native(KeyPathStub(components: head + rest))
+                })
             }
             if assumesCompiledImports {
                 // Compiled sources: an unknown member on a NATIVE that
@@ -2420,6 +2452,13 @@ extension Interpreter {
             throw error(node, "'\(symbol.name)' has no matching initializer")
         case .implicitMember(let name):
             return .native(ImplicitMemberCall(name: name, arguments: args))
+        case .host(let any) where any is ImplicitMemberCall:
+            // A TYPED marker called (`AnyTransition.asymmetric(…)` where the
+            // program extends AnyTransition): the call re-mints with its
+            // arguments, exactly like a bare implicit member.
+            let call = any as! ImplicitMemberCall
+            return .native(ImplicitMemberCall(
+                name: call.name, arguments: args, typeHint: call.typeHint))
         case .host(let any) where any is ChainedImplicitCall:
             let chained = any as! ChainedImplicitCall
             return .native(ChainedImplicitCall(base: chained.base, member: chained.member, arguments: args))

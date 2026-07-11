@@ -165,11 +165,24 @@ public struct GenericApplication {
 public struct ImplicitMemberCall {
     public let name: String
     public let arguments: CallArguments
+    /// The HOST type this marker was minted against, when known
+    /// (`UNAuthorizationStatus.notDetermined` → "UNAuthorizationStatus") —
+    /// user extensions of that type dispatch on the marker through it.
+    public let typeHint: String?
 
-    public init(name: String, arguments: CallArguments) {
+    public init(name: String, arguments: CallArguments, typeHint: String? = nil) {
         self.name = name
         self.arguments = arguments
+        self.typeHint = typeHint
     }
+}
+
+/// Markers stand for cases of types the interpreter can't see — pattern
+/// matching reads their name (`switch self { case .authorized: … }` inside
+/// a user extension of a host enum).
+extension ImplicitMemberCall: CaseShaped {
+    public var caseName: String { name }
+    public var casePayloads: [RuntimeValue] { arguments.arguments.map(\.value) }
 }
 
 /// A member (and optional call) chained onto an unresolved marker, e.g.

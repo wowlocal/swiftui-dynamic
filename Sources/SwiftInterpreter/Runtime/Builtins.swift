@@ -225,7 +225,16 @@ public enum Builtins {
     /// objects and unresolved chains read ZERO (the fresh canvas). Returns
     /// nil for real values — callers keep their concrete coercions.
     public static func absorbedNumeric(_ value: RuntimeValue) -> Double? {
-        if case .implicitMember(let name) = value {
+        let markerName: String? = {
+            if case .implicitMember(let name) = value { return name }
+            // TYPED markers (extended host types) read the same constants.
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+               call.arguments.arguments.isEmpty {
+                return call.name
+            }
+            return nil
+        }()
+        if let name = markerName {
             switch name {
             case "pi": return Double.pi
             case "zero": return 0
