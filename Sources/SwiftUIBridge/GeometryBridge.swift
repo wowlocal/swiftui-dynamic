@@ -76,7 +76,7 @@ final class PathDrawStub {
             }
             path = path.strokedPath(style)
         case "addLines":
-            if case .host(let any)? = args.positional(0), let points = any as? [RuntimeValue] {
+            if let points = args.positional(0)?.arrayValue {
                 path.addLines(points.compactMap {
                     if case .host(let p) = $0 { return p as? CGPoint }
                     return nil

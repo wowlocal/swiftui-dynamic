@@ -559,18 +559,18 @@ public enum Builtins {
             return true
         }
         if let l = lhs.rangeValue, let r = rhs.rangeValue { return try l.isEqual(to: r) }
-        if case .host(let la) = lhs, case .host(let ra) = rhs {
+        if let l = lhs.dictValue, let r = rhs.dictValue {
             // Dictionaries compare by entries, order-independent (native
             // Dictionary ==): every key exists on both sides, equal values.
-            if let l = la as? DictValue, let r = ra as? DictValue {
-                guard l.count == r.count else { return false }
-                for (key, value) in zip(l.keys, l.values) {
-                    let other = try r.lookup(key)
-                    if other.isNil, !value.isNil { return false }
-                    if try !areEqual(value, other) { return false }
-                }
-                return true
+            guard l.count == r.count else { return false }
+            for (key, value) in zip(l.keys, l.values) {
+                let other = try r.lookup(key)
+                if other.isNil, !value.isNil { return false }
+                if try !areEqual(value, other) { return false }
             }
+            return true
+        }
+        if case .host(let la) = lhs, case .host(let ra) = rhs {
             // Marker-call vs marker-call: name equality is the best truth
             // available (`.video == .video`); differing names are unequal.
             if let l = la as? ImplicitMemberCall, let r = ra as? ImplicitMemberCall {
@@ -791,6 +791,20 @@ extension Builtins {
     /// leaves `initial` untouched, exactly like compiled Swift.
     public static func valueSemanticsCopy(_ value: RuntimeValue) -> RuntimeValue {
         switch value {
+        case .array(let array):
+            return .array(array.map(valueSemanticsCopy))
+        case .tuple(let tuple):
+            return .tuple(TupleValue(
+                labels: tuple.labels, values: tuple.values.map(valueSemanticsCopy)))
+        case .dictionary(let dictionary):
+            return .dictionary(DictValue(
+                keys: dictionary.keys.map(valueSemanticsCopy),
+                values: dictionary.values.map(valueSemanticsCopy)))
+        case .range(let range):
+            return .range(RuntimeRangeValue(
+                lowerBound: range.lowerBound.map(valueSemanticsCopy),
+                upperBound: range.upperBound.map(valueSemanticsCopy),
+                includesUpperBound: range.includesUpperBound))
         case .instance(let instance):
             guard !instance.symbol.isClass else { return value }
             let copy = Instance(symbol: instance.symbol)
@@ -807,15 +821,17 @@ extension Builtins {
                 symbol: caseValue.symbol, name: caseValue.name,
                 associated: caseValue.associated.map(valueSemanticsCopy)))
         case .host(let any):
+            // Compatibility for embedders that still construct core values
+            // with `.host` directly. New interpreter paths use typed cases.
             if let array = any as? [RuntimeValue] {
-                return .host(array.map(valueSemanticsCopy))
+                return .array(array.map(valueSemanticsCopy))
             }
             if let tuple = any as? TupleValue {
-                return .host(TupleValue(labels: tuple.labels, values: tuple.values.map(valueSemanticsCopy)))
+                return .tuple(TupleValue(labels: tuple.labels, values: tuple.values.map(valueSemanticsCopy)))
             }
             if let dict = any as? DictValue {
-                return .host(DictValue(keys: dict.keys.map(valueSemanticsCopy),
-                                       values: dict.values.map(valueSemanticsCopy)))
+                return .dictionary(DictValue(keys: dict.keys.map(valueSemanticsCopy),
+                                             values: dict.values.map(valueSemanticsCopy)))
             }
             return value
         default:

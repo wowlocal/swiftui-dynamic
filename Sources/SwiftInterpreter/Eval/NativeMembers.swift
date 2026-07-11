@@ -675,6 +675,20 @@ extension Interpreter {
                     throw RuntimeError(message: "'\(instance.symbol.name)' has no member '\(component)'")
                 }
                 current = value
+            case .tuple(let tuple):
+                if let element = tuple.value(for: component) {
+                    current = element
+                } else {
+                    current = .native(ChainedImplicitCall(
+                        base: current, member: component, arguments: CallArguments()))
+                }
+            case .int, .double, .bool, .string, .array, .dictionary, .range:
+                if let value = try nativeMember(component, on: current) {
+                    current = value
+                } else {
+                    current = .native(ChainedImplicitCall(
+                        base: current, member: component, arguments: CallArguments()))
+                }
             case .host(let any):
                 // Labeled tuples read their elements (`\.key` over the
                 // dictionary pair shape).

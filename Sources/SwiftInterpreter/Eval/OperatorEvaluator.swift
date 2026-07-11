@@ -830,17 +830,17 @@ extension Interpreter {
             if case .instance(let instance) = baseValue {
                 return .instanceProperty(instance, instance.symbol.canonicalPropertyName(member.declName.baseName.text))
             }
+            if let tuple = baseValue.tupleValue {
+                let memberName = member.declName.baseName.text
+                let index = Int(memberName) ?? tuple.labels.firstIndex(of: memberName) ?? -1
+                if tuple.values.indices.contains(index), let baseLValue = try? resolveLValue(base, in: env) {
+                    return .tupleElement(baseLValue, index)
+                }
+            }
             if case .host(let any) = baseValue {
                 // `binding.wrappedValue = …` writes straight through the box.
                 if let stub = any as? BindingStub, member.declName.baseName.text == "wrappedValue" {
                     return .box(stub.box)
-                }
-                if let tuple = any as? TupleValue {
-                    let memberName = member.declName.baseName.text
-                    let index = Int(memberName) ?? tuple.labels.firstIndex(of: memberName) ?? -1
-                    if tuple.values.indices.contains(index), let baseLValue = try? resolveLValue(base, in: env) {
-                        return .tupleElement(baseLValue, index)
-                    }
                 }
                 if registry != nil {
                     // VALUE types (CGSize/CGPoint/CGRect…) write through a

@@ -1118,7 +1118,7 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
             guard let url = NetworkBridge.url(from: args.labeled("url")),
                   let code = args.labeled("statusCode")?.intValue else { return .nilValue }
             var headers: [String: String]?
-            if case .host(let any)? = args.labeled("headerFields"), let dict = any as? DictValue {
+            if let dict = args.labeled("headerFields")?.dictValue {
                 headers = [:]
                 for (key, value) in zip(dict.keys, dict.values) {
                     if let k = key.stringValue { headers?[k] = value.stringValue ?? value.stringified }
@@ -1399,6 +1399,18 @@ enum JSONDecodeBridge {
         case .int(let i): return i
         case .double(let d): return d
         case .bool(let b): return b
+        case .string(let string): return string
+        case .array(let array):
+            return try array.map { try encodeToJSON($0, snakeCase: snakeCase) }
+        case .dictionary(let dictionary):
+            var out: [String: Any] = [:]
+            for (key, entry) in zip(dictionary.keys, dictionary.values) {
+                guard let keyText = key.stringValue else { continue }
+                out[keyText] = try encodeToJSON(entry, snakeCase: snakeCase)
+            }
+            return out
+        case .tuple(let tuple):
+            return try tuple.values.map { try encodeToJSON($0, snakeCase: snakeCase) }
         case .nilValue: return NSNull()
         case .enumCase(let enumCase):
             return enumCase.rawValue.stringValue ?? enumCase.rawValue.intValue ?? enumCase.name
@@ -1462,7 +1474,7 @@ enum JSONDecodeBridge {
         }
         // `[String: String?].self` — a dictionary TYPE literal: one entry
         // whose key/value are themselves type values.
-        if case .host(let any) = typeValue, let dict = any as? DictValue,
+        if let dict = typeValue.dictValue,
            dict.keys.count == 1,
            let key = annotationName(from: dict.keys[0]),
            let value = annotationName(from: dict.values[0]) {

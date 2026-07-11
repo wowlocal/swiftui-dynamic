@@ -1,11 +1,9 @@
 /// A typed view over `RuntimeValue` used by evaluator code.
 ///
-/// `RuntimeValue.host(Any)` predates the interpreter's collection and value
-/// semantics. Replacing it in one flag day would churn every gateway, so this
-/// view is the migration boundary: core evaluation switches on explicit
-/// Swift-shaped payloads while host frameworks continue receiving `Any` via
-/// `RuntimeValue.hostPayload`. As storage moves to dedicated enum cases, this
-/// API can stay stable.
+/// A stable typed view over runtime storage. Core values have dedicated
+/// `RuntimeValue` cases; opaque framework values alone flow through `.host`.
+/// Evaluators switch on this view when they do not need to distinguish the
+/// physical storage case, while gateways retain the `hostPayload` adapter.
 public enum RuntimePayload {
     case void
     case nilValue
@@ -43,6 +41,16 @@ extension RuntimeValue {
             return .floatingPoint(value)
         case .bool(let value):
             return .boolean(value)
+        case .string(let value):
+            return .string(value)
+        case .array(let value):
+            return .array(value)
+        case .dictionary(let value):
+            return .dictionary(value)
+        case .tuple(let value):
+            return .tuple(value)
+        case .range(let value):
+            return .range(value)
         case .instance(let value):
             return .instance(value)
         case .closure(let value):
@@ -58,6 +66,9 @@ extension RuntimeValue {
         case .implicitMember(let value):
             return .implicitMember(value)
         case .host(let value):
+            // Compatibility for embedders compiled against the original
+            // `host(Any)` representation. New core values are normalized by
+            // `RuntimeValue.native(_:)` before reaching this branch.
             if let string = value as? String { return .string(string) }
             if let array = value as? [RuntimeValue] { return .array(array) }
             if let dictionary = value as? DictValue { return .dictionary(dictionary) }

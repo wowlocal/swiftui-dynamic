@@ -160,7 +160,7 @@ extension Interpreter {
                 try runUserSubscriptGetter(symbol, selfValue: selfValue, args: indexArgs)
             }
         }
-        if case .host(let stringAny) = base, let string = stringAny as? String {
+        if let string = base.stringValue {
             // `text[range]` / `text[i]` with String.Index values.
             if let range = index.rangeValue {
                 return .native(String(string[try stringSlice(range, in: string, node: call)]))

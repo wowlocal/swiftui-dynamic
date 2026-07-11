@@ -502,7 +502,7 @@ extension Interpreter {
             elements = []
         } else if case .host(let dataAny) = sequence, let bytes = dataAny as? Data {
             elements = bytes.map { .native(Int($0)) } // byte collection
-        } else if case .host(let dictAny) = sequence, let dict = dictAny as? DictValue {
+        } else if let dict = sequence.dictValue {
             // `for (id, count) in sales` — native Dictionary iteration
             // yields (key, value) tuples, in the dict's stable order.
             elements = zip(dict.keys, dict.values).map { key, value in

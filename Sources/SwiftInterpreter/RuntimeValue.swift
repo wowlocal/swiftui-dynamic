@@ -1,20 +1,26 @@
 import SwiftSyntax
 /// The type-erased runtime representation of every value the interpreter touches.
 ///
-/// The scalars every loop and comparison churns through (`Int`, `Double`,
-/// `Bool`) live INLINE — reading them is a jump, not an existential dynamic
-/// cast. Other native values (strings, arrays, and opaque host values such
-/// as `AnyView`) live in `.host`; user-defined structs are `.instance`;
-/// functions and closures are `.closure`; pre-compiled host gateways are
-/// `.hostFunction`. Construct through the `native(_:)` factories, which
-/// normalize scalars into their inline cases — `.host` never holds an
-/// Int/Double/Bool (accessors stay tolerant regardless).
+/// Swift-language values live in dedicated cases so evaluator semantics never
+/// depend on existential casts. `.host` is reserved for opaque framework and
+/// embedder values such as `AnyView`, `Date`, and `URL`. User-defined values
+/// are `.instance`; functions and closures are `.closure`; pre-compiled host
+/// gateways are `.hostFunction`.
+///
+/// Construct through the `native(_:)` factories. The untyped overload
+/// normalizes every supported core value into its dedicated case while
+/// preserving the opaque host escape hatch at the framework boundary.
 public enum RuntimeValue {
     case void
     case nilValue
     case int(Int)
     case double(Double)
     case bool(Bool)
+    case string(String)
+    case array([RuntimeValue])
+    case dictionary(DictValue)
+    case tuple(TupleValue)
+    indirect case range(RuntimeRangeValue)
     case host(Any)
     case instance(Instance)
     case closure(ClosureValue)
@@ -27,6 +33,11 @@ public enum RuntimeValue {
     @inline(__always) public static func native(_ value: Int) -> RuntimeValue { .int(value) }
     @inline(__always) public static func native(_ value: Double) -> RuntimeValue { .double(value) }
     @inline(__always) public static func native(_ value: Bool) -> RuntimeValue { .bool(value) }
+    @inline(__always) public static func native(_ value: String) -> RuntimeValue { .string(value) }
+    @inline(__always) public static func native(_ value: [RuntimeValue]) -> RuntimeValue { .array(value) }
+    @inline(__always) public static func native(_ value: DictValue) -> RuntimeValue { .dictionary(value) }
+    @inline(__always) public static func native(_ value: TupleValue) -> RuntimeValue { .tuple(value) }
+    @inline(__always) public static func native(_ value: RuntimeRangeValue) -> RuntimeValue { .range(value) }
     /// The untyped fallback: statically-scalar call sites bind the overloads
     /// above at compile time; `Any` payloads normalize here (this also
     /// unwraps optional scalars, matching the old `as? Int` read behavior;
@@ -35,7 +46,11 @@ public enum RuntimeValue {
         if let i = value as? Int { return .int(i) }
         if let d = value as? Double { return .double(d) }
         if let b = value as? Bool { return .bool(b) }
-        if let range = RuntimeRangeValue.fromNative(value) { return .host(range) }
+        if let string = value as? String { return .string(string) }
+        if let array = value as? [RuntimeValue] { return .array(array) }
+        if let dictionary = value as? DictValue { return .dictionary(dictionary) }
+        if let tuple = value as? TupleValue { return .tuple(tuple) }
+        if let range = RuntimeRangeValue.fromNative(value) { return .range(range) }
         return .host(value)
     }
 }
@@ -50,6 +65,11 @@ extension RuntimeValue {
         case .int(let i): return i
         case .double(let d): return d
         case .bool(let b): return b
+        case .string(let string): return string
+        case .array(let array): return array
+        case .dictionary(let dictionary): return dictionary
+        case .tuple(let tuple): return tuple
+        case .range(let range): return range
         default: return nil
         }
     }
@@ -75,8 +95,11 @@ extension RuntimeValue {
     }
 
     public var stringValue: String? {
-        if case .host(let any) = self { return any as? String }
-        return nil
+        switch self {
+        case .string(let string): return string
+        case .host(let any): return any as? String
+        default: return nil
+        }
     }
 
     public var boolValue: Bool? {
@@ -88,23 +111,35 @@ extension RuntimeValue {
     }
 
     public var arrayValue: [RuntimeValue]? {
-        if case .host(let any) = self { return any as? [RuntimeValue] }
-        return nil
+        switch self {
+        case .array(let array): return array
+        case .host(let any): return any as? [RuntimeValue]
+        default: return nil
+        }
     }
 
     public var rangeValue: RuntimeRangeValue? {
-        guard case .host(let any) = self else { return nil }
-        return RuntimeRangeValue.fromNative(any)
+        switch self {
+        case .range(let range): return range
+        case .host(let any): return RuntimeRangeValue.fromNative(any)
+        default: return nil
+        }
     }
 
     public var dictValue: DictValue? {
-        if case .host(let any) = self { return any as? DictValue }
-        return nil
+        switch self {
+        case .dictionary(let dictionary): return dictionary
+        case .host(let any): return any as? DictValue
+        default: return nil
+        }
     }
 
     public var tupleValue: TupleValue? {
-        if case .host(let any) = self { return any as? TupleValue }
-        return nil
+        switch self {
+        case .tuple(let tuple): return tuple
+        case .host(let any): return any as? TupleValue
+        default: return nil
+        }
     }
 
     public var closureValue: ClosureValue? {
@@ -126,6 +161,12 @@ extension RuntimeValue {
         case .int(let i): return String(i)
         case .double(let d): return String(d)
         case .bool(let b): return b ? "true" : "false"
+        case .string(let string): return string
+        case .array(let array):
+            return "[" + array.map(\.stringified).joined(separator: ", ") + "]"
+        case .dictionary(let dictionary): return dictionary.description
+        case .tuple(let tuple): return tuple.description
+        case .range(let range): return range.description
         case .host(let any):
             if let arr = any as? [RuntimeValue] {
                 return "[" + arr.map(\.stringified).joined(separator: ", ") + "]"

@@ -560,7 +560,7 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             let domain = args.labeled("domain")?.stringValue ?? "interpreted"
             let code = args.labeled("code")?.intValue ?? 0
             var userInfo: [String: Any] = [:]
-            if case .host(let any)? = args.labeled("userInfo"), let dict = any as? DictValue {
+            if let dict = args.labeled("userInfo")?.dictValue {
                 for (key, value) in zip(dict.keys, dict.values) {
                     guard let keyText = key.stringValue else { continue }
                     userInfo[keyText] = value.stringValue ?? value.stringified

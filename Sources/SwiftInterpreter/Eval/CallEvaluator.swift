@@ -59,6 +59,14 @@ extension Interpreter {
         case .int: return ["Int", "Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
         case .double: return ["Double", "CGFloat", "TimeInterval", "Float", "NSNumber"].contains(typeName)
         case .bool: return typeName == "Bool" || typeName == "NSNumber"
+        case .string: return ["String", "NSString"].contains(typeName)
+        case .array: return ["Array", "NSArray"].contains(typeName) || typeName.hasPrefix("[")
+        case .dictionary:
+            return ["Dictionary", "NSDictionary"].contains(typeName) || typeName.hasPrefix("[")
+        case .tuple: return typeName == "Tuple"
+        case .range:
+            return ["Range", "ClosedRange", "PartialRangeFrom", "PartialRangeUpTo",
+                    "PartialRangeThrough", "RangeExpression"].contains(typeName)
         case .instance(let instance):
             var symbol: StructSymbol? = instance.symbol
             while let current = symbol {
@@ -438,8 +446,7 @@ extension Interpreter {
         // `text.replaceSubrange(range, with: "…")`.
         if name == "replaceSubrange",
            let target = try? resolveLValue(base, in: env),
-           case .host(let existingAny) = try target.read(self),
-           var text = existingAny as? String {
+           var text = try target.read(self).stringValue {
             let args = try collectArguments(of: call, in: env)
             guard let replacement = args.labeled("with")?.stringValue,
                   let range = args.positional(0)?.rangeValue else {

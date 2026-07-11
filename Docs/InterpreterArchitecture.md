@@ -31,30 +31,34 @@ source
 - `HostRegistry` is the only framework capability boundary. SwiftUIBridge and
   test registries implement it independently.
 
-## Typed-runtime migration
+## Runtime-value migration
 
-`RuntimeValue.host(Any)` currently stores both opaque framework objects and
-some Swift-shaped values inherited from the original prototype. Core evaluator
-code must switch on `RuntimeValue.payload`, which exposes strings, arrays,
-dictionaries, tuples, ranges, and primitives explicitly while preserving the
-existing `hostPayload` contract for gateways.
+`RuntimeValue` stores primitives, strings, arrays, dictionaries, tuples, and
+ranges in dedicated enum cases. `RuntimeValue.host(Any)` is the escape hatch
+for opaque framework or embedder objects such as `AnyView`, `Date`, and `URL`.
+`RuntimePayload` and the typed accessors form the stable dispatch surface, and
+`hostPayload` boxes a core value only when a host gateway explicitly asks for
+one.
 
-This permits storage to migrate incrementally without another evaluator-wide
-rewrite:
+The remaining semantic migration is deliberately ordered:
 
-1. Route standard-library dispatch through `RuntimePayload`.
-2. Add dedicated `RuntimeValue` storage for strings and collections behind
-   the stable payload/accessor APIs.
-3. Separate value-backed struct storage from reference-backed class and model
-   storage.
-4. Add copy-in/copy-out semantics at assignment, argument, and closure
-   boundaries.
-5. Make evaluator suspension and cancellation explicit before adding real
+1. Convert tuple and dictionary storage from shared reference containers to
+   value-backed or copy-on-write storage.
+2. Separate value-backed interpreted structs from reference-backed classes and
+   observable models.
+3. Enforce copy-in/copy-out semantics at assignment, argument, `inout`, return,
+   capture, and collection-mutation boundaries.
+4. Make evaluator suspension and cancellation explicit before adding real
    concurrent task execution.
+5. Replace dynamically interpreted host calls with parsed, validated
+   signatures while retaining the injected `HostRegistry` boundary.
 
 New core code should not downcast `host(Any)` to a Swift-shaped value. Direct
 downcasts are reserved for opaque host/framework implementations and should be
 kept at the registry boundary or in a clearly named compatibility path.
+
+The current comparison and acceptance criteria for this migration are recorded
+in [SwiftScriptGapMatrix.md](SwiftScriptGapMatrix.md).
 
 ## Verification invariants
 

@@ -210,10 +210,10 @@ extension Interpreter {
             return try staticMember(name, of: symbol)
         case .enumType(let symbol):
             return try staticMember(name, of: symbol)
-        case .int, .double, .bool, .host:
+        case .int, .double, .bool, .string, .array, .dictionary, .tuple, .range, .host:
             // Bare `count`/`firstIndex(...)` inside a host-type extension body
             // is implicit self on the native value. Inline scalars box on
-            // demand — member dispatch wants the uniform Any path.
+            // demand for host-extension and gateway compatibility.
             let any = selfValue.hostPayload!
             if let stub = any as? BindingStub {
                 // `wrappedValue.setIsLoading(…)` inside `extension Binding`
@@ -797,7 +797,7 @@ extension Interpreter {
             }
             throw error(node, "'\(symbol.name)' has no static member '\(name)'")
 
-        case .implicitMember(let baseName):
+        case .implicitMember:
             // View modifiers on color-shaped bases (`Color.black.ignoresSafeArea()`)
             // route to the modifier table; `opacity`/`gradient` stay opaque
             // chains because they're style transforms, not view modifiers here.
@@ -847,9 +847,10 @@ extension Interpreter {
             }
             return .implicitMember(name)
 
-        case .int, .double, .bool, .host:
-            // Inline scalars box on demand: `5.description`, `x.rounded()`,
-            // and user Int/Double extensions all dispatch on the Any payload.
+        case .int, .double, .bool, .string, .array, .dictionary, .tuple, .range, .host:
+            // Core values and opaque hosts share the extension/gateway tail,
+            // but standard-library dispatch receives the typed RuntimeValue
+            // before any compatibility boxing occurs.
             let any = baseValue.hostPayload!
             if let casePath = any as? CasePathMarker, name == "extract",
                let symbol = casePath.enumSymbol, let caseName = casePath.caseName {
@@ -967,7 +968,8 @@ extension Interpreter {
                     }
                 }
                 switch name {
-                case "append", "remove" where stub.box.value.arrayValue != nil:
+                case "append" where stub.box.value.arrayValue != nil,
+                     "remove" where stub.box.value.arrayValue != nil:
                     // Projected-collection writes (`$results.append(x)` —
                     // the Realm/SwiftData binding idiom) mutate through the
                     // box, notifying like any state write.

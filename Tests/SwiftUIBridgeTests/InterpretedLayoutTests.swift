@@ -115,7 +115,7 @@ import Testing
         #expect(interpreter.globals.lookup("flatHeight")?.doubleValue == 4)
         guard case .host(let any)? = interpreter.globals.lookup("anchor"),
               let unit = any as? UnitPoint else {
-            Issue.record("UnitPoint(x:y:) did not evaluate to a host UnitPoint")
+            Issue.record("UnitPoint(x:y:) did not evaluate to a host UnitPoint; got \(interpreter.globals.lookup("anchor")?.stringified ?? "nil")")
             return
         }
         #expect(unit.x == 1)
