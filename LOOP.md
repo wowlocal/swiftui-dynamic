@@ -324,10 +324,10 @@ Each iteration does exactly this:
 
 - `swift run ParityCheck` — API parity vs a compiled twin (generated
   members surface; regenerate probes with `swift run BridgeGen --emit
-  --probes`). Current: 220 match / 30 diverge / 3 error / 14 unstable of
-  267. The diverge+error tail is an open class: each is a real
+  --probes`). Current: 245 match / 5 diverge / 3 error / 14 unstable of 267
+  (ratchet: never regress 245). The diverge+error tail is an open class: each is a real
   divergence or a missing seed/constructor — burn down when it tops the
-  queue; keep 220+ as a ratchet (never regress the match count).
+  queue; the residue is property/method name collisions (url.query vs query(percentEncoded:)) — needs call-aware member dispatch.
 - `INTERP_ABSORB_CENSUS=1 swift run ProjectCheck --all` — corpus-wide
   absorbed-member demand curve.
 

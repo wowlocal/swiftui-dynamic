@@ -137,15 +137,32 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
     if let network = networkHostObjectConstructor(named: name) { return network }
     switch name {
     case "URLRequest":
-        // A real config bag: member writes memoize (request.httpMethod =
-        // "POST"), and NetworkBridge.url(from:) reads config["url"] — the
-        // URLProtocol mock gate compares real URLs.
+        // REAL when the url resolves (member reads ride the generated
+        // table via the carrier; writes go through networkHostSetMember);
+        // unknowable urls keep the old absorbing bag so broken chains
+        // stay absorbed instead of crashing.
         return HostFunction(name: name) { args, _ in
-            let bag = UIKitStub()
-            if let url = args.labeled("url") ?? args.positional(0) {
-                bag.config["url"] = url
+            let urlValue = args.labeled("url") ?? args.positional(0)
+            if let url = NetworkBridge.url(from: urlValue) {
+                return .native(URLRequestBox(request: URLRequest(url: url)))
             }
+            let bag = UIKitStub()
+            if let urlValue { bag.config["url"] = urlValue }
             return .native(bag)
+        }
+    case "DateInterval":
+        return HostFunction(name: name) { args, _ in
+            var start = Date(timeIntervalSince1970: 0)
+            if case .host(let any)? = args.labeled("start"), let date = any as? Date {
+                start = date
+            }
+            if case .host(let any)? = args.labeled("end"), let end = any as? Date {
+                return .native(DateInterval(start: start, end: end))
+            }
+            if let duration = args.labeled("duration")?.doubleValue {
+                return .native(DateInterval(start: start, duration: duration))
+            }
+            return .native(DateInterval())
         }
     case "NSLock", "NSRecursiveLock", "NSCondition":
         // Single-threaded probes hold every lock trivially: withLock RUNS

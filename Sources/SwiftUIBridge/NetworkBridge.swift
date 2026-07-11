@@ -123,6 +123,7 @@ public enum NetworkBridge {
         guard let value else { return nil }
         if case .host(let any) = value {
             if let url = any as? URL { return url }
+            if let box = any as? URLRequestBox { return box.request.url }
             if let stub = any as? UIKitStub {
                 // URLRequest(url:) built as an absorbing bag — the url rode in.
                 if case .host(let inner)? = stub.config["url"], let url = inner as? URL {
@@ -142,6 +143,22 @@ public enum NetworkBridge {
         if let text = value.stringValue { return URL(string: text) }
         return nil
     }
+}
+
+/// A REAL URLRequest behind member reads/writes — the parity harness
+/// showed the old absorbing bag shadowing ~12 native members. Unknowable
+/// URLs still fall back to the bag at the constructor.
+public final class URLRequestBox {
+    var request: URLRequest
+
+    init(request: URLRequest) {
+        self.request = request
+    }
+}
+
+extension URLRequestBox: GeneratedMemberCarrier, CustomStringConvertible {
+    var generatedMemberValue: Any { request }
+    public var description: String { String(describing: request) }
 }
 
 /// `URLSession.shared` and friends.
@@ -502,6 +519,32 @@ public final class KeyedContainerStub {
 
 @MainActor
 func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let box = value as? URLRequestBox {
+        switch name {
+        case "setValue", "addValue":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let headerValue = args.positional(0)?.stringValue
+                if let field = args.labeled("forHTTPHeaderField")?.stringValue {
+                    if name == "addValue", let headerValue {
+                        box.request.addValue(headerValue, forHTTPHeaderField: field)
+                    } else {
+                        box.request.setValue(headerValue, forHTTPHeaderField: field)
+                    }
+                }
+                return .void
+            })
+        case "value":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard let field = args.labeled("forHTTPHeaderField")?.stringValue,
+                      let headerValue = box.request.value(forHTTPHeaderField: field) else {
+                    return .nilValue
+                }
+                return .native(headerValue)
+            })
+        default:
+            break
+        }
+    }
     if let marker = value as? HostTypeMarker, marker.name == "URLSession", name == "shared" {
         return .native(URLSessionBox())
     }
@@ -799,6 +842,29 @@ func networkHostSetMember(_ name: String, on value: Any, to newValue: RuntimeVal
             return true
         case "outputFormatting", "dateEncodingStrategy":
             return true // accepted; formatting is invisible to decode round-trips
+        default:
+            return false
+        }
+    }
+    if let box = value as? URLRequestBox {
+        switch name {
+        case "httpMethod":
+            box.request.httpMethod = newValue.stringValue
+            return true
+        case "url":
+            box.request.url = NetworkBridge.url(from: newValue)
+            return true
+        case "httpBody":
+            if case .host(let any) = newValue, let data = any as? Data {
+                box.request.httpBody = data
+            }
+            return true
+        case "timeoutInterval":
+            if let interval = newValue.doubleValue { box.request.timeoutInterval = interval }
+            return true
+        case "cachePolicy", "allHTTPHeaderFields", "httpShouldHandleCookies",
+             "allowsCellularAccess":
+            return true // accepted; invisible to replay semantics
         default:
             return false
         }
