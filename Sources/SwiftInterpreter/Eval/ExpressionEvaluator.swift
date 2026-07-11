@@ -3044,8 +3044,11 @@ extension Interpreter {
             return lhs.isNil ? try evaluate(infix.rightOperand, in: env) : lhs
         case "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=":
             let target = try resolveLValue(infix.leftOperand, in: env)
-            let rhs = try evaluate(infix.rightOperand, in: env)
+            var rhs = try evaluate(infix.rightOperand, in: env)
             let current = try target.read(self)
+            // `date -= .random(in:using:)` — factory markers DRAW here too
+            // (the compound path bypasses the infix adoption).
+            rhs = try adoptNumericFactoryMarker(rhs, peer: current)
             do {
                 let combined = try relocating(infix) {
                     try Builtins.binary(String(op.dropLast()), current, rhs)

@@ -65,6 +65,28 @@ public final class Instance: CustomStringConvertible {
 /// The REAL stdlib random algorithms drive an INTERPRETED generator: the
 /// proxy's next() calls the interpreted `next()`, so ranged draws and
 /// shuffles match a native run bit-for-bit (FoodTruck's seeded RNG genre).
+extension Interpreter {
+    /// The generator instance behind a `using:` argument — direct, inout-
+    /// wrapped (BindingStub), or box-held (markers store inout args
+    /// differently per call position).
+    public func generatorInstance(from value: RuntimeValue?) -> Instance? {
+        switch value {
+        case .instance(let generator):
+            return generator
+        case .host(let any):
+            if let stub = any as? BindingStub, case .instance(let generator) = stub.box.value {
+                return generator
+            }
+            if let slot = any as? InoutSlot, case .instance(let generator) = slot.current {
+                return generator
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+}
+
 public struct InterpretedGeneratorProxy: RandomNumberGenerator {
     let interpreter: Interpreter
     let generator: Instance

@@ -1139,3 +1139,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   the stream is OFFSET a few draws — draw-by-draw trace next; board
   data-screens unchanged pending alignment. **GATE GREEN: suite 533;
   corpus 678/680; live 5/5; parity 345/0/0; R1 9/9.**
+- 2026-07-11 iter 237 (FoodTruck R2): **DATA PARITY COMPLETE — the
+  interpreted FoodTruckModel's orders are IDENTICAL to native,
+  order-for-order** (donut counts + grand totals match the twin
+  exactly: 2/34.68, 4/69.36, 2/40.46, 3/52.02, 1/17.34, 5/80.92).
+  Draw-by-draw stack-tagged tracing (drand48 trace + interpreted
+  call-stack tags) found the last two stream leaks: (1) a MARKER's
+  stored `using: &generator` rides as an INOUT SLOT — the factory
+  arm's .instance match failed SILENTLY and fell to the system RNG
+  (undrawn, per-run variance); generatorInstance(from:) unwraps
+  direct/.instance, BindingStub, and InoutSlot forms. (2) the
+  compound path (`date -= .random(...)`) bypassed the infix marker
+  adoption — adopted there too. Pin extended (SeededRNGParityTests:
+  compound draw + follow-on == native 3). Diagnostics kept: drand48
+  RNG_TRACE with call-stack tags; traceStateCells now settable.
+  Board: orders 11.73% (ratchet), data screens' residual AE is
+  RENDER-side (card-orders 51% visual diff next). **GATE GREEN:
+  suite 533; corpus 678/680; live 5/5; parity 345/0/0; R1 9/9.**

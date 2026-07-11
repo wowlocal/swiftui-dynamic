@@ -1379,6 +1379,11 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         let dbl = Double.random(in: 0.75 ... 1.1, using: &g)
         var g2 = Gen(seed: 2)
         let picked = [10, 20, 30, 40, 50].shuffled(using: &g2).prefix(.random(in: 1 ... 3, using: &g2)).count
+        var g3 = Gen(seed: 1)
+        var anchor = 1000.0
+        anchor -= .random(in: 60 ..< 180, using: &g3)
+        let offsetDrawn = anchor < 940 && anchor > 820
+        let followOn = Int.random(in: 1 ... 5, using: &g3)
         """
         let interpreter = Interpreter(registry: TraceRegistry())
         try interpreter.run(source: source)
@@ -1388,6 +1393,11 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("dbl")?.stringified == "1.0421860263584204")
         let picked = interpreter.globals.lookup("picked")?.intValue ?? -1
         #expect((1...3).contains(picked))
+        // The compound `-= .random(...)` marker DRAWS through the seeded
+        // stream (inout slot unwrap) — natively anchor - draw#1(seed 1) =
+        // 1000 - (60 + 0.0416*120) ≈ 935 and the follow-on integer is 3.
+        #expect(interpreter.globals.lookup("offsetDrawn")?.stringified == "true")
+        #expect(interpreter.globals.lookup("followOn")?.stringified == "3")
     }
 }
 

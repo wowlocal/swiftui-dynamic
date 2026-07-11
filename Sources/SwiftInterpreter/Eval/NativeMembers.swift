@@ -543,8 +543,8 @@ extension Interpreter {
             return .hostFunction(HostFunction(name: name) { args, ctx in
                 // `shuffled(using: &generator)` — the real Fisher-Yates over
                 // the interpreted generator (seeded-stream parity).
-                if case .instance(let generator)? = args.labeled("using"),
-                   let interpreter = ctx as? Interpreter {
+                if let interpreter = ctx as? Interpreter,
+                   let generator = interpreter.generatorInstance(from: args.labeled("using")) {
                     var proxy = InterpretedGeneratorProxy(interpreter: interpreter, generator: generator)
                     return .native(array.shuffled(using: &proxy))
                 }

@@ -28,6 +28,8 @@ public final class Interpreter {
     /// PRIMARY TARGET interprets as macOS to match its native twin
     /// pixel-for-pixel.
     public static var interpretsAsPlatform = "iOS"
+    /// RNG_TRACE diagnostics only.
+    public static var rngDrawCount = 0
 
     /// Interpreted protocol declarations' inheritance (`protocol
     /// ConnectedView: View`) — conformance through a protocol must count as
@@ -247,7 +249,7 @@ public final class Interpreter {
         defer { viewIdentitySalts.removeLast() }
         return try body()
     }
-    static let traceStateCells = ProcessInfo.processInfo.environment["INTERP_TRACE_STATE"] != nil
+    static var traceStateCells = ProcessInfo.processInfo.environment["INTERP_TRACE_STATE"] != nil
     /// Gated call-stack names for cycle diagnosis (nesting-guard dumps).
     var callStackNames: [String] = []
     /// Declaration → the symbol whose body/extension lexically holds it
@@ -1842,8 +1844,14 @@ public final class Interpreter {
             srand48(args.positional(0)?.intValue ?? 0)
             return .void
         }
-        define("drand48") { _, _ in
-            .native(drand48())
+        define("drand48") { [weak self] _, _ in
+            let value = drand48()
+            if ProcessInfo.processInfo.environment["RNG_TRACE"] != nil {
+                Interpreter.rngDrawCount += 1
+                let stack = self?.callStackNames.suffix(3).joined(separator: ">") ?? ""
+                FileHandle.standardError.write(Data("DRAW \(Interpreter.rngDrawCount) \(value) [\(stack)]\n".utf8))
+            }
+            return .native(value)
         }
         define("UInt64") { args, _ in
             // Exact 64-bit carrier (interpreted next() overflows Int):

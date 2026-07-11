@@ -389,8 +389,8 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 if ProcessInfo.processInfo.environment["RNG_TRACE"] != nil {
                     FileHandle.standardError.write(Data("   ⚙ random wantsInt=\(wantsInt) using=\(String(describing: args.labeled("using"))) arg=\(String(describing: argument))\n".utf8))
                 }
-                if case .instance(let generator)? = args.labeled("using"),
-                   let interpreter = ctx as? Interpreter {
+                if let interpreter = ctx as? Interpreter,
+                   let generator = interpreter.generatorInstance(from: args.labeled("using")) {
                     var proxy = InterpretedGeneratorProxy(interpreter: interpreter, generator: generator)
                     if wantsInt {
                         if let range = argument?.rangeValue?.halfOpenIntRange {
