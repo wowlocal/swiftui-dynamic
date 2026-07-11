@@ -61,3 +61,26 @@ public final class Instance: CustomStringConvertible {
         return "\(symbol.name)(\(props))"
     }
 }
+
+/// The REAL stdlib random algorithms drive an INTERPRETED generator: the
+/// proxy's next() calls the interpreted `next()`, so ranged draws and
+/// shuffles match a native run bit-for-bit (FoodTruck's seeded RNG genre).
+public struct InterpretedGeneratorProxy: RandomNumberGenerator {
+    let interpreter: Interpreter
+    let generator: Instance
+
+    public init(interpreter: Interpreter, generator: Instance) {
+        self.interpreter = interpreter
+        self.generator = generator
+    }
+
+    public mutating func next() -> UInt64 {
+        guard let value = try? interpreter.callMethod(named: "next", on: generator, arguments: []) else {
+            return 0
+        }
+        if case .host(let any) = value, let u = any as? UInt64 { return u }
+        if let i = value.intValue { return UInt64(bitPattern: Int64(i)) }
+        if let d = value.doubleValue { return UInt64(max(0, min(d, Double(UInt64.max)))) }
+        return 0
+    }
+}

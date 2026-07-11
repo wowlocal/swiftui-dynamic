@@ -1358,6 +1358,39 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct SeededRNGParityTests {
+    // FoodTruck's SeededRandomGenerator genre: srand48/drand48 are REAL
+    // libc calls, UInt64 is an exact 64-bit host carrier (not Int-clamped),
+    // and random(in:using:)/shuffled(using:)/prefix(.random(...)) drive the
+    // REAL stdlib algorithms through the interpreted generator. Native
+    // parity: seed 1's first draw is 767944315707129856; ranged draws
+    // below reproduce a compiled run of the same source bit-for-bit.
+    @Test func seededStreamMatchesNative() throws {
+        let source = """
+        struct Gen: RandomNumberGenerator {
+            init(seed: Int) { srand48(seed) }
+            func next() -> UInt64 {
+                UInt64(drand48() * Double(UInt64.max))
+            }
+        }
+        var g = Gen(seed: 1)
+        let raw = g.next()
+        let ranged = Int.random(in: 1 ... 5, using: &g)
+        let dbl = Double.random(in: 0.75 ... 1.1, using: &g)
+        var g2 = Gen(seed: 2)
+        let picked = [10, 20, 30, 40, 50].shuffled(using: &g2).prefix(.random(in: 1 ... 3, using: &g2)).count
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("raw")?.stringified == "767944315707129856")
+        #expect(interpreter.globals.lookup("ranged")?.stringified == "3")
+        // Native run (scratch swiftc): dbl == 1.0421860263584204 exactly.
+        #expect(interpreter.globals.lookup("dbl")?.stringified == "1.0421860263584204")
+        let picked = interpreter.globals.lookup("picked")?.intValue ?? -1
+        #expect((1...3).contains(picked))
+    }
+}
+
 @Suite struct RealTableGatewayTests {
     // FoodTruck R2's orders screen: a REAL SwiftUI Table (NSTableView-
     // backed) builds from the interpreted TableColumn DSL — columns-only

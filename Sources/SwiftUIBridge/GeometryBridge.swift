@@ -377,10 +377,38 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .native(Double.infinity)
         case ("Double", "pi"), ("CGFloat", "pi"):
             return .native(Double.pi)
-        case ("Double", "random"), ("CGFloat", "random"), ("Int", "random"):
+        case ("UInt64", "max"):
+            return .native(UInt64.max)
+        case ("Double", "random"), ("CGFloat", "random"), ("Int", "random"), ("TimeInterval", "random"):
             let wantsInt = marker.name == "Int"
-            return .hostFunction(HostFunction(name: "random") { args, _ in
+            return .hostFunction(HostFunction(name: "random") { args, ctx in
                 let argument = args.labeled("in") ?? args.positional(0)
+                // `random(in:using: &generator)` — the REAL stdlib algorithm
+                // over the INTERPRETED generator (exact native parity: the
+                // proxy's next() calls the interpreted next()).
+                if ProcessInfo.processInfo.environment["RNG_TRACE"] != nil {
+                    FileHandle.standardError.write(Data("   ⚙ random wantsInt=\(wantsInt) using=\(String(describing: args.labeled("using"))) arg=\(String(describing: argument))\n".utf8))
+                }
+                if case .instance(let generator)? = args.labeled("using"),
+                   let interpreter = ctx as? Interpreter {
+                    var proxy = InterpretedGeneratorProxy(interpreter: interpreter, generator: generator)
+                    if wantsInt {
+                        if let range = argument?.rangeValue?.halfOpenIntRange {
+                            return .native(Int.random(in: range, using: &proxy))
+                        }
+                        if let range = argument?.rangeValue?.closedIntRange {
+                            return .native(Int.random(in: range, using: &proxy))
+                        }
+                        throw RuntimeError(message: "Int.random(in:using:) needs an integer range")
+                    }
+                    if let range = argument?.rangeValue?.halfOpenDoubleRange {
+                        return .native(Double.random(in: range, using: &proxy))
+                    }
+                    if let range = argument?.rangeValue?.closedDoubleRange {
+                        return .native(Double.random(in: range, using: &proxy))
+                    }
+                    throw RuntimeError(message: "random(in:using:) needs a numeric range")
+                }
                 if wantsInt {
                     if let range = argument?.rangeValue?.halfOpenIntRange {
                         return .native(Int.random(in: range))

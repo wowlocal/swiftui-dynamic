@@ -1114,3 +1114,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   clock + seeded RNG next), socialfeed 27.4% (.black opacity chain),
   donuts 4.86%. **GATE GREEN: suite 532; corpus 678/680; live 5/5;
   parity 345/0/0.**
+- 2026-07-11 iter 236 (FoodTruck R2): the seeded-RNG parity layer —
+  six pieces, native-verified bit-for-bit on the micro shapes
+  (raw/ranged/double draws EXACTLY match a compiled run; pin
+  SeededRNGParityTests): (1) srand48/drand48 are REAL libc calls;
+  (2) UInt64 is an exact 64-bit host carrier — and was being
+  SHADOWED by the later fixed-width loop whose Int(d) TRAPPED on
+  >Int.max draws (loop excludes UInt64 now, clamps others);
+  (3) random(in:using:)/(4) shuffled(using:) drive the REAL stdlib
+  algorithms through an InterpretedGeneratorProxy calling the
+  interpreted next() — parity by construction; (5) prefix/suffix/
+  dropFirst/dropLast resolve Int-position implicit markers
+  (`prefix(.random(in: 1...5, using:))` drew nothing and took ALL 17
+  donuts); (6) numeric factory markers ADOPT the peer's family in
+  operand position (`date -= .random(...)` must draw, not absorb) —
+  first gate caught over-eager adoption breaking the init-marker
+  rewrap doctrine; narrowed to `random`. Model data now draws from
+  the correct value-universe (1-5 donuts, native grandTotals) but
+  the stream is OFFSET a few draws — draw-by-draw trace next; board
+  data-screens unchanged pending alignment. **GATE GREEN: suite 533;
+  corpus 678/680; live 5/5; parity 345/0/0; R1 9/9.**

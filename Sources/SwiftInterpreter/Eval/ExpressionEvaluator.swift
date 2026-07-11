@@ -3099,8 +3099,15 @@ extension Interpreter {
             if let registry, let combined = registry.combineValues(op, lhs, rhs) {
                 return combined
             }
+            // Implicit FACTORY markers in numeric-operand position adopt the
+            // peer's family before arithmetic (`date -= .random(in: 60..<180,
+            // using: &g)` must DRAW, not absorb-to-zero — the seeded stream
+            // shifts otherwise). Unresolvable markers pass through unchanged,
+            // keeping the absorb doctrine.
+            let adoptedLhs = try adoptNumericFactoryMarker(lhs, peer: rhs)
+            let adoptedRhs = try adoptNumericFactoryMarker(rhs, peer: adoptedLhs)
             do {
-                return try relocating(infix) { try Builtins.binary(op, lhs, rhs) }
+                return try relocating(infix) { try Builtins.binary(op, adoptedLhs, adoptedRhs) }
             } catch let builtinError as RuntimeError where !builtinError.fatal {
                 if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) {
                     return viaDeclared
@@ -3624,6 +3631,31 @@ extension Interpreter {
             }
         }
         return nil
+    }
+
+    /// A `.host(ImplicitMemberCall)` beside a NUMERIC/date peer resolves
+    /// against the peer's family ("Int"/"Double") so factory statics
+    /// (`.random(in:using:)`) execute in operand position. Anything the
+    /// factories can't claim returns unchanged (absorb doctrine intact).
+    func adoptNumericFactoryMarker(_ value: RuntimeValue, peer: RuntimeValue) throws -> RuntimeValue {
+        // ONLY the numeric factory statics — `.init(width:)`-style markers
+        // keep their arithmetic-and-rewrap doctrine.
+        guard case .host(let any) = value, let call = any as? ImplicitMemberCall,
+              call.name == "random" else { return value }
+        let familyName: String?
+        if peer.intValue != nil {
+            familyName = "Int"
+        } else if peer.doubleValue != nil {
+            familyName = "Double"
+        } else if case .host(let peerAny) = peer, peerAny is Date {
+            familyName = "Double" // Date ± TimeInterval
+        } else {
+            familyName = nil
+        }
+        guard let familyName else { return value }
+        let resolved = try resolveAnnotated(value, typeName: familyName)
+        if case .host(let stillAny) = resolved, stillAny is ImplicitMemberCall { return value }
+        return resolved
     }
 
     func resolveLValue(_ expr: ExprSyntax, in env: Environment) throws -> LValue {

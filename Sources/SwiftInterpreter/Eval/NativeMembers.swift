@@ -540,22 +540,32 @@ extension Interpreter {
         case "reversed":
             return .hostFunction(HostFunction(name: name) { _, _ in .native(Array(array.reversed())) })
         case "shuffled":
-            return .hostFunction(HostFunction(name: name) { _, _ in .native(array.shuffled()) })
-        case "prefix":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(Array(array.prefix(args.positional(0)?.intValue ?? array.count)))
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                // `shuffled(using: &generator)` — the real Fisher-Yates over
+                // the interpreted generator (seeded-stream parity).
+                if case .instance(let generator)? = args.labeled("using"),
+                   let interpreter = ctx as? Interpreter {
+                    var proxy = InterpretedGeneratorProxy(interpreter: interpreter, generator: generator)
+                    return .native(array.shuffled(using: &proxy))
+                }
+                return .native(array.shuffled())
             })
-        case "suffix":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(Array(array.suffix(args.positional(0)?.intValue ?? array.count)))
-            })
-        case "dropFirst":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(Array(array.dropFirst(args.positional(0)?.intValue ?? 1)))
-            })
-        case "dropLast":
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                .native(Array(array.dropLast(args.positional(0)?.intValue ?? 1)))
+        case "prefix", "suffix", "dropFirst", "dropLast":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                // The count is Int-POSITION: implicit markers resolve here
+                // (`prefix(.random(in: 1...5, using: &generator))` — the
+                // Kit's order generator).
+                var count = args.positional(0)?.intValue
+                if count == nil, let raw = args.positional(0),
+                   let interpreter = ctx as? Interpreter {
+                    count = (try? interpreter.resolveAnnotated(raw, typeName: "Int"))?.intValue
+                }
+                switch name {
+                case "prefix": return .native(Array(array.prefix(count ?? array.count)))
+                case "suffix": return .native(Array(array.suffix(count ?? array.count)))
+                case "dropFirst": return .native(Array(array.dropFirst(count ?? 1)))
+                default: return .native(Array(array.dropLast(count ?? 1)))
+                }
             })
         case "enumerated":
             return .hostFunction(HostFunction(name: name) { _, _ in

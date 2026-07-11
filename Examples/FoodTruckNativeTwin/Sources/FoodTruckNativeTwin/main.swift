@@ -73,6 +73,10 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
         // The app's own state objects, exactly as FoodTruckApp seeds them.
         let model = FoodTruckModel()
         let accountStore = AccountStore()
+        if ProcessInfo.processInfo.environment["FOODTRUCK_TWIN_DUMP"] != nil {
+            let counts = model.orders.prefix(6).map { "\($0.donuts.count)/\($0.grandTotal)" }
+            print("TWIN-DUMP orders=\(model.orders.count) firsts=\(counts.joined(separator: ","))")
+        }
 
         // Full screens (grow toward the complete Panel list as rungs open).
         capture("content", size: screenSize, ContentView(model: model, accountStore: accountStore))

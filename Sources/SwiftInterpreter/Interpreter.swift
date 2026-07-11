@@ -1836,12 +1836,43 @@ public final class Interpreter {
                 return .native(KeyPathComparatorBox(keyPath: stub, ascending: ascending))
             }
         }
+        define("srand48") { args, _ in
+            // REAL libc seeding — the FoodTruck SeededRandomGenerator genre:
+            // a constant-seeded drand48 stream matches native exactly.
+            srand48(args.positional(0)?.intValue ?? 0)
+            return .void
+        }
+        define("drand48") { _, _ in
+            .native(drand48())
+        }
+        define("UInt64") { args, _ in
+            // Exact 64-bit carrier (interpreted next() overflows Int):
+            // `UInt64(drand48() * Double(UInt64.max))` needs true UInt64.
+            guard let value = args.positional(0) else { return .native(UInt64(0) as Any) }
+            if case .host(let any) = value, let u = any as? UInt64 { return .native(u) }
+            if let d = value.doubleValue {
+                return .native(UInt64(d.isFinite ? max(0, min(d, Double(UInt64.max))) : 0))
+            }
+            if let i = value.intValue { return .native(UInt64(max(0, i))) }
+            return .native(UInt64(0))
+        }
         define("Int") { args, _ in
             guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
+            if case .host(let any) = value, let u = any as? UInt64 {
+                // Interpreted UInt64 carriers narrow when they fit (Int is
+                // the value model); oversized reads throw like native traps.
+                guard u <= UInt64(Int.max) else {
+                    throw RuntimeError(message: "Int(\(u)) overflows Int.max")
+                }
+                return .native(Int(u))
+            }
             if let i = value.intValue { return .native(i) }
             if let d = value.doubleValue {
                 // Int(exactly:) is nil for fractional values — real semantics.
                 if args.labeled("exactly") != nil, d != d.rounded(.towardZero) { return .nilValue }
+                guard d.isFinite, d >= Double(Int.min), d < 9223372036854775808.0 else {
+                    throw RuntimeError(message: "Int(\(d)) overflows Int (native trap)")
+                }
                 return .native(Int(d))
             }
             if let s = value.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }
@@ -1852,6 +1883,7 @@ public final class Interpreter {
         }
         define("Double") { args, _ in
             guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
+            if case .host(let any) = value, let u = any as? UInt64 { return .native(Double(u)) }
             if let d = value.doubleValue { return .native(d) }
             if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
             if let z = Builtins.absorbedNumeric(value) { return .native(z) }
@@ -1937,13 +1969,19 @@ public final class Interpreter {
                 return .void
             }
         }
-        for intType in ["UInt8", "UInt16", "UInt32", "UInt64", "Int8", "Int16", "Int32", "Int64"] {
+        // UInt64 is NOT in this list — it has a true 64-bit host carrier
+        // above (the seeded-RNG genre needs exact UInt64).
+        for intType in ["UInt8", "UInt16", "UInt32", "Int8", "Int16", "Int32", "Int64"] {
             define(intType) { args, _ in
                 // Fixed-width conversions: our integer model is Int.
                 let value = args.labeled("truncatingIfNeeded") ?? args.labeled("clamping")
                     ?? args.labeled("bitPattern") ?? args.labeled("exactly") ?? args.positional(0)
                 if let i = value?.intValue { return .native(i) }
-                if let d = value?.doubleValue { return .native(Int(d)) }
+                if let d = value?.doubleValue {
+                    // Clamp instead of native-trapping on out-of-Int doubles.
+                    let clamped = d.isFinite ? Swift.max(Double(Int.min), Swift.min(d, 9223372036854775295.0)) : 0
+                    return .native(Int(clamped))
+                }
                 if let s = value?.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }
                 if let value, let z = Builtins.absorbedNumeric(value) { return .native(Int(z.isFinite ? z : 0)) }
                 return .native(0)
