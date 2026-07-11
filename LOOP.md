@@ -438,6 +438,15 @@ Each iteration does exactly this:
   projects (2026-07-11) — M0-level host-API demand is fully served; a
   nonzero census after new corpus material is the signal to grow the
   sweep again.
+- R2 BASELINE (2026-07-11 14:55): interpreted FoodTruck root vs native
+  twin at 1000x650@1x — AE 52.470%. Both capture paths pinned to
+  explicit 1x bitmaps. Interp render commands:
+  `.build/debug/DynamicSwiftUIDemo --project Examples/FoodTruckBuilding…
+  --render-png OUT --size 1000x650`; twin:
+  `swift run FoodTruckNativeTwin --out DIR` (in its package). Visible
+  classes in the first diff: String(format:) unapplied ("Order#121%02d"),
+  detail-column layout collapse (dot column vs card grid). Sidebar with
+  real model data (panels + Cities) already renders.
 - `swift Scripts/pixel-ae.swift a.png b.png [--fuzz N]` — the R2 pixel
   primitive: AE count between twin and interpreter captures; exit 0 only
   at AE=0; SIZE-MISMATCH is a finding (same point size + backing scale

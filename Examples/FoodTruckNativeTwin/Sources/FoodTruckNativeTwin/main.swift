@@ -37,10 +37,20 @@ func capture(_ id: String, size: NSSize, _ view: some View) {
     window.contentView = hosting
     hosting.layoutSubtreeIfNeeded()
     window.displayIfNeeded()
-    guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+    // Explicit 1x bitmap (same technique as the interpreter's snapshot
+    // path): backing-scale reps paint point coordinates into 2x pixels
+    // (black quadrants), and 1x pins determinism across display scales —
+    // both sides MUST capture at 1x for pixel-ae.
+    guard let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: max(1, Int(hosting.bounds.width.rounded(.up))),
+        pixelsHigh: max(1, Int(hosting.bounds.height.rounded(.up))),
+        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+        colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
         print("\(id)\tREP-NIL")
         return
     }
+    rep.size = hosting.bounds.size
     hosting.cacheDisplay(in: hosting.bounds, to: rep)
     guard let png = rep.representation(using: .png, properties: [:]) else {
         print("\(id)\tPNG-NIL")
