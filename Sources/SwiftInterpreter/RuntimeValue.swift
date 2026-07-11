@@ -218,9 +218,15 @@ public protocol CaseShaped {
 /// pullbacks) is external framework machinery that absorbs markers.
 public struct CasePathMarker: InertCallable {
     public let path: String
+    /// Resolved case reference (`/AppAction.milestone`): extraction and
+    /// embedding become REAL when the enum is interpreted.
+    public let enumSymbol: EnumSymbol?
+    public let caseName: String?
 
-    public init(path: String) {
+    public init(path: String, enumSymbol: EnumSymbol? = nil, caseName: String? = nil) {
         self.path = path
+        self.enumSymbol = enumSymbol
+        self.caseName = caseName
     }
 }
 

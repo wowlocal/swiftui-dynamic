@@ -1258,7 +1258,42 @@ public final class Interpreter {
         _ value: RuntimeValue, parameter: ClosureValue.Parameter
     ) throws -> RuntimeValue {
         guard let typeName = parameter.typeName else { return value }
+        // A closure literal bound to a FUNCTION-TYPED parameter inherits
+        // the annotation's return type, so its `return .none` implicit
+        // members resolve on exit (`Reducer { … in return .none }` — the
+        // init parameter says `-> Effect<Action, Never>`).
+        if case .closure(let closure) = value, closure.returnTypeName == nil,
+           let arrow = Self.lastTopLevelArrow(in: typeName) {
+            let returnPart = String(typeName[typeName.index(arrow, offsetBy: 2)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !returnPart.isEmpty {
+                closure.returnTypeName = returnPart.hasSuffix(")") && returnPart.hasPrefix("(")
+                    ? String(returnPart.dropFirst().dropLast())
+                    : returnPart
+            }
+            return value
+        }
         return try resolveAnnotated(value, typeName: typeName)
+    }
+
+    /// Index of the LAST `->` at paren/angle depth zero, if any.
+    static func lastTopLevelArrow(in text: String) -> String.Index? {
+        var depth = 0
+        var found: String.Index? = nil
+        var index = text.startIndex
+        while index < text.endIndex {
+            let ch = text[index]
+            if ch == "(" || ch == "<" || ch == "[" { depth += 1 }
+            if ch == ")" || ch == ">" || ch == "]" { depth -= 1 }
+            if ch == "-", depth == 0 {
+                let next = text.index(after: index)
+                if next < text.endIndex, text[next] == ">" {
+                    found = index
+                }
+            }
+            index = text.index(after: index)
+        }
+        return found
     }
 
     func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {

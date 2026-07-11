@@ -425,7 +425,12 @@ extension Interpreter {
                 var failure: Error?
                 let out = array.sorted { a, b in
                     if failure != nil { return false }
-                    do { return try Builtins.binary("<", a, b).boolValue == true }
+                    do {
+                        if let interpreter = ctx as? Interpreter {
+                            return try interpreter.evaluateBinary("<", a, b).boolValue == true
+                        }
+                        return try Builtins.binary("<", a, b).boolValue == true
+                    }
                     catch { failure = error; return false }
                 }
                 if let failure { throw failure }

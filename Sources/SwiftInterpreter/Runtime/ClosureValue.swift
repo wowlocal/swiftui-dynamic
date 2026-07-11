@@ -66,7 +66,7 @@ public final class ClosureValue {
     /// Used to resolve returned `.member` values against known enums.
     public let returnType: TypeSyntax?
     /// Cached textual form used by return-value coercion.
-    public let returnTypeName: String?
+    public var returnTypeName: String?
     /// `[Element]` result builders collect items into an array.
     public let builderReturnsArray: Bool
     /// Set for host-extension METHOD bodies (`extension View { func … }`):

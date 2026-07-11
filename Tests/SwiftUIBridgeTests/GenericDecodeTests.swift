@@ -1744,3 +1744,78 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("viaSubscript")?.stringified == "granted")
     }
 }
+
+@Suite struct ComposableArchitectureShimTests {
+    // Milestones' genre: old-TCA Reducer/TestStore over the distilled
+    // shim — sends reduce, fireAndForget persists, forEach routes
+    // case-path element actions, variadic Steps resolve implicit members.
+    @Test func reducerTestStorePersistsAndRoutes() throws {
+        let source = """
+        import ComposableArchitecture
+
+        struct Item: Equatable {
+            var title: String
+        }
+        struct AppState: Equatable {
+            var items: [Item]
+        }
+        enum ItemAction: Equatable {
+            case rename(String)
+        }
+        enum AppAction: Equatable {
+            case removeFirst
+            case item(index: Int, action: ItemAction)
+            case persistToDisk
+        }
+        struct AppEnvironment {
+            let persist: ([Item]) -> Void
+        }
+
+        let itemReducer = Reducer<Item, ItemAction, Void> { state, action, _ in
+            switch action {
+            case .rename(let title):
+                state.title = title
+                return .none
+            }
+        }
+
+        let appReducer = Reducer<AppState, AppAction, AppEnvironment>.combine(
+            itemReducer.forEach(
+                state: \\AppState.items,
+                action: /AppAction.item,
+                environment: { _ in () }
+            ),
+            Reducer { state, action, environment in
+                switch action {
+                case .removeFirst:
+                    state.items.remove(atOffsets: [0])
+                    return .none
+                case .item:
+                    return .none
+                case .persistToDisk:
+                    return Effect.fireAndForget { environment.persist(state.items) }
+                }
+            }
+        )
+
+        var persisted = [[Item]]()
+        let store = TestStore(
+            initialState: AppState(items: [Item(title: "a"), Item(title: "b")]),
+            reducer: appReducer,
+            environment: AppEnvironment(persist: { persisted.append($0) })
+        )
+        store.assert(
+            .send(.item(index: 1, action: .rename("B"))) { _ in },
+            .send(.removeFirst) { _ in },
+            .send(.persistToDisk)
+        )
+        let persistedCount = persisted.count
+        let firstTitle = persisted.first?.first?.title ?? "NONE"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source + "\n"
+            + LibraryShims.shims(importedIn: ["ComposableArchitecture"], mergedSource: ""))
+        #expect(interpreter.globals.lookup("persistedCount")?.stringified == "1")
+        #expect(interpreter.globals.lookup("firstTitle")?.stringified == "B")
+    }
+}

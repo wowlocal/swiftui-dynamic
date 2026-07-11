@@ -569,3 +569,29 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   clean-architecture 48 → 50 passed. **679/680; suite 487 green;
   LiveCheck 5/5; TestCheck 93→95 passed / 31→29 failed — strictly
   improved.**
+- 2026-07-11 iter 215: the biggest root (4× Milestones AppReducer
+  persist arrays) — old-style ComposableArchitecture is an UNVENDORED
+  package, so per the LibraryShims doctrine it gained a DISTILLED CORE:
+  Reducer (init/callAsFunction/combine/forEach), Effect (none/
+  fireAndForget/timer/cancel/merge/map/cancellable/debounce),
+  TestScheduler (virtual time, advance(by:), repeating entries, a
+  global registry for cancel-by-id), DispatchQueue.testScheduler,
+  AnySchedulerOf, TestStore with send/receive/do Steps whose effects
+  really schedule and deliver. FOUR interpreter gaps surfaced en
+  route, each general: (1) VARIADIC elements now resolve against the
+  element annotation (implicit `.send(…)` factories in
+  `assert(_ steps: Step…)` stayed markers); (2) closure LITERALS bound
+  to function-typed parameters inherit the annotation's RETURN type,
+  so `return .none` inside `Reducer { … }` resolves on exit
+  (callWithArguments already applied returnTypeName — only attachment
+  was missing); (3) `/AppAction.item` case paths RESOLVE (CasePathMarker
+  carries the enum symbol + case; `.extract(_:)` matches enumCases AND
+  never-context-typed ImplicitMemberCall markers, returning labeled
+  payload tuples); (4) no-arg sort()/sorted() dispatch declared
+  Comparable `<` via evaluateBinary, and remove(atOffsets:) lands
+  (IndexSet arrays, descending). Milestones 17 → 21 passed (the two
+  left are finer: debounce timing, date trimming). Pin:
+  ComposableArchitectureShimTests (reducer + TestStore + fireAndForget
+  persist + forEach case-path routing). **679/680; suite 488 green;
+  LiveCheck 5/5; TestCheck 95→99 passed / 29→25 failed — strictly
+  improved.**

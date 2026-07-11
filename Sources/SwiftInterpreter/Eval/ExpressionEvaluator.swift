@@ -101,9 +101,19 @@ extension Interpreter {
             if prefix.operator.text == "/",
                globals.lookup(prefix.operator.text) == nil {
                 // The CasePaths case-path operator: `/AppAction.milestone`.
-                // The operand is a case REFERENCE (not a value) — keep it
-                // textual; consumers are framework machinery that absorbs.
-                return .native(CasePathMarker(path: prefix.expression.trimmedDescription))
+                // Resolve the case reference so extract/embed are REAL for
+                // interpreted enums; unknown shapes stay textual markers.
+                var enumSymbol: EnumSymbol?
+                var caseName: String?
+                if let member = prefix.expression.as(MemberAccessExprSyntax.self),
+                   let baseExpr = member.base,
+                   case .enumType(let symbol)? = try? evaluate(baseExpr, in: env) {
+                    enumSymbol = symbol
+                    caseName = member.declName.baseName.text
+                }
+                return .native(CasePathMarker(
+                    path: prefix.expression.trimmedDescription,
+                    enumSymbol: enumSymbol, caseName: caseName))
             }
             let operand = try evaluate(prefix.expression, in: env)
             do {
@@ -1112,6 +1122,28 @@ extension Interpreter {
             // Inline scalars box on demand: `5.description`, `x.rounded()`,
             // and user Int/Double extensions all dispatch on the Any payload.
             let any = baseValue.hostPayload!
+            if let casePath = any as? CasePathMarker, name == "extract",
+               let symbol = casePath.enumSymbol, let caseName = casePath.caseName {
+                // `casePath.extract(action)` → the payload (labeled tuple
+                // for multi-payload cases) or nil on case mismatch.
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    var payloads: [RuntimeValue]?
+                    if case .enumCase(let value)? = args.positional(0),
+                       value.symbol === symbol, value.name == caseName {
+                        payloads = value.associated
+                    } else if case .host(let any)? = args.positional(0),
+                              let call = any as? ImplicitMemberCall, call.name == caseName {
+                        // Never-context-typed actions (a generic parameter
+                        // slot) still carry the case shape.
+                        payloads = call.arguments.arguments.map(\.value)
+                    }
+                    guard let payloads else { return .nilValue }
+                    if payloads.count == 1 { return payloads[0] }
+                    let labels = symbol.caseInfo(named: caseName)?.associatedLabels
+                        ?? Array(repeating: nil, count: payloads.count)
+                    return .native(TupleValue(labels: labels, values: payloads))
+                })
+            }
             if any is PublishedProjection {
                 // Every pipeline stage chains another silent projection.
                 return .hostFunction(HostFunction(name: name) { _, _ in
@@ -2044,6 +2076,16 @@ extension Interpreter {
                 }
                 array.insert(try resolved(value), at: index)
             case "remove":
+                // `remove(atOffsets:)` — SwiftUI's IndexSet form (arrives as
+                // an index array): delete DESCENDING so offsets stay valid.
+                if let offsets = args.labeled("atOffsets")?.arrayValue {
+                    let indices = offsets.compactMap(\.intValue).sorted(by: >)
+                    for index in indices where array.indices.contains(index) {
+                        array.remove(at: index)
+                    }
+                    try relocating(call) { try target.write(.native(array), self) }
+                    return .void
+                }
                 guard let index = args.labeled("at")?.intValue, array.indices.contains(index) else {
                     throw error(call, "remove(at:) index out of range")
                 }
@@ -2074,7 +2116,9 @@ extension Interpreter {
                 var failure: Error?
                 array.sort { a, b in
                     if failure != nil { return false }
-                    do { return try Builtins.binary("<", a, b).boolValue == true }
+                    // Declared `static func <` (Comparable) dispatches, like
+                    // infix and the XCTAssert gateways.
+                    do { return try evaluateBinary("<", a, b).boolValue == true }
                     catch { failure = error; return false }
                 }
                 if let failure { throw failure }
@@ -2646,6 +2690,11 @@ extension Interpreter {
                     gathered.append(contentsOf: positionals[positionalCursor...])
                     positionalCursor = positionals.count
                 }
+                // Each element resolves against the ELEMENT annotation —
+                // implicit members contextually type exactly like
+                // non-variadic arguments (TestStore.assert(_ steps: Step…)
+                // receiving `.send(action) { … }` factories).
+                gathered = try gathered.map { try resolveAnnotated($0, parameter: parameter) }
                 bound[index] = .native(gathered)
                 continue
             }
