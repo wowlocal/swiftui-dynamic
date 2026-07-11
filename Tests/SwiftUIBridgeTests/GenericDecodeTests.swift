@@ -1881,3 +1881,85 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(report.errored == 0)
     }
 }
+
+@Suite struct LoadableTransitionHistoryTests {
+    // ImagesInteractor's genre: a history-recording Binding receives
+    // setIsLoading (a mutating enum method that REASSIGNS self, written
+    // back through the binding) and then a Task-delivered .loaded.
+    @Test func transitionsRecordThroughBinding() throws {
+        let source = """
+        enum Loadable<T>: Equatable {
+            static func == (lhs: Loadable<T>, rhs: Loadable<T>) -> Bool {
+                switch (lhs, rhs) {
+                case (.notRequested, .notRequested): return true
+                case (.isLoading, .isLoading): return true
+                case let (.loaded(a), .loaded(b)): return "\\(a)" == "\\(b)"
+                default: return false
+                }
+            }
+            case notRequested
+            case isLoading(last: T?)
+            case loaded(T)
+
+            mutating func setIsLoading() {
+                self = .isLoading(last: value)
+            }
+
+            var value: T? {
+                if case let .loaded(value) = self { return value }
+                return nil
+            }
+        }
+
+        final class BindingWithHistory<Value> {
+            private(set) var binding: Binding<Value>
+            private(set) var history: [Value]
+
+            init(value: Value) {
+                binding = .constant(value)
+                history = [value]
+                var value = value
+                binding = Binding<Value>(get: {
+                    value
+                }, set: { [weak self] in
+                    value = $0
+                    self?.history.append($0)
+                })
+            }
+        }
+
+        extension Binding {
+            func load<T>(_ resource: @escaping () async throws -> T) where Value == Loadable<T> {
+                wrappedValue.setIsLoading()
+                let task = Task {
+                    do {
+                        wrappedValue = .loaded(try await resource())
+                    } catch {
+                        wrappedValue = .notRequested
+                    }
+                }
+                _ = task
+            }
+        }
+
+        let state = BindingWithHistory(value: Loadable<String>.notRequested)
+        state.binding.load {
+            return "IMAGE"
+        }
+        let count = state.history.count
+        var shape = [String]()
+        for entry in state.history {
+            switch entry {
+            case .notRequested: shape.append("notRequested")
+            case .isLoading: shape.append("isLoading")
+            case .loaded: shape.append("loaded")
+            }
+        }
+        let joined = shape.joined(separator: ",")
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        MainQueueDrain.drain()
+        #expect(interpreter.globals.lookup("joined")?.stringified == "notRequested,isLoading,loaded")
+    }
+}

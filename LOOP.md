@@ -620,3 +620,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   honestly on routing-state comparison (errored 9 → 7, failed +2).
   **679/680; suite 489 green; LiveCheck 5/5; TestCheck 99/27/7/10 —
   class eliminated.**
+- 2026-07-11 iter 217: the oldest 2-count — ImagesInteractor's
+  `state.history` transition sequences (shared root with a LoadableTests
+  pair). The missing middle transition (`isLoading`) traced to THREE
+  small binding/value-semantics gaps: (1) bare `wrappedValue` READS in
+  `extension Binding` bodies never resolved (selfMember's host path
+  skipped the binding block — writes worked since iter 213, reads
+  threw); (2) LValue.read for host-property bindings now reads the box;
+  (3) MUTATING methods on ENUM receivers run on a copy whose `self`
+  reassignment writes BACK through the receiver lvalue —
+  `wrappedValue.setIsLoading(cancelBag:)` fires the binding's
+  set-closure exactly once, the native read-modify-write. Pinned by
+  LoadableTransitionHistoryTests (history records
+  notRequested → isLoading → loaded, with the Task-delivered load).
+  clean-architecture 50 → 53 passed. **679/680; suite 490 green;
+  LiveCheck 5/5; TestCheck 99→102 passed / 27→24 failed — strictly
+  improved (past 100).**

@@ -535,6 +535,12 @@ extension Interpreter {
             // is implicit self on the native value. Inline scalars box on
             // demand — member dispatch wants the uniform Any path.
             let any = selfValue.hostPayload!
+            if let stub = any as? BindingStub {
+                // `wrappedValue.setIsLoading(…)` inside `extension Binding`
+                // — the binding's own properties resolve bare.
+                if name == "wrappedValue" { return stub.box.value }
+                if name == "projectedValue" { return selfValue }
+            }
             if let value = try nativeMember(name, on: any) { return value }
             if let value = registry?.hostMember(name, on: any) { return value }
             return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
@@ -1887,6 +1893,28 @@ extension Interpreter {
                 return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
             }
         }
+        // MUTATING methods on ENUM receivers through writable lvalues:
+        // `wrappedValue.setIsLoading(cancelBag:)` — the method runs on a
+        // copy whose `self` reassignments write BACK through the lvalue
+        // (value semantics; through a Binding this fires the set-closure
+        // exactly once, like the native read-modify-write).
+        if let target = try? resolveLValue(base, in: env),
+           let current = try? target.read(self),
+           case .enumCase(let receiver) = current,
+           let overloads = receiver.symbol.methods[name],
+           let method = overloads.first(where: { declared in
+               declared.modifiers.contains { $0.name.text == "mutating" }
+           }),
+           let body = method.body {
+            let args = try collectArguments(of: call, in: env)
+            let selfEnv = selfEnvironment(.enumCase(receiver))
+            let closure = makeFunctionClosure(method, body: body, captured: selfEnv)
+            let result = try callWithArguments(closure, args: args, node: Syntax(call))
+            if let newSelf = selfEnv.box(for: "self")?.value {
+                try relocating(call) { try target.write(newSelf, self) }
+            }
+            return result
+        }
         // Bool.toggle() — ubiquitous in SwiftUI code (`show.toggle()`); writes
         // through the lvalue so @State/@Published notification fires.
         if name == "toggle",
@@ -3034,6 +3062,9 @@ extension Interpreter {
                 }
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
             case .hostProperty(let any, let name):
+                if let stub = any as? BindingStub, name == "wrappedValue" {
+                    return stub.box.value
+                }
                 if let value = interpreter.registry?.hostMember(name, on: any) { return value }
                 if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
                     // Mutating an unknown stub member (`store.products += …`)
