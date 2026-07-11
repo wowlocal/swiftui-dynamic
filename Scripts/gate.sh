@@ -1,0 +1,46 @@
+#!/bin/zsh
+# The closing gate, cost-minimized: ONE build, then all boards in PARALLEL
+# from prebuilt binaries. Serial cost was build + suite + corpus + live
+# (~6-8 min); parallel cost is build + max(board) (~2-3 min). ProjectCheck
+# self-caches (unchanged sources return instantly), so doc-only iterations
+# pay almost nothing.
+#
+# Usage: Scripts/gate.sh            (from the checkout root)
+# Exits nonzero if ANY board is red; prints each board's verdict line.
+set -u
+cd "$(dirname "$0")/.." || exit 2
+
+echo "── build (once) ──"
+swift build --build-tests 2>&1 | grep -E "error:|warning: .*deprecat" | head -5
+if ! swift build --build-tests > /dev/null 2>&1; then
+    echo "BUILD RED"; exit 1
+fi
+
+out=$(mktemp -d)
+echo "── boards (parallel) ──"
+( swift test --skip-build 2>&1 | tail -1 > "$out/suite" ) &
+suite_pid=$!
+( .build/debug/ProjectCheck --all 2>/dev/null | tail -1 > "$out/corpus" ) &
+corpus_pid=$!
+( .build/debug/LiveCheck 2>/dev/null | tail -1 > "$out/live" ) &
+live_pid=$!
+( .build/debug/ParityCheck 2>/dev/null | tail -1 > "$out/parity" ) &
+parity_pid=$!
+
+wait $suite_pid $corpus_pid $live_pid $parity_pid
+
+red=0
+for board in suite corpus live parity; do
+    line=$(cat "$out/$board" 2>/dev/null)
+    echo "$board: $line"
+    case "$board:$line" in
+        suite:*" passed"*) ;;
+        corpus:*"projects pass"*) ;;
+        live:*"scenarios pass"*) ;;
+        parity:*"0 diverge / 0 interp-error"*) ;;
+        *) red=1 ;;
+    esac
+done
+rm -rf "$out"
+if [ $red -ne 0 ]; then echo "GATE RED"; exit 1; fi
+echo "GATE GREEN"
