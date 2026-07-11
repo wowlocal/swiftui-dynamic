@@ -225,6 +225,8 @@ extension Interpreter {
                 named: macro.macroName.text, arguments: macro.arguments,
                 trailingClosure: macro.trailingClosure,
                 additionalTrailingClosures: macro.additionalTrailingClosures,
+                genericArguments: macro.genericArgumentClause?.arguments
+                    .map { $0.argument.trimmedDescription }.joined(separator: ", "),
                 node: macro, in: env) {
                 return result
             }
@@ -293,6 +295,23 @@ extension Interpreter {
             child.define("__postfixBase", baseValue)
             return try evaluate(graftPostfixBase(postfix, name: "__postfixBase"), in: child)
         case .genericSpecializationExpr:
+            // `FetchDescriptor<DBModel.Country>()` — HOST constructors get
+            // the specialization as a hidden argument, so type-carrying
+            // boxes (fetch descriptors) know their model type.
+            if let spec = expr.as(GenericSpecializationExprSyntax.self) {
+                let resolved = try evaluate(spec.expression, in: env)
+                if case .hostFunction(let ctor) = resolved {
+                    let genericText = spec.genericArgumentClause.arguments
+                        .map { $0.argument.trimmedDescription }
+                        .joined(separator: ", ")
+                    return .hostFunction(HostFunction(name: ctor.name) { args, ctx in
+                        var enriched = args.arguments
+                        enriched.append(.init(label: "__genericArguments", value: .native(genericText)))
+                        return try ctor.invoke(CallArguments(arguments: enriched), ctx)
+                    })
+                }
+                return resolved
+            }
             // Type arguments are annotations we don't check —
             // `Binding<Int?>(get:set:)` evaluates as `Binding(get:set:)`.
             return try evaluate(expr.cast(GenericSpecializationExprSyntax.self).expression, in: env)
@@ -665,6 +684,15 @@ extension Interpreter {
             if let computed = proto.computedProperties[name] {
                 return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
             }
+        }
+        // @ModelActor's generated `modelContext` reads the bound
+        // container's shared context.
+        if name == "modelContext",
+           instance.symbol.attributeNames.contains("ModelActor"),
+           let container = instance.box(for: "modelContainer")?.value,
+           case .host(let containerAny) = container,
+           let member = registry?.hostMember("mainContext", on: containerAny) {
+            return member
         }
         // Bare sibling STATICS are visible from any member context
         // (`assert(blurRadius > 0)` where the parameter default is

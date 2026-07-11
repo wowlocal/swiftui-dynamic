@@ -12,11 +12,15 @@ extension Interpreter {
         arguments: LabeledExprListSyntax,
         trailingClosure: ClosureExprSyntax?,
         additionalTrailingClosures: MultipleTrailingClosureElementListSyntax,
+        genericArguments: String? = nil,
         node: some SyntaxProtocol,
         in env: Environment
     ) throws -> RuntimeValue? {
         guard let host = registry?.constructor(named: "#\(macroName)") else { return nil }
         var callArguments: [CallArguments.Argument] = []
+        if let genericArguments {
+            callArguments.append(.init(label: "__genericArguments", value: .native(genericArguments)))
+        }
         for labeled in arguments {
             callArguments.append(.init(
                 label: labeled.label?.text, value: try evaluate(labeled.expression, in: env)))

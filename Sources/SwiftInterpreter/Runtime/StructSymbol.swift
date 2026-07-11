@@ -125,6 +125,9 @@ public final class StructSymbol {
     /// read time through the wrapper type's wrappedValue.
     public internal(set) var staticWrapped: [String: AttributeSyntax] = [:]
 
+    /// Attached ATTRIBUTES (@ModelActor, @Observable) — macro-attributed
+    /// types get tolerant memberwise binding for generated inits.
+    public internal(set) var attributeNames: [String] = []
     public internal(set) var subscripts: [SubscriptMember] = []
     public internal(set) var storedProperties: [StoredProperty] = []
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]

@@ -354,9 +354,10 @@ extension Interpreter {
             symbol.superclassName = first
         }
         symbol.conformsToObservableObject = inherited.contains("ObservableObject")
-        symbol.observableViaMacro = attributes.contains {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Observable"
+        symbol.attributeNames = attributes.compactMap {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
         }
+        symbol.observableViaMacro = symbol.attributeNames.contains("Observable")
         try collectStructMembers(memberBlock, into: symbol)
         return symbol
     }

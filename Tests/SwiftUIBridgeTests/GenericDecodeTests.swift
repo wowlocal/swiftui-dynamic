@@ -1963,3 +1963,85 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("joined")?.stringified == "notRequested,isLoading,loaded")
     }
 }
+
+@Suite struct SwiftDataStoreTests {
+    // clean-architecture's DB genre: a @ModelActor repository over an
+    // in-memory ModelContainer — insert in a transaction, fetch by
+    // FetchDescriptor (bare-generic and #Predicate forms).
+    @Test func modelContextRoundTrips() throws {
+        let source = """
+        import SwiftData
+
+        enum DBModel {}
+
+        extension DBModel {
+            @Model final class Country {
+                var name: String
+                var alpha3Code: String
+                init(name: String, alpha3Code: String) {
+                    self.name = name
+                    self.alpha3Code = alpha3Code
+                }
+            }
+        }
+
+        @ModelActor
+        final actor MainDBRepository { }
+
+        extension MainDBRepository {
+            func store(names: [(String, String)]) throws {
+                try modelContext.transaction {
+                    for entry in names {
+                        modelContext.insert(DBModel.Country(name: entry.0, alpha3Code: entry.1))
+                    }
+                }
+            }
+            func country(alpha3Code: String) throws -> DBModel.Country? {
+                let code = alpha3Code
+                let descriptor = FetchDescriptor(predicate: #Predicate<DBModel.Country> {
+                    $0.alpha3Code == code
+                })
+                return try modelContainer.mainContext.fetch(descriptor).first
+            }
+        }
+
+        let container = ModelContainer()
+        let sut = MainDBRepository(modelContainer: container)
+        try sut.store(names: [("France", "FRA"), ("Italy", "ITA")])
+        let all = try container.mainContext.fetch(FetchDescriptor<DBModel.Country>())
+        let total = all.count
+        let italy = try sut.country(alpha3Code: "ITA")
+        let italyName = italy?.name ?? "NONE"
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("total")?.stringified == "2")
+        #expect(interpreter.globals.lookup("italyName")?.stringified == "Italy")
+    }
+
+    // MinimalTodo/Meshtastic shape: `var descriptor = FetchDescriptor<T>()`
+    // then mutating `fetchLimit`/`sortBy` before fetching.
+    @Test func mutableDescriptorConfig() throws {
+        let source = """
+        import SwiftData
+
+        @Model final class Task {
+            var title: String
+            init(title: String) { self.title = title }
+        }
+
+        let container = ModelContainer()
+        let context = container.mainContext
+        context.insert(Task(title: "a"))
+        context.insert(Task(title: "b"))
+        context.insert(Task(title: "c"))
+        var descriptor = FetchDescriptor<Task>()
+        descriptor.fetchLimit = 2
+        descriptor.sortBy = [SortDescriptor(\\.title)]
+        let limited = try context.fetch(descriptor).count
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("limited")?.stringified == "2")
+    }
+}

@@ -707,6 +707,15 @@ public final class Interpreter {
                         assigned.insert(label)
                         continue
                     }
+                    // MACRO-generated memberwise slots (@ModelActor's
+                    // init(modelContainer:)): the attribute's generated
+                    // init is invisible to the merge — bind the argument
+                    // as a property.
+                    if symbol.attributeNames.contains(where: { $0.first?.isUppercase == true }) {
+                        instance.properties[label] = Box(argument.value)
+                        assigned.insert(label)
+                        continue
+                    }
                     let message = "argument '\(label)' doesn't match a stored property of '\(symbol.name)'"
                     if let node { throw error(node, message) }
                     throw RuntimeError(message: message)

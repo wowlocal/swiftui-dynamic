@@ -641,3 +641,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   clean-architecture 50 → 53 passed. **679/680; suite 490 green;
   LiveCheck 5/5; TestCheck 99→102 passed / 27→24 failed — strictly
   improved (past 100).**
+- 2026-07-11 iter 218: biggest remaining class (2×) —
+  `stored.capital == details.capital` (CountriesDBRepositoryTests):
+  SwiftData was absent. Added an in-memory SwiftData store:
+  ModelContainerBox/ModelContextBox (insert/delete/save/transaction/
+  fetch/fetchCount over stored interpreted instances),
+  FetchDescriptorBox + PredicateBox; `Type<Generic>(...)` host ctors
+  now receive `__genericArguments` (genericSpecializationExpr wrap);
+  `#Predicate<T>{...}` registered through the macro path
+  (invokeRegisteredMacro gained genericArguments); @ModelActor
+  tolerance (attributeNames on StructSymbol; memberwise binds
+  unmatched labels on macro-attributed symbols; `modelContext` →
+  modelContainer.mainContext). Fetch matches by last dotted type-name
+  component + predicate closure. First full gate caught a corpus
+  regression — MinimalTodo/Meshtastic assign `descriptor.fetchLimit`
+  — fixed by accept-and-memoize config on FetchDescriptorBox (fetch
+  honors fetchLimit). Pinned by SwiftDataStoreTests (@ModelActor
+  repository round-trip + mutable-descriptor config).
+  clean-architecture 53 → 56 passed. **679/680; suite 492 green;
+  LiveCheck 5/5; TestCheck 102→105 passed / 24→21 failed — class
+  eliminated.**

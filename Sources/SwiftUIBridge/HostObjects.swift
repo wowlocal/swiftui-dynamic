@@ -164,6 +164,29 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             }
             return .native(DateInterval())
         }
+    case "ModelContainer":
+        return HostFunction(name: name) { _, _ in .native(ModelContainerBox()) }
+    case "#Predicate":
+        // `#Predicate<DBModel.Country> { $0.alpha3Code == code }` — the
+        // generic names the model type; the closure filters for real.
+        return HostFunction(name: name) { args, _ in
+            .native(PredicateBox(
+                typeName: args.labeled("__genericArguments")?.stringValue,
+                closure: args.arguments.first(where: { $0.value.closureValue != nil })?.value.closureValue))
+        }
+    case "FetchDescriptor", "SectionedFetchDescriptor":
+        return HostFunction(name: name) { args, _ in
+            var typeName = args.labeled("__genericArguments")?.stringValue
+            var predicate: PredicateBox?
+            if case .host(let any)? = args.labeled("predicate"), let box = any as? PredicateBox {
+                predicate = box
+                if typeName == nil { typeName = box.typeName }
+            }
+            if let comma = typeName?.firstIndex(of: ",") {
+                typeName = typeName.map { String($0[..<comma]) }
+            }
+            return .native(FetchDescriptorBox(typeName: typeName, predicate: predicate))
+        }
     case "NSLock", "NSRecursiveLock", "NSCondition":
         // Single-threaded probes hold every lock trivially: withLock RUNS
         // its body and returns the result (clean-architecture's mock store
@@ -530,6 +553,45 @@ final class DateComponentsBox {
 /// and ignored, fetches return empty.
 struct ModelContextStub {}
 
+/// A REAL in-memory SwiftData store: `ModelContainer(for:…)` shares one
+/// context; insert/fetch round-trip interpreted @Model instances, with
+/// FetchDescriptor predicates genuinely filtering.
+public final class ModelContainerBox {
+    let context = ModelContextBox()
+}
+
+public final class ModelContextBox {
+    var stored: [RuntimeValue] = []
+}
+
+/// `FetchDescriptor<DBModel.Country>()` / `FetchDescriptor(predicate:)` —
+/// the model TYPE rides in (from the generic specialization or the
+/// predicate's own generic), plus the predicate closure for real filtering.
+public final class FetchDescriptorBox {
+    var typeName: String?
+    var predicate: PredicateBox?
+    /// fetchLimit/sortBy/includePendingChanges — accepted and memoized
+    /// (fetches honor fetchLimit; the rest are invisible to the
+    /// in-memory store).
+    var config: [String: RuntimeValue] = [:]
+
+    init(typeName: String?, predicate: PredicateBox?) {
+        self.typeName = typeName
+        self.predicate = predicate
+    }
+}
+
+/// `#Predicate<T> { … }` — the closure evaluates per candidate.
+public final class PredicateBox {
+    let typeName: String?
+    let closure: ClosureValue?
+
+    init(typeName: String?, closure: ClosureValue?) {
+        self.typeName = typeName
+        self.closure = closure
+    }
+}
+
 /// `FetchDescriptor<Item>()` arrives as an absorbed marker/stub — its
 /// stringified form carries the generic argument naming the model type.
 func modelFetchTypeName(from descriptor: RuntimeValue) -> String? {
@@ -679,6 +741,71 @@ final class RegexBox {
 }
 
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let container = value as? ModelContainerBox {
+        if name == "mainContext" { return .native(container.context) }
+        return nil
+    }
+    if let context = value as? ModelContextBox {
+        switch name {
+        case "insert":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                if let model = args.positional(0) { context.stored.append(model) }
+                return .void
+            })
+        case "delete":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                guard case .instance(let doomed)? = args.positional(0) else { return .void }
+                context.stored.removeAll {
+                    if case .instance(let candidate) = $0 { return candidate === doomed }
+                    return false
+                }
+                return .void
+            })
+        case "save":
+            return .hostFunction(HostFunction(name: name) { _, _ in .void })
+        case "transaction":
+            // Runs the block immediately — the in-memory store has no
+            // isolation to defer.
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                if let body = args.firstUnlabeledClosure {
+                    _ = try ctx.callClosure(body, arguments: [])
+                }
+                return .void
+            })
+        case "fetch", "fetchCount":
+            let wantsCount = name == "fetchCount"
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                var typeName: String?
+                var predicate: PredicateBox?
+                var fetchLimit: Int?
+                if case .host(let any)? = args.positional(0), let descriptor = any as? FetchDescriptorBox {
+                    typeName = descriptor.typeName
+                    predicate = descriptor.predicate
+                    fetchLimit = descriptor.config["fetchLimit"]?.intValue
+                } else if let text = args.positional(0).map({ modelFetchTypeName(from: $0) }) {
+                    typeName = text
+                }
+                let wantedLast = typeName?.split(separator: ".").last.map(String.init)
+                var matches: [RuntimeValue] = []
+                for candidate in context.stored {
+                    guard case .instance(let instance) = candidate else { continue }
+                    if let wantedLast, instance.symbol.name != wantedLast,
+                       !instance.symbol.name.hasSuffix(".\(wantedLast)") {
+                        continue
+                    }
+                    if let predicate, let closure = predicate.closure {
+                        let verdict = try? ctx.callClosure(closure, arguments: [candidate])
+                        if verdict?.boolValue != true { continue }
+                    }
+                    matches.append(candidate)
+                    if let fetchLimit, matches.count >= fetchLimit { break }
+                }
+                return wantsCount ? .native(matches.count) : .native(matches)
+            })
+        default:
+            return nil
+        }
+    }
     if value is LockBox {
         switch name {
         case "withLock", "sync":
@@ -1317,6 +1444,14 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
     }
     if let stub = value as? UIKitStub {
         stub.config[name] = newValue
+        return true
+    }
+    if let descriptor = value as? FetchDescriptorBox {
+        if name == "predicate", case .host(let obj) = newValue,
+           let box = obj as? PredicateBox {
+            descriptor.predicate = box
+        }
+        descriptor.config[name] = newValue
         return true
     }
     if let box = value as? NumberFormatterBox {
