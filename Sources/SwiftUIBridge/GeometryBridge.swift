@@ -790,6 +790,22 @@ extension ViewRegistry {
     /// they meet, so concatenation approximates as an adjacent zero-spacing
     /// HStack (documented divergence: no line-wrap continuity).
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? {
+        // DynamicTypeSize markers order by the REAL case ladder
+        // (WidthThresholdReader's `dynamicType >= .xxLarge`).
+        if ["<", "<=", ">", ">=", "==", "!="].contains(op),
+           case .implicitMember(let leftName) = lhs,
+           case .implicitMember(let rightName) = rhs,
+           let leftIndex = Self.dynamicTypeSizeOrder.firstIndex(of: leftName),
+           let rightIndex = Self.dynamicTypeSizeOrder.firstIndex(of: rightName) {
+            switch op {
+            case "<": return .bool(leftIndex < rightIndex)
+            case "<=": return .bool(leftIndex <= rightIndex)
+            case ">": return .bool(leftIndex > rightIndex)
+            case ">=": return .bool(leftIndex >= rightIndex)
+            case "==": return .bool(leftIndex == rightIndex)
+            default: return .bool(leftIndex != rightIndex)
+            }
+        }
         guard op == "+", isViewValue(lhs), isViewValue(rhs),
               let left = try? Self.anyView(lhs), let right = try? Self.anyView(rhs) else { return nil }
         return .native(AnyView(HStack(spacing: 0) {
@@ -797,6 +813,12 @@ extension ViewRegistry {
             right
         }))
     }
+
+    static let dynamicTypeSizeOrder = [
+        "xSmall", "small", "medium", "large", "xLarge", "xxLarge", "xxxLarge",
+        "accessibility1", "accessibility2", "accessibility3", "accessibility4",
+        "accessibility5",
+    ]
 
     func registerGeometryViews() {
         constructors["GeometryReader"] = HostFunction(name: "GeometryReader") { args, ctx in

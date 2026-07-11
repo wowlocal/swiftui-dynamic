@@ -1156,3 +1156,18 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   Board: orders 11.73% (ratchet), data screens' residual AE is
   RENDER-side (card-orders 51% visual diff next). **GATE GREEN:
   suite 533; corpus 678/680; live 5/5; parity 345/0/0; R1 9/9.**
+- 2026-07-11 iter 238 (FoodTruck R2): the truck-screen LAYOUT class —
+  TruckView rendered a single compact column (the twin: a 2×2 card
+  grid). Root: WidthThresholdReader's `isCompact` read TRUE through
+  two gaps: (1) `dynamicType >= .xxLarge` compared two markers
+  (throw-ish) — DynamicTypeSize markers now order by the REAL case
+  ladder in combineValues; (2) the env canvas was iPhone-doctrine
+  (`horizontalSizeClass: compact`) regardless of target — defaults
+  are platform-aware now (macOS = regular; corpus keeps compact).
+  Truck renders the two-column grid with the orders card + socialFeed
+  title; the CARDS' remaining absorbs staked for next iterations:
+  card chrome (headers/backgrounds), the Swift Charts forecast
+  (weather card), donuts card body, and `\(x, specifier: "%02d")`
+  string-interpolation specifiers (Order ids read "Order#121%02d").
+  Pin: DynamicTypeAndPlatformEnvTests. **GATE GREEN: suite 534;
+  corpus 678/680; live 5/5; parity 345/0/0; R1 9/9.**

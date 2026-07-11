@@ -47,9 +47,11 @@ public enum InterpretedEnvironment {
             "openWindow": .hostFunction(HostFunction(name: "openWindow") { _, _ in .void }),
             "dismissWindow": .hostFunction(HostFunction(name: "dismissWindow") { _, _ in .void }),
             "openURL": .hostFunction(HostFunction(name: "openURL") { _, _ in .void }),
-            // The canvas is iPhone-portrait-shaped: compact width, regular
-            // height (matching the 390×844 stubs).
-            "horizontalSizeClass": .implicitMember("compact"),
+            // The canvas matches the interpreted platform: iPhone-portrait
+            // (compact/regular) for the corpus, regular/regular for macOS
+            // targets (the FoodTruck twin).
+            "horizontalSizeClass": .implicitMember(
+                Interpreter.interpretsAsPlatform == "macOS" ? "regular" : "compact"),
             "verticalSizeClass": .implicitMember("regular"),
             "dynamicTypeSize": .implicitMember("large"),
             "scenePhase": .implicitMember("active"),

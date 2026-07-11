@@ -1358,6 +1358,29 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct DynamicTypeAndPlatformEnvTests {
+    // FoodTruck's WidthThresholdReader: `dynamicType >= .xxLarge` orders
+    // DynamicTypeSize markers by the real case ladder, and the environment
+    // canvas follows the interpreted platform (macOS = regular width; the
+    // corpus default stays iPhone-compact).
+    @Test func dynamicTypeOrderingAndPlatformCanvas() throws {
+        let registry = ViewRegistry()
+        #expect(registry.combineValues(">=", .implicitMember("large"), .implicitMember("xxLarge"))?.boolValue == false)
+        #expect(registry.combineValues("<", .implicitMember("large"), .implicitMember("xxLarge"))?.boolValue == true)
+        #expect(registry.combineValues(">=", .implicitMember("accessibility1"), .implicitMember("xxLarge"))?.boolValue == true)
+
+        #expect(Interpreter.interpretsAsPlatform == "iOS")
+        if case .implicitMember(let corpus)? = InterpretedEnvironment.defaults()["horizontalSizeClass"] {
+            #expect(corpus == "compact")
+        }
+        Interpreter.interpretsAsPlatform = "macOS"
+        defer { Interpreter.interpretsAsPlatform = "iOS" }
+        if case .implicitMember(let mac)? = InterpretedEnvironment.defaults()["horizontalSizeClass"] {
+            #expect(mac == "regular")
+        }
+    }
+}
+
 @Suite struct SeededRNGParityTests {
     // FoodTruck's SeededRandomGenerator genre: srand48/drand48 are REAL
     // libc calls, UInt64 is an exact 64-bit host carrier (not Int-clamped),
