@@ -18,6 +18,9 @@ enum ParamTag: String {
     case builder, action, equatable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
+    case decimal, characterSet, indexSet, dateComponents, dateInterval
+    case indexPath, intArray, intRange
+    case calendarComponent, calendarComponentSet
 }
 
 struct ParamSpec {
@@ -177,7 +180,63 @@ enum GeneratedDispatch {
                 guard let s = element.stringValue else { throw RuntimeError(message: "expected [String]") }
                 return s
             }
+        case .decimal:
+            // Decimal is ExpressibleByInteger/FloatLiteral — int and double
+            // arguments are legal native call shapes, not coercion cheats.
+            if let d: Decimal = hostValue(value) { return d }
+            if case .int(let i) = value { return Decimal(i) }
+            if let d = value.doubleValue { return Decimal(d) }
+            throw RuntimeError(message: "expected a Decimal")
+        case .characterSet:
+            guard let set: CharacterSet = hostValue(value) else { throw RuntimeError(message: "expected a CharacterSet") }
+            return set
+        case .indexSet:
+            guard let set: IndexSet = hostValue(value) else { throw RuntimeError(message: "expected an IndexSet") }
+            return set
+        case .dateComponents:
+            guard let components: DateComponents = hostValue(value) else { throw RuntimeError(message: "expected DateComponents") }
+            return components
+        case .dateInterval:
+            guard let interval: DateInterval = hostValue(value) else { throw RuntimeError(message: "expected a DateInterval") }
+            return interval
+        case .indexPath:
+            guard let path: IndexPath = hostValue(value) else { throw RuntimeError(message: "expected an IndexPath") }
+            return path
+        case .intArray:
+            guard let array = value.arrayValue else { throw RuntimeError(message: "expected [Int]") }
+            return try array.map { element -> Int in
+                guard let i = element.intValue else { throw RuntimeError(message: "expected [Int]") }
+                return i
+            }
+        case .intRange:
+            // Interpreted `2..<5` lives as RuntimeRangeValue; closed ranges
+            // are legal native call shapes via RangeExpression.
+            if let runtime = value.rangeValue {
+                if let range = runtime.halfOpenIntRange { return range }
+                if let closed = runtime.closedIntRange { return closed.lowerBound..<(closed.upperBound + 1) }
+            }
+            if let range: Range<Int> = hostValue(value) { return range }
+            if let closed: ClosedRange<Int> = hostValue(value) { return closed.lowerBound..<(closed.upperBound + 1) }
+            throw RuntimeError(message: "expected a Range<Int>")
+        case .calendarComponent:
+            return try Coerce.calendarComponent(value)
+        case .calendarComponentSet:
+            // Native code writes `[.year, .month]` — Set's array-literal
+            // conformance; the interpreted array coerces element-wise.
+            guard let array = value.arrayValue else { throw RuntimeError(message: "expected a set of calendar components") }
+            return Set(try array.map(Coerce.calendarComponent))
         }
+    }
+
+    /// Host-typed argument extraction: the raw payload, or the wrapped value
+    /// when a hand box (GeneratedMemberCarrier) is standing in for it.
+    private static func hostValue<T>(_ value: RuntimeValue) -> T? {
+        if let direct = value.hostPayload as? T { return direct }
+        if let carrier = value.hostPayload as? GeneratedMemberCarrier,
+           let unwrapped = carrier.generatedMemberValue as? T {
+            return unwrapped
+        }
+        return nil
     }
 
     private static func matches(_ params: [ParamSpec], _ args: CallArguments, _ ctx: EvalContext) -> [Any]? {

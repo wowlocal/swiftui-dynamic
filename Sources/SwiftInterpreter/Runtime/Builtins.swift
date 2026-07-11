@@ -414,6 +414,14 @@ public enum Builtins {
         return nil
     }
 
+    static func comparisonResultName(_ result: ComparisonResult) -> String {
+        switch result {
+        case .orderedAscending: return "orderedAscending"
+        case .orderedDescending: return "orderedDescending"
+        case .orderedSame: return "orderedSame"
+        }
+    }
+
     static func areEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
         // KeyPaths compare by their component chains (`kp == \\.zone`).
         if case .host(let l) = lhs, let lk = l as? KeyPathStub,
@@ -443,6 +451,17 @@ public enum Builtins {
         if case .host(let any) = rhs, let chain = any as? ChainedImplicitCall,
            case .implicitMember(let name) = lhs {
             return chain.member == name
+        }
+        // ComparisonResult is an @objc enum: hosted values print natively
+        // (NSComparisonResult(rawValue:)) while corpus code compares with
+        // `.orderedSame`-style markers — bridge by case name.
+        if case .host(let any) = lhs, let result = any as? ComparisonResult,
+           case .implicitMember(let name) = rhs {
+            return comparisonResultName(result) == name
+        }
+        if case .host(let any) = rhs, let result = any as? ComparisonResult,
+           case .implicitMember(let name) = lhs {
+            return comparisonResultName(result) == name
         }
         // Hosted objects compare by identity; against anything else, false.
         if case .host(let la) = lhs, la is InertCallable {
