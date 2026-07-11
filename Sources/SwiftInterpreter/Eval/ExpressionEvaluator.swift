@@ -1160,6 +1160,16 @@ extension Interpreter {
             // user extensions add more (`extension ChatClient { static var
             // shared }`); otherwise they act like implicit members resolved
             // against the expected type at the gateway boundary.
+            // MODULE-qualified globals (`Swift.max`) — the catch-all ctor
+            // claimed the module name; strip the qualifier. Declared types
+            // fall through (the qualifier asks for the FRAMEWORK's symbol).
+            if ["Swift", "Foundation", "SwiftUI", "Combine", "Dispatch"].contains(function.name),
+               let global = globals.lookup(name) {
+                switch global {
+                case .type, .enumType: break
+                default: return global
+                }
+            }
             if let value = registry?.hostMember(name, on: HostTypeMarker(name: function.name)) {
                 return value
             }
@@ -1337,6 +1347,18 @@ extension Interpreter {
                 return value
             }
             if let marker = any as? HostTypeMarker {
+                // MODULE-qualified globals (`Swift.max`, `Foundation.pow`)
+                // strip the qualifier — the merge has no modules. DECLARED
+                // types never answer: `SwiftUI.Tab` explicitly bypasses the
+                // app's own `enum Tab` (Interactive_Header), so those fall
+                // through to the framework path.
+                if ["Swift", "Foundation", "SwiftUI", "Combine", "Dispatch"].contains(marker.name),
+                   let global = globals.lookup(name) {
+                    switch global {
+                    case .type, .enumType: break
+                    default: return global
+                    }
+                }
                 // `UNAuthorizationStatus.notDetermined` where the program
                 // EXTENDS the host type: mint a TYPED marker so `.map`
                 // (the extension's member) dispatches on it.
@@ -1825,8 +1847,18 @@ extension Interpreter {
                 // PROPERTY/METHOD collision at a CALL site: the type's own
                 // computed property shadowed a PROTOCOL-EXTENSION method
                 // (Status's `var isHidden` vs AnyStatus's `isHidden(in:)`)
-                // — dispatch the method, as overload resolution would.
+                // — dispatch the method, as overload resolution would. The
+                // SAME-SYMBOL form first: FoodTruckModel's stored dict
+                // `dailyOrderSummaries` beside `dailyOrderSummaries(cityID:)`.
                 if case .instance(let instance) = baseValue {
+                    let own = (instance.symbol.methods[name] ?? [])
+                        .filter { !activeFunctionBodies.contains($0.id) }
+                    if let method = chooseFunction(from: own, for: args),
+                       let body = method.body {
+                        let closure = makeFunctionClosure(
+                            method, body: body, captured: selfEnvironment(.instance(instance)))
+                        return try invoke(.closure(closure), with: args, node: call)
+                    }
                     for conformance in transitiveConformances(of: instance.symbol) {
                         guard let proto = hostExtensionSymbols[conformance],
                               let overloads = proto.methods[name] else { continue }

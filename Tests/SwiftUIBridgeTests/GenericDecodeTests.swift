@@ -1358,6 +1358,59 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct ModuleQualifiedAndCollisionTests {
+    // FoodTruck's city/salesHistory rungs: `Swift.max(...)` strips the
+    // module qualifier (the merge has no modules), and a stored property
+    // sharing its name with a method (`dailyOrderSummaries` dict beside
+    // `dailyOrderSummaries(cityID:)`) dispatches the METHOD at call sites
+    // with arguments — native overload resolution.
+    @Test func moduleQualifierAndOwnMethodCollision() throws {
+        let source = """
+        let clamped = Swift.min(Swift.max(7, 0), 5)
+
+        final class Model {
+            var summaries: [Int: [String]] = [1: ["a", "b"], 2: ["c"]]
+            func summaries(cityID: Int) -> [String] {
+                guard let result = summaries[cityID] else { return [] }
+                return result
+            }
+        }
+        let model = Model()
+        let viaMethod = model.summaries(cityID: 1).count
+        let viaProperty = model.summaries.count
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("clamped")?.stringified == "5")
+        #expect(interpreter.globals.lookup("viaMethod")?.stringified == "2")
+        #expect(interpreter.globals.lookup("viaProperty")?.stringified == "2")
+    }
+
+    // Interactive_Header's shape: a local `enum Tab` beside SwiftUI.Tab —
+    // the module qualifier explicitly BYPASSES the declared type, so the
+    // framework path answers (an absorbing view node under the trace
+    // registry), never the local enum's missing `init`.
+    @Test func qualifiedTypeBypassesLocalDeclaration() throws {
+        let source = """
+        import SwiftUI
+
+        enum Tab {
+            case chat
+            case friends
+        }
+
+        let qualified = SwiftUI.Tab.init(value: Tab.chat) { Text("Chat") }
+        let stillWorks = Swift.max(3, 9)
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("stillWorks")?.stringified == "9")
+        let qualified = interpreter.globals.lookup("qualified")
+        #expect(qualified != nil)
+        if case .enumType = qualified { Issue.record("local enum answered a qualified access") }
+    }
+}
+
 @Suite struct SortedUsingComparatorTests {
     // FoodTruck's OrdersView: `.sorted(using: [KeyPathComparator(\\.status,
     // order: .reverse)])` over Comparable enums (SE-0266: declaration

@@ -1029,3 +1029,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   string table). Remaining: salesHistory (dict-of-summaries member
   at 4267:35), city (`max` ctor shadow). **GATE GREEN: suite 528;
   corpus 678/680; live 5/5; parity 345/0/0.**
+- 2026-07-11 iter 232 (FoodTruck ladder): **R1 COMPLETE — 9/9 rungs.**
+  The last two: (1) salesHistory — FoodTruckModel's stored dict
+  `dailyOrderSummaries` shadowed the same-named METHOD
+  `dailyOrderSummaries(cityID:)` at call sites; the collision rescue
+  now dispatches the symbol's OWN fitting overload first (before the
+  conformance walk). (2) city — `Swift.max(...)`: module-qualified
+  names strip the qualifier (Swift/Foundation/SwiftUI/Combine/
+  Dispatch → the global builtin). First gate caught the refinement:
+  Interactive_Header's `SwiftUI.Tab.init(value:)` beside its OWN
+  `enum Tab` — DECLARED types never answer qualified access (the
+  qualifier explicitly asks for the framework's symbol); corpus
+  restored 677→678. Pins: ModuleQualifiedAndCollisionTests (both
+  shapes + the bypass). Next ladder work: R2 pixel rungs against the
+  native twin (Examples/FoodTruckNativeTwin, NSWindow captures) and
+  R3 interactions. **GATE GREEN: suite 530; corpus 678/680; live
+  5/5; parity 345/0/0; FoodTruckCheck 9/9.**
