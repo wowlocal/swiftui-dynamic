@@ -1320,6 +1320,181 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct LoadableBindingSequenceTests {
+    // clean-architecture's LoadableTests.loadSuccess, end to end: the
+    // Binding's generic argument resolves get()/set() values to real cases,
+    // setIsLoading mutates through the host-self lvalue, the Task-run
+    // resource lands `.loaded`, and the expected literal's payload markers
+    // resolve against the enum before the declared == runs. Native run
+    // (scratch swiftc): count=2 sequenceMatches=true.
+    @Test func bindingLoadSequenceEquality() throws {
+        let source = """
+        import SwiftUI
+        import Combine
+
+        final class CancelBag {
+            fileprivate(set) var subscriptions = [any Cancellable]()
+            private let equalToAny: Bool
+            init(equalToAny: Bool = false) { self.equalToAny = equalToAny }
+            func cancel() { subscriptions.removeAll() }
+            func isEqual(to other: CancelBag) -> Bool { other === self || other.equalToAny || self.equalToAny }
+        }
+        extension CancelBag {
+            static var test: CancelBag { CancelBag(equalToAny: true) }
+        }
+        extension Cancellable {
+            func store(in cancelBag: CancelBag) { cancelBag.subscriptions.append(self) }
+        }
+        extension Task: Cancellable { }
+
+        enum Loadable<T> {
+            case notRequested
+            case isLoading(last: T?, cancelBag: CancelBag)
+            case loaded(T)
+            case failed(Error)
+
+            var value: T? {
+                switch self {
+                case let .loaded(value): return value
+                case let .isLoading(last, _): return last
+                default: return nil
+                }
+            }
+            mutating func setIsLoading(cancelBag: CancelBag) {
+                self = .isLoading(last: value, cancelBag: cancelBag)
+            }
+        }
+        extension Loadable: Equatable where T: Equatable {
+            static func == (lhs: Loadable<T>, rhs: Loadable<T>) -> Bool {
+                switch (lhs, rhs) {
+                case (.notRequested, .notRequested): return true
+                case let (.isLoading(lhsV, lhsC), .isLoading(rhsV, rhsC)):
+                    return lhsV == rhsV && lhsC.isEqual(to: rhsC)
+                case let (.loaded(lhsV), .loaded(rhsV)): return lhsV == rhsV
+                case let (.failed(lhsE), .failed(rhsE)):
+                    return lhsE.localizedDescription == rhsE.localizedDescription
+                default: return false
+                }
+            }
+        }
+
+        typealias LoadableSubject<Value> = Binding<Loadable<Value>>
+
+        extension LoadableSubject {
+            func load<T>(_ resource: @escaping () async throws -> T) where Value == Loadable<T> {
+                let cancelBag = CancelBag()
+                wrappedValue.setIsLoading(cancelBag: cancelBag)
+                let task = Task {
+                    do {
+                        wrappedValue = .loaded(try await resource())
+                    } catch {
+                        wrappedValue = .failed(error)
+                    }
+                }
+                task.store(in: cancelBag)
+            }
+        }
+
+        var values: [Loadable<String>] = []
+        let sut = Binding<Loadable<String>>(get: {
+            values.last ?? .notRequested
+        }, set: {
+            values.append($0)
+        })
+        sut.load {
+            return "test"
+        }
+        let sequenceMatches = values == [.isLoading(last: nil, cancelBag: .test), .loaded("test")]
+        let count = values.count
+            let sequenceMatches = values == [.isLoading(last: nil, cancelBag: .test), .loaded("test")]
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("count")?.stringified == "2")
+        #expect(interpreter.globals.lookup("sequenceMatches")?.stringified == "true")
+    }
+}
+
+@Suite struct CancelBagStoreTests {
+    // clean-architecture's LoadableTests.cancelLoading genre: a user
+    // `extension Cancellable { store(in:) }` applies to HOST cancellables
+    // (PassthroughSubject sink returns), the bag counts real entries, and
+    // the mutating enum method cancels + writes self back. Native run:
+    // count1Before=1 count1After=0 errorSet=true value2=7.
+    @Test func sinkStoreCountAndCancelLoading() throws {
+        let source = """
+        import Combine
+
+        final class CancelBag {
+            fileprivate(set) var subscriptions = [any Cancellable]()
+            private let equalToAny: Bool
+            init(equalToAny: Bool = false) { self.equalToAny = equalToAny }
+            func cancel() { subscriptions.removeAll() }
+            func isEqual(to other: CancelBag) -> Bool { other === self || other.equalToAny || self.equalToAny }
+        }
+        extension Cancellable {
+            func store(in cancelBag: CancelBag) { cancelBag.subscriptions.append(self) }
+        }
+
+        enum Loadable<T> {
+            case notRequested
+            case isLoading(last: T?, cancelBag: CancelBag)
+            case loaded(T)
+            case failed(Error)
+
+            var value: T? {
+                switch self {
+                case let .loaded(value): return value
+                case let .isLoading(last, _): return last
+                default: return nil
+                }
+            }
+            var error: Error? {
+                switch self {
+                case let .failed(error): return error
+                default: return nil
+                }
+            }
+
+            mutating func cancelLoading() {
+                switch self {
+                case let .isLoading(last, cancelBag):
+                    cancelBag.cancel()
+                    if let last = last {
+                        self = .loaded(last)
+                    } else {
+                        let error = NSError(
+                            domain: NSCocoaErrorDomain, code: NSUserCancelledError,
+                            userInfo: [NSLocalizedDescriptionKey: NSLocalizedString("Canceled by user", comment: "")])
+                        self = .failed(error)
+                    }
+                default: break
+                }
+            }
+        }
+
+        let cancelBag1 = CancelBag(), cancelBag2 = CancelBag()
+        let subject = PassthroughSubject<Int, Never>()
+        subject.sink { _ in }.store(in: cancelBag1)
+        subject.sink { _ in }.store(in: cancelBag2)
+        var sut1 = Loadable<Int>.isLoading(last: nil, cancelBag: cancelBag1)
+        let count1Before = cancelBag1.subscriptions.count
+        sut1.cancelLoading()
+        let count1After = cancelBag1.subscriptions.count
+        let errorSet = sut1.error != nil
+        var sut2 = Loadable<Int>.isLoading(last: 7, cancelBag: cancelBag2)
+        sut2.cancelLoading()
+        let value2 = sut2.value ?? -1
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("count1Before")?.stringified == "1")
+        #expect(interpreter.globals.lookup("count1After")?.stringified == "0")
+        #expect(interpreter.globals.lookup("errorSet")?.stringified == "true")
+        #expect(interpreter.globals.lookup("value2")?.stringified == "7")
+    }
+}
+
 @Suite struct AliasedRangeStaticDefaultTests {
     // clean-architecture's `httpCodes: HTTPCodes = .success` default, where
     // `typealias HTTPCodes = Range<HTTPCode>` and the static lives in

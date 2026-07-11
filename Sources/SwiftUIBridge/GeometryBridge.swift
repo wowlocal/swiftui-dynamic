@@ -161,6 +161,13 @@ struct WindowSceneStub {}
 /// hosted view-controller machinery is inert but configurable.
 final class UIKitStub: InertCallable {
     var config: [String: RuntimeValue] = [:]
+    /// Host type/protocol names this stub STANDS FOR (`Task {…}` returns a
+    /// stub playing ["Task", "Cancellable"]) so user extensions dispatch.
+    var roles: [String] = []
+
+    init(roles: [String] = []) {
+        self.roles = roles
+    }
 }
 
 /// `DispatchQueue.main` — async dispatches through the real main queue.
@@ -734,6 +741,10 @@ extension ViewRegistry {
         GeneratedMembers.method(name, on: value)
     }
 
+    public func hostProtocolCandidates(of value: Any) -> [String] {
+        bridgeHostProtocolCandidates(of: value)
+    }
+
     public func hostTypeName(of value: Any) -> String? {
         bridgeHostTypeName(of: value)
     }
@@ -873,6 +884,17 @@ func bridgeHostMutatedCopy(settingMember name: String, on value: Any, to newValu
 
 /// Stub → host type names, so user `extension UIApplication { … }` members
 /// dispatch on the stubs standing in for those objects.
+/// PROTOCOL umbrellas host values conform to — user protocol extensions
+/// (`extension Cancellable { func store(in:) }`) dispatch through these.
+func bridgeHostProtocolCandidates(of value: Any) -> [String] {
+    switch value {
+    case is AnyCancellableBox: return ["AnyCancellable", "Cancellable"]
+    case is PassthroughSubjectBox: return ["PassthroughSubject", "Publisher"]
+    case let stub as UIKitStub: return stub.roles
+    default: return []
+    }
+}
+
 func bridgeHostTypeName(of value: Any) -> String? {
     switch value {
     case is AppStub: return "UIApplication"

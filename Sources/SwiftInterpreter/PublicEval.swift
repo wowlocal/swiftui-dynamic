@@ -41,6 +41,13 @@ extension Interpreter {
         try? staticMember(name, of: symbol)
     }
 
+    /// Bridge-side annotation resolution: turn markers into the named
+    /// type's cases/statics/inits (`Binding<Loadable<String>>`'s get()
+    /// returning `.notRequested` becomes the real case).
+    public func resolveForBridge(_ value: RuntimeValue, typeName: String) -> RuntimeValue {
+        (try? resolveAnnotated(value, typeName: typeName)) ?? value
+    }
+
     /// Interpreted URLProtocol subclasses (their canInit gates mocking).
     public var urlProtocolSymbols: [StructSymbol] {
         structSymbols.filter { $0.superclassName == "URLProtocol" }

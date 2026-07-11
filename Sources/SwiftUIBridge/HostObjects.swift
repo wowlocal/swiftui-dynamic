@@ -57,7 +57,9 @@ func interpretedTaskConstructor(named name: String) -> HostFunction? {
     guard name == "Task" || name == "MainActor" else { return nil }
     return HostFunction(name: name) { args, context in
         try InterpretedTaskRunner.run(args, in: context)
-        return .native(UIKitStub())
+        // The handle plays Task + Cancellable so `task.store(in: cancelBag)`
+        // (extension Task: Cancellable) dispatches user extensions.
+        return .native(UIKitStub(roles: ["Task", "Cancellable"]))
     }
 }
 
@@ -474,10 +476,18 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { args, ctx in
             let get = args.closure(labeled: "get")
             let set = args.closure(labeled: "set")
-            let initial = try get.map { try ctx.callClosure($0, arguments: []) } ?? RuntimeValue.void
+            // `Binding<Loadable<String>>(get:set:)` — the generic argument
+            // is the Value type: get() results and written values resolve
+            // against it, so `.notRequested` markers become real cases.
+            let valueType = args.labeled("__genericArguments")?.stringValue
+            let resolved: (RuntimeValue) -> RuntimeValue = { value in
+                guard let valueType, let interpreter = ctx as? Interpreter else { return value }
+                return interpreter.resolveForBridge(value, typeName: valueType)
+            }
+            let initial = try get.map { resolved(try ctx.callClosure($0, arguments: [])) } ?? RuntimeValue.void
             let box = Box(initial)
             if let set {
-                box.onChange = { _ = try? ctx.callClosure(set, arguments: [box.value]) }
+                box.onChange = { _ = try? ctx.callClosure(set, arguments: [resolved(box.value)]) }
             }
             return .native(BindingStub(box: box))
         }

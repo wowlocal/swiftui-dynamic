@@ -709,3 +709,28 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   clean-architecture 58 → 61. **679/680; suite 497 green; LiveCheck
   5/5; TestCheck 108→111 passed / 18→16 failed / 7→6 errored — class
   strictly improved.**
+- 2026-07-11 iter 221: biggest class (3×) — LoadableTests
+  (cancelLoading + loadSuccess/loadFailure). Distillation found the
+  Combine-cancellation layer missing plus two resolution gaps, all
+  native-verified via scratch swiftc: (1) PassthroughSubjectBox (send
+  delivers inline to sink subscribers) + AnyCancellableBox (cancel
+  runs deregistration once); Task handles are UIKitStub with ROLES
+  ["Task","Cancellable"]; new HostRegistry.hostProtocolCandidates
+  feeds hostCandidates so user `extension Cancellable { store(in:) }`
+  dispatches on host values (the app-side CancelBag genre). (2)
+  mutating-enum write-back resolves `self = .loaded(last)` markers
+  against the receiver's symbol. (3) `Binding<Loadable<String>>(get:
+  set:)` resolves get()/onChange values through __genericArguments —
+  `.notRequested` from the get closure becomes a real case, so
+  setIsLoading's enumCase-receiver branch fires and the set-closure
+  sequence matches native ([isLoading, loaded]). (4) equality: payload-
+  carrying markers beside an enumCase resolve against that symbol
+  before the declared == runs (`values == [.isLoading(last: nil,
+  cancelBag: .test), …]`). Pins: CancelBagStoreTests,
+  LoadableBindingSequenceTests. Mid-iteration a sloppy replace-all
+  edit flipped two UNRELATED pins' expectations (count "1"→"2") and
+  injected debug prints — caught by the suite gate, restored to the
+  original native-verified expectations (extensionMethodDispatches
+  OnBuiltBinding, replaceErrorFallbackResolvesDeferredDecode).
+  clean-architecture 61 → 64. **679/680; suite 499 green; LiveCheck
+  5/5; TestCheck 111→114 passed / 16→13 failed — class eliminated.**

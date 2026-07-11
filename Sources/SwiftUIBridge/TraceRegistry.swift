@@ -555,6 +555,10 @@ public final class TraceRegistry: HostRegistry {
         return bridgeHostTypeName(of: value)
     }
 
+    public func hostProtocolCandidates(of value: Any) -> [String] {
+        bridgeHostProtocolCandidates(of: value)
+    }
+
     static func node(_ value: RuntimeValue) throws -> TraceNode {
         if case .host(let any) = value, let node = any as? TraceNode { return node }
         if case .host(let any) = value, any is PathDrawStub {

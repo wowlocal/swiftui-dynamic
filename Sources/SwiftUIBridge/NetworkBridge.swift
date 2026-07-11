@@ -181,6 +181,29 @@ public final class URLSessionBox {
     public init() {}
 }
 
+/// Combine's fire-only subject: subscribers registered by `sink` receive
+/// `send(_:)` values inline (synchronous delivery, the replay doctrine).
+public final class PassthroughSubjectBox: InertCallable {
+    var subscribers: [(id: UUID, receive: ClosureValue)] = []
+}
+
+/// The cancellation handle Combine APIs return: `cancel()` runs the
+/// deregistration exactly once. User `extension Cancellable` members
+/// (clean-architecture's `store(in: CancelBag)`) resolve on it through
+/// hostProtocolCandidates.
+public final class AnyCancellableBox: InertCallable {
+    private var onCancel: (() -> Void)?
+
+    init(onCancel: (() -> Void)? = nil) {
+        self.onCancel = onCancel
+    }
+
+    func cancel() {
+        onCancel?()
+        onCancel = nil
+    }
+}
+
 /// A VALUE publisher (`Result.publisher`, `Just`) with its operator chain
 /// applied EAGERLY — the replay/live doctrine's synchronous delivery for
 /// pipelines rooted at concrete values (bundled-resource loads):
@@ -576,6 +599,40 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
         default:
             return nil
         }
+    }
+    if let subject = value as? PassthroughSubjectBox {
+        switch name {
+        case "send":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                let payload = args.positional(0) ?? .void
+                for entry in subject.subscribers {
+                    _ = try ctx.callClosure(entry.receive, arguments: [payload])
+                }
+                return .void
+            })
+        case "sink":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                let closures = args.arguments.compactMap { $0.value.closureValue }
+                guard let receive = args.closure(labeled: "receiveValue") ?? closures.last else {
+                    return .native(AnyCancellableBox())
+                }
+                let id = UUID()
+                subject.subscribers.append((id: id, receive: receive))
+                return .native(AnyCancellableBox(onCancel: { [weak subject] in
+                    subject?.subscribers.removeAll { $0.id == id }
+                }))
+            })
+        case "eraseToAnyPublisher", "receive", "subscribe":
+            return .hostFunction(HostFunction(name: name) { _, _ in .native(subject) })
+        default:
+            return nil
+        }
+    }
+    if let cancellable = value as? AnyCancellableBox, name == "cancel" {
+        return .hostFunction(HostFunction(name: name) { _, _ in
+            cancellable.cancel()
+            return .void
+        })
     }
     if value is URLSessionBox {
         switch name {
@@ -992,6 +1049,10 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
     case "CurrentValueSubject":
         return HostFunction(name: name) { args, _ in
             .native(CurrentValueSubjectBox(args.positional(0) ?? .void))
+        }
+    case "PassthroughSubject":
+        return HostFunction(name: name) { _, _ in
+            .native(PassthroughSubjectBox())
         }
     case "HTTPURLResponse":
         return HostFunction(name: name) { args, _ in

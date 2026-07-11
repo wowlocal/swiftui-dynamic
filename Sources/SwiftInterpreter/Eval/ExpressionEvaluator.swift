@@ -764,6 +764,9 @@ extension Interpreter {
         var names: [String] = []
         if let registry, registry.isViewValue(.native(any)) { names.append("View") }
         if let typeName = registry?.hostTypeName(of: any) { names.append(typeName) }
+        if let protocols = registry?.hostProtocolCandidates(of: any), !protocols.isEmpty {
+            names.append(contentsOf: protocols)
+        }
         if any is String { names.append("String") }
         if any is Int { names.append("Int") }
         if any is Double { names.append("Double"); names.append("CGFloat") }
@@ -1941,7 +1944,10 @@ extension Interpreter {
             let closure = makeFunctionClosure(method, body: body, captured: selfEnv)
             let result = try callWithArguments(closure, args: args, node: Syntax(call))
             if let newSelf = selfEnv.box(for: "self")?.value {
-                try relocating(call) { try target.write(newSelf, self) }
+                // `self = .loaded(last)` rides as a marker — the receiver's
+                // own symbol is the annotation that resolves it to a case.
+                let resolved = try resolveAnnotated(newSelf, typeName: receiver.symbol.name)
+                try relocating(call) { try target.write(resolved, self) }
             }
             return result
         }
@@ -3388,6 +3394,21 @@ extension Interpreter {
     private func equalsViaDeclaredOperator(
         _ lhs: RuntimeValue, _ rhs: RuntimeValue, node: Syntax?
     ) throws -> Bool? {
+        // A PAYLOAD-carrying marker beside an enum case resolves against
+        // that case's symbol first (`values == [.isLoading(last: nil,
+        // cancelBag: .test)]` — the literal rides annotation-less), so the
+        // declared `==` compares two real cases.
+        var lhs = lhs, rhs = rhs
+        func looksLikeMarker(_ value: RuntimeValue) -> Bool {
+            if case .implicitMember = value { return true }
+            if case .host(let any) = value, any is ImplicitMemberCall { return true }
+            return false
+        }
+        if case .enumCase(let l) = lhs, looksLikeMarker(rhs) {
+            rhs = try resolveAnnotated(rhs, typeName: l.symbol.name)
+        } else if case .enumCase(let r) = rhs, looksLikeMarker(lhs) {
+            lhs = try resolveAnnotated(lhs, typeName: r.symbol.name)
+        }
         if let declared = declaredEqualsOperator(lhs) ?? declaredEqualsOperator(rhs) {
             do {
                 let result = try callWithArguments(

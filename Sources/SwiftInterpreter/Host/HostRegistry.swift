@@ -139,6 +139,10 @@ public protocol HostRegistry: AnyObject {
     /// a recorded node → its constructor name) so user extensions of host
     /// types dispatch on stubs. Nil when unknown.
     func hostTypeName(of value: Any) -> String?
+    /// PROTOCOL names a native value conforms to (a cancellation handle →
+    /// ["Cancellable"]) so user protocol extensions (`extension Cancellable
+    /// { func store(in:) }`) dispatch on host values. Empty when none.
+    func hostProtocolCandidates(of value: Any) -> [String]
     /// Value-type member writes (`size.width = 300`): return the MUTATED
     /// COPY, or nil when the member isn't writable this way.
     func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any?
@@ -152,6 +156,7 @@ public protocol HostRegistry: AnyObject {
 extension HostRegistry {
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
+    public func hostProtocolCandidates(of value: Any) -> [String] { [] }
     public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? { nil }
