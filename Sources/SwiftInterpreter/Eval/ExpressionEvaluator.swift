@@ -461,7 +461,7 @@ extension Interpreter {
                 break
             }
         }
-        if let ctor = registry?.constructor(named: name) {
+        if let ctor = registry?.constructor(named: aliasHeads[name] ?? name) {
             return .hostFunction(ctor)
         }
         // Unknown type-looking names are assumed host types used for static
@@ -816,25 +816,54 @@ extension Interpreter {
 
     /// Runs the best-matching user subscript getter (picked by arity).
     func callUserSubscriptGetter(on instance: Instance, with args: CallArguments) throws -> RuntimeValue {
-        guard let member = instance.symbol.subscripts.first(where: { $0.parameters.count == args.arguments.count })
-            ?? instance.symbol.subscripts.first else {
-            throw RuntimeError(message: "'\(instance.symbol.name)' has no subscript")
-        }
-        let env = selfEnvironment(.instance(instance))
-        let closure = ClosureValue(parameters: member.parameters, body: member.getter, captured: env)
-        return try callWithArguments(closure, args: args, node: nil)
+        try runUserSubscriptGetter(instance.symbol, selfValue: .instance(instance), args: args)
     }
 
     /// Runs the user subscript setter with `newValue` and the index bound.
     func callUserSubscriptSetter(on instance: Instance, with args: CallArguments, newValue: RuntimeValue) throws {
-        guard let member = instance.symbol.subscripts.first(where: { $0.parameters.count == args.arguments.count })
-            ?? instance.symbol.subscripts.first else {
-            throw RuntimeError(message: "'\(instance.symbol.name)' has no subscript")
+        try runUserSubscriptSetter(instance.symbol, selfValue: .instance(instance), args: args, newValue: newValue)
+    }
+
+    /// The symbol whose user subscripts serve `base`: an interpreted
+    /// instance's own, or — for host values — the EXTENSION symbol under
+    /// the value's host type name (clean-architecture's
+    /// `extension Store { subscript(keyPath:) }` on CurrentValueSubject).
+    func userSubscriptOwner(for base: RuntimeValue) -> (StructSymbol, RuntimeValue)? {
+        if case .instance(let instance) = base, !instance.symbol.subscripts.isEmpty {
+            return (instance.symbol, base)
+        }
+        if case .host(let any) = base,
+           let typeName = registry?.hostTypeName(of: any),
+           let extensionSymbol = hostExtensionSymbols[typeName],
+           !extensionSymbol.subscripts.isEmpty {
+            return (extensionSymbol, base)
+        }
+        return nil
+    }
+
+    func runUserSubscriptGetter(
+        _ symbol: StructSymbol, selfValue: RuntimeValue, args: CallArguments
+    ) throws -> RuntimeValue {
+        guard let member = symbol.subscripts.first(where: { $0.parameters.count == args.arguments.count })
+            ?? symbol.subscripts.first else {
+            throw RuntimeError(message: "'\(symbol.name)' has no subscript")
+        }
+        let env = selfEnvironment(selfValue)
+        let closure = ClosureValue(parameters: member.parameters, body: member.getter, captured: env)
+        return try callWithArguments(closure, args: args, node: nil)
+    }
+
+    func runUserSubscriptSetter(
+        _ symbol: StructSymbol, selfValue: RuntimeValue, args: CallArguments, newValue: RuntimeValue
+    ) throws {
+        guard let member = symbol.subscripts.first(where: { $0.parameters.count == args.arguments.count })
+            ?? symbol.subscripts.first else {
+            throw RuntimeError(message: "'\(symbol.name)' has no subscript")
         }
         guard let setter = member.setter else {
-            throw RuntimeError(message: "subscript on '\(instance.symbol.name)' is get-only")
+            throw RuntimeError(message: "subscript on '\(symbol.name)' is get-only")
         }
-        let env = selfEnvironment(.instance(instance))
+        let env = selfEnvironment(selfValue)
         for (parameter, argument) in zip(member.parameters, args.arguments) {
             env.define(parameter.name, try resolveAnnotated(argument.value, parameter: parameter))
         }
@@ -3508,6 +3537,24 @@ extension Interpreter {
                 }
                 return .box(box)
             }
+            // USER-DECLARED subscript setters (`appState[\\.route] = x` on
+            // clean-architecture's Store): seed from the getter, write
+            // through the setter — declared semantics beat element writes.
+            if let owningBase = baseValue,
+               let (symbol, selfValue) = userSubscriptOwner(for: owningBase),
+               symbol.subscripts.contains(where: { $0.setter != nil }) {
+                let indexArgs = CallArguments(arguments: try subscriptCall.arguments.map {
+                    .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
+                })
+                let seed = (try? runUserSubscriptGetter(symbol, selfValue: selfValue, args: indexArgs)) ?? .void
+                let box = Box(seed)
+                box.onChange = { [weak self] in
+                    guard let self else { return }
+                    try? self.runUserSubscriptSetter(
+                        symbol, selfValue: selfValue, args: indexArgs, newValue: box.value)
+                }
+                return .box(box)
+            }
             let base = try resolveLValue(subscriptCall.calledExpression, in: env)
             let indexValue = try evaluate(indexExpr, in: env)
             guard let index = indexValue.intValue else {
@@ -3693,13 +3740,14 @@ extension Interpreter {
             }
             return element
         }
-        if case .instance(let instance) = base, !instance.symbol.subscripts.isEmpty {
-            // User subscript getter: `matrix[index]` / `grid[x, y]`.
+        if let (symbol, selfValue) = userSubscriptOwner(for: base) {
+            // User subscript getter: `matrix[index]` / `grid[x, y]` — and
+            // host-extension subscripts (`appState[\\.permissions.push]`).
             let indexArgs = CallArguments(arguments: try call.arguments.map {
                 .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
             })
             return try relocating(call) {
-                try callUserSubscriptGetter(on: instance, with: indexArgs)
+                try runUserSubscriptGetter(symbol, selfValue: selfValue, args: indexArgs)
             }
         }
         if case .host(let stringAny) = base, let string = stringAny as? String {

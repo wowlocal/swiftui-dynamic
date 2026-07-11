@@ -877,6 +877,7 @@ func bridgeHostTypeName(of value: Any) -> String? {
     switch value {
     case is AppStub: return "UIApplication"
     case is ResultBox: return "Result"
+    case is CurrentValueSubjectBox: return "CurrentValueSubject"
     case is BundleBox: return "Bundle"
     case is WindowStub: return "UIWindow"
     case is WindowSceneStub: return "UIWindowScene"

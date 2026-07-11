@@ -547,3 +547,25 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (Loadable sequence equality/timing — errored 11 → 9, failed +2).
   **679/680; suite 486 green; LiveCheck 5/5; TestCheck 93/31/9/10 —
   class eliminated.**
+- 2026-07-11 iter 214: the biggest remaining ROOT — clean-architecture's
+  Store plumbing (`typealias Store<State> = CurrentValueSubject<State,
+  Never>` + an extension `subscript<T>(keyPath: WritableKeyPath<…>)`
+  with a compare-and-publish SETTER) spanned the UserPermissions,
+  DeepLinks and state-write 2-count classes. CurrentValueSubject was
+  UNBRIDGED: `Store<AppState>(…)` absorbed to a marker, the first
+  keypath-subscript WRITE auto-vivified it into a dict, and every read
+  after saw garbage ("unsupported member 'value' on DictValue").
+  Landed: a real CurrentValueSubjectBox (value get/set + send),
+  constructor lookup canonicalizes TYPEALIAS HEADS (aliasHeads:
+  `Store<AppState>(…)` reaches the CurrentValueSubject ctor through
+  the generic-specialization callee), and USER-SUBSCRIPT dispatch
+  generalized to host bases: the runners take (symbol, selfValue),
+  userSubscriptOwner finds extension subscripts under the value's
+  host type name, subscript READS run the getter and subscript
+  ASSIGNMENTS seed from the getter and write through the SETTER (a
+  box whose onChange runs it — declared semantics beat element
+  writes). Pinned by CurrentValueSubjectStoreTests (the exact Store
+  shape: typealias + keypath subscript + compare-and-set + reads).
+  clean-architecture 48 → 50 passed. **679/680; suite 487 green;
+  LiveCheck 5/5; TestCheck 93→95 passed / 31→29 failed — strictly
+  improved.**

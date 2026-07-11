@@ -1698,3 +1698,49 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("loadedText")?.stringified == "test")
     }
 }
+
+@Suite struct CurrentValueSubjectStoreTests {
+    // clean-architecture's Store: `typealias Store<State> =
+    // CurrentValueSubject<State, Never>` + an extension subscript taking
+    // a WritableKeyPath with a SETTER that copies value, compares, and
+    // publishes. Reads and writes must round-trip the real state.
+    @Test func keyPathSubscriptWritesThroughStore() throws {
+        let source = """
+        import Combine
+
+        struct Permissions: Equatable {
+            var push: String = "unknown"
+        }
+        struct AppState: Equatable {
+            var permissions = Permissions()
+            var count: Int = 0
+        }
+        typealias Store<State> = CurrentValueSubject<State, Never>
+
+        extension Store {
+            subscript<T>(keyPath: WritableKeyPath<Output, T>) -> T where T: Equatable {
+                get { value[keyPath: keyPath] }
+                set {
+                    var value = self.value
+                    if value[keyPath: keyPath] != newValue {
+                        value[keyPath: keyPath] = newValue
+                        self.value = value
+                    }
+                }
+            }
+        }
+
+        let appState = Store<AppState>(AppState())
+        appState[\\.permissions.push] = "granted"
+        appState[\\.count] = 7
+        let push = appState.value.permissions.push
+        let count = appState.value.count
+        let viaSubscript = appState[\\.permissions.push]
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("push")?.stringified == "granted")
+        #expect(interpreter.globals.lookup("count")?.stringified == "7")
+        #expect(interpreter.globals.lookup("viaSubscript")?.stringified == "granted")
+    }
+}

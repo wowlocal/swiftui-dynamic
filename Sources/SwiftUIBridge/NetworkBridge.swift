@@ -164,6 +164,18 @@ extension URLRequestBox: GeneratedMemberCarrier, CustomStringConvertible {
     public var description: String { String(describing: request) }
 }
 
+/// Combine's mutable-value subject (`CurrentValueSubject`, and via app
+/// typealiases like clean-architecture's `Store`): a real value cell —
+/// reads/writes/send round-trip; interpreted extension subscripts and
+/// methods dispatch on it through hostExtensionSymbols.
+public final class CurrentValueSubjectBox {
+    public var value: RuntimeValue
+
+    init(_ value: RuntimeValue) {
+        self.value = value
+    }
+}
+
 /// `URLSession.shared` and friends.
 public final class URLSessionBox {
     public init() {}
@@ -552,6 +564,19 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let marker = value as? HostTypeMarker, marker.name == "URLSession", name == "shared" {
         return .native(URLSessionBox())
     }
+    if let subject = value as? CurrentValueSubjectBox {
+        switch name {
+        case "value":
+            return subject.value
+        case "send":
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                if let newValue = args.positional(0) { subject.value = newValue }
+                return .void
+            })
+        default:
+            return nil
+        }
+    }
     if value is URLSessionBox {
         switch name {
         case "data":
@@ -850,6 +875,10 @@ func networkHostSetMember(_ name: String, on value: Any, to newValue: RuntimeVal
             return false
         }
     }
+    if let subject = value as? CurrentValueSubjectBox, name == "value" {
+        subject.value = newValue
+        return true
+    }
     if let box = value as? URLRequestBox {
         switch name {
         case "httpMethod":
@@ -960,6 +989,10 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
         }
     case "JSONEncoder":
         return HostFunction(name: name) { _, _ in .native(JSONEncoderBox()) }
+    case "CurrentValueSubject":
+        return HostFunction(name: name) { args, _ in
+            .native(CurrentValueSubjectBox(args.positional(0) ?? .void))
+        }
     case "HTTPURLResponse":
         return HostFunction(name: name) { args, _ in
             guard let url = NetworkBridge.url(from: args.labeled("url")),
