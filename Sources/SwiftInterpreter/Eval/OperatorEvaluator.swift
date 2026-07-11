@@ -1,0 +1,993 @@
+import Foundation
+import SwiftSyntax
+
+extension Interpreter {
+    // MARK: - Operators & assignment
+
+    /// Assignment RHS carries the TARGET property's declared type as the
+    /// ambient hint (`statuses = try await client.get()` — return-position
+    /// generics bind at the call site, exactly like `let x: [Status] = …`).
+    /// Only self-rooted targets are inspected: their annotation is knowable
+    /// without evaluating anything.
+    private func assignmentAnnotationHint(_ target: ExprSyntax, in env: Environment) -> String? {
+        var propertyName: String?
+        if let ref = target.as(DeclReferenceExprSyntax.self) {
+            propertyName = ref.baseName.text
+        } else if let member = target.as(MemberAccessExprSyntax.self),
+                  member.base == nil
+                    || member.base?.as(DeclReferenceExprSyntax.self)?.baseName.text == "self" {
+            propertyName = member.declName.baseName.text
+        }
+        guard let propertyName,
+              case .instance(let instance)? = env.lookup("self") else { return nil }
+        return instance.symbol.storedProperty(named: propertyName)?.typeAnnotation?.trimmedDescription
+    }
+
+    func evaluateInfix(_ infix: InfixOperatorExprSyntax, in env: Environment) throws -> RuntimeValue {
+        if infix.operator.is(AssignmentExprSyntax.self) {
+            let hint = assignmentAnnotationHint(infix.leftOperand, in: env)
+            let value = try withExpectedAnnotation(hint) { try evaluate(infix.rightOperand, in: env) }
+            if infix.leftOperand.is(DiscardAssignmentExprSyntax.self) {
+                _ = value // `_ = expr` — evaluate for effect, discard
+                return .void
+            }
+            // Tuple destructuring assignment: `(self.first, self.second,
+            // self.third) = (first, second, third)` writes element-wise.
+            if let tuple = infix.leftOperand.as(TupleExprSyntax.self), tuple.elements.count > 1 {
+                let values: [RuntimeValue]
+                if let t = value.tupleValue {
+                    values = t.values
+                } else if let a = value.arrayValue {
+                    values = a
+                } else {
+                    throw error(infix, "tuple assignment needs a tuple value")
+                }
+                guard values.count == tuple.elements.count else {
+                    throw error(infix, "tuple assignment arity mismatch")
+                }
+                for (element, elementValue) in zip(tuple.elements, values) {
+                    if element.expression.is(DiscardAssignmentExprSyntax.self) { continue }
+                    let target = try resolveLValue(element.expression, in: env)
+                    try relocating(infix) { try target.write(elementValue, self) }
+                }
+                return .void
+            }
+            let target = try resolveLValue(infix.leftOperand, in: env)
+            try relocating(infix) { try target.write(value, self) }
+            return .void
+        }
+        guard let binOp = infix.operator.as(BinaryOperatorExprSyntax.self) else {
+            throw error(infix, "unsupported infix operator")
+        }
+        let op = binOp.operator.text
+
+        switch op {
+        case "&&":
+            guard try expectBool(evaluate(infix.leftOperand, in: env), node: infix.leftOperand) else {
+                return .native(false)
+            }
+            return .native(try expectBool(evaluate(infix.rightOperand, in: env), node: infix.rightOperand))
+        case "||":
+            if try expectBool(evaluate(infix.leftOperand, in: env), node: infix.leftOperand) {
+                return .native(true)
+            }
+            return .native(try expectBool(evaluate(infix.rightOperand, in: env), node: infix.rightOperand))
+        case "??":
+            let lhs = try evaluate(infix.leftOperand, in: env)
+            return lhs.isNil ? try evaluate(infix.rightOperand, in: env) : lhs
+        case "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=":
+            let target = try resolveLValue(infix.leftOperand, in: env)
+            var rhs = try evaluate(infix.rightOperand, in: env)
+            let current = try target.read(self)
+            // `date -= .random(in:using:)` — factory markers DRAW here too
+            // (the compound path bypasses the infix adoption).
+            rhs = try adoptNumericFactoryMarker(rhs, peer: current)
+            do {
+                let combined = try relocating(infix) {
+                    try Builtins.binary(String(op.dropLast()), current, rhs)
+                }
+                try target.write(combined, self)
+            } catch let builtinError as RuntimeError where !builtinError.fatal {
+                // USER-DECLARED operator functions: the whole compound form
+                // first (`func +=(lhs: inout [Int: Movie], rhs: [Movie])` —
+                // the MovieSwiftUI reducer genre), then a declared combining
+                // form of the base operator.
+                if case .closure(let fn)? = globals.lookup(op) {
+                    let slot = InoutSlot(box: nil, target: target, current: current)
+                    _ = try callClosure(fn, arguments: [.native(slot), rhs])
+                    return .void
+                }
+                if case .closure(let fn)? = globals.lookup(String(op.dropLast())) {
+                    try target.write(try callClosure(fn, arguments: [current, rhs]), self)
+                    return .void
+                }
+                throw builtinError
+            }
+            return .void
+        default:
+            var lhs = try evaluate(infix.leftOperand, in: env)
+            var rhs = try evaluate(infix.rightOperand, in: env)
+            if op == "~=" {
+                return .native(try matchRuntimePattern(lhs, subject: rhs, env: env, node: infix))
+            }
+            // Pure numeric pairs skip the marker/registry machinery below —
+            // all of it is a no-op for concrete Int/Double operands.
+            if let fast = try relocating(infix, { try Builtins.fastNumericBinary(op, lhs, rhs) }) {
+                return fast
+            }
+            // `dragOffset == .zero` / `40 + .statusColumnsSpacing` — an
+            // unresolved implicit member adopts the other operand's host
+            // type before combining (static constants in user extensions
+            // resolve to their real values). Call-shaped markers
+            // (.init(…) elementwise arithmetic) only adopt for equality.
+            let allowCalls = op == "==" || op == "!="
+            lhs = try adoptHostType(of: rhs, for: lhs, allowCalls: allowCalls)
+            rhs = try adoptHostType(of: lhs, for: rhs, allowCalls: allowCalls)
+            // A USER-DECLARED `static func ==` on an interpreted type WINS
+            // over structural equality — Loadable ignores its cancelBag in
+            // its own ==, while payload-wise comparison would not (the
+            // clean-architecture LoadableTests genre). `!=` negates it.
+            if op == "==" || op == "!=",
+               let viaDeclared = try equalsViaDeclaredOperator(lhs, rhs, node: Syntax(infix)) {
+                return .bool(op == "==" ? viaDeclared : !viaDeclared)
+            }
+            // Host-typed operators the core can't know (`Text("a") + Text("b")`).
+            if let registry, let combined = registry.combineValues(op, lhs, rhs) {
+                return combined
+            }
+            // Implicit FACTORY markers in numeric-operand position adopt the
+            // peer's family before arithmetic (`date -= .random(in: 60..<180,
+            // using: &g)` must DRAW, not absorb-to-zero — the seeded stream
+            // shifts otherwise). Unresolvable markers pass through unchanged,
+            // keeping the absorb doctrine.
+            let adoptedLhs = try adoptNumericFactoryMarker(lhs, peer: rhs)
+            let adoptedRhs = try adoptNumericFactoryMarker(rhs, peer: adoptedLhs)
+            do {
+                return try relocating(infix) { try Builtins.binary(op, adoptedLhs, adoptedRhs) }
+            } catch let builtinError as RuntimeError where !builtinError.fatal {
+                if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) {
+                    return viaDeclared
+                }
+                // User-defined infix operators (`|>` pipe-forward, `~=`
+                // overloads) — top-level operator functions.
+                if case .closure(let closure)? = globals.lookup(op) {
+                    return try callWithArguments(
+                        closure,
+                        args: CallArguments(arguments: [
+                            .init(label: nil, value: lhs), .init(label: nil, value: rhs),
+                        ]),
+                        node: nil)
+                }
+                // Ecosystem operators from EXTERNAL modules: `|>` is
+                // pipe-forward everywhere it exists (Overture/Point-Free);
+                // `>>>`/`<<<` are function composition.
+                if op == "|>" {
+                    return try invoke(rhs, with: CallArguments(arguments: [
+                        .init(label: nil, value: lhs),
+                    ]), node: infix)
+                }
+                if op == "<|" {
+                    return try invoke(lhs, with: CallArguments(arguments: [
+                        .init(label: nil, value: rhs),
+                    ]), node: infix)
+                }
+                if op == ">>>" || op == "<<<" || op == ">=>" {
+                    // `>=>` is Point-Free's Kleisli composition — headlessly
+                    // the monadic layer absorbs, so it composes like `>>>`.
+                    let first = op == "<<<" ? rhs : lhs
+                    let second = op == "<<<" ? lhs : rhs
+                    let capturedNode = infix
+                    return .hostFunction(HostFunction(name: op) { [weak self] args, _ in
+                        guard let self else { throw RuntimeError(message: "interpreter gone") }
+                        let x = args.positional(0) ?? .void
+                        let mid = try self.invoke(first, with: CallArguments(arguments: [
+                            .init(label: nil, value: x),
+                        ]), node: capturedNode)
+                        return try self.invoke(second, with: CallArguments(arguments: [
+                            .init(label: nil, value: mid),
+                        ]), node: capturedNode)
+                    })
+                }
+                throw builtinError
+            }
+        }
+    }
+
+    private func adoptHostType(of other: RuntimeValue, for value: RuntimeValue, allowCalls: Bool = true) throws -> RuntimeValue {
+        let unresolved: Bool
+        switch value {
+        case .implicitMember:
+            unresolved = true
+        case .host(let any):
+            unresolved = allowCalls && (any is ImplicitMemberCall || any is ChainedImplicitCall)
+        default:
+            unresolved = false
+        }
+        guard unresolved, case .host(let otherAny) = other else { return value }
+        // Our CGFloat/TimeInterval model IS Double — statics declared on
+        // either name apply to Double operands.
+        var candidates = [String(describing: type(of: otherAny))]
+        if otherAny is Double { candidates += ["CGFloat", "TimeInterval"] }
+        for typeName in candidates {
+            let resolved = try resolveAnnotated(value, typeName: typeName)
+            let stillUnresolved: Bool
+            switch resolved {
+            case .implicitMember: stillUnresolved = true
+            case .nilValue: stillUnresolved = true // a nil never beats the marker
+            case .host(let any):
+                stillUnresolved = any is ImplicitMemberCall || any is ChainedImplicitCall
+            default: stillUnresolved = false
+            }
+            if !stillUnresolved { return resolved }
+        }
+        return value
+    }
+
+    indirect enum LValue {
+        case box(Box)
+        case instanceProperty(Instance, String)
+        case hostProperty(Any, String)
+        case element(LValue, Int)
+        case dictElement(DictValue, RuntimeValue, fallback: RuntimeValue? = nil)
+        /// `trigger.0 = …` / `pair.label = …` — writes mutate the tuple and
+        /// re-write the base, so state boxes still notify.
+        case tupleElement(LValue, Int)
+        /// `matrix[index] = block` — user subscript get/set.
+        case instanceSubscript(Instance, CallArguments)
+        /// `size.width = 300` — value-type member write-through: mutate a
+        /// copy via the registry, re-write the base (state boxes notify).
+        case hostValueMember(LValue, String)
+        /// `ChatClient.shared = …` — static stored properties (including
+        /// host-type extension statics) write to the symbol's static cache.
+        case staticProperty(StructSymbol, String)
+        /// `values[i] = UInt8(x)` — Data byte write-through: mutate a copy,
+        /// re-write the base (value semantics).
+        case dataElement(LValue, Int)
+
+        /// The element type of an `[X]`-annotated instance property, if known.
+        func annotatedElementType() -> String? {
+            guard case .instanceProperty(let instance, let name) = self,
+                  let annotation = instance.symbol.storedProperty(named: name)?.typeAnnotation else {
+                return nil
+            }
+            let text = annotation.trimmedDescription.trimmingCharacters(in: .whitespaces)
+            guard text.hasPrefix("["), text.hasSuffix("]"), !text.contains(":") else { return nil }
+            return String(text.dropFirst().dropLast())
+        }
+
+        func read(_ interpreter: Interpreter) throws -> RuntimeValue {
+            switch self {
+            case .box(let box):
+                return try interpreter.force(box)
+            case .instanceProperty(let instance, let name):
+                if let box = instance.box(for: name) { return box.value }
+                if let computed = instance.symbol.computedProperties[name] {
+                    return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
+                }
+                if let superName = instance.symbol.superclassName,
+                   !interpreter.isInterpretedType(superName) {
+                    return .native(ChainedImplicitCall(
+                        base: .implicitMember(superName), member: name, arguments: CallArguments()))
+                }
+                throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
+            case .hostProperty(let any, let name):
+                if let stub = any as? BindingStub, name == "wrappedValue" {
+                    return stub.box.value
+                }
+                if let value = interpreter.registry?.hostMember(name, on: any) { return value }
+                if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
+                    // Mutating an unknown stub member (`store.products += …`)
+                    // reads an unknowable chain — the write absorbs.
+                    return .native(ChainedImplicitCall(
+                        base: .native(any), member: name, arguments: CallArguments()))
+                }
+                throw EvalMessage(text: "no readable member '\(name)' on \(type(of: any))")
+            case .element(let base, let index):
+                guard let array = try base.read(interpreter).arrayValue, array.indices.contains(index) else {
+                    throw EvalMessage(text: "array index \(index) out of range")
+                }
+                return array[index]
+            case .dictElement(let dict, let key, let fallback):
+                let found = try dict.lookup(key)
+                // `sales[key, default: 0] += v` — missing keys read the
+                // default before the mutation, exactly like native.
+                if found.isNil, let fallback { return fallback }
+                return found
+            case .tupleElement(let base, let index):
+                guard let tuple = try base.read(interpreter).tupleValue,
+                      tuple.values.indices.contains(index) else {
+                    throw EvalMessage(text: "tuple element \(index) out of range")
+                }
+                return tuple.values[index]
+            case .instanceSubscript(let instance, let args):
+                return try interpreter.callUserSubscriptGetter(on: instance, with: args)
+            case .staticProperty(let symbol, let name):
+                return try interpreter.staticMember(name, of: symbol) ?? .nilValue
+            case .dataElement(let base, let index):
+                guard case .host(let any) = try base.read(interpreter), let bytes = any as? Data,
+                      index >= 0, index < bytes.count else {
+                    throw EvalMessage(text: "Data index \(index) out of range")
+                }
+                return .native(Int(bytes[bytes.index(bytes.startIndex, offsetBy: index)]))
+            case .hostValueMember(let base, let name):
+                let baseValue = try base.read(interpreter)
+                guard case .host(let any) = baseValue,
+                      let member = interpreter.registry?.hostMember(name, on: any) else {
+                    throw EvalMessage(text: "no readable member '\(name)'")
+                }
+                return member
+            }
+        }
+
+        func write(_ value: RuntimeValue, _ interpreter: Interpreter) throws {
+            switch self {
+            case .box(let box):
+                box.value = value
+            case .instanceProperty(let instance, let name):
+                if Interpreter.traceStateCells,
+                   name == (ProcessInfo.processInfo.environment["INTERP_TRACE_PROP"] ?? "statusesState") {
+                    Swift.print("   ✍ \(instance.symbol.name)(\(UInt(bitPattern: ObjectIdentifier(instance).hashValue) % 100000)).\(name) = \(value.stringified.prefix(50))")
+                }
+                // Assigning a $binding into an @Binding property shares the
+                // parent's box instead of copying the stub (custom inits).
+                if case .host(let any) = value, let stub = any as? BindingStub,
+                   instance.symbol.storedProperty(named: name)?.wrapper == .binding {
+                    instance.properties[name] = stub.box
+                    return
+                }
+                if let box = instance.box(for: name) {
+                    // Plain assignment adopts the property's annotation
+                    // (`self.amount = .random(in:)`, `self.date = .now`).
+                    let property = instance.symbol.storedProperty(named: name)
+                    // `_fetcher = .init(initialValue: vm)` — the property-
+                    // wrapper BACKING spelling: the box takes the WRAPPED
+                    // seed, not the `.init` marker (unwrapped BEFORE the
+                    // annotation resolves, or a concrete annotation would
+                    // eat the marker through its own constructor).
+                    var incoming = value
+                    if let property,
+                       [.state, .stateObject, .observedObject, .binding].contains(property.wrapper),
+                       case .host(let any) = incoming,
+                       let call = any as? ImplicitMemberCall, call.name == "init",
+                       let seed = call.arguments.labeled("initialValue")
+                           ?? call.arguments.labeled("wrappedValue")
+                           ?? call.arguments.labeled("projectedValue") {
+                        incoming = seed
+                    }
+                    let resolved = try interpreter.resolveAnnotated(
+                        incoming, annotation: property?.typeAnnotation
+                    )
+                    let observerKey = Interpreter.ObserverKey(
+                        instance: ObjectIdentifier(instance), property: name)
+                    let observed = (property?.willSetBody != nil || property?.didSetBody != nil)
+                        && !interpreter.activePropertyObservers.contains(observerKey)
+                        && !interpreter.initializingInstances.contains(ObjectIdentifier(instance))
+                    guard observed, let property else {
+                        box.value = resolved
+                        return
+                    }
+                    // willSet(newValue) → write → didSet(oldValue), never
+                    // re-entrant on the same property (compiled semantics;
+                    // initialization bypasses this funnel entirely).
+                    interpreter.activePropertyObservers.insert(observerKey)
+                    defer { interpreter.activePropertyObservers.remove(observerKey) }
+                    let oldValue = box.value
+                    if let willSet = property.willSetBody {
+                        let env = interpreter.selfEnvironment(.instance(instance))
+                        env.define(property.willSetParameter, resolved)
+                        _ = try interpreter.executeBlock(willSet, in: env)
+                    }
+                    box.value = resolved
+                    if let didSet = property.didSetBody {
+                        let env = interpreter.selfEnvironment(.instance(instance))
+                        env.define(property.didSetParameter, oldValue)
+                        _ = try interpreter.executeBlock(didSet, in: env)
+                    }
+                    return
+                }
+                if let computed = instance.symbol.computedProperties[name] {
+                    guard let setter = computed.setter else {
+                        if interpreter.assumesCompiledImports {
+                            // A get-only assignment can't compile natively —
+                            // the setter lives somewhere the merge didn't
+                            // capture: the write drops (artifact doctrine).
+                            return
+                        }
+                        throw EvalMessage(text: "cannot assign to get-only property '\(name)'")
+                    }
+                    let env = interpreter.selfEnvironment(.instance(instance))
+                    env.define(setter.parameterName, value)
+                    _ = try interpreter.executeBlock(setter.body, in: env)
+                    return
+                }
+                if let superName = instance.symbol.superclassName,
+                   !interpreter.isInterpretedType(superName) {
+                    // Inherited HOST-superclass properties (NSPanel.title):
+                    // writes create the box, later reads see the value.
+                    instance.properties[name] = Box(value)
+                    return
+                }
+                throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
+            case .hostProperty(let any, let name):
+                if let stub = any as? BindingStub, name == "wrappedValue" {
+                    // Extension methods on Binding write through the box —
+                    // onChange fires the set-closure of computed bindings.
+                    stub.box.value = value
+                    return
+                }
+                guard interpreter.registry?.hostSetMember(name, on: any, to: value) == true else {
+                    throw EvalMessage(text: "cannot assign to '\(name)' on \(type(of: any))")
+                }
+            case .element(let base, let index):
+                // Read-modify-write through the base lvalue, so element writes
+                // propagate box/publisher notifications all the way up.
+                guard var array = try base.read(interpreter).arrayValue, array.indices.contains(index) else {
+                    throw EvalMessage(text: "array index \(index) out of range")
+                }
+                array[index] = value
+                try base.write(.native(array), interpreter)
+            case .dictElement(let dict, let key, _):
+                try dict.update(key, to: value)
+            case .tupleElement(let base, let index):
+                guard let tuple = try base.read(interpreter).tupleValue,
+                      tuple.values.indices.contains(index) else {
+                    throw EvalMessage(text: "tuple element \(index) out of range")
+                }
+                tuple.values[index] = value
+                // Re-write the base so state boxes notify.
+                try base.write(.native(tuple), interpreter)
+            case .instanceSubscript(let instance, let args):
+                try interpreter.callUserSubscriptSetter(on: instance, with: args, newValue: value)
+            case .staticProperty(let symbol, let name):
+                symbol.staticCache[name] = value
+            case .dataElement(let base, let index):
+                guard case .host(let any) = try base.read(interpreter), var bytes = any as? Data,
+                      index >= 0, index < bytes.count, let byte = value.intValue else {
+                    throw EvalMessage(text: "Data byte write out of range")
+                }
+                bytes[bytes.index(bytes.startIndex, offsetBy: index)] = UInt8(truncatingIfNeeded: byte)
+                try base.write(.native(bytes), interpreter)
+            case .hostValueMember(let base, let name):
+                let baseValue = try base.read(interpreter)
+                guard case .host(let any) = baseValue,
+                      let mutated = interpreter.registry?.hostMutatedCopy(
+                        settingMember: name, on: any, to: value) else {
+                    throw EvalMessage(text: "cannot assign to '\(name)' on \(baseValue.stringified)")
+                }
+                try base.write(.native(mutated), interpreter)
+            }
+        }
+    }
+
+    /// Equality THROUGH a user-declared `static func ==` when one applies —
+    /// scalars dispatch directly; ARRAYS of such values compare elementwise
+    /// through it (`sut == expect` over [Loadable<String>]). nil when no
+    /// declared operator is involved; a declared body that trips an
+    /// absorbed member falls back to structural (equality never throws).
+    /// TYPE-declared operator functions — `static func < (lhs: Self,
+    /// rhs: Self)` Comparable conformances and friends. Swift derives
+    /// <=/>/>= from a declared `<`. nil when neither operand's type
+    /// declares the operator.
+    func declaredOperatorValue(
+        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> RuntimeValue? {
+        func operatorHome(_ value: RuntimeValue) -> (StructSymbol?, EnumSymbol?) {
+            if case .instance(let instance) = value { return (instance.symbol, nil) }
+            if case .enumCase(let caseValue) = value { return (nil, caseValue.symbol) }
+            return (nil, nil)
+        }
+        func declared(_ name: String) -> (FunctionDeclSyntax, RuntimeValue)? {
+            for operand in [lhs, rhs] {
+                let (structSym, enumSym) = operatorHome(operand)
+                if let method = structSym?.staticMethods[name]?.first {
+                    return (method, .type(structSym!))
+                }
+                if let method = enumSym?.staticMethods[name]?.first {
+                    return (method, .enumType(enumSym!))
+                }
+            }
+            return nil
+        }
+        func runOperator(_ method: FunctionDeclSyntax, _ selfValue: RuntimeValue,
+                         _ a: RuntimeValue, _ b: RuntimeValue) throws -> RuntimeValue {
+            guard let body = method.body else {
+                throw RuntimeError(message: "operator '\(op)' has no body")
+            }
+            let closure = makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
+            return try callWithArguments(closure, args: CallArguments(arguments: [
+                .init(label: nil, value: a), .init(label: nil, value: b),
+            ]), node: nil)
+        }
+        if ["<", "<=", ">", ">="].contains(op) {
+            if let (method, home) = declared(op) {
+                return try runOperator(method, home, lhs, rhs)
+            }
+            if let (less, home) = declared("<") {
+                switch op {
+                case ">": return try runOperator(less, home, rhs, lhs)
+                case "<=":
+                    let greater = try runOperator(less, home, rhs, lhs)
+                    return .native(!(greater.boolValue ?? false))
+                default: // ">="
+                    let lesser = try runOperator(less, home, lhs, rhs)
+                    return .native(!(lesser.boolValue ?? false))
+                }
+            }
+            return nil
+        }
+        if let (method, home) = declared(op) {
+            return try runOperator(method, home, lhs, rhs)
+        }
+        return nil
+    }
+
+    /// Binary evaluation with full operator semantics for GATEWAYS
+    /// (XCTAssert comparisons): declared `==`/`<` and derived forms win
+    /// over structural/builtin comparison, exactly like infix expressions.
+    public func evaluateBinary(
+        _ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> RuntimeValue {
+        if op == "==" || op == "!=",
+           let viaDeclared = try equalsViaDeclaredOperator(lhs, rhs, node: nil) {
+            return .bool(op == "==" ? viaDeclared : !viaDeclared)
+        }
+        do {
+            return try Builtins.binary(op, lhs, rhs)
+        } catch let builtinError as RuntimeError where !builtinError.fatal {
+            if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) { return viaDeclared }
+            throw builtinError
+        } catch let message as EvalMessage {
+            if let viaDeclared = try declaredOperatorValue(op, lhs, rhs) { return viaDeclared }
+            throw message
+        }
+    }
+
+    private func equalsViaDeclaredOperator(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue, node: Syntax?
+    ) throws -> Bool? {
+        // A PAYLOAD-carrying marker beside an enum case resolves against
+        // that case's symbol first (`values == [.isLoading(last: nil,
+        // cancelBag: .test)]` — the literal rides annotation-less), so the
+        // declared `==` compares two real cases.
+        var lhs = lhs, rhs = rhs
+        func looksLikeMarker(_ value: RuntimeValue) -> Bool {
+            if case .implicitMember = value { return true }
+            if case .host(let any) = value, any is ImplicitMemberCall { return true }
+            return false
+        }
+        if case .enumCase(let l) = lhs, looksLikeMarker(rhs) {
+            rhs = try resolveAnnotated(rhs, typeName: l.symbol.name)
+        } else if case .enumCase(let r) = rhs, looksLikeMarker(lhs) {
+            lhs = try resolveAnnotated(lhs, typeName: r.symbol.name)
+        }
+        if let declared = declaredEqualsOperator(lhs) ?? declaredEqualsOperator(rhs) {
+            do {
+                let result = try callWithArguments(
+                    declared,
+                    args: CallArguments(arguments: [
+                        .init(label: nil, value: lhs), .init(label: nil, value: rhs),
+                    ]),
+                    node: node)
+                if let b = result.boolValue { return b }
+            } catch let opError as RuntimeError where !opError.fatal {
+                // damus's Route == compares hashValues of absorbed members.
+            }
+            return nil
+        }
+        if let synthesized = try memberwiseStructEquality(lhs, rhs, node: node) {
+            return synthesized
+        }
+        if let l = lhs.arrayValue, let r = rhs.arrayValue,
+           let sample = l.first ?? r.first,
+           declaredEqualsOperator(sample) != nil || isSynthesizableStruct(sample) {
+            guard l.count == r.count else { return false }
+            for (a, b) in zip(l, r) {
+                let pair = try equalsViaDeclaredOperator(a, b, node: node)
+                    ?? ((try? Builtins.areEqual(a, b)) ?? false)
+                if !pair {
+                    if Interpreter.traceStateCells {
+                        FileHandle.standardError.write(Data("   ≠ \(a.stringified.prefix(90)) VS \(b.stringified.prefix(90))\n".utf8))
+                    }
+                    return false
+                }
+            }
+            return true
+        }
+        return nil
+    }
+
+    private func isSynthesizableStruct(_ value: RuntimeValue) -> Bool {
+        if case .instance(let instance) = value { return !instance.symbol.isClass }
+        return false
+    }
+
+    /// Member-wise equality for struct instances — the interpreter's stand-in
+    /// for Equatable synthesis. Classes keep identity semantics (native
+    /// classes never get a synthesized `==`); each member comparison recurses
+    /// through declared operators first, exactly like the compiled witness.
+    private func memberwiseStructEquality(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue, node: Syntax?
+    ) throws -> Bool? {
+        guard case .instance(let l) = lhs, case .instance(let r) = rhs,
+              !l.symbol.isClass, !r.symbol.isClass else { return nil }
+        if l === r { return true }
+        guard l.symbol === r.symbol || l.symbol.name == r.symbol.name else { return false }
+        let pair = Interpreter.InstanceEqualityPair(
+            lhs: ObjectIdentifier(l), rhs: ObjectIdentifier(r))
+        guard !activeEqualityPairs.contains(pair) else { return true }
+        activeEqualityPairs.insert(pair)
+        defer { activeEqualityPairs.remove(pair) }
+        let keys = Set(l.properties.keys).union(r.properties.keys)
+        for key in keys {
+            guard let leftBox = l.properties[key], let rightBox = r.properties[key] else {
+                return false
+            }
+            let same = try equalsViaDeclaredOperator(leftBox.value, rightBox.value, node: node)
+                ?? ((try? Builtins.areEqual(leftBox.value, rightBox.value)) ?? false)
+            if !same { return false }
+        }
+        return true
+    }
+
+    /// The `static func ==` a value's own type (or its extensions)
+    /// declares, as a callable — nil when the type doesn't customize
+    /// equality or the declaration is already running (its body's inner
+    /// `==` on payloads must fall through to structural equality).
+    private func declaredEqualsOperator(_ value: RuntimeValue) -> ClosureValue? {
+        let overloads: [FunctionDeclSyntax]?
+        let selfValue: RuntimeValue
+        let typeName: String
+        switch value {
+        case .enumCase(let caseValue):
+            overloads = caseValue.symbol.staticMethods["=="]
+            selfValue = .enumType(caseValue.symbol)
+            typeName = caseValue.symbol.name
+        case .instance(let instance):
+            overloads = instance.symbol.staticMethods["=="]
+            selfValue = .type(instance.symbol)
+            typeName = instance.symbol.name
+        default:
+            return nil
+        }
+        if let method = overloads?.first(where: { !activeFunctionBodies.contains($0.id) }),
+           let body = method.body {
+            return makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
+        }
+        // Pre-protocol style: a TOP-LEVEL `func == (lhs: AppState, rhs:
+        // AppState) -> Bool` satisfies Equatable too — match by the first
+        // parameter's type name (last dotted component, extension-tolerant).
+        let wanted = typeName.split(separator: ".").last.map(String.init) ?? typeName
+        for decl in globalFunctionOverloads["=="] ?? [] where !activeFunctionBodies.contains(decl.id) {
+            guard let body = decl.body,
+                  let first = decl.signature.parameterClause.parameters.first else { continue }
+            let paramType = first.type.trimmedDescription
+            let head = paramType.split(separator: ".").last.map(String.init) ?? paramType
+            if head == wanted {
+                return makeFunctionClosure(decl, body: body, captured: globals)
+            }
+        }
+        return nil
+    }
+
+    /// A `.host(ImplicitMemberCall)` beside a NUMERIC/date peer resolves
+    /// against the peer's family ("Int"/"Double") so factory statics
+    /// (`.random(in:using:)`) execute in operand position. Anything the
+    /// factories can't claim returns unchanged (absorb doctrine intact).
+    func adoptNumericFactoryMarker(_ value: RuntimeValue, peer: RuntimeValue) throws -> RuntimeValue {
+        // ONLY the numeric factory statics — `.init(width:)`-style markers
+        // keep their arithmetic-and-rewrap doctrine.
+        guard case .host(let any) = value, let call = any as? ImplicitMemberCall,
+              call.name == "random" else { return value }
+        let familyName: String?
+        if peer.intValue != nil {
+            familyName = "Int"
+        } else if peer.doubleValue != nil {
+            familyName = "Double"
+        } else if case .host(let peerAny) = peer, peerAny is Date {
+            familyName = "Double" // Date ± TimeInterval
+        } else {
+            familyName = nil
+        }
+        guard let familyName else { return value }
+        let resolved = try resolveAnnotated(value, typeName: familyName)
+        if case .host(let stillAny) = resolved, stillAny is ImplicitMemberCall { return value }
+        return resolved
+    }
+
+    func resolveLValue(_ expr: ExprSyntax, in env: Environment) throws -> LValue {
+        // `_ = sideEffect()` — a discard sink.
+        if expr.is(DiscardAssignmentExprSyntax.self) {
+            return .box(Box(.void))
+        }
+        if let ref = expr.as(DeclReferenceExprSyntax.self) {
+            let name = ref.baseName.text
+            if Interpreter.traceStateCells, name == "statusesState" {
+                var selfDesc = "none"
+                if case .instance(let i)? = env.lookup("self") { selfDesc = i.symbol.name }
+                Swift.print("   ⌥ lvalue statusesState envBox=\(env.box(for: name) != nil) self=\(selfDesc)")
+            }
+            // Real Swift scoping, write side: locals first, implicit-self
+            // members second, globals LAST — a property named like a global
+            // builtin (`log`, `min`) must not write into the builtin's box.
+            if let box = env.box(for: name, before: globals) { return .box(box) }
+            if case .instance(let instance)? = env.lookup("self") {
+                let canonical = instance.symbol.canonicalPropertyName(name)
+                if instance.box(for: canonical) != nil || instance.symbol.computedProperties[canonical] != nil {
+                    return .instanceProperty(instance, canonical)
+                }
+                if let superName = instance.symbol.superclassName,
+                   !isInterpretedType(superName) {
+                    // Inherited host-superclass property (`title = …` in an
+                    // NSPanel subclass) — the write absorbs into a box.
+                    return .instanceProperty(instance, canonical)
+                }
+            }
+            // Bare sibling statics inside static methods:
+            // `static func show() { shared = … }`.
+            if case .type(let symbol)? = env.lookup("self"),
+               symbol.staticProperties[name] != nil
+                || symbol.staticUninitialized.contains(name)
+                || symbol.staticCache[name] != nil {
+                return .staticProperty(symbol, name)
+            }
+            // Bare static COMPUTED setters under a type self
+            // (`firstRunDate = Date()` inside a property-initializer
+            // closure, the setter living in a private extension).
+            if case .type(let symbol)? = env.lookup("self"),
+               let computed = symbol.staticComputedProperties[name],
+               let setter = computed.setter {
+                let box = Box(.void)
+                box.onChange = { [weak self] in
+                    guard let self else { return }
+                    let setterEnv = self.selfEnvironment(.type(symbol))
+                    setterEnv.define(setter.parameterName, box.value)
+                    _ = try? self.executeBlock(setter.body, in: setterEnv)
+                }
+                return .box(box)
+            }
+            // Enum namespaces hold mutable statics too (`storage.append(…)`
+            // inside a static setter): writes land in the static cache.
+            if case .enumType(let symbol)? = env.lookup("self"),
+               symbol.staticProperties[name] != nil || symbol.staticCache[name] != nil {
+                let box = Box((try? staticMember(name, of: symbol)) ?? .void)
+                box.onChange = { symbol.staticCache[name] = box.value }
+                return .box(box)
+            }
+            // Host-typed implicit self (extension-of-host-type bodies):
+            // `wrappedValue = …` inside `extension Binding { func load }`
+            // writes through the binding's box. Restricted to the binding's
+            // OWN properties — other bare names must still reach globals
+            // (an absorbing host self would swallow them).
+            if case .host(let any)? = env.lookup("self"), any is BindingStub,
+               name == "wrappedValue" || name == "projectedValue" {
+                return .hostProperty(any, name)
+            }
+            // No local or member claimed the name — top-level globals last.
+            if let box = globals.box(for: name) { return .box(box) }
+            throw error(ref, "cannot assign to '\(name)'")
+        }
+        if let member = expr.as(MemberAccessExprSyntax.self), let base = member.base {
+            // `ChatClient.shared = …` — static stored properties, including
+            // host-type extension statics. Locals shadow type names.
+            if let baseRef = base.as(DeclReferenceExprSyntax.self),
+               env.box(for: baseRef.baseName.text, before: globals) == nil {
+                let typeName = baseRef.baseName.text
+                let memberName = member.declName.baseName.text
+                // `Self.useServer = …` inside a static body: Self IS the
+                // enclosing type.
+                var typeValue = globals.lookup(typeName)
+                if typeName == "Self", let selfValue = env.lookup("self") {
+                    typeValue = selfValue
+                    // Instance contexts: Self IS the instance's type.
+                    if case .instance(let instance) = selfValue {
+                        typeValue = .type(instance.symbol)
+                    } else if case .enumCase(let caseValue) = selfValue {
+                        typeValue = .enumType(caseValue.symbol)
+                    }
+                }
+                var staticSymbol: StructSymbol?
+                if case .type(let symbol)? = typeValue {
+                    staticSymbol = symbol
+                } else if let hostSymbol = hostExtensionSymbols[typeName] {
+                    staticSymbol = hostSymbol
+                }
+                if let symbol = staticSymbol,
+                   symbol.staticProperties[memberName] != nil
+                    || symbol.staticUninitialized.contains(memberName)
+                    || symbol.staticCache[memberName] != nil {
+                    return .staticProperty(symbol, memberName)
+                }
+                // Static COMPUTED setters (`static var useServer { get set }`
+                // assigned via Self./TypeName.): a Box whose onChange runs
+                // the setter — the computed-binding precedent.
+                var setterRun: ((RuntimeValue) -> Void)?
+                if let symbol = staticSymbol,
+                   let computed = symbol.staticComputedProperties[memberName],
+                   let setter = computed.setter {
+                    setterRun = { [weak self] value in
+                        guard let self else { return }
+                        let env = self.selfEnvironment(.type(symbol))
+                        env.define(setter.parameterName, value)
+                        _ = try? self.executeBlock(setter.body, in: env)
+                    }
+                } else if case .enumType(let symbol)? = typeValue,
+                          let computed = symbol.staticComputedProperties[memberName],
+                          let setter = computed.setter {
+                    setterRun = { [weak self] value in
+                        guard let self else { return }
+                        let env = self.selfEnvironment(.enumType(symbol))
+                        env.define(setter.parameterName, value)
+                        _ = try? self.executeBlock(setter.body, in: env)
+                    }
+                }
+                if let setterRun {
+                    let box = Box(.void)
+                    box.onChange = { setterRun(box.value) }
+                    return .box(box)
+                }
+            }
+            let baseValue = try evaluate(base, in: env)
+            if case .instance(let instance) = baseValue {
+                return .instanceProperty(instance, instance.symbol.canonicalPropertyName(member.declName.baseName.text))
+            }
+            if case .host(let any) = baseValue {
+                // `binding.wrappedValue = …` writes straight through the box.
+                if let stub = any as? BindingStub, member.declName.baseName.text == "wrappedValue" {
+                    return .box(stub.box)
+                }
+                if let tuple = any as? TupleValue {
+                    let memberName = member.declName.baseName.text
+                    let index = Int(memberName) ?? tuple.labels.firstIndex(of: memberName) ?? -1
+                    if tuple.values.indices.contains(index), let baseLValue = try? resolveLValue(base, in: env) {
+                        return .tupleElement(baseLValue, index)
+                    }
+                }
+                if registry != nil {
+                    // VALUE types (CGSize/CGPoint/CGRect…) write through a
+                    // mutated copy so the base re-writes and notifies. Only
+                    // structs with a readable same-named member route here;
+                    // class-backed boxes keep hostProperty reference writes.
+                    let memberName = member.declName.baseName.text
+                    if !(type(of: any) is AnyClass),
+                       registry?.hostMember(memberName, on: any) != nil,
+                       let baseLValue = try? resolveLValue(base, in: env) {
+                        return .hostValueMember(baseLValue, memberName)
+                    }
+                    // Host objects with settable members (formatter.dateFormat = …).
+                    return .hostProperty(any, memberName)
+                }
+            }
+            if case .implicitMember(let markerName) = baseValue {
+                // Config writes on unresolved host statics are accepted and
+                // ignored (the marker-write doctrine).
+                return .hostProperty(
+                    ImplicitMemberCall(name: markerName, arguments: CallArguments()),
+                    member.declName.baseName.text)
+            }
+            if case .hostFunction(let fn) = baseValue {
+                // `LaunchAtLogin.isEnabled = …` — external-package statics
+                // resolve to constructor functions; writes are accepted.
+                return .hostProperty(
+                    ImplicitMemberCall(name: fn.name, arguments: CallArguments()),
+                    member.declName.baseName.text)
+            }
+            if assumesCompiledImports, baseValue.isNil || {
+                if case .void = baseValue { return true } else { return false }
+            }() {
+                // A nil/void base from absorbed chains (`sequencer.tracks[1]`
+                // on a fresh store; a DI property nothing injected): the
+                // write is accepted and ignored, the marker-write doctrine.
+                return .hostProperty(
+                    ImplicitMemberCall(name: "nil", arguments: CallArguments()),
+                    member.declName.baseName.text)
+            }
+            throw error(member, "cannot assign to a member of \(baseValue.stringified)")
+        }
+        if let subscriptCall = expr.as(SubscriptCallExprSyntax.self) {
+            guard let indexExpr = subscriptCall.arguments.first?.expression else {
+                throw error(subscriptCall, "missing subscript index")
+            }
+            let baseValue = try? evaluate(subscriptCall.calledExpression, in: env)
+            if case .instance(let instance)? = baseValue, !instance.symbol.subscripts.isEmpty {
+                let indexArgs = CallArguments(arguments: try subscriptCall.arguments.map {
+                    .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
+                })
+                return .instanceSubscript(instance, indexArgs)
+            }
+            if let dict = baseValue?.dictValue {
+                let fallback = try subscriptCall.arguments
+                    .first(where: { $0.label?.text == "default" })
+                    .map { try evaluate($0.expression, in: env) }
+                return .dictElement(dict, try evaluate(indexExpr, in: env), fallback: fallback)
+            }
+            // `element[keyPath: kp] = value` — keypath writes walk to the
+            // last component's owner and assign the property.
+            if subscriptCall.arguments.first?.label?.text == "keyPath" {
+                let keyValue = try evaluate(indexExpr, in: env)
+                if case .host(let any) = keyValue, let stub = any as? KeyPathStub,
+                   let last = stub.components.last, last != "self" {
+                    var owner = try evaluate(subscriptCall.calledExpression, in: env)
+                    for component in stub.components.dropLast() where component != "self" {
+                        owner = try accessMember(component, on: owner, node: subscriptCall, env: env)
+                    }
+                    if case .instance(let instance) = owner {
+                        return .instanceProperty(instance, instance.symbol.canonicalPropertyName(last))
+                    }
+                }
+                throw error(subscriptCall, "unsupported keyPath assignment target")
+            }
+            // Store WRITES remember (`Defaults[.previewWidth] = w`): the
+            // key bag's declared default updates, so later reads round-trip
+            // within the run — fresh-store bag semantics.
+            if let keyBag = try storeKeyBag(base: baseValue, indexExpr: indexExpr, in: env) {
+                let seed = registry?.hostMember("default", on: keyBag) ?? .void
+                let box = Box(seed)
+                box.onChange = { [weak self] in
+                    _ = self?.registry?.hostSetMember("default", on: keyBag, to: box.value)
+                }
+                return .box(box)
+            }
+            // USER-DECLARED subscript setters (`appState[\\.route] = x` on
+            // clean-architecture's Store): seed from the getter, write
+            // through the setter — declared semantics beat element writes.
+            if let owningBase = baseValue,
+               let (symbol, selfValue) = userSubscriptOwner(for: owningBase),
+               symbol.subscripts.contains(where: { $0.setter != nil }) {
+                let indexArgs = CallArguments(arguments: try subscriptCall.arguments.map {
+                    .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
+                })
+                let seed = (try? runUserSubscriptGetter(symbol, selfValue: selfValue, args: indexArgs)) ?? .void
+                let box = Box(seed)
+                box.onChange = { [weak self] in
+                    guard let self else { return }
+                    try? self.runUserSubscriptSetter(
+                        symbol, selfValue: selfValue, args: indexArgs, newValue: box.value)
+                }
+                return .box(box)
+            }
+            let base = try resolveLValue(subscriptCall.calledExpression, in: env)
+            let indexValue = try evaluate(indexExpr, in: env)
+            guard let index = indexValue.intValue else {
+                // KEYED assignment onto a DEFERRED store (`var routers:
+                // [Tab: Router]` initialized in an init our synthesis
+                // skipped): the dictionary auto-vivifies.
+                let current = try base.read(self)
+                let isVoid: Bool = { if case .void = current { return true } else { return false } }()
+                let isMarker: Bool = {
+                    if let payload = current.hostPayload {
+                        return payload is InertCallable || payload is ChainedImplicitCall
+                            || payload is ImplicitMemberCall
+                    }
+                    if case .implicitMember = current { return true }
+                    if case .hostFunction = current { return true }
+                    return false
+                }()
+                let fallback = try subscriptCall.arguments
+                    .first(where: { $0.label?.text == "default" })
+                    .map { try evaluate($0.expression, in: env) }
+                if current.isNil || isVoid || isMarker {
+                    let dict = DictValue()
+                    try base.write(.native(dict), self)
+                    return .dictElement(dict, indexValue, fallback: fallback)
+                }
+                if let dict = current.dictValue {
+                    return .dictElement(dict, indexValue, fallback: fallback)
+                }
+                throw error(subscriptCall, "subscript assignment requires an Int index")
+            }
+            if case .host(let any)? = baseValue, any is Data {
+                return .dataElement(base, index) // byte write-through
+            }
+            return .element(base, index)
+        }
+        if let tuple = expr.as(TupleExprSyntax.self), tuple.elements.count == 1, let only = tuple.elements.first {
+            return try resolveLValue(only.expression, in: env)
+        }
+        // `components.hour! += 1` — optionals ARE the value, so the
+        // force-unwrap lvalue writes through the wrapped path.
+        if let force = expr.as(ForceUnwrapExprSyntax.self) {
+            return try resolveLValue(force.expression, in: env)
+        }
+        throw error(expr, "expression is not assignable")
+    }
+}

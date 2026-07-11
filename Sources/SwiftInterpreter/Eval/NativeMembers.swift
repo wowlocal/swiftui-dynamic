@@ -7,8 +7,39 @@ import SwiftSyntax
 /// `names.map { … }` works like any other call; closure-taking methods call
 /// back through the `EvalContext`.
 extension Interpreter {
+    /// Typed entry point for standard-library member dispatch. Keeping this
+    /// separate from the host-`Any` fallback lets core values migrate to
+    /// dedicated RuntimeValue storage without changing framework gateways.
+    func nativeMember(_ name: String, on value: RuntimeValue) throws -> RuntimeValue? {
+        switch value.payload {
+        case .array(let array):
+            return try arrayMember(name, array)
+        case .string(let string):
+            return stringMember(name, string)
+        case .tuple(let tuple):
+            return tuple.value(for: name)
+        case .integer(let integer):
+            return try nativeMember(name, on: integer as Any)
+        case .floatingPoint(let double):
+            return try nativeMember(name, on: double as Any)
+        case .boolean(let boolean):
+            return try nativeMember(name, on: boolean as Any)
+        case .dictionary(let dictionary):
+            return try nativeMember(name, on: dictionary as Any)
+        case .range(let range):
+            return try nativeMember(name, on: range as Any)
+        case .host(let host):
+            return try nativeMember(name, on: host)
+        default:
+            return nil
+        }
+    }
+
     /// Returns nil when the name is unknown, so the caller can try other routes
     /// (e.g. view modifiers) before erroring.
+    ///
+    /// This is the compatibility path for opaque framework values. Swift-shaped
+    /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
         if let array = any as? [RuntimeValue] {
             return try arrayMember(name, array)
@@ -649,7 +680,7 @@ extension Interpreter {
                 // dictionary pair shape).
                 if let tuple = any as? TupleValue, let element = tuple.value(for: component) {
                     current = element
-                } else if let value = try nativeMember(component, on: any)
+                } else if let value = try nativeMember(component, on: current)
                     ?? registry?.hostMember(component, on: any) {
                     current = value
                 } else {

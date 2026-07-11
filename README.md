@@ -65,6 +65,9 @@ source ──SwiftParser──▶ AST ──SwiftOperators.foldAll──▶ prec
        ──HostRegistry gateways──▶ real SwiftUI views (AnyView)
 ```
 
+The core's responsibility boundaries and staged typed-value migration are
+documented in [`Docs/InterpreterArchitecture.md`](Docs/InterpreterArchitecture.md).
+
 - **No custom parser.** SwiftSyntax parses; `SwiftOperators` folds flat
   operator sequences into precedence trees, so the evaluator never implements
   precedence.
@@ -205,8 +208,10 @@ coverage.
 - **Interpreted structs are reference-backed.** `Instance` is a class; there
   is no copy-on-assignment. This is exactly what makes `@State` mutation from
   an action closure observable without copy machinery. `mutating` is ignored.
-- **Argument labels aren't checked** — binding is positional (trailing
-  closures bind last).
+- **Argument labels guide binding but are not compiler-strict.** Labeled
+  arguments bind by name, defaults may be omitted in the middle, and trailing
+  closures use function-parameter shape; unmatched positional arguments may
+  still fill remaining parameters as a real-project compatibility fallback.
 - **State resets on re-parse.** Each successful edit gets a fresh identity
   (`.id(generation)`); the old program's state may not fit the new program.
 - **Per-identity @State persistence is probe-opt-in.** Compiled SwiftUI keeps
@@ -219,8 +224,10 @@ coverage.
   identity, above).
 - **ForEach/container identity is positional** — bodies re-evaluate wholesale,
   so `@State` inside reordered children won't track.
-- **No type checking.** Type annotations parse but are ignored; errors show up
-  at evaluation time, located (`line:col`) in the error bar.
+- **No static type checking.** Type annotations drive dynamic coercion,
+  overload selection, generic hints, and implicit-member resolution, but there
+  is no compile-time inference/checking pass. Mismatches surface at evaluation
+  time, located (`line:col`) in the error bar.
 - **Bindings are Box handles.** `$name` projects the state's storage box; the
   bridge wraps it in a real `Binding` whose setter writes the box (rounding
   back to Int when the state was declared Int, e.g. for `Slider`).
@@ -311,8 +318,6 @@ coverage.
   Mutating an instance nested *inside* a published collection doesn't — 
   reassign through the collection (`todos[i] = item`) to notify. `@StateObject`
   initializer side effects re-run (and are discarded) on view recreation.
-- Not supported (v1): generics, protocols, enums, custom `init`, optionals
-  beyond `nil` literals, `guard`, `switch`, dictionaries.
 - An evaluation **step budget** (100k) guards the main thread against
   `while true {}`.
 - **Background tasks run a bounded slice, then park.** `Task { … }` bodies

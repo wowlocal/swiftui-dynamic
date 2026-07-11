@@ -1,0 +1,672 @@
+import Foundation
+import SwiftSyntax
+
+extension Interpreter {
+    // MARK: - Calls
+
+    static let cStdlibNames: Set<String> = [
+        "malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset",
+        "strlen", "strcmp", "strncmp", "strcpy", "strdup",
+        // Process-control calls in merged helper-tool files: interpreted
+        // execution continues (the app target never runs them at launch).
+        "exit", "abort", "usleep", "sleep",
+        // sysctl/process-info family.
+        "sysctl", "sysctlbyname", "getpid", "getppid", "getenv", "setenv",
+        "unsetenv", "getuid", "geteuid",
+    ]
+
+    /// Identifier shapes that read as C imports (snake_case, leading
+    /// underscore, or the known stdlib list) — these absorb via the C
+    /// branch and must never be claimed by the modifier rescue.
+    static func looksLikeCImport(_ name: String) -> Bool {
+        cStdlibNames.contains(name)
+            || (name.contains("_") && name.first?.isLowercase == true)
+            || (name.hasPrefix("_") && name.dropFirst().first?.isLowercase == true)
+    }
+
+    /// Runtime type test for `is`: primitives and interpreted symbols check
+    /// truly; host natives match the registry's type name; markers and nil
+    /// read false.
+    func valueIsType(_ value: RuntimeValue, _ rawType: String) -> Bool {
+        var typeName = rawType.trimmingCharacters(in: .whitespaces)
+        if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+        if let range = value.rangeValue, let annotation = Self.rangeAnnotation(typeName) {
+            guard range.matchesNominalShape(annotation.name) else { return false }
+            let bounds = [range.lowerBound, range.upperBound].compactMap { $0 }
+            if Self.doubleFamilyTypeNames.contains(annotation.bound) {
+                return bounds.allSatisfy { $0.doubleValue != nil }
+            }
+            if annotation.bound == "Int" { return bounds.allSatisfy { $0.intValue != nil } }
+            if annotation.bound == "String" { return bounds.allSatisfy { $0.stringValue != nil } }
+            if annotation.bound == "Date" {
+                return bounds.allSatisfy { value in
+                    if case .host(let any) = value { return any is Date }
+                    return false
+                }
+            }
+            if annotation.bound == "String.Index" {
+                return bounds.allSatisfy { value in
+                    if case .host(let any) = value { return any is String.Index }
+                    return false
+                }
+            }
+            return false
+        }
+        if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
+        if typeName == "Any" || typeName == "AnyObject" { return !value.isNil }
+        if value.isNil { return false }
+        switch value {
+        case .int: return ["Int", "Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
+        case .double: return ["Double", "CGFloat", "TimeInterval", "Float", "NSNumber"].contains(typeName)
+        case .bool: return typeName == "Bool" || typeName == "NSNumber"
+        case .instance(let instance):
+            var symbol: StructSymbol? = instance.symbol
+            while let current = symbol {
+                if current.name == typeName { return true }
+                if current.conformances.contains(where: { conformance in
+                    var seen = Set<String>()
+                    return protocolReaches(conformance, target: typeName, seen: &seen)
+                }) { return true }
+                guard let superName = current.superclassName,
+                      case .type(let parent)? = globals.lookup(superName) else { break }
+                symbol = parent
+            }
+            return false
+        case .enumCase(let caseValue):
+            if caseValue.symbol.name == typeName { return true }
+            return caseValue.symbol.conformances.contains { conformance in
+                var seen = Set<String>()
+                return protocolReaches(conformance, target: typeName, seen: &seen)
+            }
+        case .host(let any):
+            if any is String || any is NSString { return ["String", "NSString"].contains(typeName) }
+            if any is Date { return ["Date", "NSDate"].contains(typeName) }
+            if any is URL { return ["URL", "NSURL"].contains(typeName) }
+            if any is Data { return ["Data", "NSData"].contains(typeName) }
+            if any is [RuntimeValue] { return ["Array", "NSArray"].contains(typeName) || typeName.hasPrefix("[") }
+            if any is DictValue { return ["Dictionary", "NSDictionary"].contains(typeName) || typeName.hasPrefix("[") }
+            if any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
+                return false // unknowable: fresh state IS nothing yet
+            }
+            return registry?.hostTypeName(of: any) == typeName
+        default:
+            return false
+        }
+    }
+
+    /// A custom ViewModifier applies by RUNNING its body(content:) — real
+    /// semantics for both spellings (`.modifier(m)` and
+    /// `ModifiedContent(content:modifier:)`).
+    func applyViewModifier(
+        _ modifier: Instance, to content: RuntimeValue, node: Syntax?
+    ) throws -> RuntimeValue {
+        guard let overloads = modifier.symbol.methods["body"], let method = overloads.first,
+              let body = method.body else {
+            return content // bodyless conformer: identity
+        }
+        let closure = makeFunctionClosure(
+            method, body: body, captured: selfEnvironment(.instance(modifier)))
+        return try callWithArguments(
+            closure,
+            args: CallArguments(arguments: [.init(label: "content", value: content)]),
+            node: node)
+    }
+
+    func evaluateCall(_ call: FunctionCallExprSyntax, in env: Environment) throws -> RuntimeValue {
+        // `ModifiedContent(content: self, modifier: TitleFont(size: 16))` —
+        // the explicit ViewModifier application (MovieSwiftUI's titleStyle).
+        if let ref = call.calledExpression.as(DeclReferenceExprSyntax.self),
+           ref.baseName.text == "ModifiedContent",
+           env.box(for: "ModifiedContent") == nil, globals.lookup("ModifiedContent") == nil {
+            let args = try collectArguments(of: call, in: env)
+            if let content = args.labeled("content"),
+               case .instance(let modifier)? = args.labeled("modifier") {
+                return try applyViewModifier(modifier, to: content, node: Syntax(call))
+            }
+        }
+        // `[Index]()` / `[String: Int]()` — typed empty containers.
+        if call.calledExpression.is(ArrayExprSyntax.self) {
+            if call.arguments.isEmpty { return .native([RuntimeValue]()) }
+            // `[CChar](repeating: 0, count: n)` — the typed-array ctor.
+            let args = try collectArguments(of: call, in: env)
+            if let element = args.labeled("repeating"), let count = args.labeled("count")?.intValue {
+                return .native([RuntimeValue](repeating: element, count: max(0, count)))
+            }
+            if let array = args.positional(0)?.arrayValue { return .native(array) }
+            return .native([RuntimeValue]())
+        }
+        if call.calledExpression.is(DictionaryExprSyntax.self), call.arguments.isEmpty {
+            return .native(DictValue())
+        }
+        // `.system(size: 40)` — implicit member call, resolved later by a gateway.
+        if let member = call.calledExpression.as(MemberAccessExprSyntax.self), member.base == nil {
+            let args = try collectArguments(of: call, in: env)
+            return .native(ImplicitMemberCall(name: member.declName.baseName.text, arguments: args))
+        }
+        // Methods that mutate collections in place, and property/method pairs
+        // like `first` / `first(where:)`, need the base handled specially.
+        if let member = call.calledExpression.as(MemberAccessExprSyntax.self), let baseExpr = member.base {
+            let name = member.declName.baseName.text
+            if let result = try specialMemberCall(name, base: baseExpr, call: call, in: env) {
+                return result
+            }
+            let baseValue = try evaluate(baseExpr, in: env)
+            // OVERLOADED methods pick by call shape ('func error(_: Error)'
+            // vs 'error(localized:args:)') — bare-name member access can't.
+            if case .instance(let instance) = baseValue,
+               let overloads = instance.symbol.methods[name],
+               overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    // Every overload is already running (send#StoreTask ↔
+                    // send#Task mutual delegation): the device's return-type
+                    // dispatch found a runtime path we can't — absorb.
+                    return .native(ChainedImplicitCall(
+                        base: baseValue, member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.instance(instance)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
+            // STATIC overloads pick by call shape too:
+            // KioskRow.label(_:systemSymbol:) vs label(_:icon:).
+            if case .type(let symbol) = baseValue,
+               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: baseValue, member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.type(symbol)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
+            if case .enumType(let symbol) = baseValue,
+               let overloads = symbol.staticMethods[name], !overloads.isEmpty,
+               !call.arguments.isEmpty || call.trailingClosure != nil
+                   || symbol.staticComputedProperties[name] == nil {
+                // Static-method CALLS dispatch even for single overloads —
+                // `Sort.allCases(for:)` must not invoke the synthesized
+                // CaseIterable ARRAY (the collision rule at call sites).
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: baseValue, member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.enumType(symbol)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
+            let callee = try accessMember(name, on: baseValue, node: member, env: env)
+            let args = try collectArguments(of: call, in: env)
+            // A nil PROPERTY at a call site never throws (nil-call absorbs),
+            // so the collision rescue below can't fire — pre-check it. The
+            // property `timeZone.nextDaylightSavingTimeTransition` is
+            // honestly nil (a zone with no future DST), but the call shape
+            // names the METHOD form (after:), which answers for real.
+            if case .nilValue = callee, let any = baseValue.hostPayload,
+               let method = registry?.hostMethod(name, on: any) {
+                return try invoke(method, with: args, node: call)
+            }
+            do {
+                return try invoke(callee, with: args, node: call)
+            } catch let bindingError as RuntimeError
+                where !bindingError.fatal
+                    && (bindingError.message.hasPrefix("missing argument")
+                        || bindingError.message.hasSuffix("is not callable")) {
+                // PROPERTY/METHOD collision at a CALL site: the type's own
+                // computed property shadowed a PROTOCOL-EXTENSION method
+                // (Status's `var isHidden` vs AnyStatus's `isHidden(in:)`)
+                // — dispatch the method, as overload resolution would. The
+                // SAME-SYMBOL form first: FoodTruckModel's stored dict
+                // `dailyOrderSummaries` beside `dailyOrderSummaries(cityID:)`.
+                if case .instance(let instance) = baseValue {
+                    let own = (instance.symbol.methods[name] ?? [])
+                        .filter { !activeFunctionBodies.contains($0.id) }
+                    if let method = chooseFunction(from: own, for: args),
+                       let body = method.body {
+                        let closure = makeFunctionClosure(
+                            method, body: body, captured: selfEnvironment(.instance(instance)))
+                        return try invoke(.closure(closure), with: args, node: call)
+                    }
+                    for conformance in transitiveConformances(of: instance.symbol) {
+                        guard let proto = hostExtensionSymbols[conformance],
+                              let overloads = proto.methods[name] else { continue }
+                        let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                        // Only a FITTING overload rescues — a wrong-shaped
+                        // sibling must fall through to the modifier retry.
+                        guard let method = chooseFunction(from: available, for: args),
+                              let body = method.body else { continue }
+                        let closure = makeFunctionClosure(
+                            method, body: body, captured: selfEnvironment(.instance(instance)))
+                        return try invoke(.closure(closure), with: args, node: call)
+                    }
+                }
+                // The SAME collision on a HOST value: the generated table's
+                // property answered the access (`url.query` → "x=1&y=2"),
+                // but the call shape names the METHOD
+                // (`query(percentEncoded:)`) — re-dispatch through the
+                // methods-only table, as native overload resolution would.
+                if let any = baseValue.hostPayload,
+                   let method = registry?.hostMethod(name, on: any) {
+                    return try invoke(method, with: args, node: call)
+                }
+                // A user extension OR a same-named PROPERTY can shadow a
+                // built-in modifier (`extension View { func offset(
+                // coordinateSpace:…) }`; `var offset: CGFloat` on a view
+                // struct vs `.offset(y:)`). Binding/invocation fails before
+                // any body runs, so retrying through the modifier table is
+                // safe.
+                guard let registry, let modifier = registry.modifier(named: name),
+                      let target = modifierTarget(for: baseValue) else {
+                    throw bindingError
+                }
+                do {
+                    return try modifier.apply(target, args, self)
+                } catch let e as RuntimeError where e.line == 0 {
+                    throw error(call, e.message)
+                }
+            }
+        }
+        // Unqualified overloaded calls inside the type's own body.
+        if let ref = call.calledExpression.as(DeclReferenceExprSyntax.self),
+           env.box(for: ref.baseName.text, before: globals) == nil {
+            let name = ref.baseName.text
+            // Bare `path(percentEncoded:)` inside a URL extension — the
+            // METHOD/property collision, implicit-self flavor.
+            if name == "path",
+               call.arguments.contains(where: { $0.label?.text == "percentEncoded" }),
+               let url = env.lookup("self")?.hostPayload as? URL {
+                let args = try collectArguments(of: call, in: env)
+                return .native(url.path(percentEncoded: args.labeled("percentEncoded")?.boolValue ?? true))
+            }
+            // GLOBAL function overloads pick by call shape with the
+            // running-declaration exclusion (L10n's variadic form delegates
+            // to its single-argument sibling).
+            if let overloads = globalFunctionOverloads[name], overloads.count > 1,
+               env.box(for: name, before: globals) == nil {
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: .implicitMember(name), member: "call", arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(method, body: body, captured: globals)
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
+            if case .instance(let instance)? = env.lookup("self"),
+               let overloads = instance.symbol.methods[name],
+               overloads.count > 1 || instance.symbol.computedProperties[name] != nil {
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: .instance(instance), member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.instance(instance)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
+            if case .type(let symbol)? = env.lookup("self"),
+               let overloads = symbol.staticMethods[name], overloads.count > 1 {
+                let args = try collectArguments(of: call, in: env)
+                let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+                if available.isEmpty {
+                    return .native(ChainedImplicitCall(
+                        base: .type(symbol), member: name, arguments: args))
+                }
+                if let method = chooseFunction(from: available, for: args) ?? available.first,
+                   let body = method.body {
+                    let closure = makeFunctionClosure(
+                        method, body: body, captured: selfEnvironment(.type(symbol)))
+                    return try invoke(.closure(closure), with: args, node: call)
+                }
+            }
+        }
+        let callee = try evaluate(call.calledExpression, in: env)
+        let args = try collectArguments(of: call, in: env)
+        return try invoke(callee, with: args, node: call)
+    }
+
+    /// The value a retried modifier applies to: view values directly,
+    /// view/shape-conforming instances wrapped renderable.
+    func modifierTarget(for value: RuntimeValue) -> RuntimeValue? {
+        guard let registry else { return nil }
+        if registry.isViewValue(value) { return value }
+        if case .instance(let instance) = value,
+           instance.symbol.rendersLikeView
+            || instance.symbol.conformsToShape || instance.symbol.conformsToLayout {
+            return registry.makeRenderable(instance: instance, interpreter: self)
+        }
+        return nil
+    }
+
+    /// Mutating collection methods (`items.append(x)`) resolve the base as an
+    /// lvalue; `first(where:)`/`last(where:)` collide with the same-named
+    /// properties. Returns nil to fall through to normal dispatch.
+    private func specialMemberCall(
+        _ name: String,
+        base: ExprSyntax,
+        call: FunctionCallExprSyntax,
+        in env: Environment
+    ) throws -> RuntimeValue? {
+        // `.modifier(TitleFont(size: 16))` — a custom ViewModifier applies
+        // by RUNNING its body(content:), with the modifier's OWN
+        // @Environment/@State properties injected first (uninjected reads
+        // were voids — the iteration-198 revert). Only the strict
+        // ViewModifier shape dispatches: declared conformance AND a body
+        // method whose single parameter is the content.
+        if name == "modifier" {
+            let args = try collectArguments(of: call, in: env)
+            if case .instance(let modifier)? = args.positional(0),
+               modifier.symbol.conformances.contains("ViewModifier"),
+               let overloads = modifier.symbol.methods["body"],
+               let method = overloads.first, method.body != nil,
+               method.signature.parameterClause.parameters.count == 1 {
+                let baseValue = try evaluate(base, in: env)
+                injectEnvironmentValues(into: modifier, values: [:])
+                return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
+            }
+        }
+        // MUTATING methods on ENUM receivers through writable lvalues:
+        // `wrappedValue.setIsLoading(cancelBag:)` — the method runs on a
+        // copy whose `self` reassignments write BACK through the lvalue
+        // (value semantics; through a Binding this fires the set-closure
+        // exactly once, like the native read-modify-write).
+        if let target = try? resolveLValue(base, in: env),
+           let current = try? target.read(self),
+           case .enumCase(let receiver) = current,
+           let overloads = receiver.symbol.methods[name],
+           let method = overloads.first(where: { declared in
+               declared.modifiers.contains { $0.name.text == "mutating" }
+           }),
+           let body = method.body {
+            let args = try collectArguments(of: call, in: env)
+            let selfEnv = selfEnvironment(.enumCase(receiver))
+            let closure = makeFunctionClosure(method, body: body, captured: selfEnv)
+            let result = try callWithArguments(closure, args: args, node: Syntax(call))
+            if let newSelf = selfEnv.box(for: "self")?.value {
+                // `self = .loaded(last)` rides as a marker — the receiver's
+                // own symbol is the annotation that resolves it to a case.
+                let resolved = try resolveAnnotated(newSelf, typeName: receiver.symbol.name)
+                try relocating(call) { try target.write(resolved, self) }
+            }
+            return result
+        }
+        // Bool.toggle() — ubiquitous in SwiftUI code (`show.toggle()`); writes
+        // through the lvalue so @State/@Published notification fires.
+        if name == "toggle",
+           let target = try? resolveLValue(base, in: env),
+           let current = try target.read(self).boolValue {
+            _ = try collectArguments(of: call, in: env) // evaluate (empty) args for side effects
+            try relocating(call) { try target.write(.native(!current), self) }
+            return .void
+        }
+
+        // `url.path(percentEncoded:)` — the modern METHOD collides with the
+        // legacy `path` PROPERTY; the call shape resolves here (the
+        // first(where:) precedent). Only URL bases match; the labeled-arg
+        // guard keeps other `path(…)` calls off this route.
+        if name == "path",
+           call.arguments.contains(where: { $0.label?.text == "percentEncoded" }),
+           case .host(let any) = try evaluate(base, in: env),
+           let url = any as? URL {
+            let args = try collectArguments(of: call, in: env)
+            let encoded = args.labeled("percentEncoded")?.boolValue ?? true
+            return .native(url.path(percentEncoded: encoded))
+        }
+
+        // Mutating String members write through the lvalue:
+        // `text.replaceSubrange(range, with: "…")`.
+        if name == "replaceSubrange",
+           let target = try? resolveLValue(base, in: env),
+           case .host(let existingAny) = try target.read(self),
+           var text = existingAny as? String {
+            let args = try collectArguments(of: call, in: env)
+            guard let replacement = args.labeled("with")?.stringValue,
+                  let range = args.positional(0)?.rangeValue else {
+                throw error(call, "replaceSubrange needs a range and 'with:'")
+            }
+            text.replaceSubrange(try stringSlice(range, in: text, node: call), with: replacement)
+            try relocating(call) { try target.write(.native(text), self) }
+            return .void
+        }
+
+        // Mutating URL members write through the lvalue (value semantics):
+        // `url.append(path:)` / `url.appendPathComponent(_:)`.
+        if name == "append" || name == "appendPathComponent",
+           let target = try? resolveLValue(base, in: env),
+           case .host(let existingAny) = try target.read(self),
+           let url = existingAny as? URL {
+            let args = try collectArguments(of: call, in: env)
+            guard let component = (args.labeled("path") ?? args.labeled("component")
+                ?? args.positional(0))?.stringValue else {
+                throw error(call, "append needs a path component")
+            }
+            var updated = url
+            updated.append(path: component)
+            try relocating(call) { try target.write(.native(updated), self) }
+            return .void
+        }
+
+        // Data mutations write through the lvalue (value semantics):
+        // `data.append(other)` / `data.append(byte)`.
+        if name == "append",
+           let target = try? resolveLValue(base, in: env),
+           case .host(let existingAny) = try target.read(self),
+           var bytes = existingAny as? Data {
+            let args = try collectArguments(of: call, in: env)
+            guard let value = args.positional(0) else {
+                throw error(call, "append needs a value")
+            }
+            if case .host(let addAny) = value, let more = addAny as? Data {
+                bytes.append(more)
+            } else if let byte = value.intValue {
+                bytes.append(UInt8(truncatingIfNeeded: byte))
+            } else if let array = value.arrayValue {
+                bytes.append(contentsOf: array.compactMap { $0.intValue.map { UInt8(truncatingIfNeeded: $0) } })
+            } else {
+                throw error(call, "cannot append \(value.stringified) to Data")
+            }
+            try relocating(call) { try target.write(.native(bytes), self) }
+            return .void
+        }
+
+        // `str.size(withAttributes:)` — the NSString measurement API, served
+        // by the bridge (real font metrics). Dispatch is call-label-aware
+        // because user extensions commonly define their own `size(_ font:)`
+        // wrapper around it, and plain member access must keep resolving to
+        // that extension.
+        if name == "size", call.arguments.first?.label?.text == "withAttributes" {
+            let baseValue = try evaluate(base, in: env)
+            if let string = baseValue.stringValue,
+               case .hostFunction(let measure)? = registry?.hostMember("sizeWithAttributes", on: string as Any) {
+                let args = try collectArguments(of: call, in: env)
+                do {
+                    return try measure.invoke(args, self)
+                } catch let e as RuntimeError where e.line == 0 {
+                    throw error(call, e.message)
+                }
+            }
+        }
+
+        // `text.count(where: { … })` — count-as-function (the property wins
+        // for plain `.count`; the call form is label-dispatched here).
+        if name == "count", call.arguments.first?.label?.text == "where" {
+            let baseValue = try evaluate(base, in: env)
+            let args = try collectArguments(of: call, in: env)
+            guard let closure = args.closure(labeled: "where") else {
+                throw error(call, "count(where:) needs a closure")
+            }
+            var elements: [RuntimeValue] = []
+            if let string = baseValue.stringValue {
+                elements = string.map { .native(String($0)) }
+            } else if let array = baseValue.arrayValue {
+                elements = array
+            }
+            var matched = 0
+            for element in elements where try callClosure(closure, arguments: [element]).boolValue == true {
+                matched += 1
+            }
+            return .native(matched)
+        }
+
+        // `code.append("7")` / `append(contentsOf:)` — mutating String
+        // append through the lvalue.
+        if name == "append",
+           let target = try? resolveLValue(base, in: env),
+           let current = try target.read(self).stringValue {
+            let args = try collectArguments(of: call, in: env)
+            guard let argument = args.labeled("contentsOf") ?? args.positional(0), !argument.isNil else {
+                throw error(call, "String.append needs a value")
+            }
+            let suffix = argument.stringValue ?? argument.stringified
+            try relocating(call) { try target.write(.native(current + suffix), self) }
+            return .void
+        }
+        // `text.insert(char, at: index)` — String insertion at a String.Index.
+        if name == "insert",
+           call.arguments.contains(where: { $0.label?.text == "at" }),
+           let target = try? resolveLValue(base, in: env),
+           let current = try target.read(self).stringValue {
+            let args = try collectArguments(of: call, in: env)
+            guard let element = args.positional(0), !element.isNil,
+                  case .host(let idxAny)? = args.labeled("at"),
+                  let index = idxAny as? Swift.String.Index else {
+                throw error(call, "String.insert needs a value and an at: String.Index")
+            }
+            var copy = current
+            let clamped = min(index, copy.endIndex)
+            copy.insert(contentsOf: element.stringValue ?? element.stringified, at: clamped)
+            try relocating(call) { try target.write(.native(copy), self) }
+            return .void
+        }
+
+        let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
+        if mutating.contains(name),
+           let target = try? resolveLValue(base, in: env),
+           var array = try target.read(self).arrayValue {
+            let args = try collectArguments(of: call, in: env)
+            // `items.append(.init())` — the element type comes from the
+            // target property's `[Type]` annotation.
+            let elementType = target.annotatedElementType()
+            func resolved(_ value: RuntimeValue) throws -> RuntimeValue {
+                guard let elementType else { return value }
+                return try resolveAnnotated(value, typeName: elementType)
+            }
+            switch name {
+            case "append":
+                if let contents = args.labeled("contentsOf")?.arrayValue {
+                    array.append(contentsOf: try contents.map(resolved))
+                } else if let value = args.positional(0) {
+                    array.append(try resolved(value))
+                } else {
+                    throw error(call, "append needs a value")
+                }
+            case "insert":
+                // SET-typed storage synthesizes as an array: one-argument
+                // `insert(member)` (no at:) is Set.insert — append when
+                // absent, answering (inserted, memberAfterInsert).
+                if args.labeled("at") == nil, let member = args.positional(0) {
+                    let value = try resolved(member)
+                    let present = try array.contains { try Builtins.areEqual($0, value) }
+                    if !present { array.append(value) }
+                    try relocating(call) { try target.write(.native(array), self) }
+                    return .native(TupleValue(
+                        labels: ["inserted", "memberAfterInsert"],
+                        values: [.bool(!present), value]))
+                }
+                guard let value = args.positional(0), let index = args.labeled("at")?.intValue,
+                      index >= 0, index <= array.count else {
+                    throw error(call, "insert needs a value and a valid at: index")
+                }
+                array.insert(try resolved(value), at: index)
+            case "remove":
+                // `remove(atOffsets:)` — SwiftUI's IndexSet form (arrives as
+                // an index array): delete DESCENDING so offsets stay valid.
+                if let offsets = args.labeled("atOffsets")?.arrayValue {
+                    let indices = offsets.compactMap(\.intValue).sorted(by: >)
+                    for index in indices where array.indices.contains(index) {
+                        array.remove(at: index)
+                    }
+                    try relocating(call) { try target.write(.native(array), self) }
+                    return .void
+                }
+                guard let index = args.labeled("at")?.intValue, array.indices.contains(index) else {
+                    throw error(call, "remove(at:) index out of range")
+                }
+                let removed = array.remove(at: index)
+                try relocating(call) { try target.write(.native(array), self) }
+                return removed
+            case "removeAll":
+                if let closure = args.closure(labeled: "where") {
+                    var kept: [RuntimeValue] = []
+                    for element in array where try callClosure(closure, arguments: [element]).boolValue != true {
+                        kept.append(element)
+                    }
+                    array = kept
+                } else {
+                    array = []
+                }
+            case "removeFirst":
+                guard !array.isEmpty else { throw error(call, "removeFirst on an empty array") }
+                let removed = array.removeFirst()
+                try relocating(call) { try target.write(.native(array), self) }
+                return removed
+            case "removeLast":
+                guard !array.isEmpty else { throw error(call, "removeLast on an empty array") }
+                let removed = array.removeLast()
+                try relocating(call) { try target.write(.native(array), self) }
+                return removed
+            case "sort":
+                var failure: Error?
+                array.sort { a, b in
+                    if failure != nil { return false }
+                    // Declared `static func <` (Comparable) dispatches, like
+                    // infix and the XCTAssert gateways.
+                    do { return try evaluateBinary("<", a, b).boolValue == true }
+                    catch { failure = error; return false }
+                }
+                if let failure { throw failure }
+            default:
+                return nil
+            }
+            try relocating(call) { try target.write(.native(array), self) }
+            return .void
+        }
+
+        if name == "first" || name == "last" {
+            let baseValue = try evaluate(base, in: env)
+            let array = baseValue.arrayValue ?? baseValue.rangeValue?.integerValues()
+            if let array {
+                let args = try collectArguments(of: call, in: env)
+                if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
+                    let ordered = name == "last" ? Array(array.reversed()) : array
+                    for element in ordered where try callClosure(closure, arguments: [element]).boolValue == true {
+                        return element
+                    }
+                    return .nilValue
+                }
+            }
+        }
+        return nil
+    }
+}
