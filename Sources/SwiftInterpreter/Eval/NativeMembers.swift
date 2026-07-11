@@ -300,6 +300,22 @@ extension Interpreter {
         case "indices": return .native(0..<array.count)
         case "startIndex": return .native(0)
         case "endIndex": return .native(array.count)
+        case "index":
+            // `index(after:)` / `index(before:)` / `index(_:offsetBy:)` —
+            // integer index arithmetic (MakeItSo's computeOrder genre).
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                if let after = args.labeled("after")?.intValue {
+                    return .native(after + 1)
+                }
+                if let before = args.labeled("before")?.intValue {
+                    return .native(before - 1)
+                }
+                if let base = args.positional(0)?.intValue,
+                   let offset = args.labeled("offsetBy")?.intValue {
+                    return .native(base + offset)
+                }
+                throw EvalMessage(text: "index(...) needs integer arguments")
+            })
         case "subtracting", "union", "intersection", "symmetricDifference":
             // Set algebra on the array-backed model (Sets flatten to arrays;
             // membership by areEqual since RuntimeValue isn't Hashable).

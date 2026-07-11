@@ -1358,6 +1358,34 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct ArrayIndexArithmeticTests {
+    // MakeItSo's computeOrder genre: Collection index arithmetic on the
+    // Int-indexed array model — index(after:)/index(before:)/
+    // index(_:offsetBy:) are stdlib-defined (+1/-1/+offset).
+    @Test func indexAfterBeforeOffset() throws {
+        let source = """
+        extension Array {
+            func slot(after index: Int) -> Int {
+                guard self.count > 0 else { return 0 }
+                let nextIndex = self.index(after: index)
+                return nextIndex < self.endIndex ? 1 : 2
+            }
+        }
+        let values = [10, 20, 30]
+        let mid = values.slot(after: 0)
+        let end = values.slot(after: 2)
+        let back = values.index(before: 2)
+        let jump = values.index(0, offsetBy: 2)
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("mid")?.stringified == "1")
+        #expect(interpreter.globals.lookup("end")?.stringified == "2")
+        #expect(interpreter.globals.lookup("back")?.stringified == "1")
+        #expect(interpreter.globals.lookup("jump")?.stringified == "2")
+    }
+}
+
 @Suite struct ImageDownloadPipelineTests {
     // clean-architecture's ImageWebRepositoryTests genre, end to end:
     // `UIColor.red.image(size)` renders a REAL pixel-exact bitmap through

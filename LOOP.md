@@ -204,6 +204,14 @@ SKIPPED, keeping the histogram a true priority queue.)
   in the checkout or its four package dependencies (markdown-ui,
   KeyboardShortcuts, Splash, EventSource). The test target cannot compile
   natively. Verified 2026-07-11 (iter 211).
+- ProjectCheck analog — oss:Mythic onboarding "Back (DEBUG)" click:
+  app-authored `precondition(stages.indices.contains(newIndex))` fires
+  at stage 0 with delta -1 — a NATIVE DEBUG-build crash (the button is
+  `#if DEBUG`-only and unguarded upstream; `firstIndex(of: stage0) ?? 0
+  - 1 == -1` crashes identically compiled). Exposed when the app-shell
+  root (M4) made onboarding the rendered root. Counts as the corpus's
+  second known-failure alongside Widgets. Verified 2026-07-11 (iter
+  227).
 
 ## The iteration algorithm (never invent the next step)
 
@@ -926,3 +934,15 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   CHANGES (stash-verified) — they arrived with the parallel lane's
   Food Truck merge (3b76f49/c13a84a); attributed there, queued as
   next iteration's health check if unclaimed.
+- 2026-07-11 iter 227: HEALTH RESTORATION (claimed the parallel lane's
+  app-shell fallout). The M4 app-shell root exposed two dormant sites:
+  (1) MakeItSo — `Array.index(after:)` was unbridged, so computeOrder's
+  bounds guard compared a marker (absorbed 0) and the subscript trapped;
+  index(after:)/index(before:)/index(_:offsetBy:) now do stdlib integer
+  index arithmetic. Pin: ArrayIndexArithmeticTests. FIXED. (2) Mythic —
+  the onboarding "Back (DEBUG)" click fires the app's OWN precondition
+  at stage 0 (delta -1 → index -1): a NATIVE DEBUG-build crash,
+  unguarded upstream — LEDGERED as the corpus's second known failure
+  (with Widgets). **suite 525 green; TestCheck 120/9/4 held; LiveCheck
+  5/5; ProjectCheck 678/680 = documented baseline (2 ledgered
+  native-real failures).**
