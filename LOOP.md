@@ -1074,3 +1074,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   load-bearing; that plus drand48 seeding is queued before those
   screens can ratchet). **GATE GREEN: suite 530; corpus 678/680;
   live 5/5; parity 345/0/0; R1 9/9.**
+- 2026-07-11 iter 234 (FoodTruck R2): the 100% blank trio. Root found
+  by real-capture bisect probes (diag-grid/diag-geo, kept in
+  FoodTruckCheck): the grid + GeometryReader painted fine — the
+  killer was `.toolbar`/`.toolbarRole` UNREGISTERED in the real
+  registry, absorbing the whole modified subtree into a marker →
+  blank. Fixed: (1) toolbar/toolbarRole pass the view through
+  (borderless captures show no toolbar chrome natively either;
+  toolbar ACTIONS are R3 surface); (2) GeometryReader gateway for the
+  REAL registry — content re-evaluates per layout pass with the real
+  proxy behind an @unchecked carrier (the InterpretedShape pattern);
+  (3) FoodTruckCheck captures surface RenderDiagnostics per screen.
+  Pin: RealRegistryChromeTests. **BOARD RATCHET: donuts 100%→4.76%,
+  socialfeed 100%→39.8%** (its next root staked by the new
+  diagnostics: `.black` opacity color chain in SocialFeedPostView);
+  orders stays 100% (Table gateway, queued); truck 64.5%/content
+  52.5% unchanged. **GATE GREEN: suite 531; corpus 678/680; live
+  5/5; parity 345/0/0.**

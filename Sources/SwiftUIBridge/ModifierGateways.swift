@@ -331,6 +331,11 @@ extension ViewRegistry {
                 return gesture.attach(to: view, ctx: ctx)
             }
         }
+        // Toolbar chrome doesn't paint inside a borderless captured window
+        // (the twin's captures show none either) — the view passes through;
+        // toolbar ACTIONS become R3 surface, not R2 pixels.
+        register("toolbar") { view, _, _ in view }
+        register("toolbarRole") { view, _, _ in view }
         register("task") { view, args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.task { _ = try? ctx.callClosure(closure, arguments: []) })

@@ -127,6 +127,7 @@ struct FoodTruckCheckMain {
             @MainActor
             func capturePNG(_ id: String, source: String, size: NSSize) {
                 if let screenFilter, !id.localizedCaseInsensitiveContains(screenFilter) { return }
+                RenderDiagnostics.reset()
                 switch InterpreterHost().render(source: source, lazyTopLevelGlobals: true) {
                 case .failure(let error):
                     print("\(id)\tRENDER-FAILED \(error.message.prefix(80))")
@@ -159,6 +160,9 @@ struct FoodTruckCheckMain {
                     let path = captureDirectory + "/\(id).png"
                     try? png.write(to: URL(fileURLWithPath: path))
                     print("\(id)\t\(path)\t\(rep.pixelsWide)x\(rep.pixelsHigh)")
+                    for entry in RenderDiagnostics.errors.prefix(4) {
+                        print("   ⚠ \(id) \(entry.view): \(entry.error.message.prefix(110))")
+                    }
                 }
             }
 
@@ -195,6 +199,12 @@ struct FoodTruckCheckMain {
                 "TruckOrdersCard(model: model).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("donut-view", source: probeMergeBase + probeApp(
                 "DonutView(donut: model.donuts[0]).padding(10).background(Color.white)"), size: cardSize)
+            // Bisect probes (diag-*): not compared by the AE board — pure
+            // diagnosis rungs for blank screens.
+            capturePNG("diag-grid", source: probeMergeBase + probeApp(
+                "ScrollView { DonutGalleryGrid(donuts: model.donuts, width: 1000) }.background(Color.white)"), size: screenSize)
+            capturePNG("diag-geo", source: probeMergeBase + probeApp(
+                "GeometryReader { p in ScrollView { DonutGalleryGrid(donuts: model.donuts, width: p.size.width) } }.background(Color.white)"), size: screenSize)
             return
         }
 

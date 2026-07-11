@@ -155,6 +155,22 @@ extension ViewRegistry {
             return .native(AnyView(TabView { Self.indexed(content) }))
         }
 
+        constructors["GeometryReader"] = HostFunction(name: "GeometryReader") { args, ctx in
+            // The content re-evaluates per LAYOUT PASS with the REAL proxy —
+            // the InterpretedShape pattern (SwiftUI calls the builder on the
+            // main thread during layout, so assumeIsolated holds).
+            guard let content = args.firstUnlabeledClosure else {
+                throw RuntimeError(message: "GeometryReader needs a content closure")
+            }
+            guard let interpreter = ctx as? Interpreter else {
+                return .native(AnyView(EmptyView()))
+            }
+            let carrier = GeometryContentCarrier(interpreter: interpreter, content: content)
+            return .native(AnyView(GeometryReader { proxy in
+                carrier.view(for: proxy)
+            }))
+        }
+
         constructors["ScrollView"] = HostFunction(name: "ScrollView") { args, ctx in
             var axes: Axis.Set = .vertical
             if case .implicitMember(let name)? = args.positional(0) {
@@ -595,5 +611,42 @@ extension ViewRegistry {
             return views
         }
         return try ctx.callBuilderClosure(content, arguments: []).map(Self.anyView)
+    }
+}
+
+/// Keeps non-Sendable interpreter refs behind an @unchecked wall for
+/// GeometryReader's layout-time builder (the InterpretedShape precedent).
+private final class GeometryContentCarrier: @unchecked Sendable {
+    let interpreter: Interpreter
+    let content: ClosureValue
+
+    nonisolated init(interpreter: Interpreter, content: ClosureValue) {
+        self.interpreter = interpreter
+        self.content = content
+    }
+
+    nonisolated func view(for proxy: GeometryProxy) -> AnyView {
+        // Void-returning assumeIsolated (AnyView isn't Sendable) — the
+        // result rides captured vars; SwiftUI invokes this on main, so the
+        // proxy never actually crosses an isolation boundary.
+        nonisolated(unsafe) var result = AnyView(EmptyView())
+        nonisolated(unsafe) let carriedProxy = proxy
+        MainActor.assumeIsolated {
+            do {
+                let views = try interpreter.callBuilderClosure(content, arguments: [.native(carriedProxy)])
+                let children = try views.map { try ViewRegistry.anyView($0) }
+                if children.count == 1 {
+                    result = children[0]
+                } else {
+                    result = AnyView(ZStack(alignment: .topLeading) {
+                        ForEach(children.indices, id: \.self) { children[$0] }
+                    })
+                }
+            } catch let error as RuntimeError {
+                RenderDiagnostics.record(error, in: "GeometryReader")
+            } catch {
+            }
+        }
+        return result
     }
 }

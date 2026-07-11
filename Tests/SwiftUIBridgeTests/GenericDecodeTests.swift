@@ -1358,6 +1358,40 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     }
 }
 
+@Suite struct RealRegistryChromeTests {
+    // FoodTruck R2's blank-screen class: `.toolbar`/`.toolbarRole` were
+    // unregistered in the REAL registry, so the whole modified subtree
+    // absorbed into a marker and painted BLANK. They pass the view through
+    // (borderless captures show no toolbar chrome natively either), and
+    // GeometryReader renders its content with the real proxy.
+    @Test func toolbarAndGeometryReaderKeepViewsRenderable() throws {
+        let registry = ViewRegistry()
+        #expect(registry.modifier(named: "toolbar") != nil)
+        #expect(registry.modifier(named: "toolbarRole") != nil)
+        #expect(registry.constructor(named: "GeometryReader") != nil)
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    GeometryReader { proxy in
+                        Text("W\\(Int(proxy.size.width))")
+                    }
+                    .toolbar {
+                        Button("B") { }
+                    }
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success = rendered else {
+            Issue.record("render failed")
+            return
+        }
+    }
+}
+
 @Suite struct ModuleQualifiedAndCollisionTests {
     // FoodTruck's city/salesHistory rungs: `Swift.max(...)` strips the
     // module qualifier (the merge has no modules), and a stored property
