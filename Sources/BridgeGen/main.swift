@@ -612,6 +612,10 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
     memberMethodTotal += 1
     guard function.signature.effectSpecifiers == nil else {
         memberBlockers["throws/async", default: 0] += 1
+        if ProcessInfo.processInfo.environment["BRIDGEGEN_DUMP_BLOCKED"] != nil {
+            let effects = function.signature.effectSpecifiers?.trimmedDescription ?? "?"
+            print("   blocked[\(effects)] \(typeName).\(name)\(function.signature.parameterClause.trimmedDescription)")
+        }
         return
     }
     guard function.genericParameterClause == nil, function.genericWhereClause == nil else {
@@ -622,6 +626,9 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
           !returnType.contains("some "), normalize(returnType) != "Self" else {
         memberBlockers[function.signature.returnClause == nil ? "void return" : "opaque/Self return",
                        default: 0] += 1
+        if ProcessInfo.processInfo.environment["BRIDGEGEN_DUMP_BLOCKED"] != nil {
+            print("   blocked[void/opaque] \(typeName).\(name)\(function.signature.parameterClause.trimmedDescription)")
+        }
         return
     }
     let parameters = function.signature.parameterClause.parameters
