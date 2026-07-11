@@ -670,3 +670,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   clean-architecture 53 → 56 passed. **679/680; suite 492 green;
   LiveCheck 5/5; TestCheck 102→105 passed / 24→21 failed — class
   eliminated.**
+- 2026-07-11 iter 219: biggest class (4×+ across suites) — struct
+  equality compared instances by IDENTITY (`l === r` in areEqual), so
+  `state.value == AppState()` and every fresh-vs-fresh comparison
+  failed (UserPermissions/DeepLinks noSideEffectOnInit, Basic-Car
+  contributorEncoding). Native truth: Equatable synthesis is
+  member-wise. Fix in equalsViaDeclaredOperator: (1) synthesized
+  member-wise equality for same-symbol STRUCT instances (classes keep
+  identity — native classes never synthesize `==`), recursing through
+  declared operators per member exactly like the compiled witness,
+  with an active-pair set breaking reference cycles; (2)
+  declaredEqualsOperator now also finds TOP-LEVEL `func == (lhs: T,
+  rhs: T)` (clean-architecture's AppState style) matched by first-
+  parameter type name; (3) the array arm recurses for instance
+  elements without declared `==`. Native-verified via scratch swiftc
+  (all four distilled flags true). Pinned by
+  StructEqualitySynthesisTests. DeepLinks routing tests now fail
+  HONESTLY on `.value` reference-aliasing (captured "copy" sees later
+  mutation) — a different class, queued. clean-architecture 56 → 58.
+  **679/680; suite 493 green; LiveCheck 5/5; TestCheck 105→108
+  passed / 21→18 failed — class eliminated.**

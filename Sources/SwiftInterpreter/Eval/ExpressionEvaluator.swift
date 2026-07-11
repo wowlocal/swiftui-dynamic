@@ -3374,9 +3374,12 @@ extension Interpreter {
             }
             return nil
         }
+        if let synthesized = try memberwiseStructEquality(lhs, rhs, node: node) {
+            return synthesized
+        }
         if let l = lhs.arrayValue, let r = rhs.arrayValue,
            let sample = l.first ?? r.first,
-           declaredEqualsOperator(sample) != nil {
+           declaredEqualsOperator(sample) != nil || isSynthesizableStruct(sample) {
             guard l.count == r.count else { return false }
             for (a, b) in zip(l, r) {
                 let pair = try equalsViaDeclaredOperator(a, b, node: node)
@@ -3393,6 +3396,39 @@ extension Interpreter {
         return nil
     }
 
+    private func isSynthesizableStruct(_ value: RuntimeValue) -> Bool {
+        if case .instance(let instance) = value { return !instance.symbol.isClass }
+        return false
+    }
+
+    /// Member-wise equality for struct instances — the interpreter's stand-in
+    /// for Equatable synthesis. Classes keep identity semantics (native
+    /// classes never get a synthesized `==`); each member comparison recurses
+    /// through declared operators first, exactly like the compiled witness.
+    private func memberwiseStructEquality(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue, node: Syntax?
+    ) throws -> Bool? {
+        guard case .instance(let l) = lhs, case .instance(let r) = rhs,
+              !l.symbol.isClass, !r.symbol.isClass else { return nil }
+        if l === r { return true }
+        guard l.symbol === r.symbol || l.symbol.name == r.symbol.name else { return false }
+        let pair = Interpreter.InstanceEqualityPair(
+            lhs: ObjectIdentifier(l), rhs: ObjectIdentifier(r))
+        guard !activeEqualityPairs.contains(pair) else { return true }
+        activeEqualityPairs.insert(pair)
+        defer { activeEqualityPairs.remove(pair) }
+        let keys = Set(l.properties.keys).union(r.properties.keys)
+        for key in keys {
+            guard let leftBox = l.properties[key], let rightBox = r.properties[key] else {
+                return false
+            }
+            let same = try equalsViaDeclaredOperator(leftBox.value, rightBox.value, node: node)
+                ?? ((try? Builtins.areEqual(leftBox.value, rightBox.value)) ?? false)
+            if !same { return false }
+        }
+        return true
+    }
+
     /// The `static func ==` a value's own type (or its extensions)
     /// declares, as a callable — nil when the type doesn't customize
     /// equality or the declaration is already running (its body's inner
@@ -3400,19 +3436,37 @@ extension Interpreter {
     private func declaredEqualsOperator(_ value: RuntimeValue) -> ClosureValue? {
         let overloads: [FunctionDeclSyntax]?
         let selfValue: RuntimeValue
+        let typeName: String
         switch value {
         case .enumCase(let caseValue):
             overloads = caseValue.symbol.staticMethods["=="]
             selfValue = .enumType(caseValue.symbol)
+            typeName = caseValue.symbol.name
         case .instance(let instance):
             overloads = instance.symbol.staticMethods["=="]
             selfValue = .type(instance.symbol)
+            typeName = instance.symbol.name
         default:
             return nil
         }
-        guard let method = overloads?.first(where: { !activeFunctionBodies.contains($0.id) }),
-              let body = method.body else { return nil }
-        return makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
+        if let method = overloads?.first(where: { !activeFunctionBodies.contains($0.id) }),
+           let body = method.body {
+            return makeFunctionClosure(method, body: body, captured: selfEnvironment(selfValue))
+        }
+        // Pre-protocol style: a TOP-LEVEL `func == (lhs: AppState, rhs:
+        // AppState) -> Bool` satisfies Equatable too — match by the first
+        // parameter's type name (last dotted component, extension-tolerant).
+        let wanted = typeName.split(separator: ".").last.map(String.init) ?? typeName
+        for decl in globalFunctionOverloads["=="] ?? [] where !activeFunctionBodies.contains(decl.id) {
+            guard let body = decl.body,
+                  let first = decl.signature.parameterClause.parameters.first else { continue }
+            let paramType = first.type.trimmedDescription
+            let head = paramType.split(separator: ".").last.map(String.init) ?? paramType
+            if head == wanted {
+                return makeFunctionClosure(decl, body: body, captured: globals)
+            }
+        }
+        return nil
     }
 
     func resolveLValue(_ expr: ExprSyntax, in env: Environment) throws -> LValue {

@@ -2045,3 +2045,58 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
         #expect(interpreter.globals.lookup("limited")?.stringified == "2")
     }
 }
+
+@Suite struct StructEqualitySynthesisTests {
+    // clean-architecture's AppState genre: `state.value == AppState()` —
+    // struct equality must be member-wise (Equatable synthesis), honor a
+    // TOP-LEVEL `func ==`, and recurse through nested structs, enums and
+    // arrays. Native run (scratch swiftc): all four flags are true.
+    @Test func memberwiseAndTopLevelOperator() throws {
+        let source = """
+        import SwiftUI
+
+        struct AppState: Equatable {
+            var routing = ViewRouting()
+            var system = System()
+            var permissions = Permissions()
+        }
+        extension AppState {
+            struct ViewRouting: Equatable {
+                var countriesList = ListRouting()
+            }
+            struct System: Equatable {
+                var isActive: Bool = false
+                var keyboardHeight: CGFloat = 0
+            }
+            struct Permissions: Equatable {
+                var push: Permission.Status = .unknown
+            }
+        }
+        struct ListRouting: Equatable { var countryCode: String? }
+        enum Permission {
+            case pushNotifications
+            enum Status: Equatable { case unknown, notRequested, granted, denied }
+        }
+        func == (lhs: AppState, rhs: AppState) -> Bool {
+            lhs.routing == rhs.routing && lhs.system == rhs.system && lhs.permissions == rhs.permissions
+        }
+
+        let freshEqual = AppState() == AppState()
+        var mutated = AppState()
+        mutated.permissions.push = .granted
+        let mutatedDiffers = mutated != AppState()
+        var reverted = mutated
+        reverted.permissions.push = .unknown
+        let revertedEqual = reverted == AppState()
+
+        struct Country: Equatable { var name: String; var alpha3Code: String }
+        let countriesEqual = [Country(name: "France", alpha3Code: "FRA")] == [Country(name: "France", alpha3Code: "FRA")]
+        """
+        let interpreter = Interpreter(registry: TraceRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("freshEqual")?.stringified == "true")
+        #expect(interpreter.globals.lookup("mutatedDiffers")?.stringified == "true")
+        #expect(interpreter.globals.lookup("revertedEqual")?.stringified == "true")
+        #expect(interpreter.globals.lookup("countriesEqual")?.stringified == "true")
+    }
+}

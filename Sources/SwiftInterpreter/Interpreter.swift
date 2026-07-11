@@ -120,6 +120,14 @@ public final class Interpreter {
     /// running declaration (`send(_:) -> StoreTask` delegating to
     /// `send(_:) -> Task?`, identical shapes, return-type disambiguated).
     var activeFunctionBodies: Set<SyntaxIdentifier> = []
+    /// Instance pairs mid-comparison in synthesized member-wise equality —
+    /// breaks reference cycles (interpreted structs are class-backed, so a
+    /// value graph CAN alias where a compiled struct never could).
+    struct InstanceEqualityPair: Hashable {
+        let lhs: ObjectIdentifier
+        let rhs: ObjectIdentifier
+    }
+    var activeEqualityPairs: Set<InstanceEqualityPair> = []
     /// GLOBAL function overload sets (`func L10n(_:)` beside
     /// `func L10n(_:_ arguments: CVarArg...)`): globals hold one closure
     /// per name, so calls consult this table for shape choice.
