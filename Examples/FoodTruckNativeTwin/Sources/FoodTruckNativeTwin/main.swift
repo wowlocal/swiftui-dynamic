@@ -1,14 +1,19 @@
 /*
- The twin harness entry: renders FoodTruck screens headlessly to PNG at a
- FIXED size. Usage:
-   swift run FoodTruckNativeTwin --out /tmp/twin [--panel truck|content|donuts]
- Each capture prints "id<TAB>path<TAB>widthxheight" — FoodTruckCheck's R2
- rungs diff these against the interpreter's renders of the SAME views.
+ The twin harness entry: renders FoodTruck screens headlessly to PNG at
+ FIXED sizes — the ONLY source of pixel expectations for FoodTruckCheck's
+ R2 rungs. Usage:
+   swift run FoodTruckNativeTwin --out /tmp/twin [--panel id]
+ Prints "id<TAB>path<TAB>WxH" per capture.
+
+ Capture mechanism: NSHostingView + cacheDisplay in a borderless aqua
+ NSWindow under an NSApplication lifecycle — the exact path that reached
+ AE=0 on the ExpenseTracker twin. ImageRenderer is NOT used: it draws
+ AppKit-backed containers (NavigationSplitView/ScrollView/List) blank
+ headlessly.
 */
 import SwiftUI
-import FoodTruckKit
 import AppKit
-import UniformTypeIdentifiers
+import FoodTruckKit
 
 let arguments = CommandLine.arguments
 func argument(_ name: String) -> String? {
@@ -17,44 +22,68 @@ func argument(_ name: String) -> String? {
 }
 let outDirectory = argument("--out") ?? "/tmp/foodtruck-twin"
 let only = argument("--panel")
-try? FileManager.default.createDirectory(atPath: outDirectory, withIntermediateDirectories: true)
 
-let captureSize = CGSize(width: 1000, height: 650)
+let screenSize = NSSize(width: 1000, height: 650)
+let cardSize = NSSize(width: 400, height: 300)
 
 @MainActor
-func capture(_ id: String, _ view: some View) {
+func capture(_ id: String, size: NSSize, _ view: some View) {
     guard only == nil || only == id else { return }
-    let renderer = ImageRenderer(content: view.frame(width: captureSize.width, height: captureSize.height))
-    renderer.scale = 1
-    guard let cgImage = renderer.cgImage else {
-        print("\(id)\tRENDER-NIL")
+    let hosting = NSHostingView(rootView: AnyView(view).frame(width: size.width, height: size.height))
+    hosting.frame = NSRect(origin: .zero, size: size)
+    let window = NSWindow(
+        contentRect: hosting.frame, styleMask: .borderless, backing: .buffered, defer: false)
+    window.appearance = NSAppearance(named: .aqua)
+    window.contentView = hosting
+    hosting.layoutSubtreeIfNeeded()
+    window.displayIfNeeded()
+    guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+        print("\(id)\tREP-NIL")
+        return
+    }
+    hosting.cacheDisplay(in: hosting.bounds, to: rep)
+    guard let png = rep.representation(using: .png, properties: [:]) else {
+        print("\(id)\tPNG-NIL")
         return
     }
     let path = outDirectory + "/\(id).png"
-    let url = URL(fileURLWithPath: path)
-    guard let destination = CGImageDestinationCreateWithURL(
-        url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-        print("\(id)\tDEST-NIL")
-        return
+    do {
+        try png.write(to: URL(fileURLWithPath: path))
+        print("\(id)\t\(path)\t\(rep.pixelsWide)x\(rep.pixelsHigh)")
+    } catch {
+        print("\(id)\tWRITE-FAILED \(error)")
     }
-    CGImageDestinationAddImage(destination, cgImage, nil)
-    CGImageDestinationFinalize(destination)
-    print("\(id)\t\(path)\t\(cgImage.width)x\(cgImage.height)")
 }
 
-@MainActor
-func runCaptures() {
-    // The app's own state objects, exactly as FoodTruckApp seeds them.
-    let model = FoodTruckModel()
-    let accountStore = AccountStore()
+final class TwinDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        try? FileManager.default.createDirectory(
+            atPath: outDirectory, withIntermediateDirectories: true)
 
-    // Screen inventory (grows toward the full Panel list as rungs open).
-    capture("content", ContentView(model: model, accountStore: accountStore))
-    capture("truck", TruckView(model: model, navigationSelection: .constant(.truck)))
-    capture("donuts", DonutGallery(model: model))
-    capture("orders", OrdersView(model: model))
-    capture("socialfeed", SocialFeedView())
+        // The app's own state objects, exactly as FoodTruckApp seeds them.
+        let model = FoodTruckModel()
+        let accountStore = AccountStore()
+
+        // Full screens (grow toward the complete Panel list as rungs open).
+        capture("content", size: screenSize, ContentView(model: model, accountStore: accountStore))
+        capture("truck", size: screenSize, TruckView(model: model, navigationSelection: .constant(.truck)))
+        capture("donuts", size: screenSize, DonutGallery(model: model))
+        capture("orders", size: screenSize, OrdersView(model: model))
+        capture("socialfeed", size: screenSize, SocialFeedView())
+
+        // Leaf content cards — the pixel currency while container chrome
+        // stays headless-hostile on both sides.
+        capture("card-donuts", size: cardSize,
+                TruckDonutsCard(donuts: Array(model.donuts.prefix(15))).padding(10).background(Color.white))
+        capture("card-orders", size: cardSize,
+                TruckOrdersCard(model: model).padding(10).background(Color.white))
+        capture("donut-view", size: cardSize,
+                DonutView(donut: model.donuts[0]).padding(10).background(Color.white))
+        exit(0)
+    }
 }
 
-// Top-level main.swift runs on the main thread.
-MainActor.assumeIsolated { runCaptures() }
+let app = NSApplication.shared
+let delegate = TwinDelegate()
+app.delegate = delegate
+app.run()
