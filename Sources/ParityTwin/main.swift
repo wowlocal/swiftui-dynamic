@@ -18,6 +18,9 @@ let seedQueryItem = URLQueryItem(name: "k", value: "v")
 let seedRequest = URLRequest(url: seedURL)
 let seedCharset = CharacterSet(charactersIn: "abcxyz")
 let seedIndexSet = IndexSet([1, 2, 3, 9])
+let seedDecimal = Decimal(string: "3.14159")!
+let seedIndexPath = IndexPath(indexes: [1, 3])
+let seedPersonName = PersonNameComponents(givenName: "Ada", familyName: "Lovelace")
 
 @inline(never) func emit(_ id: String, _ value: Any) {
     print("\(id)\u{9}\(String(describing: value))")
@@ -29,6 +32,17 @@ func probes0() {
     emit("CharacterSet.hashValue", seedCharset.hashValue)
     emit("CharacterSet.description", seedCharset.description)
     emit("CharacterSet.debugDescription", seedCharset.debugDescription)
+    emit("PersonNameComponents.namePrefix", seedPersonName.namePrefix)
+    emit("PersonNameComponents.givenName", seedPersonName.givenName)
+    emit("PersonNameComponents.middleName", seedPersonName.middleName)
+    emit("PersonNameComponents.familyName", seedPersonName.familyName)
+    emit("PersonNameComponents.nameSuffix", seedPersonName.nameSuffix)
+    emit("PersonNameComponents.nickname", seedPersonName.nickname)
+    emit("PersonNameComponents.phoneticRepresentation", seedPersonName.phoneticRepresentation)
+    emit("PersonNameComponents.hashValue", seedPersonName.hashValue)
+    emit("PersonNameComponents.description", seedPersonName.description)
+    emit("PersonNameComponents.debugDescription", seedPersonName.debugDescription)
+    emit("PersonNameComponents.customMirror", seedPersonName.customMirror)
     emit("IndexSet.count", seedIndexSet.count)
     emit("IndexSet.rangeView", seedIndexSet.rangeView)
     emit("IndexSet.startIndex", seedIndexSet.startIndex)
@@ -53,6 +67,8 @@ func probes0() {
     emit("DateComponents.timeZone", seedComponents.timeZone)
     emit("DateComponents.era", seedComponents.era)
     emit("DateComponents.year", seedComponents.year)
+}
+func probes1() {
     emit("DateComponents.month", seedComponents.month)
     emit("DateComponents.day", seedComponents.day)
     emit("DateComponents.hour", seedComponents.hour)
@@ -64,8 +80,6 @@ func probes0() {
     emit("DateComponents.quarter", seedComponents.quarter)
     emit("DateComponents.weekOfMonth", seedComponents.weekOfMonth)
     emit("DateComponents.weekOfYear", seedComponents.weekOfYear)
-}
-func probes1() {
     emit("DateComponents.dayOfYear", seedComponents.dayOfYear)
     emit("DateComponents.yearForWeekOfYear", seedComponents.yearForWeekOfYear)
     emit("DateComponents.isLeapMonth", seedComponents.isLeapMonth)
@@ -78,6 +92,28 @@ func probes1() {
     emit("Data.description", seedData.description)
     emit("Data.debugDescription", seedData.debugDescription)
     emit("Data.customMirror", seedData.customMirror)
+    emit("Decimal.description", seedDecimal.description)
+    emit("Decimal.exponent", seedDecimal.exponent)
+    emit("Decimal.significand", seedDecimal.significand)
+    emit("Decimal.sign", seedDecimal.sign)
+    emit("Decimal.ulp", seedDecimal.ulp)
+    emit("Decimal.floatingPointClass", seedDecimal.floatingPointClass)
+    emit("Decimal.isCanonical", seedDecimal.isCanonical)
+    emit("Decimal.isSignMinus", seedDecimal.isSignMinus)
+    emit("Decimal.isZero", seedDecimal.isZero)
+    emit("Decimal.isSubnormal", seedDecimal.isSubnormal)
+    emit("Decimal.isNormal", seedDecimal.isNormal)
+    emit("Decimal.isFinite", seedDecimal.isFinite)
+    emit("Decimal.isInfinite", seedDecimal.isInfinite)
+    emit("Decimal.isNaN", seedDecimal.isNaN)
+    emit("Decimal.isSignaling", seedDecimal.isSignaling)
+    emit("Decimal.isSignalingNaN", seedDecimal.isSignalingNaN)
+    emit("Decimal.nextUp", seedDecimal.nextUp)
+}
+func probes2() {
+    emit("Decimal.nextDown", seedDecimal.nextDown)
+    emit("Decimal.hashValue", seedDecimal.hashValue)
+    emit("Decimal.magnitude", seedDecimal.magnitude)
     emit("Locale.identifier", seedLocale.identifier)
     emit("Locale.exemplarCharacterSet", seedLocale.exemplarCharacterSet)
     emit("Locale.calendar", seedLocale.calendar)
@@ -106,8 +142,6 @@ func probes1() {
     emit("Locale.description", seedLocale.description)
     emit("Locale.debugDescription", seedLocale.debugDescription)
     emit("Calendar.eraSymbols", seedCalendar.eraSymbols)
-}
-func probes2() {
     emit("Calendar.longEraSymbols", seedCalendar.longEraSymbols)
     emit("Calendar.monthSymbols", seedCalendar.monthSymbols)
     emit("Calendar.shortMonthSymbols", seedCalendar.shortMonthSymbols)
@@ -117,6 +151,8 @@ func probes2() {
     emit("Calendar.veryShortStandaloneMonthSymbols", seedCalendar.veryShortStandaloneMonthSymbols)
     emit("Calendar.weekdaySymbols", seedCalendar.weekdaySymbols)
     emit("Calendar.shortWeekdaySymbols", seedCalendar.shortWeekdaySymbols)
+}
+func probes3() {
     emit("Calendar.veryShortWeekdaySymbols", seedCalendar.veryShortWeekdaySymbols)
     emit("Calendar.standaloneWeekdaySymbols", seedCalendar.standaloneWeekdaySymbols)
     emit("Calendar.shortStandaloneWeekdaySymbols", seedCalendar.shortStandaloneWeekdaySymbols)
@@ -148,8 +184,6 @@ func probes2() {
     emit("URL.relativePath", seedURL.relativePath)
     emit("URL.query", seedURL.query)
     emit("URL.fragment", seedURL.fragment)
-}
-func probes3() {
     emit("URL.hasDirectoryPath", seedURL.hasDirectoryPath)
     emit("URL.pathComponents", seedURL.pathComponents)
     emit("URL.lastPathComponent", seedURL.lastPathComponent)
@@ -159,6 +193,8 @@ func probes3() {
     emit("URL.hashValue", seedURL.hashValue)
     emit("URL.description", seedURL.description)
     emit("URL.debugDescription", seedURL.debugDescription)
+}
+func probes4() {
     emit("URLComponents.url", seedURLComponents.url)
     emit("URLComponents.string", seedURLComponents.string)
     emit("URLComponents.scheme", seedURLComponents.scheme)
@@ -190,8 +226,6 @@ func probes3() {
     emit("URLComponents.description", seedURLComponents.description)
     emit("URLComponents.debugDescription", seedURLComponents.debugDescription)
     emit("URLComponents.customMirror", seedURLComponents.customMirror)
-}
-func probes4() {
     emit("URLQueryItem.name", seedQueryItem.name)
     emit("URLQueryItem.value", seedQueryItem.value)
     emit("URLQueryItem.hashValue", seedQueryItem.hashValue)
@@ -201,6 +235,8 @@ func probes4() {
     emit("Date.timeIntervalSinceReferenceDate", seedDate.timeIntervalSinceReferenceDate)
     emit("Date.timeIntervalSinceNow", seedDate.timeIntervalSinceNow)
     emit("Date.timeIntervalSince1970", seedDate.timeIntervalSince1970)
+}
+func probes5() {
     emit("Date.hashValue", seedDate.hashValue)
     emit("Date.debugDescription", seedDate.debugDescription)
     emit("Date.customMirror", seedDate.customMirror)
@@ -211,6 +247,13 @@ func probes4() {
     emit("DateInterval.description", seedInterval.description)
     emit("DateInterval.debugDescription", seedInterval.debugDescription)
     emit("DateInterval.customMirror", seedInterval.customMirror)
+    emit("IndexPath.count", seedIndexPath.count)
+    emit("IndexPath.startIndex", seedIndexPath.startIndex)
+    emit("IndexPath.endIndex", seedIndexPath.endIndex)
+    emit("IndexPath.hashValue", seedIndexPath.hashValue)
+    emit("IndexPath.description", seedIndexPath.description)
+    emit("IndexPath.debugDescription", seedIndexPath.debugDescription)
+    emit("IndexPath.customMirror", seedIndexPath.customMirror)
     emit("UUID.uuid", seedUUID.uuid)
     emit("UUID.uuidString", seedUUID.uuidString)
     emit("UUID.description", seedUUID.description)
@@ -232,10 +275,10 @@ func probes4() {
     emit("URLRequest.httpMethod", seedRequest.httpMethod)
     emit("URLRequest.allHTTPHeaderFields", seedRequest.allHTTPHeaderFields)
     emit("URLRequest.httpBody", seedRequest.httpBody)
-}
-func probes5() {
     emit("URLRequest.httpBodyStream", seedRequest.httpBodyStream)
     emit("URLRequest.httpShouldHandleCookies", seedRequest.httpShouldHandleCookies)
+}
+func probes6() {
     emit("URLRequest.hashValue", seedRequest.hashValue)
     emit("URLRequest.description", seedRequest.description)
     emit("URLRequest.debugDescription", seedRequest.debugDescription)
@@ -264,6 +307,7 @@ func probes5() {
     emit("Locale.localizedString|forCurrencyCode:string", seedLocale.localizedString(forCurrencyCode: "sample"))
     emit("Locale.localizedString|forCollationIdentifier:string", seedLocale.localizedString(forCollationIdentifier: "sample"))
     emit("Locale.localizedString|forCollatorIdentifier:string", seedLocale.localizedString(forCollatorIdentifier: "sample"))
+    emit("Decimal.formatted|", seedDecimal.formatted())
     emit("TimeZone.secondsFromGMT|for:date", seedTimeZone.secondsFromGMT(for: seedDate2))
     emit("TimeZone.secondsFromGMT|", seedTimeZone.secondsFromGMT())
     emit("TimeZone.abbreviation|for:date", seedTimeZone.abbreviation(for: seedDate2))
@@ -274,9 +318,9 @@ func probes5() {
     emit("TimeZone.daylightSavingTimeOffset|", seedTimeZone.daylightSavingTimeOffset())
     emit("TimeZone.nextDaylightSavingTimeTransition|after:date", seedTimeZone.nextDaylightSavingTimeTransition(after: seedDate2))
     emit("URL.host|percentEncoded:bool", seedURL.host(percentEncoded: true))
-}
-func probes6() {
     emit("URL.host|", seedURL.host())
+}
+func probes7() {
     emit("URL.user|percentEncoded:bool", seedURL.user(percentEncoded: true))
     emit("URL.user|", seedURL.user())
     emit("URL.password|percentEncoded:bool", seedURL.password(percentEncoded: true))
@@ -301,8 +345,11 @@ func probes6() {
     emit("Date.distance|to:date", seedDate.distance(to: seedDate2))
     emit("Date.advanced|by:double", seedDate.advanced(by: 2.5))
     emit("DateInterval.contains|_:date", seedInterval.contains(seedDate2))
+    emit("IndexPath.dropLast|", seedIndexPath.dropLast())
+    emit("IndexPath.makeIterator|", seedIndexPath.makeIterator())
     emit("URL.formatted|", seedURL.formatted())
     emit("URLRequest.value|forHTTPHeaderField:string", seedRequest.value(forHTTPHeaderField: "sample"))
+    emit("PersonNameComponents.formatted|", seedPersonName.formatted())
 }
 probes0()
 probes1()
@@ -311,3 +358,4 @@ probes3()
 probes4()
 probes5()
 probes6()
+probes7()
