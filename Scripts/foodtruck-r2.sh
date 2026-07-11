@@ -16,11 +16,8 @@ echo "── native twin ──"
 
 echo "── interpreter ──"
 swift build > /dev/null 2>&1
-# Root (content) via DemoApp; panel captures land here as FoodTruckCheck
-# grows its R2 wiring — same ids as the twin's.
-.build/debug/DynamicSwiftUIDemo \
-    --project Examples/FoodTruckBuildingASwiftUIMultiplatformApp \
-    --render-png "$INTERP_DIR/content.png" --size 1000x650 2>/dev/null | tail -1
+# All ids via FoodTruckCheck's capture mode (same technique both sides).
+.build/debug/FoodTruckCheck --capture "$INTERP_DIR" 2>/dev/null | tail -8
 
 echo "── AE board ──"
 total=0; compared=0

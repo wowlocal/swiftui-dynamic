@@ -1,6 +1,8 @@
+import AppKit
 import Foundation
 import SwiftInterpreter
 import SwiftUIBridge
+import SwiftUI
 
 // FoodTruckCheck: the PRIMARY TARGET's instrument (LOOP.md). Rung ladder
 // per screen, strictly-improving total-rungs score, deterministic, fast.
@@ -37,9 +39,11 @@ struct FoodTruckCheckMain {
             ProcessInfo.processInfo.environment["LIVECHECK_TRACE"] != nil
 
         var screenFilter: String?
+        var captureDirectory: String?
         var iterator = CommandLine.arguments.dropFirst().makeIterator()
         while let argument = iterator.next() {
             if argument == "--screen" { screenFilter = iterator.next() }
+            if argument == "--capture" { captureDirectory = iterator.next() }
         }
 
         // The app + Kit sources; Widgets/ is out of scope (extension process).
@@ -112,6 +116,87 @@ struct FoodTruckCheckMain {
         let appFilesWithoutMain = appFiles.filter { !$0.hasSuffix("/App/App.swift") }
         let probeMergeBase = ProjectMaterial.mergedSource(
             at: sampleRoot, files: appFilesWithoutMain + kitFiles)
+
+        // ── R2 capture mode: PNG per id, same technique as the twin ──
+        if let captureDirectory {
+            try? FileManager.default.createDirectory(
+                atPath: captureDirectory, withIntermediateDirectories: true)
+            let app = NSApplication.shared
+            app.setActivationPolicy(.prohibited)
+
+            @MainActor
+            func capturePNG(_ id: String, source: String, size: NSSize) {
+                if let screenFilter, !id.localizedCaseInsensitiveContains(screenFilter) { return }
+                switch InterpreterHost().render(source: source, lazyTopLevelGlobals: true) {
+                case .failure(let error):
+                    print("\(id)\tRENDER-FAILED \(error.message.prefix(80))")
+                case .success(let view):
+                    let hosting = NSHostingView(
+                        rootView: view.frame(width: size.width, height: size.height))
+                    hosting.frame = NSRect(origin: .zero, size: size)
+                    let window = NSWindow(
+                        contentRect: hosting.frame, styleMask: .borderless,
+                        backing: .buffered, defer: false)
+                    window.appearance = NSAppearance(named: .aqua)
+                    window.contentView = hosting
+                    hosting.layoutSubtreeIfNeeded()
+                    window.displayIfNeeded()
+                    guard let rep = NSBitmapImageRep(
+                        bitmapDataPlanes: nil,
+                        pixelsWide: max(1, Int(hosting.bounds.width.rounded(.up))),
+                        pixelsHigh: max(1, Int(hosting.bounds.height.rounded(.up))),
+                        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                        colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
+                        print("\(id)\tREP-NIL")
+                        return
+                    }
+                    rep.size = hosting.bounds.size
+                    hosting.cacheDisplay(in: hosting.bounds, to: rep)
+                    guard let png = rep.representation(using: .png, properties: [:]) else {
+                        print("\(id)\tPNG-NIL")
+                        return
+                    }
+                    let path = captureDirectory + "/\(id).png"
+                    try? png.write(to: URL(fileURLWithPath: path))
+                    print("\(id)\t\(path)\t\(rep.pixelsWide)x\(rep.pixelsHigh)")
+                }
+            }
+
+            func probeApp(_ content: String) -> String {
+                """
+
+                @main
+                struct __FTProbeApp: App {
+                    @StateObject private var model = FoodTruckModel()
+                    var body: some Scene {
+                        WindowGroup {
+                            \(content)
+                        }
+                    }
+                }
+                """
+            }
+
+            let screenSize = NSSize(width: 1000, height: 650)
+            let cardSize = NSSize(width: 400, height: 300)
+            // Ids and wrappers mirror the twin EXACTLY (main.swift there).
+            capturePNG("content", source: fullMerge, size: screenSize)
+            capturePNG("truck", source: probeMergeBase + probeApp(
+                "TruckView(model: model, navigationSelection: .constant(.truck))"), size: screenSize)
+            capturePNG("donuts", source: probeMergeBase + probeApp(
+                "DonutGallery(model: model)"), size: screenSize)
+            capturePNG("orders", source: probeMergeBase + probeApp(
+                "OrdersView(model: model)"), size: screenSize)
+            capturePNG("socialfeed", source: probeMergeBase + probeApp(
+                "SocialFeedView()"), size: screenSize)
+            capturePNG("card-donuts", source: probeMergeBase + probeApp(
+                "TruckDonutsCard(donuts: Array(model.donuts.prefix(15))).padding(10).background(Color.white)"), size: cardSize)
+            capturePNG("card-orders", source: probeMergeBase + probeApp(
+                "TruckOrdersCard(model: model).padding(10).background(Color.white)"), size: cardSize)
+            capturePNG("donut-view", source: probeMergeBase + probeApp(
+                "DonutView(donut: model.donuts[0]).padding(10).background(Color.white)"), size: cardSize)
+            return
+        }
 
         for screen in screens {
             if let screenFilter, !screen.name.localizedCaseInsensitiveContains(screenFilter) { continue }

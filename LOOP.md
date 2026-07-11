@@ -1052,3 +1052,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   native twin (Examples/FoodTruckNativeTwin, NSWindow captures) and
   R3 interactions. **GATE GREEN: suite 530; corpus 678/680; live
   5/5; parity 345/0/0; FoodTruckCheck 9/9.**
+- 2026-07-11 iter 233 (FoodTruck ladder): **R2 PIXEL BOARD BOOTSTRAPPED
+  — 8/8 screens compared, first AE=0.** FoodTruckCheck gained
+  `--capture DIR`: every twin id renders through InterpreterHost
+  (real ViewRegistry views) into an NSHostingView + borderless aqua
+  NSWindow + 1x bitmap — the EXACT twin technique, capture-for-
+  capture; Scripts/foodtruck-r2.sh drives both sides and prints the
+  AE board. BASELINE (ratchet — AE only ever decreases):
+  donut-view 0.000% (PIXEL-IDENTICAL, Canvas-drawn donut included),
+  card-donuts 0.339%, card-orders 51.4%, content 52.5%, truck 64.5%,
+  donuts/orders/socialfeed 100%. Read: leaf content is already at or
+  near parity; the 100% trio is blank-vs-content (container chrome
+  or capture failure — next class); order-bearing screens diverge on
+  RANDOM + CLOCK data (the doctrine's frozen-clock policy is now
+  load-bearing; that plus drand48 seeding is queued before those
+  screens can ratchet). **GATE GREEN: suite 530; corpus 678/680;
+  live 5/5; parity 345/0/0; R1 9/9.**
