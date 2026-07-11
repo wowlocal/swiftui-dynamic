@@ -51,6 +51,25 @@ import SwiftInterpreter
         #expect(value.boolValue == true)
     }
 
+    @Test func contextualRandomParticipatesInDateArithmetic() throws {
+        let source = """
+        var date = Date(timeIntervalSince1970: 1_000)
+        date -= .random(in: 60..<180)
+        date.timeIntervalSince1970 >= 820 && date.timeIntervalSince1970 <= 940
+        """
+        let value = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(value.boolValue == true)
+    }
+
+    @Test func decimalArithmeticPromotesNumericLiterals() throws {
+        let source = """
+        let price = Decimal(2) * 5.78
+        price > Decimal(11) && price < Decimal(12)
+        """
+        let value = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(value.boolValue == true)
+    }
+
     @Test func forEachMaterializesClosedIntegerRange() throws {
         let source = """
         struct ContentView: View {

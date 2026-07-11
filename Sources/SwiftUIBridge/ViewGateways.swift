@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SwiftInterpreter
 
@@ -26,15 +27,34 @@ extension ViewRegistry {
         }
 
         constructors["Image"] = HostFunction(name: "Image") { args, _ in
-            guard let name = args.labeled("systemName")?.stringValue else {
-                throw RuntimeError(message: "only Image(systemName:) is supported")
+            if let name = args.labeled("systemName")?.stringValue {
+                return .native(ImageBox(Image(systemName: name)))
             }
-            return .native(ImageBox(Image(systemName: name)))
+            if let name = args.positional(0)?.stringValue {
+                // `swift run` has no compiled asset catalog. Preserve Image's
+                // real named-resource semantics (missing assets render empty)
+                // while accepting `bundle: .module` project source.
+                return .native(ImageBox(Image(name)))
+            }
+            throw RuntimeError(message: "Image needs a name or systemName:")
         }
 
-        constructors["Label"] = HostFunction(name: "Label") { args, _ in
-            guard let title = args.positional(0), let icon = args.labeled("systemImage")?.stringValue else {
-                throw RuntimeError(message: "Label needs a title and systemImage:")
+        constructors["Label"] = HostFunction(name: "Label") { args, ctx in
+            if let titleClosure = args.closure(labeled: "title") ?? args.firstUnlabeledClosure,
+               let iconClosure = args.closure(labeled: "icon") {
+                let titleViews = try ctx.callBuilderClosure(titleClosure, arguments: []).map(Self.anyView)
+                let iconViews = try ctx.callBuilderClosure(iconClosure, arguments: []).map(Self.anyView)
+                let title = titleViews.count == 1
+                    ? titleViews[0]
+                    : AnyView(HStack { Self.indexed(titleViews) })
+                let icon = iconViews.count == 1
+                    ? iconViews[0]
+                    : AnyView(HStack { Self.indexed(iconViews) })
+                return .native(AnyView(Label { title } icon: { icon }))
+            }
+            guard let title = args.positional(0),
+                  let icon = args.labeled("systemImage")?.stringValue else {
+                throw RuntimeError(message: "Label needs title/icon builders or a title and systemImage:")
             }
             return .native(AnyView(Label(title.stringValue ?? title.stringified, systemImage: icon)))
         }
@@ -63,6 +83,13 @@ extension ViewRegistry {
                 return .native(AnyView(ProgressView(title)))
             }
             return .native(AnyView(ProgressView()))
+        }
+
+        // Swift Charts' ChartContent protocol cannot cross the dynamic
+        // AnyView boundary. Keep the chart's layout footprint as a clear
+        // renderable surface; chart-specific modifiers are inert gateways.
+        constructors["Chart"] = HostFunction(name: "Chart") { _, _ in
+            .native(AnyView(Color.clear))
         }
 
         // MARK: Shapes & gradients
@@ -232,6 +259,13 @@ extension ViewRegistry {
 
         let navigationStack = HostFunction(name: "NavigationStack") { args, ctx in
             let content = try Self.builderContent(args, ctx)
+            if args.labeled("path") != nil {
+                // A dynamic NavigationPath cannot satisfy NavigationStack's
+                // static path element types. Native path hosting can also
+                // suppress the initial interpreted root outside its App
+                // scene, so preserve that root in a stack-shaped fallback.
+                return .native(AnyView(VStack { Self.indexed(content) }))
+            }
             return .native(AnyView(NavigationStack { Self.indexed(content) }))
         }
         constructors["NavigationStack"] = navigationStack
@@ -244,12 +278,30 @@ extension ViewRegistry {
             guard let detailClosure = args.closure(labeled: "detail") else {
                 throw RuntimeError(message: "NavigationSplitView needs detail content")
             }
-            let sidebar = try ctx.callBuilderClosure(sidebarClosure, arguments: []).map(Self.anyView)
-            let detail = try ctx.callBuilderClosure(detailClosure, arguments: []).map(Self.anyView)
-            return .native(AnyView(NavigationSplitView {
-                Self.indexed(sidebar)
-            } detail: {
-                Self.indexed(detail)
+            let sidebarValues = try ctx.callBuilderClosure(sidebarClosure, arguments: [])
+            let detailValues = try ctx.callBuilderClosure(detailClosure, arguments: [])
+            let sidebar = try sidebarValues.map(Self.anyView)
+            let detail = try detailValues.map(Self.anyView)
+            let sidebarContent = sidebar.count == 1
+                ? sidebar[0]
+                : AnyView(VStack(alignment: .leading) { Self.indexed(sidebar) })
+            let detailContent = detail.count == 1
+                ? detail[0]
+                : AnyView(VStack(alignment: .leading) { Self.indexed(detail) })
+            // Native NavigationSplitView keeps its columns lazy and, when
+            // hosted outside the originating App scene, can leave dynamic
+            // AnyView columns undiscovered. A split-shaped host fallback
+            // keeps both interpreted branches alive and interactive.
+            return .native(AnyView(HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    sidebarContent
+                }
+                .frame(minWidth: 180, idealWidth: 220, maxWidth: 280, maxHeight: .infinity)
+                Divider()
+                VStack(alignment: .leading, spacing: 0) {
+                    detailContent
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }))
         }
 
@@ -294,6 +346,23 @@ extension ViewRegistry {
         constructors["Color"] = HostFunction(name: "Color") { args, _ in
             let component: (String) -> Double? = { args.labeled($0)?.doubleValue }
             let opacity = component("opacity") ?? 1.0
+            if let platformColor = args.labeled("uiColor") ?? args.labeled("nsColor") {
+                if case .host(let any) = platformColor, let color = any as? NSColor {
+                    return .native(Color(nsColor: color))
+                }
+                if case .implicitMember(let name) = platformColor {
+                    let color: NSColor = switch name {
+                    case "systemGray5": .systemGray.withAlphaComponent(0.18)
+                    case "systemGray6": .systemGray.withAlphaComponent(0.10)
+                    case "lightGray": .lightGray
+                    case "tertiarySystemFill", "quaternarySystemFill": .separatorColor
+                    case "tertiarySystemBackground": .controlBackgroundColor
+                    default: .windowBackgroundColor
+                    }
+                    return .native(Color(nsColor: color))
+                }
+                return .native(Color(nsColor: .windowBackgroundColor))
+            }
             if let red = component("red"), let green = component("green"), let blue = component("blue") {
                 return .native(Color(red: red, green: green, blue: blue, opacity: opacity))
             }

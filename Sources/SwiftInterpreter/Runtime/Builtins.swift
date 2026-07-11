@@ -59,6 +59,27 @@ public enum Builtins {
     }
 
     static func binary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue {
+        let usesDecimal: Bool = {
+            if case .host(let any) = lhs, any is Decimal { return true }
+            if case .host(let any) = rhs, any is Decimal { return true }
+            return false
+        }()
+        if usesDecimal,
+           let left = decimalValue(lhs), let right = decimalValue(rhs) {
+            switch op {
+            case "+": return .native(left + right)
+            case "-": return .native(left - right)
+            case "*": return .native(left * right)
+            case "/": return .native(left / right)
+            case "==": return .native(left == right)
+            case "!=": return .native(left != right)
+            case "<": return .native(left < right)
+            case "<=": return .native(left <= right)
+            case ">": return .native(left > right)
+            case ">=": return .native(left >= right)
+            default: break
+            }
+        }
         switch op {
         case "+":
             if let l = lhs.stringValue, let r = rhs.stringValue { return .native(l + r) }
@@ -152,6 +173,13 @@ public enum Builtins {
         }
     }
 
+    private static func decimalValue(_ value: RuntimeValue) -> Decimal? {
+        if case .host(let any) = value, let decimal = any as? Decimal { return decimal }
+        if case .int(let integer) = value { return Decimal(integer) }
+        if let double = value.doubleValue { return Decimal(double) }
+        return nil
+    }
+
     static func prefix(_ op: String, _ value: RuntimeValue) throws -> RuntimeValue {
         switch op {
         case "-":
@@ -230,6 +258,21 @@ public enum Builtins {
             // 0.5, exactly like the DispatchTime `.now() + 0.5` rule.
             if case .host(let any) = value, let call = any as? ImplicitMemberCall {
                 if call.name == "now", call.arguments.arguments.isEmpty { return 0 }
+                if call.name == "random" {
+                    let range = call.arguments.labeled("in") ?? call.arguments.positional(0)
+                    if let bounds = range?.rangeValue?.halfOpenIntRange {
+                        return Double(Int.random(in: bounds))
+                    }
+                    if let bounds = range?.rangeValue?.closedIntRange {
+                        return Double(Int.random(in: bounds))
+                    }
+                    if let bounds = range?.rangeValue?.halfOpenDoubleRange {
+                        return Double.random(in: bounds)
+                    }
+                    if let bounds = range?.rangeValue?.closedDoubleRange {
+                        return Double.random(in: bounds)
+                    }
+                }
                 if let quantity = (call.arguments.positional(0)?.doubleValue) {
                     switch call.name {
                     case "seconds": return quantity

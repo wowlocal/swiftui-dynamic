@@ -2259,6 +2259,22 @@ extension Interpreter {
         switch callee {
         case .nilValue:
             return .nilValue // optional chaining through a nil method
+        case .instance(let instance) where instance.symbol.conformsToLayout:
+            // Parenthesized custom layouts use the value-call spelling:
+            // `(FlowLayout(spacing: 8)) { children }`. SwiftUI supplies
+            // Layout.callAsFunction; that method is not present in project
+            // source, so retain the built children on the layout instance
+            // and let the host registry render its documented flow fallback.
+            guard let content = args.firstUnlabeledClosure else {
+                if args.isEmpty { return callee }
+                throw error(node, "a Layout value needs a content closure")
+            }
+            let children = try callBuilderClosure(content, arguments: [])
+            instance.properties[StructSymbol.layoutChildrenKey] = Box(.native(children))
+            guard let registry else {
+                return try groupViews(children)
+            }
+            return registry.makeRenderable(instance: instance, interpreter: self)
         case .instance(let instance) where instance.symbol.methods["callAsFunction"] != nil:
             // SwiftUI action values (`openWindow(id:)`, OpenCocoaWindowAction)
             // — instances invoke through callAsFunction.

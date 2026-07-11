@@ -228,7 +228,8 @@ extension Interpreter {
             }
         }
         if let int = any as? Int, name == "truncatingRemainder" || name == "remainder"
-            || name == "rounded" || name == "isZero" {
+            || name == "rounded" || name == "isZero" || name == "isFinite"
+            || name == "isInfinite" || name == "isNaN" || name == "isNormal" {
             // Interpreted math sometimes lands on Int where the source had a
             // floating value (bridge numbers are Doubles) — promote.
             return try nativeMember(name, on: Double(int))
@@ -238,6 +239,10 @@ extension Interpreter {
             case "rounded":
                 return .hostFunction(HostFunction(name: name) { _, _ in .native(double.rounded()) })
             case "isZero": return .native(double.isZero)
+            case "isFinite": return .native(double.isFinite)
+            case "isInfinite": return .native(double.isInfinite)
+            case "isNaN": return .native(double.isNaN)
+            case "isNormal": return .native(double.isNormal)
             case "remainder":
                 return .hostFunction(HostFunction(name: name) { args, _ in
                     guard let divisor = (args.labeled("dividingBy") ?? args.positional(0))?.doubleValue else {

@@ -165,6 +165,28 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         #expect(registry.isViewValue(result))
     }
 
+    @Test func pathBoundNavigationStackPreservesRootContent() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        _ = try interpreter.run(source: """
+        struct ContentView: View {
+            @State var path = NavigationPath()
+            var body: some View {
+                NavigationStack(path: $path) {
+                    Text("Dashboard")
+                }
+            }
+        }
+        """)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
+            Issue.record("expected ContentView instance")
+            return
+        }
+        let result = try interpreter.evaluateBody(of: instance)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func realRegistryAcceptsLegacyOneParameterOnChange() throws {
         let outcome = InterpreterHost().render(source: """
         struct ContentView: View {
@@ -184,6 +206,30 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         }
     }
 
+    @Test func iOSAppLifecycleModifiersPreserveContent() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        _ = try interpreter.run(source: """
+        struct DeferredKey: PreferenceKey {
+            static var defaultValue = false
+        }
+        struct ContentView: View {
+            var body: some View {
+                Text("Dashboard")
+                    .onPreferenceChange(DeferredKey.self) { _ in }
+                    .onOpenURL { _ in }
+            }
+        }
+        """)
+        let symbol = try #require(interpreter.rootViewSymbol())
+        guard case .instance(let instance) = try interpreter.instantiateRoot(symbol) else {
+            Issue.record("expected ContentView instance")
+            return
+        }
+        let result = try interpreter.evaluateBody(of: instance)
+        #expect(registry.isViewValue(result))
+    }
+
     @Test func realRegistryRendersGridRowsAndEmptyBackground() throws {
         let registry = ViewRegistry()
         let interpreter = Interpreter(registry: registry)
@@ -197,6 +243,88 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         .background()
         """)
 
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func navigationDestinationKeepsCurrentContentRenderable() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: """
+        Text("Dashboard")
+            .navigationDestination(for: String.self) { value in
+                Text(value)
+            }
+        """)
+
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func namedProjectImageIsRenderable() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: #"Image("header/truck", bundle: .module)"#)
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func containerShapeKeepsGridRenderable() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: """
+        Grid { Text("Card") }
+            .containerShape(RoundedRectangle(cornerRadius: 12))
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func paddingAcceptsEdgeSetArray() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: #"Text("Card").padding([.horizontal, .bottom], 16)"#)
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func parenthesizedCustomLayoutBuildsContent() throws {
+        let source = """
+        struct FlowLayout: Layout {
+            var spacing: Double = 8
+        }
+
+        (FlowLayout(spacing: 10)) {
+            Text("one")
+            Text("two")
+        }
+        """
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: source)
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func labelAcceptsTitleAndIconBuilders() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: """
+        Label {
+            Text("Donuts")
+        } icon: {
+            Image(systemName: "circle")
+        }
+        """)
+        #expect(registry.isViewValue(result))
+    }
+
+    @Test func chartSurfaceSurvivesChartModifiersAndFrame() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let result = try interpreter.run(source: """
+        Chart {
+            AreaMark(x: .value("Day", 1), y: .value("Sales", 2))
+        }
+        .chartXAxis { AxisMarks() }
+        .chartYScale(domain: .automatic(includesZero: false))
+        .chartYAxis { AxisMarks() }
+        .frame(minHeight: 180)
+        """)
         #expect(registry.isViewValue(result))
     }
 

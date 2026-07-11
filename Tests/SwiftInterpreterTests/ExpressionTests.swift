@@ -30,6 +30,13 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval("let w = 390.0\n20 / (w - 390) > 0").boolValue == true)
     }
 
+    @Test func floatingPointClassificationMembers() throws {
+        #expect(try eval("1.5.isFinite").boolValue == true)
+        #expect(try eval("(1.0 / 0.0).isInfinite").boolValue == true)
+        #expect(try eval("(0.0 / 0.0).isNaN").boolValue == true)
+        #expect(try eval("0.0.isZero").boolValue == true)
+    }
+
     @Test func tupleElementsAreAssignable() throws {
         let source = """
         var pair = (1, true)

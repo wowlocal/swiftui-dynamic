@@ -38,6 +38,11 @@ import SwiftInterpreter
         #expect(color != nil)
     }
 
+    @Test func platformSystemColors() throws {
+        #expect(try evalColor("Color(uiColor: .systemGroupedBackground)") != nil)
+        #expect(try evalColor("Color(nsColor: .windowBackgroundColor)") != nil)
+    }
+
     @Test func rgbaFlowsIntoFill() throws {
         let source = """
         struct ContentView: View {

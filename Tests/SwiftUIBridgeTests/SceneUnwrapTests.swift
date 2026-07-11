@@ -1,3 +1,5 @@
+import AppKit
+import SwiftUI
 import Testing
 import SwiftInterpreter
 import SwiftUIBridge
@@ -71,5 +73,42 @@ import SwiftUIBridge
                 "scene property didn't resolve: \(rendered) (root \(LiveCheckSupport.lastRootSymbol))")
         #expect(LiveCheckSupport.lastRootSymbol.hasPrefix("scene:"),
                 "root should come from the scene rung, got \(LiveCheckSupport.lastRootSymbol)")
+    }
+
+    @Test func interpreterHostUsesAppOwnedRootArguments() throws {
+        let source = """
+        final class Model: ObservableObject {
+            @Published var title: String
+            init(title: String) { self.title = title }
+        }
+        struct ContentView: View {
+            @ObservedObject var model: Model
+            var body: some View {
+                if model.title != "app-owned" { fatalError("synthesized model") }
+                Text(model.title)
+            }
+        }
+        @main struct DemoApp: App {
+            @StateObject var model = Model(title: "app-owned")
+            var body: some Scene {
+                WindowGroup { ContentView(model: model) }
+            }
+        }
+        """
+
+        RenderDiagnostics.reset()
+        switch InterpreterHost().render(source: source, lazyTopLevelGlobals: true) {
+        case .failure(let error):
+            Issue.record("render failed: \(error)")
+        case .success(let view):
+            let hosting = NSHostingView(rootView: view.frame(width: 300, height: 200))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+                styleMask: .borderless, backing: .buffered, defer: false)
+            window.contentView = hosting
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            #expect(RenderDiagnostics.errors.isEmpty)
+        }
     }
 }

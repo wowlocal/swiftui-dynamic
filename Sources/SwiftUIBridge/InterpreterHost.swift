@@ -27,6 +27,28 @@ public struct InterpreterHost {
                 ))
             }
 
+            // Whole projects should launch through their @main App's
+            // composition root so @StateObject models and other stored app
+            // state are the actual instances passed by WindowGroup.
+            if let declared = interpreter.declaredRootViewExpression() {
+                var app: Instance?
+                if let appSymbol = declared.app {
+                    guard case .instance(let instance) = try interpreter.instantiateRoot(appSymbol) else {
+                        return .failure(RuntimeError(message: "could not instantiate '\(appSymbol.name)'"))
+                    }
+                    app = instance
+                }
+                let root = try interpreter.evaluateAppRootExpression(declared.expression, app: app)
+                if case .instance(let instance) = root, instance.symbol.conformsToView {
+                    return .success(try ViewRegistry.anyView(
+                        registry.makeRenderable(instance: instance, interpreter: interpreter)
+                    ))
+                }
+                if let view = try? ViewRegistry.anyView(root) {
+                    return .success(view)
+                }
+            }
+
             // Otherwise: ContentView > Main > first View struct.
             guard let symbol = interpreter.rootViewSymbol() else {
                 return .failure(RuntimeError(message: "no View struct found — declare one conforming to View", line: 1, column: 1))

@@ -143,13 +143,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.appearance = NSAppearance(named: .aqua)
             window.contentView = hosting
             window.orderFrontRegardless()
-            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-            hosting.layoutSubtreeIfNeeded()
-            window.displayIfNeeded()
-            guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
+            // Nested interpreted views publish additional SwiftUI updates as
+            // each body is discovered. Drain a handful of frames so a deep
+            // project snapshot reaches the same fixed point as the live app.
+            for _ in 0..<8 {
+                hosting.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            }
+            // A shown Retina window makes bitmapImageRepForCachingDisplay
+            // allocate backing pixels at 2x while cacheDisplay still paints
+            // this offscreen host in point coordinates, leaving three black
+            // quadrants. Use an explicit 1x bitmap for deterministic CLI
+            // snapshots on every display scale.
+            guard let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: max(1, Int(hosting.bounds.width.rounded(.up))),
+                pixelsHigh: max(1, Int(hosting.bounds.height.rounded(.up))),
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: 0,
+                bitsPerPixel: 0
+            ) else {
                 FileHandle.standardError.write(Data("snapshot failed\n".utf8))
                 exit(1)
             }
+            rep.size = hosting.bounds.size
             hosting.cacheDisplay(in: hosting.bounds, to: rep)
             guard let png = rep.representation(using: .png, properties: [:]) else {
                 FileHandle.standardError.write(Data("snapshot failed\n".utf8))

@@ -12,7 +12,16 @@ extension ViewRegistry {
 
         register("padding") { view, args, _ in
             if args.isEmpty { return AnyView(view.padding()) }
-            if let first = args.positional(0), case .implicitMember = first {
+            let first = args.positional(0)
+            let hasEdgeArgument: Bool
+            if let first, first.arrayValue != nil {
+                hasEdgeArgument = true
+            } else if case .implicitMember? = first {
+                hasEdgeArgument = true
+            } else {
+                hasEdgeArgument = false
+            }
+            if let first, hasEdgeArgument {
                 let edges = try Coerce.edgeSet(first)
                 if let length = args.positional(1) {
                     return AnyView(view.padding(edges, try Coerce.cgFloat(length)))
@@ -160,6 +169,14 @@ extension ViewRegistry {
             guard let value = args.positional(0) else { throw RuntimeError(message: ".clipShape needs a shape") }
             return AnyView(view.clipShape(try Coerce.shape(value)))
         }
+        register("containerShape") { view, args, _ in
+            guard args.positional(0) != nil else {
+                throw RuntimeError(message: ".containerShape needs a shape")
+            }
+            // The gateway's type erasure loses InsettableShape conformance;
+            // preserve layout/content and accept the hit-test shape inertly.
+            return view
+        }
         register("clipped") { view, _, _ in AnyView(view.clipped()) }
 
         register("border") { view, args, _ in
@@ -275,6 +292,18 @@ extension ViewRegistry {
                 _ = try? ctx.callClosure(closure, arguments: arguments)
             })
         }
+        register("onPreferenceChange") { view, _, _ in
+            // PreferenceKey.Value's associated type is erased in source.
+            // Keep the subtree alive; geometry-specific preferences are
+            // bridged separately where their concrete values are known.
+            view
+        }
+        register("onOpenURL") { view, args, ctx in
+            guard let closure = args.firstUnlabeledClosure else { return view }
+            return AnyView(view.onOpenURL { url in
+                _ = try? ctx.callClosure(closure, arguments: [.native(url)])
+            })
+        }
         // Metal flattening with an explicit color mode (2048's board).
         register("drawingGroup") { view, args, _ in
             let opaque = args.labeled("opaque")?.boolValue ?? false
@@ -320,6 +349,23 @@ extension ViewRegistry {
 
         register("navigationTitle") { view, args, _ in
             AnyView(view.navigationTitle(args.positional(0)?.stringValue ?? ""))
+        }
+        register("navigationDestination") { view, _, _ in
+            // The destination's interpreted data type cannot satisfy
+            // SwiftUI's static Hashable generic at the gateway boundary.
+            // Keep the current navigation content intact; trace mode still
+            // deep-renders the deferred destination for coverage.
+            view
+        }
+
+        // ChartContent and ChartProxy have static associated types that are
+        // unavailable after interpretation. Preserve the chart surface and
+        // accept its presentation/configuration modifiers inertly.
+        for name in [
+            "chartLegend", "chartOverlay", "chartPlotStyle",
+            "chartXAxis", "chartYAxis", "chartYScale",
+        ] {
+            register(name) { view, _, _ in view }
         }
 
         // MARK: Environment & presentation
