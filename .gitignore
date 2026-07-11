@@ -6,3 +6,4 @@ External/
 
 # Multi-agent claims lock — out-of-band, never merged
 .claude/claims.md
+.claude/last-verify.txt

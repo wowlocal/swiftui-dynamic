@@ -193,22 +193,17 @@ Each iteration does exactly this:
 6. **Verify — scaled to blast radius** (methodology audit 2026-07-10;
    verification had grown to ~2.6 full-corpus runs per iteration and
    10× iteration cost):
-   - OPENING sweep: SKIP it when `.claude/last-verify.txt` matches the
-     current HEAD and the tree is clean — the previous iteration's
-     closing verify already proved that state. Confirm only the queued
-     target (`--project X` / `--scenario Y` / `--filter Z`).
+   - OPENING sweep: just run `ProjectCheck --all` — it SELF-CACHES. A
+     full sweep fingerprints Sources/ + Package.swift and records its
+     verdict in `.claude/last-verify.txt` (gitignored); over unchanged
+     sources it returns the cached verdict in <1s and prints "cached".
+     `--force` re-sweeps; census runs always sweep. Nothing to remember.
    - MID-iteration: targeted probes ONLY (single project, single
      scenario, single test filter). Never a full sweep to answer a
      narrow question.
    - CLOSING gate, exactly ONCE: full `swift test` green AND ProjectCheck
      pass count strictly improved (or same count with the top class
-     eliminated). The cache write is PART OF the gate, not a follow-up —
-     after the commit in step 7, run LITERALLY:
-     `git rev-parse HEAD > .claude/last-verify.txt`
-     (two iterations have skipped this since 2026-07-11; the opening-sweep
-     skip has never engaged, which costs a full corpus run EVERY
-     iteration. If you end an iteration without writing it, say why in
-     the log entry.)
+     eliminated).
    - Long commands: give explicit timeouts (never a chained
      build+suite+corpus under the default 10m — it WILL be killed);
      build once, then invoke prebuilt binaries (.build/debug/…).
@@ -217,11 +212,7 @@ Each iteration does exactly this:
      broken baseline). Cap a bisect at ~10 rebuild cycles per
      iteration — past that, commit a WIP checkpoint of findings to the
      log and finish next iteration.
-7. **Commit** with the failure class named in the message. The commit
-   command IS this two-step line — run it exactly (the second half arms
-   step 6's opening-sweep skip; it has been skipped every iteration
-   since 2026-07-11 and costs a full corpus sweep each time):
-   `git commit -F /tmp/commit-msg.txt && git rev-parse HEAD > .claude/last-verify.txt`
+7. **Commit** with the failure class named in the message.
 8. **Update the Progress log below** (date, pass rate, what was fixed). Keep
    entries to one line.
 9. If ProjectCheck passes everything in the current window: raise `--limit`
@@ -373,9 +364,9 @@ Each iteration does exactly this:
   changed sources and rebuild before trusting exit-138 crashes.
 - Write large patch payloads to files, not inline heredocs per turn —
   context overflow ("Prompt is too long") killed iteration 140's tail.
-- After EVERY commit: `git rev-parse HEAD > .claude/last-verify.txt` —
-  this is what arms step 6's opening-sweep skip. Still unwritten as of
-  2026-07-11; every iteration is paying a ~2 min corpus sweep for it.
+- ProjectCheck --all self-caches (fingerprint of Sources/ in
+  `.claude/last-verify.txt`): unchanged sources return the verdict in
+  <1s. Never write that file by hand; `--force` re-sweeps.
 - Failed `Edit` on unread files: Read the region first or use the
   python patcher directly — dead tool calls otherwise.
 
