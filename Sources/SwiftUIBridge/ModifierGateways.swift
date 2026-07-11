@@ -524,6 +524,41 @@ extension ViewRegistry {
             default: return AnyView(view.listStyle(.automatic))
             }
         }
+        register("labelStyle") { view, args, ctx in
+            guard let styleArg = args.positional(0) else { return view }
+            // Custom conformers (`.labelStyle(.cardNavigationHeader)` via an
+            // extension static, or a direct `MyStyle()` instance) run their
+            // interpreted makeBody through a REAL LabelStyle.
+            @MainActor func interpretedStyle(_ value: RuntimeValue) -> InterpretedLabelStyle? {
+                guard let interpreter = ctx as? Interpreter else { return nil }
+                var resolved = value
+                if case .implicitMember = value {
+                    resolved = interpreter.resolveForBridge(value, typeName: "LabelStyle")
+                }
+                guard case .instance(let instance) = resolved,
+                      instance.symbol.conformances.contains("LabelStyle"),
+                      instance.symbol.methods["makeBody"] != nil else { return nil }
+                return InterpretedLabelStyle(instance: instance, interpreter: interpreter)
+            }
+            if case .implicitMember(let name) = styleArg {
+                switch name {
+                case "iconOnly": return AnyView(view.labelStyle(.iconOnly))
+                case "titleOnly": return AnyView(view.labelStyle(.titleOnly))
+                case "titleAndIcon": return AnyView(view.labelStyle(.titleAndIcon))
+                case "automatic": return AnyView(view.labelStyle(.automatic))
+                default:
+                    if let style = interpretedStyle(styleArg) {
+                        return AnyView(view.labelStyle(style))
+                    }
+                    return view
+                }
+            }
+            if let style = interpretedStyle(styleArg) {
+                return AnyView(view.labelStyle(style))
+            }
+            return view
+        }
+
         register("buttonStyle") { view, args, _ in
             guard case .implicitMember(let name)? = args.positional(0) else { return view }
             switch name {

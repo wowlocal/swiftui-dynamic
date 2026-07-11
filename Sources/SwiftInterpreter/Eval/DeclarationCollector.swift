@@ -216,8 +216,9 @@ extension Interpreter {
 
     // MARK: - Conditional compilation
 
-    /// `#if` conditions under the harness's identity: an iOS-shaped canvas.
-    /// os(iOS)/canImport(_)/DEBUG/swift(…) hold; os(macOS)/
+    /// `#if` conditions under the harness's identity (interpretsAsPlatform,
+    /// iOS-shaped by default). os(<platform>)/DEBUG/swift(…) hold;
+    /// canImport(_) holds for the platform's REAL module set;
     /// targetEnvironment(simulator) and anything unknown don't (documented).
     func ifConfigConditionHolds(_ condition: ExprSyntax?) -> Bool {
         guard let condition else { return true } // #else
@@ -233,7 +234,15 @@ extension Interpreter {
             let argument = call.arguments.first?.expression.trimmedDescription ?? ""
             switch callee.baseName.text {
             case "os": return argument == Interpreter.interpretsAsPlatform
-            case "canImport": return true
+            case "canImport":
+                // Platform truth, not blanket truth: the compiled macOS app
+                // has no UIKit, so `#if canImport(UIKit)` must take #else
+                // (FoodTruck's card fills read 12/255 off through the UIKit
+                // branch). The iOS canvas mirrors: no AppKit.
+                if Interpreter.interpretsAsPlatform == "macOS" {
+                    return !["UIKit", "WatchKit"].contains(argument)
+                }
+                return !["AppKit", "Cocoa"].contains(argument)
             case "swift", "compiler": return true
             case "targetEnvironment": return false
             default: return false

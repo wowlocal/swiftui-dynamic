@@ -201,6 +201,14 @@ struct FoodTruckCheckMain {
                 "TruckOrdersCard(model: model).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("donut-view", source: probeMergeBase + probeApp(
                 "DonutView(donut: model.donuts[0]).padding(10).background(Color.white)"), size: cardSize)
+            capturePNG("diag-navlink", source: probeMergeBase + probeApp(
+                "NavigationLink(value: Panel.orders) { Label(String(\"New Orders\"), systemImage: String(\"shippingbox\")) }.background(Color.white)"), size: cardSize)
+            capturePNG("diag-label", source: probeMergeBase + probeApp(
+                "Label(String(\"New Orders\"), systemImage: String(\"shippingbox\")).background(Color.white)"), size: cardSize)
+            capturePNG("diag-labelstyle", source: probeMergeBase + probeApp(
+                "Label(String(\"New Orders\"), systemImage: String(\"shippingbox\")).labelStyle(.cardNavigationHeader).background(Color.white)"), size: cardSize)
+            capturePNG("diag-cardheader", source: probeMergeBase + probeApp(
+                "VStack { CardNavigationHeader(panel: Panel.orders, navigation: .navigationLink) { Label(String(\"New Orders\"), systemImage: String(\"shippingbox\")) } }.frame(width: 380, height: 60).background(Color.white)"), size: cardSize)
             capturePNG("diag-layout", source: probeMergeBase + probeApp(
                 "DonutStackView(donuts: Array(model.donuts.prefix(3))).frame(width: 120, height: 120).background(Color.white)"), size: cardSize)
             let diagMiniLayoutDecl = """

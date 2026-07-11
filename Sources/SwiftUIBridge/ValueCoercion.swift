@@ -141,14 +141,21 @@ enum Coerce {
             if let gradient = any as? RadialGradient { return AnyShapeStyle(gradient) }
             if let gradient = any as? AngularGradient { return AnyShapeStyle(gradient) }
             if let chained = any as? ChainedImplicitCall {
-                guard let base = colorLike(chained.base) else {
-                    throw RuntimeError(message: "unknown color before '.\(chained.member)' in style chain")
-                }
                 switch chained.member {
                 case "opacity":
                     let amount = try double(chained.arguments.positional(0) ?? .native(1.0))
-                    return AnyShapeStyle(base.opacity(amount))
+                    if let base = colorLike(chained.base) {
+                        return AnyShapeStyle(base.opacity(amount))
+                    }
+                    // Hierarchical/material bases keep their REAL style
+                    // through the chain (`.quaternary.opacity(0.5)` — the
+                    // FoodTruck card-tile fill; a flat-gray stand-in reads
+                    // 12/255 darker than the compiled render).
+                    return AnyShapeStyle(try shapeStyle(chained.base).opacity(amount))
                 case "gradient":
+                    guard let base = colorLike(chained.base) else {
+                        throw RuntimeError(message: "unknown color before '.gradient' in style chain")
+                    }
                     return AnyShapeStyle(base.gradient)
                 default:
                     throw RuntimeError(message: "unsupported style '.\(chained.baseName ?? "…").\(chained.member)'")

@@ -1210,3 +1210,35 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   InterpretedLayoutTests (pixel-placement through a RENDERED
   interpreted layout + geometry-ctor evaluation). **GATE GREEN:
   suite 536; corpus 678/680; live 5/5; parity 345/0/0; R1 9/9.**
+- 2026-07-11 iter 240 (FoodTruck R2): the card-chrome class — THREE
+  roots, found by bisecting the blank CardNavigationHeader
+  (Label✓ → NavigationLink✓ → .labelStyle ✗): (1) `labelStyle` was
+  entirely unregistered — the modifier absorbed the SUBTREE into a
+  marker (blank header). Custom LabelStyle conformers now run their
+  interpreted makeBody(configuration:) through a REAL LabelStyle
+  (InterpretedLabelStyle, carrier pattern #3 after Shape/Layout);
+  the style value resolves from protocol-extension statics
+  (`.cardNavigationHeader` → resolveForBridge typeName "LabelStyle")
+  or direct instances; configuration.icon/.title are host members;
+  builtins map (iconOnly/titleOnly/titleAndIcon/automatic).
+  (2) `.quaternary.opacity(0.5)` (card-tile fill) THREW out of
+  Coerce.shapeStyle (chains required a Color base) and fell to a
+  flat-gray stand-in 12/255 darker than compiled — hierarchical/
+  material bases now keep the REAL style through .opacity chains.
+  (3) `#if canImport(UIKit)` held on the macOS canvas (canImport was
+  blanket-true), so the compiled #else branch never ran — canImport
+  is platform-truthful now (macOS: no UIKit/WatchKit; iOS canvas:
+  no AppKit/Cocoa). Board after: **card-donuts 0.000% (SECOND
+  pixel-identical screen), card-orders 55.2%→3.18%, truck
+  66.5%→12.04%, content 54.4%→25.4%**; donuts 0.44%, orders 9.83%
+  (+0.03pp — a canImport padding edge, twin is arbiter), donut-view
+  0.000%, socialfeed 27.45% unchanged. Next classes staked, in AE
+  order: socialfeed body (`.black.opacity` chain hits a COLOR
+  coercion that rejects chains — diagnostics name it now, and error
+  placeholders paint into the feed), content's twin-side blank
+  sidebar (headless NavigationSplitView — fair-comparison policy),
+  Swift Charts forecast body, `%02d` interpolation specifiers.
+  Pins: InterpretedStyleTests (custom-style makeBody pixel pin +
+  hierarchical-chain band pin) + PlatformCanImportTests. **GATE
+  GREEN: suite 539; corpus 678/680; live 5/5; parity 345/0/0;
+  R1 9/9.**

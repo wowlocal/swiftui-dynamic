@@ -868,6 +868,7 @@ final class RegexBox {
 
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let layout = layoutHostMember(name, on: value) { return layout }
+    if let style = styleHostMember(name, on: value) { return style }
     if let container = value as? ModelContainerBox {
         if name == "mainContext" { return .native(container.context) }
         return nil
