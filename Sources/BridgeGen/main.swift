@@ -515,6 +515,25 @@ func memberMapping(for normalized: String) -> TypeMapping? {
     case "URL": return .init(tag: "url", cast: "%@ as! URL")
     case "Data": return .init(tag: "data", cast: "%@ as! Data")
     case "[String]": return .init(tag: "stringArray", cast: "%@ as! [String]")
+    case "Decimal": return .init(tag: "decimal", cast: "%@ as! Decimal")
+    case "CharacterSet": return .init(tag: "characterSet", cast: "%@ as! CharacterSet")
+    case "IndexSet": return .init(tag: "indexSet", cast: "%@ as! IndexSet")
+    case "DateComponents": return .init(tag: "dateComponents", cast: "%@ as! DateComponents")
+    case "DateInterval": return .init(tag: "dateInterval", cast: "%@ as! DateInterval")
+    case "IndexPath": return .init(tag: "indexPath", cast: "%@ as! IndexPath")
+    // Collection-position typealiases that resolve to Int. NOT
+    // IndexSet.Index — that one is an opaque struct (the twin's compile
+    // caught the difference).
+    case "IndexSet.Element", "IndexPath.Element", "IndexPath.Index":
+        return .init(tag: "int", cast: "%@ as! Int")
+    case "[Int]", "[IndexPath.Element]", "Array<IndexPath.Element>", "[IndexSet.Element]":
+        return .init(tag: "intArray", cast: "%@ as! [Int]")
+    case "Range<Int>", "Range<IndexSet.Element>", "Range<IndexPath.Element>":
+        return .init(tag: "intRange", cast: "%@ as! Range<Int>")
+    case "Calendar.Component":
+        return .init(tag: "calendarComponent", cast: "%@ as! Calendar.Component")
+    case "Set<Calendar.Component>":
+        return .init(tag: "calendarComponentSet", cast: "%@ as! Set<Calendar.Component>")
     default: return nil
     }
 }
@@ -963,6 +982,16 @@ func probeArgument(for tag: String) -> String? {
     case "url": return "seedURL2"
     case "data": return "seedData2"
     case "stringArray": return "[\"a\", \"b\"]"
+    case "decimal": return "seedDecimal"
+    case "characterSet": return "seedCharset"
+    case "indexSet": return "seedIndexSet"
+    case "dateComponents": return "seedComponents"
+    case "dateInterval": return "seedInterval"
+    case "indexPath": return "seedIndexPath"
+    case "intArray": return "[1, 2]"
+    case "intRange": return "2..<5"
+    case "calendarComponent": return ".month"
+    case "calendarComponentSet": return "[.year, .month]"
     default: return nil
     }
 }

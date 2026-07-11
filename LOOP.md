@@ -337,13 +337,18 @@ Each iteration does exactly this:
 
 - `swift run ParityCheck` — API parity vs a compiled twin (generated
   members surface; regenerate probes with `swift run BridgeGen --emit
-  --probes`). Current: 292 match / 0 diverge / 0 error / 17 unstable of 309
-  (ratchet: never regress 292 — the full stable surface matches; 17 types
-  swept). Growing the surface is the cheap move now: add a type to
-  BridgeGen's memberTypes + a seed to parityPrelude/seedReceivers,
-  regenerate, and every finding ParityCheck reports is a real interpreter
-  gap (missing constructor, alias mismatch — Decimal's runtime name is
-  NSDecimal, see GeneratedMembers.keyTypeName). Property/method name
+  --probes`). Current: 345 match / 0 diverge / 0 error / 17 unstable of 362
+  (ratchet: never regress 345 — the full stable surface matches; 17 types
+  swept, 115 method variants). Two growth axes, both cheap: (a) new TYPE →
+  memberTypes + seed in parityPrelude/seedReceivers; (b) new PARAM TAG →
+  memberMapping (BridgeGen) + ParamTag/coerce (GeneratedSupport) +
+  probeArgument — the blocker histogram in BridgeGen's output is the
+  queue (top remaining: throws/async 24, void-mutating 20, generics 13).
+  Every finding ParityCheck reports is a real interpreter gap (missing
+  constructor; alias mismatch — Decimal prints NSDecimal, see
+  GeneratedMembers.keyTypeName). Hand-box members must NEVER shadow swept
+  overloads: on shape mismatch, retry the generated table before erroring
+  (CalendarBox.generatedFallback is the pattern). Property/method name
   collisions (url.query vs query(percentEncoded:)) dispatch call-aware:
   a non-callable or nil property at a call site retries the methods-only
   generated table (registry hostMethod hook).

@@ -998,9 +998,21 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         }
     }
     if let box = value as? CalendarBox {
+        // Hand members own only the shapes they implement — anything else
+        // retries the generated table before erroring, so the box never
+        // shadows swept overloads (Calendar.date(bySetting:value:of:) …).
+        func generatedFallback(
+            _ member: String, _ args: CallArguments, _ ctx: EvalContext, or message: String
+        ) throws -> RuntimeValue {
+            if let set = GeneratedMembers.methods["Calendar.\(member)"] {
+                return try GeneratedDispatch.member(
+                    name: member, overloads: set, base: box.calendar, args: args, ctx: ctx)
+            }
+            throw RuntimeError(message: message)
+        }
         switch name {
         case "date":
-            return .hostFunction(HostFunction(name: "date") { args, _ in
+            return .hostFunction(HostFunction(name: "date") { args, ctx in
                 // `date(from: components)` — reconstitute from parts.
                 if let components = dateComponentsArg(args.labeled("from")) {
                     return box.calendar.date(from: components)
@@ -1026,7 +1038,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 guard let component = calendarComponent(args.labeled("byAdding")),
                       let amount = intArg(args.labeled("value")),
                       let to = dateArg(args.labeled("to")) else {
-                    throw RuntimeError(message: "date(byAdding:value:to:) needs a component, value, and Date")
+                    return try generatedFallback(
+                        "date", args, ctx,
+                        or: "date(byAdding:value:to:) needs a component, value, and Date")
                 }
                 return box.calendar.date(byAdding: component, value: amount, to: to)
                     .map { RuntimeValue.native($0) } ?? .nilValue
@@ -1047,10 +1061,12 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .native(box.calendar.component(component, from: date))
             })
         case "dateComponents":
-            return .hostFunction(HostFunction(name: "dateComponents") { args, _ in
+            return .hostFunction(HostFunction(name: "dateComponents") { args, ctx in
                 let set = Set((args.positional(0)?.arrayValue ?? []).compactMap { calendarComponent($0) })
                 guard !set.isEmpty, let from = dateArg(args.labeled("from")) else {
-                    throw RuntimeError(message: "dateComponents needs components and a from: Date")
+                    return try generatedFallback(
+                        "dateComponents", args, ctx,
+                        or: "dateComponents needs components and a from: Date")
                 }
                 if let to = dateArg(args.labeled("to")) {
                     return .native(DateComponentsBox(components: box.calendar.dateComponents(set, from: from, to: to)))
@@ -1088,32 +1104,37 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
             })
         case "compare":
-            return .hostFunction(HostFunction(name: "compare") { args, _ in
+            return .hostFunction(HostFunction(name: "compare") { args, ctx in
                 guard let lhs = dateArg(args.positional(0)),
                       let rhs = dateArg(args.labeled("to")),
                       let granularity = calendarComponent(args.labeled("toGranularity")) else {
-                    throw RuntimeError(message: "compare(_:to:toGranularity:) needs two Dates and a component")
+                    return try generatedFallback(
+                        "compare", args, ctx,
+                        or: "compare(_:to:toGranularity:) needs two Dates and a component")
                 }
-                switch box.calendar.compare(lhs, to: rhs, toGranularity: granularity) {
-                case .orderedAscending: return .implicitMember("orderedAscending")
-                case .orderedDescending: return .implicitMember("orderedDescending")
-                case .orderedSame: return .implicitMember("orderedSame")
-                }
+                // The REAL ComparisonResult (prints as the twin does);
+                // `== .orderedSame` bridges by case name in Builtins.areEqual.
+                return .native(box.calendar.compare(lhs, to: rhs, toGranularity: granularity))
             })
         case "dateInterval":
-            return .hostFunction(HostFunction(name: "dateInterval") { args, _ in
+            return .hostFunction(HostFunction(name: "dateInterval") { args, ctx in
                 guard let component = calendarComponent(args.labeled("of")),
                       let date = dateArg(args.labeled("for")) else {
-                    throw RuntimeError(message: "dateInterval(of:for:) needs a component and a Date")
+                    return try generatedFallback(
+                        "dateInterval", args, ctx,
+                        or: "dateInterval(of:for:) needs a component and a Date")
                 }
+                // Real DateInterval: the generated table serves its members,
+                // and it prints exactly what the compiled twin prints.
                 return box.calendar.dateInterval(of: component, for: date)
-                    .map { RuntimeValue.native(DateIntervalBox(interval: $0)) } ?? .nilValue
+                    .map { RuntimeValue.native($0) } ?? .nilValue
             })
         case "isDate":
-            return .hostFunction(HostFunction(name: "isDate") { args, _ in
+            return .hostFunction(HostFunction(name: "isDate") { args, ctx in
                 guard let lhs = dateArg(args.positional(0)),
                       let rhs = dateArg(args.labeled("inSameDayAs")) else {
-                    throw RuntimeError(message: "isDate(_:inSameDayAs:) needs two Dates")
+                    return try generatedFallback(
+                        "isDate", args, ctx, or: "isDate(_:inSameDayAs:) needs two Dates")
                 }
                 return .native(box.calendar.isDate(lhs, inSameDayAs: rhs))
             })
