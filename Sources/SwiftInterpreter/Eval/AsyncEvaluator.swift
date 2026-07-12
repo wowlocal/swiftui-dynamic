@@ -211,9 +211,15 @@ extension Interpreter {
                     let base = try await evaluateSuspending(
                         baseExpression, in: env)
                     if case .host(let payload) = base,
-                       let handle = payload as? RuntimeTaskHandle,
-                       member.declName.baseName.text == "value" {
-                        return try await taskValue(from: handle)
+                       let handle = payload as? RuntimeTaskHandle {
+                        switch member.declName.baseName.text {
+                        case "value":
+                            return try await taskValue(from: handle)
+                        case "result":
+                            return await taskResult(from: handle)
+                        default:
+                            break
+                        }
                     }
                 }
             }
@@ -269,6 +275,14 @@ extension Interpreter {
         case .cancelled:
             throw CancellationError()
         }
+    }
+
+    private func taskResult(
+        from handle: RuntimeTaskHandle
+    ) async -> RuntimeValue {
+        let outcome = await handle.waitForOutcome(
+            waiter: evaluationTaskContext.runtimeTaskID)
+        return .native(RuntimeResultValue(taskOutcome: outcome))
     }
 
     func withExpectedAnnotationSuspending<T>(

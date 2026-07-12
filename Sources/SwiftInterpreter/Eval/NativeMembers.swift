@@ -202,10 +202,31 @@ extension Interpreter {
                 return .native(handle.isCompleted)
             case "state":
                 return .native(handle.state.rawValue)
-            case "value", "result":
+            case "value":
                 return handle.result ?? .void
+            case "result":
+                return handle.resultValue.map(RuntimeValue.native) ?? .void
             case "failureDescription":
                 return .native(handle.failureDescription)
+            default:
+                return nil
+            }
+        }
+        if let result = any as? RuntimeResultValue {
+            switch name {
+            case "get":
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    switch result.outcome {
+                    case .success(let value, _):
+                        return value
+                    case .failure(let value, _):
+                        if case .host(let payload) = value,
+                           let error = payload as? Error {
+                            throw error
+                        }
+                        throw InterpretedThrow(value: value)
+                    }
+                })
             default:
                 return nil
             }

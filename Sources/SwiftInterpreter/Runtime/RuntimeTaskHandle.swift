@@ -8,6 +8,48 @@ public enum RuntimeTaskOutcome {
     case cancelled
 }
 
+/// Source-visible `Result` produced by `await Task.result`.
+///
+/// The value keeps interpreted payloads intact so enum-pattern matching and
+/// `get()` can rethrow an app-defined error rather than reducing it to text.
+public final class RuntimeResultValue: CaseShaped, CustomStringConvertible {
+    public enum Outcome {
+        case success(RuntimeValue, type: String?)
+        case failure(RuntimeValue, type: String?)
+    }
+
+    public let outcome: Outcome
+
+    public init(taskOutcome: RuntimeTaskOutcome) {
+        switch taskOutcome {
+        case .success(let value, let type):
+            outcome = .success(value, type: type)
+        case .failure(let value, let type):
+            outcome = .failure(value, type: type)
+        case .cancelled:
+            outcome = .failure(
+                .native(CancellationError()), type: "CancellationError")
+        }
+    }
+
+    public var caseName: String {
+        switch outcome {
+        case .success: "success"
+        case .failure: "failure"
+        }
+    }
+
+    public var casePayloads: [RuntimeValue] {
+        switch outcome {
+        case .success(let value, _), .failure(let value, _): [value]
+        }
+    }
+
+    public var description: String {
+        "Result.\(caseName)(\(casePayloads[0].stringified))"
+    }
+}
+
 public final class RuntimeTaskHandle {
     public typealias State = RuntimeTaskState
 
@@ -39,6 +81,10 @@ public final class RuntimeTaskHandle {
     public var result: RuntimeValue? {
         guard case .success(let value, _) = record.outcome else { return nil }
         return value
+    }
+
+    public var resultValue: RuntimeResultValue? {
+        record.outcome.map(RuntimeResultValue.init(taskOutcome:))
     }
 
     public var isCancelled: Bool { record.state == .cancelled }

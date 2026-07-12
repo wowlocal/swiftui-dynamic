@@ -125,6 +125,30 @@
     "notes": "Both waiter tasks mark their arrival and then suspend on MainActor before a controller opens the child gate. Relative waiter resume order is unspecified."
   },
   {
+    "id": "task-result",
+    "fixture": "Fixtures/task-result.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskResultProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Reading await task.result suspends until completion and returns success or failure as a Result value without throwing the task failure; get() rethrows the stored failure.",
+    "notes": "The success is held behind an explicit gate; the failure crosses parityYield, is first inspected by case without try or catch, and is then observed through get()."
+  },
+  {
+    "id": "task-result-cancellation",
+    "fixture": "Fixtures/task-result-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskResultCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A throwing task cancelled after entering a cancellable suspension completes await task.result as a failure Result instead of throwing from the property read.",
+    "notes": "An explicit started barrier distinguishes cancellation during suspension from cancellation before task start; this fixture asserts only the failure case shape, not error text."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

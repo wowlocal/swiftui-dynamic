@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish roots and unstructured tasks; handles retain typed outcomes; `await task.value` suspends for success/failure and registers multiple explicit waiters | Result values, remaining task kinds, session policies, cancellation graph, priority/task-local foundations |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish roots and unstructured tasks; handles retain typed outcomes; `await task.value` and `await task.result` suspend and register explicit waiters | Remaining task kinds, session policies, cancellation graph, priority/task-local foundations |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -52,6 +52,8 @@ major version 6.
 | `task-value-success` | exact | `await task.value` suspends until completion and returns the successful value | Native/interpreter parity in 20 repetitions with a gate-forced trace: `child-start,before-value,child-end,value` |
 | `task-value-failure` | exact | A throwing task preserves its source failure across suspension and `try await task.value` throws it to the caller | Native/interpreter parity in 20 repetitions; catchability is asserted without coupling to error text |
 | `task-value-multiple-waiters` | predicate / event multiset | Multiple tasks may concurrently await the same task and every waiter receives its one completed success value | Native/interpreter parity in 20 repetitions; both interpreted waiters are simultaneously registered on one task record and relative resume order is not asserted |
+| `task-result` | exact | `await task.result` waits and returns `.success`/`.failure` without throwing the failure from the property read; `get()` rethrows it | Native/interpreter parity in 20 repetitions: `success:value,failure,get-caught` |
+| `task-result-cancellation` | exact | A throwing task cancelled during a cancellable suspension completes its result as `.failure` | Native/interpreter parity in 20 repetitions; the fixture asserts case shape rather than error text |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -307,3 +309,25 @@ completed session leaves the runtime's active-record registry empty.
 Verification for the task-record step: the 37 concurrency-parity,
 async-execution, and host-signature tests passed; the full suite passed 710
 tests in 141 suites. Repository-wide gates remain a milestone-closing check.
+
+### Task result values
+
+`task-result` forces a successful task to wait behind a gate and makes a
+second task throw a source enum after a real yield. In twenty native and twenty
+interpreter repetitions, `await result` produced `success:value` and `failure`
+without throwing at either property read; calling `get()` on the failure then
+entered the source `catch`. The pre-implementation interpreter failed before
+the switch with `switch was not exhaustive for ()`, proving it had exposed the
+old incomplete-result placeholder.
+
+The async evaluator now waits through the same task-record waiter path as
+`value` and returns a core `RuntimeResultValue`. Its case shape retains the
+original interpreted payload for pattern matching, and `get()` rethrows that
+payload. `task-result-cancellation` separately cancels a throwing task only
+after it reaches a cancellable suspension. Twenty runs on each side returned
+the `.failure` case. Exact cancellation payload typing remains part of the
+cancellation-graph work rather than an assertion inferred from error text.
+
+Verification for the result-value step: the 37 concurrency-parity,
+async-execution, and host-signature tests passed, followed by all 710 tests in
+141 suites.
