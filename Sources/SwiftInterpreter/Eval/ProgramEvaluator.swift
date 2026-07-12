@@ -15,6 +15,17 @@ extension Interpreter {
     public func runAsync(
         source: String, lazyTopLevelGlobals: Bool = false
     ) async throws -> RuntimeValue {
+        let context = makeEvaluationTaskContext()
+        return try await EvaluationTaskContext.$current.withValue(context) {
+            defer { context.removeAllDynamicState() }
+            return try await runAsyncInCurrentTaskContext(
+                source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+        }
+    }
+
+    private func runAsyncInCurrentTaskContext(
+        source: String, lazyTopLevelGlobals: Bool
+    ) async throws -> RuntimeValue {
         try Task.checkCancellation()
         let firstTask = scheduledTasks.count
         asyncSessionDepth += 1

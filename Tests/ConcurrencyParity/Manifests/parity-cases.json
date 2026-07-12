@@ -26,6 +26,19 @@
     "notes": "The relative order of 'first' and 'second' is deliberately not asserted."
   },
   {
+    "id": "task-owned-evaluator-context",
+    "fixture": "Fixtures/task-owned-evaluator-context.swift",
+    "mode": "runtime",
+    "assertion": "predicate",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "startTaskContextProbe()",
+    "interpreterProjection": "instance-string-array:values",
+    "predicate": "same-event-multiset",
+    "nativeFact": "One hundred sibling MainActor tasks retain the lexical nested type and local index belonging to their own invocation across a forced yield; only completion order is unspecified.",
+    "notes": "Native support and the interpreter harness both provide parityYield(_:) as an identity gateway with one real Task.yield suspension."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

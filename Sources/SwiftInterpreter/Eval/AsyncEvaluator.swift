@@ -53,77 +53,6 @@ nonisolated private final class SuspensionReplacementRewriter: SyntaxRewriter {
 extension Interpreter {
     // MARK: - Suspension discovery and expression lowering
 
-    /// Dynamic evaluator frames are stack-shaped but the main actor is
-    /// reentrant at `await`. Park the current task's frames while a host
-    /// gateway suspends, letting another interpreted task start from a clean
-    /// stack; restore them when this task resumes. Persistent runtime state
-    /// (globals, instances, caches, task handles) remains shared.
-    private struct ParkedEvaluatorFrames {
-        let steps: Int
-        let callDepth: Int
-        let evaluationDepth: Int
-        let resolveAnnotatedDepth: Int
-        let extensionFrames: Set<ExtensionFrame>
-        let initializers: Set<SyntaxIdentifier>
-        let initializingInstances: Set<ObjectIdentifier>
-        let functionBodies: Set<SyntaxIdentifier>
-        let equalityPairs: Set<InstanceEqualityPair>
-        let callNames: [String]
-        let lexicalOwners: [AnyObject]
-        let annotations: [String]
-        let returnAnnotations: [String?]
-    }
-
-    private func withParkedEvaluatorFrames<T>(
-        _ body: () async throws -> T
-    ) async rethrows -> T {
-        let parked = ParkedEvaluatorFrames(
-            steps: steps,
-            callDepth: callDepth,
-            evaluationDepth: evaluationDepth,
-            resolveAnnotatedDepth: resolveAnnotatedDepth,
-            extensionFrames: activeExtensionFrames,
-            initializers: activeInitializers,
-            initializingInstances: initializingInstances,
-            functionBodies: activeFunctionBodies,
-            equalityPairs: activeEqualityPairs,
-            callNames: callStackNames,
-            lexicalOwners: lexicalOwnerFrames,
-            annotations: expectedAnnotationStack,
-            returnAnnotations: enclosingReturnAnnotations)
-
-        steps = 0
-        callDepth = 0
-        evaluationDepth = 0
-        resolveAnnotatedDepth = 0
-        activeExtensionFrames.removeAll(keepingCapacity: true)
-        activeInitializers.removeAll(keepingCapacity: true)
-        initializingInstances.removeAll(keepingCapacity: true)
-        activeFunctionBodies.removeAll(keepingCapacity: true)
-        activeEqualityPairs.removeAll(keepingCapacity: true)
-        callStackNames.removeAll(keepingCapacity: true)
-        lexicalOwnerFrames.removeAll(keepingCapacity: true)
-        expectedAnnotationStack.removeAll(keepingCapacity: true)
-        enclosingReturnAnnotations.removeAll(keepingCapacity: true)
-
-        defer {
-            steps = parked.steps
-            callDepth = parked.callDepth
-            evaluationDepth = parked.evaluationDepth
-            resolveAnnotatedDepth = parked.resolveAnnotatedDepth
-            activeExtensionFrames = parked.extensionFrames
-            activeInitializers = parked.initializers
-            initializingInstances = parked.initializingInstances
-            activeFunctionBodies = parked.functionBodies
-            activeEqualityPairs = parked.equalityPairs
-            callStackNames = parked.callNames
-            lexicalOwnerFrames = parked.lexicalOwners
-            expectedAnnotationStack = parked.annotations
-            enclosingReturnAnnotations = parked.returnAnnotations
-        }
-        return try await body()
-    }
-
     private func syntaxContainsSuspension(_ syntax: Syntax) -> Bool {
         if syntax.is(ClosureExprSyntax.self) { return false }
         if syntax.is(AwaitExprSyntax.self) { return true }
@@ -654,9 +583,10 @@ extension Interpreter {
             }
             do {
                 if function.canSuspend {
-                    return try await withParkedEvaluatorFrames {
-                        try await function.invokeSuspending(arguments, self)
-                    }
+                    let context = TaskBoundEvalContext(
+                        interpreter: self,
+                        evaluationContext: evaluationTaskContext)
+                    return try await function.invokeSuspending(arguments, context)
                 }
                 return try await function.invokeSuspending(arguments, self)
             } catch let runtime as RuntimeError where runtime.line == 0 {

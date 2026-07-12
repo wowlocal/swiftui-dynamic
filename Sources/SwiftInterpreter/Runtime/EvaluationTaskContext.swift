@@ -1,0 +1,93 @@
+import Foundation
+import SwiftSyntax
+
+/// Mutable evaluator state owned by exactly one interpreted source task.
+///
+/// The interpreter remains MainActor-confined while the concurrency runtime
+/// is cooperative, but native actor reentrancy means two source tasks can
+/// interleave at any host suspension. Keeping their dynamic stacks in this
+/// object makes that ownership explicit and removes the need to park shared
+/// fields on `Interpreter` around every await.
+final class EvaluationTaskContext {
+    @TaskLocal static var current: EvaluationTaskContext?
+
+    let id: UInt64
+    weak var interpreter: Interpreter?
+
+    var steps = 0
+    var callDepth = 0
+    var evaluationDepth = 0
+    var resolveAnnotatedDepth = 0
+    var synchronousTaskDepth = 0
+    var asyncTemporarySerial = 0
+
+    var activeExtensionFrames: Set<ExtensionFrame> = []
+    var activeInitializers: Set<SyntaxIdentifier> = []
+    var initializingInstances: Set<ObjectIdentifier> = []
+    var activeFunctionBodies: Set<SyntaxIdentifier> = []
+    var activeEqualityPairs: Set<Interpreter.InstanceEqualityPair> = []
+    var activePropertyObservers: Set<Interpreter.ObserverKey> = []
+    var activeCollisionProperties: Set<String> = []
+    var dependencyInFlight: Set<String> = []
+
+    var callStackNames: [String] = []
+    var lexicalOwnerFrames: [AnyObject] = []
+    var expectedAnnotationStack: [String] = []
+    var enclosingReturnAnnotations: [String?] = []
+    var viewIdentitySalts: [String] = []
+    var deferredExtensionRetry = false
+
+    init(id: UInt64, interpreter: Interpreter) {
+        self.id = id
+        self.interpreter = interpreter
+    }
+
+    var isDynamicallyEmpty: Bool {
+        steps == 0
+            && callDepth == 0
+            && evaluationDepth == 0
+            && resolveAnnotatedDepth == 0
+            && synchronousTaskDepth == 0
+            && asyncTemporarySerial == 0
+            && activeExtensionFrames.isEmpty
+            && activeInitializers.isEmpty
+            && initializingInstances.isEmpty
+            && activeFunctionBodies.isEmpty
+            && activeEqualityPairs.isEmpty
+            && activePropertyObservers.isEmpty
+            && activeCollisionProperties.isEmpty
+            && dependencyInFlight.isEmpty
+            && callStackNames.isEmpty
+            && lexicalOwnerFrames.isEmpty
+            && expectedAnnotationStack.isEmpty
+            && enclosingReturnAnnotations.isEmpty
+            && viewIdentitySalts.isEmpty
+            && !deferredExtensionRetry
+    }
+
+    /// Break task-owned capture graphs as soon as evaluation completes. The
+    /// context object can temporarily outlive execution through a native Task
+    /// handle or host callback capability, but completed frames must not.
+    func removeAllDynamicState() {
+        steps = 0
+        callDepth = 0
+        evaluationDepth = 0
+        resolveAnnotatedDepth = 0
+        synchronousTaskDepth = 0
+        asyncTemporarySerial = 0
+        activeExtensionFrames.removeAll(keepingCapacity: false)
+        activeInitializers.removeAll(keepingCapacity: false)
+        initializingInstances.removeAll(keepingCapacity: false)
+        activeFunctionBodies.removeAll(keepingCapacity: false)
+        activeEqualityPairs.removeAll(keepingCapacity: false)
+        activePropertyObservers.removeAll(keepingCapacity: false)
+        activeCollisionProperties.removeAll(keepingCapacity: false)
+        dependencyInFlight.removeAll(keepingCapacity: false)
+        callStackNames.removeAll(keepingCapacity: false)
+        lexicalOwnerFrames.removeAll(keepingCapacity: false)
+        expectedAnnotationStack.removeAll(keepingCapacity: false)
+        enclosingReturnAnnotations.removeAll(keepingCapacity: false)
+        viewIdentitySalts.removeAll(keepingCapacity: false)
+        deferredExtensionRetry = false
+    }
+}

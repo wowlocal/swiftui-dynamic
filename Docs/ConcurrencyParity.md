@@ -28,7 +28,7 @@ major version 6.
 | Milestone | Status | Evidence | Remaining work |
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None; M1 may begin |
-| M1 task-owned evaluator context | not started | Current implementation still uses `withParkedEvaluatorFrames` | Introduce `EvaluationTaskContext` and migrate task-owned dynamic state |
+| M1 task-owned evaluator context | in progress | `EvaluationTaskContext` owns dynamic stacks/counters; 100 sibling tasks have distinct contexts; parked shared-frame restoration is removed; suspending host gateways receive a task-bound callback capability | Add native differential proofs for simultaneous async initializers/extension dispatch and cancellation during suspension, then close the milestone gate |
 | M2 task runtime | not started | `RuntimeTaskHandle` is observational and `value` does not suspend | Task IDs, outcomes, waiters, kinds, session policies |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
@@ -44,6 +44,7 @@ major version 6.
 |---|---|---|---|
 | `async-function-exact` | exact | Awaiting the fixture function returns `ready` | Expected native parity |
 | `main-actor-task-partial-order` | partial order | A newly created MainActor task does not execute inline; `sync` precedes both task events | Expected native parity through async-session drain policy; relative child order is not asserted |
+| `task-owned-evaluator-context` | predicate / event multiset | 100 sibling MainActor tasks preserve their own local index and lexical nested type across a forced yield; completion order is unspecified | Native parity in 20 native and 20 interpreter repetitions; each source task also has a distinct, explicitly cleaned evaluator context |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -137,3 +138,44 @@ focused interpreter regression:
 `oss:Mythic` remain the same explicit ledgered exclusions. The corpus ratchet
 and all existing ARC expectations were preserved, so M0 is closed and M1 is
 the earliest incomplete milestone.
+
+## Milestone 1 verification record
+
+### Task-owned context foundation
+
+Native question: can 100 sibling MainActor tasks suspend concurrently while
+retaining the local value and lexical nested type belonging to each task?
+
+The committed `task-owned-evaluator-context` fixture uses one real
+`Task.yield()` per task. Twenty native Swift 6 strict-concurrency runs each
+produced exactly the same 100-value multiset. The sibling completion order was
+observed but deliberately not asserted.
+
+Before the ownership change, the equivalent interpreter run produced the
+right observable multiset through the parked-frame workaround, but the
+white-box ownership regression saw one shared evaluator context for all 100
+tasks. After the change it sees 100 distinct context IDs and verifies that all
+retained contexts have released their dynamic stacks after task completion.
+
+Implementation facts:
+
+- counters, annotation/type stacks, lexical owners, active declaration sets,
+  recursion guards, and temporary async names are owned by
+  `EvaluationTaskContext`, not stored on the shared interpreter;
+- `runAsync` creates a fresh root context and every source `Task {}` creates a
+  fresh child context;
+- suspending host gateways receive `TaskBoundEvalContext`, which carries the
+  explicit source context across asynchronous host re-entry;
+- `withParkedEvaluatorFrames` and its save/clear/restore protocol no longer
+  exist;
+- task completion explicitly clears task-owned dynamic state.
+
+Verification on the M1 foundation step:
+
+- native standalone compile/run: 20/20 runs, 100 unique expected values each;
+- `ConcurrencyParityTests`: 6 tests passed, including 20 native and 20
+  interpreter repetitions of the new fixture;
+- `AsyncExecutionTests|HostSignatureTests`: 28 tests passed;
+- full `swift test`: 707 tests in 141 suites passed;
+- repository milestone gate remains pending until the remaining M1 proof
+  cases are implemented.

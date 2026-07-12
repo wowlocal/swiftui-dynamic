@@ -1,3 +1,97 @@
+/// A host-call capability bound to the source task that entered the gateway.
+/// Hosts may retain it and re-enter from a newly-created native task; every
+/// callback is rebound to the original evaluator context instead of relying
+/// on ambient native TaskLocal inheritance.
+final class TaskBoundEvalContext: EvalContext {
+    let interpreter: Interpreter
+    let evaluationContext: EvaluationTaskContext
+
+    init(interpreter: Interpreter, evaluationContext: EvaluationTaskContext) {
+        self.interpreter = interpreter
+        self.evaluationContext = evaluationContext
+    }
+
+    var evaluationTaskContextID: UInt64 { evaluationContext.id }
+
+    private func bound<T>(_ operation: () throws -> T) rethrows -> T {
+        try EvaluationTaskContext.$current.withValue(
+            evaluationContext, operation: operation)
+    }
+
+    private func bound<T>(
+        _ operation: () async throws -> T
+    ) async rethrows -> T {
+        try await EvaluationTaskContext.$current.withValue(evaluationContext) {
+            try await operation()
+        }
+    }
+
+    func callClosure(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.callClosure(closure, arguments: arguments)
+        }
+    }
+
+    func callClosureAsync(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        try await bound {
+            try await interpreter.callClosureAsync(
+                closure, arguments: arguments)
+        }
+    }
+
+    func spawnBackgroundTask(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.spawnBackgroundTask(closure, arguments: arguments)
+        }
+    }
+
+    func invokeHostConstructor(
+        named name: String, arguments: CallArguments
+    ) throws -> RuntimeValue? {
+        try bound {
+            try interpreter.invokeHostConstructor(named: name, arguments: arguments)
+        }
+    }
+
+    func callBackgroundClosure(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.callBackgroundClosure(closure, arguments: arguments)
+        }
+    }
+
+    func callBuilderClosure(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> [RuntimeValue] {
+        try bound {
+            try interpreter.callBuilderClosure(closure, arguments: arguments)
+        }
+    }
+
+    func hostTypeName(of value: RuntimeValue) -> String {
+        bound { interpreter.hostTypeName(of: value) }
+    }
+
+    func hostValue(
+        _ value: RuntimeValue, matchesType typeName: String
+    ) -> Bool {
+        bound { interpreter.hostValue(value, matchesType: typeName) }
+    }
+
+    func hostValue(
+        _ value: RuntimeValue, conformsTo protocolName: String
+    ) -> Bool {
+        bound { interpreter.hostValue(value, conformsTo: protocolName) }
+    }
+}
+
 // MARK: - EvalContext (what gateways can call back into)
 
 extension Interpreter: EvalContext {
@@ -83,23 +177,27 @@ extension Interpreter: EvalContext {
                 message: "interpreted task limit exceeded", fatal: true)
         }
 
+        let taskContext = makeEvaluationTaskContext()
         let task = Task { @MainActor [weak self, weak handle] in
-            // A newly-created Task never runs inline with its constructor.
-            await Task.yield()
-            guard let self, let handle else { return }
-            guard !Task.isCancelled, handle.begin() else {
-                handle.cancel()
-                return
-            }
-            do {
-                let value = try await self.callBackgroundClosureSuspending(
-                    closure, arguments: arguments)
-                try Task.checkCancellation()
-                handle.succeed(with: value)
-            } catch is CancellationError {
-                handle.cancel()
-            } catch {
-                handle.fail(with: error)
+            await EvaluationTaskContext.$current.withValue(taskContext) {
+                defer { taskContext.removeAllDynamicState() }
+                // A newly-created Task never runs inline with its constructor.
+                await Task.yield()
+                guard let self, let handle else { return }
+                guard !Task.isCancelled, handle.begin() else {
+                    handle.cancel()
+                    return
+                }
+                do {
+                    let value = try await self.callBackgroundClosureSuspending(
+                        closure, arguments: arguments)
+                    try Task.checkCancellation()
+                    handle.succeed(with: value)
+                } catch is CancellationError {
+                    handle.cancel()
+                } catch {
+                    handle.fail(with: error)
+                }
             }
         }
         handle.attach(task)

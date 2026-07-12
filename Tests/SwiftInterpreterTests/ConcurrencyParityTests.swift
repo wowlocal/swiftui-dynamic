@@ -166,7 +166,15 @@ private enum ConcurrencyParityHarness {
         let fixture = parityRoot.appendingPathComponent(parityCase.fixture)
         let source = try String(contentsOf: fixture, encoding: .utf8)
             + "\n" + entry + "\n"
-        let value = try await Interpreter().runAsync(source: source)
+        let interpreter = Interpreter()
+        interpreter.globals.define("parityYield", .hostFunction(HostFunction(
+            name: "parityYield",
+            asyncInvoke: { arguments, _ in
+                await Task.yield()
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+        let value = try await interpreter.runAsync(source: source)
 
         if projection == "string" {
             guard let string = value.stringValue else {
@@ -479,6 +487,45 @@ struct ConcurrencyParityTests {
             native: native,
             interpreted: ["deliberately-wrong"])
         #expect(!problems.isEmpty)
+    }
+
+    @Test func sourceTasksOwnDistinctEvaluatorContexts() async throws {
+        let fixture = ConcurrencyParityHarness.parityRoot
+            .appendingPathComponent(
+                "Fixtures/task-owned-evaluator-context.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nstartTaskContextProbe()\n"
+        let interpreter = Interpreter()
+        var contextIDs: [UInt64] = []
+        var retainedContexts: [UInt64: EvaluationTaskContext] = [:]
+        interpreter.globals.define("parityYield", .hostFunction(HostFunction(
+            name: "parityYield",
+            asyncInvoke: { arguments, context in
+                await Task.yield()
+                let contextID: UInt64
+                if let bound = context as? TaskBoundEvalContext {
+                    contextID = bound.evaluationTaskContextID
+                    retainedContexts[contextID] = bound.evaluationContext
+                } else if let interpreter = context as? Interpreter {
+                    contextID = interpreter.currentEvaluationTaskContextID
+                } else {
+                    throw RuntimeError(message: "unknown EvalContext implementation")
+                }
+                contextIDs.append(contextID)
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+
+        let value = try await interpreter.runAsync(source: source)
+        guard case .instance(let recorder) = value,
+              let values = recorder.box(for: "values")?.value.arrayValue else {
+            Issue.record("task-context fixture did not return its recorder")
+            return
+        }
+        #expect(values.count == 100)
+        #expect(Set(contextIDs).count == 100)
+        #expect(retainedContexts.count == 100)
+        #expect(retainedContexts.values.allSatisfy { $0.isDynamicallyEmpty })
     }
 
 }

@@ -112,15 +112,45 @@ public final class Interpreter {
     }
 
     var locationConverter: SourceLocationConverter?
-    var steps = 0
+    private lazy var synchronousEvaluationTaskContext = EvaluationTaskContext(
+        id: 0, interpreter: self)
+    private var nextEvaluationTaskContextID: UInt64 = 1
+
+    var evaluationTaskContext: EvaluationTaskContext {
+        if let current = EvaluationTaskContext.current,
+           current.interpreter === self {
+            return current
+        }
+        return synchronousEvaluationTaskContext
+    }
+
+    func makeEvaluationTaskContext() -> EvaluationTaskContext {
+        let id = nextEvaluationTaskContextID
+        nextEvaluationTaskContextID += 1
+        return EvaluationTaskContext(id: id, interpreter: self)
+    }
+
+    /// White-box identity used by concurrency ownership and host re-entry
+    /// tests. Runtime task identity itself is introduced in M2.
+    var currentEvaluationTaskContextID: UInt64 { evaluationTaskContext.id }
+    var steps: Int {
+        get { evaluationTaskContext.steps }
+        set { evaluationTaskContext.steps = newValue }
+    }
     /// Guards against `while true {}` freezing the UI: evaluation is main-actor.
     let stepBudget = 100_000
     /// Guards against runaway interpreted recursion overflowing the NATIVE
     /// stack (each interpreted call is ~10 Swift frames) before the step
     /// budget can trip. Fatal — never catchable by interpreted code.
-    var callDepth = 0
+    var callDepth: Int {
+        get { evaluationTaskContext.callDepth }
+        set { evaluationTaskContext.callDepth = newValue }
+    }
     let callDepthLimit = 200
-    var evaluationDepth = 0
+    var evaluationDepth: Int {
+        get { evaluationTaskContext.evaluationDepth }
+        set { evaluationTaskContext.evaluationDepth = newValue }
+    }
     /// Stack bounds are thread-stable for this main-actor interpreter. Cache
     /// them once instead of asking pthread for the same values at every
     /// recursion probe on the expression hot path.
@@ -130,36 +160,60 @@ public final class Interpreter {
         let safetyHeadroom: UInt
     }
     var evaluationStackBounds: EvaluationStackBounds?
-    var resolveAnnotatedDepth = 0
+    var resolveAnnotatedDepth: Int {
+        get { evaluationTaskContext.resolveAnnotatedDepth }
+        set { evaluationTaskContext.resolveAnnotatedDepth = newValue }
+    }
     /// `runAsync` schedules source `Task {}` bodies on real Swift tasks. The
     /// synchronous entry point retains deterministic inline execution until
     /// the evaluator migration is complete.
     var asyncSessionDepth = 0
-    var synchronousTaskDepth = 0
+    var synchronousTaskDepth: Int {
+        get { evaluationTaskContext.synchronousTaskDepth }
+        set { evaluationTaskContext.synchronousTaskDepth = newValue }
+    }
     var scheduledTasks: [RuntimeTaskHandle] = []
     /// Collision-free bindings used while lowering awaited subexpressions
     /// into the established synchronous expression machinery.
-    var asyncTemporarySerial = 0
+    var asyncTemporarySerial: Int {
+        get { evaluationTaskContext.asyncTemporarySerial }
+        set { evaluationTaskContext.asyncTemporarySerial = newValue }
+    }
     let scheduledTaskLimit = 1_024
     /// Host-extension method frames currently executing (recursion guard:
     /// re-entrant same-name dispatch prefers the registry gateway).
-    var activeExtensionFrames: Set<ExtensionFrame> = []
+    var activeExtensionFrames: Set<ExtensionFrame> {
+        get { evaluationTaskContext.activeExtensionFrames }
+        set { evaluationTaskContext.activeExtensionFrames = newValue }
+    }
     /// DI-container resolution (`@Dependency(\.pool)`): instances are SHARED
     /// per type, and circular graphs break with an absorbing marker (real
     /// containers resolve cycles lazily).
     var dependencyCache: [String: RuntimeValue] = [:]
-    var dependencyInFlight: Set<String> = []
+    var dependencyInFlight: Set<String> {
+        get { evaluationTaskContext.dependencyInFlight }
+        set { evaluationTaskContext.dependencyInFlight = newValue }
+    }
     /// Initializer bodies currently executing — self-delegation must not
     /// re-enter the same init (extension convenience → memberwise).
-    var activeInitializers: Set<SyntaxIdentifier> = []
+    var activeInitializers: Set<SyntaxIdentifier> {
+        get { evaluationTaskContext.activeInitializers }
+        set { evaluationTaskContext.activeInitializers = newValue }
+    }
     /// Instances whose declared `init` body is currently executing: self-
     /// stores inside init are DIRECT (compiled semantics — willSet/didSet
     /// never fire during initialization).
-    var initializingInstances: Set<ObjectIdentifier> = []
+    var initializingInstances: Set<ObjectIdentifier> {
+        get { evaluationTaskContext.initializingInstances }
+        set { evaluationTaskContext.initializingInstances = newValue }
+    }
     /// Function bodies currently executing — overload dispatch excludes the
     /// running declaration (`send(_:) -> StoreTask` delegating to
     /// `send(_:) -> Task?`, identical shapes, return-type disambiguated).
-    var activeFunctionBodies: Set<SyntaxIdentifier> = []
+    var activeFunctionBodies: Set<SyntaxIdentifier> {
+        get { evaluationTaskContext.activeFunctionBodies }
+        set { evaluationTaskContext.activeFunctionBodies = newValue }
+    }
     /// Instance pairs mid-comparison in synthesized member-wise equality —
     /// breaks reference cycles (interpreted structs are class-backed, so a
     /// value graph CAN alias where a compiled struct never could).
@@ -167,7 +221,10 @@ public final class Interpreter {
         let lhs: ObjectIdentifier
         let rhs: ObjectIdentifier
     }
-    var activeEqualityPairs: Set<InstanceEqualityPair> = []
+    var activeEqualityPairs: Set<InstanceEqualityPair> {
+        get { evaluationTaskContext.activeEqualityPairs }
+        set { evaluationTaskContext.activeEqualityPairs = newValue }
+    }
     /// GLOBAL function overload sets (`func L10n(_:)` beside
     /// `func L10n(_:_ arguments: CVarArg...)`): globals hold one closure
     /// per name, so calls consult this table for shape choice.
@@ -256,7 +313,10 @@ public final class Interpreter {
         let salt: String
     }
     var viewStateCells: [ViewStateKey: Box] = [:]
-    var viewIdentitySalts: [String] = []
+    var viewIdentitySalts: [String] {
+        get { evaluationTaskContext.viewIdentitySalts }
+        set { evaluationTaskContext.viewIdentitySalts = newValue }
+    }
 
     /// Bracket a builder-row evaluation with the element's identity, so
     /// per-view state cells key by (site, element) instead of site alone.
@@ -272,13 +332,19 @@ public final class Interpreter {
     static let tracedIdentifier = ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"]
     static let tracedInitializer = ProcessInfo.processInfo.environment["INTERP_TRACE_INIT"]
     /// Gated call-stack names for cycle diagnosis (nesting-guard dumps).
-    var callStackNames: [String] = []
+    var callStackNames: [String] {
+        get { evaluationTaskContext.callStackNames }
+        set { evaluationTaskContext.callStackNames = newValue }
+    }
     /// Declaration → the symbol whose body/extension lexically holds it
     /// (StructSymbol or EnumSymbol), stamped at collection.
     var declLexicalOwners: [SyntaxIdentifier: AnyObject] = [:]
     /// The RUNNING function's declaring scopes, innermost last. Plain
     /// closures push nothing — they inherit their enclosing frame.
-    var lexicalOwnerFrames: [AnyObject] = []
+    var lexicalOwnerFrames: [AnyObject] {
+        get { evaluationTaskContext.lexicalOwnerFrames }
+        set { evaluationTaskContext.lexicalOwnerFrames = newValue }
+    }
 
     /// Bare nested-type lookup with LEXICAL scoping: the running method's
     /// declaring type wins over the runtime self's (a protocol-extension
@@ -316,7 +382,10 @@ public final class Interpreter {
 
     /// (instance, property) pairs whose observer is RUNNING — assignment
     /// inside one's own didSet must not re-trigger (compiled semantics).
-    var activePropertyObservers: Set<ObserverKey> = []
+    var activePropertyObservers: Set<ObserverKey> {
+        get { evaluationTaskContext.activePropertyObservers }
+        set { evaluationTaskContext.activePropertyObservers = newValue }
+    }
     struct ObserverKey: Hashable {
         let instance: ObjectIdentifier
         let property: String
@@ -326,7 +395,10 @@ public final class Interpreter {
     /// pushes "[Status]" around its initializer): return-position generic
     /// parameters bind to the top, so `Entity.self` reaches decode with a
     /// REAL type value. Textual, innermost last.
-    var expectedAnnotationStack: [String] = []
+    var expectedAnnotationStack: [String] {
+        get { evaluationTaskContext.expectedAnnotationStack }
+        set { evaluationTaskContext.expectedAnnotationStack = newValue }
+    }
     var pendingDottedExtensions: [ExtensionDeclSyntax] = []
     /// Top-level typealias heads (`LoadableSubject` → `Binding`), for
     /// canonicalizing extension targets before resolution.
@@ -336,14 +408,23 @@ public final class Interpreter {
     var pendingMemberAliases: [(StructSymbol, String, String)] = []
     /// Property/method collision preferences currently evaluating — the
     /// property's own body reaching the same name falls to the METHOD.
-    var activeCollisionProperties: Set<String> = []
-    var deferredExtensionRetry = false
+    var activeCollisionProperties: Set<String> {
+        get { evaluationTaskContext.activeCollisionProperties }
+        set { evaluationTaskContext.activeCollisionProperties = newValue }
+    }
+    var deferredExtensionRetry: Bool {
+        get { evaluationTaskContext.deferredExtensionRetry }
+        set { evaluationTaskContext.deferredExtensionRetry = newValue }
+    }
 
     /// The DECLARED return type of each function on the call stack (nil for
     /// annotation-less closures, which mask the enclosing hint). An explicit
     /// `return expr` evaluates under the top entry, so `return try await
     /// client.get(…)` inside `-> [Status]` binds the callee's generic.
-    var enclosingReturnAnnotations: [String?] = []
+    var enclosingReturnAnnotations: [String?] {
+        get { evaluationTaskContext.enclosingReturnAnnotations }
+        set { evaluationTaskContext.enclosingReturnAnnotations = newValue }
+    }
 
     func withExpectedAnnotation<T>(_ annotation: String?, _ body: () throws -> T) rethrows -> T {
         guard let annotation, !annotation.isEmpty else { return try body() }
