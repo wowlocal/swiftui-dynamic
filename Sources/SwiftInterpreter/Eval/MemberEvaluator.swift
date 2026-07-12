@@ -88,7 +88,7 @@ extension Interpreter {
     }
 
     func resolveIdentifier(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
-        if let probe = ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"], probe == name {
+        if Self.tracedIdentifier == name {
             let result = Result { try resolveIdentifierCore(name, in: env, node: node) }
             let location = error(node, "").line
             let owners = lexicalOwnerFrames.map {

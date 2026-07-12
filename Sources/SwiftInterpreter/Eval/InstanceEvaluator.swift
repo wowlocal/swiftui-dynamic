@@ -46,7 +46,7 @@ extension Interpreter {
     }
 
     public func instantiate(_ symbol: StructSymbol, with args: CallArguments, node: Syntax? = nil) throws -> RuntimeValue {
-        if let traced = ProcessInfo.processInfo.environment["INTERP_TRACE_INIT"],
+        if let traced = Self.tracedInitializer,
            symbol.name.contains(traced) {
             let shapes = args.arguments
                 .map { "\($0.label ?? "_"): \($0.value.stringified.prefix(90))" }

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import SwiftInterpreter
 import SwiftUIBridge
@@ -42,6 +43,10 @@ private struct AtmosphereInterpreterView: View {
     }
 
     private func renderAtmosphere() {
+        if ProcessInfo.processInfo.arguments.contains("--stress-evaluator-stack") {
+            verifyRunawayRecursionIsCaught()
+        }
+
         guard let resources = Bundle.main.resourceURL else {
             errorMessage = "The application resource directory is unavailable."
             return
@@ -61,10 +66,14 @@ private struct AtmosphereInterpreterView: View {
         print("[AtmosphereDevice] interpreting \(files.count) bundled source files")
         RenderDiagnostics.reset()
         let source = ProjectMaterial.mergedSource(at: root.path, files: files)
+        let startedAt = ProcessInfo.processInfo.systemUptime
         switch InterpreterHost().render(source: source, lazyTopLevelGlobals: true) {
         case .success(let view):
             renderedView = view
-            print("[AtmosphereDevice] root view interpreted successfully")
+            let milliseconds = (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
+            print(String(
+                format: "[AtmosphereDevice] root view interpreted successfully in %.1f ms",
+                milliseconds))
             Task {
                 try? await Task.sleep(for: .seconds(8))
                 if RenderDiagnostics.errors.isEmpty {
@@ -82,6 +91,20 @@ private struct AtmosphereInterpreterView: View {
         case .failure(let error):
             errorMessage = error.description
             print("[AtmosphereDevice] interpreter error: \(error.description)")
+        }
+    }
+
+    /// Optional device-only regression probe. A runaway interpreted call must
+    /// become a fatal RuntimeError before it can reach the native stack guard
+    /// page, and the independent Atmosphere render must remain usable after it.
+    private func verifyRunawayRecursionIsCaught() {
+        do {
+            _ = try Interpreter().run(source: "func recurse() -> Int { recurse() }\nrecurse()")
+            print("[AtmosphereDevice] stack stress unexpectedly completed")
+        } catch let error as RuntimeError where error.fatal {
+            print("[AtmosphereDevice] stack stress caught: \(error.message)")
+        } catch {
+            print("[AtmosphereDevice] stack stress failed: \(error)")
         }
     }
 }

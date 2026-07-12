@@ -8,37 +8,53 @@ extension Interpreter {
         // Native-stack guard for resolution CYCLES that never pass
         // callWithArguments (lazy-global force loops, member-dispatch
         // cycles). A fixed nesting count can't fit both TCA's legitimate
-        // depth and small test-thread stacks, so probe the REAL bounds:
-        // when under 1MB of headroom remains, stop with a located error.
+        // depth and small thread stacks, so probe the real bounds.
         evaluationDepth += 1
         defer { evaluationDepth -= 1 }
+
+        let stackBounds: EvaluationStackBounds
+        if let cached = evaluationStackBounds {
+            stackBounds = cached
+        } else {
+            let thread = pthread_self()
+            let top = UInt(bitPattern: pthread_get_stackaddr_np(thread))
+            let size = UInt(pthread_get_stacksize_np(thread))
+            let bounds = EvaluationStackBounds(
+                lowerBound: top - size,
+                size: size,
+                // Desktop threads keep the historical 1.5 MB reserve. Small
+                // stacks use a proportional reserve with a 32 KB floor.
+                safetyHeadroom: size >= 4_194_304
+                    ? UInt(1_572_864)
+                    : max(UInt(32_768), size / 16))
+            evaluationStackBounds = bounds
+            stackBounds = bounds
+        }
 #if os(iOS)
-        // An iOS main thread has roughly 1 MB of stack. Check each recursive
-        // entry because one unoptimized evaluator frame can consume enough
-        // that a four-entry stride steps directly into the guard page.
-        let shouldProbeNativeStack = true
+        // SwiftInterpreter is optimized in iOS Debug builds as well as
+        // Release, keeping the largest evaluator frames around 2 KB. Four
+        // entries remain comfortably inside the 64 KB reserve on a 1 MB
+        // main-thread stack while removing most pointer probes from the path.
+        let shouldProbeNativeStack = evaluationDepth == 1 || evaluationDepth & 3 == 0
 #else
-        let shouldProbeNativeStack = evaluationDepth & 15 == 0
+        // Large desktop stacks have ample reserve. A caller-supplied small
+        // thread may still be running -Onone, whose dispatch frames are much
+        // larger, so probe every entry there.
+        let shouldProbeNativeStack = evaluationDepth == 1 || stackBounds.size < 4_194_304
+            || evaluationDepth & 15 == 0
 #endif
         if shouldProbeNativeStack {
-            let top = UInt(bitPattern: pthread_get_stackaddr_np(pthread_self()))
-            let size = UInt(pthread_get_stacksize_np(pthread_self()))
             var probe: UInt8 = 0
             let current = withUnsafePointer(to: &probe) { UInt(bitPattern: $0) }
-            // Desktop threads keep the historical 1.5 MB reserve. iOS main
-            // threads are about 1 MB total and can enter us with less than
-            // 100 KB free, so use a tighter proportional reserve there.
-            let safetyHeadroom = size >= 4_194_304
-                ? UInt(1_572_864)
-                : max(UInt(32_768), size / 16)
-            if current > top - size, current - (top - size) < safetyHeadroom {
+            if current > stackBounds.lowerBound,
+               current - stackBounds.lowerBound < stackBounds.safetyHeadroom {
                 if Interpreter.traceStateCells {
                     var counts: [String: Int] = [:]
                     for name in callStackNames { counts[name, default: 0] += 1 }
                     let hot = counts.sorted { $0.value > $1.value }.prefix(8)
                         .map { "\($0.key)×\($0.value)" }.joined(separator: " ")
-                    let remaining = current - (top - size)
-                    FileHandle.standardError.write(Data("   ✖ stack trip; size=\(size) remaining=\(remaining) reserve=\(safetyHeadroom); hot frames: \(hot)\n   ✖ head: \(callStackNames.prefix(6).joined(separator: " → "))\n".utf8))
+                    let remaining = current - stackBounds.lowerBound
+                    FileHandle.standardError.write(Data("   ✖ stack trip; size=\(stackBounds.size) remaining=\(remaining) reserve=\(stackBounds.safetyHeadroom); hot frames: \(hot)\n   ✖ head: \(callStackNames.prefix(6).joined(separator: " → "))\n".utf8))
                 }
                 let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
                 throw RuntimeError(

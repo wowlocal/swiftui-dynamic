@@ -12,5 +12,11 @@ xcodegen generate
 ```
 
 Then select the `AtmosphereDevice` scheme and an iPhone in Xcode. The scheme
-runs its optimized Release configuration because an unoptimized tree-walking
-evaluator can exhaust iOS's comparatively small main-thread stack.
+runs normally in Debug. The package keeps `SwiftInterpreter` optimized for iOS
+Debug builds because Swift's `-Onone` stack frames for its large syntax
+dispatch functions exceed the iOS main-thread stack at valid nesting depths;
+the app and bridge remain debuggable.
+
+Add `--stress-evaluator-stack` as a launch argument to verify on-device that
+runaway interpreted recursion is converted into a fatal `RuntimeError` before
+Atmosphere renders, rather than overflowing the native stack.

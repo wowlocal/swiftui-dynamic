@@ -460,7 +460,7 @@ extension Interpreter {
                     setter: accessors.setter,
                     resultTypeName: subscriptDecl.returnClause.type.trimmedDescription))
             } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
-                if ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"] == nestedEnum.name.text {
+                if Self.tracedIdentifier == nestedEnum.name.text {
                     Swift.print("   ⌗ nestedEnum \(symbol.name).\(nestedEnum.name.text) bareTaken=\(enumSymbols[nestedEnum.name.text] != nil)")
                 }
                 // Nested types register under `Outer.Name` (for annotations)
@@ -659,7 +659,7 @@ extension Interpreter {
 
     private func collectEnum(_ node: EnumDeclSyntax) throws {
         let symbol = try makeEnumSymbol(node)
-        if ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"] == symbol.name {
+        if Self.tracedIdentifier == symbol.name {
             Swift.print("   ⌗ collectEnum \(symbol.name) cases=\(symbol.cases.map(\.name).prefix(4).joined(separator: ",")) existing=\(enumSymbols[symbol.name] != nil)")
         }
         if let existing = enumSymbols[symbol.name], existing !== symbol {

@@ -11,10 +11,13 @@ extension Interpreter {
     }
 
     func tick(_ node: some SyntaxProtocol) throws {
-        if Task.isCancelled {
+        steps += 1
+        // Task cancellation lookup is appreciably more expensive than the
+        // integer budget check. Poll immediately, then once per 64 syntax
+        // nodes; cancellation remains prompt without taxing every AST node.
+        if steps & 63 == 1, Task.isCancelled {
             throw CancellationError()
         }
-        steps += 1
         if steps > stepBudget {
             let located = error(node, "evaluation budget exceeded (possible infinite loop)")
             throw RuntimeError(

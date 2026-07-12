@@ -38,4 +38,4 @@ schemes:
       targets:
         AtmosphereDevice: all
     run:
-      config: Release
+      config: Debug

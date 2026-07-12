@@ -3,6 +3,15 @@ import PackageDescription
 
 let mainActorByDefault: [SwiftSetting] = [.defaultIsolation(MainActor.self)]
 
+// `-Onone` gives the evaluator's large syntax-dispatch functions 15–20 KB
+// stack frames. That is enough to exhaust an iOS main thread's ~1 MB stack
+// during valid, moderately nested view evaluation. Keep the surrounding app
+// debuggable while compiling the interpreter itself with production-quality
+// frames and dispatch performance on iOS.
+let interpreterSettings = mainActorByDefault + [
+    .unsafeFlags(["-O"], .when(platforms: [.iOS], configuration: .debug)),
+]
+
 let package = Package(
     name: "DynamicSwiftUI",
     platforms: [.macOS(.v15), .iOS(.v18)],
@@ -23,7 +32,7 @@ let package = Package(
                 .product(name: "SwiftOperators", package: "swift-syntax"),
                 .product(name: "SwiftParserDiagnostics", package: "swift-syntax"),
             ],
-            swiftSettings: mainActorByDefault
+            swiftSettings: interpreterSettings
         ),
         .target(
             name: "ObjCExceptionShim"

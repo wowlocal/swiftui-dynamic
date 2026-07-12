@@ -121,6 +121,15 @@ public final class Interpreter {
     var callDepth = 0
     let callDepthLimit = 200
     var evaluationDepth = 0
+    /// Stack bounds are thread-stable for this main-actor interpreter. Cache
+    /// them once instead of asking pthread for the same values at every
+    /// recursion probe on the expression hot path.
+    struct EvaluationStackBounds {
+        let lowerBound: UInt
+        let size: UInt
+        let safetyHeadroom: UInt
+    }
+    var evaluationStackBounds: EvaluationStackBounds?
     var resolveAnnotatedDepth = 0
     /// `runAsync` schedules source `Task {}` bodies on real Swift tasks. The
     /// synchronous entry point retains deterministic inline execution until
@@ -257,6 +266,11 @@ public final class Interpreter {
         return try body()
     }
     static var traceStateCells = ProcessInfo.processInfo.environment["INTERP_TRACE_STATE"] != nil
+    /// Process-level diagnostic selectors are immutable after launch. Reading
+    /// `ProcessInfo.environment` inside identifier/initializer dispatch used
+    /// to rebuild and bridge the complete environment on every hot-path call.
+    static let tracedIdentifier = ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"]
+    static let tracedInitializer = ProcessInfo.processInfo.environment["INTERP_TRACE_INIT"]
     /// Gated call-stack names for cycle diagnosis (nesting-guard dumps).
     var callStackNames: [String] = []
     /// Declaration → the symbol whose body/extension lexically holds it
