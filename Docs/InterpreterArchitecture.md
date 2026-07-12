@@ -38,6 +38,13 @@ source
   compatibility path while tables migrate. Module descriptors are immutable
   singletons, so parsing is registration work rather than per-session or
   per-lookup work.
+- BridgeGen emits an exact accepted declaration for every generated
+  Foundation method call shape. `GeneratedMembers` parses those declarations
+  once, derives its receiver/member keys from them, and binds each concrete
+  receiver through `HostFunction` overload selection. `ParamTag` remains only
+  as the final conversion into statically compiled Foundation calls; it no
+  longer decides labels, arity, types, ranking, or return validity for this
+  family.
 - `HostRegistry` is the only framework capability boundary. SwiftUIBridge and
   test registries implement it independently; the typed layer has no SwiftUI
   dependency.
@@ -143,8 +150,9 @@ The remaining semantic migration is deliberately ordered:
 1. Consider a distinct/COW struct representation if profiling shows
    storage-envelope copies are material; the observable struct/class
    semantics no longer depend on that refactor.
-2. Move remaining hand-written compatibility gateways onto the landed
-   typed declarations without weakening deliberate absorption fallbacks.
+2. Move generated SwiftUI modifier/constructor tables and remaining
+   hand-written compatibility gateways onto the landed typed declarations
+   without weakening deliberate absorption fallbacks.
 3. Tighten compile-time-only rules (mutability/exclusivity and unsupported
    ownership forms) where runtime diagnostics add practical value.
 

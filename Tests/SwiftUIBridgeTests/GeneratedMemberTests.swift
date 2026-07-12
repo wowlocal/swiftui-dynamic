@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import SwiftInterpreter
 import SwiftUIBridge
@@ -23,6 +24,67 @@ import SwiftUIBridge
         """
         let result = try Interpreter(registry: ViewRegistry()).run(source: source)
         #expect(result.stringValue == "https://example.com/a/dir/")
+    }
+
+    @Test func generatedMethodsExposeParsedContractsAndRankByType() throws {
+        let registry = ViewRegistry()
+        let base = IndexPath(index: 4)
+        guard case .hostFunction(let function)? = registry.hostMethod(
+            "appending", on: base) else {
+            Issue.record("generated IndexPath.appending should be callable")
+            return
+        }
+
+        #expect(Set(function.signatures.map(\.declaration)) == [
+            "func IndexPath.appending(_ p0: Int) -> IndexPath",
+            "func IndexPath.appending(_ p0: IndexPath) -> IndexPath",
+            "func IndexPath.appending(_ p0: [Int]) -> IndexPath",
+        ])
+
+        let result = try function.invoke(CallArguments(arguments: [
+            .init(label: nil, value: .native([.native(6), .native(8)])),
+        ]), Interpreter(registry: registry))
+        #expect(result.hostPayload as? IndexPath == IndexPath(indexes: [4, 6, 8]))
+    }
+
+    @Test func generatedContractsRejectWrongTypesBeforeStaticInvocation() throws {
+        let registry = ViewRegistry()
+        guard case .hostFunction(let function)? = registry.hostMethod(
+            "appending", on: IndexPath(index: 1)) else {
+            Issue.record("generated IndexPath.appending should be callable")
+            return
+        }
+
+        do {
+            _ = try function.invoke(CallArguments(arguments: [
+                .init(label: nil, value: .native("not an index")),
+            ]), Interpreter(registry: registry))
+            Issue.record("an unsupported argument must not reach generated host code")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("no matching host overload"))
+            #expect(!error.message.contains("host contract violation"))
+        }
+    }
+
+    @Test func generatedContractsContextualizeEnumSetLiterals() throws {
+        let registry = ViewRegistry()
+        let calendar = Calendar(identifier: .gregorian)
+        guard case .hostFunction(let function)? = registry.hostMethod(
+            "dateComponents", on: calendar) else {
+            Issue.record("generated Calendar.dateComponents should be callable")
+            return
+        }
+        let date = Date(timeIntervalSince1970: 1_234_567_890)
+        let result = try function.invoke(CallArguments(arguments: [
+            .init(label: nil, value: .native([
+                .implicitMember("year"), .implicitMember("month"),
+            ])),
+            .init(label: "from", value: .native(date)),
+        ]), Interpreter(registry: registry))
+
+        let components = result.hostPayload as? DateComponents
+        #expect(components?.year != nil)
+        #expect(components?.month != nil)
     }
 
     @Test func optionalReturnsUseDedicatedStorageAndCoalesce() throws {

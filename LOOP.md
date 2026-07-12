@@ -426,8 +426,9 @@ Each iteration does exactly this:
   Do NOT chase those counts; growth is NEW TYPES (absorb census names
   demand) or the JIT-thunk tier (chartered separately).
   Every finding ParityCheck reports is a real interpreter gap (missing
-  constructor; alias mismatch — Decimal prints NSDecimal, see
-  GeneratedMembers.keyTypeName). Hand-box members must NEVER shadow swept
+  constructor or executable-contract mismatch). Source/runtime Foundation
+  aliases such as Decimal/NSDecimal and nested generic index types are handled
+  by HostSignature's recursive name equivalence. Hand-box members must NEVER shadow swept
   overloads: on shape mismatch, retry the generated table before erroring
   (CalendarBox.generatedFallback is the pattern). Property/method name
   collisions (url.query vs query(percentEncoded:)) dispatch call-aware:

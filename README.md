@@ -178,12 +178,16 @@ emitting suffix variants (full call, then trailing defaults dropped).
 
 The same generator sweeps the SDK's **Foundation swiftinterface** for the
 member surface of value types (`URL`, `Data`, `Date`, `Calendar`, `UUID`,
-`Locale`, …): `Generated/GeneratedMembers.swift` holds **~209 properties and
-~58 method variants** keyed by the receiver's dynamic type
+`Locale`, …): `Generated/GeneratedMembers.swift` holds **247 properties and
+115 method variants** keyed by the receiver's dynamic type
 (`"URL.lastPathComponent"`), consulted from `bridgeHostMember` after the hand
 boxes and before the ObjC trampoline. Property reads return values directly;
-methods dispatch through the same label+coercibility matcher, and a call shape
-the sweep couldn't map absorbs instead of dying. Soft-deprecation sentinels
+each method variant also emits a Swift-shaped declaration parsed once into a
+`HostSignature`. `HostFunction` therefore owns label/arity/type checks,
+deterministic overload ranking, and return validation; `ParamTag` only converts
+an already-selected argument for the statically compiled host call. Invalid
+calls to a known generated method now diagnose at that contract boundary.
+Soft-deprecation sentinels
 (`deprecated: 100000.0` — `url.path` and friends) are tolerated for members
 since real projects compile against them. The demand side is instrumented:
 every member the absorb terminus swallows on a host native lands in
@@ -199,11 +203,9 @@ below the registry (the core's `nativeMember`) are pinned in BridgeGen's
 twin (`ParityTwin`) and an interpreter-side table; `swift run ParityCheck`
 runs the twin twice (auto-filtering clock/locale-volatile members),
 interprets every probe, normalizes representations, and diffs — the
-native-baseline doctrine mechanized for APIs. First sweep: 125/267
-matched and the report itself named the fixes (hand boxes SHADOWING the
-generated surface — solved by the GeneratedMemberCarrier unwrap — missing
-constructors, box descriptions); three passes later 220/267 match with
-the remaining divergences enumerated for the loop.
+native-baseline doctrine mechanized for APIs. The current board is **345
+matches, 0 divergences, and 0 interpreter errors** across the 345 stable probes
+(17 additional probes are filtered as native-run volatile).
 
 ## Corpus verification
 

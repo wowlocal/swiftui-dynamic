@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SwiftInterpreter
 
@@ -156,6 +157,32 @@ struct HostSignatureTests {
         } catch let error as RuntimeError {
             #expect(error.message.contains("returned 'String', expected 'Int'"))
         }
+    }
+
+    @Test func foundationRuntimeAliasesSatisfySourceContractsRecursively() throws {
+        let interpreter = Interpreter()
+        let decimal = try HostFunction(
+            declaration: "func acceptsDecimal(_ value: Decimal) -> Bool"
+        ) { _, _ in .native(true) }
+        #expect(try decimal.invoke(CallArguments(arguments: [
+            .init(label: nil, value: .native(Decimal(3) as Any)),
+        ]), interpreter).boolValue == true)
+
+        let comparison = try HostFunction(
+            declaration: "func comparison() -> ComparisonResult"
+        ) { _, _ in
+            .native(Date(timeIntervalSince1970: 0).compare(
+                Date(timeIntervalSince1970: 1)) as Any)
+        }
+        #expect(try comparison.invoke(CallArguments(), interpreter).hostPayload != nil)
+
+        let nestedIndex = try HostFunction(
+            declaration: "func indices() -> Range<IndexSet.Index>"
+        ) { _, _ in
+            let set = IndexSet(integersIn: 1..<5)
+            return .native(set.indexRange(in: 1..<3) as Any)
+        }
+        #expect(try nestedIndex.invoke(CallArguments(), interpreter).hostPayload != nil)
     }
 
     @Test func genericBindingConstrainsArgumentsAndReturn() throws {

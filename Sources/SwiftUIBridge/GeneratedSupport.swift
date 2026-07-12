@@ -286,22 +286,20 @@ enum GeneratedDispatch {
 
 // MARK: - Generated members (Foundation value types)
 
-/// One overload of a generated instance method: receiver arrives as the raw
-/// host `Any`, arguments pre-coerced by ParamTag.
+/// One overload of a generated instance method. Its parsed declaration owns
+/// call validation and overload ranking; ParamTag is now only the final
+/// conversion from an already-validated runtime argument to static host code.
 struct GeneratedMemberOverload {
+    let signature: HostSignature
     let params: [ParamSpec]
     let invoke: (Any, [Any]) throws -> RuntimeValue
 }
 
 struct GeneratedMemberSet {
-    let byArity: [Int: [GeneratedMemberOverload]]
+    let overloads: [GeneratedMemberOverload]
 
     init(_ overloads: [GeneratedMemberOverload]) {
-        var byArity: [Int: [GeneratedMemberOverload]] = [:]
-        for overload in overloads {
-            byArity[overload.params.count, default: []].append(overload)
-        }
-        self.byArity = byArity
+        self.overloads = overloads
     }
 }
 
@@ -322,11 +320,25 @@ enum GeneratedMembers {
 
     static func registerMethod(
         _ table: inout [String: [GeneratedMemberOverload]],
-        _ key: String,
+        _ declaration: String,
         _ params: [ParamSpec],
         _ invoke: @escaping (Any, [Any]) throws -> RuntimeValue
     ) {
-        table[key, default: []].append(GeneratedMemberOverload(params: params, invoke: invoke))
+        let signature: HostSignature
+        do {
+            signature = try HostSignature(parsing: declaration)
+        } catch {
+            preconditionFailure(
+                "BridgeGen emitted an invalid host declaration '\(declaration)': \(error)")
+        }
+        guard signature.kind == .method, let receiverType = signature.receiverType,
+              signature.parameters.count == params.count else {
+            preconditionFailure(
+                "BridgeGen emitted inconsistent method metadata for '\(declaration)'")
+        }
+        let key = "\(receiverType).\(signature.name)"
+        table[key, default: []].append(GeneratedMemberOverload(
+            signature: signature, params: params, invoke: invoke))
     }
 
     /// The bridgeHostMember hook: hand-written boxes have already refused by
@@ -365,13 +377,40 @@ enum GeneratedMembers {
         }
         let key = "\(keyTypeName(of: value)).\(name)"
         guard let set = methods[key] else { return nil }
-        return .hostFunction(HostFunction(name: name) { args, ctx in
-            try GeneratedDispatch.member(name: name, overloads: set, base: value, args: args, ctx: ctx)
-        })
+        return .hostFunction(GeneratedDispatch.memberFunction(
+            name: name, overloads: set, base: value))
     }
 }
 
 extension GeneratedDispatch {
+    /// Bind one receiver to the cached generated contracts. Parsing happened
+    /// once while the table was built; only lightweight immutable gateway
+    /// descriptors are created for a concrete value lookup.
+    static func memberFunction(
+        name: String, overloads: GeneratedMemberSet, base: Any
+    ) -> HostFunction {
+        do {
+            let functions = try overloads.overloads.map { overload in
+                try HostFunction(signature: overload.signature) { args, ctx in
+                    guard overload.params.count == args.arguments.count else {
+                        throw RuntimeError(message:
+                            "generated metadata disagrees with '\(overload.signature.declaration)'")
+                    }
+                    let values = try zip(overload.params, args.arguments).map {
+                        param, argument in
+                        try coerce(param.tag, argument.value, ctx)
+                    }
+                    return try overload.invoke(base, values)
+                }
+            }
+            if functions.count == 1 { return functions[0] }
+            return try HostFunction(overloads: functions)
+        } catch {
+            preconditionFailure(
+                "invalid generated overload set for '\(name)': \(error)")
+        }
+    }
+
     static func member(
         name: String,
         overloads: GeneratedMemberSet,
@@ -379,19 +418,8 @@ extension GeneratedDispatch {
         args: CallArguments,
         ctx: EvalContext
     ) throws -> RuntimeValue {
-        for overload in overloads.byArity[args.arguments.count] ?? [] {
-            guard let values = matches(overload.params, args, ctx) else { continue }
-            return try overload.invoke(base, values)
-        }
-        // A shape the sweep couldn't map (blocked param type, unemitted
-        // overload) absorbs like the trampoline does — never dies mid-render.
-        if LiveCheckSupport.traceLifecycle {
-            let shapes = args.arguments
-                .map { "\($0.label ?? "_"): \($0.value.stringified.prefix(220))" }
-                .joined(separator: ", ")
-            print("   ⚠ generated .\(name) on \(type(of: base)): no overload for (\(shapes))")
-        }
-        return .native(ChainedImplicitCall(base: .native(base), member: name, arguments: args))
+        try memberFunction(name: name, overloads: overloads, base: base)
+            .invoke(args, ctx)
     }
 }
 

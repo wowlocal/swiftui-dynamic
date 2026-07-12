@@ -171,6 +171,19 @@ struct AnalyzedParam {
     let hasDefault: Bool
     let blocker: String?
     let usesGeneric: String?
+    let contractType: String?
+
+    init(
+        label: String?, mapping: TypeMapping?, hasDefault: Bool,
+        blocker: String?, usesGeneric: String?, contractType: String? = nil
+    ) {
+        self.label = label
+        self.mapping = mapping
+        self.hasDefault = hasDefault
+        self.blocker = blocker
+        self.usesGeneric = usesGeneric
+        self.contractType = contractType
+    }
 }
 
 func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> AnalyzedParam {
@@ -274,6 +287,16 @@ struct EmittableParam {
     let label: String?
     let tag: String
     let cast: String
+    /// The concrete type accepted by a generated Foundation gateway. View
+    /// modifiers and constructors still use their ParamTag-only boundary.
+    let contractType: String?
+
+    init(label: String?, tag: String, cast: String, contractType: String? = nil) {
+        self.label = label
+        self.tag = tag
+        self.cast = cast
+        self.contractType = contractType
+    }
 }
 
 struct Variant {
@@ -538,6 +561,28 @@ func memberMapping(for normalized: String) -> TypeMapping? {
     }
 }
 
+/// Typealiases whose runtime representation is deliberately narrower than
+/// the SDK spelling. Contracts describe what the interpreter actually
+/// carries across the boundary while generated static code still compiles
+/// against the original declaration.
+func memberContractType(for normalized: String) -> String {
+    if normalized.hasSuffix("?") {
+        return memberContractType(for: String(normalized.dropLast())) + "?"
+    }
+    switch normalized {
+    case "StringProtocol":
+        return "String"
+    case "IndexSet.Element", "IndexPath.Element", "IndexPath.Index":
+        return "Int"
+    case "[IndexPath.Element]", "Array<IndexPath.Element>", "[IndexSet.Element]":
+        return "[Int]"
+    case "Range<IndexSet.Element>", "Range<IndexPath.Element>":
+        return "Range<Int>"
+    default:
+        return normalized
+    }
+}
+
 func analyzeMemberParameter(_ param: FunctionParameterSyntax) -> AnalyzedParam {
     let labelText = param.firstName.text
     let label: String? = labelText == "_" ? nil : labelText
@@ -553,7 +598,10 @@ func analyzeMemberParameter(_ param: FunctionParameterSyntax) -> AnalyzedParam {
     var normalized = normalize(type.trimmedDescription)
     if normalized.hasSuffix("?") { normalized = String(normalized.dropLast()) }
     if let mapping = memberMapping(for: normalized) {
-        return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
+        return .init(
+            label: label, mapping: mapping, hasDefault: hasDefault,
+            blocker: nil, usesGeneric: nil,
+            contractType: memberContractType(for: normalized))
     }
     return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: normalized, usesGeneric: nil)
 }
@@ -561,6 +609,7 @@ func analyzeMemberParameter(_ param: FunctionParameterSyntax) -> AnalyzedParam {
 struct MemberVariant {
     let type: String
     let name: String
+    let returnType: String
     let params: [EmittableParam]
 
     var key: String {
@@ -651,7 +700,13 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
             let slice = analyzed[..<cut]
             let variant = MemberVariant(
                 type: typeName, name: name,
-                params: slice.map { .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast) }
+                returnType: memberContractType(for: normalize(returnType)),
+                params: slice.map {
+                    .init(
+                        label: $0.label, tag: $0.mapping!.tag,
+                        cast: $0.mapping!.cast,
+                        contractType: $0.contractType!)
+                }
             )
             if memberMethodSeen.insert(variant.key).inserted {
                 memberMethodVariants.append(variant)
@@ -872,6 +927,12 @@ func memberPropertyCode(_ type: String, _ name: String) -> String {
 }
 
 func memberMethodCode(_ variant: MemberVariant) -> String {
+    let parameters = variant.params.enumerated()
+        .map { index, param in
+            "\(param.label ?? "_") p\(index): \(param.contractType!)"
+        }
+        .joined(separator: ", ")
+    let declaration = "func \(variant.type).\(variant.name)(\(parameters)) -> \(variant.returnType)"
     let specs = variant.params
         .map { "ParamSpec(\($0.label.map { "\"\($0)\"" } ?? "nil"), .\($0.tag))" }
         .joined(separator: ", ")
@@ -881,7 +942,7 @@ func memberMethodCode(_ variant: MemberVariant) -> String {
         }
         .joined(separator: ", ")
     return """
-            registerMethod(&t, "\(variant.type).\(variant.name)", [\(specs)]) { base, v in
+            registerMethod(&t, "\(declaration)", [\(specs)]) { base, v in
                 generatedMemberResult((base as! \(variant.type)).\(variant.name)(\(argList)))
             }
     """

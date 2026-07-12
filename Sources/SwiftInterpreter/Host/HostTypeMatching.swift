@@ -91,6 +91,21 @@ extension HostSignature {
             }
         }
 
+        // Leading-dot enum cases acquire their concrete type from the call
+        // contract (`calendar.component(.day, from: date)`). The core cannot
+        // enumerate an arbitrary host enum's cases, so the statically typed
+        // gateway performs the final case conversion after overload choice.
+        if case .implicitMember = value {
+            let primitiveNames: Set<String> = [
+                "Void", "Bool", "Int", "Double", "Float", "CGFloat",
+                "String", "Substring", "Character", "Decimal",
+            ]
+            guard !primitiveNames.contains(unqualified(type)),
+                  !type.hasPrefix("["), !type.hasPrefix("("),
+                  genericApplication(type) == nil else { return nil }
+            return 9
+        }
+
         if type.hasPrefix("[") && type.hasSuffix("]"),
            let inner = outerContents(type, opening: "[", closing: "]") {
             let parts = splitTopLevel(inner, separator: ":")
@@ -122,6 +137,10 @@ extension HostSignature {
                     score += item
                 }
                 return score
+            }
+            if parts.count == 1,
+               context.hostValue(value, matchesType: type) {
+                return 14
             }
             return nil
         }
@@ -158,7 +177,9 @@ extension HostSignature {
             case let container
                 where ["Array", "ContiguousArray"].contains(container)
                     && application.arguments.count == 1:
-                guard let array = value.arrayValue else { return nil }
+                guard let array = value.arrayValue else {
+                    return context.hostValue(value, matchesType: type) ? 14 : nil
+                }
                 var score = 22
                 for element in array {
                     guard let item = matchType(
@@ -170,9 +191,24 @@ extension HostSignature {
                 }
                 return score
             case "Set" where application.arguments.count == 1:
-                guard let set = value.setValue else { return nil }
-                var score = 22
-                if set.elements.isEmpty, let observed = set.elementTypeName {
+                let elements: [RuntimeValue]
+                let observedElementType: String?
+                var score: Int
+                if let set = value.setValue {
+                    elements = set.elements
+                    observedElementType = set.elementTypeName
+                    score = 22
+                } else if let array = value.arrayValue {
+                    // Set conforms to ExpressibleByArrayLiteral. Interpreted
+                    // literals use the runtime's Array representation until
+                    // this expected-type boundary supplies Set<Element>.
+                    elements = array
+                    observedElementType = nil
+                    score = 18
+                } else {
+                    return context.hostValue(value, matchesType: type) ? 14 : nil
+                }
+                if elements.isEmpty, let observed = observedElementType {
                     let expected = normalizedType(application.arguments[0])
                     if genericNames.contains(expected) {
                         if let bound = bindings[expected] {
@@ -191,7 +227,7 @@ extension HostSignature {
                         score += 28
                     }
                 }
-                for element in set.elements {
+                for element in elements {
                     guard let item = matchType(
                         element, against: application.arguments[0],
                         genericNames: genericNames,
@@ -201,7 +237,9 @@ extension HostSignature {
                 }
                 return score
             case "Dictionary" where application.arguments.count == 2:
-                guard let dictionary = value.dictValue else { return nil }
+                guard let dictionary = value.dictValue else {
+                    return context.hostValue(value, matchesType: type) ? 14 : nil
+                }
                 var score = 22
                 for key in dictionary.keys {
                     guard let item = matchType(
@@ -224,7 +262,9 @@ extension HostSignature {
                 where ["Range", "ClosedRange", "PartialRangeFrom",
                        "PartialRangeUpTo", "PartialRangeThrough"].contains(rangeName)
                     && application.arguments.count == 1:
-                guard let range = value.rangeValue else { return nil }
+                guard let range = value.rangeValue else {
+                    return context.hostValue(value, matchesType: type) ? 14 : nil
+                }
                 var score = 22
                 for bound in [range.lowerBound, range.upperBound].compactMap({ $0 }) {
                     guard let item = matchType(
@@ -271,7 +311,7 @@ extension HostSignature {
         let observed = context.hostTypeName(of: value)
         if equivalentTypeName(observed, type) { return 30 }
         if observed == "Int",
-           ["Double", "Float", "CGFloat", "TimeInterval", "NSNumber"]
+           ["Double", "Float", "CGFloat", "TimeInterval", "NSNumber", "Decimal"]
             .contains(unqualified(type)) {
             return 20
         }
@@ -333,10 +373,27 @@ extension HostSignature {
     static func equivalentTypeName(_ lhs: String, _ rhs: String) -> Bool {
         let left = lhs.replacingOccurrences(of: " ", with: "")
         let right = rhs.replacingOccurrences(of: " ", with: "")
-        return left == right
-            || unqualified(left) == unqualified(right)
-            || left.hasSuffix("." + right)
-            || right.hasSuffix("." + left)
+        if left == right || left.hasSuffix("." + right)
+            || right.hasSuffix("." + left) {
+            return true
+        }
+
+        let aliases = [
+            "NSComparisonResult": "ComparisonResult",
+            "NSDecimal": "Decimal",
+        ]
+        let leftName = aliases[unqualified(left)] ?? unqualified(left)
+        let rightName = aliases[unqualified(right)] ?? unqualified(right)
+        if leftName == rightName { return true }
+
+        if let leftApplication = genericApplication(left),
+           let rightApplication = genericApplication(right),
+           equivalentTypeName(leftApplication.name, rightApplication.name),
+           leftApplication.arguments.count == rightApplication.arguments.count {
+            return zip(leftApplication.arguments, rightApplication.arguments)
+                .allSatisfy { equivalentTypeName($0.0, $0.1) }
+        }
+        return false
     }
 
     static func unqualified(_ type: String) -> String {
@@ -448,10 +505,10 @@ enum HostRuntimeTypeSystem {
         }
         switch value {
         case .int:
-            return ["Int", "Double", "Float", "CGFloat", "TimeInterval", "NSNumber"]
+            return ["Int", "Double", "Float", "CGFloat", "TimeInterval", "NSNumber", "Decimal"]
                 .contains(HostSignature.unqualified(type))
         case .double:
-            return ["Double", "Float", "CGFloat", "TimeInterval", "NSNumber"]
+            return ["Double", "Float", "CGFloat", "TimeInterval", "NSNumber", "Decimal"]
                 .contains(HostSignature.unqualified(type))
         case .bool:
             return ["Bool", "NSNumber"].contains(HostSignature.unqualified(type))

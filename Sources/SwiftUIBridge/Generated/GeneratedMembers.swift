@@ -295,355 +295,355 @@ extension GeneratedMembers {
     }
 
     private static func buildM0(_ t: inout [String: [GeneratedMemberOverload]]) {
-        registerMethod(&t, "Calendar.compare", [ParamSpec(nil, .date), ParamSpec("to", .date), ParamSpec("toGranularity", .calendarComponent)]) { base, v in
+        registerMethod(&t, "func Calendar.compare(_ p0: Date, to p1: Date, toGranularity p2: Calendar.Component) -> ComparisonResult", [ParamSpec(nil, .date), ParamSpec("to", .date), ParamSpec("toGranularity", .calendarComponent)]) { base, v in
             generatedMemberResult((base as! Calendar).compare(v[0] as! Date, to: v[1] as! Date, toGranularity: v[2] as! Calendar.Component))
         }
-        registerMethod(&t, "Calendar.component", [ParamSpec(nil, .calendarComponent), ParamSpec("from", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.component(_ p0: Calendar.Component, from p1: Date) -> Int", [ParamSpec(nil, .calendarComponent), ParamSpec("from", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).component(v[0] as! Calendar.Component, from: v[1] as! Date))
         }
-        registerMethod(&t, "Calendar.date", [ParamSpec("from", .dateComponents)]) { base, v in
+        registerMethod(&t, "func Calendar.date(from p0: DateComponents) -> Date?", [ParamSpec("from", .dateComponents)]) { base, v in
             generatedMemberResult((base as! Calendar).date(from: v[0] as! DateComponents))
         }
-        registerMethod(&t, "Calendar.date", [ParamSpec("byAdding", .dateComponents), ParamSpec("to", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.date(byAdding p0: DateComponents, to p1: Date) -> Date?", [ParamSpec("byAdding", .dateComponents), ParamSpec("to", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).date(byAdding: v[0] as! DateComponents, to: v[1] as! Date))
         }
-        registerMethod(&t, "Calendar.date", [ParamSpec(nil, .date), ParamSpec("matchesComponents", .dateComponents)]) { base, v in
+        registerMethod(&t, "func Calendar.date(_ p0: Date, matchesComponents p1: DateComponents) -> Bool", [ParamSpec(nil, .date), ParamSpec("matchesComponents", .dateComponents)]) { base, v in
             generatedMemberResult((base as! Calendar).date(v[0] as! Date, matchesComponents: v[1] as! DateComponents))
         }
-        registerMethod(&t, "Calendar.date", [ParamSpec("byAdding", .dateComponents), ParamSpec("to", .date), ParamSpec("wrappingComponents", .bool)]) { base, v in
+        registerMethod(&t, "func Calendar.date(byAdding p0: DateComponents, to p1: Date, wrappingComponents p2: Bool) -> Date?", [ParamSpec("byAdding", .dateComponents), ParamSpec("to", .date), ParamSpec("wrappingComponents", .bool)]) { base, v in
             generatedMemberResult((base as! Calendar).date(byAdding: v[0] as! DateComponents, to: v[1] as! Date, wrappingComponents: v[2] as! Bool))
         }
-        registerMethod(&t, "Calendar.date", [ParamSpec("byAdding", .calendarComponent), ParamSpec("value", .int), ParamSpec("to", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.date(byAdding p0: Calendar.Component, value p1: Int, to p2: Date) -> Date?", [ParamSpec("byAdding", .calendarComponent), ParamSpec("value", .int), ParamSpec("to", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).date(byAdding: v[0] as! Calendar.Component, value: v[1] as! Int, to: v[2] as! Date))
         }
-        registerMethod(&t, "Calendar.date", [ParamSpec("bySetting", .calendarComponent), ParamSpec("value", .int), ParamSpec("of", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.date(bySetting p0: Calendar.Component, value p1: Int, of p2: Date) -> Date?", [ParamSpec("bySetting", .calendarComponent), ParamSpec("value", .int), ParamSpec("of", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).date(bySetting: v[0] as! Calendar.Component, value: v[1] as! Int, of: v[2] as! Date))
         }
-        registerMethod(&t, "Calendar.date", [ParamSpec("byAdding", .calendarComponent), ParamSpec("value", .int), ParamSpec("to", .date), ParamSpec("wrappingComponents", .bool)]) { base, v in
+        registerMethod(&t, "func Calendar.date(byAdding p0: Calendar.Component, value p1: Int, to p2: Date, wrappingComponents p3: Bool) -> Date?", [ParamSpec("byAdding", .calendarComponent), ParamSpec("value", .int), ParamSpec("to", .date), ParamSpec("wrappingComponents", .bool)]) { base, v in
             generatedMemberResult((base as! Calendar).date(byAdding: v[0] as! Calendar.Component, value: v[1] as! Int, to: v[2] as! Date, wrappingComponents: v[3] as! Bool))
         }
-        registerMethod(&t, "Calendar.date", [ParamSpec("bySettingHour", .int), ParamSpec("minute", .int), ParamSpec("second", .int), ParamSpec("of", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.date(bySettingHour p0: Int, minute p1: Int, second p2: Int, of p3: Date) -> Date?", [ParamSpec("bySettingHour", .int), ParamSpec("minute", .int), ParamSpec("second", .int), ParamSpec("of", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).date(bySettingHour: v[0] as! Int, minute: v[1] as! Int, second: v[2] as! Int, of: v[3] as! Date))
         }
-        registerMethod(&t, "Calendar.dateComponents", [ParamSpec(nil, .calendarComponentSet), ParamSpec("from", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.dateComponents(_ p0: Set<Calendar.Component>, from p1: Date) -> DateComponents", [ParamSpec(nil, .calendarComponentSet), ParamSpec("from", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).dateComponents(v[0] as! Set<Calendar.Component>, from: v[1] as! Date))
         }
-        registerMethod(&t, "Calendar.dateComponents", [ParamSpec(nil, .calendarComponentSet), ParamSpec("from", .date), ParamSpec("to", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.dateComponents(_ p0: Set<Calendar.Component>, from p1: Date, to p2: Date) -> DateComponents", [ParamSpec(nil, .calendarComponentSet), ParamSpec("from", .date), ParamSpec("to", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).dateComponents(v[0] as! Set<Calendar.Component>, from: v[1] as! Date, to: v[2] as! Date))
         }
-        registerMethod(&t, "Calendar.dateComponents", [ParamSpec(nil, .calendarComponentSet), ParamSpec("from", .dateComponents), ParamSpec("to", .dateComponents)]) { base, v in
+        registerMethod(&t, "func Calendar.dateComponents(_ p0: Set<Calendar.Component>, from p1: DateComponents, to p2: DateComponents) -> DateComponents", [ParamSpec(nil, .calendarComponentSet), ParamSpec("from", .dateComponents), ParamSpec("to", .dateComponents)]) { base, v in
             generatedMemberResult((base as! Calendar).dateComponents(v[0] as! Set<Calendar.Component>, from: v[1] as! DateComponents, to: v[2] as! DateComponents))
         }
-        registerMethod(&t, "Calendar.dateInterval", [ParamSpec("of", .calendarComponent), ParamSpec("for", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.dateInterval(of p0: Calendar.Component, for p1: Date) -> DateInterval?", [ParamSpec("of", .calendarComponent), ParamSpec("for", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).dateInterval(of: v[0] as! Calendar.Component, for: v[1] as! Date))
         }
-        registerMethod(&t, "Calendar.dateIntervalOfWeekend", [ParamSpec("containing", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.dateIntervalOfWeekend(containing p0: Date) -> DateInterval?", [ParamSpec("containing", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).dateIntervalOfWeekend(containing: v[0] as! Date))
         }
-        registerMethod(&t, "Calendar.isDate", [ParamSpec(nil, .date), ParamSpec("inSameDayAs", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.isDate(_ p0: Date, inSameDayAs p1: Date) -> Bool", [ParamSpec(nil, .date), ParamSpec("inSameDayAs", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).isDate(v[0] as! Date, inSameDayAs: v[1] as! Date))
         }
-        registerMethod(&t, "Calendar.isDate", [ParamSpec(nil, .date), ParamSpec("equalTo", .date), ParamSpec("toGranularity", .calendarComponent)]) { base, v in
+        registerMethod(&t, "func Calendar.isDate(_ p0: Date, equalTo p1: Date, toGranularity p2: Calendar.Component) -> Bool", [ParamSpec(nil, .date), ParamSpec("equalTo", .date), ParamSpec("toGranularity", .calendarComponent)]) { base, v in
             generatedMemberResult((base as! Calendar).isDate(v[0] as! Date, equalTo: v[1] as! Date, toGranularity: v[2] as! Calendar.Component))
         }
-        registerMethod(&t, "Calendar.isDateInToday", [ParamSpec(nil, .date)]) { base, v in
+        registerMethod(&t, "func Calendar.isDateInToday(_ p0: Date) -> Bool", [ParamSpec(nil, .date)]) { base, v in
             generatedMemberResult((base as! Calendar).isDateInToday(v[0] as! Date))
         }
-        registerMethod(&t, "Calendar.isDateInTomorrow", [ParamSpec(nil, .date)]) { base, v in
+        registerMethod(&t, "func Calendar.isDateInTomorrow(_ p0: Date) -> Bool", [ParamSpec(nil, .date)]) { base, v in
             generatedMemberResult((base as! Calendar).isDateInTomorrow(v[0] as! Date))
         }
-        registerMethod(&t, "Calendar.isDateInWeekend", [ParamSpec(nil, .date)]) { base, v in
+        registerMethod(&t, "func Calendar.isDateInWeekend(_ p0: Date) -> Bool", [ParamSpec(nil, .date)]) { base, v in
             generatedMemberResult((base as! Calendar).isDateInWeekend(v[0] as! Date))
         }
-        registerMethod(&t, "Calendar.isDateInYesterday", [ParamSpec(nil, .date)]) { base, v in
+        registerMethod(&t, "func Calendar.isDateInYesterday(_ p0: Date) -> Bool", [ParamSpec(nil, .date)]) { base, v in
             generatedMemberResult((base as! Calendar).isDateInYesterday(v[0] as! Date))
         }
-        registerMethod(&t, "Calendar.maximumRange", [ParamSpec("of", .calendarComponent)]) { base, v in
+        registerMethod(&t, "func Calendar.maximumRange(of p0: Calendar.Component) -> Range<Int>?", [ParamSpec("of", .calendarComponent)]) { base, v in
             generatedMemberResult((base as! Calendar).maximumRange(of: v[0] as! Calendar.Component))
         }
-        registerMethod(&t, "Calendar.minimumRange", [ParamSpec("of", .calendarComponent)]) { base, v in
+        registerMethod(&t, "func Calendar.minimumRange(of p0: Calendar.Component) -> Range<Int>?", [ParamSpec("of", .calendarComponent)]) { base, v in
             generatedMemberResult((base as! Calendar).minimumRange(of: v[0] as! Calendar.Component))
         }
-        registerMethod(&t, "Calendar.nextWeekend", [ParamSpec("startingAfter", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.nextWeekend(startingAfter p0: Date) -> DateInterval?", [ParamSpec("startingAfter", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).nextWeekend(startingAfter: v[0] as! Date))
         }
-        registerMethod(&t, "Calendar.ordinality", [ParamSpec("of", .calendarComponent), ParamSpec("in", .calendarComponent), ParamSpec("for", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.ordinality(of p0: Calendar.Component, in p1: Calendar.Component, for p2: Date) -> Int?", [ParamSpec("of", .calendarComponent), ParamSpec("in", .calendarComponent), ParamSpec("for", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).ordinality(of: v[0] as! Calendar.Component, in: v[1] as! Calendar.Component, for: v[2] as! Date))
         }
-        registerMethod(&t, "Calendar.range", [ParamSpec("of", .calendarComponent), ParamSpec("in", .calendarComponent), ParamSpec("for", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.range(of p0: Calendar.Component, in p1: Calendar.Component, for p2: Date) -> Range<Int>?", [ParamSpec("of", .calendarComponent), ParamSpec("in", .calendarComponent), ParamSpec("for", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).range(of: v[0] as! Calendar.Component, in: v[1] as! Calendar.Component, for: v[2] as! Date))
         }
-        registerMethod(&t, "Calendar.startOfDay", [ParamSpec("for", .date)]) { base, v in
+        registerMethod(&t, "func Calendar.startOfDay(for p0: Date) -> Date", [ParamSpec("for", .date)]) { base, v in
             generatedMemberResult((base as! Calendar).startOfDay(for: v[0] as! Date))
         }
-        registerMethod(&t, "CharacterSet.intersection", [ParamSpec(nil, .characterSet)]) { base, v in
+        registerMethod(&t, "func CharacterSet.intersection(_ p0: CharacterSet) -> CharacterSet", [ParamSpec(nil, .characterSet)]) { base, v in
             generatedMemberResult((base as! CharacterSet).intersection(v[0] as! CharacterSet))
         }
-        registerMethod(&t, "CharacterSet.isSuperset", [ParamSpec("of", .characterSet)]) { base, v in
+        registerMethod(&t, "func CharacterSet.isSuperset(of p0: CharacterSet) -> Bool", [ParamSpec("of", .characterSet)]) { base, v in
             generatedMemberResult((base as! CharacterSet).isSuperset(of: v[0] as! CharacterSet))
         }
-        registerMethod(&t, "CharacterSet.subtracting", [ParamSpec(nil, .characterSet)]) { base, v in
+        registerMethod(&t, "func CharacterSet.subtracting(_ p0: CharacterSet) -> CharacterSet", [ParamSpec(nil, .characterSet)]) { base, v in
             generatedMemberResult((base as! CharacterSet).subtracting(v[0] as! CharacterSet))
         }
-        registerMethod(&t, "CharacterSet.symmetricDifference", [ParamSpec(nil, .characterSet)]) { base, v in
+        registerMethod(&t, "func CharacterSet.symmetricDifference(_ p0: CharacterSet) -> CharacterSet", [ParamSpec(nil, .characterSet)]) { base, v in
             generatedMemberResult((base as! CharacterSet).symmetricDifference(v[0] as! CharacterSet))
         }
-        registerMethod(&t, "CharacterSet.union", [ParamSpec(nil, .characterSet)]) { base, v in
+        registerMethod(&t, "func CharacterSet.union(_ p0: CharacterSet) -> CharacterSet", [ParamSpec(nil, .characterSet)]) { base, v in
             generatedMemberResult((base as! CharacterSet).union(v[0] as! CharacterSet))
         }
-        registerMethod(&t, "Data.base64EncodedData", []) { base, v in
+        registerMethod(&t, "func Data.base64EncodedData() -> Data", []) { base, v in
             generatedMemberResult((base as! Data).base64EncodedData())
         }
-        registerMethod(&t, "Data.base64EncodedString", []) { base, v in
+        registerMethod(&t, "func Data.base64EncodedString() -> String", []) { base, v in
             generatedMemberResult((base as! Data).base64EncodedString())
         }
-        registerMethod(&t, "Date.ISO8601Format", []) { base, v in
+        registerMethod(&t, "func Date.ISO8601Format() -> String", []) { base, v in
             generatedMemberResult((base as! Date).ISO8601Format())
         }
-        registerMethod(&t, "Date.addingTimeInterval", [ParamSpec(nil, .double)]) { base, v in
+        registerMethod(&t, "func Date.addingTimeInterval(_ p0: TimeInterval) -> Date", [ParamSpec(nil, .double)]) { base, v in
             generatedMemberResult((base as! Date).addingTimeInterval(v[0] as! Double))
         }
-        registerMethod(&t, "Date.advanced", [ParamSpec("by", .double)]) { base, v in
+        registerMethod(&t, "func Date.advanced(by p0: TimeInterval) -> Date", [ParamSpec("by", .double)]) { base, v in
             generatedMemberResult((base as! Date).advanced(by: v[0] as! Double))
         }
-        registerMethod(&t, "Date.compare", [ParamSpec(nil, .date)]) { base, v in
+        registerMethod(&t, "func Date.compare(_ p0: Date) -> ComparisonResult", [ParamSpec(nil, .date)]) { base, v in
             generatedMemberResult((base as! Date).compare(v[0] as! Date))
         }
-        registerMethod(&t, "Date.distance", [ParamSpec("to", .date)]) { base, v in
+        registerMethod(&t, "func Date.distance(to p0: Date) -> TimeInterval", [ParamSpec("to", .date)]) { base, v in
             generatedMemberResult((base as! Date).distance(to: v[0] as! Date))
         }
-        registerMethod(&t, "Date.timeIntervalSince", [ParamSpec(nil, .date)]) { base, v in
+        registerMethod(&t, "func Date.timeIntervalSince(_ p0: Date) -> TimeInterval", [ParamSpec(nil, .date)]) { base, v in
             generatedMemberResult((base as! Date).timeIntervalSince(v[0] as! Date))
         }
     }
 
     private static func buildM1(_ t: inout [String: [GeneratedMemberOverload]]) {
-        registerMethod(&t, "DateComponents.value", [ParamSpec("for", .calendarComponent)]) { base, v in
+        registerMethod(&t, "func DateComponents.value(for p0: Calendar.Component) -> Int?", [ParamSpec("for", .calendarComponent)]) { base, v in
             generatedMemberResult((base as! DateComponents).value(for: v[0] as! Calendar.Component))
         }
-        registerMethod(&t, "DateInterval.compare", [ParamSpec(nil, .dateInterval)]) { base, v in
+        registerMethod(&t, "func DateInterval.compare(_ p0: DateInterval) -> ComparisonResult", [ParamSpec(nil, .dateInterval)]) { base, v in
             generatedMemberResult((base as! DateInterval).compare(v[0] as! DateInterval))
         }
-        registerMethod(&t, "DateInterval.contains", [ParamSpec(nil, .date)]) { base, v in
+        registerMethod(&t, "func DateInterval.contains(_ p0: Date) -> Bool", [ParamSpec(nil, .date)]) { base, v in
             generatedMemberResult((base as! DateInterval).contains(v[0] as! Date))
         }
-        registerMethod(&t, "DateInterval.intersection", [ParamSpec("with", .dateInterval)]) { base, v in
+        registerMethod(&t, "func DateInterval.intersection(with p0: DateInterval) -> DateInterval?", [ParamSpec("with", .dateInterval)]) { base, v in
             generatedMemberResult((base as! DateInterval).intersection(with: v[0] as! DateInterval))
         }
-        registerMethod(&t, "DateInterval.intersects", [ParamSpec(nil, .dateInterval)]) { base, v in
+        registerMethod(&t, "func DateInterval.intersects(_ p0: DateInterval) -> Bool", [ParamSpec(nil, .dateInterval)]) { base, v in
             generatedMemberResult((base as! DateInterval).intersects(v[0] as! DateInterval))
         }
-        registerMethod(&t, "Decimal.advanced", [ParamSpec("by", .decimal)]) { base, v in
+        registerMethod(&t, "func Decimal.advanced(by p0: Decimal) -> Decimal", [ParamSpec("by", .decimal)]) { base, v in
             generatedMemberResult((base as! Decimal).advanced(by: v[0] as! Decimal))
         }
-        registerMethod(&t, "Decimal.distance", [ParamSpec("to", .decimal)]) { base, v in
+        registerMethod(&t, "func Decimal.distance(to p0: Decimal) -> Decimal", [ParamSpec("to", .decimal)]) { base, v in
             generatedMemberResult((base as! Decimal).distance(to: v[0] as! Decimal))
         }
-        registerMethod(&t, "Decimal.formatted", []) { base, v in
+        registerMethod(&t, "func Decimal.formatted() -> String", []) { base, v in
             generatedMemberResult((base as! Decimal).formatted())
         }
-        registerMethod(&t, "Decimal.isEqual", [ParamSpec("to", .decimal)]) { base, v in
+        registerMethod(&t, "func Decimal.isEqual(to p0: Decimal) -> Bool", [ParamSpec("to", .decimal)]) { base, v in
             generatedMemberResult((base as! Decimal).isEqual(to: v[0] as! Decimal))
         }
-        registerMethod(&t, "Decimal.isLess", [ParamSpec("than", .decimal)]) { base, v in
+        registerMethod(&t, "func Decimal.isLess(than p0: Decimal) -> Bool", [ParamSpec("than", .decimal)]) { base, v in
             generatedMemberResult((base as! Decimal).isLess(than: v[0] as! Decimal))
         }
-        registerMethod(&t, "Decimal.isLessThanOrEqualTo", [ParamSpec(nil, .decimal)]) { base, v in
+        registerMethod(&t, "func Decimal.isLessThanOrEqualTo(_ p0: Decimal) -> Bool", [ParamSpec(nil, .decimal)]) { base, v in
             generatedMemberResult((base as! Decimal).isLessThanOrEqualTo(v[0] as! Decimal))
         }
-        registerMethod(&t, "Decimal.isTotallyOrdered", [ParamSpec("belowOrEqualTo", .decimal)]) { base, v in
+        registerMethod(&t, "func Decimal.isTotallyOrdered(belowOrEqualTo p0: Decimal) -> Bool", [ParamSpec("belowOrEqualTo", .decimal)]) { base, v in
             generatedMemberResult((base as! Decimal).isTotallyOrdered(belowOrEqualTo: v[0] as! Decimal))
         }
-        registerMethod(&t, "IndexPath.appending", [ParamSpec(nil, .int)]) { base, v in
+        registerMethod(&t, "func IndexPath.appending(_ p0: Int) -> IndexPath", [ParamSpec(nil, .int)]) { base, v in
             generatedMemberResult((base as! IndexPath).appending(v[0] as! Int))
         }
-        registerMethod(&t, "IndexPath.appending", [ParamSpec(nil, .indexPath)]) { base, v in
+        registerMethod(&t, "func IndexPath.appending(_ p0: IndexPath) -> IndexPath", [ParamSpec(nil, .indexPath)]) { base, v in
             generatedMemberResult((base as! IndexPath).appending(v[0] as! IndexPath))
         }
-        registerMethod(&t, "IndexPath.appending", [ParamSpec(nil, .intArray)]) { base, v in
+        registerMethod(&t, "func IndexPath.appending(_ p0: [Int]) -> IndexPath", [ParamSpec(nil, .intArray)]) { base, v in
             generatedMemberResult((base as! IndexPath).appending(v[0] as! [Int]))
         }
-        registerMethod(&t, "IndexPath.compare", [ParamSpec(nil, .indexPath)]) { base, v in
+        registerMethod(&t, "func IndexPath.compare(_ p0: IndexPath) -> ComparisonResult", [ParamSpec(nil, .indexPath)]) { base, v in
             generatedMemberResult((base as! IndexPath).compare(v[0] as! IndexPath))
         }
-        registerMethod(&t, "IndexPath.dropLast", []) { base, v in
+        registerMethod(&t, "func IndexPath.dropLast() -> IndexPath", []) { base, v in
             generatedMemberResult((base as! IndexPath).dropLast())
         }
-        registerMethod(&t, "IndexPath.index", [ParamSpec("before", .int)]) { base, v in
+        registerMethod(&t, "func IndexPath.index(before p0: Int) -> Int", [ParamSpec("before", .int)]) { base, v in
             generatedMemberResult((base as! IndexPath).index(before: v[0] as! Int))
         }
-        registerMethod(&t, "IndexPath.index", [ParamSpec("after", .int)]) { base, v in
+        registerMethod(&t, "func IndexPath.index(after p0: Int) -> Int", [ParamSpec("after", .int)]) { base, v in
             generatedMemberResult((base as! IndexPath).index(after: v[0] as! Int))
         }
-        registerMethod(&t, "IndexPath.makeIterator", []) { base, v in
+        registerMethod(&t, "func IndexPath.makeIterator() -> IndexingIterator<IndexPath>", []) { base, v in
             generatedMemberResult((base as! IndexPath).makeIterator())
         }
-        registerMethod(&t, "IndexSet.contains", [ParamSpec(nil, .int)]) { base, v in
+        registerMethod(&t, "func IndexSet.contains(_ p0: Int) -> Bool", [ParamSpec(nil, .int)]) { base, v in
             generatedMemberResult((base as! IndexSet).contains(v[0] as! Int))
         }
-        registerMethod(&t, "IndexSet.contains", [ParamSpec("integersIn", .intRange)]) { base, v in
+        registerMethod(&t, "func IndexSet.contains(integersIn p0: Range<Int>) -> Bool", [ParamSpec("integersIn", .intRange)]) { base, v in
             generatedMemberResult((base as! IndexSet).contains(integersIn: v[0] as! Range<Int>))
         }
-        registerMethod(&t, "IndexSet.contains", [ParamSpec("integersIn", .indexSet)]) { base, v in
+        registerMethod(&t, "func IndexSet.contains(integersIn p0: IndexSet) -> Bool", [ParamSpec("integersIn", .indexSet)]) { base, v in
             generatedMemberResult((base as! IndexSet).contains(integersIn: v[0] as! IndexSet))
         }
-        registerMethod(&t, "IndexSet.count", [ParamSpec("in", .intRange)]) { base, v in
+        registerMethod(&t, "func IndexSet.count(in p0: Range<Int>) -> Int", [ParamSpec("in", .intRange)]) { base, v in
             generatedMemberResult((base as! IndexSet).count(in: v[0] as! Range<Int>))
         }
-        registerMethod(&t, "IndexSet.indexRange", [ParamSpec("in", .intRange)]) { base, v in
+        registerMethod(&t, "func IndexSet.indexRange(in p0: Range<Int>) -> Range<IndexSet.Index>", [ParamSpec("in", .intRange)]) { base, v in
             generatedMemberResult((base as! IndexSet).indexRange(in: v[0] as! Range<Int>))
         }
-        registerMethod(&t, "IndexSet.integerGreaterThan", [ParamSpec(nil, .int)]) { base, v in
+        registerMethod(&t, "func IndexSet.integerGreaterThan(_ p0: Int) -> Int?", [ParamSpec(nil, .int)]) { base, v in
             generatedMemberResult((base as! IndexSet).integerGreaterThan(v[0] as! Int))
         }
-        registerMethod(&t, "IndexSet.integerGreaterThanOrEqualTo", [ParamSpec(nil, .int)]) { base, v in
+        registerMethod(&t, "func IndexSet.integerGreaterThanOrEqualTo(_ p0: Int) -> Int?", [ParamSpec(nil, .int)]) { base, v in
             generatedMemberResult((base as! IndexSet).integerGreaterThanOrEqualTo(v[0] as! Int))
         }
-        registerMethod(&t, "IndexSet.integerLessThan", [ParamSpec(nil, .int)]) { base, v in
+        registerMethod(&t, "func IndexSet.integerLessThan(_ p0: Int) -> Int?", [ParamSpec(nil, .int)]) { base, v in
             generatedMemberResult((base as! IndexSet).integerLessThan(v[0] as! Int))
         }
-        registerMethod(&t, "IndexSet.integerLessThanOrEqualTo", [ParamSpec(nil, .int)]) { base, v in
+        registerMethod(&t, "func IndexSet.integerLessThanOrEqualTo(_ p0: Int) -> Int?", [ParamSpec(nil, .int)]) { base, v in
             generatedMemberResult((base as! IndexSet).integerLessThanOrEqualTo(v[0] as! Int))
         }
-        registerMethod(&t, "IndexSet.intersection", [ParamSpec(nil, .indexSet)]) { base, v in
+        registerMethod(&t, "func IndexSet.intersection(_ p0: IndexSet) -> IndexSet", [ParamSpec(nil, .indexSet)]) { base, v in
             generatedMemberResult((base as! IndexSet).intersection(v[0] as! IndexSet))
         }
-        registerMethod(&t, "IndexSet.intersects", [ParamSpec("integersIn", .intRange)]) { base, v in
+        registerMethod(&t, "func IndexSet.intersects(integersIn p0: Range<Int>) -> Bool", [ParamSpec("integersIn", .intRange)]) { base, v in
             generatedMemberResult((base as! IndexSet).intersects(integersIn: v[0] as! Range<Int>))
         }
-        registerMethod(&t, "IndexSet.makeIterator", []) { base, v in
+        registerMethod(&t, "func IndexSet.makeIterator() -> IndexingIterator<IndexSet>", []) { base, v in
             generatedMemberResult((base as! IndexSet).makeIterator())
         }
-        registerMethod(&t, "IndexSet.rangeView", [ParamSpec("of", .intRange)]) { base, v in
+        registerMethod(&t, "func IndexSet.rangeView(of p0: Range<Int>) -> IndexSet.RangeView", [ParamSpec("of", .intRange)]) { base, v in
             generatedMemberResult((base as! IndexSet).rangeView(of: v[0] as! Range<Int>))
         }
-        registerMethod(&t, "IndexSet.symmetricDifference", [ParamSpec(nil, .indexSet)]) { base, v in
+        registerMethod(&t, "func IndexSet.symmetricDifference(_ p0: IndexSet) -> IndexSet", [ParamSpec(nil, .indexSet)]) { base, v in
             generatedMemberResult((base as! IndexSet).symmetricDifference(v[0] as! IndexSet))
         }
-        registerMethod(&t, "IndexSet.union", [ParamSpec(nil, .indexSet)]) { base, v in
+        registerMethod(&t, "func IndexSet.union(_ p0: IndexSet) -> IndexSet", [ParamSpec(nil, .indexSet)]) { base, v in
             generatedMemberResult((base as! IndexSet).union(v[0] as! IndexSet))
         }
-        registerMethod(&t, "Locale.localizedString", [ParamSpec("forIdentifier", .string)]) { base, v in
+        registerMethod(&t, "func Locale.localizedString(forIdentifier p0: String) -> String?", [ParamSpec("forIdentifier", .string)]) { base, v in
             generatedMemberResult((base as! Locale).localizedString(forIdentifier: v[0] as! String))
         }
-        registerMethod(&t, "Locale.localizedString", [ParamSpec("forLanguageCode", .string)]) { base, v in
+        registerMethod(&t, "func Locale.localizedString(forLanguageCode p0: String) -> String?", [ParamSpec("forLanguageCode", .string)]) { base, v in
             generatedMemberResult((base as! Locale).localizedString(forLanguageCode: v[0] as! String))
         }
-        registerMethod(&t, "Locale.localizedString", [ParamSpec("forRegionCode", .string)]) { base, v in
+        registerMethod(&t, "func Locale.localizedString(forRegionCode p0: String) -> String?", [ParamSpec("forRegionCode", .string)]) { base, v in
             generatedMemberResult((base as! Locale).localizedString(forRegionCode: v[0] as! String))
         }
-        registerMethod(&t, "Locale.localizedString", [ParamSpec("forScriptCode", .string)]) { base, v in
+        registerMethod(&t, "func Locale.localizedString(forScriptCode p0: String) -> String?", [ParamSpec("forScriptCode", .string)]) { base, v in
             generatedMemberResult((base as! Locale).localizedString(forScriptCode: v[0] as! String))
         }
-        registerMethod(&t, "Locale.localizedString", [ParamSpec("forVariantCode", .string)]) { base, v in
+        registerMethod(&t, "func Locale.localizedString(forVariantCode p0: String) -> String?", [ParamSpec("forVariantCode", .string)]) { base, v in
             generatedMemberResult((base as! Locale).localizedString(forVariantCode: v[0] as! String))
         }
     }
 
     private static func buildM2(_ t: inout [String: [GeneratedMemberOverload]]) {
-        registerMethod(&t, "Locale.localizedString", [ParamSpec("forCurrencyCode", .string)]) { base, v in
+        registerMethod(&t, "func Locale.localizedString(forCurrencyCode p0: String) -> String?", [ParamSpec("forCurrencyCode", .string)]) { base, v in
             generatedMemberResult((base as! Locale).localizedString(forCurrencyCode: v[0] as! String))
         }
-        registerMethod(&t, "Locale.localizedString", [ParamSpec("forCollationIdentifier", .string)]) { base, v in
+        registerMethod(&t, "func Locale.localizedString(forCollationIdentifier p0: String) -> String?", [ParamSpec("forCollationIdentifier", .string)]) { base, v in
             generatedMemberResult((base as! Locale).localizedString(forCollationIdentifier: v[0] as! String))
         }
-        registerMethod(&t, "Locale.localizedString", [ParamSpec("forCollatorIdentifier", .string)]) { base, v in
+        registerMethod(&t, "func Locale.localizedString(forCollatorIdentifier p0: String) -> String?", [ParamSpec("forCollatorIdentifier", .string)]) { base, v in
             generatedMemberResult((base as! Locale).localizedString(forCollatorIdentifier: v[0] as! String))
         }
-        registerMethod(&t, "PersonNameComponents.formatted", []) { base, v in
+        registerMethod(&t, "func PersonNameComponents.formatted() -> String", []) { base, v in
             generatedMemberResult((base as! PersonNameComponents).formatted())
         }
-        registerMethod(&t, "TimeZone.abbreviation", []) { base, v in
+        registerMethod(&t, "func TimeZone.abbreviation() -> String?", []) { base, v in
             generatedMemberResult((base as! TimeZone).abbreviation())
         }
-        registerMethod(&t, "TimeZone.abbreviation", [ParamSpec("for", .date)]) { base, v in
+        registerMethod(&t, "func TimeZone.abbreviation(for p0: Date) -> String?", [ParamSpec("for", .date)]) { base, v in
             generatedMemberResult((base as! TimeZone).abbreviation(for: v[0] as! Date))
         }
-        registerMethod(&t, "TimeZone.daylightSavingTimeOffset", []) { base, v in
+        registerMethod(&t, "func TimeZone.daylightSavingTimeOffset() -> TimeInterval", []) { base, v in
             generatedMemberResult((base as! TimeZone).daylightSavingTimeOffset())
         }
-        registerMethod(&t, "TimeZone.daylightSavingTimeOffset", [ParamSpec("for", .date)]) { base, v in
+        registerMethod(&t, "func TimeZone.daylightSavingTimeOffset(for p0: Date) -> TimeInterval", [ParamSpec("for", .date)]) { base, v in
             generatedMemberResult((base as! TimeZone).daylightSavingTimeOffset(for: v[0] as! Date))
         }
-        registerMethod(&t, "TimeZone.isDaylightSavingTime", []) { base, v in
+        registerMethod(&t, "func TimeZone.isDaylightSavingTime() -> Bool", []) { base, v in
             generatedMemberResult((base as! TimeZone).isDaylightSavingTime())
         }
-        registerMethod(&t, "TimeZone.isDaylightSavingTime", [ParamSpec("for", .date)]) { base, v in
+        registerMethod(&t, "func TimeZone.isDaylightSavingTime(for p0: Date) -> Bool", [ParamSpec("for", .date)]) { base, v in
             generatedMemberResult((base as! TimeZone).isDaylightSavingTime(for: v[0] as! Date))
         }
-        registerMethod(&t, "TimeZone.nextDaylightSavingTimeTransition", [ParamSpec("after", .date)]) { base, v in
+        registerMethod(&t, "func TimeZone.nextDaylightSavingTimeTransition(after p0: Date) -> Date?", [ParamSpec("after", .date)]) { base, v in
             generatedMemberResult((base as! TimeZone).nextDaylightSavingTimeTransition(after: v[0] as! Date))
         }
-        registerMethod(&t, "TimeZone.secondsFromGMT", []) { base, v in
+        registerMethod(&t, "func TimeZone.secondsFromGMT() -> Int", []) { base, v in
             generatedMemberResult((base as! TimeZone).secondsFromGMT())
         }
-        registerMethod(&t, "TimeZone.secondsFromGMT", [ParamSpec("for", .date)]) { base, v in
+        registerMethod(&t, "func TimeZone.secondsFromGMT(for p0: Date) -> Int", [ParamSpec("for", .date)]) { base, v in
             generatedMemberResult((base as! TimeZone).secondsFromGMT(for: v[0] as! Date))
         }
-        registerMethod(&t, "URL.appendingPathComponent", [ParamSpec(nil, .string)]) { base, v in
+        registerMethod(&t, "func URL.appendingPathComponent(_ p0: String) -> URL", [ParamSpec(nil, .string)]) { base, v in
             generatedMemberResult((base as! URL).appendingPathComponent(v[0] as! String))
         }
-        registerMethod(&t, "URL.appendingPathComponent", [ParamSpec(nil, .string), ParamSpec("isDirectory", .bool)]) { base, v in
+        registerMethod(&t, "func URL.appendingPathComponent(_ p0: String, isDirectory p1: Bool) -> URL", [ParamSpec(nil, .string), ParamSpec("isDirectory", .bool)]) { base, v in
             generatedMemberResult((base as! URL).appendingPathComponent(v[0] as! String, isDirectory: v[1] as! Bool))
         }
-        registerMethod(&t, "URL.appendingPathExtension", [ParamSpec(nil, .string)]) { base, v in
+        registerMethod(&t, "func URL.appendingPathExtension(_ p0: String) -> URL", [ParamSpec(nil, .string)]) { base, v in
             generatedMemberResult((base as! URL).appendingPathExtension(v[0] as! String))
         }
-        registerMethod(&t, "URL.deletingLastPathComponent", []) { base, v in
+        registerMethod(&t, "func URL.deletingLastPathComponent() -> URL", []) { base, v in
             generatedMemberResult((base as! URL).deletingLastPathComponent())
         }
-        registerMethod(&t, "URL.deletingPathExtension", []) { base, v in
+        registerMethod(&t, "func URL.deletingPathExtension() -> URL", []) { base, v in
             generatedMemberResult((base as! URL).deletingPathExtension())
         }
-        registerMethod(&t, "URL.formatted", []) { base, v in
+        registerMethod(&t, "func URL.formatted() -> String", []) { base, v in
             generatedMemberResult((base as! URL).formatted())
         }
-        registerMethod(&t, "URL.fragment", []) { base, v in
+        registerMethod(&t, "func URL.fragment() -> String?", []) { base, v in
             generatedMemberResult((base as! URL).fragment())
         }
-        registerMethod(&t, "URL.fragment", [ParamSpec("percentEncoded", .bool)]) { base, v in
+        registerMethod(&t, "func URL.fragment(percentEncoded p0: Bool) -> String?", [ParamSpec("percentEncoded", .bool)]) { base, v in
             generatedMemberResult((base as! URL).fragment(percentEncoded: v[0] as! Bool))
         }
-        registerMethod(&t, "URL.host", []) { base, v in
+        registerMethod(&t, "func URL.host() -> String?", []) { base, v in
             generatedMemberResult((base as! URL).host())
         }
-        registerMethod(&t, "URL.host", [ParamSpec("percentEncoded", .bool)]) { base, v in
+        registerMethod(&t, "func URL.host(percentEncoded p0: Bool) -> String?", [ParamSpec("percentEncoded", .bool)]) { base, v in
             generatedMemberResult((base as! URL).host(percentEncoded: v[0] as! Bool))
         }
-        registerMethod(&t, "URL.password", []) { base, v in
+        registerMethod(&t, "func URL.password() -> String?", []) { base, v in
             generatedMemberResult((base as! URL).password())
         }
-        registerMethod(&t, "URL.password", [ParamSpec("percentEncoded", .bool)]) { base, v in
+        registerMethod(&t, "func URL.password(percentEncoded p0: Bool) -> String?", [ParamSpec("percentEncoded", .bool)]) { base, v in
             generatedMemberResult((base as! URL).password(percentEncoded: v[0] as! Bool))
         }
-        registerMethod(&t, "URL.path", []) { base, v in
+        registerMethod(&t, "func URL.path() -> String", []) { base, v in
             generatedMemberResult((base as! URL).path())
         }
-        registerMethod(&t, "URL.path", [ParamSpec("percentEncoded", .bool)]) { base, v in
+        registerMethod(&t, "func URL.path(percentEncoded p0: Bool) -> String", [ParamSpec("percentEncoded", .bool)]) { base, v in
             generatedMemberResult((base as! URL).path(percentEncoded: v[0] as! Bool))
         }
-        registerMethod(&t, "URL.query", []) { base, v in
+        registerMethod(&t, "func URL.query() -> String?", []) { base, v in
             generatedMemberResult((base as! URL).query())
         }
-        registerMethod(&t, "URL.query", [ParamSpec("percentEncoded", .bool)]) { base, v in
+        registerMethod(&t, "func URL.query(percentEncoded p0: Bool) -> String?", [ParamSpec("percentEncoded", .bool)]) { base, v in
             generatedMemberResult((base as! URL).query(percentEncoded: v[0] as! Bool))
         }
-        registerMethod(&t, "URL.resolvingSymlinksInPath", []) { base, v in
+        registerMethod(&t, "func URL.resolvingSymlinksInPath() -> URL", []) { base, v in
             generatedMemberResult((base as! URL).resolvingSymlinksInPath())
         }
-        registerMethod(&t, "URL.startAccessingSecurityScopedResource", []) { base, v in
+        registerMethod(&t, "func URL.startAccessingSecurityScopedResource() -> Bool", []) { base, v in
             generatedMemberResult((base as! URL).startAccessingSecurityScopedResource())
         }
-        registerMethod(&t, "URL.user", []) { base, v in
+        registerMethod(&t, "func URL.user() -> String?", []) { base, v in
             generatedMemberResult((base as! URL).user())
         }
-        registerMethod(&t, "URL.user", [ParamSpec("percentEncoded", .bool)]) { base, v in
+        registerMethod(&t, "func URL.user(percentEncoded p0: Bool) -> String?", [ParamSpec("percentEncoded", .bool)]) { base, v in
             generatedMemberResult((base as! URL).user(percentEncoded: v[0] as! Bool))
         }
-        registerMethod(&t, "URLComponents.url", [ParamSpec("relativeTo", .url)]) { base, v in
+        registerMethod(&t, "func URLComponents.url(relativeTo p0: URL) -> URL?", [ParamSpec("relativeTo", .url)]) { base, v in
             generatedMemberResult((base as! URLComponents).url(relativeTo: v[0] as! URL))
         }
-        registerMethod(&t, "URLRequest.value", [ParamSpec("forHTTPHeaderField", .string)]) { base, v in
+        registerMethod(&t, "func URLRequest.value(forHTTPHeaderField p0: String) -> String?", [ParamSpec("forHTTPHeaderField", .string)]) { base, v in
             generatedMemberResult((base as! URLRequest).value(forHTTPHeaderField: v[0] as! String))
         }
     }
