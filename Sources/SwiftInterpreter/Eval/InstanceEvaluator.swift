@@ -1,6 +1,21 @@
 import Foundation
 import SwiftSyntax
 
+/// Reference-typed stand-in for an imported class supplied by the headless
+/// root synthesizer. Ordinary unknowable markers are value carriers, but a
+/// weak/unowned source slot can only legally contain a class; this wrapper
+/// preserves that compiled type fact and gives the synthetic caller a stable
+/// identity to own.
+private final class SynthesizedExternalObject: InertCallable, CustomStringConvertible {
+    let typeName: String
+
+    init(typeName: String) {
+        self.typeName = typeName
+    }
+
+    var description: String { "synthesized.\(typeName)" }
+}
+
 extension Interpreter {
     // MARK: - Instances
 
@@ -622,7 +637,16 @@ extension Interpreter {
         steps = 0
         var seen: Set<String> = [symbol.name]
         let args = try synthesizedArguments(for: symbol, seen: &seen)
-        return try instantiate(symbol, with: args)
+        let root = try instantiate(symbol, with: args)
+        if case .instance(let instance) = root {
+            // Native callers own the arguments they pass for at least their
+            // lexical lifetime. A headless synthetic root has no source-level
+            // caller, so preserve that ownership on the root itself; this
+            // keeps valid unowned dependencies alive without changing normal
+            // weak/unowned storage semantics.
+            instance.synthesizedRootOwners = args.arguments.map(\.value)
+        }
+        return root
     }
 
     /// A property typed by one of the OWNER's generic parameters: fresh
@@ -635,6 +659,19 @@ extension Interpreter {
         }
         return .native(ChainedImplicitCall(
             base: .implicitMember("generic"), member: parameter, arguments: CallArguments()))
+    }
+
+    private func rootArgumentOwner(
+        _ value: RuntimeValue, typeName: String,
+        ownership: ReferenceOwnership
+    ) -> RuntimeValue {
+        guard ownership != .strong,
+              case .host(let payload) = value,
+              payload is ChainedImplicitCall || payload is ImplicitMemberCall
+                || payload is HostTypeMarker else {
+            return value
+        }
+        return .native(SynthesizedExternalObject(typeName: typeName))
     }
 
     private func synthesizedArguments(for symbol: StructSymbol, seen: inout Set<String>) throws -> CallArguments {
@@ -657,7 +694,12 @@ extension Interpreter {
                 } else {
                     value = try synthesizedFreshValue(typeName: typeName, owner: symbol, seen: &seen)
                 }
-                arguments.append(.init(label: label == "_" ? nil : label, value: value))
+                let ownership = symbol.storedProperty(named: label)?.referenceOwnership
+                    ?? .strong
+                arguments.append(.init(
+                    label: label == "_" ? nil : label,
+                    value: rootArgumentOwner(
+                        value, typeName: typeName, ownership: ownership)))
             }
         } else {
             for property in symbol.storedProperties
@@ -668,12 +710,20 @@ extension Interpreter {
                     if let constraint = symbol.genericParameters[typeName] {
                         arguments.append(.init(
                             label: property.name,
-                            value: synthesizedGenericValue(constraint: constraint, parameter: typeName)))
+                            value: rootArgumentOwner(
+                                synthesizedGenericValue(
+                                    constraint: constraint, parameter: typeName),
+                                typeName: typeName,
+                                ownership: property.referenceOwnership)))
                         continue
                     }
                     arguments.append(.init(
                         label: property.name,
-                        value: try synthesizedFreshValue(typeName: typeName, owner: symbol, seen: &seen)))
+                        value: rootArgumentOwner(
+                            try synthesizedFreshValue(
+                                typeName: typeName, owner: symbol, seen: &seen),
+                            typeName: typeName,
+                            ownership: property.referenceOwnership)))
                 case .binding:
                     // A standalone root has no parent to pass bindings —
                     // synthesize one over the inner type's fresh value.

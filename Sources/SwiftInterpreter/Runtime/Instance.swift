@@ -39,6 +39,11 @@ public final class Instance: CustomStringConvertible {
     /// it nil because their backing-node destruction is not a Swift `deinit`.
     weak var lifecycleOwner: Interpreter?
     var didRunDeinitializer = false
+    /// `instantiateRoot` acts as the otherwise-absent embedding caller. Its
+    /// synthesized arguments may be referenced by `weak`/`unowned` source
+    /// properties, so the root value carries the caller's strong ownership
+    /// lease. Ordinary source construction leaves this empty.
+    var synthesizedRootOwners: [RuntimeValue] = []
 
     public init(symbol: StructSymbol, lifecycleOwner: Interpreter? = nil) {
         self.symbol = symbol

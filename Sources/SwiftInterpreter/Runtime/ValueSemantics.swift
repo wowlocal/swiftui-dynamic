@@ -118,6 +118,7 @@ extension RuntimeValue {
                 }
                 let isolated = Instance(symbol: instance.symbol)
                 isolated.isInitializing = instance.isInitializing
+                isolated.synthesizedRootOwners = instance.synthesizedRootOwners
                 structCopies[identity] = isolated
                 for (name, box) in instance.properties {
                     if instance.symbol.storedProperty(named: name)?.wrapper == .binding {
@@ -173,6 +174,7 @@ extension Instance {
         precondition(!symbol.isClass, "class instances must retain identity")
         let copy = Instance(symbol: symbol)
         copy.isInitializing = isInitializing
+        copy.synthesizedRootOwners = synthesizedRootOwners
         for (name, box) in properties {
             if symbol.storedProperty(named: name)?.wrapper == .binding {
                 copy.properties[name] = box

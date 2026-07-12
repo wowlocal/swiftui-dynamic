@@ -674,6 +674,62 @@ struct ARCSemanticsTests {
         #expect(interpreted == native)
     }
 
+    /// Native Swift 6 strict-concurrency probe: the caller's strong local
+    /// keeps an argument alive while a constructed root stores it `unowned`.
+    /// `instantiateRoot` is the synthetic caller and must provide that owner
+    /// for exactly the lifetime of the synthesized root value.
+    @Test func synthesizedRootCallerOwnsUnownedArgumentsForRootLifetime() throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+        final class Dependency {
+            let value = "alive"
+        }
+
+        struct Root {
+            unowned let dependency: Dependency
+
+            func read() -> String {
+                dependency.value
+            }
+        }
+        """)
+        let symbol = try #require(
+            interpreter.structSymbols.first { $0.name == "Root" })
+        guard case .instance(let root) = try interpreter.instantiateRoot(symbol) else {
+            Issue.record("synthetic Root did not instantiate")
+            return
+        }
+
+        let value = try interpreter.callMethod(
+            named: "read", on: root, arguments: [])
+        #expect(value.stringValue == "alive")
+    }
+
+    /// Imported class declarations are absent from a merged source image.
+    /// Their synthesized marker must still have reference identity when the
+    /// compiled property type is `unowned`; otherwise host-value boxing makes
+    /// the weak target disappear before the root's first body evaluation.
+    @Test func synthesizedRootOwnsOpaqueImportedUnownedArguments() throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+        struct Root {
+            unowned let dependency: ImportedDependency
+
+            func touch() {
+                _ = dependency.isReady
+            }
+        }
+        """, lazyTopLevelGlobals: true)
+        let symbol = try #require(
+            interpreter.structSymbols.first { $0.name == "Root" })
+        guard case .instance(let root) = try interpreter.instantiateRoot(symbol) else {
+            Issue.record("synthetic Root did not instantiate")
+            return
+        }
+
+        _ = try interpreter.callMethod(named: "touch", on: root, arguments: [])
+    }
+
     @Test func unownedCaptureDoesNotRetainButWorksWhileAliveLikeNativeSwift() throws {
         let log = NativeARCLog()
         var reader: (() -> String)?
