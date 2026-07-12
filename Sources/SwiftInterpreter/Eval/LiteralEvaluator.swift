@@ -23,23 +23,51 @@ extension Interpreter {
             case .stringSegment(let s):
                 out += unescape(s.content.text)
             case .expressionSegment(let e):
-                for labeled in e.expressions {
-                    let value = try evaluate(labeled.expression, in: env)
-                    // Unknowables read "" in string interpolation — the
-                    // fresh-string doctrine; internal marker dumps must
-                    // never reach rendered Text.
-                    if case .host(let any) = value,
-                       any is InertCallable || any is ChainedImplicitCall
-                        || any is ImplicitMemberCall {
-                        continue
-                    }
-                    if case .implicitMember = value { continue }
-                    if case .hostFunction = value { continue }
-                    out += value.stringified
+                // Keep ordinary `\(value)` on the original allocation-free
+                // path; labeled interpolation is the uncommon case.
+                if e.expressions.count == 1, let only = e.expressions.first,
+                   only.label == nil {
+                    let value = try evaluate(only.expression, in: env)
+                    if let text = interpolationText(value) { out += text }
+                    continue
                 }
+                // One expression segment is one appendInterpolation call.
+                // Its labeled controls are arguments, not extra output.
+                // Evaluate every argument once, left-to-right, before
+                // applying the selected interpolation behavior.
+                var arguments: [(label: String?, value: RuntimeValue)] = []
+                for labeled in e.expressions {
+                    arguments.append((
+                        labeled.label?.text,
+                        try evaluate(labeled.expression, in: env)))
+                }
+                guard let value = arguments.first?.value else { continue }
+                if let specifierArgument = arguments.first(where: {
+                    $0.label == "specifier"
+                }) {
+                    guard let specifier = specifierArgument.value.stringValue else {
+                        throw error(e, "string interpolation specifier must be a String")
+                    }
+                    out += Self.cFormattedString(specifier, values: [value])
+                    continue
+                }
+                if let text = interpolationText(value) { out += text }
             }
         }
         return out
+    }
+
+    private func interpolationText(_ value: RuntimeValue) -> String? {
+        // Unknowables read "" in string interpolation — the fresh-string
+        // doctrine; internal marker dumps must never reach rendered Text.
+        if case .host(let any) = value,
+           any is InertCallable || any is ChainedImplicitCall
+            || any is ImplicitMemberCall {
+            return nil
+        }
+        if case .implicitMember = value { return nil }
+        if case .hostFunction = value { return nil }
+        return value.stringified
     }
 
     private func unescape(_ text: String) -> String {

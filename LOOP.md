@@ -1278,3 +1278,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   raw AnyShapeStyle identity + computed-property/generated-modifier round
   trip). **GATE GREEN: suite 648; corpus 678/680; live 5/5; parity 345/0/0;
   R1 9/9.**
+- 2026-07-12 localized interpolation fidelity: FoodTruck's
+  `String(localized: "#\(number, specifier: \"%02d\")")` exposed that an
+  expression segment's labeled arguments were being rendered as independent
+  values, producing `#1%02d` instead of native `#01`. Interpolation arguments
+  now evaluate exactly once from left to right, labels select behavior rather
+  than contribute output, and `specifier:` requires a String before formatting
+  the value. The localized path and `String(format:)` share one host-safe
+  C-vararg conversion boundary; ordinary unlabeled interpolation retains its
+  allocation-free fast path. Native pins cover integer/float/hex formatting,
+  exact FoodTruck output, evaluation order (`vs`), and invalid specifiers.
+  FoodTruck R2 ratchets orders 9.828%→7.291%, card-orders 3.183%→3.053%,
+  truck 12.036%→12.012%, socialfeed 16.960%→16.946%, and content
+  25.408%→25.381%, with all eight screens non-regressing. Stabilized release
+  SpeedBench holds a 9,426× geometric mean (interpolation loop 875×).
+  **GATE GREEN: suite 651/139; corpus 678/680; live 5/5; parity 345/0/0;
+  R1 9/9.**

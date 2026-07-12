@@ -100,7 +100,8 @@ documented in [`Docs/InterpreterArchitecture.md`](Docs/InterpreterArchitecture.m
 
 ## Supported subset
 
-**Language**: literals + interpolation, arrays/dictionaries/tuples with
+**Language**: literals + interpolation (including localized printf-style
+`specifier:` controls), arrays/dictionaries/tuples with
 subscripts (including Dictionary `default:` reads and mutations with native
 fallback evaluation), dedicated `Set` values (array-literal/sequence construction,
 membership, algebra, mutation, and value semantics), operators with real

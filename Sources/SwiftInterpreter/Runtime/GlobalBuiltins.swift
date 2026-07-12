@@ -143,35 +143,8 @@ extension Interpreter {
                 // vararg must MATCH its directive's expectation: `%@`
                 // dereferences an OBJECT pointer, so an Int riding under it
                 // is a SIGSEGV (the NSLocalizedString("… %@ …") genre).
-                // Scan the directives and wrap accordingly.
-                let directives = Self.formatDirectives(format)
-                var varargs: [CVarArg] = []
-                for (index, argument) in args.arguments.dropFirst().enumerated() {
-                    let directive = index < directives.count ? directives[index] : "@"
-                    let value = argument.value
-                    if directive == "@" {
-                        // Object slot: everything rides as an NSObject.
-                        if let i = value.intValue { varargs.append(NSNumber(value: i)) }
-                        else if let d = value.doubleValue { varargs.append(NSNumber(value: d)) }
-                        else if let s = value.stringValue { varargs.append(s as NSString) }
-                        else { varargs.append(value.stringified as NSString) }
-                    } else if "eEfgG".contains(directive) {
-                        varargs.append(value.doubleValue ?? 0)
-                    } else if "dDiuUxXo".contains(directive) {
-                        varargs.append(value.intValue ?? Int(value.doubleValue ?? 0))
-                    } else if directive == "s" {
-                        varargs.append(value.stringValue ?? value.stringified)
-                    } else if let i = value.intValue {
-                        varargs.append(i)
-                    } else if let d = value.doubleValue {
-                        varargs.append(d)
-                    } else if let s = value.stringValue {
-                        varargs.append(s as NSString)
-                    } else {
-                        varargs.append(value.stringified as NSString)
-                    }
-                }
-                return .native(Swift.String(format: format, arguments: varargs))
+                let values = args.arguments.dropFirst().map(\.value)
+                return .native(Self.cFormattedString(format, values: values))
             }
             if let repeating = args.labeled("repeating")?.stringValue, let count = args.labeled("count")?.intValue {
                 return .native(Swift.String(repeating: repeating, count: Swift.max(0, count)))

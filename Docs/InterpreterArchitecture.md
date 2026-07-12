@@ -24,6 +24,10 @@ source
 - `Eval/MemberEvaluator.swift`, `CallEvaluator.swift`,
   `InvocationEvaluator.swift`, `OperatorEvaluator.swift`, and
   `LiteralEvaluator.swift` own their corresponding language semantics.
+- `LiteralEvaluator` evaluates each interpolation argument once in source
+  order and treats labels as overload controls rather than output segments.
+  `Runtime/StringFormatting.swift` owns the host-safe C-vararg conversion
+  shared by localized `specifier:` interpolation and `String(format:)`.
 - `Eval/InstanceEvaluator.swift` owns interpreted instance construction,
   annotation resolution, and instance lifecycle behavior.
 - `Runtime/` owns value representation, containers, built-ins, and execution
