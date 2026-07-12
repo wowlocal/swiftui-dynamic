@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; handles retain typed outcomes; `await task.value` and `await task.result` suspend and register explicit waiters | Remaining task kinds, session policies, cancellation graph, priority/task-local foundations |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; handles retain typed outcomes; task reads suspend; top-level/drain/cancel host session policies are task-kind neutral | Remaining task kinds, cancellation graph, priority/task-local foundations |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -55,6 +55,7 @@ major version 6.
 | `task-result` | exact | `await task.result` waits and returns `.success`/`.failure` without throwing the failure from the property read; `get()` rethrows it | Native/interpreter parity in 20 repetitions: `success:value,failure,get-caught` |
 | `task-result-cancellation` | exact | A throwing task cancelled during a cancellable suspension completes its result as `.failure` | Native/interpreter parity in 20 repetitions; the fixture asserts case shape rather than error text |
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
+| `unstructured-top-level-lifetime` | exact | An unstructured task may continue after its creating function returns; lexical scope does not join it | Native/interpreter parity in 20 repetitions: `returned,task`; interpreter execution uses the explicit drain policy rather than claiming structured ownership |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -354,3 +355,36 @@ foundations.
 Verification for the detached-kind step: the 38 concurrency-parity,
 async-execution, and host-signature tests passed, followed by all 711 tests in
 141 suites.
+
+### Language lifetime and host session policies
+
+`unstructured-top-level-lifetime` holds a source `Task {}` behind a gate,
+records `returned` in its creating function, and opens the gate from another
+unstructured task. Twenty native and twenty interpreter runs produced
+`returned,task`. The source task remains unstructured; the parity harness sees
+its completion because `runAsync` defaults to the explicit
+`drainOwnedTasks` host policy.
+
+`runAsync` now accepts three task-kind-neutral completion policies:
+
+- `topLevel` returns with owned unstructured/detached tasks still active;
+- `drainOwnedTasks` waits for every task owned by that session, including
+  tasks spawned by those tasks;
+- `cancelRemainingTasks` cancels remaining owned tasks, waits for native
+  completion, and releases their runtime records.
+
+Each run receives a `RuntimeSessionID`, inherited by its owned task records and
+contexts. Draining/cancellation filter by that identity rather than by indices
+in a shared array. A detached cleanup watcher releases top-level-policy tasks
+only after their native task actually completes. The old global
+`asyncSessionDepth` has been removed; async scheduling capability now belongs
+to the evaluator context, so a task that outlives top-level return can still
+spawn another async task.
+
+Focused policy regressions cover early top-level return, a drain session that
+must not wait for another session's blocked task, cancellation of a task
+already inside host suspension, stored handle state, and empty scheduler/runtime
+tracking after cleanup. A temporary executable depending only on
+`SwiftInterpreter` exercised all three public policies successfully while
+unrelated user-regenerated SwiftUI bridge files prevented the package-wide
+runner from linking; final counts are recorded after the clean-worktree gate.

@@ -13,6 +13,8 @@ final class EvaluationTaskContext {
 
     let id: UInt64
     let runtimeTaskID: RuntimeTaskID?
+    let runtimeSessionID: RuntimeSessionID?
+    let isAsyncSession: Bool
     weak var interpreter: Interpreter?
 
     var steps = 0
@@ -39,11 +41,16 @@ final class EvaluationTaskContext {
     var deferredExtensionRetry = false
 
     init(
-        id: UInt64, runtimeTaskID: RuntimeTaskID? = nil,
+        id: UInt64,
+        runtimeTaskID: RuntimeTaskID? = nil,
+        runtimeSessionID: RuntimeSessionID? = nil,
+        isAsyncSession: Bool = false,
         interpreter: Interpreter
     ) {
         self.id = id
         self.runtimeTaskID = runtimeTaskID
+        self.runtimeSessionID = runtimeSessionID
+        self.isAsyncSession = isAsyncSession
         self.interpreter = interpreter
     }
 

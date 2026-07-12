@@ -126,12 +126,18 @@ public final class Interpreter {
     }
 
     func makeEvaluationTaskContext(
-        runtimeTaskID: RuntimeTaskID? = nil
+        runtimeTaskID: RuntimeTaskID? = nil,
+        runtimeSessionID: RuntimeSessionID? = nil,
+        isAsyncSession: Bool = false
     ) -> EvaluationTaskContext {
         let id = nextEvaluationTaskContextID
         nextEvaluationTaskContextID += 1
         return EvaluationTaskContext(
-            id: id, runtimeTaskID: runtimeTaskID, interpreter: self)
+            id: id,
+            runtimeTaskID: runtimeTaskID,
+            runtimeSessionID: runtimeSessionID,
+            isAsyncSession: isAsyncSession,
+            interpreter: self)
     }
 
     /// White-box identity used by concurrency ownership and host re-entry
@@ -168,10 +174,6 @@ public final class Interpreter {
         get { evaluationTaskContext.resolveAnnotatedDepth }
         set { evaluationTaskContext.resolveAnnotatedDepth = newValue }
     }
-    /// `runAsync` schedules source `Task {}` bodies on real Swift tasks. The
-    /// synchronous entry point retains deterministic inline execution until
-    /// the evaluator migration is complete.
-    var asyncSessionDepth = 0
     var synchronousTaskDepth: Int {
         get { evaluationTaskContext.synchronousTaskDepth }
         set { evaluationTaskContext.synchronousTaskDepth = newValue }

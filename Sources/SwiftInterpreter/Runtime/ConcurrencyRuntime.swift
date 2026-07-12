@@ -1,5 +1,23 @@
 import Foundation
 
+/// Host boundary policy for tasks owned by one interpreter run. This does not
+/// change the source-level relationship of an unstructured or detached task.
+public enum SessionCompletionPolicy: Sendable {
+    case topLevel
+    case drainOwnedTasks
+    case cancelRemainingTasks
+}
+
+public struct RuntimeSessionID: Hashable, Sendable, CustomStringConvertible {
+    public let rawValue: UInt64
+
+    public init(rawValue: UInt64) {
+        self.rawValue = rawValue
+    }
+
+    public var description: String { "session-\(rawValue)" }
+}
+
 public struct RuntimeTaskID: Hashable, Sendable, CustomStringConvertible {
     public let rawValue: UInt64
 
@@ -34,6 +52,7 @@ public enum RuntimeTaskState: String, Sendable {
 /// from the runtime's active registry.
 final class RuntimeTaskRecord {
     let id: RuntimeTaskID
+    let sessionID: RuntimeSessionID
     let kind: RuntimeTaskKind
     let parent: RuntimeTaskID?
     var state: RuntimeTaskState = .pending
@@ -44,25 +63,38 @@ final class RuntimeTaskRecord {
     var evaluationContext: EvaluationTaskContext?
 
     init(
-        id: RuntimeTaskID, kind: RuntimeTaskKind,
+        id: RuntimeTaskID,
+        sessionID: RuntimeSessionID,
+        kind: RuntimeTaskKind,
         parent: RuntimeTaskID?
     ) {
         self.id = id
+        self.sessionID = sessionID
         self.kind = kind
         self.parent = parent
     }
 }
 
 final class CooperativeConcurrencyRuntime {
+    private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
     private(set) var records: [RuntimeTaskID: RuntimeTaskRecord] = [:]
 
+    func createSession() -> RuntimeSessionID {
+        let id = RuntimeSessionID(rawValue: nextSessionID)
+        nextSessionID += 1
+        return id
+    }
+
     func createTask(
-        kind: RuntimeTaskKind, parent: RuntimeTaskID?
+        sessionID: RuntimeSessionID,
+        kind: RuntimeTaskKind,
+        parent: RuntimeTaskID?
     ) -> RuntimeTaskRecord {
         let id = RuntimeTaskID(rawValue: nextTaskID)
         nextTaskID += 1
-        let record = RuntimeTaskRecord(id: id, kind: kind, parent: parent)
+        let record = RuntimeTaskRecord(
+            id: id, sessionID: sessionID, kind: kind, parent: parent)
         records[id] = record
         return record
     }

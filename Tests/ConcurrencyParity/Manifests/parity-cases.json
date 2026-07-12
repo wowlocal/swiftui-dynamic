@@ -161,6 +161,18 @@
     "notes": "This first detached-source fixture proves construction, suspension, and value flow. Task-local, priority, and executor inheritance require separate probes."
   },
   {
+    "id": "unstructured-top-level-lifetime",
+    "fixture": "Fixtures/unstructured-top-level-lifetime.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "startUnstructuredLifetimeProbe()",
+    "interpreterProjection": "instance-string-array:events",
+    "nativeFact": "An unstructured Task created by a function may continue after that function returns; it is not a structured child joined at lexical scope exit.",
+    "notes": "The child waits behind a gate, the creator records returned and exits, and a separate controller opens the gate. The interpreter parity runner uses its explicit drainOwnedTasks host policy."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

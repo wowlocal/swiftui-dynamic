@@ -13,11 +13,18 @@ extension Interpreter {
     /// crosses into this path only at source `await` boundaries.
     @discardableResult
     public func runAsync(
-        source: String, lazyTopLevelGlobals: Bool = false
+        source: String,
+        lazyTopLevelGlobals: Bool = false,
+        completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
     ) async throws -> RuntimeValue {
-        let root = concurrencyRuntime.createTask(kind: .root, parent: nil)
+        let sessionID = concurrencyRuntime.createSession()
+        let root = concurrencyRuntime.createTask(
+            sessionID: sessionID, kind: .root, parent: nil)
         _ = concurrencyRuntime.begin(root)
-        let context = makeEvaluationTaskContext(runtimeTaskID: root.id)
+        let context = makeEvaluationTaskContext(
+            runtimeTaskID: root.id,
+            runtimeSessionID: sessionID,
+            isAsyncSession: true)
         concurrencyRuntime.bind(context, to: root)
         defer { concurrencyRuntime.release(root.id) }
         return try await EvaluationTaskContext.$current.withValue(context) {
@@ -25,7 +32,9 @@ extension Interpreter {
             do {
                 let value = try await runAsyncInCurrentTaskContext(
                     source: source,
-                    lazyTopLevelGlobals: lazyTopLevelGlobals)
+                    lazyTopLevelGlobals: lazyTopLevelGlobals,
+                    completionPolicy: completionPolicy,
+                    sessionID: sessionID)
                 concurrencyRuntime.succeed(root, with: value)
                 return value
             } catch is CancellationError {
@@ -39,42 +48,36 @@ extension Interpreter {
     }
 
     private func runAsyncInCurrentTaskContext(
-        source: String, lazyTopLevelGlobals: Bool
+        source: String,
+        lazyTopLevelGlobals: Bool,
+        completionPolicy: SessionCompletionPolicy,
+        sessionID: RuntimeSessionID
     ) async throws -> RuntimeValue {
         try Task.checkCancellation()
-        let firstTask = scheduledTasks.count
-        asyncSessionDepth += 1
-        defer { asyncSessionDepth -= 1 }
 
         let result: RuntimeValue
         do {
             result = try await runProgramSuspending(
                 source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
         } catch {
-            cancelScheduledTasks(startingAt: firstTask)
-            await waitForScheduledTasks(startingAt: firstTask)
-            discardScheduledTasks(startingAt: firstTask)
+            await cancelOwnedTasks(in: sessionID)
             throw error
         }
 
         do {
-            var index = firstTask
-            // Task bodies may enqueue children. Reading count on every pass
-            // makes this a structured session even though source Task handles
-            // remain unstructured values.
-            while index < scheduledTasks.count {
-                try Task.checkCancellation()
-                await scheduledTasks[index].wait()
-                index += 1
+            switch completionPolicy {
+            case .topLevel:
+                break
+            case .drainOwnedTasks:
+                try await drainOwnedTasks(in: sessionID)
+            case .cancelRemainingTasks:
+                await cancelOwnedTasks(in: sessionID)
             }
             try Task.checkCancellation()
         } catch {
-            cancelScheduledTasks(startingAt: firstTask)
-            await waitForScheduledTasks(startingAt: firstTask)
-            discardScheduledTasks(startingAt: firstTask)
+            await cancelOwnedTasks(in: sessionID)
             throw error
         }
-        discardScheduledTasks(startingAt: firstTask)
         return result
     }
 
@@ -160,26 +163,26 @@ extension Interpreter {
         return last
     }
 
-    private func cancelScheduledTasks(startingAt index: Int) {
-        guard index < scheduledTasks.count else { return }
-        for handle in scheduledTasks[index...] { handle.cancel() }
-    }
-
-    private func waitForScheduledTasks(startingAt index: Int) async {
-        guard index < scheduledTasks.count else { return }
-        var current = index
-        while current < scheduledTasks.count {
-            await scheduledTasks[current].wait()
-            current += 1
+    private func drainOwnedTasks(
+        in sessionID: RuntimeSessionID
+    ) async throws {
+        while let handle = scheduledTasks.first(where: {
+            $0.sessionID == sessionID
+        }) {
+            try Task.checkCancellation()
+            await handle.wait()
+            releaseScheduledTask(handle)
         }
     }
 
-    private func discardScheduledTasks(startingAt index: Int) {
-        guard index < scheduledTasks.count else { return }
-        for handle in scheduledTasks[index...] {
-            concurrencyRuntime.release(handle.id)
+    private func cancelOwnedTasks(in sessionID: RuntimeSessionID) async {
+        while let handle = scheduledTasks.first(where: {
+            $0.sessionID == sessionID
+        }) {
+            handle.cancel()
+            await handle.wait()
+            releaseScheduledTask(handle)
         }
-        scheduledTasks.removeSubrange(index...)
     }
 
     /// Parse and run a whole program: type/function declarations are hoisted,

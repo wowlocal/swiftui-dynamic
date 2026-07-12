@@ -138,6 +138,135 @@ struct AsyncExecutionTests {
         #expect(try stringArray(named: "events", in: state) == ["sync", "parent", "child"])
     }
 
+    @Test func topLevelSessionPolicyReturnsBeforeOwnedTaskCompletes() async throws {
+        let interpreter = Interpreter()
+        var taskStarted = false
+        var gateOpen = false
+        var runReturned = false
+        interpreter.globals.define("waitForSessionGate", .hostFunction(HostFunction(
+            name: "waitForSessionGate",
+            asyncInvoke: { _, _ in
+                taskStarted = true
+                while !gateOpen { await Task.yield() }
+                return .void
+            }
+        )))
+
+        let evaluation = Task { @MainActor in
+            let value = try await interpreter.runAsync(
+                source: """
+                class State { var events = [String]() }
+                let state = State()
+                Task {
+                    await waitForSessionGate()
+                    state.events.append("task")
+                }
+                state.events.append("top")
+                state
+                """,
+                completionPolicy: .topLevel)
+            runReturned = true
+            return value
+        }
+
+        while !taskStarted { await Task.yield() }
+        #expect(runReturned)
+        gateOpen = true
+        let state = try await evaluation.value
+        while interpreter.concurrencyRuntime.activeRecordCount != 0 {
+            await Task.yield()
+        }
+        #expect(try stringArray(named: "events", in: state) == ["top", "task"])
+    }
+
+    @Test func drainPolicyDoesNotWaitForAnotherSessionTasks() async throws {
+        let interpreter = Interpreter()
+        var firstTaskStarted = false
+        var firstGateOpen = false
+        interpreter.globals.define("waitForFirstSessionGate", .hostFunction(HostFunction(
+            name: "waitForFirstSessionGate",
+            asyncInvoke: { _, _ in
+                firstTaskStarted = true
+                while !firstGateOpen { await Task.yield() }
+                return .void
+            }
+        )))
+
+        let firstState = try await interpreter.runAsync(
+            source: """
+            class FirstSessionState { var events = [String]() }
+            let firstSessionState = FirstSessionState()
+            Task {
+                await waitForFirstSessionGate()
+                firstSessionState.events.append("first-task")
+            }
+            firstSessionState.events.append("first-top")
+            firstSessionState
+            """,
+            completionPolicy: .topLevel)
+        while !firstTaskStarted { await Task.yield() }
+
+        let secondResult = try await interpreter.runAsync(
+            source: """
+            let secondHandle = Task { "second-task" }
+            await secondHandle.value
+            """,
+            completionPolicy: .drainOwnedTasks)
+        #expect(secondResult.stringValue == "second-task")
+        #expect(try stringArray(named: "events", in: firstState) == ["first-top"])
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 1)
+
+        firstGateOpen = true
+        while interpreter.concurrencyRuntime.activeRecordCount != 0 {
+            await Task.yield()
+        }
+        #expect(try stringArray(named: "events", in: firstState)
+            == ["first-top", "first-task"])
+    }
+
+    @Test func cancelRemainingPolicyCancelsRunningOwnedTasksAndCleansUp() async throws {
+        let interpreter = Interpreter()
+        var waitStarted = false
+        interpreter.globals.define("waitForCancellationPolicy", .hostFunction(HostFunction(
+            name: "waitForCancellationPolicy",
+            asyncInvoke: { _, _ in
+                waitStarted = true
+                try await Task.sleep(for: .seconds(30))
+                return .void
+            }
+        )))
+        interpreter.globals.define("awaitCancellationPolicyStarted", .hostFunction(HostFunction(
+            name: "awaitCancellationPolicyStarted",
+            asyncInvoke: { _, _ in
+                while !waitStarted { await Task.yield() }
+                return .void
+            }
+        )))
+
+        _ = try await interpreter.runAsync(
+            source: """
+            let cancellationPolicyHandle = Task {
+                await waitForCancellationPolicy()
+                "unexpected"
+            }
+            await awaitCancellationPolicyStarted()
+            "top-finished"
+            """,
+            completionPolicy: .cancelRemainingTasks)
+
+        guard case .host(let payload)? =
+                interpreter.globals.lookup("cancellationPolicyHandle"),
+              let handle = payload as? RuntimeTaskHandle else {
+            Issue.record("expected cancellation-policy task handle")
+            return
+        }
+        #expect(waitStarted)
+        #expect(handle.state == .cancelled)
+        #expect(handle.isCancelled)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func synchronousRunRetainsInlineTaskCompatibility() throws {
         let interpreter = Interpreter()
         let state = try interpreter.run(source: """
@@ -196,6 +325,7 @@ struct AsyncExecutionTests {
         #expect(second.kind == .unstructured)
         #expect(first.parent != nil)
         #expect(first.parent == second.parent)
+        #expect(first.sessionID == second.sessionID)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 

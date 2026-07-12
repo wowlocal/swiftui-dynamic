@@ -167,7 +167,10 @@ extension Interpreter: EvalContext {
         closure: ClosureValue,
         arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
+        let sessionID = evaluationTaskContext.runtimeSessionID
+            ?? concurrencyRuntime.createSession()
         let record = concurrencyRuntime.createTask(
+            sessionID: sessionID,
             kind: kind,
             parent: kind == .detached
                 ? nil : evaluationTaskContext.runtimeTaskID)
@@ -178,7 +181,7 @@ extension Interpreter: EvalContext {
         // Existing synchronous clients cannot suspend to await child work.
         // Preserve their deterministic contract while returning the same
         // observable handle used by async sessions.
-        guard asyncSessionDepth > 0 else {
+        guard evaluationTaskContext.isAsyncSession else {
             defer { concurrencyRuntime.release(handle.id) }
             // Compatibility runs historically execute one task body inline
             // but suppress recursively-created tasks. Without this guard,
@@ -209,7 +212,9 @@ extension Interpreter: EvalContext {
         }
 
         let taskContext = makeEvaluationTaskContext(
-            runtimeTaskID: handle.id)
+            runtimeTaskID: handle.id,
+            runtimeSessionID: sessionID,
+            isAsyncSession: true)
         concurrencyRuntime.bind(taskContext, to: record)
         let operation: @MainActor @Sendable () async -> Void = {
             [weak self, weak handle] in
@@ -242,7 +247,19 @@ extension Interpreter: EvalContext {
         }
         handle.attach(task)
         scheduledTasks.append(handle)
+        let cleanup: @MainActor @Sendable () async -> Void = {
+            [weak self, weak handle] in
+            await task.value
+            guard let self, let handle else { return }
+            self.releaseScheduledTask(handle)
+        }
+        Task.detached(operation: cleanup)
         return .native(handle)
+    }
+
+    func releaseScheduledTask(_ handle: RuntimeTaskHandle) {
+        scheduledTasks.removeAll { $0.id == handle.id }
+        concurrencyRuntime.release(handle.id)
     }
 
     public func invokeHostConstructor(

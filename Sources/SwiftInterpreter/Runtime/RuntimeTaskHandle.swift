@@ -57,6 +57,7 @@ public final class RuntimeTaskHandle {
     let record: RuntimeTaskRecord
 
     public var id: RuntimeTaskID { record.id }
+    public var sessionID: RuntimeSessionID { record.sessionID }
     public var kind: RuntimeTaskKind { record.kind }
     public var parent: RuntimeTaskID? { record.parent }
     public var state: State { record.state }
@@ -66,7 +67,10 @@ public final class RuntimeTaskHandle {
 
     public convenience init() {
         let runtime = CooperativeConcurrencyRuntime()
-        let record = runtime.createTask(kind: .unstructured, parent: nil)
+        let record = runtime.createTask(
+            sessionID: runtime.createSession(),
+            kind: .unstructured,
+            parent: nil)
         self.init(runtime: runtime, record: record)
     }
 
