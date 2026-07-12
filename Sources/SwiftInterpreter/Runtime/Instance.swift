@@ -19,6 +19,7 @@ public final class ChangeSignal {
 /// node behind the runtime's explicit copy/write-back boundary; source classes
 /// retain the node directly. The representation is shared, the semantics are
 /// not: `RuntimeValue.copiedForValueSemantics()` is the ownership authority.
+@MainActor
 public final class Instance: CustomStringConvertible {
     public let symbol: StructSymbol
     /// Fired when a notifying (@Published / @Observable-tracked) property mutates.
@@ -33,9 +34,20 @@ public final class Instance: CustomStringConvertible {
     /// their existing offsets. Struct COW envelopes created while assigning
     /// `self` carry this observer-suppression state to the final value.
     var isInitializing = false
+    /// The evaluator that owns this source-class lifetime. Weakness avoids an
+    /// object -> interpreter -> globals -> object cycle; source structs leave
+    /// it nil because their backing-node destruction is not a Swift `deinit`.
+    weak var lifecycleOwner: Interpreter?
+    var didRunDeinitializer = false
 
-    public init(symbol: StructSymbol) {
+    public init(symbol: StructSymbol, lifecycleOwner: Interpreter? = nil) {
         self.symbol = symbol
+        self.lifecycleOwner = lifecycleOwner
+    }
+
+    isolated deinit {
+        guard symbol.isClass, !didRunDeinitializer else { return }
+        lifecycleOwner?.runDeinitializer(on: self)
     }
 
     public func box(for name: String) -> Box? {

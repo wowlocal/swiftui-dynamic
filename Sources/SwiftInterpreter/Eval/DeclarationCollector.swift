@@ -47,6 +47,7 @@ extension Interpreter {
                 // Top-level globals are LAZY (real Swift semantics for
                 // non-main files): forward and cross-file references work,
                 // initializers run on first read.
+                let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
                 for binding in varDecl.bindings {
                     guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
                     globals.define(
@@ -54,7 +55,8 @@ extension Interpreter {
                         .native(LazyGlobal(
                             initializer: binding.initializer?.value,
                             annotation: binding.typeAnnotation?.type)),
-                        declaredTypeName: binding.typeAnnotation?.type.trimmedDescription)
+                        declaredTypeName: binding.typeAnnotation?.type.trimmedDescription,
+                        referenceOwnership: referenceOwnership)
                 }
             } else if let varDecl = decl.as(VariableDeclSyntax.self) {
                 // `var uptime: String { … }` at file scope — a computed
@@ -71,12 +73,14 @@ extension Interpreter {
                                 annotation: binding.typeAnnotation?.type)),
                             declaredTypeName: binding.typeAnnotation?.type.trimmedDescription)
                     } else {
+                        let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
                         globals.define(
                             ident.identifier.text,
                             .native(LazyGlobal(
                                 initializer: binding.initializer?.value,
                                 annotation: binding.typeAnnotation?.type)),
-                            declaredTypeName: binding.typeAnnotation?.type.trimmedDescription)
+                            declaredTypeName: binding.typeAnnotation?.type.trimmedDescription,
+                            referenceOwnership: referenceOwnership)
                     }
                 }
             }
@@ -202,6 +206,11 @@ extension Interpreter {
                 where symbol.staticProperties[name] == nil {
                     symbol.staticProperties[name] = property
                 }
+                for (name, policy) in stranded.staticStoragePolicies
+                where symbol.staticStoragePolicies[name] == nil {
+                    symbol.staticStoragePolicies[name] = policy
+                }
+                symbol.staticUninitialized.formUnion(stranded.staticUninitialized)
                 for (name, computed) in stranded.staticComputedProperties
                 where symbol.staticComputedProperties[name] == nil {
                     if let id = computed.declarationID { declLexicalOwners[id] = symbol }
@@ -583,10 +592,15 @@ extension Interpreter {
                     symbol.computedProperties[name] = computed
                 }
             } else if isStaticDecl {
+                let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
+                symbol.staticStoragePolicies[name] = .init(
+                    typeName: binding.typeAnnotation?.type.trimmedDescription,
+                    referenceOwnership: referenceOwnership)
                 if let initializer = binding.initializer?.value {
                     symbol.staticProperties[name] = .init(
                         initializer: initializer,
-                        typeAnnotation: binding.typeAnnotation?.type
+                        typeAnnotation: binding.typeAnnotation?.type,
+                        referenceOwnership: referenceOwnership
                     )
                 } else if let wrapper = varDecl.attributes.compactMap({ $0.as(AttributeSyntax.self) }).first(where: {
                     $0.arguments != nil && $0.attributeName.trimmedDescription.first?.isUppercase == true
@@ -616,6 +630,7 @@ extension Interpreter {
                     typeAnnotation: binding.typeAnnotation?.type ?? syntheticAnnotation,
                     isBuilderClosure: hasBuilderAttribute
                 )
+                stored.referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
                 stored.isLazy = varDecl.modifiers.contains { $0.name.text == "lazy" }
                 // `var timeline: Filter = .home { didSet { … } }` — the
                 // fetch-trigger genre lives in observers.
@@ -675,6 +690,11 @@ extension Interpreter {
         where existing.staticProperties[name] == nil {
             existing.staticProperties[name] = property
         }
+        for (name, policy) in symbol.staticStoragePolicies
+        where existing.staticStoragePolicies[name] == nil {
+            existing.staticStoragePolicies[name] = policy
+        }
+        existing.staticUninitialized.formUnion(symbol.staticUninitialized)
         for (name, computed) in symbol.computedProperties
         where existing.computedProperties[name] == nil {
             if let id = computed.declarationID { declLexicalOwners[id] = existing }
@@ -801,11 +821,20 @@ extension Interpreter {
                         typeAnnotation: binding.typeAnnotation?.type,
                         declarationID: binding.id
                     )
-                } else if isStaticDecl, let initializer = binding.initializer?.value {
-                    symbol.staticProperties[memberName] = .init(
-                        initializer: initializer,
-                        typeAnnotation: binding.typeAnnotation?.type
-                    )
+                } else if isStaticDecl {
+                    let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
+                    symbol.staticStoragePolicies[memberName] = .init(
+                        typeName: binding.typeAnnotation?.type.trimmedDescription,
+                        referenceOwnership: referenceOwnership)
+                    if let initializer = binding.initializer?.value {
+                        symbol.staticProperties[memberName] = .init(
+                            initializer: initializer,
+                            typeAnnotation: binding.typeAnnotation?.type,
+                            referenceOwnership: referenceOwnership
+                        )
+                    } else {
+                        symbol.staticUninitialized.insert(memberName)
+                    }
                 }
             }
         } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {

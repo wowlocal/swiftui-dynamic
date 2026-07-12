@@ -71,6 +71,11 @@ import SwiftInterpreter
         store.adopt(into: second)
         let tree2 = try TraceRegistry.node(interpreter.evaluateBody(of: second))
         #expect(tree2.findAll("Text").first?.args.first == "count: 1")
+
+        // A cancellable only keeps its subscription alive while retained.
+        // Optimized Swift may release an otherwise-unused local after its
+        // last access rather than at the closing brace.
+        withExtendedLifetime(subscriptions) {}
     }
 
     @Test func wrapperBackingStorageInCustomInits() throws {

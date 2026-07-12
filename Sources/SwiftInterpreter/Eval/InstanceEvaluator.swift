@@ -53,7 +53,8 @@ extension Interpreter {
                 .joined(separator: ", ")
             Swift.print("⟶ init \(symbol.name)(\(shapes))")
         }
-        let instance = Instance(symbol: symbol)
+        let instance = Instance(
+            symbol: symbol, lifecycleOwner: symbol.isClass ? self : nil)
         let notifying = Set(symbol.notifyingPropertyNames)
         for property in inheritedStoredProperties(of: symbol) {
             // Optional-typed properties without initializers are nil in Swift.
@@ -63,8 +64,11 @@ extension Interpreter {
             if property.isLazy, let initializer = property.initializer {
                 // `lazy var` defers to FIRST ACCESS with self bound —
                 // sibling-property references are legal there.
-                let box = Box(.native(LazyMemberSeed(
-                    initializer: initializer, annotation: property.typeAnnotation)))
+                let box = Box(
+                    .native(LazyMemberSeed(
+                        initializer: initializer, annotation: property.typeAnnotation)),
+                    declaredTypeName: annotationText,
+                    referenceOwnership: property.referenceOwnership)
                 instance.properties[property.name] = box
                 continue
             }
@@ -93,7 +97,10 @@ extension Interpreter {
                     typeName: property.typeAnnotation?.trimmedDescription ?? "",
                     seen: &seen)) ?? .nilValue
             }
-            let box = Box(value.copiedForValueSemantics())
+            let box = Box(
+                value.copiedForValueSemantics(),
+                declaredTypeName: annotationText.isEmpty ? nil : annotationText,
+                referenceOwnership: property.referenceOwnership)
             if notifying.contains(property.name) {
                 // @Published (or @Observable-tracked) mutation → model signal.
                 let signal = instance.changeSignal
@@ -465,13 +472,17 @@ extension Interpreter {
     }
 
     /// Run the declared `deinit` bodies for an instance being discarded —
-    /// own class first, then up the superclass chain, native order. The
-    /// interpreter has no reference counting, so callers invoke this at
-    /// KNOWN deallocation points (the test harness discards each Swift
-    /// Testing suite instance right after its test). deinit is non-throwing
-    /// in Swift; interpreter errors in a body are swallowed like native
-    /// cleanup that cannot propagate.
+    /// own class first, then up the superclass chain, in native order. Host
+    /// ARC calls this when the final strong edge to a source-class instance
+    /// disappears; explicit lifecycle cleanup may call it sooner. The guard
+    /// makes both paths idempotent. `deinit` is non-throwing in Swift, so
+    /// interpreter errors in a body are swallowed like native cleanup that
+    /// cannot propagate.
     public func runDeinitializer(on instance: Instance) {
+        guard instance.symbol.isClass, !instance.didRunDeinitializer else { return }
+        // Mark before executing user code: a deinitializer cannot re-enter
+        // itself through a release caused by its own cleanup.
+        instance.didRunDeinitializer = true
         var byName: [String: StructSymbol] = [:]
         for symbol in structSymbols { byName[symbol.name] = symbol }
         var cursor: StructSymbol? = instance.symbol

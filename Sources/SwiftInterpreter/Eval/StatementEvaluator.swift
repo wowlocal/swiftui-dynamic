@@ -91,6 +91,7 @@ extension Interpreter {
             // bindings share the NEXT annotation in their run (initializers
             // break the run).
             let allBindings = Array(varDecl.bindings)
+            let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
             func sharedAnnotation(startingAt index: Int) -> TypeSyntax? {
                 for later in allBindings[index...] {
                     if let type = later.typeAnnotation?.type { return type }
@@ -161,7 +162,8 @@ extension Interpreter {
                         env.define(
                             ident.identifier.text,
                             .none(forTypeAnnotation: annotationText),
-                            declaredTypeName: annotationText) // `var x: T?`/`T!` is nil
+                            declaredTypeName: annotationText,
+                            referenceOwnership: referenceOwnership) // `var x: T?`/`T!` is nil
                         continue
                     }
                     if !annotationText.isEmpty {
@@ -169,7 +171,8 @@ extension Interpreter {
                         // branches — definite-init is the compiler's job.
                         env.define(
                             ident.identifier.text, .void,
-                            declaredTypeName: annotationText)
+                            declaredTypeName: annotationText,
+                            referenceOwnership: referenceOwnership)
                         continue
                     }
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
@@ -182,7 +185,8 @@ extension Interpreter {
                 } ?? value
                 env.define(
                     ident.identifier.text, resolved,
-                    declaredTypeName: hint)
+                    declaredTypeName: hint,
+                    referenceOwnership: referenceOwnership)
             }
             return
         }

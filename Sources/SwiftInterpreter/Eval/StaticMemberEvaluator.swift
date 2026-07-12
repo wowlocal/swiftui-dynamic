@@ -11,11 +11,24 @@ extension Interpreter {
 
     func staticMember(_ name: String, of symbol: StructSymbol) throws -> RuntimeValue? {
         if let nested = symbol.nestedTypes[name] { return nested }
+        if let box = symbol.staticReferenceBoxes[name] { return try box.load() }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
-            let raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
-            let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+            var raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
+            var value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
                 .copiedForValueSemantics()
+            if property.referenceOwnership != .strong {
+                let box = Box(
+                    value,
+                    declaredTypeName: property.typeAnnotation?.trimmedDescription,
+                    referenceOwnership: property.referenceOwnership)
+                symbol.staticReferenceBoxes[name] = box
+                // The initializer result has no source-level strong owner.
+                // Release evaluator temporaries before the first weak read.
+                raw = .void
+                value = .void
+                return try box.load()
+            }
             symbol.staticCache[name] = value
             return value
         }
@@ -66,7 +79,18 @@ extension Interpreter {
                 return try instanceMember("wrappedValue", on: wrapper)
             }
         }
-        if symbol.staticUninitialized.contains(name) { return .nilValue }
+        if symbol.staticUninitialized.contains(name) {
+            if let policy = symbol.staticStoragePolicies[name],
+               policy.referenceOwnership != .strong {
+                let box = Box(
+                    .none(forTypeAnnotation: policy.typeName ?? ""),
+                    declaredTypeName: policy.typeName,
+                    referenceOwnership: policy.referenceOwnership)
+                symbol.staticReferenceBoxes[name] = box
+                return try box.load()
+            }
+            return .nilValue
+        }
         return nil
     }
 
@@ -74,11 +98,22 @@ extension Interpreter {
         // Own nested types shadow same-named globals inside the body —
         // the struct-path doctrine applied to enum namespaces.
         if let nested = symbol.nestedTypes[name] { return nested }
+        if let box = symbol.staticReferenceBoxes[name] { return try box.load() }
         if let cached = symbol.staticCache[name] { return cached }
         if let property = symbol.staticProperties[name] {
-            let raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
-            let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+            var raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
+            var value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
                 .copiedForValueSemantics()
+            if property.referenceOwnership != .strong {
+                let box = Box(
+                    value,
+                    declaredTypeName: property.typeAnnotation?.trimmedDescription,
+                    referenceOwnership: property.referenceOwnership)
+                symbol.staticReferenceBoxes[name] = box
+                raw = .void
+                value = .void
+                return try box.load()
+            }
             symbol.staticCache[name] = value
             return value
         }
@@ -104,6 +139,18 @@ extension Interpreter {
                 RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name))
             }
             return .native(all)
+        }
+        if symbol.staticUninitialized.contains(name) {
+            if let policy = symbol.staticStoragePolicies[name],
+               policy.referenceOwnership != .strong {
+                let box = Box(
+                    .none(forTypeAnnotation: policy.typeName ?? ""),
+                    declaredTypeName: policy.typeName,
+                    referenceOwnership: policy.referenceOwnership)
+                symbol.staticReferenceBoxes[name] = box
+                return try box.load()
+            }
+            return .nilValue
         }
         return nil
     }

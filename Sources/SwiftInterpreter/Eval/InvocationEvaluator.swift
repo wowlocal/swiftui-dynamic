@@ -276,6 +276,296 @@ extension Interpreter {
         }
     }
 
+    /// Names whose values must be available after this closure escapes. The
+    /// parser already guarantees valid lexical Swift; this lightweight free-
+    /// variable pass keeps locally declared names out while retaining outer
+    /// variables referenced by nested closure construction as native Swift
+    /// must. Capture-list initializers are handled separately at creation.
+    private func outerReferences(
+        in closure: ClosureExprSyntax,
+        parameters: [ClosureValue.Parameter]
+    ) -> Set<String> {
+        var references: Set<String> = []
+
+        func patternNames(_ pattern: PatternSyntax) -> Set<String> {
+            var names: Set<String> = []
+            func collect(_ node: Syntax) {
+                if let identifier = node.as(IdentifierPatternSyntax.self) {
+                    names.insert(identifier.identifier.text)
+                    return
+                }
+                for child in node.children(viewMode: .sourceAccurate) {
+                    collect(child)
+                }
+            }
+            collect(Syntax(pattern))
+            return names
+        }
+
+        func closureParameters(_ nested: ClosureExprSyntax) -> Set<String> {
+            guard let input = nested.signature?.parameterClause else { return [] }
+            switch input {
+            case .simpleInput(let shorthand):
+                return Set(shorthand.map { $0.name.text })
+            case .parameterClause(let clause):
+                return Set(clause.parameters.map {
+                    ($0.secondName ?? $0.firstName).text
+                })
+            }
+        }
+
+        func note(_ name: String, bound: Set<String>) {
+            if !bound.contains(name) { references.insert(name) }
+        }
+
+        func collectPatternReferences(_ pattern: PatternSyntax, bound: Set<String>) {
+            func collect(_ node: Syntax) {
+                if node.is(IdentifierPatternSyntax.self) { return }
+                if let expression = node.as(ExpressionPatternSyntax.self) {
+                    collectReferences(Syntax(expression.expression), bound: bound)
+                    return
+                }
+                for child in node.children(viewMode: .sourceAccurate) {
+                    collect(child)
+                }
+            }
+            collect(Syntax(pattern))
+        }
+
+        func collectConditions(
+            _ conditions: ConditionElementListSyntax, bound initial: Set<String>
+        ) -> Set<String> {
+            var bound = initial
+            for element in conditions {
+                switch element.condition {
+                case .expression(let expression):
+                    collectReferences(Syntax(expression), bound: bound)
+                case .optionalBinding(let binding):
+                    if let initializer = binding.initializer?.value {
+                        collectReferences(Syntax(initializer), bound: bound)
+                    } else if let identifier = binding.pattern.as(IdentifierPatternSyntax.self) {
+                        note(identifier.identifier.text, bound: bound)
+                    }
+                    bound.formUnion(patternNames(binding.pattern))
+                case .matchingPattern(let matching):
+                    collectReferences(Syntax(matching.initializer.value), bound: bound)
+                    collectPatternReferences(matching.pattern, bound: bound)
+                    bound.formUnion(patternNames(matching.pattern))
+                case .availability:
+                    break
+                }
+            }
+            return bound
+        }
+
+        func collectItems(
+            _ items: CodeBlockItemListSyntax, bound initial: Set<String>
+        ) {
+            var bound = initial
+
+            // Local functions and types are visible throughout their lexical
+            // block. Variables are introduced in source order below.
+            for item in items {
+                guard case .decl(let declaration) = item.item else { continue }
+                if let function = declaration.as(FunctionDeclSyntax.self) {
+                    bound.insert(function.name.text)
+                } else if let type = declaration.as(StructDeclSyntax.self) {
+                    bound.insert(type.name.text)
+                } else if let type = declaration.as(ClassDeclSyntax.self) {
+                    bound.insert(type.name.text)
+                } else if let type = declaration.as(EnumDeclSyntax.self) {
+                    bound.insert(type.name.text)
+                } else if let type = declaration.as(ActorDeclSyntax.self) {
+                    bound.insert(type.name.text)
+                } else if let alias = declaration.as(TypeAliasDeclSyntax.self) {
+                    bound.insert(alias.name.text)
+                }
+            }
+
+            for item in items {
+                if case .decl(let declaration) = item.item,
+                   let variable = declaration.as(VariableDeclSyntax.self) {
+                    for binding in variable.bindings {
+                        if let initializer = binding.initializer?.value {
+                            collectReferences(Syntax(initializer), bound: bound)
+                        }
+                        let names = patternNames(binding.pattern)
+                        if let accessor = binding.accessorBlock {
+                            collectReferences(
+                                Syntax(accessor), bound: bound.union(names))
+                        }
+                        bound.formUnion(names)
+                    }
+                    continue
+                }
+                if case .stmt(let statement) = item.item,
+                   let guardStatement = statement.as(GuardStmtSyntax.self) {
+                    let succeeding = collectConditions(
+                        guardStatement.conditions, bound: bound)
+                    collectItems(guardStatement.body.statements, bound: bound)
+                    bound = succeeding
+                    continue
+                }
+                collectReferences(Syntax(item), bound: bound)
+            }
+        }
+
+        func collectReferences(_ node: Syntax, bound: Set<String>) {
+            if let nested = node.as(ClosureExprSyntax.self) {
+                // Capture-list expressions execute in the enclosing scope.
+                // The captured names and closure parameters then shadow that
+                // scope in the nested body.
+                var nestedBound = bound.union(closureParameters(nested))
+                if let captures = nested.signature?.capture?.items {
+                    for capture in captures {
+                        if let initializer = capture.initializer?.value {
+                            collectReferences(Syntax(initializer), bound: bound)
+                        } else {
+                            note(capture.name.text, bound: bound)
+                        }
+                        nestedBound.insert(capture.name.text)
+                    }
+                }
+                collectItems(nested.statements, bound: nestedBound)
+                return
+            }
+            if let block = node.as(CodeBlockSyntax.self) {
+                collectItems(block.statements, bound: bound)
+                return
+            }
+            if let function = node.as(FunctionDeclSyntax.self) {
+                guard let body = function.body else { return }
+                var functionBound = bound
+                functionBound.insert(function.name.text)
+                for parameter in function.signature.parameterClause.parameters {
+                    functionBound.insert((parameter.secondName ?? parameter.firstName).text)
+                }
+                collectItems(body.statements, bound: functionBound)
+                return
+            }
+            if node.is(StructDeclSyntax.self) || node.is(ClassDeclSyntax.self)
+                || node.is(EnumDeclSyntax.self) || node.is(ActorDeclSyntax.self)
+                || node.is(ProtocolDeclSyntax.self) {
+                // Local nominal types cannot close over function locals.
+                return
+            }
+            if let forStatement = node.as(ForStmtSyntax.self) {
+                collectReferences(Syntax(forStatement.sequence), bound: bound)
+                let bodyBound = bound.union(patternNames(forStatement.pattern))
+                collectPatternReferences(forStatement.pattern, bound: bound)
+                if let whereClause = forStatement.whereClause {
+                    collectReferences(Syntax(whereClause.condition), bound: bodyBound)
+                }
+                collectItems(forStatement.body.statements, bound: bodyBound)
+                return
+            }
+            if let ifExpression = node.as(IfExprSyntax.self) {
+                let bodyBound = collectConditions(ifExpression.conditions, bound: bound)
+                collectItems(ifExpression.body.statements, bound: bodyBound)
+                switch ifExpression.elseBody {
+                case .none:
+                    break
+                case .codeBlock(let block):
+                    collectItems(block.statements, bound: bound)
+                case .ifExpr(let nested):
+                    collectReferences(Syntax(nested), bound: bound)
+                }
+                return
+            }
+            if let whileStatement = node.as(WhileStmtSyntax.self) {
+                let bodyBound = collectConditions(whileStatement.conditions, bound: bound)
+                collectItems(whileStatement.body.statements, bound: bodyBound)
+                return
+            }
+            if let switchExpression = node.as(SwitchExprSyntax.self) {
+                collectReferences(Syntax(switchExpression.subject), bound: bound)
+                for switchCase in flattenedSwitchCases(switchExpression) {
+                    switch switchCase.label {
+                    case .default:
+                        collectItems(switchCase.statements, bound: bound)
+                    case .case(let label):
+                        for item in label.caseItems {
+                            collectPatternReferences(item.pattern, bound: bound)
+                            let caseBound = bound.union(patternNames(item.pattern))
+                            if let whereClause = item.whereClause {
+                                collectReferences(
+                                    Syntax(whereClause.condition), bound: caseBound)
+                            }
+                            collectItems(switchCase.statements, bound: caseBound)
+                        }
+                    }
+                }
+                return
+            }
+            if let member = node.as(MemberAccessExprSyntax.self) {
+                // The declaration name after a dot is not a free variable.
+                // Walking it as a DeclReference (`owner?.name`) would falsely
+                // infer an implicit-self capture whenever `self` also has a
+                // property called `name`.
+                if let base = member.base {
+                    collectReferences(Syntax(base), bound: bound)
+                }
+                return
+            }
+            if let reference = node.as(DeclReferenceExprSyntax.self) {
+                note(reference.baseName.text, bound: bound)
+            } else if node.is(SuperExprSyntax.self) {
+                note("self", bound: bound)
+            } else if node.is(IdentifierPatternSyntax.self) {
+                return
+            }
+            for child in node.children(viewMode: .sourceAccurate) {
+                collectReferences(child, bound: bound)
+            }
+        }
+
+        var initialBound = Set(parameters.map(\.name))
+        if let captures = closure.signature?.capture?.items {
+            initialBound.formUnion(captures.map { $0.name.text })
+        }
+        collectItems(closure.statements, bound: initialBound)
+        return references
+    }
+
+    private func symbolMayResolveInstanceMember(
+        _ rawName: String, on instance: Instance
+    ) -> Bool {
+        let name = rawName.hasPrefix("$") ? String(rawName.dropFirst()) : rawName
+        var symbol: StructSymbol? = instance.symbol
+        var seen: Set<ObjectIdentifier> = []
+        while let current = symbol, seen.insert(ObjectIdentifier(current)).inserted {
+            if current.storedProperty(named: name) != nil
+                || current.computedProperties[name] != nil
+                || current.methods[name] != nil {
+                return true
+            }
+            symbol = current.superclassName.flatMap {
+                guard case .type(let parent)? = globals.lookup($0) else { return nil }
+                return parent
+            }
+        }
+        for conformance in transitiveConformances(of: instance.symbol) {
+            if let ext = hostExtensionSymbols[conformance],
+               ext.computedProperties[name] != nil || ext.methods[name] != nil {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func captureTypeName(
+        for value: RuntimeValue, ownership: ReferenceOwnership
+    ) -> String? {
+        switch value {
+        case .instance(let instance):
+            return instance.symbol.name + (ownership == .weak ? "?" : "")
+        case .optional(let optional):
+            return optional.typeName
+        default:
+            return nil
+        }
+    }
+
     func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) throws -> ClosureValue {
         var parameters: [ClosureValue.Parameter] = []
         if let input = closure.signature?.parameterClause {
@@ -290,37 +580,69 @@ extension Interpreter {
                 }
             }
         }
-        var snapshot: Environment?
-        // A closure literal inside a source-struct member captures `self` by
-        // value. Snapshot only when the closure is created, rather than deep-
-        // copying the receiver for every computed-property/body evaluation.
-        if case .instance(let instance)? = env.lookup("self"),
-           !instance.symbol.isClass {
-            let selfSnapshot = Environment(parent: env)
-            selfSnapshot.define("self", .instance(instance))
-            snapshot = selfSnapshot
-        }
+        // A capture environment must not retain the source frame itself: doing
+        // so would leave the frame's strong `self` reachable behind a
+        // `[weak self]` shadow. Globals are a session root and are consulted
+        // through a weak parent to avoid globals -> closure -> globals cycles.
+        let captured = Environment(parent: globals, retainingParent: false)
+        var explicitNames: Set<String> = []
         if let captureList = closure.signature?.capture?.items, !captureList.isEmpty {
-            let captureSnapshot = snapshot ?? Environment(parent: env)
             for capture in captureList {
                 let name = capture.name.text
+                explicitNames.insert(name)
                 let capturedValue: RuntimeValue
                 if let initializer = capture.initializer?.value {
                     capturedValue = try evaluate(initializer, in: env)
                 } else {
                     capturedValue = try resolveIdentifier(name, in: env, node: capture)
                 }
-                // Environment.define is the value boundary. Struct captures
-                // snapshot their storage envelope; class/weak/unowned
-                // captures retain their source identity (ARC lifetime is
-                // outside this VM).
-                captureSnapshot.define(name, capturedValue)
+                let ownership = ReferenceOwnership(
+                    captureSpecifier: capture.specifier)
+                captured.define(
+                    name, capturedValue,
+                    declaredTypeName: captureTypeName(
+                        for: capturedValue, ownership: ownership),
+                    referenceOwnership: ownership)
             }
-            snapshot = captureSnapshot
         }
+
+        let references = outerReferences(in: closure, parameters: parameters)
+        var needsSelf = false
+        for name in references where !explicitNames.contains(name) {
+            if name == "self" {
+                needsSelf = true
+                continue
+            }
+            if let box = env.box(for: name, before: globals) {
+                captured.define(name, sharing: box)
+                continue
+            }
+            if case .instance(let instance)? = env.lookup("self"),
+               symbolMayResolveInstanceMember(name, on: instance) {
+                needsSelf = true
+                continue
+            }
+            // Macro-generated members, host-extension members (`wrappedValue`
+            // on Binding), and bare sibling statics may have no collected
+            // declaration to consult. Globals and type-looking host names are
+            // never implicit self; an otherwise unresolved value-like name is.
+            if globals.box(for: name) == nil,
+               !name.dropFirst(name.hasPrefix("$") ? 1 : 0).allSatisfy(\.isNumber),
+               name.first?.isUppercase != true,
+               env.lookup("self") != nil {
+                needsSelf = true
+            }
+        }
+        if needsSelf, !explicitNames.contains("self"),
+           let selfValue = env.lookup("self") {
+            // Source-struct self is a value capture; source-class self retains
+            // identity. Environment.define centralizes that distinction.
+            captured.define("self", selfValue)
+        }
+
         let value = ClosureValue(
             parameters: parameters, body: closure.statements,
-            captured: snapshot ?? env)
+            captured: captured)
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
         // only the value environment lets same-named nested types resolve in

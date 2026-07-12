@@ -17,7 +17,7 @@ extension Interpreter {
             }
         }
         guard case .host(let any) = box.value, let lazy = any as? LazyGlobal else {
-            return box.value
+            return try box.load()
         }
         let annotationText = lazy.annotation?.trimmedDescription ?? ""
         var value: RuntimeValue = RuntimeOptionalValue.wrappedType(in: annotationText) != nil
@@ -25,9 +25,17 @@ extension Interpreter {
         if let initializer = lazy.initializer {
             value = try resolveAnnotated(try evaluate(initializer, in: globals), annotation: lazy.annotation)
         }
-        let stored = value.copiedForValueSemantics()
-        box.value = stored
-        return stored
+        var stored: RuntimeValue? = value.copiedForValueSemantics()
+        box.value = stored!
+        if box.referenceOwnership != .strong {
+            // Drop evaluator temporaries before observing a weak result. A
+            // temporary-only initializer (`weak var x = C()`) must already
+            // read nil on its first source-level access, like compiled Swift.
+            value = .void
+            stored = nil
+            return try box.load()
+        }
+        return stored!
     }
 
     /// Diagnostics: INTERP_TRACE_CALLS="a,b,c" prints each entry into a
@@ -265,7 +273,7 @@ extension Interpreter {
         // scoped LEXICALLY to the running method's declaring type, so
         // protocol-extension bodies never see the runtime self's nesteds.
         if let nested = lexicalNestedType(name, runtime: instance.symbol) { return nested }
-        if let box = instance.box(for: name) { return box.value }
+        if let box = instance.box(for: name) { return try box.load() }
         // Dynamic dispatch: the instance's OWN members win (overrides beat
         // the inherited definition), THEN interpreted-superclass members
         // dispatch with self unchanged, walking the chain.

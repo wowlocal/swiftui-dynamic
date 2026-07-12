@@ -63,6 +63,9 @@ public final class StructSymbol {
         /// `@ViewBuilder var content: Content` — memberwise init takes a
         /// trailing closure and stores the BUILT view.
         public let isBuilderClosure: Bool
+        /// `weak`/`unowned` are policies of the property's storage edge. The
+        /// payload remains an ordinary class RuntimeValue everywhere else.
+        public var referenceOwnership: ReferenceOwnership = .strong
         /// `lazy var keychain = KeychainManager(service: keychainService)` —
         /// the initializer defers to first access with self bound.
         public var isLazy: Bool = false
@@ -119,15 +122,37 @@ public final class StructSymbol {
     /// struct storage envelopes copy at language boundaries and detach nested
     /// values lazily through composed lvalues.
     public internal(set) var isClass = false
-    /// Declared `deinit` body. The interpreter has no reference counting, so
-    /// this only runs where a deallocation point is KNOWN — the test harness
-    /// discards each Swift Testing suite instance right after its test.
+    /// Declared `deinit` body. Source-class `Instance` values use host ARC;
+    /// their final release delegates back to the interpreter to run this body.
+    /// Explicit lifecycle cleanup remains supported and is idempotent.
     public internal(set) var deinitBody: CodeBlockSyntax?
     public internal(set) var conformsToObservableObject = false
     public internal(set) var observableViaMacro = false
     public struct StaticProperty {
         public let initializer: ExprSyntax
         public let typeAnnotation: TypeSyntax?
+        public let referenceOwnership: ReferenceOwnership
+
+        public init(
+            initializer: ExprSyntax, typeAnnotation: TypeSyntax?,
+            referenceOwnership: ReferenceOwnership = .strong
+        ) {
+            self.initializer = initializer
+            self.typeAnnotation = typeAnnotation
+            self.referenceOwnership = referenceOwnership
+        }
+    }
+
+    public struct StaticStoragePolicy {
+        public let typeName: String?
+        public let referenceOwnership: ReferenceOwnership
+
+        public init(
+            typeName: String?, referenceOwnership: ReferenceOwnership
+        ) {
+            self.typeName = typeName
+            self.referenceOwnership = referenceOwnership
+        }
     }
 
     /// `subscript(index: Index) -> T? { get set }` — user subscripts.
@@ -156,6 +181,11 @@ public final class StructSymbol {
     /// Types declared inside this type (`Outer.Kind`) — `.enumType`/`.type` values.
     public internal(set) var nestedTypes: [String: RuntimeValue] = [:]
     var staticCache: [String: RuntimeValue] = [:]
+    /// Non-owning static slots cannot live in `staticCache`, whose values are
+    /// strong. Their boxes zero or trap through the same path as instance and
+    /// local storage.
+    var staticReferenceBoxes: [String: Box] = [:]
+    public internal(set) var staticStoragePolicies: [String: StaticStoragePolicy] = [:]
     /// `static var shared: ChatClient!` — declared without an initializer
     /// (extension statics): reads are nil until written (IUO fresh state).
     public var staticUninitialized: Set<String> = []

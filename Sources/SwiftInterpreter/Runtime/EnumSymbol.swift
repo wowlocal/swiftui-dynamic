@@ -33,6 +33,12 @@ public final class EnumSymbol {
     /// namespaces as often as they are value types.
     public internal(set) var nestedTypes: [String: RuntimeValue] = [:]
     var staticCache: [String: RuntimeValue] = [:]
+    /// Enum namespaces can own weak/unowned statics just like classes and
+    /// structs. Those slots must not enter the strong static cache.
+    var staticReferenceBoxes: [String: Box] = [:]
+    public internal(set) var staticStoragePolicies:
+        [String: StructSymbol.StaticStoragePolicy] = [:]
+    public var staticUninitialized: Set<String> = []
 
     public init(name: String) {
         self.name = name

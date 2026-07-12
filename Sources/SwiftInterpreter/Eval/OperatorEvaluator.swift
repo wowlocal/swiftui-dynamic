@@ -316,6 +316,8 @@ extension Interpreter {
         /// `ChatClient.shared = …` — static stored properties (including
         /// host-type extension statics) write to the symbol's static cache.
         case staticProperty(StructSymbol, String)
+        /// The same storage edge for enums used as namespaces.
+        case enumStaticProperty(EnumSymbol, String)
         /// `values[i] = UInt8(x)` — Data byte write-through: mutate a copy,
         /// re-write the base (value semantics).
         case dataElement(LValue, Int)
@@ -336,6 +338,9 @@ extension Interpreter {
                 return symbol.storedProperty(named: name)?
                     .typeAnnotation?.trimmedDescription
             case .staticProperty(let symbol, let name):
+                return symbol.staticProperties[name]?
+                    .typeAnnotation?.trimmedDescription
+            case .enumStaticProperty(let symbol, let name):
                 return symbol.staticProperties[name]?
                     .typeAnnotation?.trimmedDescription
             case .element(let base, _):
@@ -379,7 +384,7 @@ extension Interpreter {
             case .box(let box):
                 return try interpreter.force(box)
             case .instanceProperty(let instance, let name):
-                if let box = instance.box(for: name) { return box.value }
+                if let box = instance.box(for: name) { return try box.load() }
                 if let computed = instance.symbol.computedProperties[name] {
                     return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
                 }
@@ -396,7 +401,7 @@ extension Interpreter {
                 return try LValue.instanceProperty(instance, name).read(interpreter)
             case .hostProperty(let any, let name):
                 if let stub = any as? BindingStub, name == "wrappedValue" {
-                    return stub.box.value
+                    return try stub.box.load()
                 }
                 if let value = try interpreter.readHostMember(name, on: any) { return value }
                 if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
@@ -436,6 +441,8 @@ extension Interpreter {
                 }
                 return try interpreter.callUserSubscriptGetter(on: instance, with: args)
             case .staticProperty(let symbol, let name):
+                return try interpreter.staticMember(name, of: symbol) ?? .nilValue
+            case .enumStaticProperty(let symbol, let name):
                 return try interpreter.staticMember(name, of: symbol) ?? .nilValue
             case .dataElement(let base, let index):
                 guard case .host(let any) = try base.read(interpreter), let bytes = any as? Data,
@@ -688,7 +695,29 @@ extension Interpreter {
                     try base.writeCanonicalOwned(.instance(instance), interpreter)
                 }
             case .staticProperty(let symbol, let name):
-                symbol.staticCache[name] = stored(value)
+                if let policy = symbol.staticStoragePolicies[name],
+                   policy.referenceOwnership != .strong {
+                    let box = symbol.staticReferenceBoxes[name] ?? Box(
+                        .none(forTypeAnnotation: policy.typeName ?? ""),
+                        declaredTypeName: policy.typeName,
+                        referenceOwnership: policy.referenceOwnership)
+                    symbol.staticReferenceBoxes[name] = box
+                    box.value = stored(value)
+                } else {
+                    symbol.staticCache[name] = stored(value)
+                }
+            case .enumStaticProperty(let symbol, let name):
+                if let policy = symbol.staticStoragePolicies[name],
+                   policy.referenceOwnership != .strong {
+                    let box = symbol.staticReferenceBoxes[name] ?? Box(
+                        .none(forTypeAnnotation: policy.typeName ?? ""),
+                        declaredTypeName: policy.typeName,
+                        referenceOwnership: policy.referenceOwnership)
+                    symbol.staticReferenceBoxes[name] = box
+                    box.value = stored(value)
+                } else {
+                    symbol.staticCache[name] = stored(value)
+                }
             case .dataElement(let base, let index):
                 guard case .host(let any) = try base.read(interpreter), var bytes = any as? Data,
                       index >= 0, index < bytes.count, let byte = value.intValue else {
@@ -1089,10 +1118,10 @@ extension Interpreter {
             // Enum namespaces hold mutable statics too (`storage.append(…)`
             // inside a static setter): writes land in the static cache.
             if case .enumType(let symbol)? = env.lookup("self"),
-               symbol.staticProperties[name] != nil || symbol.staticCache[name] != nil {
-                let box = Box((try? staticMember(name, of: symbol)) ?? .void)
-                box.onChange = { symbol.staticCache[name] = box.value }
-                return .box(box)
+               symbol.staticProperties[name] != nil
+                || symbol.staticUninitialized.contains(name)
+                || symbol.staticCache[name] != nil {
+                return .enumStaticProperty(symbol, name)
             }
             // Host-typed implicit self (extension-of-host-type bodies):
             // `wrappedValue = …` inside `extension Binding { func load }`
@@ -1137,6 +1166,12 @@ extension Interpreter {
                     || symbol.staticUninitialized.contains(memberName)
                     || symbol.staticCache[memberName] != nil {
                     return .staticProperty(symbol, memberName)
+                }
+                if case .enumType(let symbol)? = typeValue,
+                   symbol.staticProperties[memberName] != nil
+                    || symbol.staticUninitialized.contains(memberName)
+                    || symbol.staticCache[memberName] != nil {
+                    return .enumStaticProperty(symbol, memberName)
                 }
                 // Static COMPUTED setters (`static var useServer { get set }`
                 // assigned via Self./TypeName.): a Box whose onChange runs
