@@ -665,7 +665,11 @@ public final class FileManagerBox {
 
 /// `Calendar.current` — backed by the real Foundation calendar.
 struct CalendarBox {
-    let calendar = Calendar.current
+    var calendar: Calendar
+
+    init(_ calendar: Calendar = .current) {
+        self.calendar = calendar
+    }
 }
 
 /// `calendar.dateComponents([.hour, .minute], from:to:)` results and
@@ -1854,10 +1858,25 @@ func hostObjectSetMember(_ name: String, on value: Any, to newValue: RuntimeValu
 
 extension CalendarBox: GeneratedMemberCarrier, CustomStringConvertible {
     var generatedMemberValue: Any { calendar }
+    func replacingGeneratedMemberValue(_ value: Any) -> Any? {
+        (value as? Calendar).map(CalendarBox.init)
+    }
     public var description: String { String(describing: calendar) }
 }
 
-extension DateComponentsBox: GeneratedMemberCarrier, CustomStringConvertible {
+extension DateComponentsBox: GeneratedMemberCarrier, HostValueSemantic,
+    CustomStringConvertible {
     var generatedMemberValue: Any { components }
+    func writeGeneratedMemberValue(_ value: Any) -> Bool {
+        guard let value = value as? DateComponents else { return false }
+        components = value
+        return true
+    }
+    func replacingGeneratedMemberValue(_ value: Any) -> Any? {
+        (value as? DateComponents).map(DateComponentsBox.init(components:))
+    }
+    func copiedHostValue() -> Any {
+        DateComponentsBox(components: components)
+    }
     public var description: String { String(describing: components) }
 }

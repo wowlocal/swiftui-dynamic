@@ -181,7 +181,9 @@ public protocol HostRegistry: AnyObject {
     func hostProtocolCandidates(of value: Any) -> [String]
     /// Value-type member writes (`size.width = 300`): return the MUTATED
     /// COPY, or nil when the member isn't writable this way.
-    func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any?
+    func hostMutatedCopy(
+        settingMember name: String, on value: Any, to newValue: RuntimeValue
+    ) throws -> Any?
     /// CALL-site rescue for property/method name collisions on host values:
     /// `url.query` (property) shadowed `query(percentEncoded:)` — when the
     /// property's value turns out not to be callable, this asks for the
@@ -193,7 +195,9 @@ extension HostRegistry {
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
     public func hostProtocolCandidates(of value: Any) -> [String] { [] }
-    public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? { nil }
+    public func hostMutatedCopy(
+        settingMember name: String, on value: Any, to newValue: RuntimeValue
+    ) throws -> Any? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func hostProperty(named name: String, on value: Any) -> HostProperty? { nil }
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? { nil }

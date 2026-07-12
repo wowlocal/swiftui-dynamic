@@ -179,12 +179,19 @@ emitting suffix variants (full call, then trailing defaults dropped).
 The same generator sweeps the SDK's **Foundation swiftinterface** for the
 member surface of value types (`URL`, `Data`, `Date`, `Calendar`, `UUID`,
 `Locale`, …): `Generated/GeneratedMembers.swift` holds **247 properties and
-115 method variants** keyed by the receiver's dynamic type
-(`"URL.lastPathComponent"`), consulted from `bridgeHostMember` after the hand
-boxes and before the ObjC trampoline. Every property getter emits a read-only
-Swift declaration parsed once into a shared `HostProperty`, which validates
+115 method variants**; **68 properties are generated as writable and 179 as
+read-only**, matching the SDK interface. Entries are keyed by the receiver's
+dynamic type (`"URL.lastPathComponent"`) and consulted from `bridgeHostMember`
+after the hand boxes and before the ObjC trampoline. Every property emits its
+exact read-only or mutable Swift declaration, parsed once into a shared
+`HostProperty` that validates
 the logical SDK receiver and every result (including Optional, collection, and
-Objective-C-bridged names). Each method variant similarly emits a
+Objective-C-bridged names); mutable declarations additionally emit a typed
+copy-out mutation. Value lvalues install the returned SDK copy, carrier boxes
+write it back in place, while existing hand-normalized URLComponents item
+reads remain language collections. Opt-in host value carriers copy at
+interpreter storage boundaries, preserving native value semantics for
+`DateComponents`, `URLComponents`, and `URLRequest`. Each method variant similarly emits a
 `HostSignature`; `HostFunction` owns label/arity/type checks, deterministic
 overload ranking, and return validation, while `ParamTag` only converts an
 already-selected argument for the statically compiled host call. Invalid calls

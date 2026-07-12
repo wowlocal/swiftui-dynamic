@@ -17,13 +17,16 @@ extension Interpreter {
     ) throws -> Bool {
         if let property = registry?.hostProperty(named: name, on: value) {
             if property.signature.isSettable {
-                try property.write(newValue, to: .native(value), in: self)
+                let assigned = try property.signature.returnType.map {
+                    try resolveAnnotated(newValue, typeName: $0)
+                } ?? newValue
+                try property.write(assigned, to: .native(value), in: self)
                 return true
             }
-            // A generated read-only descriptor can coexist with a legacy
-            // compatibility setter while setter generation is still pending.
-            // Let that explicit setter win; otherwise retain HostProperty's
-            // precise read-only diagnostic.
+            // A typed read-only descriptor can coexist with an explicit
+            // compatibility setter during incremental gateway migration. Let
+            // that setter win; otherwise retain HostProperty's precise
+            // read-only diagnostic.
             if registry?.hostSetMember(name, on: value, to: newValue) == true {
                 return true
             }

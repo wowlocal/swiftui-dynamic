@@ -7,54 +7,25 @@ import SwiftInterpreter
 /// swiftinterface): members no hand box claims dispatch through
 /// GeneratedMembers — real SDK calls, compiled statically.
 @Suite struct GeneratedMemberTests {
-    @Test func generatedPropertiesExposeParsedReadOnlyContracts() {
+    @Test func generatedPropertiesExposeParsedReadWriteContracts() {
         #expect(GeneratedMembers.properties.count >= 240)
         for (key, property) in GeneratedMembers.properties {
             #expect(property.signature.kind == .property)
-            #expect(!property.signature.isSettable)
             #expect(property.signature.returnType != nil)
             #expect(key == "\(property.signature.receiverType!).\(property.name)")
+            #expect(property.signature.isSettable == (property.mutate != nil))
         }
+        #expect(GeneratedMembers.properties.values.count {
+            $0.signature.isSettable
+        } == 68)
 
         let components = GeneratedMembers.properties["URLComponents.queryItems"]
         #expect(components?.signature.declaration ==
-            "var URLComponents.queryItems: [URLQueryItem]? { get }")
+            "var URLComponents.queryItems: [URLQueryItem]? { get set }")
     }
 
     @Test func everyGeneratedPropertyValidatesAgainstSDKReceiver() throws {
-        let seedDate = Date(timeIntervalSince1970: 1_234_567_890)
-        let seedURL = URL(string: "https://user:pass@example.com/a?x=1#f")!
-        var components = URLComponents(url: seedURL, resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "x", value: "1")]
-        var dateComponents = DateComponents()
-        dateComponents.calendar = Calendar(identifier: .gregorian)
-        dateComponents.timeZone = TimeZone(secondsFromGMT: 0)
-        dateComponents.year = 2024
-        dateComponents.month = 7
-        dateComponents.day = 12
-        var person = PersonNameComponents()
-        person.givenName = "Ada"
-        person.familyName = "Lovelace"
-
-        let receivers: [String: Any] = [
-            "Calendar": Calendar(identifier: .gregorian),
-            "CharacterSet": CharacterSet.alphanumerics,
-            "Data": Data([1, 2, 3, 4]),
-            "Date": seedDate,
-            "DateComponents": dateComponents,
-            "DateInterval": DateInterval(start: seedDate, duration: 3_600),
-            "Decimal": Decimal(string: "12.5")!,
-            "IndexPath": IndexPath(indexes: [1, 3, 5]),
-            "IndexSet": IndexSet(integersIn: 1..<6),
-            "Locale": Locale(identifier: "en_US"),
-            "PersonNameComponents": person,
-            "TimeZone": TimeZone(secondsFromGMT: 0)!,
-            "URL": seedURL,
-            "URLComponents": components,
-            "URLQueryItem": URLQueryItem(name: "x", value: "1"),
-            "URLRequest": URLRequest(url: seedURL),
-            "UUID": UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!,
-        ]
+        let receivers = generatedReceiverSeeds()
         let interpreter = Interpreter(registry: ViewRegistry())
 
         for (key, property) in GeneratedMembers.properties.sorted(
@@ -71,6 +42,37 @@ import SwiftInterpreter
                 Issue.record("\(key): \(error)")
             }
         }
+    }
+
+    @Test func everyGeneratedSettablePropertyMutatesAndRevalidatesSDKCopy() throws {
+        let receivers = generatedReceiverSeeds()
+        let interpreter = Interpreter(registry: ViewRegistry())
+        var exercised = 0
+
+        for (key, property) in GeneratedMembers.properties.sorted(
+            by: { $0.key < $1.key }) where property.signature.isSettable {
+            guard let receiverType = property.signature.receiverType,
+                  let receiver = receivers[receiverType] else {
+                Issue.record("\(key): deterministic receiver seed is missing")
+                continue
+            }
+            do {
+                let current = try property.read(
+                    from: .native(receiver), in: interpreter)
+                guard let updated = try GeneratedMembers.mutatedCopy(
+                    setting: property.name, on: receiver, to: current) else {
+                    Issue.record("\(key): generated mutation is missing")
+                    continue
+                }
+                _ = try property.read(
+                    from: .native(updated), in: interpreter)
+                exercised += 1
+            } catch {
+                Issue.record("\(key): \(error)")
+            }
+        }
+
+        #expect(exercised == 68)
     }
 
     @Test func generatedPropertiesValidateReceiverAndReadOnlyAccess() throws {
@@ -245,7 +247,7 @@ import SwiftInterpreter
         #expect(result.stringValue == "example.com")
     }
 
-    @Test func generatedReadContractsDoNotMaskHandWrittenSetters() throws {
+    @Test func generatedWriteContractsPreserveHandNormalizedReads() throws {
         let source = """
         var components = URLComponents(string: "https://example.com/a")!
         components.scheme = "http"
@@ -254,6 +256,146 @@ import SwiftInterpreter
         """
         let result = try Interpreter(registry: ViewRegistry()).run(source: source)
         #expect(result.stringValue == "http://swift.org/a")
+    }
+
+    @Test func generatedSettersWriteCarriersAndContextualEnums() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+        let url = URL(string: "https://example.com")!
+
+        let request = URLRequestBox(request: URLRequest(url: url))
+        let policy = try #require(registry.hostProperty(
+            named: "cachePolicy", on: request))
+        #expect(policy.signature.isSettable)
+        try policy.write(
+            .implicitMember("reloadIgnoringLocalCacheData"),
+            to: .native(request), in: interpreter)
+        #expect(request.request.cachePolicy == .reloadIgnoringLocalCacheData)
+
+        let components = URLComponentsBox()
+        let scheme = try #require(registry.hostProperty(
+            named: "scheme", on: components))
+        #expect(scheme.signature.isSettable)
+        try scheme.write(
+            .some(.native("https"), wrappedTypeName: "String"),
+            to: .native(components), in: interpreter)
+        #expect(components.components.scheme == "https")
+
+        let dateComponents = DateComponentsBox(components: DateComponents())
+        let year = try #require(registry.hostProperty(
+            named: "year", on: dateComponents))
+        #expect(year.signature.isSettable)
+        try year.write(.native(2026), to: .native(dateComponents), in: interpreter)
+        #expect(dateComponents.components.year == 2026)
+    }
+
+    @Test func foundationCarrierAssignmentsHaveNativeValueSemantics() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        var firstDate = DateComponents()
+        firstDate.year = 2024
+        var secondDate = firstDate
+        secondDate.year = 2025
+
+        var firstComponents = URLComponents()
+        firstComponents.scheme = "https"
+        var secondComponents = firstComponents
+        secondComponents.scheme = "http"
+
+        let url = URL(string: "https://example.com")!
+        var firstRequest = URLRequest(url: url)
+        firstRequest.httpMethod = "GET"
+        var secondRequest = firstRequest
+        secondRequest.httpMethod = "POST"
+
+        var firstPerson = PersonNameComponents()
+        firstPerson.givenName = "Ada"
+        var secondPerson = firstPerson
+        secondPerson.givenName = "Grace"
+
+        "\\(firstDate.year!)|\\(secondDate.year!)|\\(firstComponents.scheme!)|\\(secondComponents.scheme!)|\\(firstRequest.httpMethod!)|\\(secondRequest.httpMethod!)|\\(firstPerson.givenName!)|\\(secondPerson.givenName!)"
+        """)
+
+        #expect(result.stringValue ==
+            "2024|2025|https|http|GET|POST|Ada|Grace")
+    }
+
+    @Test func generatedSettersConvertSourceCollectionsAndNilOptionals() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        var components = URLComponents()
+        components.scheme = .some("https")
+        let scheme = components.scheme!
+        components.queryItems = [URLQueryItem(name: "page", value: "2")]
+        let item = components.queryItems![0]
+
+        components.scheme = .none
+        components.queryItems = nil
+        "\\(scheme)|\\(components.scheme == nil)|\\(item.name)|\\(item.value!)|\\(components.queryItems == nil)"
+        """)
+
+        #expect(result.stringValue == "https|true|page|2|true")
+
+        let requestValue = try Interpreter(registry: ViewRegistry()).run(
+            source: """
+            var request = URLRequest(
+                url: URL(string: "https://example.com")!)
+            request.allHTTPHeaderFields = ["X-Test": "yes"]
+            request
+            """)
+        guard case .host(let requestPayload) = requestValue,
+              let request = requestPayload as? URLRequestBox else {
+            Issue.record("URLRequest setter did not preserve its carrier")
+            return
+        }
+        #expect(request.request.allHTTPHeaderFields?["X-Test"] == "yes")
+    }
+
+    @Test func generatedURLRequestBodySetterAcceptsTryOptionalData() throws {
+        let result = try Interpreter(registry: ViewRegistry()).run(source: """
+        let url = URL(string: "https://example.com")!
+        let json: [String: Any] = ["answer": 42]
+        var request = URLRequest(url: url)
+        request.httpBody = try? JSONSerialization.data(
+            withJSONObject: json, options: [.prettyPrinted])
+        request
+        """)
+
+        guard case .host(let payload) = result,
+              let request = payload as? URLRequestBox,
+              let body = request.request.httpBody,
+              let object = try JSONSerialization.jsonObject(with: body)
+                as? [String: Int] else {
+            Issue.record("try? JSON data did not reach URLRequest.httpBody")
+            return
+        }
+        #expect(object == ["answer": 42])
+    }
+
+    @Test func generatedSettersRejectWrongValuesBeforeMutation() throws {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        for source in [
+            "var value = DateComponents(); value.year = \"wrong\"",
+            "var value = URLComponents(); value.scheme = 42",
+            "var value = URLRequest(url: URL(string: \"https://example.com\")!); value.timeoutInterval = \"wrong\"",
+        ] {
+            do {
+                _ = try interpreter.run(source: source)
+                Issue.record("generated setter accepted an invalid value: \(source)")
+            } catch let error as RuntimeError {
+                #expect(error.message.contains("was assigned"))
+                #expect(error.message.contains("expected"))
+            }
+        }
+
+        do {
+            _ = try interpreter.run(source: """
+            var request = URLRequest(url: URL(string: "https://example.com")!)
+            request.cachePolicy = .notARealPolicy
+            """)
+            Issue.record("unknown contextual enum case reached Foundation")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("notARealPolicy"))
+            #expect(error.message.contains("URLRequest.CachePolicy"))
+        }
     }
 
     @Test func handWrittenOptionalBoundariesRetainWrappers() throws {
@@ -298,5 +440,43 @@ import SwiftInterpreter
         """
         _ = try interpreter.run(source: source, lazyTopLevelGlobals: true)
         #expect(interpreter.absorbedHostMembers["URL.definitelyNotARealMemberXYZ"] == 1)
+    }
+
+    private func generatedReceiverSeeds() -> [String: Any] {
+        let seedDate = Date(timeIntervalSince1970: 1_234_567_890)
+        let seedURL = URL(string: "https://user:pass@example.com/a?x=1#f")!
+        var components = URLComponents(
+            url: seedURL, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "x", value: "1")]
+        var dateComponents = DateComponents()
+        dateComponents.calendar = Calendar(identifier: .gregorian)
+        dateComponents.timeZone = TimeZone(secondsFromGMT: 0)
+        dateComponents.year = 2024
+        dateComponents.month = 7
+        dateComponents.day = 12
+        var person = PersonNameComponents()
+        person.givenName = "Ada"
+        person.familyName = "Lovelace"
+
+        return [
+            "Calendar": Calendar(identifier: .gregorian),
+            "CharacterSet": CharacterSet.alphanumerics,
+            "Data": Data([1, 2, 3, 4]),
+            "Date": seedDate,
+            "DateComponents": dateComponents,
+            "DateInterval": DateInterval(start: seedDate, duration: 3_600),
+            "Decimal": Decimal(string: "12.5")!,
+            "IndexPath": IndexPath(indexes: [1, 3, 5]),
+            "IndexSet": IndexSet(integersIn: 1..<6),
+            "Locale": Locale(identifier: "en_US"),
+            "PersonNameComponents": person,
+            "TimeZone": TimeZone(secondsFromGMT: 0)!,
+            "URL": seedURL,
+            "URLComponents": components,
+            "URLQueryItem": URLQueryItem(name: "x", value: "1"),
+            "URLRequest": URLRequest(url: seedURL),
+            "UUID": UUID(
+                uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!,
+        ]
     }
 }

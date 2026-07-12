@@ -365,12 +365,10 @@ public final class HostProperty {
         to receiver: RuntimeValue,
         in context: EvalContext
     ) throws {
+        try validateWrite(value, to: receiver, in: context)
         guard let setter else {
-            throw RuntimeError(message:
-                "cannot assign to read-only host property '\(signature.declaration)'")
+            preconditionFailure("validateWrite accepted a read-only HostProperty")
         }
-        try signature.validateReceiver(receiver, in: context)
-        try signature.validatePropertyValue(value, in: context)
         do {
             try setter(receiver, value, context)
         } catch {
@@ -378,5 +376,23 @@ public final class HostProperty {
             throw RuntimeError(message:
                 "host contract violation: setter for '\(signature.declaration)' threw \(String(describing: error))")
         }
+    }
+
+    /// Validate a write without performing it. Value-type host members use
+    /// this before asking their registry for a mutated copy, so assignments
+    /// through copy-in/copy-out receive the same contract checks and
+    /// read-only diagnostics as reference-backed setters.
+    public func validateWrite(
+        _ value: RuntimeValue,
+        to receiver: RuntimeValue,
+        in context: EvalContext
+    ) throws {
+        guard setter != nil else {
+            throw RuntimeError(message:
+                "cannot assign to read-only host property '\(signature.declaration)'")
+        }
+        try signature.validateReceiver(receiver, in: context)
+        try signature.validatePropertyValue(
+            value, in: context, operation: "was assigned")
     }
 }

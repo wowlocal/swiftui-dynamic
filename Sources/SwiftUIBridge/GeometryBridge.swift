@@ -712,15 +712,45 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     return nil
 }
 
+private enum HandNormalizedGeneratedPropertyCache {
+    static let properties: [String: HostProperty] = {
+        var result: [String: HostProperty] = [:]
+        for (key, property) in GeneratedMembers.properties
+            where property.signature.isSettable {
+            let name = property.name
+            result[key] = GeneratedMembers.adapting(property) { receiver in
+                hostObjectMember(name, on: receiver)
+                    ?? networkBridgeMember(name, on: receiver)
+            }
+        }
+        return result
+    }()
+
+    static func property(_ name: String, on value: Any) -> HostProperty? {
+        properties[GeneratedMembers.propertyKey(name, on: value)]
+    }
+}
+
 func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
     if let property = hostObjectProperty(name, on: value) { return property }
-    // Preserve the established hand-written-first boundary. Generated typed
-    // properties fill only the members those boxes/value adapters decline.
-    if hostObjectMember(name, on: value) != nil
-        || networkBridgeMember(name, on: value) != nil {
+    // Preserve hand-normalized reads (notably URLComponents.queryItems), but
+    // put swept writable SDK properties behind their generated contract.
+    // This retires permissive compatibility setters without changing the
+    // runtime shape existing source code consumes.
+    let handValue = hostObjectMember(name, on: value)
+        ?? networkBridgeMember(name, on: value)
+    if handValue != nil {
+        guard let generated = GeneratedMembers.property(name, on: value),
+              generated.signature.isSettable else {
+            return nil
+        }
+        return HandNormalizedGeneratedPropertyCache.property(name, on: value)
+    }
+    if let generated = GeneratedMembers.property(name, on: value) {
+        return generated
+    } else {
         return nil
     }
-    return GeneratedMembers.property(name, on: value)
 }
 
 /// `.global` / `.local` / `.named("x")` / `.scrollView(axis:)` in frame(in:).
@@ -802,8 +832,11 @@ extension ViewRegistry {
         bridgeHostTypeName(of: value)
     }
 
-    public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? {
-        bridgeHostMutatedCopy(settingMember: name, on: value, to: newValue)
+    public func hostMutatedCopy(
+        settingMember name: String, on value: Any, to newValue: RuntimeValue
+    ) throws -> Any? {
+        try bridgeHostMutatedCopy(
+            settingMember: name, on: value, to: newValue)
     }
 
     /// `Text("a") + Text("b")` — both sides are AnyView-erased by the time
@@ -918,7 +951,13 @@ private func renderProxyContent(
 
 /// CG value-type member writes: mutate a copy, hand it back for the
 /// lvalue write-through (`size.width = 300`, `rect.origin.y = 10`).
-func bridgeHostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? {
+func bridgeHostMutatedCopy(
+    settingMember name: String, on value: Any, to newValue: RuntimeValue
+) throws -> Any? {
+    if let generated = try GeneratedMembers.mutatedCopy(
+        setting: name, on: value, to: newValue) {
+        return generated
+    }
     if var size = value as? CGSize {
         guard let amount = newValue.doubleValue else { return nil }
         switch name {

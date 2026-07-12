@@ -1,3 +1,11 @@
+/// Opt-in copy operation for opaque host carriers that represent a Swift
+/// value type. Ordinary host classes retain identity; bridge boxes for SDK
+/// structs adopt this protocol so every interpreter storage boundary gives
+/// them the same copy-in/copy-out ownership as their native value.
+public protocol HostValueSemantic {
+    func copiedHostValue() -> Any
+}
+
 /// Central ownership rules for values crossing a Swift storage boundary.
 ///
 /// `Instance` is an implementation detail shared by interpreted structs and
@@ -54,6 +62,9 @@ extension RuntimeValue {
             }
             if let dictionary = any as? DictValue {
                 return .dictionary(dictionary)
+            }
+            if let value = any as? HostValueSemantic {
+                return .native(value.copiedHostValue())
             }
             return self
         default:
@@ -138,6 +149,9 @@ extension RuntimeValue {
                     return .dictionary(DictValue(
                         keys: dictionary.keys.map(copy),
                         values: dictionary.values.map(copy)))
+                }
+                if let value = any as? HostValueSemantic {
+                    return .native(value.copiedHostValue())
                 }
                 return value
             default:

@@ -1,9 +1,9 @@
 #!/bin/zsh
-# The closing gate, cost-minimized: ONE build, then all boards in PARALLEL
-# from prebuilt binaries. Serial cost was build + suite + corpus + live
-# (~6-8 min); parallel cost is build + max(board) (~2-3 min). ProjectCheck
-# self-caches (unchanged sources return instantly), so doc-only iterations
-# pay almost nothing.
+# The closing gate: ONE build, then the lightweight boards in parallel from
+# prebuilt binaries. LiveCheck runs after that group: its deep-render pass can
+# retain hundreds of MB, and overlapping it with the corpus sweep lets macOS
+# kill it before its buffered verdict is written. ProjectCheck self-caches
+# (unchanged sources return instantly), so verified trees still avoid a sweep.
 #
 # Usage: Scripts/gate.sh            (from the checkout root)
 # Exits nonzero if ANY board is red; prints each board's verdict line.
@@ -17,17 +17,18 @@ if ! swift build --build-tests > /dev/null 2>&1; then
 fi
 
 out=$(mktemp -d)
-echo "── boards (parallel) ──"
+echo "── suite + corpus + parity (parallel) ──"
 ( swift test --skip-build 2>&1 | tail -1 > "$out/suite" ) &
 suite_pid=$!
 ( .build/debug/ProjectCheck --all 2>/dev/null | grep "═══" | tail -1 > "$out/corpus" ) &
 corpus_pid=$!
-( .build/debug/LiveCheck 2>/dev/null | tail -1 > "$out/live" ) &
-live_pid=$!
 ( .build/debug/ParityCheck 2>/dev/null | tail -1 > "$out/parity" ) &
 parity_pid=$!
 
-wait $suite_pid $corpus_pid $live_pid $parity_pid
+wait $suite_pid $corpus_pid $parity_pid
+
+echo "── live (memory-isolated) ──"
+.build/debug/LiveCheck 2>/dev/null | grep "═══" | tail -1 > "$out/live"
 
 red=0
 for board in suite corpus live parity; do
@@ -41,7 +42,7 @@ for board in suite corpus live parity; do
             # ratchets UP only.
             passed=$(echo "$line" | sed -E 's/.*═══ ([0-9]+)\/680.*/\1/')
             [ "${passed:-0}" -ge 678 ] || red=1 ;;
-        live:*"scenarios pass"*) ;;
+        live:*"═══ 5/5 live-data scenarios pass ═══"*) ;;
         parity:*"0 diverge / 0 interp-error"*) ;;
         *) red=1 ;;
     esac

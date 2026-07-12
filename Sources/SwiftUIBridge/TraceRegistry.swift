@@ -81,6 +81,10 @@ public final class TraceRegistry: HostRegistry {
         FileManagerBox.blobStore[path] = value
     }
 
+    public func hostObjectConstructor(named name: String) -> HostFunction? {
+        bridgeHostObjectConstructor(named: name)
+    }
+
     /// The element's identity for state salting: an Identifiable `id`
     /// when present, the scalar itself, else the position.
     static func identitySalt(of element: RuntimeValue, index: Int) -> String {
@@ -559,8 +563,11 @@ public final class TraceRegistry: HostRegistry {
         return hostObjectSetMember(name, on: value, to: newValue)
     }
 
-    public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? {
-        bridgeHostMutatedCopy(settingMember: name, on: value, to: newValue)
+    public func hostMutatedCopy(
+        settingMember name: String, on value: Any, to newValue: RuntimeValue
+    ) throws -> Any? {
+        try bridgeHostMutatedCopy(
+            settingMember: name, on: value, to: newValue)
     }
 
     /// Recorded nodes stand for their constructor's type (UIColor(...) →

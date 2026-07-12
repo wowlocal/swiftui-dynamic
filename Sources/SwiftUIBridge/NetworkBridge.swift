@@ -159,8 +159,25 @@ public final class URLRequestBox {
     }
 }
 
-extension URLRequestBox: GeneratedMemberCarrier, CustomStringConvertible {
+extension URLRequestBox: GeneratedMemberCarrier, HostValueSemantic,
+    CustomStringConvertible {
     var generatedMemberValue: Any { request }
+    func writeGeneratedMemberValue(_ value: Any) -> Bool {
+        guard let value = value as? URLRequest else { return false }
+        request = value
+        return true
+    }
+    func replacingGeneratedMemberValue(_ value: Any) -> Any? {
+        guard let value = value as? URLRequest else { return nil }
+        let copy = URLRequestBox(request: value)
+        copy.config = config
+        return copy
+    }
+    public func copiedHostValue() -> Any {
+        let copy = URLRequestBox(request: request)
+        copy.config = config
+        return copy
+    }
     public var description: String { String(describing: request) }
 }
 
@@ -561,6 +578,33 @@ public final class KeyedContainerStub {
 
 @MainActor
 func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
+    if let marker = value as? HostTypeMarker,
+       marker.name == "JSONSerialization", name == "data" {
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            guard let object = args.labeled("withJSONObject")
+                    ?? args.positional(0) else {
+                throw RuntimeError(
+                    message: "JSONSerialization.data needs withJSONObject:")
+            }
+            let json = try JSONDecodeBridge.encodeToJSON(
+                object, snakeCase: false)
+            let optionNames = (args.labeled("options")
+                ?? args.positional(1))?.stringified ?? ""
+            var options: JSONSerialization.WritingOptions = []
+            if optionNames.contains("prettyPrinted") {
+                options.insert(.prettyPrinted)
+            }
+            if optionNames.contains("sortedKeys") {
+                options.insert(.sortedKeys)
+            }
+            if optionNames.contains("fragmentsAllowed") {
+                options.insert(.fragmentsAllowed)
+            }
+            let data = try JSONSerialization.data(
+                withJSONObject: json, options: options)
+            return .native(data)
+        })
+    }
     if let box = value as? URLRequestBox {
         switch name {
         case "setValue", "addValue":
@@ -1593,7 +1637,19 @@ enum JSONDecodeBridge {
 }
 
 
-extension URLComponentsBox: GeneratedMemberCarrier, CustomStringConvertible {
+extension URLComponentsBox: GeneratedMemberCarrier, HostValueSemantic,
+    CustomStringConvertible {
     var generatedMemberValue: Any { components }
+    func writeGeneratedMemberValue(_ value: Any) -> Bool {
+        guard let value = value as? URLComponents else { return false }
+        components = value
+        return true
+    }
+    func replacingGeneratedMemberValue(_ value: Any) -> Any? {
+        (value as? URLComponents).map(URLComponentsBox.init)
+    }
+    public func copiedHostValue() -> Any {
+        URLComponentsBox(components)
+    }
     public var description: String { String(describing: components) }
 }

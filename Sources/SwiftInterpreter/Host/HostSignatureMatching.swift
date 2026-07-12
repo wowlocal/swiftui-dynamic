@@ -71,7 +71,8 @@ extension HostSignature {
     }
 
     func validatePropertyValue(
-        _ value: RuntimeValue, in context: EvalContext
+        _ value: RuntimeValue, in context: EvalContext,
+        operation: String = "produced"
     ) throws {
         let expected = returnType ?? "Void"
         var bindings: [String: String] = [:]
@@ -81,7 +82,7 @@ extension HostSignature {
             bindings: &bindings, representatives: &representatives,
             context: context, mayBind: false) != nil else {
             throw RuntimeError(message:
-                "host contract violation: property '\(declaration)' produced '\(context.hostTypeName(of: value))', expected '\(expected)'")
+                "host contract violation: property '\(declaration)' \(operation) '\(context.hostTypeName(of: value))', expected '\(expected)'")
         }
     }
 }

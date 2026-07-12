@@ -630,9 +630,11 @@ struct MemberProperty {
     let type: String
     let name: String
     let returnType: String
+    let isSettable: Bool
 }
 var memberProperties: [MemberProperty] = []
 var memberPropertySeen = Set<String>()
+var memberSettablePropertyTypes: [String: Int] = [:]
 var memberBlockers: [String: Int] = [:]
 var memberMethodTotal = 0
 var memberPropertyTotal = 0
@@ -742,9 +744,26 @@ func processMemberProperty(_ typeName: String, _ variable: VariableDeclSyntax, g
     let key = typeName + "." + name
     guard !denyMembers.contains(key) else { return }
     if memberPropertySeen.insert(key).inserted {
+        let isSettable: Bool = {
+            guard variable.bindingSpecifier.text == "var" else { return false }
+            guard let accessorBlock = binding.accessorBlock else { return true }
+            switch accessorBlock.accessors {
+            case .getter:
+                return false
+            case .accessors(let accessors):
+                return accessors.contains {
+                    ["set", "_modify", "modify"]
+                        .contains($0.accessorSpecifier.text)
+                }
+            }
+        }()
+        let returnType = memberContractType(for: normalize(rawType))
         memberProperties.append(MemberProperty(
             type: typeName, name: name,
-            returnType: memberContractType(for: normalize(rawType))))
+            returnType: returnType, isSettable: isSettable))
+        if isSettable {
+            memberSettablePropertyTypes[returnType, default: 0] += 1
+        }
     }
 }
 
@@ -814,11 +833,18 @@ print("""
 
 ═══ Foundation members (generated tier) ═══
 properties:             \(memberProperties.count)  (of \(memberPropertyTotal) public instance vars)
+settable properties:    \(memberProperties.count(where: \.isSettable))
 method variants:        \(memberMethodVariants.count)  (\(Set(memberMethodVariants.map { $0.type + "." + $0.name }).count) distinct members, of \(memberMethodTotal) candidates)
 
 ═══ Top member-blocking types ═══
 """)
 for (type, count) in memberBlockers.sorted(by: { $0.value > $1.value }).prefix(20) {
+    print(String(format: "%5d  %@", count, type))
+}
+print("\n═══ Settable property types ═══")
+for (type, count) in memberSettablePropertyTypes.sorted(by: {
+    ($0.value, $0.key) > ($1.value, $1.key)
+}) {
     print(String(format: "%5d  %@", count, type))
 }
 
@@ -934,10 +960,23 @@ print("wrote \(viewsPath) (\(sortedInits.count) variants)")
 // MARK: - Emit members
 
 func memberPropertyCode(_ property: MemberProperty) -> String {
-    """
-            registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get }") { base in
+    if property.isSettable {
+        return """
+            registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get set }", get: { base in
                 (base as? \(property.type)).map { generatedMemberResult($0.\(property.name)) }
-            }
+            }, mutate: { base, newValue in
+                guard var copy = base as? \(property.type) else {
+                    throw RuntimeError(message: "generated \(property.type).\(property.name) mutation received the wrong receiver", fatal: true)
+                }
+                copy.\(property.name) = try convertGeneratedPropertyValue(newValue, as: \(property.returnType).self)
+                return copy
+            })
+    """
+    }
+    return """
+            registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get }", get: { base in
+                (base as? \(property.type)).map { generatedMemberResult($0.\(property.name)) }
+            })
     """
 }
 
@@ -980,8 +1019,8 @@ import Foundation
 import SwiftInterpreter
 
 extension GeneratedMembers {
-    static func buildProperties() -> [String: HostProperty] {
-        var t: [String: HostProperty] = [:]
+    static func buildProperties() -> [String: GeneratedMemberProperty] {
+        var t: [String: GeneratedMemberProperty] = [:]
 
 """
 for index in propertyChunks.indices {
@@ -996,7 +1035,7 @@ for index in methodChunks.indices {
 membersOutput += "        return t\n    }\n"
 
 for (index, chunk) in propertyChunks.enumerated() {
-    membersOutput += "\n    private static func buildP\(index)(_ t: inout [String: HostProperty]) {\n"
+    membersOutput += "\n    private static func buildP\(index)(_ t: inout [String: GeneratedMemberProperty]) {\n"
     for property in chunk {
         membersOutput += memberPropertyCode(property) + "\n"
     }

@@ -303,12 +303,39 @@ struct GeneratedMemberSet {
     }
 }
 
+/// One generated property gateway plus its copy-out mutation. The cached
+/// HostProperty owns validation for ordinary reads/reference-backed writes;
+/// value lvalues reuse `mutate` and install the returned SDK value in their
+/// owning storage.
+struct GeneratedMemberProperty {
+    typealias Mutation = (Any, RuntimeValue) throws -> Any
+
+    let contract: HostProperty
+    let mutate: Mutation?
+
+    var signature: HostSignature { contract.signature }
+    var name: String { contract.name }
+
+    func read(
+        from receiver: RuntimeValue, in context: EvalContext
+    ) throws -> RuntimeValue {
+        try contract.read(from: receiver, in: context)
+    }
+
+    func write(
+        _ value: RuntimeValue, to receiver: RuntimeValue,
+        in context: EvalContext
+    ) throws {
+        try contract.write(value, to: receiver, in: context)
+    }
+}
+
 /// Namespace the generated members file extends with `buildProperties()` /
 /// `buildMethods()`. Keys are "TypeName.memberName" against the receiver's
 /// logical SDK type, so hand boxes can expose their wrapped value without
 /// weakening receiver validation.
 enum GeneratedMembers {
-    static let properties: [String: HostProperty] = buildProperties()
+    static let properties: [String: GeneratedMemberProperty] = buildProperties()
 
     static let methods: [String: GeneratedMemberSet] = {
         var grouped: [String: GeneratedMemberSet] = [:]
@@ -342,9 +369,10 @@ enum GeneratedMembers {
     }
 
     static func registerProperty(
-        _ table: inout [String: HostProperty],
+        _ table: inout [String: GeneratedMemberProperty],
         _ declaration: String,
-        _ get: @escaping (Any) -> RuntimeValue?
+        get: @escaping (Any) -> RuntimeValue?,
+        mutate: GeneratedMemberProperty.Mutation? = nil
     ) {
         do {
             let signature = try HostSignature(parsing: declaration)
@@ -353,32 +381,72 @@ enum GeneratedMembers {
                 preconditionFailure(
                     "BridgeGen emitted inconsistent property metadata for '\(declaration)'")
             }
-            let property = try HostProperty(
-                signature: signature, get: { receiver, _ in
-                    guard let rawReceiver = receiver.hostPayload else {
-                        throw RuntimeError(
-                            message: "generated property '\(declaration)' received no host payload",
-                            fatal: true)
-                    }
-                    let logicalReceiver = (rawReceiver as? GeneratedMemberCarrier)?
-                        .generatedMemberValue ?? rawReceiver
-                    guard let value = get(logicalReceiver) else {
-                        throw RuntimeError(
-                            message: "generated property '\(declaration)' receiver downcast failed",
-                            fatal: true)
-                    }
-                    return value
-                })
+            let property = try makeProperty(
+                signature: signature, declaration: declaration,
+                unwrapCarrierForGet: true, get: get, mutate: mutate)
             let key = "\(receiverType).\(signature.name)"
             guard table[key] == nil else {
                 preconditionFailure(
                     "BridgeGen emitted duplicate property metadata for '\(declaration)'")
             }
-            table[key] = property
+            table[key] = GeneratedMemberProperty(
+                contract: property, mutate: mutate)
         } catch {
             preconditionFailure(
                 "BridgeGen emitted an invalid host property '\(declaration)': \(error)")
         }
+    }
+
+    private static func makeProperty(
+        signature: HostSignature,
+        declaration: String,
+        unwrapCarrierForGet: Bool,
+        get: @escaping (Any) -> RuntimeValue?,
+        mutate: GeneratedMemberProperty.Mutation?
+    ) throws -> HostProperty {
+        let setter: HostProperty.Setter?
+        if let mutate {
+            setter = { receiver, newValue, _ in
+                guard let rawReceiver = receiver.hostPayload else {
+                    throw RuntimeError(
+                        message: "generated property '\(declaration)' received no host payload",
+                        fatal: true)
+                }
+                let logicalReceiver = (rawReceiver as? GeneratedMemberCarrier)?
+                    .generatedMemberValue ?? rawReceiver
+                let updated = try mutate(logicalReceiver, newValue)
+                guard let carrier = rawReceiver as? GeneratedMemberCarrier,
+                      carrier.writeGeneratedMemberValue(updated) else {
+                    throw RuntimeError(message:
+                        "cannot assign to '\(signature.name)' without mutable host-value storage")
+                }
+            }
+        } else {
+            setter = nil
+        }
+        return try HostProperty(
+            signature: signature,
+            get: { receiver, _ in
+                guard let rawReceiver = receiver.hostPayload else {
+                    throw RuntimeError(
+                        message: "generated property '\(declaration)' received no host payload",
+                        fatal: true)
+                }
+                let getterReceiver: Any
+                if unwrapCarrierForGet,
+                   let carrier = rawReceiver as? GeneratedMemberCarrier {
+                    getterReceiver = carrier.generatedMemberValue
+                } else {
+                    getterReceiver = rawReceiver
+                }
+                guard let value = get(getterReceiver) else {
+                    throw RuntimeError(
+                        message: "generated property '\(declaration)' receiver downcast failed",
+                        fatal: true)
+                }
+                return value
+            },
+            set: setter)
     }
 
     /// The bridgeHostMember hook: hand-written boxes have already refused by
@@ -398,11 +466,48 @@ enum GeneratedMembers {
         method(name, on: value)
     }
 
+    static func propertyKey(_ name: String, on value: Any) -> String {
+        let logicalReceiver = (value as? GeneratedMemberCarrier)?
+            .generatedMemberValue ?? value
+        return "\(keyTypeName(of: logicalReceiver)).\(name)"
+    }
+
     static func property(_ name: String, on value: Any) -> HostProperty? {
+        properties[propertyKey(name, on: value)]?.contract
+    }
+
+    static func adapting(
+        _ property: GeneratedMemberProperty,
+        get: @escaping (Any) -> RuntimeValue?
+    ) -> HostProperty {
+        do {
+            return try makeProperty(
+                signature: property.contract.signature,
+                declaration: property.contract.signature.declaration,
+                unwrapCarrierForGet: false, get: get,
+                mutate: property.mutate)
+        } catch {
+            preconditionFailure(
+                "cached generated property became invalid: \(error)")
+        }
+    }
+
+    /// Mutate a logical SDK copy, then re-wrap it when the runtime receiver
+    /// is a compatibility carrier. Conversion errors are deliberately
+    /// throwable: a contextual enum case such as `.notACachePolicy` must not
+    /// degrade into the same diagnostic as a missing property.
+    static func mutatedCopy(
+        setting name: String, on value: Any, to newValue: RuntimeValue
+    ) throws -> Any? {
         let logicalReceiver = (value as? GeneratedMemberCarrier)?
             .generatedMemberValue ?? value
         let key = "\(keyTypeName(of: logicalReceiver)).\(name)"
-        return properties[key]
+        guard let mutate = properties[key]?.mutate else { return nil }
+        let updated = try mutate(logicalReceiver, newValue)
+        if let carrier = value as? GeneratedMemberCarrier {
+            return carrier.replacingGeneratedMemberValue(updated)
+        }
+        return updated
     }
 
     /// Methods-only lookup for CALL-site collision rescue: the property
@@ -471,6 +576,128 @@ func generatedMemberResult<Wrapped>(_ value: Wrapped?) -> RuntimeValue {
 
 func generatedMemberResult(_ value: Any) -> RuntimeValue {
     .native(value)
+}
+
+/// Structural conversion used only after HostProperty has accepted an
+/// assignment. Native payloads take the zero-allocation cast path; source
+/// arrays/dictionaries and empty Optionals recursively acquire the static SDK
+/// type emitted by BridgeGen.
+private protocol GeneratedPropertyRuntimeConvertible {
+    static func generatedPropertyValue(from value: RuntimeValue) throws -> Any
+}
+
+func convertGeneratedPropertyValue<T>(
+    _ value: RuntimeValue, as _: T.Type
+) throws -> T {
+    if let direct = value.hostPayload as? T { return direct }
+    if let carrier = value.hostPayload as? GeneratedMemberCarrier,
+       let unwrapped = carrier.generatedMemberValue as? T {
+        return unwrapped
+    }
+    if case .implicitMember(let name) = value,
+       let implicit: T = generatedURLRequestPropertyValue(name, as: T.self) {
+        return implicit
+    }
+    if let convertible = T.self as? GeneratedPropertyRuntimeConvertible.Type,
+       let converted = try convertible.generatedPropertyValue(from: value) as? T {
+        return converted
+    }
+    throw RuntimeError(message:
+        "cannot convert '\(value.stringified)' to generated property type '\(String(describing: T.self))'")
+}
+
+extension Optional: GeneratedPropertyRuntimeConvertible {
+    fileprivate static func generatedPropertyValue(
+        from value: RuntimeValue
+    ) throws -> Any {
+        switch value.optionalState {
+        case .none:
+            let result: Wrapped? = nil
+            return result as Any
+        case .some(let wrapped, _):
+            let result: Wrapped? = try convertGeneratedPropertyValue(
+                wrapped, as: Wrapped.self)
+            return result as Any
+        case .notOptional:
+            if case .implicitMember("none") = value {
+                let result: Wrapped? = nil
+                return result as Any
+            }
+            let result: Wrapped? = try convertGeneratedPropertyValue(
+                value, as: Wrapped.self)
+            return result as Any
+        }
+    }
+}
+
+extension Array: GeneratedPropertyRuntimeConvertible {
+    fileprivate static func generatedPropertyValue(
+        from value: RuntimeValue
+    ) throws -> Any {
+        guard let elements = value.arrayValue else {
+            throw RuntimeError(message: "expected an Array property value")
+        }
+        return try elements.map {
+            try convertGeneratedPropertyValue($0, as: Element.self)
+        }
+    }
+}
+
+extension Dictionary: GeneratedPropertyRuntimeConvertible {
+    fileprivate static func generatedPropertyValue(
+        from value: RuntimeValue
+    ) throws -> Any {
+        guard let dictionary = value.dictValue else {
+            throw RuntimeError(message: "expected a Dictionary property value")
+        }
+        var result: [Key: Value] = [:]
+        for (key, entry) in zip(dictionary.keys, dictionary.values) {
+            result[try convertGeneratedPropertyValue(key, as: Key.self)] =
+                try convertGeneratedPropertyValue(entry, as: Value.self)
+        }
+        return result
+    }
+}
+
+private func generatedURLRequestPropertyValue<T>(
+    _ name: String, as type: T.Type
+) -> T? {
+    let value: Any?
+    if type == URLRequest.CachePolicy.self {
+        switch name {
+        case "useProtocolCachePolicy": value = URLRequest.CachePolicy.useProtocolCachePolicy
+        case "reloadIgnoringLocalCacheData": value = URLRequest.CachePolicy.reloadIgnoringLocalCacheData
+        case "reloadIgnoringLocalAndRemoteCacheData": value = URLRequest.CachePolicy.reloadIgnoringLocalAndRemoteCacheData
+        case "returnCacheDataElseLoad": value = URLRequest.CachePolicy.returnCacheDataElseLoad
+        case "returnCacheDataDontLoad": value = URLRequest.CachePolicy.returnCacheDataDontLoad
+        case "reloadRevalidatingCacheData": value = URLRequest.CachePolicy.reloadRevalidatingCacheData
+        default: value = nil
+        }
+    } else if type == URLRequest.NetworkServiceType.self {
+        switch name {
+        case "default": value = URLRequest.NetworkServiceType.default
+        // The SDK keeps the deprecated `.voip` case at raw value 1. Using
+        // RawRepresentable here lets legacy source remain contextualizable
+        // without baking a deprecation warning into every bridge build.
+        case "voip": value = URLRequest.NetworkServiceType(rawValue: 1)!
+        case "video": value = URLRequest.NetworkServiceType.video
+        case "background": value = URLRequest.NetworkServiceType.background
+        case "voice": value = URLRequest.NetworkServiceType.voice
+        case "responsiveData": value = URLRequest.NetworkServiceType.responsiveData
+        case "avStreaming": value = URLRequest.NetworkServiceType.avStreaming
+        case "callSignaling": value = URLRequest.NetworkServiceType.callSignaling
+        default: value = nil
+        }
+    } else if type == URLRequest.Attribution.self {
+        switch name {
+        case "developer": value = URLRequest.Attribution.developer
+        case "user": value = URLRequest.Attribution.user
+        default: value = nil
+        }
+    } else {
+        value = nil
+    }
+    return value as? T
 }
 
 /// Namespace the generated file extends with `build()`.
@@ -593,4 +820,14 @@ extension Coerce {
 /// box itself never implemented (the wrapped value IS the SDK value).
 protocol GeneratedMemberCarrier {
     var generatedMemberValue: Any { get }
+    /// Reference carriers install an updated SDK value in place. Value
+    /// carriers use the replacement hook below and keep this default.
+    func writeGeneratedMemberValue(_ value: Any) -> Bool
+    /// Re-box an updated SDK value for a value-lvalue transaction.
+    func replacingGeneratedMemberValue(_ value: Any) -> Any?
+}
+
+extension GeneratedMemberCarrier {
+    func writeGeneratedMemberValue(_ value: Any) -> Bool { false }
+    func replacingGeneratedMemberValue(_ value: Any) -> Any? { nil }
 }

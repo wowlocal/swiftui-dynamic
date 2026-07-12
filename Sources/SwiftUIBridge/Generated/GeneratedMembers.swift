@@ -5,8 +5,8 @@ import Foundation
 import SwiftInterpreter
 
 extension GeneratedMembers {
-    static func buildProperties() -> [String: HostProperty] {
-        var t: [String: HostProperty] = [:]
+    static func buildProperties() -> [String: GeneratedMemberProperty] {
+        var t: [String: GeneratedMemberProperty] = [:]
         buildP0(&t)
         buildP1(&t)
         buildP2(&t)
@@ -26,766 +26,1174 @@ extension GeneratedMembers {
         return t
     }
 
-    private static func buildP0(_ t: inout [String: HostProperty]) {
-        registerProperty(&t, "var Calendar.amSymbol: String { get }") { base in
+    private static func buildP0(_ t: inout [String: GeneratedMemberProperty]) {
+        registerProperty(&t, "var Calendar.amSymbol: String { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.amSymbol) }
-        }
-        registerProperty(&t, "var Calendar.customMirror: Mirror { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.customMirror: Mirror { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var Calendar.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.debugDescription: String { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var Calendar.description: String { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.description: String { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var Calendar.eraSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.eraSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.eraSymbols) }
-        }
-        registerProperty(&t, "var Calendar.firstWeekday: Int { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.firstWeekday: Int { get set }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.firstWeekday) }
-        }
-        registerProperty(&t, "var Calendar.hashValue: Int { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? Calendar else {
+                throw RuntimeError(message: "generated Calendar.firstWeekday mutation received the wrong receiver", fatal: true)
+            }
+            copy.firstWeekday = try convertGeneratedPropertyValue(newValue, as: Int.self)
+            return copy
+        })
+        registerProperty(&t, "var Calendar.hashValue: Int { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var Calendar.identifier: Calendar.Identifier { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.identifier: Calendar.Identifier { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.identifier) }
-        }
-        registerProperty(&t, "var Calendar.locale: Locale? { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.locale: Locale? { get set }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.locale) }
-        }
-        registerProperty(&t, "var Calendar.longEraSymbols: [String] { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? Calendar else {
+                throw RuntimeError(message: "generated Calendar.locale mutation received the wrong receiver", fatal: true)
+            }
+            copy.locale = try convertGeneratedPropertyValue(newValue, as: Locale?.self)
+            return copy
+        })
+        registerProperty(&t, "var Calendar.longEraSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.longEraSymbols) }
-        }
-        registerProperty(&t, "var Calendar.minimumDaysInFirstWeek: Int { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.minimumDaysInFirstWeek: Int { get set }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.minimumDaysInFirstWeek) }
-        }
-        registerProperty(&t, "var Calendar.monthSymbols: [String] { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? Calendar else {
+                throw RuntimeError(message: "generated Calendar.minimumDaysInFirstWeek mutation received the wrong receiver", fatal: true)
+            }
+            copy.minimumDaysInFirstWeek = try convertGeneratedPropertyValue(newValue, as: Int.self)
+            return copy
+        })
+        registerProperty(&t, "var Calendar.monthSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.monthSymbols) }
-        }
-        registerProperty(&t, "var Calendar.pmSymbol: String { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.pmSymbol: String { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.pmSymbol) }
-        }
-        registerProperty(&t, "var Calendar.quarterSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.quarterSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.quarterSymbols) }
-        }
-        registerProperty(&t, "var Calendar.shortMonthSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.shortMonthSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.shortMonthSymbols) }
-        }
-        registerProperty(&t, "var Calendar.shortQuarterSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.shortQuarterSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.shortQuarterSymbols) }
-        }
-        registerProperty(&t, "var Calendar.shortStandaloneMonthSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.shortStandaloneMonthSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.shortStandaloneMonthSymbols) }
-        }
-        registerProperty(&t, "var Calendar.shortStandaloneQuarterSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.shortStandaloneQuarterSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.shortStandaloneQuarterSymbols) }
-        }
-        registerProperty(&t, "var Calendar.shortStandaloneWeekdaySymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.shortStandaloneWeekdaySymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.shortStandaloneWeekdaySymbols) }
-        }
-        registerProperty(&t, "var Calendar.shortWeekdaySymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.shortWeekdaySymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.shortWeekdaySymbols) }
-        }
-        registerProperty(&t, "var Calendar.standaloneMonthSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.standaloneMonthSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.standaloneMonthSymbols) }
-        }
-        registerProperty(&t, "var Calendar.standaloneQuarterSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.standaloneQuarterSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.standaloneQuarterSymbols) }
-        }
-        registerProperty(&t, "var Calendar.standaloneWeekdaySymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.standaloneWeekdaySymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.standaloneWeekdaySymbols) }
-        }
-        registerProperty(&t, "var Calendar.timeZone: TimeZone { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.timeZone: TimeZone { get set }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.timeZone) }
-        }
-        registerProperty(&t, "var Calendar.veryShortMonthSymbols: [String] { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? Calendar else {
+                throw RuntimeError(message: "generated Calendar.timeZone mutation received the wrong receiver", fatal: true)
+            }
+            copy.timeZone = try convertGeneratedPropertyValue(newValue, as: TimeZone.self)
+            return copy
+        })
+        registerProperty(&t, "var Calendar.veryShortMonthSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.veryShortMonthSymbols) }
-        }
-        registerProperty(&t, "var Calendar.veryShortStandaloneMonthSymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.veryShortStandaloneMonthSymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.veryShortStandaloneMonthSymbols) }
-        }
-        registerProperty(&t, "var Calendar.veryShortStandaloneWeekdaySymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.veryShortStandaloneWeekdaySymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.veryShortStandaloneWeekdaySymbols) }
-        }
-        registerProperty(&t, "var Calendar.veryShortWeekdaySymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.veryShortWeekdaySymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.veryShortWeekdaySymbols) }
-        }
-        registerProperty(&t, "var Calendar.weekdaySymbols: [String] { get }") { base in
+        })
+        registerProperty(&t, "var Calendar.weekdaySymbols: [String] { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.weekdaySymbols) }
-        }
-        registerProperty(&t, "var CharacterSet.bitmapRepresentation: Data { get }") { base in
+        })
+        registerProperty(&t, "var CharacterSet.bitmapRepresentation: Data { get }", get: { base in
             (base as? CharacterSet).map { generatedMemberResult($0.bitmapRepresentation) }
-        }
-        registerProperty(&t, "var CharacterSet.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var CharacterSet.debugDescription: String { get }", get: { base in
             (base as? CharacterSet).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var CharacterSet.description: String { get }") { base in
+        })
+        registerProperty(&t, "var CharacterSet.description: String { get }", get: { base in
             (base as? CharacterSet).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var CharacterSet.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var CharacterSet.hashValue: Int { get }", get: { base in
             (base as? CharacterSet).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var CharacterSet.inverted: CharacterSet { get }") { base in
+        })
+        registerProperty(&t, "var CharacterSet.inverted: CharacterSet { get }", get: { base in
             (base as? CharacterSet).map { generatedMemberResult($0.inverted) }
-        }
-        registerProperty(&t, "var Data.customMirror: Mirror { get }") { base in
+        })
+        registerProperty(&t, "var Data.customMirror: Mirror { get }", get: { base in
             (base as? Data).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var Data.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var Data.debugDescription: String { get }", get: { base in
             (base as? Data).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var Data.description: String { get }") { base in
+        })
+        registerProperty(&t, "var Data.description: String { get }", get: { base in
             (base as? Data).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var Date.customMirror: Mirror { get }") { base in
+        })
+        registerProperty(&t, "var Date.customMirror: Mirror { get }", get: { base in
             (base as? Date).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var Date.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var Date.debugDescription: String { get }", get: { base in
             (base as? Date).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var Date.description: String { get }") { base in
+        })
+        registerProperty(&t, "var Date.description: String { get }", get: { base in
             (base as? Date).map { generatedMemberResult($0.description) }
-        }
+        })
     }
 
-    private static func buildP1(_ t: inout [String: HostProperty]) {
-        registerProperty(&t, "var Date.hashValue: Int { get }") { base in
+    private static func buildP1(_ t: inout [String: GeneratedMemberProperty]) {
+        registerProperty(&t, "var Date.hashValue: Int { get }", get: { base in
             (base as? Date).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var Date.timeIntervalSince1970: TimeInterval { get }") { base in
+        })
+        registerProperty(&t, "var Date.timeIntervalSince1970: TimeInterval { get }", get: { base in
             (base as? Date).map { generatedMemberResult($0.timeIntervalSince1970) }
-        }
-        registerProperty(&t, "var Date.timeIntervalSinceNow: TimeInterval { get }") { base in
+        })
+        registerProperty(&t, "var Date.timeIntervalSinceNow: TimeInterval { get }", get: { base in
             (base as? Date).map { generatedMemberResult($0.timeIntervalSinceNow) }
-        }
-        registerProperty(&t, "var Date.timeIntervalSinceReferenceDate: TimeInterval { get }") { base in
+        })
+        registerProperty(&t, "var Date.timeIntervalSinceReferenceDate: TimeInterval { get }", get: { base in
             (base as? Date).map { generatedMemberResult($0.timeIntervalSinceReferenceDate) }
-        }
-        registerProperty(&t, "var DateComponents.calendar: Calendar? { get }") { base in
+        })
+        registerProperty(&t, "var DateComponents.calendar: Calendar? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.calendar) }
-        }
-        registerProperty(&t, "var DateComponents.customMirror: Mirror { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.calendar mutation received the wrong receiver", fatal: true)
+            }
+            copy.calendar = try convertGeneratedPropertyValue(newValue, as: Calendar?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.customMirror: Mirror { get }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var DateComponents.date: Date? { get }") { base in
+        })
+        registerProperty(&t, "var DateComponents.date: Date? { get }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.date) }
-        }
-        registerProperty(&t, "var DateComponents.day: Int? { get }") { base in
+        })
+        registerProperty(&t, "var DateComponents.day: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.day) }
-        }
-        registerProperty(&t, "var DateComponents.dayOfYear: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.day mutation received the wrong receiver", fatal: true)
+            }
+            copy.day = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.dayOfYear: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.dayOfYear) }
-        }
-        registerProperty(&t, "var DateComponents.debugDescription: String { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.dayOfYear mutation received the wrong receiver", fatal: true)
+            }
+            copy.dayOfYear = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.debugDescription: String { get }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var DateComponents.description: String { get }") { base in
+        })
+        registerProperty(&t, "var DateComponents.description: String { get }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var DateComponents.era: Int? { get }") { base in
+        })
+        registerProperty(&t, "var DateComponents.era: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.era) }
-        }
-        registerProperty(&t, "var DateComponents.hashValue: Int { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.era mutation received the wrong receiver", fatal: true)
+            }
+            copy.era = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.hashValue: Int { get }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var DateComponents.hour: Int? { get }") { base in
+        })
+        registerProperty(&t, "var DateComponents.hour: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.hour) }
-        }
-        registerProperty(&t, "var DateComponents.isLeapMonth: Bool? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.hour mutation received the wrong receiver", fatal: true)
+            }
+            copy.hour = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.isLeapMonth: Bool? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.isLeapMonth) }
-        }
-        registerProperty(&t, "var DateComponents.isValidDate: Bool { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.isLeapMonth mutation received the wrong receiver", fatal: true)
+            }
+            copy.isLeapMonth = try convertGeneratedPropertyValue(newValue, as: Bool?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.isValidDate: Bool { get }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.isValidDate) }
-        }
-        registerProperty(&t, "var DateComponents.minute: Int? { get }") { base in
+        })
+        registerProperty(&t, "var DateComponents.minute: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.minute) }
-        }
-        registerProperty(&t, "var DateComponents.month: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.minute mutation received the wrong receiver", fatal: true)
+            }
+            copy.minute = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.month: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.month) }
-        }
-        registerProperty(&t, "var DateComponents.nanosecond: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.month mutation received the wrong receiver", fatal: true)
+            }
+            copy.month = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.nanosecond: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.nanosecond) }
-        }
-        registerProperty(&t, "var DateComponents.quarter: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.nanosecond mutation received the wrong receiver", fatal: true)
+            }
+            copy.nanosecond = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.quarter: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.quarter) }
-        }
-        registerProperty(&t, "var DateComponents.second: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.quarter mutation received the wrong receiver", fatal: true)
+            }
+            copy.quarter = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.second: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.second) }
-        }
-        registerProperty(&t, "var DateComponents.timeZone: TimeZone? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.second mutation received the wrong receiver", fatal: true)
+            }
+            copy.second = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.timeZone: TimeZone? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.timeZone) }
-        }
-        registerProperty(&t, "var DateComponents.weekOfMonth: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.timeZone mutation received the wrong receiver", fatal: true)
+            }
+            copy.timeZone = try convertGeneratedPropertyValue(newValue, as: TimeZone?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.weekOfMonth: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.weekOfMonth) }
-        }
-        registerProperty(&t, "var DateComponents.weekOfYear: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.weekOfMonth mutation received the wrong receiver", fatal: true)
+            }
+            copy.weekOfMonth = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.weekOfYear: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.weekOfYear) }
-        }
-        registerProperty(&t, "var DateComponents.weekday: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.weekOfYear mutation received the wrong receiver", fatal: true)
+            }
+            copy.weekOfYear = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.weekday: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.weekday) }
-        }
-        registerProperty(&t, "var DateComponents.weekdayOrdinal: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.weekday mutation received the wrong receiver", fatal: true)
+            }
+            copy.weekday = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.weekdayOrdinal: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.weekdayOrdinal) }
-        }
-        registerProperty(&t, "var DateComponents.year: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.weekdayOrdinal mutation received the wrong receiver", fatal: true)
+            }
+            copy.weekdayOrdinal = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.year: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.year) }
-        }
-        registerProperty(&t, "var DateComponents.yearForWeekOfYear: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.year mutation received the wrong receiver", fatal: true)
+            }
+            copy.year = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateComponents.yearForWeekOfYear: Int? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.yearForWeekOfYear) }
-        }
-        registerProperty(&t, "var DateInterval.customMirror: Mirror { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateComponents else {
+                throw RuntimeError(message: "generated DateComponents.yearForWeekOfYear mutation received the wrong receiver", fatal: true)
+            }
+            copy.yearForWeekOfYear = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
+        registerProperty(&t, "var DateInterval.customMirror: Mirror { get }", get: { base in
             (base as? DateInterval).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var DateInterval.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var DateInterval.debugDescription: String { get }", get: { base in
             (base as? DateInterval).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var DateInterval.description: String { get }") { base in
+        })
+        registerProperty(&t, "var DateInterval.description: String { get }", get: { base in
             (base as? DateInterval).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var DateInterval.duration: TimeInterval { get }") { base in
+        })
+        registerProperty(&t, "var DateInterval.duration: TimeInterval { get set }", get: { base in
             (base as? DateInterval).map { generatedMemberResult($0.duration) }
-        }
-        registerProperty(&t, "var DateInterval.end: Date { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateInterval else {
+                throw RuntimeError(message: "generated DateInterval.duration mutation received the wrong receiver", fatal: true)
+            }
+            copy.duration = try convertGeneratedPropertyValue(newValue, as: TimeInterval.self)
+            return copy
+        })
+        registerProperty(&t, "var DateInterval.end: Date { get set }", get: { base in
             (base as? DateInterval).map { generatedMemberResult($0.end) }
-        }
-        registerProperty(&t, "var DateInterval.hashValue: Int { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateInterval else {
+                throw RuntimeError(message: "generated DateInterval.end mutation received the wrong receiver", fatal: true)
+            }
+            copy.end = try convertGeneratedPropertyValue(newValue, as: Date.self)
+            return copy
+        })
+        registerProperty(&t, "var DateInterval.hashValue: Int { get }", get: { base in
             (base as? DateInterval).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var DateInterval.start: Date { get }") { base in
+        })
+        registerProperty(&t, "var DateInterval.start: Date { get set }", get: { base in
             (base as? DateInterval).map { generatedMemberResult($0.start) }
-        }
-        registerProperty(&t, "var Decimal.description: String { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? DateInterval else {
+                throw RuntimeError(message: "generated DateInterval.start mutation received the wrong receiver", fatal: true)
+            }
+            copy.start = try convertGeneratedPropertyValue(newValue, as: Date.self)
+            return copy
+        })
+        registerProperty(&t, "var Decimal.description: String { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var Decimal.exponent: Int { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.exponent: Int { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.exponent) }
-        }
-        registerProperty(&t, "var Decimal.floatingPointClass: FloatingPointClassification { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.floatingPointClass: FloatingPointClassification { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.floatingPointClass) }
-        }
-        registerProperty(&t, "var Decimal.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.hashValue: Int { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var Decimal.isCanonical: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isCanonical: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isCanonical) }
-        }
+        })
     }
 
-    private static func buildP2(_ t: inout [String: HostProperty]) {
-        registerProperty(&t, "var Decimal.isFinite: Bool { get }") { base in
+    private static func buildP2(_ t: inout [String: GeneratedMemberProperty]) {
+        registerProperty(&t, "var Decimal.isFinite: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isFinite) }
-        }
-        registerProperty(&t, "var Decimal.isInfinite: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isInfinite: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isInfinite) }
-        }
-        registerProperty(&t, "var Decimal.isNaN: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isNaN: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isNaN) }
-        }
-        registerProperty(&t, "var Decimal.isNormal: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isNormal: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isNormal) }
-        }
-        registerProperty(&t, "var Decimal.isSignMinus: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isSignMinus: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isSignMinus) }
-        }
-        registerProperty(&t, "var Decimal.isSignaling: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isSignaling: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isSignaling) }
-        }
-        registerProperty(&t, "var Decimal.isSignalingNaN: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isSignalingNaN: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isSignalingNaN) }
-        }
-        registerProperty(&t, "var Decimal.isSubnormal: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isSubnormal: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isSubnormal) }
-        }
-        registerProperty(&t, "var Decimal.isZero: Bool { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.isZero: Bool { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.isZero) }
-        }
-        registerProperty(&t, "var Decimal.magnitude: Decimal { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.magnitude: Decimal { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.magnitude) }
-        }
-        registerProperty(&t, "var Decimal.nextDown: Decimal { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.nextDown: Decimal { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.nextDown) }
-        }
-        registerProperty(&t, "var Decimal.nextUp: Decimal { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.nextUp: Decimal { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.nextUp) }
-        }
-        registerProperty(&t, "var Decimal.sign: FloatingPointSign { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.sign: FloatingPointSign { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.sign) }
-        }
-        registerProperty(&t, "var Decimal.significand: Decimal { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.significand: Decimal { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.significand) }
-        }
-        registerProperty(&t, "var Decimal.ulp: Decimal { get }") { base in
+        })
+        registerProperty(&t, "var Decimal.ulp: Decimal { get }", get: { base in
             (base as? Decimal).map { generatedMemberResult($0.ulp) }
-        }
-        registerProperty(&t, "var IndexPath.count: Int { get }") { base in
+        })
+        registerProperty(&t, "var IndexPath.count: Int { get }", get: { base in
             (base as? IndexPath).map { generatedMemberResult($0.count) }
-        }
-        registerProperty(&t, "var IndexPath.customMirror: Mirror { get }") { base in
+        })
+        registerProperty(&t, "var IndexPath.customMirror: Mirror { get }", get: { base in
             (base as? IndexPath).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var IndexPath.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var IndexPath.debugDescription: String { get }", get: { base in
             (base as? IndexPath).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var IndexPath.description: String { get }") { base in
+        })
+        registerProperty(&t, "var IndexPath.description: String { get }", get: { base in
             (base as? IndexPath).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var IndexPath.endIndex: Int { get }") { base in
+        })
+        registerProperty(&t, "var IndexPath.endIndex: Int { get }", get: { base in
             (base as? IndexPath).map { generatedMemberResult($0.endIndex) }
-        }
-        registerProperty(&t, "var IndexPath.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var IndexPath.hashValue: Int { get }", get: { base in
             (base as? IndexPath).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var IndexPath.startIndex: Int { get }") { base in
+        })
+        registerProperty(&t, "var IndexPath.startIndex: Int { get }", get: { base in
             (base as? IndexPath).map { generatedMemberResult($0.startIndex) }
-        }
-        registerProperty(&t, "var IndexSet.count: Int { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.count: Int { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.count) }
-        }
-        registerProperty(&t, "var IndexSet.customMirror: Mirror { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.customMirror: Mirror { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var IndexSet.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.debugDescription: String { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var IndexSet.description: String { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.description: String { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var IndexSet.endIndex: IndexSet.Index { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.endIndex: IndexSet.Index { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.endIndex) }
-        }
-        registerProperty(&t, "var IndexSet.first: Int? { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.first: Int? { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.first) }
-        }
-        registerProperty(&t, "var IndexSet.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.hashValue: Int { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var IndexSet.isEmpty: Bool { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.isEmpty: Bool { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.isEmpty) }
-        }
-        registerProperty(&t, "var IndexSet.last: Int? { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.last: Int? { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.last) }
-        }
-        registerProperty(&t, "var IndexSet.rangeView: IndexSet.RangeView { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.rangeView: IndexSet.RangeView { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.rangeView) }
-        }
-        registerProperty(&t, "var IndexSet.startIndex: IndexSet.Index { get }") { base in
+        })
+        registerProperty(&t, "var IndexSet.startIndex: IndexSet.Index { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.startIndex) }
-        }
-        registerProperty(&t, "var Locale.alternateQuotationBeginDelimiter: String? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.alternateQuotationBeginDelimiter: String? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.alternateQuotationBeginDelimiter) }
-        }
-        registerProperty(&t, "var Locale.alternateQuotationEndDelimiter: String? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.alternateQuotationEndDelimiter: String? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.alternateQuotationEndDelimiter) }
-        }
-        registerProperty(&t, "var Locale.availableNumberingSystems: [Locale.NumberingSystem] { get }") { base in
+        })
+        registerProperty(&t, "var Locale.availableNumberingSystems: [Locale.NumberingSystem] { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.availableNumberingSystems) }
-        }
-        registerProperty(&t, "var Locale.calendar: Calendar { get }") { base in
+        })
+        registerProperty(&t, "var Locale.calendar: Calendar { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.calendar) }
-        }
-        registerProperty(&t, "var Locale.collation: Locale.Collation { get }") { base in
+        })
+        registerProperty(&t, "var Locale.collation: Locale.Collation { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.collation) }
-        }
-        registerProperty(&t, "var Locale.collatorIdentifier: String? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.collatorIdentifier: String? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.collatorIdentifier) }
-        }
-        registerProperty(&t, "var Locale.currency: Locale.Currency? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.currency: Locale.Currency? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.currency) }
-        }
+        })
     }
 
-    private static func buildP3(_ t: inout [String: HostProperty]) {
-        registerProperty(&t, "var Locale.currencySymbol: String? { get }") { base in
+    private static func buildP3(_ t: inout [String: GeneratedMemberProperty]) {
+        registerProperty(&t, "var Locale.currencySymbol: String? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.currencySymbol) }
-        }
-        registerProperty(&t, "var Locale.customMirror: Mirror { get }") { base in
+        })
+        registerProperty(&t, "var Locale.customMirror: Mirror { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var Locale.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var Locale.debugDescription: String { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var Locale.decimalSeparator: String? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.decimalSeparator: String? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.decimalSeparator) }
-        }
-        registerProperty(&t, "var Locale.description: String { get }") { base in
+        })
+        registerProperty(&t, "var Locale.description: String { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var Locale.exemplarCharacterSet: CharacterSet? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.exemplarCharacterSet: CharacterSet? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.exemplarCharacterSet) }
-        }
-        registerProperty(&t, "var Locale.firstDayOfWeek: Locale.Weekday { get }") { base in
+        })
+        registerProperty(&t, "var Locale.firstDayOfWeek: Locale.Weekday { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.firstDayOfWeek) }
-        }
-        registerProperty(&t, "var Locale.groupingSeparator: String? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.groupingSeparator: String? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.groupingSeparator) }
-        }
-        registerProperty(&t, "var Locale.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var Locale.hashValue: Int { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var Locale.hourCycle: Locale.HourCycle { get }") { base in
+        })
+        registerProperty(&t, "var Locale.hourCycle: Locale.HourCycle { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.hourCycle) }
-        }
-        registerProperty(&t, "var Locale.identifier: String { get }") { base in
+        })
+        registerProperty(&t, "var Locale.identifier: String { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.identifier) }
-        }
-        registerProperty(&t, "var Locale.language: Locale.Language { get }") { base in
+        })
+        registerProperty(&t, "var Locale.language: Locale.Language { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.language) }
-        }
-        registerProperty(&t, "var Locale.measurementSystem: Locale.MeasurementSystem { get }") { base in
+        })
+        registerProperty(&t, "var Locale.measurementSystem: Locale.MeasurementSystem { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.measurementSystem) }
-        }
-        registerProperty(&t, "var Locale.numberingSystem: Locale.NumberingSystem { get }") { base in
+        })
+        registerProperty(&t, "var Locale.numberingSystem: Locale.NumberingSystem { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.numberingSystem) }
-        }
-        registerProperty(&t, "var Locale.quotationBeginDelimiter: String? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.quotationBeginDelimiter: String? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.quotationBeginDelimiter) }
-        }
-        registerProperty(&t, "var Locale.quotationEndDelimiter: String? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.quotationEndDelimiter: String? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.quotationEndDelimiter) }
-        }
-        registerProperty(&t, "var Locale.region: Locale.Region? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.region: Locale.Region? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.region) }
-        }
-        registerProperty(&t, "var Locale.subdivision: Locale.Subdivision? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.subdivision: Locale.Subdivision? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.subdivision) }
-        }
-        registerProperty(&t, "var Locale.timeZone: TimeZone? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.timeZone: TimeZone? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.timeZone) }
-        }
-        registerProperty(&t, "var Locale.variant: Locale.Variant? { get }") { base in
+        })
+        registerProperty(&t, "var Locale.variant: Locale.Variant? { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.variant) }
-        }
-        registerProperty(&t, "var PersonNameComponents.customMirror: Mirror { get }") { base in
+        })
+        registerProperty(&t, "var PersonNameComponents.customMirror: Mirror { get }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var PersonNameComponents.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var PersonNameComponents.debugDescription: String { get }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var PersonNameComponents.description: String { get }") { base in
+        })
+        registerProperty(&t, "var PersonNameComponents.description: String { get }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var PersonNameComponents.familyName: String? { get }") { base in
+        })
+        registerProperty(&t, "var PersonNameComponents.familyName: String? { get set }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.familyName) }
-        }
-        registerProperty(&t, "var PersonNameComponents.givenName: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? PersonNameComponents else {
+                throw RuntimeError(message: "generated PersonNameComponents.familyName mutation received the wrong receiver", fatal: true)
+            }
+            copy.familyName = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var PersonNameComponents.givenName: String? { get set }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.givenName) }
-        }
-        registerProperty(&t, "var PersonNameComponents.hashValue: Int { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? PersonNameComponents else {
+                throw RuntimeError(message: "generated PersonNameComponents.givenName mutation received the wrong receiver", fatal: true)
+            }
+            copy.givenName = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var PersonNameComponents.hashValue: Int { get }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var PersonNameComponents.middleName: String? { get }") { base in
+        })
+        registerProperty(&t, "var PersonNameComponents.middleName: String? { get set }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.middleName) }
-        }
-        registerProperty(&t, "var PersonNameComponents.namePrefix: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? PersonNameComponents else {
+                throw RuntimeError(message: "generated PersonNameComponents.middleName mutation received the wrong receiver", fatal: true)
+            }
+            copy.middleName = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var PersonNameComponents.namePrefix: String? { get set }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.namePrefix) }
-        }
-        registerProperty(&t, "var PersonNameComponents.nameSuffix: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? PersonNameComponents else {
+                throw RuntimeError(message: "generated PersonNameComponents.namePrefix mutation received the wrong receiver", fatal: true)
+            }
+            copy.namePrefix = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var PersonNameComponents.nameSuffix: String? { get set }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.nameSuffix) }
-        }
-        registerProperty(&t, "var PersonNameComponents.nickname: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? PersonNameComponents else {
+                throw RuntimeError(message: "generated PersonNameComponents.nameSuffix mutation received the wrong receiver", fatal: true)
+            }
+            copy.nameSuffix = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var PersonNameComponents.nickname: String? { get set }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.nickname) }
-        }
-        registerProperty(&t, "var PersonNameComponents.phoneticRepresentation: PersonNameComponents? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? PersonNameComponents else {
+                throw RuntimeError(message: "generated PersonNameComponents.nickname mutation received the wrong receiver", fatal: true)
+            }
+            copy.nickname = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var PersonNameComponents.phoneticRepresentation: PersonNameComponents? { get set }", get: { base in
             (base as? PersonNameComponents).map { generatedMemberResult($0.phoneticRepresentation) }
-        }
-        registerProperty(&t, "var TimeZone.customMirror: Mirror { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? PersonNameComponents else {
+                throw RuntimeError(message: "generated PersonNameComponents.phoneticRepresentation mutation received the wrong receiver", fatal: true)
+            }
+            copy.phoneticRepresentation = try convertGeneratedPropertyValue(newValue, as: PersonNameComponents?.self)
+            return copy
+        })
+        registerProperty(&t, "var TimeZone.customMirror: Mirror { get }", get: { base in
             (base as? TimeZone).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var TimeZone.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var TimeZone.debugDescription: String { get }", get: { base in
             (base as? TimeZone).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var TimeZone.description: String { get }") { base in
+        })
+        registerProperty(&t, "var TimeZone.description: String { get }", get: { base in
             (base as? TimeZone).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var TimeZone.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var TimeZone.hashValue: Int { get }", get: { base in
             (base as? TimeZone).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var TimeZone.identifier: String { get }") { base in
+        })
+        registerProperty(&t, "var TimeZone.identifier: String { get }", get: { base in
             (base as? TimeZone).map { generatedMemberResult($0.identifier) }
-        }
-        registerProperty(&t, "var TimeZone.nextDaylightSavingTimeTransition: Date? { get }") { base in
+        })
+        registerProperty(&t, "var TimeZone.nextDaylightSavingTimeTransition: Date? { get }", get: { base in
             (base as? TimeZone).map { generatedMemberResult($0.nextDaylightSavingTimeTransition) }
-        }
-        registerProperty(&t, "var URL.absoluteString: String { get }") { base in
+        })
+        registerProperty(&t, "var URL.absoluteString: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.absoluteString) }
-        }
-        registerProperty(&t, "var URL.absoluteURL: URL { get }") { base in
+        })
+        registerProperty(&t, "var URL.absoluteURL: URL { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.absoluteURL) }
-        }
-        registerProperty(&t, "var URL.baseURL: URL? { get }") { base in
+        })
+        registerProperty(&t, "var URL.baseURL: URL? { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.baseURL) }
-        }
+        })
     }
 
-    private static func buildP4(_ t: inout [String: HostProperty]) {
-        registerProperty(&t, "var URL.dataRepresentation: Data { get }") { base in
+    private static func buildP4(_ t: inout [String: GeneratedMemberProperty]) {
+        registerProperty(&t, "var URL.dataRepresentation: Data { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.dataRepresentation) }
-        }
-        registerProperty(&t, "var URL.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var URL.debugDescription: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var URL.description: String { get }") { base in
+        })
+        registerProperty(&t, "var URL.description: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var URL.fragment: String? { get }") { base in
+        })
+        registerProperty(&t, "var URL.fragment: String? { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.fragment) }
-        }
-        registerProperty(&t, "var URL.hasDirectoryPath: Bool { get }") { base in
+        })
+        registerProperty(&t, "var URL.hasDirectoryPath: Bool { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.hasDirectoryPath) }
-        }
-        registerProperty(&t, "var URL.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var URL.hashValue: Int { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var URL.host: String? { get }") { base in
+        })
+        registerProperty(&t, "var URL.host: String? { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.host) }
-        }
-        registerProperty(&t, "var URL.isFileURL: Bool { get }") { base in
+        })
+        registerProperty(&t, "var URL.isFileURL: Bool { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.isFileURL) }
-        }
-        registerProperty(&t, "var URL.lastPathComponent: String { get }") { base in
+        })
+        registerProperty(&t, "var URL.lastPathComponent: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.lastPathComponent) }
-        }
-        registerProperty(&t, "var URL.lines: AsyncLineSequence<URL.AsyncBytes> { get }") { base in
+        })
+        registerProperty(&t, "var URL.lines: AsyncLineSequence<URL.AsyncBytes> { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.lines) }
-        }
-        registerProperty(&t, "var URL.password: String? { get }") { base in
+        })
+        registerProperty(&t, "var URL.password: String? { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.password) }
-        }
-        registerProperty(&t, "var URL.path: String { get }") { base in
+        })
+        registerProperty(&t, "var URL.path: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.path) }
-        }
-        registerProperty(&t, "var URL.pathComponents: [String] { get }") { base in
+        })
+        registerProperty(&t, "var URL.pathComponents: [String] { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.pathComponents) }
-        }
-        registerProperty(&t, "var URL.pathExtension: String { get }") { base in
+        })
+        registerProperty(&t, "var URL.pathExtension: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.pathExtension) }
-        }
-        registerProperty(&t, "var URL.port: Int? { get }") { base in
+        })
+        registerProperty(&t, "var URL.port: Int? { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.port) }
-        }
-        registerProperty(&t, "var URL.query: String? { get }") { base in
+        })
+        registerProperty(&t, "var URL.query: String? { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.query) }
-        }
-        registerProperty(&t, "var URL.relativePath: String { get }") { base in
+        })
+        registerProperty(&t, "var URL.relativePath: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.relativePath) }
-        }
-        registerProperty(&t, "var URL.relativeString: String { get }") { base in
+        })
+        registerProperty(&t, "var URL.relativeString: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.relativeString) }
-        }
-        registerProperty(&t, "var URL.resourceBytes: URL.AsyncBytes { get }") { base in
+        })
+        registerProperty(&t, "var URL.resourceBytes: URL.AsyncBytes { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.resourceBytes) }
-        }
-        registerProperty(&t, "var URL.scheme: String? { get }") { base in
+        })
+        registerProperty(&t, "var URL.scheme: String? { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.scheme) }
-        }
-        registerProperty(&t, "var URL.standardized: URL { get }") { base in
+        })
+        registerProperty(&t, "var URL.standardized: URL { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.standardized) }
-        }
-        registerProperty(&t, "var URL.standardizedFileURL: URL { get }") { base in
+        })
+        registerProperty(&t, "var URL.standardizedFileURL: URL { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.standardizedFileURL) }
-        }
-        registerProperty(&t, "var URL.user: String? { get }") { base in
+        })
+        registerProperty(&t, "var URL.user: String? { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.user) }
-        }
-        registerProperty(&t, "var URLComponents.customMirror: Mirror { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.customMirror: Mirror { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var URLComponents.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.debugDescription: String { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var URLComponents.description: String { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.description: String { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var URLComponents.encodedHost: String? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.encodedHost: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.encodedHost) }
-        }
-        registerProperty(&t, "var URLComponents.fragment: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.encodedHost mutation received the wrong receiver", fatal: true)
+            }
+            copy.encodedHost = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.fragment: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.fragment) }
-        }
-        registerProperty(&t, "var URLComponents.hashValue: Int { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.fragment mutation received the wrong receiver", fatal: true)
+            }
+            copy.fragment = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.hashValue: Int { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var URLComponents.host: String? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.host: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.host) }
-        }
-        registerProperty(&t, "var URLComponents.password: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.host mutation received the wrong receiver", fatal: true)
+            }
+            copy.host = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.password: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.password) }
-        }
-        registerProperty(&t, "var URLComponents.path: String { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.password mutation received the wrong receiver", fatal: true)
+            }
+            copy.password = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.path: String { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.path) }
-        }
-        registerProperty(&t, "var URLComponents.percentEncodedFragment: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.path mutation received the wrong receiver", fatal: true)
+            }
+            copy.path = try convertGeneratedPropertyValue(newValue, as: String.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.percentEncodedFragment: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.percentEncodedFragment) }
-        }
-        registerProperty(&t, "var URLComponents.percentEncodedHost: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.percentEncodedFragment mutation received the wrong receiver", fatal: true)
+            }
+            copy.percentEncodedFragment = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.percentEncodedHost: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.percentEncodedHost) }
-        }
-        registerProperty(&t, "var URLComponents.percentEncodedPassword: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.percentEncodedHost mutation received the wrong receiver", fatal: true)
+            }
+            copy.percentEncodedHost = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.percentEncodedPassword: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.percentEncodedPassword) }
-        }
-        registerProperty(&t, "var URLComponents.percentEncodedPath: String { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.percentEncodedPassword mutation received the wrong receiver", fatal: true)
+            }
+            copy.percentEncodedPassword = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.percentEncodedPath: String { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.percentEncodedPath) }
-        }
-        registerProperty(&t, "var URLComponents.percentEncodedQuery: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.percentEncodedPath mutation received the wrong receiver", fatal: true)
+            }
+            copy.percentEncodedPath = try convertGeneratedPropertyValue(newValue, as: String.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.percentEncodedQuery: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.percentEncodedQuery) }
-        }
-        registerProperty(&t, "var URLComponents.percentEncodedQueryItems: [URLQueryItem]? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.percentEncodedQuery mutation received the wrong receiver", fatal: true)
+            }
+            copy.percentEncodedQuery = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.percentEncodedQueryItems: [URLQueryItem]? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.percentEncodedQueryItems) }
-        }
-        registerProperty(&t, "var URLComponents.percentEncodedUser: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.percentEncodedQueryItems mutation received the wrong receiver", fatal: true)
+            }
+            copy.percentEncodedQueryItems = try convertGeneratedPropertyValue(newValue, as: [URLQueryItem]?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.percentEncodedUser: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.percentEncodedUser) }
-        }
-        registerProperty(&t, "var URLComponents.port: Int? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.percentEncodedUser mutation received the wrong receiver", fatal: true)
+            }
+            copy.percentEncodedUser = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.port: Int? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.port) }
-        }
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.port mutation received the wrong receiver", fatal: true)
+            }
+            copy.port = try convertGeneratedPropertyValue(newValue, as: Int?.self)
+            return copy
+        })
     }
 
-    private static func buildP5(_ t: inout [String: HostProperty]) {
-        registerProperty(&t, "var URLComponents.query: String? { get }") { base in
+    private static func buildP5(_ t: inout [String: GeneratedMemberProperty]) {
+        registerProperty(&t, "var URLComponents.query: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.query) }
-        }
-        registerProperty(&t, "var URLComponents.queryItems: [URLQueryItem]? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.query mutation received the wrong receiver", fatal: true)
+            }
+            copy.query = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.queryItems: [URLQueryItem]? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.queryItems) }
-        }
-        registerProperty(&t, "var URLComponents.rangeOfFragment: Range<String.Index>? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.queryItems mutation received the wrong receiver", fatal: true)
+            }
+            copy.queryItems = try convertGeneratedPropertyValue(newValue, as: [URLQueryItem]?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.rangeOfFragment: Range<String.Index>? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.rangeOfFragment) }
-        }
-        registerProperty(&t, "var URLComponents.rangeOfHost: Range<String.Index>? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.rangeOfHost: Range<String.Index>? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.rangeOfHost) }
-        }
-        registerProperty(&t, "var URLComponents.rangeOfPassword: Range<String.Index>? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.rangeOfPassword: Range<String.Index>? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.rangeOfPassword) }
-        }
-        registerProperty(&t, "var URLComponents.rangeOfPath: Range<String.Index>? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.rangeOfPath: Range<String.Index>? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.rangeOfPath) }
-        }
-        registerProperty(&t, "var URLComponents.rangeOfPort: Range<String.Index>? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.rangeOfPort: Range<String.Index>? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.rangeOfPort) }
-        }
-        registerProperty(&t, "var URLComponents.rangeOfQuery: Range<String.Index>? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.rangeOfQuery: Range<String.Index>? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.rangeOfQuery) }
-        }
-        registerProperty(&t, "var URLComponents.rangeOfScheme: Range<String.Index>? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.rangeOfScheme: Range<String.Index>? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.rangeOfScheme) }
-        }
-        registerProperty(&t, "var URLComponents.rangeOfUser: Range<String.Index>? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.rangeOfUser: Range<String.Index>? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.rangeOfUser) }
-        }
-        registerProperty(&t, "var URLComponents.scheme: String? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.scheme: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.scheme) }
-        }
-        registerProperty(&t, "var URLComponents.string: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.scheme mutation received the wrong receiver", fatal: true)
+            }
+            copy.scheme = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLComponents.string: String? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.string) }
-        }
-        registerProperty(&t, "var URLComponents.url: URL? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.url: URL? { get }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.url) }
-        }
-        registerProperty(&t, "var URLComponents.user: String? { get }") { base in
+        })
+        registerProperty(&t, "var URLComponents.user: String? { get set }", get: { base in
             (base as? URLComponents).map { generatedMemberResult($0.user) }
-        }
-        registerProperty(&t, "var URLQueryItem.customMirror: Mirror { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLComponents else {
+                throw RuntimeError(message: "generated URLComponents.user mutation received the wrong receiver", fatal: true)
+            }
+            copy.user = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLQueryItem.customMirror: Mirror { get }", get: { base in
             (base as? URLQueryItem).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var URLQueryItem.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var URLQueryItem.debugDescription: String { get }", get: { base in
             (base as? URLQueryItem).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var URLQueryItem.description: String { get }") { base in
+        })
+        registerProperty(&t, "var URLQueryItem.description: String { get }", get: { base in
             (base as? URLQueryItem).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var URLQueryItem.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var URLQueryItem.hashValue: Int { get }", get: { base in
             (base as? URLQueryItem).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var URLQueryItem.name: String { get }") { base in
+        })
+        registerProperty(&t, "var URLQueryItem.name: String { get set }", get: { base in
             (base as? URLQueryItem).map { generatedMemberResult($0.name) }
-        }
-        registerProperty(&t, "var URLQueryItem.value: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLQueryItem else {
+                throw RuntimeError(message: "generated URLQueryItem.name mutation received the wrong receiver", fatal: true)
+            }
+            copy.name = try convertGeneratedPropertyValue(newValue, as: String.self)
+            return copy
+        })
+        registerProperty(&t, "var URLQueryItem.value: String? { get set }", get: { base in
             (base as? URLQueryItem).map { generatedMemberResult($0.value) }
-        }
-        registerProperty(&t, "var URLRequest.allHTTPHeaderFields: [String : String]? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLQueryItem else {
+                throw RuntimeError(message: "generated URLQueryItem.value mutation received the wrong receiver", fatal: true)
+            }
+            copy.value = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.allHTTPHeaderFields: [String : String]? { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.allHTTPHeaderFields) }
-        }
-        registerProperty(&t, "var URLRequest.allowsCellularAccess: Bool { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.allHTTPHeaderFields mutation received the wrong receiver", fatal: true)
+            }
+            copy.allHTTPHeaderFields = try convertGeneratedPropertyValue(newValue, as: [String : String]?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.allowsCellularAccess: Bool { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.allowsCellularAccess) }
-        }
-        registerProperty(&t, "var URLRequest.allowsConstrainedNetworkAccess: Bool { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.allowsCellularAccess mutation received the wrong receiver", fatal: true)
+            }
+            copy.allowsCellularAccess = try convertGeneratedPropertyValue(newValue, as: Bool.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.allowsConstrainedNetworkAccess: Bool { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.allowsConstrainedNetworkAccess) }
-        }
-        registerProperty(&t, "var URLRequest.allowsExpensiveNetworkAccess: Bool { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.allowsConstrainedNetworkAccess mutation received the wrong receiver", fatal: true)
+            }
+            copy.allowsConstrainedNetworkAccess = try convertGeneratedPropertyValue(newValue, as: Bool.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.allowsExpensiveNetworkAccess: Bool { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.allowsExpensiveNetworkAccess) }
-        }
-        registerProperty(&t, "var URLRequest.allowsPersistentDNS: Bool { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.allowsExpensiveNetworkAccess mutation received the wrong receiver", fatal: true)
+            }
+            copy.allowsExpensiveNetworkAccess = try convertGeneratedPropertyValue(newValue, as: Bool.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.allowsPersistentDNS: Bool { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.allowsPersistentDNS) }
-        }
-        registerProperty(&t, "var URLRequest.assumesHTTP3Capable: Bool { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.allowsPersistentDNS mutation received the wrong receiver", fatal: true)
+            }
+            copy.allowsPersistentDNS = try convertGeneratedPropertyValue(newValue, as: Bool.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.assumesHTTP3Capable: Bool { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.assumesHTTP3Capable) }
-        }
-        registerProperty(&t, "var URLRequest.attribution: URLRequest.Attribution { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.assumesHTTP3Capable mutation received the wrong receiver", fatal: true)
+            }
+            copy.assumesHTTP3Capable = try convertGeneratedPropertyValue(newValue, as: Bool.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.attribution: URLRequest.Attribution { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.attribution) }
-        }
-        registerProperty(&t, "var URLRequest.cachePolicy: URLRequest.CachePolicy { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.attribution mutation received the wrong receiver", fatal: true)
+            }
+            copy.attribution = try convertGeneratedPropertyValue(newValue, as: URLRequest.Attribution.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.cachePolicy: URLRequest.CachePolicy { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.cachePolicy) }
-        }
-        registerProperty(&t, "var URLRequest.customMirror: Mirror { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.cachePolicy mutation received the wrong receiver", fatal: true)
+            }
+            copy.cachePolicy = try convertGeneratedPropertyValue(newValue, as: URLRequest.CachePolicy.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.customMirror: Mirror { get }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var URLRequest.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var URLRequest.debugDescription: String { get }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var URLRequest.description: String { get }") { base in
+        })
+        registerProperty(&t, "var URLRequest.description: String { get }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var URLRequest.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var URLRequest.hashValue: Int { get }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var URLRequest.httpBody: Data? { get }") { base in
+        })
+        registerProperty(&t, "var URLRequest.httpBody: Data? { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.httpBody) }
-        }
-        registerProperty(&t, "var URLRequest.httpBodyStream: InputStream? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.httpBody mutation received the wrong receiver", fatal: true)
+            }
+            copy.httpBody = try convertGeneratedPropertyValue(newValue, as: Data?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.httpBodyStream: InputStream? { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.httpBodyStream) }
-        }
-        registerProperty(&t, "var URLRequest.httpMethod: String? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.httpBodyStream mutation received the wrong receiver", fatal: true)
+            }
+            copy.httpBodyStream = try convertGeneratedPropertyValue(newValue, as: InputStream?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.httpMethod: String? { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.httpMethod) }
-        }
-        registerProperty(&t, "var URLRequest.httpShouldHandleCookies: Bool { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.httpMethod mutation received the wrong receiver", fatal: true)
+            }
+            copy.httpMethod = try convertGeneratedPropertyValue(newValue, as: String?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.httpShouldHandleCookies: Bool { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.httpShouldHandleCookies) }
-        }
-        registerProperty(&t, "var URLRequest.mainDocumentURL: URL? { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.httpShouldHandleCookies mutation received the wrong receiver", fatal: true)
+            }
+            copy.httpShouldHandleCookies = try convertGeneratedPropertyValue(newValue, as: Bool.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.mainDocumentURL: URL? { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.mainDocumentURL) }
-        }
-        registerProperty(&t, "var URLRequest.networkServiceType: URLRequest.NetworkServiceType { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.mainDocumentURL mutation received the wrong receiver", fatal: true)
+            }
+            copy.mainDocumentURL = try convertGeneratedPropertyValue(newValue, as: URL?.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.networkServiceType: URLRequest.NetworkServiceType { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.networkServiceType) }
-        }
-        registerProperty(&t, "var URLRequest.requiresDNSSECValidation: Bool { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.networkServiceType mutation received the wrong receiver", fatal: true)
+            }
+            copy.networkServiceType = try convertGeneratedPropertyValue(newValue, as: URLRequest.NetworkServiceType.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.requiresDNSSECValidation: Bool { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.requiresDNSSECValidation) }
-        }
-        registerProperty(&t, "var URLRequest.timeoutInterval: TimeInterval { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.requiresDNSSECValidation mutation received the wrong receiver", fatal: true)
+            }
+            copy.requiresDNSSECValidation = try convertGeneratedPropertyValue(newValue, as: Bool.self)
+            return copy
+        })
+        registerProperty(&t, "var URLRequest.timeoutInterval: TimeInterval { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.timeoutInterval) }
-        }
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.timeoutInterval mutation received the wrong receiver", fatal: true)
+            }
+            copy.timeoutInterval = try convertGeneratedPropertyValue(newValue, as: TimeInterval.self)
+            return copy
+        })
     }
 
-    private static func buildP6(_ t: inout [String: HostProperty]) {
-        registerProperty(&t, "var URLRequest.url: URL? { get }") { base in
+    private static func buildP6(_ t: inout [String: GeneratedMemberProperty]) {
+        registerProperty(&t, "var URLRequest.url: URL? { get set }", get: { base in
             (base as? URLRequest).map { generatedMemberResult($0.url) }
-        }
-        registerProperty(&t, "var UUID.customMirror: Mirror { get }") { base in
+        }, mutate: { base, newValue in
+            guard var copy = base as? URLRequest else {
+                throw RuntimeError(message: "generated URLRequest.url mutation received the wrong receiver", fatal: true)
+            }
+            copy.url = try convertGeneratedPropertyValue(newValue, as: URL?.self)
+            return copy
+        })
+        registerProperty(&t, "var UUID.customMirror: Mirror { get }", get: { base in
             (base as? UUID).map { generatedMemberResult($0.customMirror) }
-        }
-        registerProperty(&t, "var UUID.debugDescription: String { get }") { base in
+        })
+        registerProperty(&t, "var UUID.debugDescription: String { get }", get: { base in
             (base as? UUID).map { generatedMemberResult($0.debugDescription) }
-        }
-        registerProperty(&t, "var UUID.description: String { get }") { base in
+        })
+        registerProperty(&t, "var UUID.description: String { get }", get: { base in
             (base as? UUID).map { generatedMemberResult($0.description) }
-        }
-        registerProperty(&t, "var UUID.hashValue: Int { get }") { base in
+        })
+        registerProperty(&t, "var UUID.hashValue: Int { get }", get: { base in
             (base as? UUID).map { generatedMemberResult($0.hashValue) }
-        }
-        registerProperty(&t, "var UUID.uuid: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) { get }") { base in
+        })
+        registerProperty(&t, "var UUID.uuid: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) { get }", get: { base in
             (base as? UUID).map { generatedMemberResult($0.uuid) }
-        }
-        registerProperty(&t, "var UUID.uuidString: String { get }") { base in
+        })
+        registerProperty(&t, "var UUID.uuidString: String { get }", get: { base in
             (base as? UUID).map { generatedMemberResult($0.uuidString) }
-        }
+        })
     }
 
     private static func buildM0(_ t: inout [String: [GeneratedMemberOverload]]) {

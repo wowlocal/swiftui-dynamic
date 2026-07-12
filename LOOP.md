@@ -268,8 +268,10 @@ Each iteration does exactly this:
      ProjectCheck pass count, LiveCheck 5/5, ParityCheck zero-tail,
      FoodTruckCheck total rungs. None may decrease, tests are never
      deleted/weakened to go green, and the closing gate always runs ALL
-     boards at full strength. Cost is cut by running them in parallel
-     from ONE build and by skipping only VERIFIED-UNCHANGED states.
+     boards at full strength. Cost is cut by sharing ONE build, parallelizing
+     the lightweight boards, and skipping only VERIFIED-UNCHANGED states.
+     LiveCheck follows that group so its large deep-render working set never
+     overlaps the corpus sweep and gets killed by memory pressure.
    - OPENING sweep: just run `ProjectCheck --all` — it SELF-CACHES
      (fingerprints Sources/ + Package.swift into `.claude/last-verify.txt`;
      unchanged sources return the recorded verdict in <1s; `--force`
@@ -278,11 +280,10 @@ Each iteration does exactly this:
    - MID-iteration: targeted probes ONLY — `swift test --filter <Suite>`,
      `ProjectCheck --project X`, single scenario. Never a full sweep to
      answer a narrow question; the full sweep happens once, at the gate.
-   - CLOSING gate, exactly ONCE: `Scripts/gate.sh` — one build, then
-     suite + ProjectCheck + LiveCheck + ParityCheck in PARALLEL from
-     prebuilt binaries (~build + max(board) instead of their sum), red if
-     ANY board is red. Pass counts must strictly improve or hold with the
-     top class eliminated.
+   - CLOSING gate, exactly ONCE: `Scripts/gate.sh` — one build; suite +
+     ProjectCheck + ParityCheck in parallel from prebuilt binaries; then
+     memory-isolated LiveCheck. It is red if ANY board is red. Pass counts
+     must strictly improve or hold with the top class eliminated.
    - Long commands: give explicit timeouts (never a chained
      build+suite+corpus under the default 10m — it WILL be killed);
      build once, then invoke prebuilt binaries (.build/debug/…).

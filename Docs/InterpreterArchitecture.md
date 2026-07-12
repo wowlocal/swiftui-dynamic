@@ -39,11 +39,14 @@ source
   singletons, so parsing is registration work rather than per-session or
   per-lookup work.
 - BridgeGen emits an exact accepted declaration for every generated
-  Foundation method call shape and every generated property getter.
+  Foundation method call shape and every generated property accessor.
   `GeneratedMembers` parses the 115 method and 247 property declarations once,
   derives receiver/member keys from them, binds methods through `HostFunction`
-  overload selection, and exposes getters through shared `HostProperty`
-  descriptors. `ParamTag` remains only as the final method-argument conversion
+  overload selection, and exposes 179 read-only plus 68 mutable properties
+  through shared `HostProperty` descriptors. Mutable entries carry a
+  statically compiled SDK copy mutation used both by reference-carrier writes
+  and value-lvalue copy-out/write-back. `ParamTag` remains only as the final
+  method-argument conversion
   into statically compiled Foundation calls; it no longer decides labels,
   arity, types, ranking, receiver validity, or result validity for this family.
 - `HostRegistry` is the only framework capability boundary. SwiftUIBridge and
@@ -60,7 +63,11 @@ surface, and `hostPayload` boxes a core value only when a host gateway
 explicitly asks for one. Arrays use Swift's copy-on-write storage;
 `RuntimeSetValue`, `TupleValue`, and `DictValue` are value types, and collection
 lvalues perform read-modify-write through their owner so nested updates retain
-value semantics.
+value semantics. Opaque host classes retain identity by default; a registry's
+class-backed carrier for a native Swift struct can explicitly adopt
+`HostValueSemantic`, causing ordinary and deep storage copies to clone the
+carrier. The Foundation bridge uses that opt-in for `DateComponents`,
+`URLComponents`, and `URLRequest`.
 
 `RuntimeOptionalValue` retains both `.some` and `.none` as physical runtime
 values, including every layer of a nested Optional. Its wrapped-type metadata
@@ -151,8 +158,8 @@ The remaining semantic migration is deliberately ordered:
 1. Consider a distinct/COW struct representation if profiling shows
    storage-envelope copies are material; the observable struct/class
    semantics no longer depend on that refactor.
-2. Move generated SwiftUI modifier/constructor tables, generated Foundation
-   property setters, and remaining hand-written compatibility gateways onto
+2. Move generated SwiftUI modifier/constructor tables and remaining
+   hand-written compatibility gateways onto
    the landed typed declarations without weakening deliberate absorption
    fallbacks.
 3. Tighten compile-time-only rules (mutability/exclusivity and unsupported

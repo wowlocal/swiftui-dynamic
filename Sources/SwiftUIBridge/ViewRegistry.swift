@@ -57,6 +57,10 @@ public final class ViewRegistry: HostRegistry {
         FileManagerBox.blobStore[path] = value
     }
 
+    public func hostObjectConstructor(named name: String) -> HostFunction? {
+        bridgeHostObjectConstructor(named: name)
+    }
+
     public func constructor(named name: String) -> HostFunction? {
         if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
         if let task = interpretedTaskConstructor(named: name) { return task }

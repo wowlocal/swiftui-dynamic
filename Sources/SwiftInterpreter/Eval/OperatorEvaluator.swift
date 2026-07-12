@@ -679,9 +679,21 @@ extension Interpreter {
                 }
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
-                guard case .host(let any) = baseValue,
-                      let mutated = interpreter.registry?.hostMutatedCopy(
-                        settingMember: name, on: any, to: value) else {
+                guard case .host(let any) = baseValue else {
+                    throw EvalMessage(text: "cannot assign to '\(name)' on \(baseValue.stringified)")
+                }
+                var assignedValue = value
+                if let property = interpreter.registry?.hostProperty(
+                    named: name, on: any) {
+                    if let typeName = property.signature.returnType {
+                        assignedValue = try interpreter.resolveAnnotated(
+                            value, typeName: typeName)
+                    }
+                    try property.validateWrite(
+                        assignedValue, to: .native(any), in: interpreter)
+                }
+                guard let mutated = try interpreter.registry?.hostMutatedCopy(
+                    settingMember: name, on: any, to: assignedValue) else {
                     throw EvalMessage(text: "cannot assign to '\(name)' on \(baseValue.stringified)")
                 }
                 if resolvingAnnotation {

@@ -78,6 +78,18 @@ private final class NativeObserverProbe {
     var runs = 0
 }
 
+private final class NativeHostValueCarrier: HostValueSemantic {
+    var value: Int
+
+    init(_ value: Int) {
+        self.value = value
+    }
+
+    func copiedHostValue() -> Any {
+        NativeHostValueCarrier(value)
+    }
+}
+
 private struct NativeObservedHolder {
     let observer: NativeObserverProbe
     var counter: NativeValueCounter {
@@ -99,6 +111,24 @@ private struct NativeInitializationObservedValue {
 
 @Suite("Core value semantics")
 struct CoreValueSemanticsTests {
+    @Test func optedInOpaqueHostCarriersCopyAtStorageBoundaries() throws {
+        let original = NativeHostValueCarrier(1)
+        let runtime = RuntimeValue.native(original)
+        guard case .host(let shallowPayload) = runtime.copiedForValueSemantics(),
+              let shallow = shallowPayload as? NativeHostValueCarrier,
+              case .host(let deepPayload) = runtime.deeplyCopiedForValueSemantics(),
+              let deep = deepPayload as? NativeHostValueCarrier else {
+            Issue.record("opted-in host carrier copies were not preserved")
+            return
+        }
+
+        shallow.value = 2
+        deep.value = 3
+        #expect(original.value == 1)
+        #expect(shallow !== original)
+        #expect(deep !== original)
+    }
+
     @Test func structInitializerSuppressesObserversAcrossValueCopies() throws {
         let nativeObserver = NativeObserverProbe()
         var nativeValue = NativeInitializationObservedValue(observer: nativeObserver)

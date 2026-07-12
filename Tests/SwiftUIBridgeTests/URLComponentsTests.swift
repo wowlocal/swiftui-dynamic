@@ -43,4 +43,22 @@ import SwiftUIBridge
         let result = try Interpreter(registry: ViewRegistry()).run(source: source)
         #expect(result.stringValue == "q=swift,page=2")
     }
+
+    @Test func optionalQueryItemsContextualizeShorthandInitializers() throws {
+        let source = """
+        func endpointItems() -> [URLQueryItem]? {
+            [.init(name: "limit", value: "50"),
+             .init(name: "local", value: "false")]
+        }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "mastodon.social"
+        components.path = "/api/v1/timelines/public"
+        components.queryItems = endpointItems()
+        components.url?.absoluteString ?? "NIL"
+        """
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.stringValue ==
+            "https://mastodon.social/api/v1/timelines/public?limit=50&local=false")
+    }
 }
