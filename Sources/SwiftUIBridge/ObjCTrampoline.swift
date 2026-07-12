@@ -47,6 +47,10 @@ enum ObjCTrampoline {
     static func constructor(named name: String) -> HostFunction? {
         guard let cls = resolveClass(name) else { return nil }
         return HostFunction(name: name) { args, _ in
+            if name == "UserDefaults" || name == "NSUserDefaults",
+               args.labeled("suiteName")?.stringValue != nil {
+                return .native(ObjCBox(ephemeralDefaults))
+            }
             guard args.arguments.isEmpty else {
                 throw RuntimeError(message: "\(name)(…): only () init is bridged automatically")
             }
@@ -370,6 +374,9 @@ enum ObjCTrampoline {
         // elements must marshal individually.
         if let array = value.arrayValue {
             return array.compactMap { marshalToObjC($0) } as NSArray
+        }
+        if let set = value.setValue {
+            return set.elements.compactMap { marshalToObjC($0) } as NSArray
         }
         if case .host(let any) = value {
             if any is [RuntimeValue] { return nil } // guarded above; belt+braces

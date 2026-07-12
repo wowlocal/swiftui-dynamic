@@ -1402,6 +1402,10 @@ enum JSONDecodeBridge {
         case .string(let string): return string
         case .array(let array):
             return try array.map { try encodeToJSON($0, snakeCase: snakeCase) }
+        case .set(let set):
+            return try set.elements.map {
+                try encodeToJSON($0, snakeCase: snakeCase)
+            }
         case .dictionary(let dictionary):
             var out: [String: Any] = [:]
             for (key, entry) in zip(dictionary.keys, dictionary.values) {

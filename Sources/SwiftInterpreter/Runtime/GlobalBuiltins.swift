@@ -339,6 +339,7 @@ extension Interpreter {
             guard let value = args.positional(0) else { return .native([RuntimeValue]()) }
             if let range = value.rangeValue, let values = range.integerValues() { return .native(values) }
             if let array = value.arrayValue { return .native(array) }
+            if let set = value.setValue { return .native(set.elements) }
             // Array("abc") splits into characters (single-char strings,
             // our character model): Array(constant)[i] indexes real chars.
             if let s = value.stringValue {
@@ -346,17 +347,35 @@ extension Interpreter {
             }
             return .native([value])
         }
-        define("Set") { args, _ in
-            // Array-backed set-lite: construction and iteration cover the
-            // corpus (Set<AnyCancellable>() holders, Set(array) dedup-ish).
-            if let array = args.positional(0)?.arrayValue {
-                var seen: [RuntimeValue] = []
-                for element in array where try !seen.contains(where: { try Builtins.areEqual($0, element) }) {
-                    seen.append(element)
-                }
-                return .native(seen)
+        define("Set") { args, ctx in
+            let specializedElementType = args.labeled("__genericArguments")?
+                .stringValue?.trimmingCharacters(in: .whitespaces)
+            guard let value = args.positional(0) else {
+                return .native(RuntimeSetValue(
+                    elementTypeName: specializedElementType))
             }
-            return .native([RuntimeValue]())
+            let elements: [RuntimeValue]
+            if let collection = value.collectionElements {
+                elements = collection
+            } else if let range = value.rangeValue,
+                      let integers = range.integerValues() {
+                elements = integers
+            } else if let string = value.stringValue {
+                elements = string.map { .native(String($0)) }
+            } else {
+                throw RuntimeError(message:
+                    "Set needs a Sequence value, got \(ctx.hostTypeName(of: value)): "
+                    + String(value.stringified.prefix(160)))
+            }
+            if let interpreter = ctx as? Interpreter {
+                let elementType = specializedElementType
+                    ?? value.setValue?.elementTypeName
+                return .native(try interpreter.makeRuntimeSet(
+                    elements, elementTypeName: elementType))
+            }
+            return .native(try RuntimeSetValue.deduplicating(
+                elements, elementTypeName: specializedElementType,
+                by: Builtins.areEqual))
         }
         define("fatalError") { args, _ in
             let message = args.positional(0)?.stringValue ?? "fatalError"

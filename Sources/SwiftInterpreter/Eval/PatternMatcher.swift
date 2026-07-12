@@ -198,9 +198,9 @@ extension Interpreter {
         throw error(pattern, "unsupported pattern (\(pattern.kind))")
     }
 
-    /// `let file as String` inside a pattern parses as an UNFOLDED
-    /// sequence — the cast is optimistic (nil never matches), the name
-    /// binds to the subject.
+    /// `let file as String` inside a pattern parses as an UNFOLDED sequence.
+    /// Declared source types are checkable and must really match; opaque host
+    /// shapes retain the interpreter's documented optimistic-cast fallback.
     private func matchCastSequence(
         _ expr: ExprSyntax, subject: RuntimeValue, bindingInto bindings: Environment
     ) -> Bool? {
@@ -219,16 +219,34 @@ extension Interpreter {
         }
         guard let target else { return nil }
         if subject.isNil { return false }
-        // Casts stay optimistic for interpreted/host types, but PRIMITIVES
-        // are checkable: `for case let text as String` over [Any] must
-        // skip the Ints.
-        if let castType, let any = subject.hostPayload {
-            switch castType {
+        if let castType {
+            var typeName = castType
+            while typeName.hasSuffix("?") || typeName.hasSuffix("!") {
+                typeName = String(typeName.dropLast())
+                    .trimmingCharacters(in: .whitespaces)
+            }
+            let sourceSubject: Bool
+            switch subject {
+            case .instance, .enumCase: sourceSubject = true
+            default: sourceSubject = false
+            }
+            let declaredTarget = typeValue(named: typeName) != nil
+                || protocolInheritance[typeName] != nil
+            if sourceSubject, declaredTarget,
+               !valueIsType(subject, typeName) {
+                return false
+            }
+
+            // Primitive casts are checkable too: `for case let text as
+            // String` over `[Any]` must skip the Ints.
+            if let any = subject.hostPayload {
+                switch typeName {
             case "String": guard any is String else { return false }
             case "Int": guard any is Int else { return false }
             case "Double", "CGFloat", "TimeInterval": guard any is Double || any is Int else { return false }
             case "Bool": guard any is Bool else { return false }
             default: break
+                }
             }
         }
         if let ref = target.as(DeclReferenceExprSyntax.self) {

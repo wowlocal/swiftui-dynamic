@@ -44,19 +44,29 @@ source
 
 ## Runtime-value migration
 
-`RuntimeValue` stores primitives, strings, arrays, dictionaries, tuples, and
-ranges in dedicated enum cases. `RuntimeValue.host(Any)` is the escape hatch
-for opaque framework or embedder objects such as `AnyView`, `Date`, and `URL`.
-`RuntimePayload` and the typed accessors form the stable dispatch surface, and
-`hostPayload` boxes a core value only when a host gateway explicitly asks for
-one. Arrays use Swift's copy-on-write storage; `TupleValue` and `DictValue` are
-value types, and collection lvalues perform read-modify-write through their
-owner so nested updates retain value semantics.
+`RuntimeValue` stores primitives, strings, arrays, Sets, dictionaries, tuples,
+and ranges in dedicated enum cases. `RuntimeValue.host(Any)` is the escape
+hatch for opaque framework or embedder objects such as `AnyView`, `Date`, and
+`URL`. `RuntimePayload` and the typed accessors form the stable dispatch
+surface, and `hostPayload` boxes a core value only when a host gateway
+explicitly asks for one. Arrays use Swift's copy-on-write storage;
+`RuntimeSetValue`, `TupleValue`, and `DictValue` are value types, and collection
+lvalues perform read-modify-write through their owner so nested updates retain
+value semantics.
+
+`RuntimeSetValue` is deliberately separate from Array. It keeps a deterministic
+first-seen backing order because dynamically interpreted equality cannot use a
+native `Hashable` table, but membership, equality, and algebra are set-based
+and order-independent. Construction deduplicates through declared or
+synthesized source equality, Set-only APIs dispatch only on this case, and the
+value retains static element context for empty generic storage and typed host
+matching. Sequence consumers use a read-only common element view without
+collapsing the two runtime types.
 
 `Runtime/ValueSemantics.swift` is the single ownership authority for source
 values. A new `Environment` binding, call parameter/return slot, lvalue write,
 or container/property slot copies a source struct's immediate storage envelope
-while preserving source-class and opaque-host identity. Native arrays,
+while preserving source-class and opaque-host identity. Native arrays, Sets,
 dictionaries, tuples, ranges, and immutable enum cases retain their value/COW
 storage instead of being walked eagerly. `Instance` remains a shared physical
 storage node, but `StructSymbol.isClass` selects its language semantics.
@@ -118,7 +128,7 @@ blocking the main actor.
 
 The remaining semantic migration is deliberately ordered:
 
-1. Add explicit optional and set cases, and consider a distinct/COW struct
+1. Add explicit optional storage, and consider a distinct/COW struct
    representation if profiling shows storage-envelope copies are material;
    the observable struct/class semantics no longer depend on that refactor.
 2. Move generated and hand-written compatibility gateways onto the landed

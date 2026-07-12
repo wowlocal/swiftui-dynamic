@@ -100,6 +100,9 @@ public final class TraceRegistry: HostRegistry {
 
     public func constructor(named name: String) -> HostFunction? {
         if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
+        if name == "UserDefaults" || name == "NSUserDefaults" {
+            return ObjCTrampoline.constructor(named: name)
+        }
         switch name {
         case "Text", "Image", "Spacer", "Divider", "Toggle", "TextField", "Slider":
             return HostFunction(name: name) { args, _ in
@@ -625,7 +628,7 @@ public final class TraceRegistry: HostRegistry {
         if let range = data.rangeValue, let values = range.integerValues() {
             return values
         }
-        if let array = data.arrayValue { return array }
+        if let elements = data.collectionElements { return elements }
         if case .instance(let instance) = data {
             // Library collection WRAPPERS (TCA's Store-of-IdentifiedArray,
             // IdentifiedArray itself): the conformance lives in the
@@ -638,6 +641,6 @@ public final class TraceRegistry: HostRegistry {
             }
             return []
         }
-        throw RuntimeError(message: "ForEach needs a range or an array, got \(data.stringified)")
+        throw RuntimeError(message: "ForEach needs a range or a collection, got \(data.stringified)")
     }
 }

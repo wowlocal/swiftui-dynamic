@@ -609,9 +609,12 @@ extension Interpreter {
         // splats across multiple parameters.
         if closure.parameters.count > 1, args.arguments.count == 1,
            let tuple = args.arguments[0].value.tupleValue,
-           tuple.values.count == closure.parameters.count {
+            tuple.values.count == closure.parameters.count {
             for (parameter, value) in zip(closure.parameters, tuple.values) {
-                env.define(parameter.name, try resolveAnnotated(value, parameter: parameter))
+                env.define(
+                    parameter.name,
+                    try resolveAnnotated(value, parameter: parameter),
+                    declaredTypeName: parameter.typeName)
             }
             return []
         }
@@ -693,7 +696,9 @@ extension Interpreter {
                     if let box = slot.box {
                         env.define(parameter.name, sharing: box)
                     } else {
-                        env.define(parameter.name, slot.current)
+                        env.define(
+                            parameter.name, slot.current,
+                            declaredTypeName: parameter.typeName)
                         writeBacks.append((parameter.name, slot))
                     }
                     continue
@@ -710,7 +715,9 @@ extension Interpreter {
                         returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName
                     ))
                 }
-                env.define(parameter.name, resolved)
+                env.define(
+                    parameter.name, resolved,
+                    declaredTypeName: parameter.typeName)
                 // `{ $item in … }` — the binding parameter also exposes its
                 // wrapped value: `item` shares the binding's box, so reads
                 // are live and writes propagate.
@@ -719,8 +726,12 @@ extension Interpreter {
                     env.define(String(parameter.name.dropFirst()), sharing: stub.box)
                 }
             } else if let defaultValue = parameter.defaultValue {
-                env.define(parameter.name, try resolveAnnotated(
-                    try evaluate(defaultValue, in: closure.captured), parameter: parameter))
+                env.define(
+                    parameter.name,
+                    try resolveAnnotated(
+                        try evaluate(defaultValue, in: closure.captured),
+                        parameter: parameter),
+                    declaredTypeName: parameter.typeName)
             } else if let node {
                 throw error(node, "missing argument for parameter '\(parameter.name)'")
             } else {

@@ -124,6 +124,10 @@ extension Interpreter {
             let allowCalls = op == "==" || op == "!="
             lhs = try adoptHostType(of: rhs, for: lhs, allowCalls: allowCalls)
             rhs = try adoptHostType(of: lhs, for: rhs, allowCalls: allowCalls)
+            (lhs, rhs) = try contextualizeSetLiteralEquality(
+                lhs, rhs, op: op,
+                leftIsLiteral: infix.leftOperand.is(ArrayExprSyntax.self),
+                rightIsLiteral: infix.rightOperand.is(ArrayExprSyntax.self))
             // A USER-DECLARED `static func ==` on an interpreted type WINS
             // over structural equality — Loadable ignores its cancelBag in
             // its own ==, while payload-wise comparison would not (the
@@ -194,6 +198,30 @@ extension Interpreter {
         }
     }
 
+    /// Array literals adopt a Set peer's contextual type for equality:
+    /// `selection == [sessionID]` is Set-vs-Set in compiled Swift. Named
+    /// Array values remain Arrays and are deliberately not coerced.
+    func contextualizeSetLiteralEquality(
+        _ originalLeft: RuntimeValue, _ originalRight: RuntimeValue,
+        op: String, leftIsLiteral: Bool, rightIsLiteral: Bool
+    ) throws -> (RuntimeValue, RuntimeValue) {
+        guard op == "==" || op == "!=" else {
+            return (originalLeft, originalRight)
+        }
+        var left = originalLeft
+        var right = originalRight
+        if let set = left.setValue, rightIsLiteral,
+           let elements = right.arrayValue {
+            right = .native(try makeRuntimeSet(
+                elements, elementTypeName: set.elementTypeName))
+        } else if let set = right.setValue, leftIsLiteral,
+                  let elements = left.arrayValue {
+            left = .native(try makeRuntimeSet(
+                elements, elementTypeName: set.elementTypeName))
+        }
+        return (left, right)
+    }
+
     private func adoptHostType(of other: RuntimeValue, for value: RuntimeValue, allowCalls: Bool = true) throws -> RuntimeValue {
         let unresolved: Bool
         switch value {
@@ -254,23 +282,37 @@ extension Interpreter {
         /// re-write the base (value semantics).
         case dataElement(LValue, Int)
 
-        /// The element type of an `[X]`-annotated instance property, if known.
+        /// The element type of an `[X]`- or `Set<X>`-annotated instance
+        /// property, if known.
         func annotatedElementType() -> String? {
             let property: StructSymbol.StoredProperty?
+            var directTypeName: String?
             switch self {
+            case .box(let box):
+                property = nil
+                directTypeName = box.declaredTypeName
             case .instanceProperty(let instance, let name):
                 property = instance.symbol.storedProperty(named: name)
             case .instanceValueProperty(_, let symbol, let name):
                 property = symbol.storedProperty(named: name)
+            case .staticProperty(let symbol, let name):
+                property = nil
+                directTypeName = symbol.staticProperties[name]?
+                    .typeAnnotation?.trimmedDescription
             default:
                 property = nil
             }
-            guard let annotation = property?.typeAnnotation else {
+            guard let raw = directTypeName ?? property?.typeAnnotation?.trimmedDescription else {
                 return nil
             }
-            let text = annotation.trimmedDescription.trimmingCharacters(in: .whitespaces)
-            guard text.hasPrefix("["), text.hasSuffix("]"), !text.contains(":") else { return nil }
-            return String(text.dropFirst().dropLast())
+            let text = raw.trimmingCharacters(in: .whitespaces)
+            if text.hasPrefix("["), text.hasSuffix("]"), !text.contains(":") {
+                return String(text.dropFirst().dropLast())
+            }
+            if text.hasPrefix("Set<"), text.hasSuffix(">") {
+                return String(text.dropFirst("Set<".count).dropLast())
+            }
+            return nil
         }
 
         func read(_ interpreter: Interpreter) throws -> RuntimeValue {
@@ -622,7 +664,7 @@ extension Interpreter {
         }
     }
 
-    private func equalsViaDeclaredOperator(
+    func equalsViaDeclaredOperator(
         _ lhs: RuntimeValue, _ rhs: RuntimeValue, node: Syntax?
     ) throws -> Bool? {
         // A PAYLOAD-carrying marker beside an enum case resolves against
@@ -673,7 +715,43 @@ extension Interpreter {
             }
             return true
         }
+        if let l = lhs.setValue, let r = rhs.setValue {
+            guard l.elements.count == r.elements.count else { return false }
+            for element in l.elements {
+                var matched = false
+                for candidate in r.elements {
+                    let pair = try equalsViaDeclaredOperator(
+                        element, candidate, node: node)
+                        ?? ((try? Builtins.areEqual(element, candidate)) ?? false)
+                    if pair {
+                        matched = true
+                        break
+                    }
+                }
+                if !matched { return false }
+            }
+            return true
+        }
         return nil
+    }
+
+    /// Equality used by Set storage. Unlike the low-level builtin fallback,
+    /// this includes declared and synthesized equality for source values.
+    func setElementsAreEqual(
+        _ lhs: RuntimeValue, _ rhs: RuntimeValue
+    ) throws -> Bool {
+        try equalsViaDeclaredOperator(lhs, rhs, node: nil)
+            ?? Builtins.areEqual(lhs, rhs)
+    }
+
+    func makeRuntimeSet(
+        _ elements: [RuntimeValue], elementTypeName explicitType: String? = nil
+    ) throws -> RuntimeSetValue {
+        let observedTypes = Set(elements.map(hostTypeName))
+        let elementType = explicitType
+            ?? (observedTypes.count == 1 ? observedTypes.first : nil)
+        return try RuntimeSetValue.deduplicating(
+            elements, elementTypeName: elementType, by: setElementsAreEqual)
     }
 
     private func isSynthesizableStruct(_ value: RuntimeValue) -> Bool {

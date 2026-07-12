@@ -14,7 +14,7 @@ extension ViewRegistry {
             if args.isEmpty { return AnyView(view.padding()) }
             let first = args.positional(0)
             let hasEdgeArgument: Bool
-            if let first, first.arrayValue != nil {
+            if let first, first.collectionElements != nil {
                 hasEdgeArgument = true
             } else if case .implicitMember? = first {
                 hasEdgeArgument = true

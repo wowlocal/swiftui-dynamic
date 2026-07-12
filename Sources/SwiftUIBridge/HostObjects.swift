@@ -1373,7 +1373,8 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         case "dateComponents":
             return .hostFunction(HostFunction(name: "dateComponents") { args, ctx in
-                let set = Set((args.positional(0)?.arrayValue ?? []).compactMap { calendarComponent($0) })
+                let set = Set((args.positional(0)?.collectionElements ?? [])
+                    .compactMap { calendarComponent($0) })
                 guard !set.isEmpty, let from = dateArg(args.labeled("from")) else {
                     return try generatedFallback(
                         "dateComponents", args, ctx,

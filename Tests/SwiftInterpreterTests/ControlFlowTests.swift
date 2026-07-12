@@ -79,6 +79,30 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "abc")
     }
 
+    @Test func switchCastPatternsRejectUnrelatedSourceTypes() throws {
+        let source = """
+        protocol Action {}
+        enum Actions {
+            struct Load: Action { let amount: Int }
+            struct Reset: Action {}
+        }
+
+        func classify(_ action: Action) -> String {
+            switch action {
+            case let load as Actions.Load:
+                return "load \\(load.amount)"
+            case _ as Actions.Reset:
+                return "reset"
+            default:
+                return "other"
+            }
+        }
+
+        "\\(classify(Actions.Load(amount: 3)))|\\(classify(Actions.Reset()))"
+        """
+        #expect(try eval(source).stringValue == "load 3|reset")
+    }
+
     @Test func breakAndContinue() throws {
         let source = """
         var s = 0

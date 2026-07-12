@@ -101,7 +101,9 @@ documented in [`Docs/InterpreterArchitecture.md`](Docs/InterpreterArchitecture.m
 ## Supported subset
 
 **Language**: literals + interpolation, arrays/dictionaries/tuples with
-subscripts, operators with real precedence, optionals (`if let`/`guard
+subscripts, dedicated `Set` values (array-literal/sequence construction,
+membership, algebra, mutation, and value semantics), operators with real
+precedence, optionals (`if let`/`guard
 let`/shorthand, `??`, `?.` chaining, `!`), `if`/`else`, `switch` with
 expression/range/enum-payload/`where` patterns (also as expressions and in
 builders), `for`-in, `while`, `break`/`continue`, functions (defaults,
@@ -123,11 +125,12 @@ definitions win), extensions,
 model properties — plus `@State`, `@Binding`, `$` projections, ~40 stdlib members
 (`map`/`filter`/`reduce`/`sorted`/`first(where:)`/`contains`/`joined`/
 mutating `append`/`remove(at:)`/…, string methods), and global
-`print`/`abs`/`min`/`max`/`String`/`Int`/`Double`/`Array`.
+`print`/`abs`/`min`/`max`/`String`/`Int`/`Double`/`Array`/`Set`.
 
 **Type context, dynamically**: bare `.member` values resolve against known
 enums via the type annotations on properties, parameters, and return types —
-no inference engine, just annotations.
+no inference engine, just annotations. Binding and Set storage retain generic
+element context even while a collection is empty.
 
 **SwiftUI**: `Text`, `Image(systemName:)`, `Label`, stacks, `Group`,
 `ScrollView`, `List`, `Form`, `Section`, `LazyVGrid`/`LazyHGrid`/`GridItem`,

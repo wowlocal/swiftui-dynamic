@@ -553,6 +553,9 @@ public enum Builtins {
             for (a, b) in zip(l, r) where try !areEqual(a, b) { return false }
             return true
         }
+        if let l = lhs.setValue, let r = rhs.setValue {
+            return try l.isEqual(to: r, by: areEqual)
+        }
         if let l = lhs.tupleValue, let r = rhs.tupleValue {
             guard l.values.count == r.values.count else { return false }
             for (a, b) in zip(l.values, r.values) where try !areEqual(a, b) { return false }

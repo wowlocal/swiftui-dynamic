@@ -300,7 +300,7 @@ enum Coerce {
     static func edgeSet(_ value: RuntimeValue) throws -> Edge.Set {
         // `[.top, .bottom]` / `[]` — Edge.Set is an OptionSet, and array
         // literals of edges are how damus (and SwiftUI docs) spell unions.
-        if let elements = value.arrayValue {
+        if let elements = value.collectionElements {
             var union: Edge.Set = []
             for element in elements {
                 union.formUnion(try edgeSet(element))

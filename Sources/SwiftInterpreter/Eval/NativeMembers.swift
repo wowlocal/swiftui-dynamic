@@ -14,6 +14,8 @@ extension Interpreter {
         switch value.payload {
         case .array(let array):
             return try arrayMember(name, array)
+        case .set(let set):
+            return try setMember(name, set)
         case .string(let string):
             return stringMember(name, string)
         case .tuple(let tuple):
@@ -30,6 +32,118 @@ extension Interpreter {
             return try nativeMember(name, on: range as Any)
         case .host(let host):
             return try nativeMember(name, on: host)
+        default:
+            return nil
+        }
+    }
+
+    /// Convert the Sequence shapes accepted by Set's generic algebra.
+    func setOperationElements(_ value: RuntimeValue) throws -> [RuntimeValue] {
+        if let elements = value.collectionElements { return elements }
+        if let range = value.rangeValue, let integers = range.integerValues() {
+            return integers
+        }
+        if let string = value.stringValue {
+            return string.map { .native(String($0)) }
+        }
+        throw RuntimeError(message: "Set operation needs a Sequence value")
+    }
+
+    /// Members whose result or semantics differ from Array. Sequence methods
+    /// that genuinely return arrays delegate to the mature array path.
+    private func setMember(
+        _ name: String, _ set: RuntimeSetValue
+    ) throws -> RuntimeValue? {
+        let elements = set.elements
+        switch name {
+        case "count", "capacity": return .native(elements.count)
+        case "isEmpty": return .native(elements.isEmpty)
+        case "first": return elements.first ?? .nilValue
+        case "contains":
+            return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
+                if let closure = args.closure(labeled: "where")
+                    ?? args.firstUnlabeledClosure {
+                    for element in elements
+                    where try ctx.callClosure(
+                        closure, arguments: [element]).boolValue == true {
+                        return .native(true)
+                    }
+                    return .native(false)
+                }
+                guard let target = args.positional(0) else {
+                    throw RuntimeError(message: "Set.contains needs a value or closure")
+                }
+                if let self {
+                    return .native(try set.contains(target, by: self.setElementsAreEqual))
+                }
+                return .native(try set.contains(target, by: Builtins.areEqual))
+            })
+        case "union", "intersection", "subtracting", "symmetricDifference":
+            return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
+                guard let self, let otherValue = args.positional(0) else {
+                    throw RuntimeError(message: "Set.\(name) needs a sequence")
+                }
+                let other = try self.setOperationElements(otherValue)
+                let result: RuntimeSetValue
+                switch name {
+                case "union":
+                    result = try set.union(other, by: self.setElementsAreEqual)
+                case "intersection":
+                    result = try set.intersection(other, by: self.setElementsAreEqual)
+                case "subtracting":
+                    result = try set.subtracting(other, by: self.setElementsAreEqual)
+                default:
+                    result = try set.symmetricDifference(
+                        other, by: self.setElementsAreEqual)
+                }
+                return .native(result)
+            })
+        case "isSubset", "isStrictSubset", "isSuperset", "isStrictSuperset", "isDisjoint":
+            return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
+                guard let self,
+                      let otherValue = args.labeled("of")
+                        ?? args.labeled("with") ?? args.positional(0) else {
+                    throw RuntimeError(message: "Set.\(name) needs a set")
+                }
+                let other = try self.setOperationElements(otherValue)
+                let otherSet = try self.makeRuntimeSet(other)
+                let allLeftInRight = try elements.allSatisfy {
+                    try otherSet.contains($0, by: self.setElementsAreEqual)
+                }
+                let allRightInLeft = try otherSet.elements.allSatisfy {
+                    try set.contains($0, by: self.setElementsAreEqual)
+                }
+                switch name {
+                case "isSubset": return .native(allLeftInRight)
+                case "isStrictSubset":
+                    return .native(allLeftInRight && elements.count < otherSet.elements.count)
+                case "isSuperset": return .native(allRightInLeft)
+                case "isStrictSuperset":
+                    return .native(allRightInLeft && elements.count > otherSet.elements.count)
+                default:
+                    return .native(try elements.allSatisfy {
+                        try !otherSet.contains($0, by: self.setElementsAreEqual)
+                    })
+                }
+            })
+        case "filter":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                let closure = try Self.requiredClosure(args, name)
+                var kept: [RuntimeValue] = []
+                for element in elements
+                where try ctx.callClosure(
+                    closure, arguments: [element]).boolValue == true {
+                    kept.append(element)
+                }
+                return .native(RuntimeSetValue(
+                    uniqueElements: kept,
+                    elementTypeName: set.elementTypeName))
+            })
+        case "map", "compactMap", "flatMap", "allSatisfy", "forEach",
+             "reduce", "sorted", "elementsEqual", "min", "max",
+             "randomElement", "prefix", "suffix", "dropFirst", "dropLast",
+             "enumerated", "shuffled":
+            return try arrayMember(name, elements)
         default:
             return nil
         }
@@ -367,29 +481,6 @@ extension Interpreter {
                     return .native(base + offset)
                 }
                 throw EvalMessage(text: "index(...) needs integer arguments")
-            })
-        case "subtracting", "union", "intersection", "symmetricDifference":
-            // Set algebra on the array-backed model (Sets flatten to arrays;
-            // membership by areEqual since RuntimeValue isn't Hashable).
-            return .hostFunction(HostFunction(name: name) { args, _ in
-                let other = args.positional(0)?.arrayValue ?? []
-                let contains: ([RuntimeValue], RuntimeValue) -> Bool = { xs, v in
-                    xs.contains { (try? Builtins.areEqual($0, v)) == true }
-                }
-                switch name {
-                case "subtracting":
-                    return .native(array.filter { !contains(other, $0) })
-                case "union":
-                    var out = array
-                    for v in other where !contains(out, v) { out.append(v) }
-                    return .native(out)
-                case "intersection":
-                    return .native(array.filter { contains(other, $0) })
-                default:
-                    let left = array.filter { !contains(other, $0) }
-                    let right = other.filter { !contains(array, $0) }
-                    return .native(left + right)
-                }
             })
         case "elementsEqual":
             return .hostFunction(HostFunction(name: name) { args, _ in

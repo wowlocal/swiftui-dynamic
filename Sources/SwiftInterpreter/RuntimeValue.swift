@@ -29,12 +29,16 @@ public enum RuntimeValue {
     case enumType(EnumSymbol)
     case enumCase(EnumCaseValue)
     case implicitMember(String)
+    /// Appended to preserve the tag layout of the established public cases
+    /// for incrementally built embedders.
+    case set(RuntimeSetValue)
 
     @inline(__always) public static func native(_ value: Int) -> RuntimeValue { .int(value) }
     @inline(__always) public static func native(_ value: Double) -> RuntimeValue { .double(value) }
     @inline(__always) public static func native(_ value: Bool) -> RuntimeValue { .bool(value) }
     @inline(__always) public static func native(_ value: String) -> RuntimeValue { .string(value) }
     @inline(__always) public static func native(_ value: [RuntimeValue]) -> RuntimeValue { .array(value) }
+    @inline(__always) public static func native(_ value: RuntimeSetValue) -> RuntimeValue { .set(value) }
     @inline(__always) public static func native(_ value: DictValue) -> RuntimeValue { .dictionary(value) }
     @inline(__always) public static func native(_ value: TupleValue) -> RuntimeValue { .tuple(value) }
     @inline(__always) public static func native(_ value: RuntimeRangeValue) -> RuntimeValue { .range(value) }
@@ -48,6 +52,7 @@ public enum RuntimeValue {
         if let b = value as? Bool { return .bool(b) }
         if let string = value as? String { return .string(string) }
         if let array = value as? [RuntimeValue] { return .array(array) }
+        if let set = value as? RuntimeSetValue { return .set(set) }
         if let dictionary = value as? DictValue { return .dictionary(dictionary) }
         if let tuple = value as? TupleValue { return .tuple(tuple) }
         if let range = RuntimeRangeValue.fromNative(value) { return .range(range) }
@@ -67,6 +72,7 @@ extension RuntimeValue {
         case .bool(let b): return b
         case .string(let string): return string
         case .array(let array): return array
+        case .set(let set): return set
         case .dictionary(let dictionary): return dictionary
         case .tuple(let tuple): return tuple
         case .range(let range): return range
@@ -118,6 +124,29 @@ extension RuntimeValue {
         }
     }
 
+    public var setValue: RuntimeSetValue? {
+        switch self {
+        case .set(let set): return set
+        case .host(let any): return any as? RuntimeSetValue
+        default: return nil
+        }
+    }
+
+    /// Elements of collection cases whose storage is directly iterable.
+    /// Arrays and sets stay distinct for mutation, equality, and type
+    /// matching; callers that only need Sequence semantics use this view.
+    public var collectionElements: [RuntimeValue]? {
+        switch self {
+        case .array(let array): return array
+        case .set(let set): return set.elements
+        case .host(let any):
+            if let array = any as? [RuntimeValue] { return array }
+            if let set = any as? RuntimeSetValue { return set.elements }
+            return nil
+        default: return nil
+        }
+    }
+
     public var rangeValue: RuntimeRangeValue? {
         switch self {
         case .range(let range): return range
@@ -164,6 +193,7 @@ extension RuntimeValue {
         case .string(let string): return string
         case .array(let array):
             return "[" + array.map(\.stringified).joined(separator: ", ") + "]"
+        case .set(let set): return set.description
         case .dictionary(let dictionary): return dictionary.description
         case .tuple(let tuple): return tuple.description
         case .range(let range): return range.description
@@ -171,6 +201,7 @@ extension RuntimeValue {
             if let arr = any as? [RuntimeValue] {
                 return "[" + arr.map(\.stringified).joined(separator: ", ") + "]"
             }
+            if let set = any as? RuntimeSetValue { return set.description }
             if let dict = any as? DictValue { return dict.description }
             if let tuple = any as? TupleValue { return tuple.description }
             return String(describing: any)

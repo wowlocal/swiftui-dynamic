@@ -276,11 +276,18 @@ private func traceRun(_ source: String) throws -> (interpreter: Interpreter, res
         #expect(registry.isViewValue(result))
     }
 
-    @Test func paddingAcceptsEdgeSetArray() throws {
+    @Test func paddingAcceptsArrayLiteralAndDedicatedEdgeSet() throws {
         let registry = ViewRegistry()
         let interpreter = Interpreter(registry: registry)
-        let result = try interpreter.run(source: #"Text("Card").padding([.horizontal, .bottom], 16)"#)
-        #expect(registry.isViewValue(result))
+        let literal = try interpreter.run(
+            source: #"Text("Card").padding([.horizontal, .bottom], 16)"#)
+        #expect(registry.isViewValue(literal))
+
+        let dedicated = try interpreter.run(source: #"""
+        let edges: Set<Edge> = [.horizontal, .bottom]
+        Text("Card").padding(edges, 16)
+        """#)
+        #expect(registry.isViewValue(dedicated))
     }
 
     @Test func parenthesizedCustomLayoutBuildsContent() throws {

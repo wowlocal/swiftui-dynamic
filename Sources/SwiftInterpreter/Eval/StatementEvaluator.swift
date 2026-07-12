@@ -135,7 +135,11 @@ extension Interpreter {
                     let result = try executeBlock(accessors.getter, in: Environment(parent: env))
                     switch result {
                     case .normal(let value), .returnValue(let value):
-                        env.define(ident.identifier.text, try resolveAnnotated(value, annotation: binding.typeAnnotation?.type))
+                        let typeName = binding.typeAnnotation?.type.trimmedDescription
+                        env.define(
+                            ident.identifier.text,
+                            try resolveAnnotated(value, annotation: binding.typeAnnotation?.type),
+                            declaredTypeName: typeName)
                     default:
                         throw error(binding, "control flow escaped local computed var")
                     }
@@ -154,13 +158,17 @@ extension Interpreter {
                     let annotationText = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
                         .trimmedDescription ?? ""
                     if annotationText.hasSuffix("?") || annotationText.hasSuffix("!") {
-                        env.define(ident.identifier.text, .nilValue) // `var x: T?`/`T!` is nil
+                        env.define(
+                            ident.identifier.text, .nilValue,
+                            declaredTypeName: annotationText) // `var x: T?`/`T!` is nil
                         continue
                     }
                     if !annotationText.isEmpty {
                         // Deferred initialization: `let x: T` assigned in
                         // branches — definite-init is the compiler's job.
-                        env.define(ident.identifier.text, .void)
+                        env.define(
+                            ident.identifier.text, .void,
+                            declaredTypeName: annotationText)
                         continue
                     }
                     throw error(binding, "'\(ident.identifier.text)' needs an initial value")
@@ -168,7 +176,12 @@ extension Interpreter {
                 let hint = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
                     .trimmedDescription
                 let value = try withExpectedAnnotation(hint) { try evaluate(initializer, in: env) }
-                env.define(ident.identifier.text, try resolveAnnotated(value, annotation: binding.typeAnnotation?.type))
+                let resolved = try hint.map {
+                    try resolveAnnotated(value, typeName: $0)
+                } ?? value
+                env.define(
+                    ident.identifier.text, resolved,
+                    declaredTypeName: hint)
             }
             return
         }
@@ -487,6 +500,8 @@ extension Interpreter {
             elements = values
         } else if let array = sequence.arrayValue {
             elements = array
+        } else if let set = sequence.setValue {
+            elements = set.elements
         } else if case .host(let any) = sequence,
                   any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
             // Unknowable host collections (Activity<T>.activities on a fresh

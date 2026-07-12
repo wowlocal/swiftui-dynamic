@@ -385,12 +385,18 @@ extension Interpreter {
                     forceInvocation: forceInvocation)
                 : lhs
         default:
-            let lhs = try await evaluateSuspending(
+            var lhs = try await evaluateSuspending(
                 infix.leftOperand, in: env,
                 forceInvocation: forceInvocation)
-            let rhs = try await evaluateSuspending(
+            var rhs = try await evaluateSuspending(
                 infix.rightOperand, in: env,
                 forceInvocation: forceInvocation)
+            // Lowering replaces both operands with temporary identifiers, so
+            // retain the original syntax's contextual-literal information.
+            (lhs, rhs) = try contextualizeSetLiteralEquality(
+                lhs, rhs, op: op ?? "",
+                leftIsLiteral: infix.leftOperand.is(ArrayExprSyntax.self),
+                rightIsLiteral: infix.rightOperand.is(ArrayExprSyntax.self))
             let child = Environment(parent: env)
             let lhsName = temporaryName()
             let rhsName = temporaryName()

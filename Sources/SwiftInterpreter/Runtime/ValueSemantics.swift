@@ -11,7 +11,7 @@ extension RuntimeValue {
         switch self {
         case .instance(let instance):
             return !instance.symbol.isClass
-        case .array, .dictionary, .tuple, .range, .enumCase:
+        case .array, .set, .dictionary, .tuple, .range, .enumCase:
             return true
         default:
             return false
@@ -25,7 +25,7 @@ extension RuntimeValue {
     /// values deliberately retain identity.
     public func copiedForValueSemantics() -> RuntimeValue {
         switch self {
-        case .array, .tuple, .dictionary, .range:
+        case .array, .set, .tuple, .dictionary, .range:
             // These cases are Swift value types already. Nested source
             // structs detach through composed member/subscript lvalues when
             // mutation reaches them; walking the whole graph here would turn
@@ -68,6 +68,10 @@ extension RuntimeValue {
             switch value {
             case .array(let array):
                 return .array(array.map(copy))
+            case .set(let set):
+                return .set(RuntimeSetValue(
+                    uniqueElements: set.elements.map(copy),
+                    elementTypeName: set.elementTypeName))
             case .tuple(let tuple):
                 return .tuple(TupleValue(
                     labels: tuple.labels, values: tuple.values.map(copy)))
@@ -110,6 +114,11 @@ extension RuntimeValue {
                 // `.host`; opaque host objects remain references.
                 if let array = any as? [RuntimeValue] {
                     return .array(array.map(copy))
+                }
+                if let set = any as? RuntimeSetValue {
+                    return .set(RuntimeSetValue(
+                        uniqueElements: set.elements.map(copy),
+                        elementTypeName: set.elementTypeName))
                 }
                 if let tuple = any as? TupleValue {
                     return .tuple(TupleValue(

@@ -61,6 +61,7 @@ extension Interpreter {
         case .bool: return typeName == "Bool" || typeName == "NSNumber"
         case .string: return ["String", "NSString"].contains(typeName)
         case .array: return ["Array", "NSArray"].contains(typeName) || typeName.hasPrefix("[")
+        case .set: return typeName == "Set"
         case .dictionary:
             return ["Dictionary", "NSDictionary"].contains(typeName) || typeName.hasPrefix("[")
         case .tuple: return typeName == "Tuple"
@@ -68,6 +69,10 @@ extension Interpreter {
             return ["Range", "ClosedRange", "PartialRangeFrom", "PartialRangeUpTo",
                     "PartialRangeThrough", "RangeExpression"].contains(typeName)
         case .instance(let instance):
+            if case .type(let expected)? = typeValue(named: typeName),
+               expected === instance.symbol {
+                return true
+            }
             var symbol: StructSymbol? = instance.symbol
             while let current = symbol {
                 if current.name == typeName { return true }
@@ -81,6 +86,10 @@ extension Interpreter {
             }
             return false
         case .enumCase(let caseValue):
+            if case .enumType(let expected)? = typeValue(named: typeName),
+               expected === caseValue.symbol {
+                return true
+            }
             if caseValue.symbol.name == typeName { return true }
             return caseValue.symbol.conformances.contains { conformance in
                 var seen = Set<String>()
@@ -647,6 +656,72 @@ extension Interpreter {
             return .void
         }
 
+        let setMutating = [
+            "insert", "update", "remove", "removeAll", "formUnion",
+            "formIntersection", "subtract", "formSymmetricDifference",
+        ]
+        if setMutating.contains(name), var set = baseValue.setValue,
+           let target = try? resolveLValue(base, in: env) {
+            let args = try collectArguments(of: call, in: env)
+            let elementType = set.elementTypeName ?? target.annotatedElementType()
+            func resolved(_ value: RuntimeValue) throws -> RuntimeValue {
+                guard let elementType else { return value }
+                return try resolveAnnotated(value, typeName: elementType)
+            }
+            let result: RuntimeValue
+            switch name {
+            case "insert":
+                guard let member = args.positional(0) else {
+                    throw error(call, "Set.insert needs a member")
+                }
+                let insertion = try set.insert(
+                    resolved(member), by: setElementsAreEqual)
+                result = .native(TupleValue(
+                    labels: ["inserted", "memberAfterInsert"],
+                    values: [.native(insertion.inserted), insertion.memberAfterInsert]))
+            case "update":
+                guard let member = args.labeled("with") ?? args.positional(0) else {
+                    throw error(call, "Set.update(with:) needs a member")
+                }
+                let value = try resolved(member)
+                let old = try set.remove(value, by: setElementsAreEqual)
+                _ = try set.insert(value, by: setElementsAreEqual)
+                result = old ?? .nilValue
+            case "remove":
+                guard let member = args.positional(0) else {
+                    throw error(call, "Set.remove needs a member")
+                }
+                result = try set.remove(
+                    resolved(member), by: setElementsAreEqual) ?? .nilValue
+            case "removeAll":
+                if let closure = args.closure(labeled: "where")
+                    ?? args.firstUnlabeledClosure {
+                    _ = closure
+                    throw error(call, "Set.removeAll does not accept a predicate")
+                }
+                set = RuntimeSetValue(elementTypeName: set.elementTypeName)
+                result = .void
+            default:
+                guard let otherValue = args.positional(0) else {
+                    throw error(call, "Set.\(name) needs a sequence")
+                }
+                let other = try setOperationElements(otherValue)
+                switch name {
+                case "formUnion":
+                    set = try set.union(other, by: setElementsAreEqual)
+                case "formIntersection":
+                    set = try set.intersection(other, by: setElementsAreEqual)
+                case "subtract":
+                    set = try set.subtracting(other, by: setElementsAreEqual)
+                default:
+                    set = try set.symmetricDifference(other, by: setElementsAreEqual)
+                }
+                result = .void
+            }
+            try relocating(call) { try target.writeOwned(.native(set), self) }
+            return result
+        }
+
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
         if mutating.contains(name),
            var array = baseValue.arrayValue,
@@ -669,18 +744,6 @@ extension Interpreter {
                     throw error(call, "append needs a value")
                 }
             case "insert":
-                // SET-typed storage synthesizes as an array: one-argument
-                // `insert(member)` (no at:) is Set.insert — append when
-                // absent, answering (inserted, memberAfterInsert).
-                if args.labeled("at") == nil, let member = args.positional(0) {
-                    let value = try resolved(member)
-                    let present = try array.contains { try Builtins.areEqual($0, value) }
-                    if !present { array.append(value) }
-                    try relocating(call) { try target.writeOwned(.native(array), self) }
-                    return .native(TupleValue(
-                        labels: ["inserted", "memberAfterInsert"],
-                        values: [.bool(!present), value]))
-                }
                 if let contents = args.labeled("contentsOf")?.arrayValue,
                    let index = args.labeled("at")?.intValue,
                    index >= 0, index <= array.count {

@@ -211,7 +211,7 @@ extension Interpreter {
             return try staticMember(name, of: symbol)
         case .enumType(let symbol):
             return try staticMember(name, of: symbol)
-        case .int, .double, .bool, .string, .array, .dictionary, .tuple, .range, .host:
+        case .int, .double, .bool, .string, .array, .set, .dictionary, .tuple, .range, .host:
             // Bare `count`/`firstIndex(...)` inside a host-type extension body
             // is implicit self on the native value. Inline scalars box on
             // demand for host-extension and gateway compatibility.
@@ -912,7 +912,7 @@ extension Interpreter {
             }
             return .implicitMember(name)
 
-        case .int, .double, .bool, .string, .array, .dictionary, .tuple, .range, .host:
+        case .int, .double, .bool, .string, .array, .set, .dictionary, .tuple, .range, .host:
             // Core values and opaque hosts share the extension/gateway tail,
             // but standard-library dispatch receives the typed RuntimeValue
             // before any compatibility boxing occurs.

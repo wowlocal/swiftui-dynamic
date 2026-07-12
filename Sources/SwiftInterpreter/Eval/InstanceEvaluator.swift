@@ -712,6 +712,9 @@ extension Interpreter {
         if typeName.hasPrefix("[") { // arrays AND dictionaries start empty
             return typeName.contains(":") ? .native(DictValue()) : .native([RuntimeValue]())
         }
+        if typeName == "Set" || typeName.hasPrefix("Set<") {
+            return .native(RuntimeSetValue())
+        }
         if typeName.contains("->") {
             return .hostFunction(HostFunction(name: "synthesized") { _, _ in .void })
         }
@@ -933,6 +936,20 @@ extension Interpreter {
            let array = value.arrayValue {
             let elementType = String(typeName.dropFirst().dropLast())
             return .native(try array.map { try resolveAnnotated($0, typeName: elementType) })
+        }
+
+        // `Set<Item> = [literal, ...]` uses Set's array-literal conformance;
+        // an existing Set re-resolves marker elements against the annotation.
+        if typeName.hasPrefix("Set<"), typeName.hasSuffix(">") {
+            let elementType = String(typeName.dropFirst("Set<".count).dropLast())
+            let elements = value.setValue?.elements ?? value.arrayValue
+            if let elements {
+                let resolved = try elements.map {
+                    try resolveAnnotated($0, typeName: elementType)
+                }
+                return .native(try makeRuntimeSet(
+                    resolved, elementTypeName: elementType))
+            }
         }
 
         // `Loadable<V>` — generic applications resolve by their HEAD

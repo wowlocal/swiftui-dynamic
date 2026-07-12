@@ -133,8 +133,10 @@ extension Interpreter {
                     accessors.getter, in: Environment(parent: env))
                 switch result {
                 case .normal(let value), .returnValue(let value):
+                    let typeName = binding.typeAnnotation?.type.trimmedDescription
                     env.define(name, try resolveAnnotated(
-                        value, annotation: binding.typeAnnotation?.type))
+                        value, annotation: binding.typeAnnotation?.type),
+                        declaredTypeName: typeName)
                 default:
                     throw error(binding, "control flow escaped local computed var")
                 }
@@ -149,9 +151,9 @@ extension Interpreter {
                 let annotation = (binding.typeAnnotation?.type
                     ?? sharedAnnotation(startingAt: index))?.trimmedDescription ?? ""
                 if annotation.hasSuffix("?") || annotation.hasSuffix("!") {
-                    env.define(name, .nilValue)
+                    env.define(name, .nilValue, declaredTypeName: annotation)
                 } else if !annotation.isEmpty {
-                    env.define(name, .void)
+                    env.define(name, .void, declaredTypeName: annotation)
                 } else {
                     throw error(binding, "'\(name)' needs an initial value")
                 }
@@ -163,8 +165,10 @@ extension Interpreter {
             let value = try await withExpectedAnnotationSuspending(hint) {
                 try await evaluateSuspending(initializer, in: env)
             }
-            env.define(name, try resolveAnnotated(
-                value, annotation: binding.typeAnnotation?.type))
+            let resolved = try hint.map {
+                try resolveAnnotated(value, typeName: $0)
+            } ?? value
+            env.define(name, resolved, declaredTypeName: hint)
         }
     }
 
@@ -478,6 +482,8 @@ extension Interpreter {
             elements = values
         } else if let array = sequence.arrayValue {
             elements = array
+        } else if let set = sequence.setValue {
+            elements = set.elements
         } else if case .host(let any) = sequence,
                   any is InertCallable || any is ChainedImplicitCall
                     || any is ImplicitMemberCall {

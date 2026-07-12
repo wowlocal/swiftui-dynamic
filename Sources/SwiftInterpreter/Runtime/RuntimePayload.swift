@@ -23,6 +23,9 @@ public enum RuntimePayload {
     case enumCase(EnumCaseValue)
     case implicitMember(String)
     case host(Any)
+    /// Appended so existing payload tags remain stable for incremental
+    /// clients compiled before dedicated Set storage landed.
+    case set(RuntimeSetValue)
 }
 
 extension RuntimeValue {
@@ -45,6 +48,8 @@ extension RuntimeValue {
             return .string(value)
         case .array(let value):
             return .array(value)
+        case .set(let value):
+            return .set(value)
         case .dictionary(let value):
             return .dictionary(value)
         case .tuple(let value):
@@ -71,6 +76,7 @@ extension RuntimeValue {
             // `RuntimeValue.native(_:)` before reaching this branch.
             if let string = value as? String { return .string(string) }
             if let array = value as? [RuntimeValue] { return .array(array) }
+            if let set = value as? RuntimeSetValue { return .set(set) }
             if let dictionary = value as? DictValue { return .dictionary(dictionary) }
             if let tuple = value as? TupleValue { return .tuple(tuple) }
             if let range = RuntimeRangeValue.fromNative(value) { return .range(range) }

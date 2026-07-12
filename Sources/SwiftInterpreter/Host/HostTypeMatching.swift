@@ -128,6 +128,37 @@ extension HostSignature {
                     score += item
                 }
                 return score
+            case "Set" where application.arguments.count == 1:
+                guard let set = value.setValue else { return nil }
+                var score = 22
+                if set.elements.isEmpty, let observed = set.elementTypeName {
+                    let expected = normalizedType(application.arguments[0])
+                    if genericNames.contains(expected) {
+                        if let bound = bindings[expected] {
+                            guard equivalentTypeName(bound, observed) else {
+                                return nil
+                            }
+                        } else {
+                            guard mayBind else { return nil }
+                            bindings[expected] = observed
+                        }
+                        score += 16
+                    } else {
+                        guard equivalentTypeName(observed, expected) else {
+                            return nil
+                        }
+                        score += 28
+                    }
+                }
+                for element in set.elements {
+                    guard let item = matchType(
+                        element, against: application.arguments[0],
+                        genericNames: genericNames,
+                        bindings: &bindings, representatives: &representatives,
+                        context: context, mayBind: mayBind) else { return nil }
+                    score += item
+                }
+                return score
             case "Dictionary" where application.arguments.count == 2:
                 guard let dictionary = value.dictValue else { return nil }
                 var score = 22
@@ -307,6 +338,12 @@ enum HostRuntimeTypeSystem {
         case .array(let values):
             let names = Set(values.map(typeName))
             return "[\(names.count == 1 ? names.first! : "Any")]"
+        case .set(let set):
+            if let elementType = set.elementTypeName {
+                return "Set<\(elementType)>"
+            }
+            let names = Set(set.elements.map(typeName))
+            return "Set<\(names.count == 1 ? names.first! : "Any")>"
         case .dictionary(let dictionary):
             let keys = Set(dictionary.keys.map(typeName))
             let values = Set(dictionary.values.map(typeName))
@@ -368,6 +405,8 @@ enum HostRuntimeTypeSystem {
         case .array:
             return type.hasPrefix("[") || type.hasPrefix("Array<")
                 || type == "Array" || type == "NSArray"
+        case .set:
+            return type.hasPrefix("Set<") || type == "Set"
         case .dictionary:
             return type.hasPrefix("[") || type.hasPrefix("Dictionary<")
                 || type == "Dictionary" || type == "NSDictionary"
@@ -404,7 +443,7 @@ enum HostRuntimeTypeSystem {
         case "Sendable", "Copyable", "Escapable": return true
         case "Equatable", "Hashable":
             switch value {
-            case .int, .double, .bool, .string, .enumCase: return true
+            case .int, .double, .bool, .string, .set, .enumCase: return true
             default: return false
             }
         case "Comparable":
@@ -422,9 +461,12 @@ enum HostRuntimeTypeSystem {
             return false
         case "Sequence", "Collection":
             switch value {
-            case .array, .dictionary, .range, .string: return true
+            case .array, .set, .dictionary, .range, .string: return true
             default: return false
             }
+        case "SetAlgebra":
+            if case .set = value { return true }
+            return false
         case "StringProtocol": return value.stringValue != nil
         default: return false
         }

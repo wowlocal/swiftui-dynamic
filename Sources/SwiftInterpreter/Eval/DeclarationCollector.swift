@@ -49,10 +49,12 @@ extension Interpreter {
                 // initializers run on first read.
                 for binding in varDecl.bindings {
                     guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
-                    globals.define(ident.identifier.text, .native(LazyGlobal(
-                        initializer: binding.initializer?.value,
-                        annotation: binding.typeAnnotation?.type
-                    )))
+                    globals.define(
+                        ident.identifier.text,
+                        .native(LazyGlobal(
+                            initializer: binding.initializer?.value,
+                            annotation: binding.typeAnnotation?.type)),
+                        declaredTypeName: binding.typeAnnotation?.type.trimmedDescription)
                 }
             } else if let varDecl = decl.as(VariableDeclSyntax.self) {
                 // `var uptime: String { … }` at file scope — a computed
@@ -62,15 +64,19 @@ extension Interpreter {
                     guard let ident = binding.pattern.as(IdentifierPatternSyntax.self),
                           let accessorBlock = binding.accessorBlock else { continue }
                     if let accessors = parseAccessors(of: accessorBlock) {
-                        globals.define(ident.identifier.text, .native(ComputedGlobal(
-                            accessor: accessors.getter,
-                            annotation: binding.typeAnnotation?.type
-                        )))
+                        globals.define(
+                            ident.identifier.text,
+                            .native(ComputedGlobal(
+                                accessor: accessors.getter,
+                                annotation: binding.typeAnnotation?.type)),
+                            declaredTypeName: binding.typeAnnotation?.type.trimmedDescription)
                     } else {
-                        globals.define(ident.identifier.text, .native(LazyGlobal(
-                            initializer: binding.initializer?.value,
-                            annotation: binding.typeAnnotation?.type
-                        )))
+                        globals.define(
+                            ident.identifier.text,
+                            .native(LazyGlobal(
+                                initializer: binding.initializer?.value,
+                                annotation: binding.typeAnnotation?.type)),
+                            declaredTypeName: binding.typeAnnotation?.type.trimmedDescription)
                     }
                 }
             }

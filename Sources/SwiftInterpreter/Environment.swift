@@ -9,9 +9,14 @@ public final class Box {
         didSet { onChange?() }
     }
     public var onChange: (@MainActor () -> Void)?
+    /// Source annotation for this storage location. Kept after the established
+    /// fields for incremental ABI stability; mutation dispatch uses it for
+    /// generic element context even when a collection is empty.
+    public var declaredTypeName: String?
 
-    public init(_ value: RuntimeValue) {
+    public init(_ value: RuntimeValue, declaredTypeName: String? = nil) {
         self.value = value
+        self.declaredTypeName = declaredTypeName
     }
 }
 
@@ -53,8 +58,12 @@ public final class Environment {
     /// Define a new Swift binding. A fresh binding is a value-ownership
     /// boundary, so interpreted structs and containers receive independent
     /// storage while classes, closures, and host objects retain identity.
-    public func define(_ name: String, _ value: RuntimeValue) {
-        bindings[name] = Box(value.copiedForValueSemantics())
+    public func define(
+        _ name: String, _ value: RuntimeValue,
+        declaredTypeName: String? = nil
+    ) {
+        bindings[name] = Box(
+            value.copiedForValueSemantics(), declaredTypeName: declaredTypeName)
     }
 
     /// Bind an evaluator-owned borrow without introducing a language-level

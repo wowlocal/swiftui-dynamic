@@ -223,7 +223,9 @@ enum GeneratedDispatch {
         case .calendarComponentSet:
             // Native code writes `[.year, .month]` — Set's array-literal
             // conformance; the interpreted array coerces element-wise.
-            guard let array = value.arrayValue else { throw RuntimeError(message: "expected a set of calendar components") }
+            guard let array = value.collectionElements else {
+                throw RuntimeError(message: "expected a set of calendar components")
+            }
             return Set(try array.map(Coerce.calendarComponent))
         }
     }
@@ -497,7 +499,7 @@ extension Coerce {
             default: throw RuntimeError(message: "unknown axis '.\(name)'")
             }
         }
-        if let array = value.arrayValue {
+        if let array = value.collectionElements {
             var set: Axis.Set = []
             for element in array { set.insert(try axisSet(element)) }
             return set

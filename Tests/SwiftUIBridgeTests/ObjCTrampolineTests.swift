@@ -33,6 +33,21 @@ import SwiftInterpreter
         #expect(result.stringValue == "interpreted")
     }
 
+    @Test func userDefaultsSuiteFeedsDedicatedSetConstruction() throws {
+        let source = """
+        let defaults = UserDefaults(suiteName: "interpreter.set.probe")!
+        defaults.removeObject(forKey: "values")
+        let before = Set(defaults.stringArray(forKey: "values") ?? [])
+        defaults.set(["first", "first", "second"], forKey: "values")
+        let after = Set(defaults.stringArray(forKey: "values") ?? [])
+        "\\(before.count)|\\(after.sorted().joined(separator: ","))"
+        """
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.stringValue == "0|first,second")
+        let traced = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(traced.stringValue == "0|first,second")
+    }
+
     @Test func nonAllowlistedClassesStillAbsorb() throws {
         // Process is deliberately NOT on the allowlist — it must keep
         // falling to the absorbing bag, not gain real side effects.

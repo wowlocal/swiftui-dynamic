@@ -4281,16 +4281,16 @@ enum Corpus {
     /// Pulse (iteration 149): four classes from kean's logging framework —
     /// LOCAL typealias statements bind the target type in scope; clock
     /// idioms absorb numerically (`.now + .milliseconds(500)` = 0.5 — time
-    /// anchors read the fresh epoch, durations read their seconds); Set
-    /// algebra on the array-backed model; Optional.map applies the closure
-    /// to a non-nil native (`url.map { … }`).
+    /// anchors read the fresh epoch, durations read their seconds); dedicated
+    /// Set algebra; Optional.map applies the closure to a non-nil native
+    /// (`url.map { … }`).
     @Test func typealiasClockSetAlgebraAndOptionalMap() throws {
         let source = """
         struct ContentView: View {
             var body: some View {
                 typealias Numbers = Array
-                let evens = [2, 4, 6]
-                let odds = [1, 3]
+                let evens: Set<Int> = [2, 4, 6]
+                let odds: Set<Int> = [1, 3]
 
                 let deadline = .now + .milliseconds(500)
                 let url = URL(string: "https://kean.blog/pulse")!
