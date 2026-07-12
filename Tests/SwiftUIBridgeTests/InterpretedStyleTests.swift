@@ -96,6 +96,89 @@ import Testing
                 "hierarchical chain fill reads \(value), expected the ~242 native band")
     }
 
+    // Color-typed parameters must accept the same transformed Color values as
+    // native Swift. FoodTruck's SocialFeedPostView uses this exact chain for
+    // every donut shadow; rejecting it replaces each row with an error view.
+    @MainActor
+    @Test func opacityChainFeedsColorTypedModifier() throws {
+        let chain = RuntimeValue.native(ChainedImplicitCall(
+            base: .implicitMember("black"), member: "opacity",
+            arguments: CallArguments(arguments: [
+                .init(label: nil, value: .native(0.15)),
+            ])))
+        let resolved = try Coerce.color(chain).resolve(in: EnvironmentValues())
+        #expect(Double(resolved.red) == 0)
+        #expect(Double(resolved.green) == 0)
+        #expect(Double(resolved.blue) == 0)
+        #expect(abs(Double(resolved.opacity) - 0.15) < 0.000_001)
+
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 80, height: 80)
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                }
+            }
+        }
+        """
+        RenderDiagnostics.reset()
+        switch InterpreterHost().render(source: source, lazyTopLevelGlobals: true) {
+        case .failure(let error):
+            Issue.record("render failed: \(error)")
+        case .success(let view):
+            _ = Self.bitmap(view, size: NSSize(width: 120, height: 120))
+            for (viewName, error) in RenderDiagnostics.errors {
+                Issue.record("\(viewName): \(error)")
+            }
+        }
+    }
+
+    // Type-erased styles are values, not absorbing constructor bags. They
+    // must survive an interpreted computed-property return and feed a
+    // ShapeStyle-typed generated modifier.
+    @MainActor
+    @Test func anyShapeStyleRoundTripsThroughComputedProperty() throws {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let erased = try interpreter.run(
+            source: "AnyShapeStyle(.quaternary.opacity(0.5))")
+        #expect(erased.hostPayload is AnyShapeStyle)
+
+        let source = """
+        struct StyledCircle: View {
+            var style: AnyShapeStyle {
+                AnyShapeStyle(.quaternary.opacity(0.5))
+            }
+
+            var body: some View {
+                Circle()
+                    .frame(width: 80, height: 80)
+                    .backgroundStyle(style)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup { StyledCircle() }
+            }
+        }
+        """
+        RenderDiagnostics.reset()
+        switch InterpreterHost().render(source: source, lazyTopLevelGlobals: true) {
+        case .failure(let error):
+            Issue.record("render failed: \(error)")
+        case .success(let view):
+            _ = Self.bitmap(view, size: NSSize(width: 120, height: 120))
+            for (viewName, error) in RenderDiagnostics.errors {
+                Issue.record("\(viewName): \(error)")
+            }
+        }
+    }
+
     @MainActor
     private static func bitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
         let hosting = NSHostingView(

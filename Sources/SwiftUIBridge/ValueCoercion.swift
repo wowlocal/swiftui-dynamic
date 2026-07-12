@@ -79,14 +79,11 @@ enum Coerce {
     // MARK: - Colors & shape styles
 
     static func color(_ value: RuntimeValue) throws -> Color {
-        if case .host(let any) = value, let color = any as? Color { return color }
+        if let color = colorLike(value) { return color }
         guard case .implicitMember(let name) = value else {
             throw RuntimeError(message: "expected a color like .blue, got \(value.stringified)")
         }
-        guard let color = colorNamed(name) else {
-            throw RuntimeError(message: "unknown color '.\(name)'")
-        }
-        return color
+        throw RuntimeError(message: "unknown color '.\(name)'")
     }
 
     private static func colorNamed(_ name: String) -> Color? {

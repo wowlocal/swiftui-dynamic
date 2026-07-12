@@ -52,6 +52,12 @@ source
 - `HostRegistry` is the only framework capability boundary. SwiftUIBridge and
   test registries implement it independently; the typed layer has no SwiftUI
   dependency.
+- SwiftUIBridge's expected-type coercion funnels are semantic adapters, not
+  lossy boxes. They recursively resolve deferred implicit-member chains (for
+  example `.black.opacity(0.15)`) and retain protocol-erased framework values
+  such as `AnyShapeStyle` as raw host values across source-language storage and
+  return boundaries. Turning those values into `AnyView` or an absorbing bag
+  destroys the conformance that generated gateways need.
 
 ## Runtime-value migration
 

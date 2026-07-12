@@ -1260,3 +1260,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   two-summary union. SwiftScript comparison rechecked at upstream
   `71605b28`; FoodTruck restored 7/9→9/9. **GATE GREEN: suite 646; corpus
   678/680; live 5/5; parity 345/0/0; R1 9/9.**
+- 2026-07-12 FoodTruck R2 Social Feed style-value boundary: the native-twin
+  board confirmed the staked row-body failure and exposed its second layer.
+  (1) Color-typed gateways used a stricter funnel than ShapeStyle positions,
+  so every `.shadow(color: .black.opacity(0.15), …)` rejected the deferred
+  chain and painted an error row. `Coerce.color` now delegates to the one
+  recursive color-shaped resolver; a native probe and the focused pin both
+  resolve the exact RGBA 0/0/0/0.15. (2) `AnyShapeStyle(...)` had no real
+  constructor and became an absorbing SDK bag, so the interpreted
+  `tagBackgroundStyle` computed property could not feed generated
+  `.backgroundStyle(_:)`. The gateway now retains a real raw type-erased style
+  across return/storage boundaries. SocialFeedPostView has zero render
+  diagnostics and **socialfeed AE ratchets 27.448%→16.960%**; card-donuts and
+  donut-view remain 0.000%, with the other established screen floors intact.
+  Remaining Social Feed error is visibly a separate layout/content class.
+  Pins: InterpretedStyleTests (native color components + rendered shadow,
+  raw AnyShapeStyle identity + computed-property/generated-modifier round
+  trip). **GATE GREEN: suite 648; corpus 678/680; live 5/5; parity 345/0/0;
+  R1 9/9.**

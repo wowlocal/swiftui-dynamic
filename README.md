@@ -155,6 +155,9 @@ and `Date()` basics; ~50 modifiers including `padding`/`frame`/`font`/
 `.gradient` chains)/`background`/`overlay`/`shadow`/`clipShape`/`offset`/
 `scaleEffect`/`rotationEffect`/`animation(value:)`/`onAppear`/`onTapGesture`/
 `onSubmit`/`task`/`navigationTitle`/`listStyle`/`buttonStyle`/`pickerStyle`.
+Color-typed parameters recursively accept transformed Color chains, and raw
+`AnyShapeStyle` values retain their style identity across interpreted computed
+properties before generated modifiers consume them.
 
 ## Generated gateways (BridgeGen)
 

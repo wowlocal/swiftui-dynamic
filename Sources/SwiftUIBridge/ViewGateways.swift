@@ -111,6 +111,16 @@ extension ViewRegistry {
             return .native(ShapeBox(RoundedRectangle(cornerRadius: radius)))
         }
 
+        constructors["AnyShapeStyle"] = HostFunction(name: "AnyShapeStyle") { args, _ in
+            guard let style = args.positional(0) else {
+                throw RuntimeError(message: "AnyShapeStyle needs a style")
+            }
+            // Keep the erased style as a real value. Wrapping it as a view or
+            // an opaque constructor bag loses ShapeStyle conformance when it
+            // later crosses a computed-property or collection boundary.
+            return .native(try Coerce.shapeStyle(style))
+        }
+
         constructors["LinearGradient"] = HostFunction(name: "LinearGradient") { args, _ in
             guard let colorsArg = args.labeled("colors")?.arrayValue else {
                 throw RuntimeError(message: "LinearGradient needs colors: [...]")
