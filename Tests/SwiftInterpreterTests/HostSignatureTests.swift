@@ -183,6 +183,22 @@ struct HostSignatureTests {
             return .native(set.indexRange(in: 1..<3) as Any)
         }
         #expect(try nestedIndex.invoke(CallArguments(), interpreter).hostPayload != nil)
+
+        let request = URLRequest(url: URL(string: "https://example.com")!)
+        let policy = try HostFunction(
+            declaration: "func policy() -> URLRequest.CachePolicy"
+        ) { _, _ in .native(request.cachePolicy as Any) }
+        #expect(try policy.invoke(CallArguments(), interpreter).hostPayload != nil)
+
+        let headers = try HostFunction(
+            declaration: "func headers() -> [String: String]"
+        ) { _, _ in .native(["Accept": "text/plain"] as Any) }
+        #expect(try headers.invoke(CallArguments(), interpreter).hostPayload != nil)
+
+        let stream = try HostFunction(
+            declaration: "func stream() -> InputStream?"
+        ) { _, _ in .native(request.httpBodyStream) }
+        #expect(try stream.invoke(CallArguments(), interpreter).isNil)
     }
 
     @Test func genericBindingConstrainsArgumentsAndReturn() throws {

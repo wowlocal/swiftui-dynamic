@@ -16,6 +16,17 @@ extension Interpreter {
         _ name: String, on value: Any, to newValue: RuntimeValue
     ) throws -> Bool {
         if let property = registry?.hostProperty(named: name, on: value) {
+            if property.signature.isSettable {
+                try property.write(newValue, to: .native(value), in: self)
+                return true
+            }
+            // A generated read-only descriptor can coexist with a legacy
+            // compatibility setter while setter generation is still pending.
+            // Let that explicit setter win; otherwise retain HostProperty's
+            // precise read-only diagnostic.
+            if registry?.hostSetMember(name, on: value, to: newValue) == true {
+                return true
+            }
             try property.write(newValue, to: .native(value), in: self)
             return true
         }

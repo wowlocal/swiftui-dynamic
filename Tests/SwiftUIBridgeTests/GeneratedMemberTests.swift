@@ -1,12 +1,138 @@
 import Foundation
 import Testing
 import SwiftInterpreter
-import SwiftUIBridge
+@testable import SwiftUIBridge
 
 /// The generated Foundation tier (BridgeGen --emit over the SDK's
 /// swiftinterface): members no hand box claims dispatch through
 /// GeneratedMembers — real SDK calls, compiled statically.
 @Suite struct GeneratedMemberTests {
+    @Test func generatedPropertiesExposeParsedReadOnlyContracts() {
+        #expect(GeneratedMembers.properties.count >= 240)
+        for (key, property) in GeneratedMembers.properties {
+            #expect(property.signature.kind == .property)
+            #expect(!property.signature.isSettable)
+            #expect(property.signature.returnType != nil)
+            #expect(key == "\(property.signature.receiverType!).\(property.name)")
+        }
+
+        let components = GeneratedMembers.properties["URLComponents.queryItems"]
+        #expect(components?.signature.declaration ==
+            "var URLComponents.queryItems: [URLQueryItem]? { get }")
+    }
+
+    @Test func everyGeneratedPropertyValidatesAgainstSDKReceiver() throws {
+        let seedDate = Date(timeIntervalSince1970: 1_234_567_890)
+        let seedURL = URL(string: "https://user:pass@example.com/a?x=1#f")!
+        var components = URLComponents(url: seedURL, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "x", value: "1")]
+        var dateComponents = DateComponents()
+        dateComponents.calendar = Calendar(identifier: .gregorian)
+        dateComponents.timeZone = TimeZone(secondsFromGMT: 0)
+        dateComponents.year = 2024
+        dateComponents.month = 7
+        dateComponents.day = 12
+        var person = PersonNameComponents()
+        person.givenName = "Ada"
+        person.familyName = "Lovelace"
+
+        let receivers: [String: Any] = [
+            "Calendar": Calendar(identifier: .gregorian),
+            "CharacterSet": CharacterSet.alphanumerics,
+            "Data": Data([1, 2, 3, 4]),
+            "Date": seedDate,
+            "DateComponents": dateComponents,
+            "DateInterval": DateInterval(start: seedDate, duration: 3_600),
+            "Decimal": Decimal(string: "12.5")!,
+            "IndexPath": IndexPath(indexes: [1, 3, 5]),
+            "IndexSet": IndexSet(integersIn: 1..<6),
+            "Locale": Locale(identifier: "en_US"),
+            "PersonNameComponents": person,
+            "TimeZone": TimeZone(secondsFromGMT: 0)!,
+            "URL": seedURL,
+            "URLComponents": components,
+            "URLQueryItem": URLQueryItem(name: "x", value: "1"),
+            "URLRequest": URLRequest(url: seedURL),
+            "UUID": UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!,
+        ]
+        let interpreter = Interpreter(registry: ViewRegistry())
+
+        for (key, property) in GeneratedMembers.properties.sorted(
+            by: { $0.key < $1.key }) {
+            guard let receiverType = property.signature.receiverType,
+                  let receiver = receivers[receiverType] else {
+                Issue.record("\(key): deterministic receiver seed is missing")
+                continue
+            }
+            do {
+                _ = try property.read(
+                    from: .native(receiver), in: interpreter)
+            } catch {
+                Issue.record("\(key): \(error)")
+            }
+        }
+    }
+
+    @Test func generatedPropertiesValidateReceiverAndReadOnlyAccess() throws {
+        guard let property = GeneratedMembers.properties["Calendar.monthSymbols"] else {
+            Issue.record("generated Calendar.monthSymbols contract is missing")
+            return
+        }
+        let interpreter = Interpreter(registry: ViewRegistry())
+
+        do {
+            _ = try property.read(
+                from: .native(URL(string: "https://example.com")!),
+                in: interpreter)
+            Issue.record("a generated getter must reject the wrong receiver")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("expected receiver 'Calendar'"))
+        }
+
+        do {
+            try property.write(
+                .native([RuntimeValue.native("January")]),
+                to: .native(Calendar(identifier: .gregorian)),
+                in: interpreter)
+            Issue.record("generated property contracts must be read-only")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("read-only host property"))
+        }
+    }
+
+    @Test func generatedPropertiesValidateCollectionsAliasesAndCarriers() throws {
+        let registry = ViewRegistry()
+        let interpreter = Interpreter(registry: registry)
+
+        let calendar = Calendar(identifier: .gregorian)
+        guard let symbols = registry.hostProperty(
+            named: "monthSymbols", on: calendar) else {
+            Issue.record("generated Calendar.monthSymbols property is missing")
+            return
+        }
+        let months = try symbols.read(from: .native(calendar), in: interpreter)
+        #expect((months.hostPayload as? [String])?.count == 12)
+
+        let request = URLRequest(url: URL(string: "https://example.com")!)
+        let carrier = URLRequestBox(request: request)
+        guard let policy = registry.hostProperty(
+            named: "cachePolicy", on: carrier),
+              let stream = registry.hostProperty(
+                named: "httpBodyStream", on: carrier) else {
+            Issue.record("generated URLRequest carrier properties are missing")
+            return
+        }
+        let policyValue = try policy.read(from: .native(carrier), in: interpreter)
+        #expect(policyValue.hostPayload as? URLRequest.CachePolicy == request.cachePolicy)
+
+        let streamValue = try stream.read(from: .native(carrier), in: interpreter)
+        guard case .optional(let optional) = streamValue else {
+            Issue.record("InputStream? should retain Optional storage")
+            return
+        }
+        #expect(optional.wrapped == nil)
+    }
+
     @Test func urlPathMembersDispatchThroughGeneratedTable() throws {
         let source = """
         let url = URL(string: "https://example.com/folder/file.txt")!
@@ -117,6 +243,17 @@ import SwiftUIBridge
         """
         let result = try Interpreter(registry: ViewRegistry()).run(source: source)
         #expect(result.stringValue == "example.com")
+    }
+
+    @Test func generatedReadContractsDoNotMaskHandWrittenSetters() throws {
+        let source = """
+        var components = URLComponents(string: "https://example.com/a")!
+        components.scheme = "http"
+        components.host = "swift.org"
+        "\\(components.scheme!)://\\(components.host!)\\(components.path)"
+        """
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.stringValue == "http://swift.org/a")
     }
 
     @Test func handWrittenOptionalBoundariesRetainWrappers() throws {

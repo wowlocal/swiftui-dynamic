@@ -1,11 +1,11 @@
 import SwiftUI
 import SwiftInterpreter
 
-/// The type-directed call boundary for generated gateways: each generated
-/// overload declares parameter specs (label + coercible type tag); dispatch
-/// filters candidates by label shape and per-argument coercibility, prefers
-/// the most specific match, and invokes statically-compiled SwiftUI calls.
-/// Hand-written gateways are consulted first and always win.
+/// Final host conversions for generated gateways. SwiftUI modifiers and
+/// constructors still use ParamSpec for local selection; generated Foundation
+/// methods/properties carry parsed HostFunction/HostProperty contracts and use
+/// ParamTag only after a method overload has been selected. Hand-written
+/// gateways are consulted first and always win.
 enum ParamTag: String {
     case string, bool, int, double, cgFloat
     case color, font, fontWeight, angle, animation
@@ -305,10 +305,10 @@ struct GeneratedMemberSet {
 
 /// Namespace the generated members file extends with `buildProperties()` /
 /// `buildMethods()`. Keys are "TypeName.memberName" against the receiver's
-/// dynamic type, so a failed downcast (name collision with a non-SDK type)
-/// falls through to the next dispatch tier instead of erroring.
+/// logical SDK type, so hand boxes can expose their wrapped value without
+/// weakening receiver validation.
 enum GeneratedMembers {
-    static let properties: [String: (Any) -> RuntimeValue?] = buildProperties()
+    static let properties: [String: HostProperty] = buildProperties()
 
     static let methods: [String: GeneratedMemberSet] = {
         var grouped: [String: GeneratedMemberSet] = [:]
@@ -341,6 +341,46 @@ enum GeneratedMembers {
             signature: signature, params: params, invoke: invoke))
     }
 
+    static func registerProperty(
+        _ table: inout [String: HostProperty],
+        _ declaration: String,
+        _ get: @escaping (Any) -> RuntimeValue?
+    ) {
+        do {
+            let signature = try HostSignature(parsing: declaration)
+            guard signature.kind == .property,
+                  let receiverType = signature.receiverType else {
+                preconditionFailure(
+                    "BridgeGen emitted inconsistent property metadata for '\(declaration)'")
+            }
+            let property = try HostProperty(
+                signature: signature, get: { receiver, _ in
+                    guard let rawReceiver = receiver.hostPayload else {
+                        throw RuntimeError(
+                            message: "generated property '\(declaration)' received no host payload",
+                            fatal: true)
+                    }
+                    let logicalReceiver = (rawReceiver as? GeneratedMemberCarrier)?
+                        .generatedMemberValue ?? rawReceiver
+                    guard let value = get(logicalReceiver) else {
+                        throw RuntimeError(
+                            message: "generated property '\(declaration)' receiver downcast failed",
+                            fatal: true)
+                    }
+                    return value
+                })
+            let key = "\(receiverType).\(signature.name)"
+            guard table[key] == nil else {
+                preconditionFailure(
+                    "BridgeGen emitted duplicate property metadata for '\(declaration)'")
+            }
+            table[key] = property
+        } catch {
+            preconditionFailure(
+                "BridgeGen emitted an invalid host property '\(declaration)': \(error)")
+        }
+    }
+
     /// The bridgeHostMember hook: hand-written boxes have already refused by
     /// the time this runs; the ObjC trampoline and ad-hoc cases follow it.
     /// A BOX that refused still exposes its wrapped value — the generated
@@ -355,15 +395,14 @@ enum GeneratedMembers {
     }
 
     static func member(_ name: String, on value: Any) -> RuntimeValue? {
-        if let carrier = value as? GeneratedMemberCarrier,
-           let unwrapped = member(name, on: carrier.generatedMemberValue) {
-            return unwrapped
-        }
-        let key = "\(keyTypeName(of: value)).\(name)"
-        if let getter = properties[key] {
-            return getter(value)
-        }
-        return method(name, on: value, unwrapCarrier: false)
+        method(name, on: value)
+    }
+
+    static func property(_ name: String, on value: Any) -> HostProperty? {
+        let logicalReceiver = (value as? GeneratedMemberCarrier)?
+            .generatedMemberValue ?? value
+        let key = "\(keyTypeName(of: logicalReceiver)).\(name)"
+        return properties[key]
     }
 
     /// Methods-only lookup for CALL-site collision rescue: the property

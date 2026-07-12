@@ -425,6 +425,9 @@ Each iteration does exactly this:
   params, filesystem-volatile URL methods, opaque-Sequence iterators.
   Do NOT chase those counts; growth is NEW TYPES (absorb census names
   demand) or the JIT-thunk tier (chartered separately).
+  All 247 swept property getters also carry parsed HostProperty contracts;
+  GeneratedMemberTests invokes every descriptor directly against a typed SDK
+  seed so handwritten/native lookup cannot mask a return-contract mismatch.
   Every finding ParityCheck reports is a real interpreter gap (missing
   constructor or executable-contract mismatch). Source/runtime Foundation
   aliases such as Decimal/NSDecimal and nested generic index types are handled

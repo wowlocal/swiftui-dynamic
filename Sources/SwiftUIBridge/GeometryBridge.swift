@@ -241,8 +241,8 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let member = networkBridgeMember(name, on: value) {
         return member
     }
-    // The generated Foundation tier (BridgeGen --emit over the SDK's
-    // swiftinterface) serves value-type members no hand box claimed.
+    // Generated Foundation methods are the dynamic-member fallback here;
+    // generated properties take the typed HostProperty path first.
     if let member = GeneratedMembers.member(name, on: value) {
         return member
     }
@@ -713,7 +713,14 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
 }
 
 func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
-    hostObjectProperty(name, on: value)
+    if let property = hostObjectProperty(name, on: value) { return property }
+    // Preserve the established hand-written-first boundary. Generated typed
+    // properties fill only the members those boxes/value adapters decline.
+    if hostObjectMember(name, on: value) != nil
+        || networkBridgeMember(name, on: value) != nil {
+        return nil
+    }
+    return GeneratedMembers.property(name, on: value)
 }
 
 /// `.global` / `.local` / `.named("x")` / `.scrollView(axis:)` in frame(in:).
@@ -983,6 +990,8 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is DateFormatterBox: return "DateFormatter"
     case is NumberFormatterBox: return "NumberFormatter"
     case is DateComponentsBox: return "DateComponents"
+    case is URLComponentsBox: return "URLComponents"
+    case is URLRequestBox: return "URLRequest"
     default: return nil
     }
 }

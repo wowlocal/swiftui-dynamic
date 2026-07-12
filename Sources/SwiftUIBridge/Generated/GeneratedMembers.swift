@@ -5,8 +5,8 @@ import Foundation
 import SwiftInterpreter
 
 extension GeneratedMembers {
-    static func buildProperties() -> [String: (Any) -> RuntimeValue?] {
-        var t: [String: (Any) -> RuntimeValue?] = [:]
+    static func buildProperties() -> [String: HostProperty] {
+        var t: [String: HostProperty] = [:]
         buildP0(&t)
         buildP1(&t)
         buildP2(&t)
@@ -26,272 +26,766 @@ extension GeneratedMembers {
         return t
     }
 
-    private static func buildP0(_ t: inout [String: (Any) -> RuntimeValue?]) {
-        t["Calendar.amSymbol"] = { ($0 as? Calendar).map { generatedMemberResult($0.amSymbol) } }
-        t["Calendar.customMirror"] = { ($0 as? Calendar).map { generatedMemberResult($0.customMirror) } }
-        t["Calendar.debugDescription"] = { ($0 as? Calendar).map { generatedMemberResult($0.debugDescription) } }
-        t["Calendar.description"] = { ($0 as? Calendar).map { generatedMemberResult($0.description) } }
-        t["Calendar.eraSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.eraSymbols) } }
-        t["Calendar.firstWeekday"] = { ($0 as? Calendar).map { generatedMemberResult($0.firstWeekday) } }
-        t["Calendar.hashValue"] = { ($0 as? Calendar).map { generatedMemberResult($0.hashValue) } }
-        t["Calendar.identifier"] = { ($0 as? Calendar).map { generatedMemberResult($0.identifier) } }
-        t["Calendar.locale"] = { ($0 as? Calendar).map { generatedMemberResult($0.locale) } }
-        t["Calendar.longEraSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.longEraSymbols) } }
-        t["Calendar.minimumDaysInFirstWeek"] = { ($0 as? Calendar).map { generatedMemberResult($0.minimumDaysInFirstWeek) } }
-        t["Calendar.monthSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.monthSymbols) } }
-        t["Calendar.pmSymbol"] = { ($0 as? Calendar).map { generatedMemberResult($0.pmSymbol) } }
-        t["Calendar.quarterSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.quarterSymbols) } }
-        t["Calendar.shortMonthSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.shortMonthSymbols) } }
-        t["Calendar.shortQuarterSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.shortQuarterSymbols) } }
-        t["Calendar.shortStandaloneMonthSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.shortStandaloneMonthSymbols) } }
-        t["Calendar.shortStandaloneQuarterSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.shortStandaloneQuarterSymbols) } }
-        t["Calendar.shortStandaloneWeekdaySymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.shortStandaloneWeekdaySymbols) } }
-        t["Calendar.shortWeekdaySymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.shortWeekdaySymbols) } }
-        t["Calendar.standaloneMonthSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.standaloneMonthSymbols) } }
-        t["Calendar.standaloneQuarterSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.standaloneQuarterSymbols) } }
-        t["Calendar.standaloneWeekdaySymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.standaloneWeekdaySymbols) } }
-        t["Calendar.timeZone"] = { ($0 as? Calendar).map { generatedMemberResult($0.timeZone) } }
-        t["Calendar.veryShortMonthSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.veryShortMonthSymbols) } }
-        t["Calendar.veryShortStandaloneMonthSymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.veryShortStandaloneMonthSymbols) } }
-        t["Calendar.veryShortStandaloneWeekdaySymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.veryShortStandaloneWeekdaySymbols) } }
-        t["Calendar.veryShortWeekdaySymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.veryShortWeekdaySymbols) } }
-        t["Calendar.weekdaySymbols"] = { ($0 as? Calendar).map { generatedMemberResult($0.weekdaySymbols) } }
-        t["CharacterSet.bitmapRepresentation"] = { ($0 as? CharacterSet).map { generatedMemberResult($0.bitmapRepresentation) } }
-        t["CharacterSet.debugDescription"] = { ($0 as? CharacterSet).map { generatedMemberResult($0.debugDescription) } }
-        t["CharacterSet.description"] = { ($0 as? CharacterSet).map { generatedMemberResult($0.description) } }
-        t["CharacterSet.hashValue"] = { ($0 as? CharacterSet).map { generatedMemberResult($0.hashValue) } }
-        t["CharacterSet.inverted"] = { ($0 as? CharacterSet).map { generatedMemberResult($0.inverted) } }
-        t["Data.customMirror"] = { ($0 as? Data).map { generatedMemberResult($0.customMirror) } }
-        t["Data.debugDescription"] = { ($0 as? Data).map { generatedMemberResult($0.debugDescription) } }
-        t["Data.description"] = { ($0 as? Data).map { generatedMemberResult($0.description) } }
-        t["Date.customMirror"] = { ($0 as? Date).map { generatedMemberResult($0.customMirror) } }
-        t["Date.debugDescription"] = { ($0 as? Date).map { generatedMemberResult($0.debugDescription) } }
-        t["Date.description"] = { ($0 as? Date).map { generatedMemberResult($0.description) } }
+    private static func buildP0(_ t: inout [String: HostProperty]) {
+        registerProperty(&t, "var Calendar.amSymbol: String { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.amSymbol) }
+        }
+        registerProperty(&t, "var Calendar.customMirror: Mirror { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var Calendar.debugDescription: String { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var Calendar.description: String { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var Calendar.eraSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.eraSymbols) }
+        }
+        registerProperty(&t, "var Calendar.firstWeekday: Int { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.firstWeekday) }
+        }
+        registerProperty(&t, "var Calendar.hashValue: Int { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var Calendar.identifier: Calendar.Identifier { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.identifier) }
+        }
+        registerProperty(&t, "var Calendar.locale: Locale? { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.locale) }
+        }
+        registerProperty(&t, "var Calendar.longEraSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.longEraSymbols) }
+        }
+        registerProperty(&t, "var Calendar.minimumDaysInFirstWeek: Int { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.minimumDaysInFirstWeek) }
+        }
+        registerProperty(&t, "var Calendar.monthSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.monthSymbols) }
+        }
+        registerProperty(&t, "var Calendar.pmSymbol: String { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.pmSymbol) }
+        }
+        registerProperty(&t, "var Calendar.quarterSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.quarterSymbols) }
+        }
+        registerProperty(&t, "var Calendar.shortMonthSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.shortMonthSymbols) }
+        }
+        registerProperty(&t, "var Calendar.shortQuarterSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.shortQuarterSymbols) }
+        }
+        registerProperty(&t, "var Calendar.shortStandaloneMonthSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.shortStandaloneMonthSymbols) }
+        }
+        registerProperty(&t, "var Calendar.shortStandaloneQuarterSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.shortStandaloneQuarterSymbols) }
+        }
+        registerProperty(&t, "var Calendar.shortStandaloneWeekdaySymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.shortStandaloneWeekdaySymbols) }
+        }
+        registerProperty(&t, "var Calendar.shortWeekdaySymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.shortWeekdaySymbols) }
+        }
+        registerProperty(&t, "var Calendar.standaloneMonthSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.standaloneMonthSymbols) }
+        }
+        registerProperty(&t, "var Calendar.standaloneQuarterSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.standaloneQuarterSymbols) }
+        }
+        registerProperty(&t, "var Calendar.standaloneWeekdaySymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.standaloneWeekdaySymbols) }
+        }
+        registerProperty(&t, "var Calendar.timeZone: TimeZone { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.timeZone) }
+        }
+        registerProperty(&t, "var Calendar.veryShortMonthSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.veryShortMonthSymbols) }
+        }
+        registerProperty(&t, "var Calendar.veryShortStandaloneMonthSymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.veryShortStandaloneMonthSymbols) }
+        }
+        registerProperty(&t, "var Calendar.veryShortStandaloneWeekdaySymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.veryShortStandaloneWeekdaySymbols) }
+        }
+        registerProperty(&t, "var Calendar.veryShortWeekdaySymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.veryShortWeekdaySymbols) }
+        }
+        registerProperty(&t, "var Calendar.weekdaySymbols: [String] { get }") { base in
+            (base as? Calendar).map { generatedMemberResult($0.weekdaySymbols) }
+        }
+        registerProperty(&t, "var CharacterSet.bitmapRepresentation: Data { get }") { base in
+            (base as? CharacterSet).map { generatedMemberResult($0.bitmapRepresentation) }
+        }
+        registerProperty(&t, "var CharacterSet.debugDescription: String { get }") { base in
+            (base as? CharacterSet).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var CharacterSet.description: String { get }") { base in
+            (base as? CharacterSet).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var CharacterSet.hashValue: Int { get }") { base in
+            (base as? CharacterSet).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var CharacterSet.inverted: CharacterSet { get }") { base in
+            (base as? CharacterSet).map { generatedMemberResult($0.inverted) }
+        }
+        registerProperty(&t, "var Data.customMirror: Mirror { get }") { base in
+            (base as? Data).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var Data.debugDescription: String { get }") { base in
+            (base as? Data).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var Data.description: String { get }") { base in
+            (base as? Data).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var Date.customMirror: Mirror { get }") { base in
+            (base as? Date).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var Date.debugDescription: String { get }") { base in
+            (base as? Date).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var Date.description: String { get }") { base in
+            (base as? Date).map { generatedMemberResult($0.description) }
+        }
     }
 
-    private static func buildP1(_ t: inout [String: (Any) -> RuntimeValue?]) {
-        t["Date.hashValue"] = { ($0 as? Date).map { generatedMemberResult($0.hashValue) } }
-        t["Date.timeIntervalSince1970"] = { ($0 as? Date).map { generatedMemberResult($0.timeIntervalSince1970) } }
-        t["Date.timeIntervalSinceNow"] = { ($0 as? Date).map { generatedMemberResult($0.timeIntervalSinceNow) } }
-        t["Date.timeIntervalSinceReferenceDate"] = { ($0 as? Date).map { generatedMemberResult($0.timeIntervalSinceReferenceDate) } }
-        t["DateComponents.calendar"] = { ($0 as? DateComponents).map { generatedMemberResult($0.calendar) } }
-        t["DateComponents.customMirror"] = { ($0 as? DateComponents).map { generatedMemberResult($0.customMirror) } }
-        t["DateComponents.date"] = { ($0 as? DateComponents).map { generatedMemberResult($0.date) } }
-        t["DateComponents.day"] = { ($0 as? DateComponents).map { generatedMemberResult($0.day) } }
-        t["DateComponents.dayOfYear"] = { ($0 as? DateComponents).map { generatedMemberResult($0.dayOfYear) } }
-        t["DateComponents.debugDescription"] = { ($0 as? DateComponents).map { generatedMemberResult($0.debugDescription) } }
-        t["DateComponents.description"] = { ($0 as? DateComponents).map { generatedMemberResult($0.description) } }
-        t["DateComponents.era"] = { ($0 as? DateComponents).map { generatedMemberResult($0.era) } }
-        t["DateComponents.hashValue"] = { ($0 as? DateComponents).map { generatedMemberResult($0.hashValue) } }
-        t["DateComponents.hour"] = { ($0 as? DateComponents).map { generatedMemberResult($0.hour) } }
-        t["DateComponents.isLeapMonth"] = { ($0 as? DateComponents).map { generatedMemberResult($0.isLeapMonth) } }
-        t["DateComponents.isValidDate"] = { ($0 as? DateComponents).map { generatedMemberResult($0.isValidDate) } }
-        t["DateComponents.minute"] = { ($0 as? DateComponents).map { generatedMemberResult($0.minute) } }
-        t["DateComponents.month"] = { ($0 as? DateComponents).map { generatedMemberResult($0.month) } }
-        t["DateComponents.nanosecond"] = { ($0 as? DateComponents).map { generatedMemberResult($0.nanosecond) } }
-        t["DateComponents.quarter"] = { ($0 as? DateComponents).map { generatedMemberResult($0.quarter) } }
-        t["DateComponents.second"] = { ($0 as? DateComponents).map { generatedMemberResult($0.second) } }
-        t["DateComponents.timeZone"] = { ($0 as? DateComponents).map { generatedMemberResult($0.timeZone) } }
-        t["DateComponents.weekOfMonth"] = { ($0 as? DateComponents).map { generatedMemberResult($0.weekOfMonth) } }
-        t["DateComponents.weekOfYear"] = { ($0 as? DateComponents).map { generatedMemberResult($0.weekOfYear) } }
-        t["DateComponents.weekday"] = { ($0 as? DateComponents).map { generatedMemberResult($0.weekday) } }
-        t["DateComponents.weekdayOrdinal"] = { ($0 as? DateComponents).map { generatedMemberResult($0.weekdayOrdinal) } }
-        t["DateComponents.year"] = { ($0 as? DateComponents).map { generatedMemberResult($0.year) } }
-        t["DateComponents.yearForWeekOfYear"] = { ($0 as? DateComponents).map { generatedMemberResult($0.yearForWeekOfYear) } }
-        t["DateInterval.customMirror"] = { ($0 as? DateInterval).map { generatedMemberResult($0.customMirror) } }
-        t["DateInterval.debugDescription"] = { ($0 as? DateInterval).map { generatedMemberResult($0.debugDescription) } }
-        t["DateInterval.description"] = { ($0 as? DateInterval).map { generatedMemberResult($0.description) } }
-        t["DateInterval.duration"] = { ($0 as? DateInterval).map { generatedMemberResult($0.duration) } }
-        t["DateInterval.end"] = { ($0 as? DateInterval).map { generatedMemberResult($0.end) } }
-        t["DateInterval.hashValue"] = { ($0 as? DateInterval).map { generatedMemberResult($0.hashValue) } }
-        t["DateInterval.start"] = { ($0 as? DateInterval).map { generatedMemberResult($0.start) } }
-        t["Decimal.description"] = { ($0 as? Decimal).map { generatedMemberResult($0.description) } }
-        t["Decimal.exponent"] = { ($0 as? Decimal).map { generatedMemberResult($0.exponent) } }
-        t["Decimal.floatingPointClass"] = { ($0 as? Decimal).map { generatedMemberResult($0.floatingPointClass) } }
-        t["Decimal.hashValue"] = { ($0 as? Decimal).map { generatedMemberResult($0.hashValue) } }
-        t["Decimal.isCanonical"] = { ($0 as? Decimal).map { generatedMemberResult($0.isCanonical) } }
+    private static func buildP1(_ t: inout [String: HostProperty]) {
+        registerProperty(&t, "var Date.hashValue: Int { get }") { base in
+            (base as? Date).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var Date.timeIntervalSince1970: TimeInterval { get }") { base in
+            (base as? Date).map { generatedMemberResult($0.timeIntervalSince1970) }
+        }
+        registerProperty(&t, "var Date.timeIntervalSinceNow: TimeInterval { get }") { base in
+            (base as? Date).map { generatedMemberResult($0.timeIntervalSinceNow) }
+        }
+        registerProperty(&t, "var Date.timeIntervalSinceReferenceDate: TimeInterval { get }") { base in
+            (base as? Date).map { generatedMemberResult($0.timeIntervalSinceReferenceDate) }
+        }
+        registerProperty(&t, "var DateComponents.calendar: Calendar? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.calendar) }
+        }
+        registerProperty(&t, "var DateComponents.customMirror: Mirror { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var DateComponents.date: Date? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.date) }
+        }
+        registerProperty(&t, "var DateComponents.day: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.day) }
+        }
+        registerProperty(&t, "var DateComponents.dayOfYear: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.dayOfYear) }
+        }
+        registerProperty(&t, "var DateComponents.debugDescription: String { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var DateComponents.description: String { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var DateComponents.era: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.era) }
+        }
+        registerProperty(&t, "var DateComponents.hashValue: Int { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var DateComponents.hour: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.hour) }
+        }
+        registerProperty(&t, "var DateComponents.isLeapMonth: Bool? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.isLeapMonth) }
+        }
+        registerProperty(&t, "var DateComponents.isValidDate: Bool { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.isValidDate) }
+        }
+        registerProperty(&t, "var DateComponents.minute: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.minute) }
+        }
+        registerProperty(&t, "var DateComponents.month: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.month) }
+        }
+        registerProperty(&t, "var DateComponents.nanosecond: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.nanosecond) }
+        }
+        registerProperty(&t, "var DateComponents.quarter: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.quarter) }
+        }
+        registerProperty(&t, "var DateComponents.second: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.second) }
+        }
+        registerProperty(&t, "var DateComponents.timeZone: TimeZone? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.timeZone) }
+        }
+        registerProperty(&t, "var DateComponents.weekOfMonth: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.weekOfMonth) }
+        }
+        registerProperty(&t, "var DateComponents.weekOfYear: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.weekOfYear) }
+        }
+        registerProperty(&t, "var DateComponents.weekday: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.weekday) }
+        }
+        registerProperty(&t, "var DateComponents.weekdayOrdinal: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.weekdayOrdinal) }
+        }
+        registerProperty(&t, "var DateComponents.year: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.year) }
+        }
+        registerProperty(&t, "var DateComponents.yearForWeekOfYear: Int? { get }") { base in
+            (base as? DateComponents).map { generatedMemberResult($0.yearForWeekOfYear) }
+        }
+        registerProperty(&t, "var DateInterval.customMirror: Mirror { get }") { base in
+            (base as? DateInterval).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var DateInterval.debugDescription: String { get }") { base in
+            (base as? DateInterval).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var DateInterval.description: String { get }") { base in
+            (base as? DateInterval).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var DateInterval.duration: TimeInterval { get }") { base in
+            (base as? DateInterval).map { generatedMemberResult($0.duration) }
+        }
+        registerProperty(&t, "var DateInterval.end: Date { get }") { base in
+            (base as? DateInterval).map { generatedMemberResult($0.end) }
+        }
+        registerProperty(&t, "var DateInterval.hashValue: Int { get }") { base in
+            (base as? DateInterval).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var DateInterval.start: Date { get }") { base in
+            (base as? DateInterval).map { generatedMemberResult($0.start) }
+        }
+        registerProperty(&t, "var Decimal.description: String { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var Decimal.exponent: Int { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.exponent) }
+        }
+        registerProperty(&t, "var Decimal.floatingPointClass: FloatingPointClassification { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.floatingPointClass) }
+        }
+        registerProperty(&t, "var Decimal.hashValue: Int { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var Decimal.isCanonical: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isCanonical) }
+        }
     }
 
-    private static func buildP2(_ t: inout [String: (Any) -> RuntimeValue?]) {
-        t["Decimal.isFinite"] = { ($0 as? Decimal).map { generatedMemberResult($0.isFinite) } }
-        t["Decimal.isInfinite"] = { ($0 as? Decimal).map { generatedMemberResult($0.isInfinite) } }
-        t["Decimal.isNaN"] = { ($0 as? Decimal).map { generatedMemberResult($0.isNaN) } }
-        t["Decimal.isNormal"] = { ($0 as? Decimal).map { generatedMemberResult($0.isNormal) } }
-        t["Decimal.isSignMinus"] = { ($0 as? Decimal).map { generatedMemberResult($0.isSignMinus) } }
-        t["Decimal.isSignaling"] = { ($0 as? Decimal).map { generatedMemberResult($0.isSignaling) } }
-        t["Decimal.isSignalingNaN"] = { ($0 as? Decimal).map { generatedMemberResult($0.isSignalingNaN) } }
-        t["Decimal.isSubnormal"] = { ($0 as? Decimal).map { generatedMemberResult($0.isSubnormal) } }
-        t["Decimal.isZero"] = { ($0 as? Decimal).map { generatedMemberResult($0.isZero) } }
-        t["Decimal.magnitude"] = { ($0 as? Decimal).map { generatedMemberResult($0.magnitude) } }
-        t["Decimal.nextDown"] = { ($0 as? Decimal).map { generatedMemberResult($0.nextDown) } }
-        t["Decimal.nextUp"] = { ($0 as? Decimal).map { generatedMemberResult($0.nextUp) } }
-        t["Decimal.sign"] = { ($0 as? Decimal).map { generatedMemberResult($0.sign) } }
-        t["Decimal.significand"] = { ($0 as? Decimal).map { generatedMemberResult($0.significand) } }
-        t["Decimal.ulp"] = { ($0 as? Decimal).map { generatedMemberResult($0.ulp) } }
-        t["IndexPath.count"] = { ($0 as? IndexPath).map { generatedMemberResult($0.count) } }
-        t["IndexPath.customMirror"] = { ($0 as? IndexPath).map { generatedMemberResult($0.customMirror) } }
-        t["IndexPath.debugDescription"] = { ($0 as? IndexPath).map { generatedMemberResult($0.debugDescription) } }
-        t["IndexPath.description"] = { ($0 as? IndexPath).map { generatedMemberResult($0.description) } }
-        t["IndexPath.endIndex"] = { ($0 as? IndexPath).map { generatedMemberResult($0.endIndex) } }
-        t["IndexPath.hashValue"] = { ($0 as? IndexPath).map { generatedMemberResult($0.hashValue) } }
-        t["IndexPath.startIndex"] = { ($0 as? IndexPath).map { generatedMemberResult($0.startIndex) } }
-        t["IndexSet.count"] = { ($0 as? IndexSet).map { generatedMemberResult($0.count) } }
-        t["IndexSet.customMirror"] = { ($0 as? IndexSet).map { generatedMemberResult($0.customMirror) } }
-        t["IndexSet.debugDescription"] = { ($0 as? IndexSet).map { generatedMemberResult($0.debugDescription) } }
-        t["IndexSet.description"] = { ($0 as? IndexSet).map { generatedMemberResult($0.description) } }
-        t["IndexSet.endIndex"] = { ($0 as? IndexSet).map { generatedMemberResult($0.endIndex) } }
-        t["IndexSet.first"] = { ($0 as? IndexSet).map { generatedMemberResult($0.first) } }
-        t["IndexSet.hashValue"] = { ($0 as? IndexSet).map { generatedMemberResult($0.hashValue) } }
-        t["IndexSet.isEmpty"] = { ($0 as? IndexSet).map { generatedMemberResult($0.isEmpty) } }
-        t["IndexSet.last"] = { ($0 as? IndexSet).map { generatedMemberResult($0.last) } }
-        t["IndexSet.rangeView"] = { ($0 as? IndexSet).map { generatedMemberResult($0.rangeView) } }
-        t["IndexSet.startIndex"] = { ($0 as? IndexSet).map { generatedMemberResult($0.startIndex) } }
-        t["Locale.alternateQuotationBeginDelimiter"] = { ($0 as? Locale).map { generatedMemberResult($0.alternateQuotationBeginDelimiter) } }
-        t["Locale.alternateQuotationEndDelimiter"] = { ($0 as? Locale).map { generatedMemberResult($0.alternateQuotationEndDelimiter) } }
-        t["Locale.availableNumberingSystems"] = { ($0 as? Locale).map { generatedMemberResult($0.availableNumberingSystems) } }
-        t["Locale.calendar"] = { ($0 as? Locale).map { generatedMemberResult($0.calendar) } }
-        t["Locale.collation"] = { ($0 as? Locale).map { generatedMemberResult($0.collation) } }
-        t["Locale.collatorIdentifier"] = { ($0 as? Locale).map { generatedMemberResult($0.collatorIdentifier) } }
-        t["Locale.currency"] = { ($0 as? Locale).map { generatedMemberResult($0.currency) } }
+    private static func buildP2(_ t: inout [String: HostProperty]) {
+        registerProperty(&t, "var Decimal.isFinite: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isFinite) }
+        }
+        registerProperty(&t, "var Decimal.isInfinite: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isInfinite) }
+        }
+        registerProperty(&t, "var Decimal.isNaN: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isNaN) }
+        }
+        registerProperty(&t, "var Decimal.isNormal: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isNormal) }
+        }
+        registerProperty(&t, "var Decimal.isSignMinus: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isSignMinus) }
+        }
+        registerProperty(&t, "var Decimal.isSignaling: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isSignaling) }
+        }
+        registerProperty(&t, "var Decimal.isSignalingNaN: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isSignalingNaN) }
+        }
+        registerProperty(&t, "var Decimal.isSubnormal: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isSubnormal) }
+        }
+        registerProperty(&t, "var Decimal.isZero: Bool { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.isZero) }
+        }
+        registerProperty(&t, "var Decimal.magnitude: Decimal { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.magnitude) }
+        }
+        registerProperty(&t, "var Decimal.nextDown: Decimal { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.nextDown) }
+        }
+        registerProperty(&t, "var Decimal.nextUp: Decimal { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.nextUp) }
+        }
+        registerProperty(&t, "var Decimal.sign: FloatingPointSign { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.sign) }
+        }
+        registerProperty(&t, "var Decimal.significand: Decimal { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.significand) }
+        }
+        registerProperty(&t, "var Decimal.ulp: Decimal { get }") { base in
+            (base as? Decimal).map { generatedMemberResult($0.ulp) }
+        }
+        registerProperty(&t, "var IndexPath.count: Int { get }") { base in
+            (base as? IndexPath).map { generatedMemberResult($0.count) }
+        }
+        registerProperty(&t, "var IndexPath.customMirror: Mirror { get }") { base in
+            (base as? IndexPath).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var IndexPath.debugDescription: String { get }") { base in
+            (base as? IndexPath).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var IndexPath.description: String { get }") { base in
+            (base as? IndexPath).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var IndexPath.endIndex: Int { get }") { base in
+            (base as? IndexPath).map { generatedMemberResult($0.endIndex) }
+        }
+        registerProperty(&t, "var IndexPath.hashValue: Int { get }") { base in
+            (base as? IndexPath).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var IndexPath.startIndex: Int { get }") { base in
+            (base as? IndexPath).map { generatedMemberResult($0.startIndex) }
+        }
+        registerProperty(&t, "var IndexSet.count: Int { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.count) }
+        }
+        registerProperty(&t, "var IndexSet.customMirror: Mirror { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var IndexSet.debugDescription: String { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var IndexSet.description: String { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var IndexSet.endIndex: IndexSet.Index { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.endIndex) }
+        }
+        registerProperty(&t, "var IndexSet.first: Int? { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.first) }
+        }
+        registerProperty(&t, "var IndexSet.hashValue: Int { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var IndexSet.isEmpty: Bool { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.isEmpty) }
+        }
+        registerProperty(&t, "var IndexSet.last: Int? { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.last) }
+        }
+        registerProperty(&t, "var IndexSet.rangeView: IndexSet.RangeView { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.rangeView) }
+        }
+        registerProperty(&t, "var IndexSet.startIndex: IndexSet.Index { get }") { base in
+            (base as? IndexSet).map { generatedMemberResult($0.startIndex) }
+        }
+        registerProperty(&t, "var Locale.alternateQuotationBeginDelimiter: String? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.alternateQuotationBeginDelimiter) }
+        }
+        registerProperty(&t, "var Locale.alternateQuotationEndDelimiter: String? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.alternateQuotationEndDelimiter) }
+        }
+        registerProperty(&t, "var Locale.availableNumberingSystems: [Locale.NumberingSystem] { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.availableNumberingSystems) }
+        }
+        registerProperty(&t, "var Locale.calendar: Calendar { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.calendar) }
+        }
+        registerProperty(&t, "var Locale.collation: Locale.Collation { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.collation) }
+        }
+        registerProperty(&t, "var Locale.collatorIdentifier: String? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.collatorIdentifier) }
+        }
+        registerProperty(&t, "var Locale.currency: Locale.Currency? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.currency) }
+        }
     }
 
-    private static func buildP3(_ t: inout [String: (Any) -> RuntimeValue?]) {
-        t["Locale.currencySymbol"] = { ($0 as? Locale).map { generatedMemberResult($0.currencySymbol) } }
-        t["Locale.customMirror"] = { ($0 as? Locale).map { generatedMemberResult($0.customMirror) } }
-        t["Locale.debugDescription"] = { ($0 as? Locale).map { generatedMemberResult($0.debugDescription) } }
-        t["Locale.decimalSeparator"] = { ($0 as? Locale).map { generatedMemberResult($0.decimalSeparator) } }
-        t["Locale.description"] = { ($0 as? Locale).map { generatedMemberResult($0.description) } }
-        t["Locale.exemplarCharacterSet"] = { ($0 as? Locale).map { generatedMemberResult($0.exemplarCharacterSet) } }
-        t["Locale.firstDayOfWeek"] = { ($0 as? Locale).map { generatedMemberResult($0.firstDayOfWeek) } }
-        t["Locale.groupingSeparator"] = { ($0 as? Locale).map { generatedMemberResult($0.groupingSeparator) } }
-        t["Locale.hashValue"] = { ($0 as? Locale).map { generatedMemberResult($0.hashValue) } }
-        t["Locale.hourCycle"] = { ($0 as? Locale).map { generatedMemberResult($0.hourCycle) } }
-        t["Locale.identifier"] = { ($0 as? Locale).map { generatedMemberResult($0.identifier) } }
-        t["Locale.language"] = { ($0 as? Locale).map { generatedMemberResult($0.language) } }
-        t["Locale.measurementSystem"] = { ($0 as? Locale).map { generatedMemberResult($0.measurementSystem) } }
-        t["Locale.numberingSystem"] = { ($0 as? Locale).map { generatedMemberResult($0.numberingSystem) } }
-        t["Locale.quotationBeginDelimiter"] = { ($0 as? Locale).map { generatedMemberResult($0.quotationBeginDelimiter) } }
-        t["Locale.quotationEndDelimiter"] = { ($0 as? Locale).map { generatedMemberResult($0.quotationEndDelimiter) } }
-        t["Locale.region"] = { ($0 as? Locale).map { generatedMemberResult($0.region) } }
-        t["Locale.subdivision"] = { ($0 as? Locale).map { generatedMemberResult($0.subdivision) } }
-        t["Locale.timeZone"] = { ($0 as? Locale).map { generatedMemberResult($0.timeZone) } }
-        t["Locale.variant"] = { ($0 as? Locale).map { generatedMemberResult($0.variant) } }
-        t["PersonNameComponents.customMirror"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.customMirror) } }
-        t["PersonNameComponents.debugDescription"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.debugDescription) } }
-        t["PersonNameComponents.description"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.description) } }
-        t["PersonNameComponents.familyName"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.familyName) } }
-        t["PersonNameComponents.givenName"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.givenName) } }
-        t["PersonNameComponents.hashValue"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.hashValue) } }
-        t["PersonNameComponents.middleName"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.middleName) } }
-        t["PersonNameComponents.namePrefix"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.namePrefix) } }
-        t["PersonNameComponents.nameSuffix"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.nameSuffix) } }
-        t["PersonNameComponents.nickname"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.nickname) } }
-        t["PersonNameComponents.phoneticRepresentation"] = { ($0 as? PersonNameComponents).map { generatedMemberResult($0.phoneticRepresentation) } }
-        t["TimeZone.customMirror"] = { ($0 as? TimeZone).map { generatedMemberResult($0.customMirror) } }
-        t["TimeZone.debugDescription"] = { ($0 as? TimeZone).map { generatedMemberResult($0.debugDescription) } }
-        t["TimeZone.description"] = { ($0 as? TimeZone).map { generatedMemberResult($0.description) } }
-        t["TimeZone.hashValue"] = { ($0 as? TimeZone).map { generatedMemberResult($0.hashValue) } }
-        t["TimeZone.identifier"] = { ($0 as? TimeZone).map { generatedMemberResult($0.identifier) } }
-        t["TimeZone.nextDaylightSavingTimeTransition"] = { ($0 as? TimeZone).map { generatedMemberResult($0.nextDaylightSavingTimeTransition) } }
-        t["URL.absoluteString"] = { ($0 as? URL).map { generatedMemberResult($0.absoluteString) } }
-        t["URL.absoluteURL"] = { ($0 as? URL).map { generatedMemberResult($0.absoluteURL) } }
-        t["URL.baseURL"] = { ($0 as? URL).map { generatedMemberResult($0.baseURL) } }
+    private static func buildP3(_ t: inout [String: HostProperty]) {
+        registerProperty(&t, "var Locale.currencySymbol: String? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.currencySymbol) }
+        }
+        registerProperty(&t, "var Locale.customMirror: Mirror { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var Locale.debugDescription: String { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var Locale.decimalSeparator: String? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.decimalSeparator) }
+        }
+        registerProperty(&t, "var Locale.description: String { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var Locale.exemplarCharacterSet: CharacterSet? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.exemplarCharacterSet) }
+        }
+        registerProperty(&t, "var Locale.firstDayOfWeek: Locale.Weekday { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.firstDayOfWeek) }
+        }
+        registerProperty(&t, "var Locale.groupingSeparator: String? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.groupingSeparator) }
+        }
+        registerProperty(&t, "var Locale.hashValue: Int { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var Locale.hourCycle: Locale.HourCycle { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.hourCycle) }
+        }
+        registerProperty(&t, "var Locale.identifier: String { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.identifier) }
+        }
+        registerProperty(&t, "var Locale.language: Locale.Language { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.language) }
+        }
+        registerProperty(&t, "var Locale.measurementSystem: Locale.MeasurementSystem { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.measurementSystem) }
+        }
+        registerProperty(&t, "var Locale.numberingSystem: Locale.NumberingSystem { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.numberingSystem) }
+        }
+        registerProperty(&t, "var Locale.quotationBeginDelimiter: String? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.quotationBeginDelimiter) }
+        }
+        registerProperty(&t, "var Locale.quotationEndDelimiter: String? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.quotationEndDelimiter) }
+        }
+        registerProperty(&t, "var Locale.region: Locale.Region? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.region) }
+        }
+        registerProperty(&t, "var Locale.subdivision: Locale.Subdivision? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.subdivision) }
+        }
+        registerProperty(&t, "var Locale.timeZone: TimeZone? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.timeZone) }
+        }
+        registerProperty(&t, "var Locale.variant: Locale.Variant? { get }") { base in
+            (base as? Locale).map { generatedMemberResult($0.variant) }
+        }
+        registerProperty(&t, "var PersonNameComponents.customMirror: Mirror { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var PersonNameComponents.debugDescription: String { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var PersonNameComponents.description: String { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var PersonNameComponents.familyName: String? { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.familyName) }
+        }
+        registerProperty(&t, "var PersonNameComponents.givenName: String? { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.givenName) }
+        }
+        registerProperty(&t, "var PersonNameComponents.hashValue: Int { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var PersonNameComponents.middleName: String? { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.middleName) }
+        }
+        registerProperty(&t, "var PersonNameComponents.namePrefix: String? { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.namePrefix) }
+        }
+        registerProperty(&t, "var PersonNameComponents.nameSuffix: String? { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.nameSuffix) }
+        }
+        registerProperty(&t, "var PersonNameComponents.nickname: String? { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.nickname) }
+        }
+        registerProperty(&t, "var PersonNameComponents.phoneticRepresentation: PersonNameComponents? { get }") { base in
+            (base as? PersonNameComponents).map { generatedMemberResult($0.phoneticRepresentation) }
+        }
+        registerProperty(&t, "var TimeZone.customMirror: Mirror { get }") { base in
+            (base as? TimeZone).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var TimeZone.debugDescription: String { get }") { base in
+            (base as? TimeZone).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var TimeZone.description: String { get }") { base in
+            (base as? TimeZone).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var TimeZone.hashValue: Int { get }") { base in
+            (base as? TimeZone).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var TimeZone.identifier: String { get }") { base in
+            (base as? TimeZone).map { generatedMemberResult($0.identifier) }
+        }
+        registerProperty(&t, "var TimeZone.nextDaylightSavingTimeTransition: Date? { get }") { base in
+            (base as? TimeZone).map { generatedMemberResult($0.nextDaylightSavingTimeTransition) }
+        }
+        registerProperty(&t, "var URL.absoluteString: String { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.absoluteString) }
+        }
+        registerProperty(&t, "var URL.absoluteURL: URL { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.absoluteURL) }
+        }
+        registerProperty(&t, "var URL.baseURL: URL? { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.baseURL) }
+        }
     }
 
-    private static func buildP4(_ t: inout [String: (Any) -> RuntimeValue?]) {
-        t["URL.dataRepresentation"] = { ($0 as? URL).map { generatedMemberResult($0.dataRepresentation) } }
-        t["URL.debugDescription"] = { ($0 as? URL).map { generatedMemberResult($0.debugDescription) } }
-        t["URL.description"] = { ($0 as? URL).map { generatedMemberResult($0.description) } }
-        t["URL.fragment"] = { ($0 as? URL).map { generatedMemberResult($0.fragment) } }
-        t["URL.hasDirectoryPath"] = { ($0 as? URL).map { generatedMemberResult($0.hasDirectoryPath) } }
-        t["URL.hashValue"] = { ($0 as? URL).map { generatedMemberResult($0.hashValue) } }
-        t["URL.host"] = { ($0 as? URL).map { generatedMemberResult($0.host) } }
-        t["URL.isFileURL"] = { ($0 as? URL).map { generatedMemberResult($0.isFileURL) } }
-        t["URL.lastPathComponent"] = { ($0 as? URL).map { generatedMemberResult($0.lastPathComponent) } }
-        t["URL.lines"] = { ($0 as? URL).map { generatedMemberResult($0.lines) } }
-        t["URL.password"] = { ($0 as? URL).map { generatedMemberResult($0.password) } }
-        t["URL.path"] = { ($0 as? URL).map { generatedMemberResult($0.path) } }
-        t["URL.pathComponents"] = { ($0 as? URL).map { generatedMemberResult($0.pathComponents) } }
-        t["URL.pathExtension"] = { ($0 as? URL).map { generatedMemberResult($0.pathExtension) } }
-        t["URL.port"] = { ($0 as? URL).map { generatedMemberResult($0.port) } }
-        t["URL.query"] = { ($0 as? URL).map { generatedMemberResult($0.query) } }
-        t["URL.relativePath"] = { ($0 as? URL).map { generatedMemberResult($0.relativePath) } }
-        t["URL.relativeString"] = { ($0 as? URL).map { generatedMemberResult($0.relativeString) } }
-        t["URL.resourceBytes"] = { ($0 as? URL).map { generatedMemberResult($0.resourceBytes) } }
-        t["URL.scheme"] = { ($0 as? URL).map { generatedMemberResult($0.scheme) } }
-        t["URL.standardized"] = { ($0 as? URL).map { generatedMemberResult($0.standardized) } }
-        t["URL.standardizedFileURL"] = { ($0 as? URL).map { generatedMemberResult($0.standardizedFileURL) } }
-        t["URL.user"] = { ($0 as? URL).map { generatedMemberResult($0.user) } }
-        t["URLComponents.customMirror"] = { ($0 as? URLComponents).map { generatedMemberResult($0.customMirror) } }
-        t["URLComponents.debugDescription"] = { ($0 as? URLComponents).map { generatedMemberResult($0.debugDescription) } }
-        t["URLComponents.description"] = { ($0 as? URLComponents).map { generatedMemberResult($0.description) } }
-        t["URLComponents.encodedHost"] = { ($0 as? URLComponents).map { generatedMemberResult($0.encodedHost) } }
-        t["URLComponents.fragment"] = { ($0 as? URLComponents).map { generatedMemberResult($0.fragment) } }
-        t["URLComponents.hashValue"] = { ($0 as? URLComponents).map { generatedMemberResult($0.hashValue) } }
-        t["URLComponents.host"] = { ($0 as? URLComponents).map { generatedMemberResult($0.host) } }
-        t["URLComponents.password"] = { ($0 as? URLComponents).map { generatedMemberResult($0.password) } }
-        t["URLComponents.path"] = { ($0 as? URLComponents).map { generatedMemberResult($0.path) } }
-        t["URLComponents.percentEncodedFragment"] = { ($0 as? URLComponents).map { generatedMemberResult($0.percentEncodedFragment) } }
-        t["URLComponents.percentEncodedHost"] = { ($0 as? URLComponents).map { generatedMemberResult($0.percentEncodedHost) } }
-        t["URLComponents.percentEncodedPassword"] = { ($0 as? URLComponents).map { generatedMemberResult($0.percentEncodedPassword) } }
-        t["URLComponents.percentEncodedPath"] = { ($0 as? URLComponents).map { generatedMemberResult($0.percentEncodedPath) } }
-        t["URLComponents.percentEncodedQuery"] = { ($0 as? URLComponents).map { generatedMemberResult($0.percentEncodedQuery) } }
-        t["URLComponents.percentEncodedQueryItems"] = { ($0 as? URLComponents).map { generatedMemberResult($0.percentEncodedQueryItems) } }
-        t["URLComponents.percentEncodedUser"] = { ($0 as? URLComponents).map { generatedMemberResult($0.percentEncodedUser) } }
-        t["URLComponents.port"] = { ($0 as? URLComponents).map { generatedMemberResult($0.port) } }
+    private static func buildP4(_ t: inout [String: HostProperty]) {
+        registerProperty(&t, "var URL.dataRepresentation: Data { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.dataRepresentation) }
+        }
+        registerProperty(&t, "var URL.debugDescription: String { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var URL.description: String { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var URL.fragment: String? { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.fragment) }
+        }
+        registerProperty(&t, "var URL.hasDirectoryPath: Bool { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.hasDirectoryPath) }
+        }
+        registerProperty(&t, "var URL.hashValue: Int { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var URL.host: String? { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.host) }
+        }
+        registerProperty(&t, "var URL.isFileURL: Bool { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.isFileURL) }
+        }
+        registerProperty(&t, "var URL.lastPathComponent: String { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.lastPathComponent) }
+        }
+        registerProperty(&t, "var URL.lines: AsyncLineSequence<URL.AsyncBytes> { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.lines) }
+        }
+        registerProperty(&t, "var URL.password: String? { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.password) }
+        }
+        registerProperty(&t, "var URL.path: String { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.path) }
+        }
+        registerProperty(&t, "var URL.pathComponents: [String] { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.pathComponents) }
+        }
+        registerProperty(&t, "var URL.pathExtension: String { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.pathExtension) }
+        }
+        registerProperty(&t, "var URL.port: Int? { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.port) }
+        }
+        registerProperty(&t, "var URL.query: String? { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.query) }
+        }
+        registerProperty(&t, "var URL.relativePath: String { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.relativePath) }
+        }
+        registerProperty(&t, "var URL.relativeString: String { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.relativeString) }
+        }
+        registerProperty(&t, "var URL.resourceBytes: URL.AsyncBytes { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.resourceBytes) }
+        }
+        registerProperty(&t, "var URL.scheme: String? { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.scheme) }
+        }
+        registerProperty(&t, "var URL.standardized: URL { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.standardized) }
+        }
+        registerProperty(&t, "var URL.standardizedFileURL: URL { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.standardizedFileURL) }
+        }
+        registerProperty(&t, "var URL.user: String? { get }") { base in
+            (base as? URL).map { generatedMemberResult($0.user) }
+        }
+        registerProperty(&t, "var URLComponents.customMirror: Mirror { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var URLComponents.debugDescription: String { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var URLComponents.description: String { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var URLComponents.encodedHost: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.encodedHost) }
+        }
+        registerProperty(&t, "var URLComponents.fragment: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.fragment) }
+        }
+        registerProperty(&t, "var URLComponents.hashValue: Int { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var URLComponents.host: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.host) }
+        }
+        registerProperty(&t, "var URLComponents.password: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.password) }
+        }
+        registerProperty(&t, "var URLComponents.path: String { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.path) }
+        }
+        registerProperty(&t, "var URLComponents.percentEncodedFragment: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.percentEncodedFragment) }
+        }
+        registerProperty(&t, "var URLComponents.percentEncodedHost: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.percentEncodedHost) }
+        }
+        registerProperty(&t, "var URLComponents.percentEncodedPassword: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.percentEncodedPassword) }
+        }
+        registerProperty(&t, "var URLComponents.percentEncodedPath: String { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.percentEncodedPath) }
+        }
+        registerProperty(&t, "var URLComponents.percentEncodedQuery: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.percentEncodedQuery) }
+        }
+        registerProperty(&t, "var URLComponents.percentEncodedQueryItems: [URLQueryItem]? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.percentEncodedQueryItems) }
+        }
+        registerProperty(&t, "var URLComponents.percentEncodedUser: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.percentEncodedUser) }
+        }
+        registerProperty(&t, "var URLComponents.port: Int? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.port) }
+        }
     }
 
-    private static func buildP5(_ t: inout [String: (Any) -> RuntimeValue?]) {
-        t["URLComponents.query"] = { ($0 as? URLComponents).map { generatedMemberResult($0.query) } }
-        t["URLComponents.queryItems"] = { ($0 as? URLComponents).map { generatedMemberResult($0.queryItems) } }
-        t["URLComponents.rangeOfFragment"] = { ($0 as? URLComponents).map { generatedMemberResult($0.rangeOfFragment) } }
-        t["URLComponents.rangeOfHost"] = { ($0 as? URLComponents).map { generatedMemberResult($0.rangeOfHost) } }
-        t["URLComponents.rangeOfPassword"] = { ($0 as? URLComponents).map { generatedMemberResult($0.rangeOfPassword) } }
-        t["URLComponents.rangeOfPath"] = { ($0 as? URLComponents).map { generatedMemberResult($0.rangeOfPath) } }
-        t["URLComponents.rangeOfPort"] = { ($0 as? URLComponents).map { generatedMemberResult($0.rangeOfPort) } }
-        t["URLComponents.rangeOfQuery"] = { ($0 as? URLComponents).map { generatedMemberResult($0.rangeOfQuery) } }
-        t["URLComponents.rangeOfScheme"] = { ($0 as? URLComponents).map { generatedMemberResult($0.rangeOfScheme) } }
-        t["URLComponents.rangeOfUser"] = { ($0 as? URLComponents).map { generatedMemberResult($0.rangeOfUser) } }
-        t["URLComponents.scheme"] = { ($0 as? URLComponents).map { generatedMemberResult($0.scheme) } }
-        t["URLComponents.string"] = { ($0 as? URLComponents).map { generatedMemberResult($0.string) } }
-        t["URLComponents.url"] = { ($0 as? URLComponents).map { generatedMemberResult($0.url) } }
-        t["URLComponents.user"] = { ($0 as? URLComponents).map { generatedMemberResult($0.user) } }
-        t["URLQueryItem.customMirror"] = { ($0 as? URLQueryItem).map { generatedMemberResult($0.customMirror) } }
-        t["URLQueryItem.debugDescription"] = { ($0 as? URLQueryItem).map { generatedMemberResult($0.debugDescription) } }
-        t["URLQueryItem.description"] = { ($0 as? URLQueryItem).map { generatedMemberResult($0.description) } }
-        t["URLQueryItem.hashValue"] = { ($0 as? URLQueryItem).map { generatedMemberResult($0.hashValue) } }
-        t["URLQueryItem.name"] = { ($0 as? URLQueryItem).map { generatedMemberResult($0.name) } }
-        t["URLQueryItem.value"] = { ($0 as? URLQueryItem).map { generatedMemberResult($0.value) } }
-        t["URLRequest.allHTTPHeaderFields"] = { ($0 as? URLRequest).map { generatedMemberResult($0.allHTTPHeaderFields) } }
-        t["URLRequest.allowsCellularAccess"] = { ($0 as? URLRequest).map { generatedMemberResult($0.allowsCellularAccess) } }
-        t["URLRequest.allowsConstrainedNetworkAccess"] = { ($0 as? URLRequest).map { generatedMemberResult($0.allowsConstrainedNetworkAccess) } }
-        t["URLRequest.allowsExpensiveNetworkAccess"] = { ($0 as? URLRequest).map { generatedMemberResult($0.allowsExpensiveNetworkAccess) } }
-        t["URLRequest.allowsPersistentDNS"] = { ($0 as? URLRequest).map { generatedMemberResult($0.allowsPersistentDNS) } }
-        t["URLRequest.assumesHTTP3Capable"] = { ($0 as? URLRequest).map { generatedMemberResult($0.assumesHTTP3Capable) } }
-        t["URLRequest.attribution"] = { ($0 as? URLRequest).map { generatedMemberResult($0.attribution) } }
-        t["URLRequest.cachePolicy"] = { ($0 as? URLRequest).map { generatedMemberResult($0.cachePolicy) } }
-        t["URLRequest.customMirror"] = { ($0 as? URLRequest).map { generatedMemberResult($0.customMirror) } }
-        t["URLRequest.debugDescription"] = { ($0 as? URLRequest).map { generatedMemberResult($0.debugDescription) } }
-        t["URLRequest.description"] = { ($0 as? URLRequest).map { generatedMemberResult($0.description) } }
-        t["URLRequest.hashValue"] = { ($0 as? URLRequest).map { generatedMemberResult($0.hashValue) } }
-        t["URLRequest.httpBody"] = { ($0 as? URLRequest).map { generatedMemberResult($0.httpBody) } }
-        t["URLRequest.httpBodyStream"] = { ($0 as? URLRequest).map { generatedMemberResult($0.httpBodyStream) } }
-        t["URLRequest.httpMethod"] = { ($0 as? URLRequest).map { generatedMemberResult($0.httpMethod) } }
-        t["URLRequest.httpShouldHandleCookies"] = { ($0 as? URLRequest).map { generatedMemberResult($0.httpShouldHandleCookies) } }
-        t["URLRequest.mainDocumentURL"] = { ($0 as? URLRequest).map { generatedMemberResult($0.mainDocumentURL) } }
-        t["URLRequest.networkServiceType"] = { ($0 as? URLRequest).map { generatedMemberResult($0.networkServiceType) } }
-        t["URLRequest.requiresDNSSECValidation"] = { ($0 as? URLRequest).map { generatedMemberResult($0.requiresDNSSECValidation) } }
-        t["URLRequest.timeoutInterval"] = { ($0 as? URLRequest).map { generatedMemberResult($0.timeoutInterval) } }
+    private static func buildP5(_ t: inout [String: HostProperty]) {
+        registerProperty(&t, "var URLComponents.query: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.query) }
+        }
+        registerProperty(&t, "var URLComponents.queryItems: [URLQueryItem]? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.queryItems) }
+        }
+        registerProperty(&t, "var URLComponents.rangeOfFragment: Range<String.Index>? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.rangeOfFragment) }
+        }
+        registerProperty(&t, "var URLComponents.rangeOfHost: Range<String.Index>? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.rangeOfHost) }
+        }
+        registerProperty(&t, "var URLComponents.rangeOfPassword: Range<String.Index>? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.rangeOfPassword) }
+        }
+        registerProperty(&t, "var URLComponents.rangeOfPath: Range<String.Index>? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.rangeOfPath) }
+        }
+        registerProperty(&t, "var URLComponents.rangeOfPort: Range<String.Index>? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.rangeOfPort) }
+        }
+        registerProperty(&t, "var URLComponents.rangeOfQuery: Range<String.Index>? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.rangeOfQuery) }
+        }
+        registerProperty(&t, "var URLComponents.rangeOfScheme: Range<String.Index>? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.rangeOfScheme) }
+        }
+        registerProperty(&t, "var URLComponents.rangeOfUser: Range<String.Index>? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.rangeOfUser) }
+        }
+        registerProperty(&t, "var URLComponents.scheme: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.scheme) }
+        }
+        registerProperty(&t, "var URLComponents.string: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.string) }
+        }
+        registerProperty(&t, "var URLComponents.url: URL? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.url) }
+        }
+        registerProperty(&t, "var URLComponents.user: String? { get }") { base in
+            (base as? URLComponents).map { generatedMemberResult($0.user) }
+        }
+        registerProperty(&t, "var URLQueryItem.customMirror: Mirror { get }") { base in
+            (base as? URLQueryItem).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var URLQueryItem.debugDescription: String { get }") { base in
+            (base as? URLQueryItem).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var URLQueryItem.description: String { get }") { base in
+            (base as? URLQueryItem).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var URLQueryItem.hashValue: Int { get }") { base in
+            (base as? URLQueryItem).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var URLQueryItem.name: String { get }") { base in
+            (base as? URLQueryItem).map { generatedMemberResult($0.name) }
+        }
+        registerProperty(&t, "var URLQueryItem.value: String? { get }") { base in
+            (base as? URLQueryItem).map { generatedMemberResult($0.value) }
+        }
+        registerProperty(&t, "var URLRequest.allHTTPHeaderFields: [String : String]? { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.allHTTPHeaderFields) }
+        }
+        registerProperty(&t, "var URLRequest.allowsCellularAccess: Bool { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.allowsCellularAccess) }
+        }
+        registerProperty(&t, "var URLRequest.allowsConstrainedNetworkAccess: Bool { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.allowsConstrainedNetworkAccess) }
+        }
+        registerProperty(&t, "var URLRequest.allowsExpensiveNetworkAccess: Bool { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.allowsExpensiveNetworkAccess) }
+        }
+        registerProperty(&t, "var URLRequest.allowsPersistentDNS: Bool { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.allowsPersistentDNS) }
+        }
+        registerProperty(&t, "var URLRequest.assumesHTTP3Capable: Bool { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.assumesHTTP3Capable) }
+        }
+        registerProperty(&t, "var URLRequest.attribution: URLRequest.Attribution { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.attribution) }
+        }
+        registerProperty(&t, "var URLRequest.cachePolicy: URLRequest.CachePolicy { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.cachePolicy) }
+        }
+        registerProperty(&t, "var URLRequest.customMirror: Mirror { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var URLRequest.debugDescription: String { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var URLRequest.description: String { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var URLRequest.hashValue: Int { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var URLRequest.httpBody: Data? { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.httpBody) }
+        }
+        registerProperty(&t, "var URLRequest.httpBodyStream: InputStream? { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.httpBodyStream) }
+        }
+        registerProperty(&t, "var URLRequest.httpMethod: String? { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.httpMethod) }
+        }
+        registerProperty(&t, "var URLRequest.httpShouldHandleCookies: Bool { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.httpShouldHandleCookies) }
+        }
+        registerProperty(&t, "var URLRequest.mainDocumentURL: URL? { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.mainDocumentURL) }
+        }
+        registerProperty(&t, "var URLRequest.networkServiceType: URLRequest.NetworkServiceType { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.networkServiceType) }
+        }
+        registerProperty(&t, "var URLRequest.requiresDNSSECValidation: Bool { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.requiresDNSSECValidation) }
+        }
+        registerProperty(&t, "var URLRequest.timeoutInterval: TimeInterval { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.timeoutInterval) }
+        }
     }
 
-    private static func buildP6(_ t: inout [String: (Any) -> RuntimeValue?]) {
-        t["URLRequest.url"] = { ($0 as? URLRequest).map { generatedMemberResult($0.url) } }
-        t["UUID.customMirror"] = { ($0 as? UUID).map { generatedMemberResult($0.customMirror) } }
-        t["UUID.debugDescription"] = { ($0 as? UUID).map { generatedMemberResult($0.debugDescription) } }
-        t["UUID.description"] = { ($0 as? UUID).map { generatedMemberResult($0.description) } }
-        t["UUID.hashValue"] = { ($0 as? UUID).map { generatedMemberResult($0.hashValue) } }
-        t["UUID.uuid"] = { ($0 as? UUID).map { generatedMemberResult($0.uuid) } }
-        t["UUID.uuidString"] = { ($0 as? UUID).map { generatedMemberResult($0.uuidString) } }
+    private static func buildP6(_ t: inout [String: HostProperty]) {
+        registerProperty(&t, "var URLRequest.url: URL? { get }") { base in
+            (base as? URLRequest).map { generatedMemberResult($0.url) }
+        }
+        registerProperty(&t, "var UUID.customMirror: Mirror { get }") { base in
+            (base as? UUID).map { generatedMemberResult($0.customMirror) }
+        }
+        registerProperty(&t, "var UUID.debugDescription: String { get }") { base in
+            (base as? UUID).map { generatedMemberResult($0.debugDescription) }
+        }
+        registerProperty(&t, "var UUID.description: String { get }") { base in
+            (base as? UUID).map { generatedMemberResult($0.description) }
+        }
+        registerProperty(&t, "var UUID.hashValue: Int { get }") { base in
+            (base as? UUID).map { generatedMemberResult($0.hashValue) }
+        }
+        registerProperty(&t, "var UUID.uuid: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) { get }") { base in
+            (base as? UUID).map { generatedMemberResult($0.uuid) }
+        }
+        registerProperty(&t, "var UUID.uuidString: String { get }") { base in
+            (base as? UUID).map { generatedMemberResult($0.uuidString) }
+        }
     }
 
     private static func buildM0(_ t: inout [String: [GeneratedMemberOverload]]) {

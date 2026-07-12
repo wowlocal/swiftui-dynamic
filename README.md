@@ -181,12 +181,14 @@ member surface of value types (`URL`, `Data`, `Date`, `Calendar`, `UUID`,
 `Locale`, …): `Generated/GeneratedMembers.swift` holds **247 properties and
 115 method variants** keyed by the receiver's dynamic type
 (`"URL.lastPathComponent"`), consulted from `bridgeHostMember` after the hand
-boxes and before the ObjC trampoline. Property reads return values directly;
-each method variant also emits a Swift-shaped declaration parsed once into a
-`HostSignature`. `HostFunction` therefore owns label/arity/type checks,
-deterministic overload ranking, and return validation; `ParamTag` only converts
-an already-selected argument for the statically compiled host call. Invalid
-calls to a known generated method now diagnose at that contract boundary.
+boxes and before the ObjC trampoline. Every property getter emits a read-only
+Swift declaration parsed once into a shared `HostProperty`, which validates
+the logical SDK receiver and every result (including Optional, collection, and
+Objective-C-bridged names). Each method variant similarly emits a
+`HostSignature`; `HostFunction` owns label/arity/type checks, deterministic
+overload ranking, and return validation, while `ParamTag` only converts an
+already-selected argument for the statically compiled host call. Invalid calls
+or property boundary mismatches now diagnose at that contract boundary.
 Soft-deprecation sentinels
 (`deprecated: 100000.0` — `url.path` and friends) are tolerated for members
 since real projects compile against them. The demand side is instrumented:

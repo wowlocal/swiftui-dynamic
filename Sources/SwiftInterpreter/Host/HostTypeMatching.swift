@@ -142,6 +142,10 @@ extension HostSignature {
                context.hostValue(value, matchesType: type) {
                 return 14
             }
+            if parts.count == 2,
+               context.hostValue(value, matchesType: type) {
+                return 14
+            }
             return nil
         }
 
@@ -381,19 +385,41 @@ extension HostSignature {
         let aliases = [
             "NSComparisonResult": "ComparisonResult",
             "NSDecimal": "Decimal",
+            "NSInputStream": "InputStream",
+            "NSURLRequestAttribution": "Attribution",
+            "NSURLRequestCachePolicy": "CachePolicy",
+            "NSURLRequestNetworkServiceType": "NetworkServiceType",
         ]
         let leftName = aliases[unqualified(left)] ?? unqualified(left)
         let rightName = aliases[unqualified(right)] ?? unqualified(right)
         if leftName == rightName { return true }
 
-        if let leftApplication = genericApplication(left),
-           let rightApplication = genericApplication(right),
+        if let leftApplication = equivalenceApplication(left),
+           let rightApplication = equivalenceApplication(right),
            equivalentTypeName(leftApplication.name, rightApplication.name),
            leftApplication.arguments.count == rightApplication.arguments.count {
             return zip(leftApplication.arguments, rightApplication.arguments)
                 .allSatisfy { equivalentTypeName($0.0, $0.1) }
         }
         return false
+    }
+
+    /// Canonicalize the two surface spellings Swift permits for collections:
+    /// `[Element]`/`Array<Element>` and `[Key: Value]`/`Dictionary<Key, Value>`.
+    /// Runtime metadata uses the generic spelling even when an SDK contract
+    /// was emitted with brackets.
+    static func equivalenceApplication(
+        _ type: String
+    ) -> (name: String, arguments: [String])? {
+        if let application = genericApplication(type) { return application }
+        guard type.hasPrefix("["), type.hasSuffix("]"),
+              let inner = outerContents(type, opening: "[", closing: "]") else {
+            return nil
+        }
+        let parts = splitTopLevel(inner, separator: ":")
+        if parts.count == 1 { return ("Array", parts) }
+        if parts.count == 2 { return ("Dictionary", parts) }
+        return nil
     }
 
     static func unqualified(_ type: String) -> String {

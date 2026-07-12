@@ -626,7 +626,12 @@ let denyMembers: Set<String> = [
 
 var memberMethodVariants: [MemberVariant] = []
 var memberMethodSeen = Set<String>()
-var memberProperties: [(type: String, name: String)] = []
+struct MemberProperty {
+    let type: String
+    let name: String
+    let returnType: String
+}
+var memberProperties: [MemberProperty] = []
 var memberPropertySeen = Set<String>()
 var memberBlockers: [String: Int] = [:]
 var memberMethodTotal = 0
@@ -725,7 +730,11 @@ func processMemberProperty(_ typeName: String, _ variable: VariableDeclSyntax, g
     let name = pattern.identifier.text
     guard !name.hasPrefix("_") else { return }
     memberPropertyTotal += 1
-    if let type = binding.typeAnnotation?.type.trimmedDescription, type.contains("some ") {
+    guard let rawType = binding.typeAnnotation?.type.trimmedDescription else {
+        memberBlockers["untyped property", default: 0] += 1
+        return
+    }
+    if rawType.contains("some ") {
         memberBlockers["opaque property", default: 0] += 1
         return
     }
@@ -733,7 +742,9 @@ func processMemberProperty(_ typeName: String, _ variable: VariableDeclSyntax, g
     let key = typeName + "." + name
     guard !denyMembers.contains(key) else { return }
     if memberPropertySeen.insert(key).inserted {
-        memberProperties.append((typeName, name))
+        memberProperties.append(MemberProperty(
+            type: typeName, name: name,
+            returnType: memberContractType(for: normalize(rawType))))
     }
 }
 
@@ -922,8 +933,12 @@ print("wrote \(viewsPath) (\(sortedInits.count) variants)")
 
 // MARK: - Emit members
 
-func memberPropertyCode(_ type: String, _ name: String) -> String {
-    "        t[\"\(type).\(name)\"] = { ($0 as? \(type)).map { generatedMemberResult($0.\(name)) } }"
+func memberPropertyCode(_ property: MemberProperty) -> String {
+    """
+            registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get }") { base in
+                (base as? \(property.type)).map { generatedMemberResult($0.\(property.name)) }
+            }
+    """
 }
 
 func memberMethodCode(_ variant: MemberVariant) -> String {
@@ -965,8 +980,8 @@ import Foundation
 import SwiftInterpreter
 
 extension GeneratedMembers {
-    static func buildProperties() -> [String: (Any) -> RuntimeValue?] {
-        var t: [String: (Any) -> RuntimeValue?] = [:]
+    static func buildProperties() -> [String: HostProperty] {
+        var t: [String: HostProperty] = [:]
 
 """
 for index in propertyChunks.indices {
@@ -981,9 +996,9 @@ for index in methodChunks.indices {
 membersOutput += "        return t\n    }\n"
 
 for (index, chunk) in propertyChunks.enumerated() {
-    membersOutput += "\n    private static func buildP\(index)(_ t: inout [String: (Any) -> RuntimeValue?]) {\n"
+    membersOutput += "\n    private static func buildP\(index)(_ t: inout [String: HostProperty]) {\n"
     for property in chunk {
-        membersOutput += memberPropertyCode(property.type, property.name) + "\n"
+        membersOutput += memberPropertyCode(property) + "\n"
     }
     membersOutput += "    }\n"
 }
