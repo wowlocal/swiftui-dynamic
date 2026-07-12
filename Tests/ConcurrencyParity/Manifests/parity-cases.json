@@ -1,0 +1,40 @@
+[
+  {
+    "id": "async-function-exact",
+    "fixture": "Fixtures/async-function-exact.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 1,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parityValue()",
+    "interpreterProjection": "string",
+    "nativeFact": "Awaiting this async function produces the exact value 'ready'.",
+    "notes": "Smoke test for the same-fixture native/interpreter pipeline."
+  },
+  {
+    "id": "main-actor-task-partial-order",
+    "fixture": "Fixtures/main-actor-task-partial-order.swift",
+    "mode": "runtime",
+    "assertion": "partial-order",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "startTasks()",
+    "interpreterProjection": "instance-string-array:events",
+    "requiredEvents": ["sync", "first", "second"],
+    "precedes": [["sync", "first"], ["sync", "second"]],
+    "nativeFact": "A newly created MainActor task does not run inline with its constructor; both tasks complete after the creator reaches a suspension point.",
+    "notes": "The relative order of 'first' and 'second' is deliberately not asserted."
+  },
+  {
+    "id": "actor-isolation-diagnostic",
+    "fixture": "Fixtures/actor-isolation-diagnostic.swift",
+    "mode": "diagnostic",
+    "assertion": "diagnostic",
+    "repetitions": 1,
+    "timeoutSeconds": 15,
+    "diagnosticContains": ["actor-isolated property", "nonisolated context"],
+    "diagnosticLine": 6,
+    "nativeFact": "A synchronous nonisolated function cannot read actor-isolated mutable state without an actor hop.",
+    "notes": "Milestone 0 records the compiler fact; interpreter preflight comparison belongs to Milestone 7."
+  }
+]
