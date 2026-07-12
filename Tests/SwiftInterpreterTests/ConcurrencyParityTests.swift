@@ -167,11 +167,27 @@ private enum ConcurrencyParityHarness {
         let source = try String(contentsOf: fixture, encoding: .utf8)
             + "\n" + entry + "\n"
         let interpreter = Interpreter()
+        var waitStarted = false
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
             name: "parityYield",
             asyncInvoke: { arguments, _ in
                 await Task.yield()
                 return arguments.positional(0) ?? .nilValue
+            }
+        )))
+        interpreter.globals.define("parityWaitForever", .hostFunction(HostFunction(
+            name: "parityWaitForever",
+            asyncInvoke: { _, _ in
+                waitStarted = true
+                try await Task.sleep(for: .seconds(30))
+                return .void
+            }
+        )))
+        interpreter.globals.define("parityAwaitWaitStarted", .hostFunction(HostFunction(
+            name: "parityAwaitWaitStarted",
+            asyncInvoke: { _, _ in
+                while !waitStarted { await Task.yield() }
+                return .void
             }
         )))
         let value = try await interpreter.runAsync(source: source)
@@ -192,6 +208,23 @@ private enum ConcurrencyParityHarness {
                     "case '\(parityCase.id)' did not return an instance [String] property '\(property)'")
             }
             return elements.compactMap(\.stringValue).joined(separator: ",")
+        }
+        if projection.hasPrefix("instance-task-state-and-string-array:") {
+            let fields = projection.dropFirst(
+                "instance-task-state-and-string-array:".count)
+                .split(separator: ":", maxSplits: 1).map(String.init)
+            guard fields.count == 2,
+                  case .instance(let instance) = value,
+                  let taskValue = instance.box(for: fields[0])?.value
+                    .unwrappedOptionalOrSelf,
+                  case .host(let payload) = taskValue,
+                  let handle = payload as? RuntimeTaskHandle,
+                  let elements = instance.box(for: fields[1])?.value.arrayValue else {
+                throw RuntimeError(message:
+                    "case '\(parityCase.id)' did not return the expected task and [String] properties")
+            }
+            let events = elements.compactMap(\.stringValue).joined(separator: ",")
+            return handle.state.rawValue + "," + events
         }
         throw RuntimeError(message:
             "unknown interpreter projection '\(projection)' for '\(parityCase.id)'")

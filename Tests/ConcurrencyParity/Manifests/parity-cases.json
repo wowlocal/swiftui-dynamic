@@ -39,6 +39,18 @@
     "notes": "Native support and the interpreter harness both provide parityYield(_:) as an identity gateway with one real Task.yield suspension."
   },
   {
+    "id": "task-context-cancellation",
+    "fixture": "Fixtures/task-context-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "startCancellationContextProbe()",
+    "interpreterProjection": "instance-task-state-and-string-array:first:events",
+    "nativeFact": "Cancelling a task only after it has entered a cancellable suspension completes it with CancellationError, while an interleaved sibling retains its extension's lexical nested type and completes with 'beta'.",
+    "notes": "The started barrier forces cancellation-during-suspension. No task-start or sibling-completion order is asserted."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",
