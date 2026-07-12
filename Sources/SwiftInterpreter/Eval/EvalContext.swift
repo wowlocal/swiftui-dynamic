@@ -51,6 +51,14 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func spawnDetachedTask(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.spawnDetachedTask(closure, arguments: arguments)
+        }
+    }
+
     func invokeHostConstructor(
         named name: String, arguments: CallArguments
     ) throws -> RuntimeValue? {
@@ -143,9 +151,26 @@ extension Interpreter: EvalContext {
     public func spawnBackgroundTask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
+        try spawnRuntimeTask(
+            kind: .unstructured, closure: closure, arguments: arguments)
+    }
+
+    public func spawnDetachedTask(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        try spawnRuntimeTask(
+            kind: .detached, closure: closure, arguments: arguments)
+    }
+
+    private func spawnRuntimeTask(
+        kind: RuntimeTaskKind,
+        closure: ClosureValue,
+        arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
         let record = concurrencyRuntime.createTask(
-            kind: .unstructured,
-            parent: evaluationTaskContext.runtimeTaskID)
+            kind: kind,
+            parent: kind == .detached
+                ? nil : evaluationTaskContext.runtimeTaskID)
         let handle = RuntimeTaskHandle(
             runtime: concurrencyRuntime, record: record)
         let arguments = arguments
@@ -186,7 +211,8 @@ extension Interpreter: EvalContext {
         let taskContext = makeEvaluationTaskContext(
             runtimeTaskID: handle.id)
         concurrencyRuntime.bind(taskContext, to: record)
-        let task = Task { @MainActor [weak self, weak handle] in
+        let operation: @MainActor @Sendable () async -> Void = {
+            [weak self, weak handle] in
             await EvaluationTaskContext.$current.withValue(taskContext) {
                 defer { taskContext.removeAllDynamicState() }
                 // A newly-created Task never runs inline with its constructor.
@@ -207,6 +233,12 @@ extension Interpreter: EvalContext {
                     handle.fail(with: error)
                 }
             }
+        }
+        let task: Task<Void, Never>
+        if kind == .detached {
+            task = Task.detached(operation: operation)
+        } else {
+            task = Task(operation: operation)
         }
         handle.attach(task)
         scheduledTasks.append(handle)

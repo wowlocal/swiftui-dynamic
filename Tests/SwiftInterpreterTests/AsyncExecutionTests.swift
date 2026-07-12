@@ -10,6 +10,10 @@ private struct NativeAsyncCounter {
     }
 }
 
+private enum DetachedRuntimeProbeLocal {
+    @TaskLocal static var value = "default"
+}
+
 @Suite("Async execution")
 struct AsyncExecutionTests {
     private enum ProbeError: Error, CustomStringConvertible {
@@ -192,6 +196,47 @@ struct AsyncExecutionTests {
         #expect(second.kind == .unstructured)
         #expect(first.parent != nil)
         #expect(first.parent == second.parent)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func sourceDetachedTaskHasDetachedOwnershipAndNativeBoundary() async throws {
+        let interpreter = Interpreter()
+        var observedNativeTaskLocal: String?
+        var observedRuntimeTaskID: RuntimeTaskID?
+        interpreter.globals.define(
+            "captureDetachedRuntime",
+            .hostFunction(HostFunction(
+                name: "captureDetachedRuntime",
+                asyncInvoke: { _, context in
+                    observedNativeTaskLocal = DetachedRuntimeProbeLocal.value
+                    observedRuntimeTaskID =
+                        (context as? TaskBoundEvalContext)?
+                            .evaluationContext.runtimeTaskID
+                    await Task.yield()
+                    return .native("detached")
+                }
+            )))
+
+        try await DetachedRuntimeProbeLocal.$value.withValue("parent") {
+            _ = try await interpreter.runAsync(source: """
+            let detachedHandle = Task.detached {
+                await captureDetachedRuntime()
+            }
+            """)
+        }
+
+        guard case .host(let payload)? =
+                interpreter.globals.lookup("detachedHandle"),
+              let handle = payload as? RuntimeTaskHandle else {
+            Issue.record("expected detached runtime task handle")
+            return
+        }
+        #expect(handle.kind == .detached)
+        #expect(handle.parent == nil)
+        #expect(handle.state == .succeeded)
+        #expect(handle.result?.stringValue == "detached")
+        #expect(observedRuntimeTaskID == handle.id)
+        #expect(observedNativeTaskLocal == "default")
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 

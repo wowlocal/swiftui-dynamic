@@ -149,6 +149,18 @@
     "notes": "An explicit started barrier distinguishes cancellation during suspension from cancellation before task start; this fixture asserts only the failure case shape, not error text."
   },
   {
+    "id": "task-detached-value",
+    "fixture": "Fixtures/task-detached-value.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskDetachedValueProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A Task.detached operation may suspend and its handle value awaits completion and returns the operation result.",
+    "notes": "This first detached-source fixture proves construction, suspension, and value flow. Task-local, priority, and executor inheritance require separate probes."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

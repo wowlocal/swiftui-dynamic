@@ -952,6 +952,16 @@ extension Interpreter {
             }
             if function.name == "Task" {
                 switch name {
+                case "detached":
+                    return .hostFunction(HostFunction(name: name) { args, context in
+                        guard let body = args.firstUnlabeledClosure
+                                ?? args.closure(labeled: "operation") else {
+                            throw RuntimeError(
+                                message: "Task.detached needs an operation closure")
+                        }
+                        return try context.spawnDetachedTask(
+                            body, arguments: [])
+                    })
                 case "isCancelled":
                     return .native(Task.isCancelled)
                 case "checkCancellation":
