@@ -203,6 +203,22 @@ extension Interpreter {
             }
             return try evaluate(expression, in: env)
 
+        case .memberAccessExpr:
+            if forceInvocation {
+                try tick(expression)
+                let member = expression.cast(MemberAccessExprSyntax.self)
+                if let baseExpression = member.base {
+                    let base = try await evaluateSuspending(
+                        baseExpression, in: env)
+                    if case .host(let payload) = base,
+                       let handle = payload as? RuntimeTaskHandle,
+                       member.declName.baseName.text == "value" {
+                        return try await taskValue(
+                            from: handle, node: member)
+                    }
+                }
+            }
+
         case .forceUnwrapExpr:
             if forceInvocation {
                 try tick(expression)
@@ -240,6 +256,20 @@ extension Interpreter {
         }
 
         return try await evaluateLoweredSuspensions(expression, in: env)
+    }
+
+    private func taskValue(
+        from handle: RuntimeTaskHandle,
+        node: some SyntaxProtocol
+    ) async throws -> RuntimeValue {
+        switch await handle.waitForOutcome() {
+        case .success(let value, _):
+            return value
+        case .failure(let errorValue, _):
+            throw InterpretedThrow(value: errorValue)
+        case .cancelled:
+            throw CancellationError()
+        }
     }
 
     func withExpectedAnnotationSuspending<T>(

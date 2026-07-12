@@ -60,6 +60,32 @@ func parityCheckContext() async -> String {
     ParityNativeTaskLocal.value == "root" ? "preserved" : "wrong"
 }
 
+@MainActor
+var parityTaskValueGateStarted = false
+
+@MainActor
+var parityTaskValueGateOpen = false
+
+@MainActor
+func parityWaitTaskValueGate() async {
+    parityTaskValueGateStarted = true
+    while !parityTaskValueGateOpen {
+        await Task.yield()
+    }
+}
+
+@MainActor
+func parityAwaitTaskValueGateStarted() async {
+    while !parityTaskValueGateStarted {
+        await Task.yield()
+    }
+}
+
+@MainActor
+func parityOpenTaskValueGate() {
+    parityTaskValueGateOpen = true
+}
+
 @main
 struct NativeMain {
     static func main() async throws {

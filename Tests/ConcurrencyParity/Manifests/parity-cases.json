@@ -88,6 +88,18 @@
     "notes": "Every branch crosses the same real parityYield suspension before deciding its outcome."
   },
   {
+    "id": "task-value-success",
+    "fixture": "Fixtures/task-value-success.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskValueSuccessProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Reading await task.value suspends the caller until the task completes and then returns its successful value.",
+    "notes": "The child is held behind an explicit gate. The opener is created immediately before the value read and cannot run inline on MainActor, so the value read is the suspension that lets it run."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

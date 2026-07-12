@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | not started | `RuntimeTaskHandle` is observational and `value` does not suspend | Task IDs, outcomes, waiters, kinds, session policies |
+| M2 task runtime | in progress | Task handles retain explicit success/failure/cancelled outcomes and `await task.value` suspends for successful completion | Task IDs/records, multiple explicit waiters, throwing value, result values, kinds, session policies, cancellation graph, priority/task-local foundations |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -49,6 +49,7 @@ major version 6.
 | `detached-host-context-reentry` | exact | `Task.detached` does not inherit a TaskLocal value; explicit capture/rebind preserves it inside an async callback | Native/interpreter parity in 20 repetitions; the interpreter host checks exact `EvaluationTaskContext` ID equality after detached re-entry |
 | `async-initializer-context` | predicate / event multiset | 100 extension-declared async initializers preserve their argument and lexical nested type across suspension; completion order is unspecified | Native/interpreter parity in 20 repetitions; 100 distinct evaluator contexts are explicitly cleaned |
 | `async-initializer-outcomes` | exact | Async initializers preserve successful, thrown-through-`try?`, failable-success, and failable-nil outcomes across suspension | Native/interpreter parity in 20 repetitions: `success,threw,accepted,rejected` |
+| `task-value-success` | exact | `await task.value` suspends until completion and returns the successful value | Native/interpreter parity in 20 repetitions with a gate-forced trace: `child-start,before-value,child-end,value` |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -244,3 +245,29 @@ Final verification on Apple Swift 6.2.3 / macOS 26.5 SDK:
 M1 is complete: frame independence follows from ownership rather than
 main-actor scheduling or save/clear/restore discipline. M2 task-runtime work
 may begin.
+
+## Milestone 2 verification record
+
+### Suspending successful task value
+
+`task-value-success` holds a child task behind an explicit MainActor gate.
+After the child records `child-start`, the parent records `before-value`,
+creates an opener task, and reads `await handle.value`. The opener cannot run
+inline on MainActor, so the value read is the suspension point that permits the
+gate to open. Twenty native Swift 6 runs produced the exact trace
+`child-start,before-value,child-end,value`.
+
+Before the implementation, all twenty interpreter runs returned
+`child-start,before-value,()`: synchronous member lookup exposed the empty
+result slot before completion. The async evaluator now recognizes a task value
+read, waits for an explicit `RuntimeTaskOutcome`, returns success, rethrows a
+stored source failure, or propagates cancellation. Twenty interpreter runs
+match the native trace.
+
+Verification for this first M2 step:
+
+- `ConcurrencyParityTests|AsyncExecutionTests|HostSignatureTests`: 36 tests
+  in 3 suites passed;
+- full `swift test`: 709 tests in 141 suites passed;
+- synchronous raw task-member access remains a documented compatibility path
+  until the complete M2 runtime removes incomplete placeholder reads.

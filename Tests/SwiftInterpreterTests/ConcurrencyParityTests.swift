@@ -182,6 +182,8 @@ private enum ConcurrencyParityHarness {
         let interpreter = Interpreter()
         var waitStarted = false
         var expectedDetachedContextID: UInt64?
+        var taskValueGateStarted = false
+        var taskValueGateOpen = false
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
             name: "parityYield",
             asyncInvoke: { arguments, _ in
@@ -240,6 +242,27 @@ private enum ConcurrencyParityHarness {
                         ? "preserved" : "wrong")
             }
         )))
+        interpreter.globals.define("parityWaitTaskValueGate", .hostFunction(HostFunction(
+            name: "parityWaitTaskValueGate",
+            asyncInvoke: { _, _ in
+                taskValueGateStarted = true
+                while !taskValueGateOpen { await Task.yield() }
+                return .void
+            }
+        )))
+        interpreter.globals.define("parityAwaitTaskValueGateStarted", .hostFunction(HostFunction(
+            name: "parityAwaitTaskValueGateStarted",
+            asyncInvoke: { _, _ in
+                while !taskValueGateStarted { await Task.yield() }
+                return .void
+            }
+        )))
+        interpreter.globals.define("parityOpenTaskValueGate", .hostFunction(HostFunction(
+            name: "parityOpenTaskValueGate"
+        ) { _, _ in
+            taskValueGateOpen = true
+            return .void
+        }))
         let value = try await interpreter.runAsync(source: source)
 
         if projection == "string" {
