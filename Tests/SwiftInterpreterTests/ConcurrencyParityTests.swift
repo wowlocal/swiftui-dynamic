@@ -611,4 +611,37 @@ struct ConcurrencyParityTests {
         #expect(retainedContexts.values.allSatisfy { $0.isDynamicallyEmpty })
     }
 
+    @Test func asyncInitializersStayInsideTheirOwningTaskContexts() async throws {
+        let fixture = ConcurrencyParityHarness.parityRoot
+            .appendingPathComponent(
+                "Fixtures/async-initializer-context.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nstartAsyncInitializerProbe()\n"
+        let interpreter = Interpreter()
+        var retainedContexts: [UInt64: EvaluationTaskContext] = [:]
+        interpreter.globals.define("parityYield", .hostFunction(HostFunction(
+            name: "parityYield",
+            asyncInvoke: { arguments, context in
+                await Task.yield()
+                guard let bound = context as? TaskBoundEvalContext else {
+                    throw RuntimeError(message:
+                        "async initializer lost its task-bound host context")
+                }
+                retainedContexts[bound.evaluationTaskContextID] =
+                    bound.evaluationContext
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+
+        let value = try await interpreter.runAsync(source: source)
+        guard case .instance(let recorder) = value,
+              let values = recorder.box(for: "values")?.value.arrayValue else {
+            Issue.record("async-initializer fixture did not return its recorder")
+            return
+        }
+        #expect(values.count == 100)
+        #expect(retainedContexts.count == 100)
+        #expect(retainedContexts.values.allSatisfy { $0.isDynamicallyEmpty })
+    }
+
 }

@@ -4,6 +4,14 @@ final class CancellationContextProbe {
     var first: Task<Void, Error>?
 }
 
+struct CancellationAlphaValue {}
+
+extension CancellationAlphaValue {
+    init(waiting: Bool) async throws {
+        try await parityWaitForever()
+    }
+}
+
 @MainActor
 struct CancellationBetaWorker {
     enum Token: String {
@@ -23,7 +31,7 @@ extension CancellationBetaWorker {
 func startCancellationContextProbe() -> CancellationContextProbe {
     let probe = CancellationContextProbe()
     probe.first = Task {
-        try await parityWaitForever()
+        _ = try await CancellationAlphaValue(waiting: true)
     }
     Task {
         await parityAwaitWaitStarted()

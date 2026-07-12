@@ -27,8 +27,8 @@ major version 6.
 
 | Milestone | Status | Evidence | Remaining work |
 |---|---|---|---|
-| M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None; M1 may begin |
-| M1 task-owned evaluator context | in progress | `EvaluationTaskContext` owns dynamic stacks/counters; 100 sibling tasks have distinct contexts; parked shared-frame restoration is removed; suspending host gateways explicitly rebind detached callbacks; cancellation-during-suspension leaves sibling extension context intact | Add native differential proof for simultaneous async initializers, then close the milestone gate |
+| M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
+| M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | not started | `RuntimeTaskHandle` is observational and `value` does not suspend | Task IDs, outcomes, waiters, kinds, session policies |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
@@ -47,6 +47,8 @@ major version 6.
 | `task-owned-evaluator-context` | predicate / event multiset | 100 sibling MainActor tasks preserve their own local index and lexical nested type across a forced yield; completion order is unspecified | Native parity in 20 native and 20 interpreter repetitions; each source task also has a distinct, explicitly cleaned evaluator context |
 | `task-context-cancellation` | exact invariant | A task cancelled only after entering a cancellable suspension completes as cancelled; an interleaved sibling resolves its extension-scoped nested type and returns `beta` | Native/interpreter parity in 20 repetitions; no start-order assumption because the cancellation uses an explicit started barrier |
 | `detached-host-context-reentry` | exact | `Task.detached` does not inherit a TaskLocal value; explicit capture/rebind preserves it inside an async callback | Native/interpreter parity in 20 repetitions; the interpreter host checks exact `EvaluationTaskContext` ID equality after detached re-entry |
+| `async-initializer-context` | predicate / event multiset | 100 extension-declared async initializers preserve their argument and lexical nested type across suspension; completion order is unspecified | Native/interpreter parity in 20 repetitions; 100 distinct evaluator contexts are explicitly cleaned |
+| `async-initializer-outcomes` | exact | Async initializers preserve successful, thrown-through-`try?`, failable-success, and failable-nil outcomes across suspension | Native/interpreter parity in 20 repetitions: `success,threw,accepted,rejected` |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -74,7 +76,7 @@ It checks only:
 | `cancelledEvaluationThrowsCancellationError` | Native host cancellation wrapper | Infrastructure cancellation; must later separate from source cancellation |
 | `asyncHostGatewaySuspendsThroughInterpretedFunction` | Event trace from test host | Host integration regression; no compiled same-source fixture yet |
 | `interpretedTaskBodyCanAwaitAsyncHostGateway` | Test host result | Host integration regression; no compiled same-source fixture yet |
-| `interleavedTasksKeepIndependentLexicalFrames` | `main-actor-task-partial-order` native fact plus value invariant | Both task-specific lexical values must survive; sibling completion order is deliberately not asserted. Shared-frame ownership remains an M1 gap |
+| `interleavedTasksKeepIndependentLexicalFrames` | `main-actor-task-partial-order` native fact plus value invariant | Both task-specific lexical values survive in task-owned contexts; sibling completion order is deliberately not asserted |
 | `asyncGatewayCanReenterSuspendingInterpretedClosure` | Test host result | Host re-entry regression; no standalone native fixture yet |
 | `asyncControlFlowIsLazyAndCatchesHostErrors` | Test host counters | Semantically useful; needs native fixture extraction |
 | `cancellationInterruptsSuspendedHostGateway` | Native host task cancellation | Host-level cancellation regression; needs source/abort distinction |
@@ -146,12 +148,14 @@ the earliest incomplete milestone.
 ### Task-owned context foundation
 
 Native question: can 100 sibling MainActor tasks suspend concurrently while
-retaining the local value and lexical nested type belonging to each task?
+retaining the generic return binding, local value, and lexical nested type
+belonging to each task?
 
-The committed `task-owned-evaluator-context` fixture uses one real
-`Task.yield()` per task. Twenty native Swift 6 strict-concurrency runs each
-produced exactly the same 100-value multiset. The sibling completion order was
-observed but deliberately not asserted.
+The committed `task-owned-evaluator-context` fixture routes every value
+through a generic async identity function and one real `Task.yield()`.
+Twenty native Swift 6 strict-concurrency runs each produced exactly the same
+100-value multiset. The sibling completion order was observed but deliberately
+not asserted.
 
 Before the ownership change, the equivalent interpreter run produced the
 right observable multiset through the parked-frame workaround, but the
@@ -172,23 +176,18 @@ Implementation facts:
   exist;
 - task completion explicitly clears task-owned dynamic state.
 
-Verification on the M1 foundation step:
-
-- native standalone compile/run: 20/20 runs, 100 unique expected values each;
-- `ConcurrencyParityTests`: 6 tests passed, including 20 native and 20
-  interpreter repetitions of the new fixture;
-- `AsyncExecutionTests|HostSignatureTests`: 28 tests passed;
-- full `swift test`: 707 tests in 141 suites passed;
-- repository milestone gate remains pending until the remaining M1 proof
-  cases are implemented.
+Initial foundation verification was 20/20 native and interpreter repetitions,
+100 unique expected values, 100 distinct context IDs, and explicit cleanup of
+every retained context.
 
 ### Cancellation while another context runs
 
-The committed `task-context-cancellation` fixture starts one task, waits on an
-explicit host barrier until that task has entered a 30-second cancellable
-suspension, and only then cancels it. A sibling task suspends once and resolves
-`Token` from an extension's lexical scope. The long sleep never reaches its
-deadline and is not used for synchronization.
+The committed `task-context-cancellation` fixture starts one task inside an
+extension-declared `init async throws`, waits on an explicit host barrier
+until that initializer has entered a 30-second cancellable suspension, and
+only then cancels it. A sibling task suspends once and resolves `Token` from
+an extension's lexical scope. The long sleep never reaches its deadline and is
+not used for synchronization.
 
 Twenty native Swift 6 runs and twenty equivalent interpreter runs all produced
 the exact invariant `cancelled,beta`. This proves that cancellation unwinds
@@ -209,3 +208,39 @@ from the detached task, and has the nested gateway compare the rebound context
 ID with the originating ID. Twenty interpreter runs also produced
 `lost,preserved`. Ambient native TaskLocal inheritance is therefore an
 integration aid, not the source of truth for host callback ownership.
+
+### Async initializer interleaving and outcomes
+
+`async-initializer-context` alternates two nominal types whose async
+initializers are declared in extensions and resolve different nested enum
+values. One hundred sibling tasks construct them concurrently. Twenty native
+and twenty interpreter runs each produced the complete expected 100-value
+multiset, while the white-box proof observed 100 distinct, cleaned evaluator
+contexts.
+
+`async-initializer-outcomes` crosses a real yield before every branch and
+establishes exact parity for success, a thrown initializer observed through
+`try?`, failable success, and failable nil. The synchronous interpreter entry
+now rejects an async initializer explicitly instead of entering its body
+through a non-suspending path.
+
+The implementation shares one instance-storage seed path between synchronous
+and asynchronous construction. Only a selected effect-bearing initializer
+body uses `callWithArgumentsSuspending`; ordinary constructors retain the
+established synchronous dispatcher.
+
+### M1 closing gate
+
+Final verification on Apple Swift 6.2.3 / macOS 26.5 SDK:
+
+- all committed runtime fixtures passed their native/interpreter repetitions;
+- targeted concurrency, host-signature, declaration, value, and ARC suites:
+  124 tests in 6 suites passed;
+- full `swift test`: 709 tests in 141 suites passed;
+- `Scripts/gate.sh`: suite 709/709, corpus 678/680, live 5/5, and API parity
+  345 match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin;
+- the corpus floor and every API parity ratchet remained unchanged.
+
+M1 is complete: frame independence follows from ownership rather than
+main-actor scheduling or save/clear/restore discipline. M2 task-runtime work
+may begin.

@@ -4,13 +4,19 @@ final class TaskContextRecorder {
 }
 
 @MainActor
+func contextIdentity<Value>(_ value: Value) async -> Value {
+    _ = await parityYield("")
+    return value
+}
+
+@MainActor
 struct EvenContextWorker {
     enum Token: String {
         case value = "even"
     }
 
     func run(index: Int, recorder: TaskContextRecorder) async {
-        let value = await parityYield(String(index))
+        let value: String = await contextIdentity(String(index))
         recorder.values.append(Token.value.rawValue + ":" + value)
     }
 }
@@ -22,7 +28,7 @@ struct OddContextWorker {
     }
 
     func run(index: Int, recorder: TaskContextRecorder) async {
-        let value = await parityYield(String(index))
+        let value: String = await contextIdentity(String(index))
         recorder.values.append(Token.value.rawValue + ":" + value)
     }
 }

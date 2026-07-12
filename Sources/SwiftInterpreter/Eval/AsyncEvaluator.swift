@@ -541,6 +541,10 @@ extension Interpreter {
             return try await callWithArgumentsSuspending(
                 closure, args: arguments, node: Syntax(node))
 
+        case .type(let symbol):
+            return try await instantiateSuspending(
+                symbol, with: arguments, node: Syntax(node))
+
         case .instance(let instance)
             where instance.symbol.methods["callAsFunction"] != nil:
             if let overloads = instance.symbol.methods["callAsFunction"],

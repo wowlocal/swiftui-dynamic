@@ -411,4 +411,17 @@ struct AsyncExecutionTests {
             _ = try interpreter.run(source: "await asyncOnly()")
         }
     }
+
+    @Test func synchronousEntryRejectsAsyncInitializer() {
+        let interpreter = Interpreter()
+
+        #expect(throws: RuntimeError.self) {
+            _ = try interpreter.run(source: """
+            struct DeferredValue {
+                init() async {}
+            }
+            DeferredValue()
+            """)
+        }
+    }
 }

@@ -63,6 +63,31 @@
     "notes": "The interpreter twin uses a real native detached task and verifies that TaskBoundEvalContext rebinds the exact originating EvaluationTaskContext ID."
   },
   {
+    "id": "async-initializer-context",
+    "fixture": "Fixtures/async-initializer-context.swift",
+    "mode": "runtime",
+    "assertion": "predicate",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "startAsyncInitializerProbe()",
+    "interpreterProjection": "instance-string-array:values",
+    "predicate": "same-event-multiset",
+    "nativeFact": "One hundred extension-declared async initializers retain their own argument and extension lexical nested type across suspension; sibling completion order is unspecified.",
+    "notes": "The fixture alternates two nominal types so active initializer and lexical owner state cannot be shared accidentally."
+  },
+  {
+    "id": "async-initializer-outcomes",
+    "fixture": "Fixtures/async-initializer-outcomes.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncInitializerOutcomeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Async initializers preserve success, thrown-error through try?, failable success, and failable nil outcomes across suspension.",
+    "notes": "Every branch crosses the same real parityYield suspension before deciding its outcome."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

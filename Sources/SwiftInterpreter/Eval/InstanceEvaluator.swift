@@ -60,25 +60,22 @@ extension Interpreter {
         return merged
     }
 
-    public func instantiate(_ symbol: StructSymbol, with args: CallArguments, node: Syntax? = nil) throws -> RuntimeValue {
-        if let traced = Self.tracedInitializer,
-           symbol.name.contains(traced) {
-            let shapes = args.arguments
-                .map { "\($0.label ?? "_"): \($0.value.stringified.prefix(90))" }
-                .joined(separator: ", ")
-            Swift.print("⟶ init \(symbol.name)(\(shapes))")
-        }
+    /// Allocate an instance and evaluate non-suspending stored-property
+    /// defaults. Sync and async declared initializers start from the same
+    /// storage state; only execution of the selected body is effect-specific.
+    private func makeInstanceSeed(
+        for symbol: StructSymbol, node: Syntax?
+    ) throws -> Instance {
         let instance = Instance(
             symbol: symbol, lifecycleOwner: symbol.isClass ? self : nil)
         let notifying = Set(symbol.notifyingPropertyNames)
         for property in inheritedStoredProperties(of: symbol) {
-            // Optional-typed properties without initializers are nil in Swift.
+            // Optional-typed properties without initializers are nil.
             let annotationText = property.typeAnnotation?.trimmedDescription ?? ""
             var value: RuntimeValue = RuntimeOptionalValue.wrappedType(in: annotationText) != nil
                 ? .none(forTypeAnnotation: annotationText) : .void
             if property.isLazy, let initializer = property.initializer {
-                // `lazy var` defers to FIRST ACCESS with self bound —
-                // sibling-property references are legal there.
+                // Lazy defaults evaluate on first access with self bound.
                 let box = Box(
                     .native(LazyMemberSeed(
                         initializer: initializer, annotation: property.typeAnnotation)),
@@ -88,25 +85,24 @@ extension Interpreter {
                 continue
             }
             if let initializer = property.initializer {
-                // Static context: property initializers may reference the
-                // type's own statics bare (`= Timer.publish(every:
-                // autoScrollDuration, …)`).
+                // Ordinary defaults execute in the nominal type's static
+                // context before either sync or async init body begins.
                 do {
                     value = try resolveAnnotated(
                         try evaluate(initializer, in: selfEnvironment(.type(symbol))),
                         annotation: property.typeAnnotation
                     )
                 } catch is InterpretedThrow {
-                    // A default whose construction THROWS headlessly (real
-                    // resources exist on device) reads unknowable.
+                    // Headless resource construction can legitimately throw;
+                    // preserve the existing unknowable-default policy.
                     value = .native(ChainedImplicitCall(
                         base: .implicitMember("default"), member: property.name,
                         arguments: CallArguments()))
                 }
             }
             if case .void = value, property.wrapper == .state {
-                // State-like wrappers whose default lives elsewhere
-                // (@Default(.key) — Defaults package): fresh identity.
+                // State-like wrappers whose default lives in external
+                // wrapper metadata receive a synthesized fresh identity.
                 var seen: Set<String> = []
                 value = (try? synthesizedFreshValue(
                     typeName: property.typeAnnotation?.trimmedDescription ?? "",
@@ -117,7 +113,7 @@ extension Interpreter {
                 declaredTypeName: annotationText.isEmpty ? nil : annotationText,
                 referenceOwnership: property.referenceOwnership)
             if notifying.contains(property.name) {
-                // @Published (or @Observable-tracked) mutation → model signal.
+                // Published/observable storage shares one change signal.
                 let signal = instance.changeSignal
                 box.onChange = { signal.fire() }
             }
@@ -127,7 +123,8 @@ extension Interpreter {
                     let key = ViewStateKey(
                         site: site, type: symbol.name, property: property.name,
                         salt: viewIdentitySalts.joined(separator: "/"))
-                    if Self.traceStateCells, property.name == "viewModel" || property.name == "fetcher" {
+                    if Self.traceStateCells,
+                       property.name == "viewModel" || property.name == "fetcher" {
                         Swift.print("   ⌘ \(symbol.name).\(property.name) idx=\(site.indexInTree) salt=[\(key.salt)] \(viewStateCells[key] != nil ? "HIT" : "miss") src=\(node?.description.replacingOccurrences(of: "\n", with: " ").prefix(70) ?? "")")
                     }
                     if let existing = viewStateCells[key] {
@@ -137,7 +134,8 @@ extension Interpreter {
                         instance.stateBoxes[property.name] = box
                     }
                 } else {
-                    if Self.traceStateCells, property.name == "viewModel" || property.name == "fetcher" {
+                    if Self.traceStateCells,
+                       property.name == "viewModel" || property.name == "fetcher" {
                         Swift.print("   ⌘ \(symbol.name).\(property.name) NO-SITE persistent=\(persistentViewState) view=\(symbol.conformsToView)")
                     }
                     instance.stateBoxes[property.name] = box
@@ -146,6 +144,65 @@ extension Interpreter {
                 instance.properties[property.name] = box
             }
         }
+        return instance
+    }
+
+    private func effectiveInitializers(
+        for symbol: StructSymbol
+    ) -> [InitializerDeclSyntax] {
+        guard symbol.initializers.isEmpty else { return symbol.initializers }
+        var parentName = symbol.superclassName
+        var walked: Set<ObjectIdentifier> = []
+        while let name = parentName,
+              case .type(let parent)? = globals.lookup(name),
+              walked.insert(ObjectIdentifier(parent)).inserted {
+            if !parent.initializers.isEmpty { return parent.initializers }
+            parentName = parent.superclassName
+        }
+        return []
+    }
+
+    private func initializerPlan(
+        for symbol: StructSymbol, arguments: CallArguments
+    ) -> (
+        effective: [InitializerDeclSyntax],
+        strict: InitializerDeclSyntax?,
+        memberwise: Bool
+    ) {
+        let effective = effectiveInitializers(for: symbol)
+        let available = effective.filter {
+            !activeInitializers.contains($0.id)
+        }
+        let strict = chooseInitializerStrict(
+            from: available, for: arguments)
+        var memberwise = effective.isEmpty
+        if !memberwise, strict == nil {
+            let propertyNames = Set(
+                inheritedStoredProperties(of: symbol).map(\.name))
+            let labels = arguments.arguments.compactMap(\.label)
+            if !labels.isEmpty,
+               labels.allSatisfy({ propertyNames.contains($0) }) {
+                memberwise = true
+            }
+        }
+        return (effective, strict, memberwise)
+    }
+
+    private func initializerIsAsync(
+        _ initializer: InitializerDeclSyntax
+    ) -> Bool {
+        initializer.signature.effectSpecifiers?.asyncSpecifier != nil
+    }
+
+    public func instantiate(_ symbol: StructSymbol, with args: CallArguments, node: Syntax? = nil) throws -> RuntimeValue {
+        if let traced = Self.tracedInitializer,
+           symbol.name.contains(traced) {
+            let shapes = args.arguments
+                .map { "\($0.label ?? "_"): \($0.value.stringified.prefix(90))" }
+                .joined(separator: ", ")
+            Swift.print("⟶ init \(symbol.name)(\(shapes))")
+        }
+        let instance = try makeInstanceSeed(for: symbol, node: node)
 
         // Declared inits win when one FITS and isn't already running (a
         // convenience init delegating to itself would recurse forever);
@@ -158,30 +215,10 @@ extension Interpreter {
         // subclass pattern: `@Suite class Base { init() { sut = … } }` +
         // `final class CaseTests: Base` — instantiating the subclass runs
         // the base init with self = the subclass instance).
-        var effectiveInitializers = symbol.initializers
-        if effectiveInitializers.isEmpty {
-            var parentName = symbol.superclassName
-            var walked: Set<ObjectIdentifier> = []
-            while let name = parentName,
-                  case .type(let parent)? = globals.lookup(name),
-                  walked.insert(ObjectIdentifier(parent)).inserted {
-                if !parent.initializers.isEmpty {
-                    effectiveInitializers = parent.initializers
-                    break
-                }
-                parentName = parent.superclassName
-            }
-        }
-        let available = effectiveInitializers.filter { !activeInitializers.contains($0.id) }
-        let strictChoice = chooseInitializerStrict(from: available, for: args)
-        var memberwise = effectiveInitializers.isEmpty
-        if !memberwise, strictChoice == nil {
-            let propertyNames = Set(inheritedStoredProperties(of: symbol).map(\.name))
-            let labels = args.arguments.compactMap(\.label)
-            if !labels.isEmpty, labels.allSatisfy({ propertyNames.contains($0) }) {
-                memberwise = true
-            }
-        }
+        let plan = initializerPlan(for: symbol, arguments: args)
+        let effectiveInitializers = plan.effective
+        let strictChoice = plan.strict
+        let memberwise = plan.memberwise
         if memberwise {
             var assigned = Set<String>()
             // Labeled arguments claim their properties FIRST, so an unlabeled
@@ -296,6 +333,11 @@ extension Interpreter {
             }
             let chosen = strictChoice
                 ?? chooseInitializer(from: effectiveInitializers, for: args)
+            if initializerIsAsync(chosen) {
+                let message = "async initializer for '\(symbol.name)' requires runAsync and await"
+                if let node { throw error(node, message) }
+                throw RuntimeError(message: message)
+            }
             let initialized = try runInitializer(
                 chosen, on: instance, args: args, node: node)
             return chosen.optionalMark != nil
@@ -303,6 +345,49 @@ extension Interpreter {
                 : initialized
         }
         return .instance(instance)
+    }
+
+    /// Effect-aware constructor entry used by the async evaluator. Ordinary
+    /// memberwise and synchronous constructors stay on the established
+    /// synchronous dispatch path; only a selected async initializer allocates
+    /// a seed and executes its body with suspension propagation.
+    func instantiateSuspending(
+        _ symbol: StructSymbol, with arguments: CallArguments,
+        node: Syntax
+    ) async throws -> RuntimeValue {
+        let plan = initializerPlan(for: symbol, arguments: arguments)
+        guard !plan.memberwise, !plan.effective.isEmpty else {
+            return try invoke(
+                .type(symbol), with: arguments,
+                node: node)
+        }
+        if plan.strict == nil, !arguments.arguments.isEmpty,
+           registry?.constructor(named: symbol.name) != nil {
+            return try invoke(
+                .type(symbol), with: arguments,
+                node: node)
+        }
+        let chosen = plan.strict
+            ?? chooseInitializer(from: plan.effective, for: arguments)
+        guard initializerIsAsync(chosen) else {
+            return try invoke(
+                .type(symbol), with: arguments,
+                node: node)
+        }
+
+        if let traced = Self.tracedInitializer,
+           symbol.name.contains(traced) {
+            let shapes = arguments.arguments
+                .map { "\($0.label ?? "_"): \($0.value.stringified.prefix(90))" }
+                .joined(separator: ", ")
+            Swift.print("⟶ async init \(symbol.name)(\(shapes))")
+        }
+        let instance = try makeInstanceSeed(for: symbol, node: node)
+        let initialized = try await runInitializerSuspending(
+            chosen, on: instance, args: arguments, node: node)
+        return chosen.optionalMark != nil
+            ? initialized.liftedToOptional(wrappedTypeName: symbol.name)
+            : initialized
     }
 
     /// Sentinel unwound when a DELEGATED failable init returns nil: the
@@ -352,6 +437,49 @@ extension Interpreter {
         if case .instance(let final)? = initEnv.lookup("self"), final !== instance {
             if ownsInitializationFlag { final.isInitializing = false }
             return .instance(final) // `self = other` reassigned the value
+        }
+        return .instance(instance)
+    }
+
+    @discardableResult
+    func runInitializerSuspending(
+        _ chosen: InitializerDeclSyntax, on instance: Instance,
+        args: CallArguments, node: Syntax?
+    ) async throws -> RuntimeValue {
+        guard let body = chosen.body else {
+            throw RuntimeError(
+                message: "init of '\(instance.symbol.name)' has no body")
+        }
+        let inserted = activeInitializers.insert(chosen.id).inserted
+        defer { if inserted { activeInitializers.remove(chosen.id) } }
+        let instanceKey = ObjectIdentifier(instance)
+        let instanceInserted = initializingInstances.insert(instanceKey).inserted
+        defer { if instanceInserted { initializingInstances.remove(instanceKey) } }
+        let ownsInitializationFlag = !instance.isInitializing
+        if ownsInitializationFlag { instance.isInitializing = true }
+        defer { if ownsInitializationFlag { instance.isInitializing = false } }
+
+        let initEnv = selfEnvironment(.instance(instance))
+        let closure = ClosureValue(
+            parameters: initializerMetadata(for: chosen).parameters,
+            body: body.statements,
+            captured: initEnv)
+        closure.lexicalOwner = declLexicalOwners[chosen.id] ?? instance.symbol
+        closure.debugName = "asyncInit:\(instance.symbol.name)"
+
+        let outcome: RuntimeValue
+        do {
+            outcome = try await callWithArgumentsSuspending(
+                closure, args: args, node: node)
+        } catch let failure as RuntimeError
+            where failure.message == Self.initFailedSentinel {
+            return .nilValue
+        }
+        if chosen.optionalMark != nil, outcome.isNil { return .nilValue }
+        if case .instance(let final)? = initEnv.lookup("self"),
+           final !== instance {
+            if ownsInitializationFlag { final.isInitializing = false }
+            return .instance(final)
         }
         return .instance(instance)
     }
