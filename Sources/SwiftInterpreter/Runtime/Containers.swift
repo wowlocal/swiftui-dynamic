@@ -40,11 +40,20 @@ public struct DictValue: CustomStringConvertible {
     public var count: Int { keys.count }
     public var isEmpty: Bool { keys.isEmpty }
 
-    public func lookup(_ key: RuntimeValue) throws -> RuntimeValue {
+    /// Storage lookup that distinguishes an absent key from a present value
+    /// whose own value is `Optional.none`.
+    public func value(forKey key: RuntimeValue) throws -> RuntimeValue? {
         for (index, existing) in keys.enumerated() where try Builtins.areEqual(existing, key) {
             return values[index]
         }
-        return .nilValue
+        return nil
+    }
+
+    /// Legacy internal lookup used by mutation/algebra paths. Source-level
+    /// subscripting uses `value(forKey:)` and adds the dictionary subscript's
+    /// outer Optional explicitly.
+    public func lookup(_ key: RuntimeValue) throws -> RuntimeValue {
+        try value(forKey: key) ?? .nilValue
     }
 
     public mutating func update(_ key: RuntimeValue, to value: RuntimeValue) throws {
@@ -61,6 +70,31 @@ public struct DictValue: CustomStringConvertible {
             keys.append(key)
             values.append(value)
         }
+    }
+
+    /// Store a value without interpreting `Optional.none` as the dictionary
+    /// subscript setter's outer nil. For `[Key: Value?]`, a typed `Value?.none`
+    /// is a present value; only the untyped nil literal removes the entry.
+    public mutating func setValue(
+        _ key: RuntimeValue, to value: RuntimeValue
+    ) throws {
+        for (index, existing) in keys.enumerated()
+        where try Builtins.areEqual(existing, key) {
+            values[index] = value
+            return
+        }
+        keys.append(key)
+        values.append(value)
+    }
+
+    /// Dictionary-literal construction stores a value even when that value
+    /// is an untyped nil literal; annotation resolution may subsequently
+    /// turn it into `Value?.none`. Subscript assignment retains its distinct
+    /// nil-means-remove behavior through `update` above.
+    public mutating func setLiteralEntry(
+        _ key: RuntimeValue, to value: RuntimeValue
+    ) throws {
+        try setValue(key, to: value)
     }
 
     public var description: String {

@@ -446,10 +446,23 @@ extension ViewRegistry {
                 }
                 let isPresented = Binding<Bool>(
                     get: { !stub.box.value.isNil },
-                    set: { presented in if !presented { stub.box.value = .nilValue } }
+                    set: { presented in
+                        guard !presented else { return }
+                        if case .optional(let optional) = stub.box.value {
+                            stub.box.value = .none(
+                                wrappedTypeName: optional.wrappedTypeName,
+                                isImplicitlyUnwrapped: optional.isImplicitlyUnwrapped)
+                        } else if let annotation = stub.box.declaredTypeName {
+                            stub.box.value = .none(forTypeAnnotation: annotation)
+                        } else {
+                            stub.box.value = .nilValue
+                        }
+                    }
                 )
                 return AnyView(view.sheet(isPresented: isPresented) {
-                    if let views = try? ctx.callBuilderClosure(closure, arguments: [stub.box.value]).map(Self.anyView) {
+                    if let itemValue = stub.box.value.unwrappedOptionalOrSelf,
+                       let views = try? ctx.callBuilderClosure(
+                        closure, arguments: [itemValue]).map(Self.anyView) {
                         if views.count == 1 { views[0] } else { AnyView(VStack { Self.indexed(views) }) }
                     }
                 })

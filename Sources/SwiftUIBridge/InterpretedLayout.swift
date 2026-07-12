@@ -109,8 +109,14 @@ struct InterpretedLayout: Layout {
 func layoutHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let proposal = value as? ProposedViewSize {
         switch name {
-        case "width": return proposal.width.map { .native(Double($0)) } ?? .nilValue
-        case "height": return proposal.height.map { .native(Double($0)) } ?? .nilValue
+        case "width":
+            return .optional(
+                proposal.width.map { .native(Double($0)) },
+                wrappedTypeName: "CGFloat")
+        case "height":
+            return .optional(
+                proposal.height.map { .native(Double($0)) },
+                wrappedTypeName: "CGFloat")
         case "replacingUnspecifiedDimensions":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 var fallback = CGSize(width: 10, height: 10)

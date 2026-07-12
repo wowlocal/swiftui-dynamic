@@ -135,6 +135,7 @@ public final class StructSymbol {
         public let parameters: [ClosureValue.Parameter]
         public let getter: CodeBlockItemListSyntax
         public let setter: ComputedProperty.Setter?
+        public let resultTypeName: String?
     }
 
     /// Custom-property-wrapper STATICS (`@UserDefault("key", defaultValue:

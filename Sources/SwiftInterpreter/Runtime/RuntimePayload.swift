@@ -26,6 +26,9 @@ public enum RuntimePayload {
     /// Appended so existing payload tags remain stable for incremental
     /// clients compiled before dedicated Set storage landed.
     case set(RuntimeSetValue)
+    /// A source-level Optional wrapper, including nested wrappers and the
+    /// declared wrapped type when known.
+    case optional(RuntimeOptionalValue)
 }
 
 extension RuntimeValue {
@@ -50,6 +53,8 @@ extension RuntimeValue {
             return .array(value)
         case .set(let value):
             return .set(value)
+        case .optional(let value):
+            return .optional(value)
         case .dictionary(let value):
             return .dictionary(value)
         case .tuple(let value):

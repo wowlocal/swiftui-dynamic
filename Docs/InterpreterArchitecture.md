@@ -45,7 +45,7 @@ source
 ## Runtime-value migration
 
 `RuntimeValue` stores primitives, strings, arrays, Sets, dictionaries, tuples,
-and ranges in dedicated enum cases. `RuntimeValue.host(Any)` is the escape
+ranges, and Optionals in dedicated enum cases. `RuntimeValue.host(Any)` is the escape
 hatch for opaque framework or embedder objects such as `AnyView`, `Date`, and
 `URL`. `RuntimePayload` and the typed accessors form the stable dispatch
 surface, and `hostPayload` boxes a core value only when a host gateway
@@ -53,6 +53,18 @@ explicitly asks for one. Arrays use Swift's copy-on-write storage;
 `RuntimeSetValue`, `TupleValue`, and `DictValue` are value types, and collection
 lvalues perform read-modify-write through their owner so nested updates retain
 value semantics.
+
+`RuntimeOptionalValue` retains both `.some` and `.none` as physical runtime
+values, including every layer of a nested Optional. Its wrapped-type metadata
+lets an empty `T?` bind host generics without manufacturing a payload, and an
+IUO flag preserves `T!`'s direct-use behavior while keeping Optional storage.
+Typed declarations, assignments, parameters, returns, enum payloads,
+collection elements, casts, failable initializers, `try?`, generated members,
+Codable, and Objective-C marshaling all enter this representation. Optional
+binding, patterns, chaining, `??`, force unwrap, `map`/`flatMap`, equality,
+and host matching unwrap exactly one layer at their language-defined boundary.
+The untyped `.nilValue` case remains only as the context-free nil literal and
+legacy boundary sentinel; annotation resolution converts it to typed `.none`.
 
 `RuntimeSetValue` is deliberately separate from Array. It keeps a deterministic
 first-seen backing order because dynamically interpreted equality cannot use a
@@ -128,10 +140,10 @@ blocking the main actor.
 
 The remaining semantic migration is deliberately ordered:
 
-1. Add explicit optional storage, and consider a distinct/COW struct
-   representation if profiling shows storage-envelope copies are material;
-   the observable struct/class semantics no longer depend on that refactor.
-2. Move generated and hand-written compatibility gateways onto the landed
+1. Consider a distinct/COW struct representation if profiling shows
+   storage-envelope copies are material; the observable struct/class
+   semantics no longer depend on that refactor.
+2. Move remaining hand-written compatibility gateways onto the landed
    typed declarations without weakening deliberate absorption fallbacks.
 3. Tighten compile-time-only rules (mutability/exclusivity and unsupported
    ownership forms) where runtime diagnostics add practical value.

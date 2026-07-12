@@ -1,4 +1,13 @@
 import SwiftSyntax
+
+/// `_openExistential` exposes an erased payload's dynamic type when an API has
+/// explicitly requested Optional-preserving normalization. Keeping this probe
+/// out of the ordinary `native(Any)` hot path is material for collection-heavy
+/// interpretation.
+private func runtimeValueIsOptional<T>(_ value: T) -> Bool {
+    _isOptional(T.self)
+}
+
 /// The type-erased runtime representation of every value the interpreter touches.
 ///
 /// Swift-language values live in dedicated cases so evaluator semantics never
@@ -32,6 +41,10 @@ public enum RuntimeValue {
     /// Appended to preserve the tag layout of the established public cases
     /// for incrementally built embedders.
     case set(RuntimeSetValue)
+    /// Appended for the same ABI-conscious reason. The immutable payload is
+    /// reference-backed so nested optionals retain every source-level wrapper
+    /// without making this hot enum case indirect.
+    case optional(RuntimeOptionalValue)
 
     @inline(__always) public static func native(_ value: Int) -> RuntimeValue { .int(value) }
     @inline(__always) public static func native(_ value: Double) -> RuntimeValue { .double(value) }
@@ -42,10 +55,43 @@ public enum RuntimeValue {
     @inline(__always) public static func native(_ value: DictValue) -> RuntimeValue { .dictionary(value) }
     @inline(__always) public static func native(_ value: TupleValue) -> RuntimeValue { .tuple(value) }
     @inline(__always) public static func native(_ value: RuntimeRangeValue) -> RuntimeValue { .range(value) }
-    /// The untyped fallback: statically-scalar call sites bind the overloads
-    /// above at compile time; `Any` payloads normalize here (this also
-    /// unwraps optional scalars, matching the old `as? Int` read behavior;
-    /// CGFloat bridges into `.double` the way `doubleValue` always read it).
+    /// Preserve a statically known host Optional at the interpreter boundary.
+    public static func native<Wrapped>(_ value: Wrapped?) -> RuntimeValue {
+        let wrappedTypeName = String(describing: Wrapped.self)
+        guard let value else { return .none(wrappedTypeName: wrappedTypeName) }
+        let payload = _isOptional(Wrapped.self)
+            ? nativePreservingOptional(value as Any)
+            : native(value as Any)
+        return .some(payload, wrappedTypeName: wrappedTypeName)
+    }
+
+    /// Normalize an explicitly erased boundary that may contain Optional.
+    /// Ordinary statically typed Optionals should use `native(_ value: T?)`,
+    /// which avoids this dynamic metadata query entirely.
+    public static func nativePreservingOptional(_ value: Any) -> RuntimeValue {
+        if _openExistential(value, do: runtimeValueIsOptional) {
+            let mirror = Mirror(reflecting: value)
+            let typeName = String(describing: Swift.type(of: value))
+            let wrappedTypeName: String? = {
+                guard typeName.hasPrefix("Optional<"), typeName.hasSuffix(">") else {
+                    return nil
+                }
+                return String(typeName.dropFirst("Optional<".count).dropLast())
+            }()
+            guard let child = mirror.children.first else {
+                return .none(wrappedTypeName: wrappedTypeName)
+            }
+            return .some(
+                nativePreservingOptional(child.value),
+                wrappedTypeName: wrappedTypeName)
+        }
+        return native(value)
+    }
+
+    /// The fast untyped fallback for values with no Optional static contract.
+    /// Call `nativePreservingOptional` at an intentionally erased Optional
+    /// boundary; probing every opaque host object here regresses collection
+    /// workloads by an order of magnitude.
     public static func native(_ value: Any) -> RuntimeValue {
         if let i = value as? Int { return .int(i) }
         if let d = value as? Double { return .double(d) }
@@ -76,6 +122,7 @@ extension RuntimeValue {
         case .dictionary(let dictionary): return dictionary
         case .tuple(let tuple): return tuple
         case .range(let range): return range
+        case .optional(let optional): return optional.wrapped?.hostPayload
         default: return nil
         }
     }
@@ -177,8 +224,11 @@ extension RuntimeValue {
     }
 
     public var isNil: Bool {
-        if case .nilValue = self { return true }
-        return false
+        switch self {
+        case .nilValue: return true
+        case .optional(let optional): return optional.wrapped == nil
+        default: return false
+        }
     }
 
     /// String conversion matching Swift string-interpolation output closely
@@ -194,6 +244,9 @@ extension RuntimeValue {
         case .array(let array):
             return "[" + array.map(\.stringified).joined(separator: ", ") + "]"
         case .set(let set): return set.description
+        case .optional(let optional):
+            guard let wrapped = optional.wrapped else { return "nil" }
+            return "Optional(\(wrapped.stringified))"
         case .dictionary(let dictionary): return dictionary.description
         case .tuple(let tuple): return tuple.description
         case .range(let range): return range.description

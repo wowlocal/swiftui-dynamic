@@ -410,16 +410,17 @@ public final class TraceRegistry: HostRegistry {
                 // `sheet(item: $route) { $0.makeSheetView() }` — the content
                 // BINDS the item: it evaluates only when the binding holds a
                 // value, receiving it (nil = not presented, like device).
-                let itemValue: RuntimeValue? = args.labeled("item").map { item in
+                let hasItemArgument = args.labeled("item") != nil
+                let itemValue: RuntimeValue? = args.labeled("item").flatMap { item in
                     if case .host(let any) = item, let stub = any as? BindingStub {
-                        return stub.box.value
+                        return stub.box.value.unwrappedOptionalOrSelf
                     }
-                    return item
+                    return item.unwrappedOptionalOrSelf
                 }
                 for argument in args.arguments {
                     guard let closure = argument.value.closureValue else { continue }
-                    if let item = itemValue {
-                        guard !item.isNil else { continue }
+                    if hasItemArgument {
+                        guard let item = itemValue else { continue }
                         do {
                             node.children += try ctx.callBuilderClosure(closure, arguments: [item]).map(Self.node)
                         } catch let unbindable as RuntimeError where !unbindable.fatal {

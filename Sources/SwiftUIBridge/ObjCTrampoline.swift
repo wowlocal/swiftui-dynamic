@@ -133,7 +133,9 @@ enum ObjCTrampoline {
         let selector = Selector(name)
         guard object.responds(to: selector) else { return nil }
         guard encodingIsObjectOnly(object, selector: selector, expectedArgs: 0) else { return nil }
-        guard let unmanaged = try? performCatching({ object.perform(selector) }) else { return .nilValue }
+        guard let unmanaged = try? performCatching({ object.perform(selector) }) else {
+            return .none()
+        }
         return marshalToRuntime(unmanaged.takeUnretainedValue())
     }
 
@@ -192,7 +194,7 @@ enum ObjCTrampoline {
         // method that hands back nil IS nil (fresh UserDefaults
         // .object(forKey:) — nothing persisted), never ().
         guard returnsObject(object, selector: selector) else { return .void }
-        guard let returned = result?.takeUnretainedValue() else { return .nilValue }
+        guard let returned = result?.takeUnretainedValue() else { return .none() }
         return marshalToRuntime(returned)
     }
 
@@ -222,7 +224,7 @@ enum ObjCTrampoline {
             let run = {
                 MainActor.assumeIsolated {
                     let mapped = raw.map { any -> RuntimeValue in
-                        any.map { marshalToRuntime($0) } ?? .nilValue
+                        any.map { marshalToRuntime($0) } ?? .none()
                     }
                     _ = try? ctx.callClosure(closure, arguments: mapped)
                 }
@@ -358,6 +360,9 @@ enum ObjCTrampoline {
     // MARK: - Marshaling
 
     static func marshalToObjC(_ value: RuntimeValue) -> AnyObject? {
+        if case .optional(let optional) = value {
+            return optional.wrapped.flatMap(marshalToObjC)
+        }
         // `NSNotification.Name("ping")` / `Notification.Name(...)` markers —
         // toll-free NSString.
         if case .host(let any) = value, let call = any as? ImplicitMemberCall,

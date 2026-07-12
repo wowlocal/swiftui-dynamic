@@ -74,7 +74,14 @@ extension Interpreter {
             return .native(try expectBool(evaluate(infix.rightOperand, in: env), node: infix.rightOperand))
         case "??":
             let lhs = try evaluate(infix.leftOperand, in: env)
-            return lhs.isNil ? try evaluate(infix.rightOperand, in: env) : lhs
+            switch lhs.optionalState {
+            case .none:
+                return try evaluate(infix.rightOperand, in: env)
+            case .some(let wrapped, _):
+                return wrapped
+            case .notOptional:
+                return lhs
+            }
         case "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=":
             let target = try resolveLValue(infix.leftOperand, in: env)
             var rhs = try evaluate(infix.rightOperand, in: env)
@@ -252,6 +259,15 @@ extension Interpreter {
         return value
     }
 
+    private func containsOptionalChaining(_ expression: ExprSyntax) -> Bool {
+        var pending = [Syntax(expression)]
+        while let current = pending.popLast() {
+            if current.is(OptionalChainingExprSyntax.self) { return true }
+            pending.append(contentsOf: current.children(viewMode: .sourceAccurate))
+        }
+        return false
+    }
+
     indirect enum LValue {
         case box(Box)
         case instanceProperty(Instance, String)
@@ -281,31 +297,42 @@ extension Interpreter {
         /// `values[i] = UInt8(x)` — Data byte write-through: mutate a copy,
         /// re-write the base (value semantics).
         case dataElement(LValue, Int)
+        /// `optional! += value` reads one Optional layer and writes the
+        /// result through the annotated underlying storage.
+        case forceUnwrapped(LValue)
 
-        /// The element type of an `[X]`- or `Set<X>`-annotated instance
-        /// property, if known.
-        func annotatedElementType() -> String? {
-            let property: StructSymbol.StoredProperty?
-            var directTypeName: String?
+        /// The source annotation at this lvalue, including annotations reached
+        /// through nested collection elements and force-unwrapped storage.
+        func annotatedTypeName() -> String? {
             switch self {
             case .box(let box):
-                property = nil
-                directTypeName = box.declaredTypeName
+                return box.declaredTypeName
             case .instanceProperty(let instance, let name):
-                property = instance.symbol.storedProperty(named: name)
-            case .instanceValueProperty(_, let symbol, let name):
-                property = symbol.storedProperty(named: name)
-            case .staticProperty(let symbol, let name):
-                property = nil
-                directTypeName = symbol.staticProperties[name]?
+                return instance.symbol.storedProperty(named: name)?
                     .typeAnnotation?.trimmedDescription
+            case .instanceValueProperty(_, let symbol, let name):
+                return symbol.storedProperty(named: name)?
+                    .typeAnnotation?.trimmedDescription
+            case .staticProperty(let symbol, let name):
+                return symbol.staticProperties[name]?
+                    .typeAnnotation?.trimmedDescription
+            case .element(let base, _):
+                return base.annotatedElementType()
+            case .dictElement(let base, _, _):
+                return base.annotatedDictionaryTypes()?.value
+            case .forceUnwrapped(let base):
+                guard let typeName = base.annotatedTypeName() else { return nil }
+                return RuntimeOptionalValue.wrappedType(in: typeName) ?? typeName
             default:
-                property = nil
-            }
-            guard let raw = directTypeName ?? property?.typeAnnotation?.trimmedDescription else {
                 return nil
             }
-            let text = raw.trimmingCharacters(in: .whitespaces)
+        }
+
+        /// The element type of an `[X]`- or `Set<X>`-annotated lvalue, if
+        /// known. Nested arrays peel one source annotation at a time.
+        func annotatedElementType() -> String? {
+            guard let raw = annotatedTypeName() else { return nil }
+            let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.hasPrefix("["), text.hasSuffix("]"), !text.contains(":") {
                 return String(text.dropFirst().dropLast())
             }
@@ -313,6 +340,16 @@ extension Interpreter {
                 return String(text.dropFirst("Set<".count).dropLast())
             }
             return nil
+        }
+
+        func annotatedDictionaryTypes() -> (key: String, value: String)? {
+            guard let raw = annotatedTypeName() else { return nil }
+            let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard text.hasPrefix("["), text.hasSuffix("]") else { return nil }
+            let parts = SwiftInterpreter.splitTopLevel(
+                String(text.dropFirst().dropLast()), separator: ":")
+            guard parts.count == 2 else { return nil }
+            return (parts[0], parts[1])
         }
 
         func read(_ interpreter: Interpreter) throws -> RuntimeValue {
@@ -390,6 +427,13 @@ extension Interpreter {
                     throw EvalMessage(text: "no readable member '\(name)'")
                 }
                 return member
+            case .forceUnwrapped(let base):
+                guard let value = try base.read(interpreter)
+                    .unwrappedOptionalOrSelf else {
+                    throw EvalMessage(
+                        text: "unexpectedly found nil while force-unwrapping")
+                }
+                return value
             }
         }
 
@@ -403,19 +447,36 @@ extension Interpreter {
         /// mutating-method transaction. Outward lvalue layers transfer this
         /// owned value instead of recursively cloning it again.
         func writeOwned(_ value: RuntimeValue, _ interpreter: Interpreter) throws {
-            try write(value, interpreter, copyingInput: false)
+            try write(
+                value, interpreter, copyingInput: false,
+                resolvingAnnotation: true)
+        }
+
+        /// Commit a read-modify-write transaction whose changed leaf has
+        /// already been resolved against its source annotation. Collection
+        /// mutators use this path so appending one element does not re-resolve
+        /// every unchanged element on every write.
+        func writeCanonicalOwned(
+            _ value: RuntimeValue, _ interpreter: Interpreter
+        ) throws {
+            try write(
+                value, interpreter, copyingInput: false,
+                resolvingAnnotation: false)
         }
 
         private func write(
             _ value: RuntimeValue, _ interpreter: Interpreter,
-            copyingInput: Bool
+            copyingInput: Bool, resolvingAnnotation: Bool = true
         ) throws {
             @inline(__always) func stored(_ value: RuntimeValue) -> RuntimeValue {
                 copyingInput ? value.copiedForValueSemantics() : value
             }
             switch self {
             case .box(let box):
-                box.value = stored(value)
+                let resolved = try (resolvingAnnotation ? box.declaredTypeName : nil).map {
+                    try interpreter.resolveAnnotated(value, typeName: $0)
+                } ?? value
+                box.value = stored(resolved)
             case .instanceProperty(let instance, let name):
                 if Interpreter.traceStateCells,
                    name == (ProcessInfo.processInfo.environment["INTERP_TRACE_PROP"] ?? "statusesState") {
@@ -447,9 +508,10 @@ extension Interpreter {
                            ?? call.arguments.labeled("projectedValue") {
                         incoming = seed
                     }
-                    let resolved = try interpreter.resolveAnnotated(
-                        incoming, annotation: property?.typeAnnotation
-                    )
+                    let resolved = resolvingAnnotation
+                        ? try interpreter.resolveAnnotated(
+                            incoming, annotation: property?.typeAnnotation)
+                        : incoming
                     let storedValue = stored(resolved)
                     let observerKey = Interpreter.ObserverKey(
                         instance: ObjectIdentifier(instance), property: name)
@@ -510,10 +572,17 @@ extension Interpreter {
                 }
                 if copyingInput {
                     try LValue.instanceProperty(instance, name).write(value, interpreter)
-                } else {
+                } else if resolvingAnnotation {
                     try LValue.instanceProperty(instance, name).writeOwned(value, interpreter)
+                } else {
+                    try LValue.instanceProperty(instance, name)
+                        .writeCanonicalOwned(value, interpreter)
                 }
-                try base.writeOwned(.instance(instance), interpreter)
+                if resolvingAnnotation {
+                    try base.writeOwned(.instance(instance), interpreter)
+                } else {
+                    try base.writeCanonicalOwned(.instance(instance), interpreter)
+                }
             case .hostProperty(let any, let name):
                 if let stub = any as? BindingStub, name == "wrappedValue" {
                     // Extension methods on Binding write through the box —
@@ -533,15 +602,42 @@ extension Interpreter {
                 guard var array = try base.read(interpreter).arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
-                array[index] = stored(value)
-                try base.writeOwned(.native(array), interpreter)
+                let resolved = try base.annotatedElementType().map {
+                    try interpreter.resolveAnnotated(value, typeName: $0)
+                } ?? value
+                array[index] = stored(resolved)
+                try base.writeCanonicalOwned(.native(array), interpreter)
             case .dictElement(let base, let key, _):
                 let current = try base.read(interpreter)
                 guard var dict = current.dictValue else {
                     throw EvalMessage(text: "dictionary lvalue contains \(current.stringified), not a dictionary")
                 }
-                try dict.update(stored(key), to: stored(value))
-                try base.writeOwned(.native(dict), interpreter)
+                let types = base.annotatedDictionaryTypes()
+                let resolvedKey = try types.map {
+                    try interpreter.resolveAnnotated(key, typeName: $0.key)
+                } ?? key
+                let resolvedValue = try types.map {
+                    try interpreter.resolveAnnotated(value, typeName: $0.value)
+                } ?? value
+                let removesEntry: Bool = {
+                    if case .nilValue = value { return true }
+                    if case .implicitMember(let name) = value, name == "none" {
+                        return true
+                    }
+                    if case .host(let any) = value,
+                       let call = any as? ImplicitMemberCall,
+                       call.name == "none", call.arguments.isEmpty {
+                        return true
+                    }
+                    return false
+                }()
+                if removesEntry {
+                    try dict.update(stored(resolvedKey), to: .nilValue)
+                } else {
+                    try dict.setValue(
+                        stored(resolvedKey), to: stored(resolvedValue))
+                }
+                try base.writeCanonicalOwned(.native(dict), interpreter)
             case .tupleElement(let base, let index):
                 guard var tuple = try base.read(interpreter).tupleValue,
                       tuple.values.indices.contains(index) else {
@@ -549,7 +645,11 @@ extension Interpreter {
                 }
                 tuple.values[index] = stored(value)
                 // Re-write the base so state boxes notify.
-                try base.writeOwned(.native(tuple), interpreter)
+                if resolvingAnnotation {
+                    try base.writeOwned(.native(tuple), interpreter)
+                } else {
+                    try base.writeCanonicalOwned(.native(tuple), interpreter)
+                }
             case .instanceSubscript(let instance, let args):
                 try interpreter.callUserSubscriptSetter(on: instance, with: args, newValue: value)
             case .instanceValueSubscript(let base, let args):
@@ -559,7 +659,11 @@ extension Interpreter {
                 }
                 try interpreter.callUserSubscriptSetter(
                     on: instance, with: args, newValue: stored(value))
-                try base.writeOwned(.instance(instance), interpreter)
+                if resolvingAnnotation {
+                    try base.writeOwned(.instance(instance), interpreter)
+                } else {
+                    try base.writeCanonicalOwned(.instance(instance), interpreter)
+                }
             case .staticProperty(let symbol, let name):
                 symbol.staticCache[name] = stored(value)
             case .dataElement(let base, let index):
@@ -568,7 +672,11 @@ extension Interpreter {
                     throw EvalMessage(text: "Data byte write out of range")
                 }
                 bytes[bytes.index(bytes.startIndex, offsetBy: index)] = UInt8(truncatingIfNeeded: byte)
-                try base.writeOwned(.native(bytes), interpreter)
+                if resolvingAnnotation {
+                    try base.writeOwned(.native(bytes), interpreter)
+                } else {
+                    try base.writeCanonicalOwned(.native(bytes), interpreter)
+                }
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
                 guard case .host(let any) = baseValue,
@@ -576,7 +684,24 @@ extension Interpreter {
                         settingMember: name, on: any, to: value) else {
                     throw EvalMessage(text: "cannot assign to '\(name)' on \(baseValue.stringified)")
                 }
-                try base.writeOwned(.native(mutated), interpreter)
+                if resolvingAnnotation {
+                    try base.writeOwned(.native(mutated), interpreter)
+                } else {
+                    try base.writeCanonicalOwned(.native(mutated), interpreter)
+                }
+            case .forceUnwrapped(let base):
+                if !resolvingAnnotation,
+                   case .optional(let optional) = try base.read(interpreter) {
+                    try base.writeCanonicalOwned(
+                        .some(
+                            value, wrappedTypeName: optional.wrappedTypeName,
+                            isImplicitlyUnwrapped: optional.isImplicitlyUnwrapped),
+                        interpreter)
+                } else if copyingInput {
+                    try base.write(value, interpreter)
+                } else {
+                    try base.writeOwned(value, interpreter)
+                }
             }
         }
     }
@@ -984,11 +1109,36 @@ extension Interpreter {
                     return .box(box)
                 }
             }
-            let baseValue = try evaluate(base, in: env)
+            let evaluatedBaseValue = try evaluate(base, in: env)
+            var baseValue = evaluatedBaseValue
+            var optionalPayloadOwner: LValue?
+            if case .optional(let optional) = evaluatedBaseValue,
+               optional.isImplicitlyUnwrapped || containsOptionalChaining(base) {
+                guard let wrapped = optional.wrapped else {
+                    // Assignment through a nil optional chain is a no-op.
+                    // An unavailable IUO in whole-project artifact mode uses
+                    // the same absorbing write boundary.
+                    if containsOptionalChaining(base) || assumesCompiledImports {
+                        return .hostProperty(
+                            ImplicitMemberCall(
+                                name: "nil", arguments: CallArguments()),
+                            member.declName.baseName.text)
+                    }
+                    throw error(
+                        member,
+                        "unexpectedly found nil while implicitly unwrapping")
+                }
+                baseValue = wrapped
+                let storageExpression = base.as(OptionalChainingExprSyntax.self)?
+                    .expression ?? base
+                if let storage = try? resolveLValue(storageExpression, in: env) {
+                    optionalPayloadOwner = .forceUnwrapped(storage)
+                }
+            }
             if case .instance(let instance) = baseValue {
                 let name = instance.symbol.canonicalPropertyName(member.declName.baseName.text)
-                if !instance.symbol.isClass,
-                   let owner = try? resolveLValue(base, in: env) {
+                let owner = optionalPayloadOwner ?? (try? resolveLValue(base, in: env))
+                if !instance.symbol.isClass, let owner {
                     return .instanceValueProperty(owner, instance.symbol, name)
                 }
                 return .instanceProperty(instance, name)
@@ -996,8 +1146,9 @@ extension Interpreter {
             if let tuple = baseValue.tupleValue {
                 let memberName = member.declName.baseName.text
                 let index = Int(memberName) ?? tuple.labels.firstIndex(of: memberName) ?? -1
-                if tuple.values.indices.contains(index), let baseLValue = try? resolveLValue(base, in: env) {
-                    return .tupleElement(baseLValue, index)
+                let owner = optionalPayloadOwner ?? (try? resolveLValue(base, in: env))
+                if tuple.values.indices.contains(index), let owner {
+                    return .tupleElement(owner, index)
                 }
             }
             if case .host(let any) = baseValue {
@@ -1013,8 +1164,9 @@ extension Interpreter {
                     let memberName = member.declName.baseName.text
                     if !(type(of: any) is AnyClass),
                        hasHostMember(memberName, on: any),
-                       let baseLValue = try? resolveLValue(base, in: env) {
-                        return .hostValueMember(baseLValue, memberName)
+                       let owner = optionalPayloadOwner
+                        ?? (try? resolveLValue(base, in: env)) {
+                        return .hostValueMember(owner, memberName)
                     }
                     // Host objects with settable members (formatter.dateFormat = …).
                     return .hostProperty(any, memberName)
@@ -1155,7 +1307,8 @@ extension Interpreter {
         // `components.hour! += 1` — optionals ARE the value, so the
         // force-unwrap lvalue writes through the wrapped path.
         if let force = expr.as(ForceUnwrapExprSyntax.self) {
-            return try resolveLValue(force.expression, in: env)
+            return .forceUnwrapped(
+                try resolveLValue(force.expression, in: env))
         }
         throw error(expr, "expression is not assignable")
     }

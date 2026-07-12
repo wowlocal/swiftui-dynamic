@@ -150,8 +150,10 @@ extension Interpreter {
                 }
                 let annotation = (binding.typeAnnotation?.type
                     ?? sharedAnnotation(startingAt: index))?.trimmedDescription ?? ""
-                if annotation.hasSuffix("?") || annotation.hasSuffix("!") {
-                    env.define(name, .nilValue, declaredTypeName: annotation)
+                if RuntimeOptionalValue.wrappedType(in: annotation) != nil {
+                    env.define(
+                        name, .none(forTypeAnnotation: annotation),
+                        declaredTypeName: annotation)
                 } else if !annotation.isEmpty {
                     env.define(name, .void, declaredTypeName: annotation)
                 } else {
@@ -242,7 +244,7 @@ extension Interpreter {
                         throw error(optionalBinding, "'let _' needs an initializer")
                     }
                     let value = try await evaluateSuspending(initializer, in: bindings)
-                    guard !value.isNil else { return false }
+                    guard value.unwrappedOptionalOrSelf != nil else { return false }
                     continue
                 }
 
@@ -263,7 +265,8 @@ extension Interpreter {
                 if let names = tupleNames,
                    let initializer = optionalBinding.initializer?.value {
                     let value = try await evaluateSuspending(initializer, in: bindings)
-                    guard !value.isNil, let tuple = value.tupleValue,
+                    guard let unwrapped = value.unwrappedOptionalOrSelf,
+                          let tuple = unwrapped.tupleValue,
                           tuple.values.count == names.count else { return false }
                     for (name, elementValue) in zip(names, tuple.values) {
                         if let name { bindings.define(name, elementValue) }
@@ -282,8 +285,8 @@ extension Interpreter {
                 } else {
                     value = try resolveIdentifier(name, in: bindings, node: optionalBinding)
                 }
-                guard !value.isNil else { return false }
-                bindings.define(name, value)
+                guard let unwrapped = value.unwrappedOptionalOrSelf else { return false }
+                bindings.define(name, unwrapped)
 
             case .matchingPattern(let matching):
                 let subject = try await evaluateSuspending(

@@ -11,7 +11,7 @@ extension RuntimeValue {
         switch self {
         case .instance(let instance):
             return !instance.symbol.isClass
-        case .array, .set, .dictionary, .tuple, .range, .enumCase:
+        case .array, .set, .dictionary, .tuple, .range, .enumCase, .optional:
             return true
         default:
             return false
@@ -31,6 +31,11 @@ extension RuntimeValue {
             // mutation reaches them; walking the whole graph here would turn
             // repeated list updates quadratic.
             return self
+        case .optional(let optional):
+            return .optional(
+                optional.wrapped?.copiedForValueSemantics(),
+                wrappedTypeName: optional.wrappedTypeName,
+                isImplicitlyUnwrapped: optional.isImplicitlyUnwrapped)
         case .instance(let instance):
             guard !instance.symbol.isClass else { return self }
             return .instance(instance.copiedForValueSemantics())
@@ -89,6 +94,11 @@ extension RuntimeValue {
                 return .enumCase(EnumCaseValue(
                     symbol: caseValue.symbol, name: caseValue.name,
                     associated: caseValue.associated.map(copy)))
+            case .optional(let optional):
+                return .optional(
+                    optional.wrapped.map(copy),
+                    wrappedTypeName: optional.wrappedTypeName,
+                    isImplicitlyUnwrapped: optional.isImplicitlyUnwrapped)
             case .instance(let instance):
                 guard !instance.symbol.isClass else { return value }
                 let identity = ObjectIdentifier(instance)

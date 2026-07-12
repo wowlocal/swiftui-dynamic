@@ -96,7 +96,7 @@ extension ViewRegistry {
             return .void
         }
         constructors["XCTUnwrap"] = HostFunction(name: "XCTUnwrap") { args, _ in
-            guard let value = args.positional(0), !value.isNil else {
+            guard let value = args.positional(0)?.unwrappedOptionalOrSelf else {
                 throw RuntimeError(message: "XCTUnwrap failed: found nil")
             }
             return value
@@ -133,7 +133,7 @@ extension ViewRegistry {
             return .void
         }
         constructors["#require"] = HostFunction(name: "#require") { args, _ in
-            guard let value = args.positional(0), !value.isNil else {
+            guard let value = args.positional(0)?.unwrappedOptionalOrSelf else {
                 recorder.record("#require failed: found nil")
                 throw RuntimeError(message: "#require failed: found nil")
             }

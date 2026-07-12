@@ -577,11 +577,10 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
             })
         case "value":
             return .hostFunction(HostFunction(name: name) { args, _ in
-                guard let field = args.labeled("forHTTPHeaderField")?.stringValue,
-                      let headerValue = box.request.value(forHTTPHeaderField: field) else {
-                    return .nilValue
+                guard let field = args.labeled("forHTTPHeaderField")?.stringValue else {
+                    return .none(wrappedTypeName: "String")
                 }
-                return .native(headerValue)
+                return .native(box.request.value(forHTTPHeaderField: field))
             })
         default:
             if let stored = box.config[name] { return stored }
@@ -741,19 +740,28 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 guard let completion = task.completion else { return .void }
                 guard let url = task.url else {
                     _ = try ctx.callClosure(completion, arguments: [
-                        .nilValue, .nilValue,
-                        .native(RuntimeError(message: "dataTask has no URL")),
+                        .none(wrappedTypeName: "Data"),
+                        .none(wrappedTypeName: "URLResponse"),
+                        .some(
+                            .native(RuntimeError(message: "dataTask has no URL")),
+                            wrappedTypeName: "Error"),
                     ])
                     return .void
                 }
                 do {
                     let (data, response) = try NetworkBridge.respond(to: url)
                     _ = try ctx.callClosure(completion, arguments: [
-                        .native(data), .native(HTTPResponseBox(response)), .nilValue,
+                        .some(.native(data), wrappedTypeName: "Data"),
+                        .some(
+                            .native(HTTPResponseBox(response)),
+                            wrappedTypeName: "URLResponse"),
+                        .none(wrappedTypeName: "Error"),
                     ])
                 } catch let error as RuntimeError {
                     _ = try ctx.callClosure(completion, arguments: [
-                        .nilValue, .nilValue, .native(error),
+                        .none(wrappedTypeName: "Data"),
+                        .none(wrappedTypeName: "URLResponse"),
+                        .some(.native(error), wrappedTypeName: "Error"),
                     ])
                 }
                 return .void
@@ -791,18 +799,19 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let box = value as? URLComponentsBox {
         switch name {
         case "url":
-            return box.components.url.map { .native($0) } ?? .nilValue
+            return .native(box.components.url)
         case "string":
-            return box.components.string.map { .native($0) } ?? .nilValue
-        case "scheme": return box.components.scheme.map { .native($0) } ?? .nilValue
-        case "host": return box.components.host.map { .native($0) } ?? .nilValue
+            return .native(box.components.string)
+        case "scheme": return .native(box.components.scheme)
+        case "host": return .native(box.components.host)
         case "path": return .native(box.components.path)
-        case "port": return box.components.port.map { .int($0) } ?? .nilValue
-        case "query": return box.components.query.map { .native($0) } ?? .nilValue
-        case "fragment": return box.components.fragment.map { .native($0) } ?? .nilValue
+        case "port": return .native(box.components.port)
+        case "query": return .native(box.components.query)
+        case "fragment": return .native(box.components.fragment)
         case "queryItems":
-            guard let items = box.components.queryItems else { return .nilValue }
-            return .native(items.map { RuntimeValue.native($0) })
+            return .optional(box.components.queryItems.map {
+                .native($0.map(RuntimeValue.native))
+            }, wrappedTypeName: "[URLQueryItem]")
         default:
             return nil
         }
@@ -810,14 +819,14 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let query = value as? URLQueryItem {
         switch name {
         case "name": return .native(query.name)
-        case "value": return query.value.map { .native($0) } ?? .nilValue
+        case "value": return .native(query.value)
         default: return nil
         }
     }
     if let box = value as? HTTPResponseBox {
         switch name {
         case "statusCode": return .native(box.response.statusCode)
-        case "url": return box.response.url.map { .native($0) } ?? .nilValue
+        case "url": return .native(box.response.url)
         default: return nil
         }
     }
@@ -898,12 +907,13 @@ func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 let raw = container.object[key] ?? container.object[JSONDecodeBridge.snakeCasedKey(key)]
                 guard let jsonValue = raw, !(jsonValue is NSNull) else {
-                    if optional { return .nilValue }
+                    if optional { return .none() }
                     throw RuntimeError(message: "decode: missing key '\(key)'")
                 }
-                return try JSONDecodeBridge.decodeContainerValue(
+                let decoded = try JSONDecodeBridge.decodeContainerValue(
                     jsonValue, typeArgument: typeArgument, interpreter: interpreter,
                     decoder: container.decoder, context: key)
+                return optional ? decoded.liftedToOptional() : decoded
             })
         case "contains":
             return .hostFunction(HostFunction(name: name) { args, _ in
@@ -1076,12 +1086,12 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { args, _ in
             // Real, failable semantics: URL(string:) is nil on garbage.
             if let text = args.labeled("string")?.stringValue {
-                return URL(string: text).map { .native($0) } ?? .nilValue
+                return .native(URL(string: text))
             }
             if let value = args.labeled("fileURLWithPath"), let path = value.stringValue {
                 return .native(URL(fileURLWithPath: path))
             }
-            return .nilValue
+            throw RuntimeError(message: "URL initializer needs string: or fileURLWithPath:")
         }
     case "JSONDecoder":
         return HostFunction(name: name) { _, _ in .native(JSONDecoderBox()) }
@@ -1090,7 +1100,7 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
             // `Result(catching:)` — run the body; thrown values become the
             // failure. `.publisher` then rides the value pipeline.
             guard let body = args.closure(labeled: "catching") ?? args.firstUnlabeledClosure else {
-                return .nilValue
+                throw RuntimeError(message: "Result(catching:) needs a closure")
             }
             do {
                 let value = try ctx.callClosure(body, arguments: [])
@@ -1116,7 +1126,9 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
     case "HTTPURLResponse":
         return HostFunction(name: name) { args, _ in
             guard let url = NetworkBridge.url(from: args.labeled("url")),
-                  let code = args.labeled("statusCode")?.intValue else { return .nilValue }
+                  let code = args.labeled("statusCode")?.intValue else {
+                return .none(wrappedTypeName: "HTTPURLResponse")
+            }
             var headers: [String: String]?
             if let dict = args.labeled("headerFields")?.dictValue {
                 headers = [:]
@@ -1127,9 +1139,11 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
             guard let response = HTTPURLResponse(
                 url: url, statusCode: code,
                 httpVersion: args.labeled("httpVersion")?.stringValue, headerFields: headers) else {
-                return .nilValue
+                return .none(wrappedTypeName: "HTTPURLResponse")
             }
-            return .native(HTTPResponseBox(response))
+            return .some(
+                .native(HTTPResponseBox(response)),
+                wrappedTypeName: "HTTPURLResponse")
         }
     case "URLSession":
         return HostFunction(name: name) { _, _ in
@@ -1143,12 +1157,16 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
             // Failable like the real thing: URLComponents(string:) is nil
             // on garbage; the bare init starts empty.
             if let text = args.labeled("string")?.stringValue {
-                return URLComponents(string: text).map { .native(URLComponentsBox($0)) } ?? .nilValue
+                return .optional(
+                    URLComponents(string: text).map { .native(URLComponentsBox($0)) },
+                    wrappedTypeName: "URLComponents")
             }
             if let url = NetworkBridge.url(from: args.labeled("url")) {
                 let resolve = args.labeled("resolvingAgainstBaseURL")?.boolValue ?? false
-                return URLComponents(url: url, resolvingAgainstBaseURL: resolve)
-                    .map { .native(URLComponentsBox($0)) } ?? .nilValue
+                return .optional(
+                    URLComponents(url: url, resolvingAgainstBaseURL: resolve)
+                        .map { .native(URLComponentsBox($0)) },
+                    wrappedTypeName: "URLComponents")
             }
             if LiveCheckSupport.traceLifecycle, let raw = args.labeled("url") {
                 print("   ⚠ URLComponents(url:): no URL in \(raw.stringified.prefix(160))")
@@ -1286,7 +1304,9 @@ enum JSONDecodeBridge {
             }
             if jsonValue == nil || jsonValue is NSNull {
                 if annotation?.hasSuffix("?") == true {
-                    arguments.append(.init(label: property.name, value: .nilValue))
+                    arguments.append(.init(
+                        label: property.name,
+                        value: .none(forTypeAnnotation: annotation!)))
                     continue
                 }
                 if property.initializer != nil {
@@ -1336,7 +1356,7 @@ enum JSONDecodeBridge {
             for (key, entry) in object {
                 keys.append(.native(key))
                 if entry is NSNull {
-                    values.append(.nilValue)
+                    values.append(.none(forTypeAnnotation: valueAnnotation))
                 } else {
                     values.append(try decodeField(
                         entry, annotation: valueAnnotation, interpreter: interpreter,
@@ -1406,6 +1426,9 @@ enum JSONDecodeBridge {
             return try set.elements.map {
                 try encodeToJSON($0, snakeCase: snakeCase)
             }
+        case .optional(let optional):
+            guard let wrapped = optional.wrapped else { return NSNull() }
+            return try encodeToJSON(wrapped, snakeCase: snakeCase)
         case .dictionary(let dictionary):
             var out: [String: Any] = [:]
             for (key, entry) in zip(dictionary.keys, dictionary.values) {

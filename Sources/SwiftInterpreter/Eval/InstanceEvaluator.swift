@@ -58,8 +58,8 @@ extension Interpreter {
         for property in inheritedStoredProperties(of: symbol) {
             // Optional-typed properties without initializers are nil in Swift.
             let annotationText = property.typeAnnotation?.trimmedDescription ?? ""
-            var value: RuntimeValue = annotationText.hasSuffix("?") || annotationText.hasSuffix("!")
-                ? .nilValue : .void
+            var value: RuntimeValue = RuntimeOptionalValue.wrappedType(in: annotationText) != nil
+                ? .none(forTypeAnnotation: annotationText) : .void
             if property.isLazy, let initializer = property.initializer {
                 // `lazy var` defers to FIRST ACCESS with self bound —
                 // sibling-property references are legal there.
@@ -272,9 +272,13 @@ extension Interpreter {
                 if let node { throw error(node, message) }
                 throw RuntimeError(message: message)
             }
-            return try runInitializer(
-                strictChoice ?? chooseInitializer(from: effectiveInitializers, for: args),
-                on: instance, args: args, node: node)
+            let chosen = strictChoice
+                ?? chooseInitializer(from: effectiveInitializers, for: args)
+            let initialized = try runInitializer(
+                chosen, on: instance, args: args, node: node)
+            return chosen.optionalMark != nil
+                ? initialized.liftedToOptional(wrappedTypeName: symbol.name)
+                : initialized
         }
         return .instance(instance)
     }
@@ -708,7 +712,9 @@ extension Interpreter {
     /// for host/generic types.
     func synthesizedFreshValue(typeName rawName: String, seen: inout Set<String>) throws -> RuntimeValue {
         var typeName = rawName.trimmingCharacters(in: .whitespaces)
-        if typeName.hasSuffix("?") || typeName.hasSuffix("!") { return .nilValue }
+        if RuntimeOptionalValue.wrappedType(in: typeName) != nil {
+            return .none(forTypeAnnotation: typeName)
+        }
         if typeName.hasPrefix("[") { // arrays AND dictionaries start empty
             return typeName.contains(":") ? .native(DictValue()) : .native([RuntimeValue]())
         }
@@ -880,7 +886,11 @@ extension Interpreter {
         defer { resolveAnnotatedDepth -= 1 }
         guard resolveAnnotatedDepth < 64 else { return value }
         var typeName = rawName.trimmingCharacters(in: .whitespaces)
-        if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+        if let wrappedTypeName = RuntimeOptionalValue.wrappedType(in: typeName) {
+            return try resolveOptionalAnnotation(
+                value, wrappedTypeName: wrappedTypeName,
+                isImplicitlyUnwrapped: typeName.hasSuffix("!"))
+        }
 
         if let range = value.rangeValue, let annotation = Self.rangeAnnotation(typeName) {
             guard range.matchesNominalShape(annotation.name) else {
@@ -936,6 +946,25 @@ extension Interpreter {
            let array = value.arrayValue {
             let elementType = String(typeName.dropFirst().dropLast())
             return .native(try array.map { try resolveAnnotated($0, typeName: elementType) })
+        }
+
+        // `[Key: Value]` — annotations apply to both stored key and value;
+        // in particular `[String: Int?]` retains Optional wrappers for nil
+        // and non-nil entries instead of flattening them inside DictValue.
+        if typeName.hasPrefix("["), typeName.hasSuffix("]"),
+           let dictionary = value.dictValue {
+            let inner = String(typeName.dropFirst().dropLast())
+            let parts = SwiftInterpreter.splitTopLevel(
+                inner, separator: ":")
+            if parts.count == 2 {
+                return .native(DictValue(
+                    keys: try dictionary.keys.map {
+                        try resolveAnnotated($0, typeName: parts[0])
+                    },
+                    values: try dictionary.values.map {
+                        try resolveAnnotated($0, typeName: parts[1])
+                    }))
+            }
         }
 
         // `Set<Item> = [literal, ...]` uses Set's array-literal conformance;
@@ -1019,10 +1048,16 @@ extension Interpreter {
             }
             if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                let info = symbol.caseInfo(named: call.name), info.hasAssociatedValues {
+                let associated = try zip(
+                    call.arguments.arguments.map(\.value),
+                    info.associatedTypeNames
+                ).map { value, typeName in
+                    try resolveAnnotated(value, typeName: typeName)
+                }
                 return .enumCase(EnumCaseValue(
                     symbol: symbol,
                     name: call.name,
-                    associated: call.arguments.arguments.map(\.value)
+                    associated: associated
                 ))
             }
             return value
@@ -1132,6 +1167,68 @@ extension Interpreter {
             }
         }
         return value
+    }
+
+    /// Apply one source-level Optional conversion without flattening an
+    /// Optional that already has the target shape. Re-entering
+    /// `resolveAnnotated` for the wrapped type naturally builds and preserves
+    /// every layer of `T??`.
+    private func resolveOptionalAnnotation(
+        _ value: RuntimeValue, wrappedTypeName: String,
+        isImplicitlyUnwrapped: Bool
+    ) throws -> RuntimeValue {
+        if case .nilValue = value {
+            return .none(
+                wrappedTypeName: wrappedTypeName,
+                isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+        }
+        if case .implicitMember(let name) = value, name == "none" {
+            return .none(
+                wrappedTypeName: wrappedTypeName,
+                isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+        }
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall {
+            if call.name == "none", call.arguments.isEmpty {
+                return .none(
+                    wrappedTypeName: wrappedTypeName,
+                    isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+            }
+            if call.name == "some", let payload = call.arguments.positional(0) {
+                return .some(
+                    try resolveAnnotated(payload, typeName: wrappedTypeName),
+                    wrappedTypeName: wrappedTypeName,
+                    isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+            }
+        }
+        if case .optional(let optional) = value {
+            let canonical: (String) -> String = {
+                $0.filter { !$0.isWhitespace }
+                    .replacingOccurrences(of: "Swift.", with: "")
+            }
+            let sameKnownLayer = optional.wrappedTypeName.map(canonical)
+                == canonical(wrappedTypeName)
+            // Any Optional-producing API already represents this layer when
+            // the target's wrapped type is non-Optional; type context merely
+            // refines its metadata. If the target's wrapped type is itself
+            // Optional, injection adds the required outer layer instead.
+            let sameStructuralLayer = RuntimeOptionalValue.wrappedType(
+                in: wrappedTypeName) == nil
+            if sameKnownLayer || sameStructuralLayer {
+                guard let payload = optional.wrapped else {
+                    return .none(
+                        wrappedTypeName: wrappedTypeName,
+                        isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+                }
+                return .some(
+                    try resolveAnnotated(payload, typeName: wrappedTypeName),
+                    wrappedTypeName: wrappedTypeName,
+                    isImplicitlyUnwrapped: isImplicitlyUnwrapped)
+            }
+        }
+        return .some(
+            try resolveAnnotated(value, typeName: wrappedTypeName),
+            wrappedTypeName: wrappedTypeName,
+            isImplicitlyUnwrapped: isImplicitlyUnwrapped)
     }
 
     /// The conversion character of each %-directive in a format string,

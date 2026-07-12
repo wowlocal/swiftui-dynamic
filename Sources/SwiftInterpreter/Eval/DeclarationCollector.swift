@@ -447,7 +447,9 @@ extension Interpreter {
                     )
                 }
                 symbol.subscripts.append(.init(
-                    parameters: parameters, getter: accessors.getter, setter: accessors.setter))
+                    parameters: parameters, getter: accessors.getter,
+                    setter: accessors.setter,
+                    resultTypeName: subscriptDecl.returnClause.type.trimmedDescription))
             } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
                 if ProcessInfo.processInfo.environment["INTERP_TRACE_IDENT"] == nestedEnum.name.text {
                     Swift.print("   ⌗ nestedEnum \(symbol.name).\(nestedEnum.name.text) bareTaken=\(enumSymbols[nestedEnum.name.text] != nil)")
@@ -720,6 +722,9 @@ extension Interpreter {
                     // parameters and labels everywhere else.
                     let caseName = element.name.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
                     let labels: [String?] = element.parameterClause?.parameters.map { $0.firstName?.text } ?? []
+                    let associatedTypeNames = element.parameterClause?.parameters.map {
+                        $0.type.trimmedDescription
+                    } ?? []
                     let raw: RuntimeValue
                     if let rawExpr = element.rawValue?.value {
                         raw = try evaluate(rawExpr, in: globals)
@@ -729,7 +734,10 @@ extension Interpreter {
                         raw = .native(nextIntRaw)
                     }
                     if let intRaw = raw.intValue { nextIntRaw = intRaw + 1 }
-                    symbol.cases.append(.init(name: caseName, associatedLabels: labels, rawValue: raw))
+                    symbol.cases.append(.init(
+                        name: caseName, associatedLabels: labels,
+                        rawValue: raw,
+                        associatedTypeNames: associatedTypeNames))
                 }
             } else {
                 try collectEnumMember(decl, into: symbol)

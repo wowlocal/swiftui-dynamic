@@ -181,10 +181,14 @@ extension Interpreter {
                 // padding trims (C buffers).
                 if case .host(let any) = bytes, let data = any as? Data {
                     let text = String(decoding: data, as: UTF8.self)
-                    return .native(String(text.prefix(while: { $0 != "\0" })))
+                    return .some(
+                        .native(String(text.prefix(while: { $0 != "\0" }))),
+                        wrappedTypeName: "String")
                 }
-                if let text = bytes.stringValue { return .native(text) }
-                return .nilValue
+                if let text = bytes.stringValue {
+                    return .some(.native(text), wrappedTypeName: "String")
+                }
+                return .none(wrappedTypeName: "String")
             }
             if args.labeled("cString") != nil || args.labeled("validatingUTF8") != nil {
                 // C-string of an absorbed buffer reads empty (fresh).
@@ -270,66 +274,133 @@ extension Interpreter {
             return .native(UInt64(0))
         }
         define("Int") { args, _ in
-            guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
+            guard let value = args.positional(0) ?? args.labeled("exactly") else {
+                return .none(wrappedTypeName: "Int")
+            }
+            let exact = args.labeled("exactly") != nil
             if case .host(let any) = value, let u = any as? UInt64 {
                 // Interpreted UInt64 carriers narrow when they fit (Int is
                 // the value model); oversized reads throw like native traps.
                 guard u <= UInt64(Int.max) else {
                     throw RuntimeError(message: "Int(\(u)) overflows Int.max")
                 }
-                return .native(Int(u))
+                let converted = RuntimeValue.native(Int(u))
+                return exact ? converted.liftedToOptional(wrappedTypeName: "Int") : converted
             }
-            if let i = value.intValue { return .native(i) }
+            if let i = value.intValue {
+                let converted = RuntimeValue.native(i)
+                return exact ? converted.liftedToOptional(wrappedTypeName: "Int") : converted
+            }
             if let d = value.doubleValue {
                 // Int(exactly:) is nil for fractional values — real semantics.
-                if args.labeled("exactly") != nil, d != d.rounded(.towardZero) { return .nilValue }
+                if exact, d != d.rounded(.towardZero) {
+                    return .none(wrappedTypeName: "Int")
+                }
                 guard d.isFinite, d >= Double(Int.min), d < 9223372036854775808.0 else {
                     throw RuntimeError(message: "Int(\(d)) overflows Int (native trap)")
                 }
-                return .native(Int(d))
+                let converted = RuntimeValue.native(Int(d))
+                return exact ? converted.liftedToOptional(wrappedTypeName: "Int") : converted
             }
-            if let s = value.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            if let s = value.stringValue {
+                return .optional(Int(s).map(RuntimeValue.native), wrappedTypeName: "Int")
+            }
             // Numeric conversion of an unknowable reads the fresh state —
             // Int(player.currentTime.truncatingRemainder(…)) is 0, not nil.
             if let z = Builtins.absorbedNumeric(value) { return .native(Int(z.isFinite ? z : 0)) }
-            return .nilValue
+            return .none(wrappedTypeName: "Int")
         }
         define("Double") { args, _ in
-            guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
-            if case .host(let any) = value, let u = any as? UInt64 { return .native(Double(u)) }
-            if let d = value.doubleValue { return .native(d) }
-            if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
+            guard let value = args.positional(0) ?? args.labeled("exactly") else {
+                return .none(wrappedTypeName: "Double")
+            }
+            let exact = args.labeled("exactly") != nil
+            if case .host(let any) = value, let u = any as? UInt64 {
+                let converted = RuntimeValue.native(Double(u))
+                return exact ? converted.liftedToOptional(wrappedTypeName: "Double") : converted
+            }
+            if let d = value.doubleValue {
+                let converted = RuntimeValue.native(d)
+                return exact ? converted.liftedToOptional(wrappedTypeName: "Double") : converted
+            }
+            if let s = value.stringValue {
+                return .optional(
+                    Double(s).map(RuntimeValue.native), wrappedTypeName: "Double")
+            }
             if let z = Builtins.absorbedNumeric(value) { return .native(z) }
-            return .nilValue
+            return .none(wrappedTypeName: "Double")
         }
         define("TimeInterval") { args, _ in
             // TimeInterval IS Double (Foundation's typealias).
             guard let value = args.positional(0) ?? args.labeled("exactly") else { return .native(0.0) }
-            if let d = value.doubleValue { return .native(d) }
-            if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
-            if let z = Builtins.absorbedNumeric(value) { return .native(z) }
-            if value.isNil { return .native(0.0) }
-            return .nilValue
+            let exact = args.labeled("exactly") != nil
+            if let d = value.doubleValue {
+                let converted = RuntimeValue.native(d)
+                return exact
+                    ? converted.liftedToOptional(wrappedTypeName: "Double")
+                    : converted
+            }
+            if let s = value.stringValue {
+                return .optional(
+                    Double(s).map(RuntimeValue.native), wrappedTypeName: "Double")
+            }
+            if let z = Builtins.absorbedNumeric(value) {
+                let converted = RuntimeValue.native(z)
+                return exact
+                    ? converted.liftedToOptional(wrappedTypeName: "Double")
+                    : converted
+            }
+            if value.isNil {
+                return exact ? .none(wrappedTypeName: "Double") : .native(0.0)
+            }
+            return .none(wrappedTypeName: "Double")
         }
         define("Float") { args, _ in
             // Our floating model is Double throughout.
-            guard let value = args.positional(0) ?? args.labeled("exactly") else { return .nilValue }
-            if let d = value.doubleValue { return .native(d) }
-            if let s = value.stringValue { return Double(s).map { RuntimeValue.native($0) } ?? .nilValue }
-            if let z = Builtins.absorbedNumeric(value) { return .native(z) }
-            return .nilValue
+            guard let value = args.positional(0) ?? args.labeled("exactly") else {
+                return .none(wrappedTypeName: "Float")
+            }
+            let exact = args.labeled("exactly") != nil
+            if let d = value.doubleValue {
+                let converted = RuntimeValue.native(d)
+                return exact
+                    ? converted.liftedToOptional(wrappedTypeName: "Float")
+                    : converted
+            }
+            if let s = value.stringValue {
+                return .optional(
+                    Double(s).map(RuntimeValue.native), wrappedTypeName: "Float")
+            }
+            if let z = Builtins.absorbedNumeric(value) {
+                let converted = RuntimeValue.native(z)
+                return exact
+                    ? converted.liftedToOptional(wrappedTypeName: "Float")
+                    : converted
+            }
+            return .none(wrappedTypeName: "Float")
         }
         define("CGFloat") { args, _ in
             // Our CGFloat model IS Double.
             let operand = args.positional(0) ?? args.labeled("exactly")
-            if let d = operand?.doubleValue { return .native(d) }
+            let exact = args.labeled("exactly") != nil
+            if let d = operand?.doubleValue {
+                let converted = RuntimeValue.native(d)
+                return exact
+                    ? converted.liftedToOptional(wrappedTypeName: "CGFloat")
+                    : converted
+            }
             if let value = operand, let z = Builtins.absorbedNumeric(value) {
-                return .native(z) // unknowables read fresh zero (iter-94 rule)
+                let converted = RuntimeValue.native(z)
+                return exact
+                    ? converted.liftedToOptional(wrappedTypeName: "CGFloat")
+                    : converted // unknowables read fresh zero (iter-94 rule)
             }
             // A NIL operand can't compile natively (the parameter is
             // non-optional) — it's an absorbed-environment artifact
             // (amperfy indexes a fresh-empty FFT array): fresh zero.
-            if operand?.isNil == true { return .native(0.0) }
+            if operand?.isNil == true {
+                return exact ? .none(wrappedTypeName: "CGFloat") : .native(0.0)
+            }
             throw RuntimeError(message: "CGFloat needs a number")
         }
         define("Array") { args, _ in
@@ -414,7 +485,11 @@ extension Interpreter {
                     let clamped = d.isFinite ? Swift.max(Double(Int.min), Swift.min(d, 9223372036854775295.0)) : 0
                     return .native(Int(clamped))
                 }
-                if let s = value?.stringValue { return Int(s).map { RuntimeValue.native($0) } ?? .nilValue }
+                if let s = value?.stringValue {
+                    return .optional(
+                        Int(s).map(RuntimeValue.native),
+                        wrappedTypeName: intType)
+                }
                 if let value, let z = Builtins.absorbedNumeric(value) { return .native(Int(z.isFinite ? z : 0)) }
                 return .native(0)
             }
@@ -425,9 +500,9 @@ extension Interpreter {
             // parse that found nothing.
             if let text = (args.labeled("in"))?.stringValue {
                 if case .host(let any)? = args.positional(0), let ns = any as? NSRange {
-                    return Range(ns, in: text).map { RuntimeValue.native($0) } ?? .nilValue
+                    return .native(Range(ns, in: text))
                 }
-                return .nilValue
+                return .none(wrappedTypeName: "Range<String.Index>")
             }
             return args.positional(0) ?? .nilValue
         }
@@ -440,14 +515,18 @@ extension Interpreter {
             // Real UUID semantics: uuidString parses (invalid → nil),
             // the argless form is a fresh random UUID.
             if let s = args.labeled("uuidString")?.stringValue {
-                return UUID(uuidString: s).map { RuntimeValue.native($0) } ?? .nilValue
+                return .optional(
+                    UUID(uuidString: s).map(RuntimeValue.native),
+                    wrappedTypeName: "UUID")
             }
             return .native(UUID())
         }
         define("URL") { args, _ in
             // Real URL semantics: invalid strings are honestly nil.
             if let s = (args.labeled("string") ?? args.positional(0))?.stringValue {
-                return URL(string: s).map { RuntimeValue.native($0) } ?? .nilValue
+                return .optional(
+                    URL(string: s).map(RuntimeValue.native),
+                    wrappedTypeName: "URL")
             }
             if let path = args.labeled("fileURLWithPath")?.stringValue {
                 return .native(URL(fileURLWithPath: path))
@@ -458,7 +537,7 @@ extension Interpreter {
             if let value = args.labeled("string") ?? args.positional(0), !value.isNil {
                 return value
             }
-            return .nilValue
+            return .none(wrappedTypeName: "URL")
         }
         define("Date") { args, _ in
             // Interval inits construct for real; the argless form is `now`.

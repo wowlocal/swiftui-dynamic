@@ -16,6 +16,8 @@ extension Interpreter {
             return try arrayMember(name, array)
         case .set(let set):
             return try setMember(name, set)
+        case .optional(let optional):
+            return optionalMember(name, optional)
         case .string(let string):
             return stringMember(name, string)
         case .tuple(let tuple):
@@ -32,6 +34,37 @@ extension Interpreter {
             return try nativeMember(name, on: range as Any)
         case .host(let host):
             return try nativeMember(name, on: host)
+        default:
+            return nil
+        }
+    }
+
+    /// Standard-library Optional members operate on the wrapper itself. This
+    /// is deliberately separate from optional chaining, which dispatches an
+    /// arbitrary member onto the wrapped payload in `accessMember`.
+    func optionalMember(
+        _ name: String, _ optional: RuntimeOptionalValue
+    ) -> RuntimeValue? {
+        switch name {
+        case "isNil": return .native(optional.wrapped == nil)
+        case "isSome", "isNotNil": return .native(optional.wrapped != nil)
+        case "unsafelyUnwrapped":
+            return optional.wrapped ?? .none(wrappedTypeName: optional.wrappedTypeName)
+        case "map", "flatMap":
+            return .hostFunction(HostFunction(name: name) { args, ctx in
+                guard let wrapped = optional.wrapped else { return .none() }
+                let mapped: RuntimeValue
+                if let closure = args.closure(labeled: "transform")
+                    ?? args.firstUnlabeledClosure ?? args.positional(0)?.closureValue {
+                    mapped = try ctx.callClosure(closure, arguments: [wrapped])
+                } else if case .hostFunction(let function)? = args.positional(0) {
+                    mapped = try function.invoke(
+                        CallArguments(arguments: [.init(label: nil, value: wrapped)]), ctx)
+                } else {
+                    throw RuntimeError(message: "Optional.\(name) needs a transform")
+                }
+                return name == "map" ? .some(mapped) : mapped.liftedToOptional()
+            })
         default:
             return nil
         }
@@ -58,7 +91,8 @@ extension Interpreter {
         switch name {
         case "count", "capacity": return .native(elements.count)
         case "isEmpty": return .native(elements.isEmpty)
-        case "first": return elements.first ?? .nilValue
+        case "first":
+            return .optional(elements.first, wrappedTypeName: set.elementTypeName)
         case "contains":
             return .hostFunction(HostFunction(name: name) { [weak self] args, ctx in
                 if let closure = args.closure(labeled: "where")
@@ -171,7 +205,7 @@ extension Interpreter {
             case "value", "result":
                 return handle.result ?? .void
             case "failureDescription":
-                return handle.failureDescription.map(RuntimeValue.native) ?? .nilValue
+                return .native(handle.failureDescription)
             default:
                 return nil
             }
@@ -340,7 +374,9 @@ extension Interpreter {
                         let element = RuntimeValue.native(
                             TupleValue(labels: ["key", "value"], values: [key, value]))
                         let mapped = try Self.mapStep(args, name, element, self, ctx)
-                        if !mapped.isNil { out.append(mapped) }
+                        if let unwrapped = mapped.unwrappedOptionalOrSelf {
+                            out.append(unwrapped)
+                        }
                     }
                     return .native(out)
                 })
@@ -461,8 +497,8 @@ extension Interpreter {
         switch name {
         case "count": return .native(array.count)
         case "isEmpty": return .native(array.isEmpty)
-        case "first": return array.first ?? .nilValue
-        case "last": return array.last ?? .nilValue
+        case "first": return .optional(array.first)
+        case "last": return .optional(array.last)
         case "indices": return .native(0..<array.count)
         case "startIndex": return .native(0)
         case "endIndex": return .native(array.count)
@@ -511,8 +547,12 @@ extension Interpreter {
                 var out: [RuntimeValue] = []
                 for element in array {
                     let mapped = try Self.mapStep(args, name, element, self, ctx)
-                    if name == "compactMap" && mapped.isNil { continue }
-                    out.append(mapped)
+                    if name == "compactMap" {
+                        guard let unwrapped = mapped.unwrappedOptionalOrSelf else { continue }
+                        out.append(unwrapped)
+                    } else {
+                        out.append(mapped)
+                    }
                 }
                 return .native(out)
             })
@@ -665,17 +705,17 @@ extension Interpreter {
                 if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
                     for (index, element) in array.enumerated()
                     where try ctx.callClosure(closure, arguments: [element]).boolValue == true {
-                        return .native(index)
+                        return .some(.native(index), wrappedTypeName: "Int")
                     }
-                    return .nilValue
+                    return .none(wrappedTypeName: "Int")
                 }
                 guard let target = args.labeled("of") else {
                     throw RuntimeError(message: "firstIndex needs of: or where:")
                 }
                 for (index, element) in array.enumerated() where try Builtins.areEqual(element, target) {
-                    return .native(index)
+                    return .some(.native(index), wrappedTypeName: "Int")
                 }
-                return .nilValue
+                return .none(wrappedTypeName: "Int")
             })
         case "joined":
             return .hostFunction(HostFunction(name: name) { args, _ in
@@ -722,7 +762,7 @@ extension Interpreter {
             })
         case "min", "max":
             return .hostFunction(HostFunction(name: name) { args, ctx in
-                guard !array.isEmpty else { return .nilValue }
+                guard !array.isEmpty else { return .none() }
                 // `max(by: { $0.downloads < $1.downloads })` — the closure is
                 // an areInIncreasingOrder predicate for BOTH min and max.
                 if let closure = args.closure(labeled: "by") ?? args.firstUnlabeledClosure {
@@ -733,17 +773,19 @@ extension Interpreter {
                             : try ctx.callClosure(closure, arguments: [element, best]).boolValue == true
                         if replace { best = element }
                     }
-                    return best
+                    return .some(best)
                 }
                 var best = array[0]
                 for element in array.dropFirst() {
                     let better = try Builtins.binary(name == "min" ? "<" : ">", element, best)
                     if better.boolValue == true { best = element }
                 }
-                return best
+                return .some(best)
             })
         case "randomElement":
-            return .hostFunction(HostFunction(name: name) { _, _ in array.randomElement() ?? .nilValue })
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .optional(array.randomElement())
+            })
         default:
             return nil
         }
@@ -783,7 +825,7 @@ extension Interpreter {
     func applyKeyPath(_ path: KeyPathStub, to start: RuntimeValue) throws -> RuntimeValue {
         var current = start
         for component in path.components where component != "self" {
-            if current.isNil { return .nilValue }
+            if current.isNil { return .none() }
             switch current {
             case .instance(let instance):
                 guard let value = try instanceMember(component, on: instance) else {
@@ -871,11 +913,11 @@ extension Interpreter {
                     default: break
                     }
                 }
-                return string.addingPercentEncoding(withAllowedCharacters: allowed)
-                    .map { RuntimeValue.native($0) } ?? .nilValue
+                return .native(string.addingPercentEncoding(
+                    withAllowedCharacters: allowed))
             })
         case "removingPercentEncoding":
-            return string.removingPercentEncoding.map { RuntimeValue.native($0) } ?? .nilValue
+            return .native(string.removingPercentEncoding)
         case "flatMap":
             // On a string value this is Optional.flatMap in practice
             // (`displayName.flatMap { … }` guards non-nil text): the
@@ -930,7 +972,7 @@ extension Interpreter {
             // Unicode.Scalar.value in the single-char-string model.
             return .native(Int(string.unicodeScalars.first!.value))
         case "asciiValue" where string.count == 1:
-            return string.first!.asciiValue.map { RuntimeValue.native(Int($0)) } ?? .nilValue
+            return .native(string.first!.asciiValue.map(Int.init))
         case "isNumber" where string.count == 1:
             return .native(string.first!.isNumber)
         case "isLetter" where string.count == 1:
@@ -983,14 +1025,13 @@ extension Interpreter {
                         }
                     }
                 }
-                guard let found = string.range(of: target, options: options) else { return .nilValue }
-                return .native(found)
+                return .native(string.range(of: target, options: options))
             })
         case "data":
             // `str.data(using: .utf8)` — real bytes (encodings beyond utf8
             // fall back to utf8, the corpus's only ask).
             return .hostFunction(HostFunction(name: name) { _, _ in
-                string.data(using: .utf8).map { RuntimeValue.native($0) } ?? .nilValue
+                .native(string.data(using: .utf8))
             })
         case "index":
             return .hostFunction(HostFunction(name: name) { args, _ in
@@ -1013,8 +1054,14 @@ extension Interpreter {
                 }
                 return .native(string.distance(from: from, to: to))
             })
-        case "first": return string.first.map { .native(String($0)) } ?? .nilValue
-        case "last": return string.last.map { .native(String($0)) } ?? .nilValue
+        case "first":
+            return .optional(
+                string.first.map { .native(String($0)) },
+                wrappedTypeName: "Character")
+        case "last":
+            return .optional(
+                string.last.map { .native(String($0)) },
+                wrappedTypeName: "Character")
         case "uppercased":
             return .hostFunction(HostFunction(name: name) { _, _ in .native(string.uppercased()) })
         case "lowercased":

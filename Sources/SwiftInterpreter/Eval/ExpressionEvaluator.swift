@@ -69,7 +69,9 @@ extension Interpreter {
             if case .elements(let elements) = dict.content {
                 for element in elements {
                     try relocating(element) {
-                        try value.update(try evaluate(element.key, in: env), to: try evaluate(element.value, in: env))
+                        try value.setLiteralEntry(
+                            try evaluate(element.key, in: env),
+                            to: try evaluate(element.value, in: env))
                     }
                 }
             }
@@ -162,10 +164,10 @@ extension Interpreter {
         case .forceUnwrapExpr:
             let forceUnwrap = expr.cast(ForceUnwrapExprSyntax.self)
             let value = try evaluate(forceUnwrap.expression, in: env)
-            guard !value.isNil else {
+            guard let unwrapped = value.unwrappedOptionalOrSelf else {
                 throw error(forceUnwrap, "unexpectedly found nil while force-unwrapping")
             }
-            return value
+            return unwrapped
         case .optionalChainingExpr:
             // Member/call/subscript on nil propagates nil (see accessMember/invoke).
             return try evaluate(expr.cast(OptionalChainingExprSyntax.self).expression, in: env)
@@ -174,10 +176,19 @@ extension Interpreter {
             if tryExpr.questionOrExclamationMark?.text == "?" {
                 do {
                     return try evaluate(tryExpr.expression, in: env)
+                        .liftedToOptional()
                 } catch is InterpretedThrow {
-                    return .nilValue
+                    return .none()
                 } catch let hostError as RuntimeError where !hostError.fatal {
-                    return .nilValue
+                    return .none()
+                } catch {
+                    // `try?` catches arbitrary Error values raised by a host
+                    // gateway too. Fatal RuntimeErrors were deliberately not
+                    // matched above and continue to escape.
+                    if let runtimeError = error as? RuntimeError, runtimeError.fatal {
+                        throw runtimeError
+                    }
+                    return .none()
                 }
             }
             return try evaluate(tryExpr.expression, in: env) // try / try!
@@ -246,7 +257,7 @@ extension Interpreter {
             // (optimistic `as?` — documented divergence).
             let value = try evaluate(asExpr.expression, in: env)
             if asExpr.questionOrExclamationMark?.text == "?", value.isNil {
-                return .nilValue
+                return .none(wrappedTypeName: asExpr.type.trimmedDescription)
             }
             var typeName = asExpr.type.trimmedDescription
             if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
@@ -263,18 +274,32 @@ extension Interpreter {
                 let declaredTarget = typeValue(named: typeName) != nil
                     || protocolInheritance[typeName] != nil
                 if checkable, declaredTarget, !valueIsType(value, typeName) {
-                    return .nilValue
+                    return .none(wrappedTypeName: typeName)
                 }
             }
             switch typeName {
             case "Double", "CGFloat", "TimeInterval":
-                if let d = value.doubleValue { return .native(d) }
+                if let d = value.doubleValue {
+                    let converted = RuntimeValue.native(d)
+                    return asExpr.questionOrExclamationMark?.text == "?"
+                        ? converted.liftedToOptional(wrappedTypeName: typeName)
+                        : converted
+                }
             case "Int":
-                if let d = value.doubleValue { return .native(Int(d)) }
+                if let d = value.doubleValue {
+                    let converted = RuntimeValue.native(Int(d))
+                    return asExpr.questionOrExclamationMark?.text == "?"
+                        ? converted.liftedToOptional(wrappedTypeName: typeName)
+                        : converted
+                }
             default:
                 break
             }
-            return try resolveAnnotated(value, typeName: typeName)
+            let casted = try resolveAnnotated(value, typeName: typeName)
+            if asExpr.questionOrExclamationMark?.text == "?" {
+                return casted.liftedToOptional(wrappedTypeName: typeName)
+            }
+            return casted
         case .ifExpr:
             let ifExpr = expr.cast(IfExprSyntax.self)
             if case .normal(let value) = try executeIf(ifExpr, in: env) { return value }

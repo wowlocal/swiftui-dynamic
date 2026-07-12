@@ -221,13 +221,13 @@ extension Interpreter {
                 do {
                     return try await evaluateSuspending(
                         attempt.expression, in: env,
-                        forceInvocation: forceInvocation)
+                        forceInvocation: forceInvocation).liftedToOptional()
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch let runtime as RuntimeError where runtime.fatal {
                     throw runtime
                 } catch {
-                    return .nilValue
+                    return .none()
                 }
             }
             return try await evaluateSuspending(
@@ -280,10 +280,10 @@ extension Interpreter {
                 let unwrap = expression.cast(ForceUnwrapExprSyntax.self)
                 let value = try await evaluateSuspending(
                     unwrap.expression, in: env, forceInvocation: true)
-                guard !value.isNil else {
+                guard let unwrapped = value.unwrappedOptionalOrSelf else {
                     throw error(unwrap, "unexpectedly found nil while force-unwrapping")
                 }
-                return value
+                return unwrapped
             }
 
         case .optionalChainingExpr:
@@ -379,11 +379,16 @@ extension Interpreter {
             let lhs = try await evaluateSuspending(
                 infix.leftOperand, in: env,
                 forceInvocation: forceInvocation)
-            return lhs.isNil
-                ? try await evaluateSuspending(
+            switch lhs.optionalState {
+            case .none:
+                return try await evaluateSuspending(
                     infix.rightOperand, in: env,
                     forceInvocation: forceInvocation)
-                : lhs
+            case .some(let wrapped, _):
+                return wrapped
+            case .notOptional:
+                return lhs
+            }
         default:
             var lhs = try await evaluateSuspending(
                 infix.leftOperand, in: env,

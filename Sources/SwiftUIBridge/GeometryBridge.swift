@@ -466,7 +466,8 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "run", "terminate", "activate", "deactivate", "stop", "finishLaunching":
             // The render pipeline IS the run loop — lifecycle calls no-op.
             return .hostFunction(HostFunction(name: name) { _, _ in .void })
-        case "alternateIconName": return .nilValue // fresh install: primary icon
+        case "alternateIconName":
+            return .none(wrappedTypeName: "String") // fresh install: primary icon
         case "setAlternateIconName":
             return .hostFunction(HostFunction(name: name) { _, _ in .void })
         case "windows": return .native([RuntimeValue.native(WindowStub())])
@@ -612,8 +613,10 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "bounds":
             return .hostFunction(HostFunction(name: "bounds") { args, _ in
                 guard let space = namedCoordinateSpace(args.labeled("of") ?? args.positional(0)),
-                      let rect = proxy.bounds(of: space) else { return .nilValue }
-                return .native(rect)
+                      let rect = proxy.bounds(of: space) else {
+                    return .none(wrappedTypeName: "CGRect")
+                }
+                return .some(.native(rect), wrappedTypeName: "CGRect")
             })
         default: return nil
         }
@@ -652,7 +655,9 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if value is MapProxyStub {
         if name == "convert" {
-            return .hostFunction(HostFunction(name: "convert") { _, _ in .nilValue })
+            return .hostFunction(HostFunction(name: "convert") { _, _ in
+                .none(wrappedTypeName: "CLLocationCoordinate2D")
+            })
         }
         return nil
     }

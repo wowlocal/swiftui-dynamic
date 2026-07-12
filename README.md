@@ -103,8 +103,9 @@ documented in [`Docs/InterpreterArchitecture.md`](Docs/InterpreterArchitecture.m
 **Language**: literals + interpolation, arrays/dictionaries/tuples with
 subscripts, dedicated `Set` values (array-literal/sequence construction,
 membership, algebra, mutation, and value semantics), operators with real
-precedence, optionals (`if let`/`guard
-let`/shorthand, `??`, `?.` chaining, `!`), `if`/`else`, `switch` with
+precedence, dedicated recursive Optional values (typed `.none`, nested
+Optionals, IUOs, `if let`/`guard let`/shorthand, `??`, `?.` chaining,
+`!`, patterns, `map`/`flatMap`, failable casts/inits and `try?`), `if`/`else`, `switch` with
 expression/range/enum-payload/`where` patterns (also as expressions and in
 builders), `for`-in, `while`, `break`/`continue`, functions (defaults,
 implicit return, trailing closures, `@ViewBuilder`/`some View` builder
@@ -129,8 +130,8 @@ mutating `append`/`remove(at:)`/…, string methods), and global
 
 **Type context, dynamically**: bare `.member` values resolve against known
 enums via the type annotations on properties, parameters, and return types —
-no inference engine, just annotations. Binding and Set storage retain generic
-element context even while a collection is empty.
+no inference engine, just annotations. Binding, Set, and Optional storage
+retain generic/wrapped context even while a collection or Optional is empty.
 
 **SwiftUI**: `Text`, `Image(systemName:)`, `Label`, stacks, `Group`,
 `ScrollView`, `List`, `Form`, `Section`, `LazyVGrid`/`LazyHGrid`/`GridItem`,

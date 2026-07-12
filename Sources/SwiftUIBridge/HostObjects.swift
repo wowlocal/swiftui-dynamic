@@ -208,7 +208,9 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { args, _ in
             // `UIImage(data:)` decodes for REAL (failable, like native).
             if case .host(let any)? = args.labeled("data"), let data = any as? Data {
-                return UIImageBox.decoding(data).map { .native($0) } ?? .nilValue
+                return .optional(
+                    UIImageBox.decoding(data).map { .native($0) },
+                    wrappedTypeName: name)
             }
             // named:/systemName:/other forms keep the absorbing-bag doctrine.
             let stub = UIKitStub(roles: [name])
@@ -278,9 +280,9 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             // REAL regex — the host-hardware doctrine: patterns compile and
             // match genuinely (version parsers, validators).
             guard let pattern = (args.labeled("pattern") ?? args.positional(0))?.stringValue else {
-                return .nilValue
+                throw RuntimeError(message: "NSRegularExpression(pattern:) needs a String")
             }
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { return .nilValue }
+            let regex = try NSRegularExpression(pattern: pattern)
             return .native(RegexBox(regex: regex))
         }
     case "NSRange":
@@ -308,34 +310,40 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                     else if let number = value as? Double { try? out.update(.native(key), to: .native(number)) }
                     else if let flag = value as? Bool { try? out.update(.native(key), to: .native(flag)) }
                 }
-                return .native(out)
+                return .some(.native(out), wrappedTypeName: "NSDictionary")
             }
-            return .nilValue
+            return .none(wrappedTypeName: "NSDictionary")
         }
     case "NSArray":
         return HostFunction(name: name) { args, _ in
             if case .host(let any)? = args.labeled("contentsOf"), let url = any as? URL,
                let array = NSArray(contentsOf: url) as? [Any] {
-                return .native(array.compactMap { item -> RuntimeValue? in
+                return .some(.native(array.compactMap { item -> RuntimeValue? in
                     if let text = item as? String { return .native(text) }
                     if let number = item as? Int { return .native(number) }
                     return nil
-                })
+                }), wrappedTypeName: "NSArray")
             }
-            return .nilValue
+            return .none(wrappedTypeName: "NSArray")
         }
     case "Bundle":
         return HostFunction(name: name) { args, _ in
             // The host process is real: Bundle(url:)/(path:)/(identifier:)
             // resolve against the actual filesystem; no argument = main.
             if case .host(let any)? = args.labeled("url"), let url = any as? URL {
-                return Foundation.Bundle(url: url).map { .native(BundleBox(bundle: $0)) } ?? .nilValue
+                return .optional(
+                    Foundation.Bundle(url: url).map { .native(BundleBox(bundle: $0)) },
+                    wrappedTypeName: "Bundle")
             }
             if let path = args.labeled("path")?.stringValue {
-                return Foundation.Bundle(path: path).map { .native(BundleBox(bundle: $0)) } ?? .nilValue
+                return .optional(
+                    Foundation.Bundle(path: path).map { .native(BundleBox(bundle: $0)) },
+                    wrappedTypeName: "Bundle")
             }
             if let identifier = args.labeled("identifier")?.stringValue {
-                return Foundation.Bundle(identifier: identifier).map { .native(BundleBox(bundle: $0)) } ?? .nilValue
+                return .optional(
+                    Foundation.Bundle(identifier: identifier).map { .native(BundleBox(bundle: $0)) },
+                    wrappedTypeName: "Bundle")
             }
             return .native(BundleBox(bundle: .main))
         }
@@ -409,7 +417,7 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         return HostFunction(name: name) { args, _ in
             // Real Decimal semantics: the string parse is honestly nil on junk.
             if let s = args.labeled("string")?.stringValue {
-                return Decimal(string: s).map { RuntimeValue.native($0) } ?? .nilValue
+                return .native(Decimal(string: s))
             }
             if let arg = args.positional(0) {
                 if case .int(let i) = arg { return .native(Decimal(i)) }
@@ -951,7 +959,11 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "firstMatch", "matches":
             let isFirst = name == "firstMatch"
             return .hostFunction(HostFunction(name: name) { args, _ in
-                guard let text = args.labeled("in")?.stringValue else { return .nilValue }
+                guard let text = args.labeled("in")?.stringValue else {
+                    return isFirst
+                        ? .none(wrappedTypeName: "NSTextCheckingResult")
+                        : .native([RuntimeValue]())
+                }
                 let range: NSRange
                 if case .host(let any)? = args.labeled("range"), let r = any as? NSRange {
                     range = r
@@ -959,8 +971,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                     range = NSRange(text.startIndex..., in: text)
                 }
                 if isFirst {
-                    return box.regex.firstMatch(in: text, range: range)
-                        .map { RuntimeValue.native($0) } ?? .nilValue
+                    return .native(box.regex.firstMatch(in: text, range: range))
                 }
                 return .native(box.regex.matches(in: text, range: range).map { RuntimeValue.native($0) })
             })
@@ -993,7 +1004,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         switch name {
         case "bundleURL": return .native(box.bundle.bundleURL)
         case "bundlePath": return .native(box.bundle.bundlePath)
-        case "resourceURL": return box.bundle.resourceURL.map { .native($0) } ?? .nilValue
+        case "resourceURL": return .native(box.bundle.resourceURL)
         case "bundleIdentifier":
             // Real when the host process is bundled; a device app ALWAYS
             // has one, so the unbundled harness answers a stable stand-in
@@ -1121,7 +1132,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .native(image.size)
         case "pngData", "jpegData":
             return .hostFunction(HostFunction(name: name) { _, _ in
-                image.pngData.map { .native($0) } ?? .nilValue
+                .native(image.pngData)
             })
         default:
             break
@@ -1176,7 +1187,9 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .hostFunction(HostFunction(name: name) { args, _ in
                 // `url(forUbiquityContainerIdentifier:)` — a fresh device
                 // has no iCloud container.
-                if args.labeled("forUbiquityContainerIdentifier") != nil { return .nilValue }
+                if args.labeled("forUbiquityContainerIdentifier") != nil {
+                    return .none(wrappedTypeName: "URL")
+                }
                 // `url(for: .documentDirectory, in: …, appropriateFor:
                 // create:)` — the sandbox documents dir, like urls(for:in:).
                 return .native(box.documentsDirectory())
@@ -1261,7 +1274,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let language = value as? Locale.Language {
         switch name {
         case "languageCode":
-            return language.languageCode.map { RuntimeValue.native($0) } ?? .nilValue
+            return .native(language.languageCode)
         case "minimalIdentifier": return .native(language.minimalIdentifier)
         case "maximalIdentifier": return .native(language.maximalIdentifier)
         case "characterDirection":
@@ -1285,25 +1298,31 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "language": return .native(locale.language)
         case "identifier": return .native(locale.identifier)
         case "regionCode":
-            return locale.region.map { RuntimeValue.native($0.identifier) } ?? .nilValue
+            return .optional(
+                locale.region.map { RuntimeValue.native($0.identifier) },
+                wrappedTypeName: "String")
         case "languageCode":
-            return locale.language.languageCode.map { RuntimeValue.native($0.identifier) } ?? .nilValue
+            return .optional(
+                locale.language.languageCode.map { RuntimeValue.native($0.identifier) },
+                wrappedTypeName: "String")
         case "currencyCode":
-            return locale.currency.map { RuntimeValue.native($0.identifier) } ?? .nilValue
+            return .optional(
+                locale.currency.map { RuntimeValue.native($0.identifier) },
+                wrappedTypeName: "String")
         case "currencySymbol":
-            return locale.currencySymbol.map { RuntimeValue.native($0) } ?? .nilValue
+            return .native(locale.currencySymbol)
         case "localizedString":
             return .hostFunction(HostFunction(name: name) { args, _ in
                 if let code = args.labeled("forRegionCode")?.stringValue {
-                    return locale.localizedString(forRegionCode: code).map { .native($0) } ?? .nilValue
+                    return .native(locale.localizedString(forRegionCode: code))
                 }
                 if let code = args.labeled("forIdentifier")?.stringValue {
-                    return locale.localizedString(forIdentifier: code).map { .native($0) } ?? .nilValue
+                    return .native(locale.localizedString(forIdentifier: code))
                 }
                 if let code = args.labeled("forLanguageCode")?.stringValue {
-                    return locale.localizedString(forLanguageCode: code).map { .native($0) } ?? .nilValue
+                    return .native(locale.localizedString(forLanguageCode: code))
                 }
-                return .nilValue
+                return .none(wrappedTypeName: "String")
             })
         default: return nil
         }
@@ -1326,25 +1345,23 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             return .hostFunction(HostFunction(name: "date") { args, ctx in
                 // `date(from: components)` — reconstitute from parts.
                 if let components = dateComponentsArg(args.labeled("from")) {
-                    return box.calendar.date(from: components)
-                        .map { RuntimeValue.native($0) } ?? .nilValue
+                    return .native(box.calendar.date(from: components))
                 }
                 // `date(byAdding: .init(month: 1, minute: -1), to: d)` —
                 // components as a box or an .init marker.
                 if let components = dateComponentsArg(args.labeled("byAdding")),
                    let to = dateArg(args.labeled("to")) {
-                    return box.calendar.date(byAdding: components, to: to)
-                        .map { RuntimeValue.native($0) } ?? .nilValue
+                    return .native(box.calendar.date(byAdding: components, to: to))
                 }
                 // `date(bySettingHour:minute:second:of:)`.
                 if let hour = args.labeled("bySettingHour")?.intValue,
                    let of = dateArg(args.labeled("of")) {
-                    return box.calendar.date(
+                    return .native(box.calendar.date(
                         bySettingHour: hour,
                         minute: args.labeled("minute")?.intValue ?? 0,
                         second: args.labeled("second")?.intValue ?? 0,
                         of: of
-                    ).map { RuntimeValue.native($0) } ?? .nilValue
+                    ))
                 }
                 guard let component = calendarComponent(args.labeled("byAdding")),
                       let amount = intArg(args.labeled("value")),
@@ -1353,8 +1370,8 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                         "date", args, ctx,
                         or: "date(byAdding:value:to:) needs a component, value, and Date")
                 }
-                return box.calendar.date(byAdding: component, value: amount, to: to)
-                    .map { RuntimeValue.native($0) } ?? .nilValue
+                return .native(box.calendar.date(
+                    byAdding: component, value: amount, to: to))
             })
         case "startOfDay":
             return .hostFunction(HostFunction(name: "startOfDay") { args, _ in
@@ -1392,8 +1409,8 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                       let date = dateArg(args.labeled("for")) else {
                     throw RuntimeError(message: "range(of:in:for:) needs two components and a Date")
                 }
-                return box.calendar.range(of: smaller, in: larger, for: date)
-                    .map { RuntimeValue.native($0) } ?? .nilValue
+                return .native(box.calendar.range(
+                    of: smaller, in: larger, for: date))
             })
         case "monthSymbols":
             return .native(box.calendar.monthSymbols.map { RuntimeValue.native($0) })
@@ -1438,8 +1455,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 }
                 // Real DateInterval: the generated table serves its members,
                 // and it prints exactly what the compiled twin prints.
-                return box.calendar.dateInterval(of: component, for: date)
-                    .map { RuntimeValue.native($0) } ?? .nilValue
+                return .native(box.calendar.dateInterval(of: component, for: date))
             })
         case "isDate":
             return .hostFunction(HostFunction(name: "isDate") { args, ctx in
@@ -1464,13 +1480,13 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if let box = value as? DateComponentsBox {
         switch name {
-        case "hour": return box.components.hour.map { .native($0) } ?? .nilValue
-        case "minute": return box.components.minute.map { .native($0) } ?? .nilValue
-        case "second": return box.components.second.map { .native($0) } ?? .nilValue
-        case "day": return box.components.day.map { .native($0) } ?? .nilValue
-        case "month": return box.components.month.map { .native($0) } ?? .nilValue
-        case "year": return box.components.year.map { .native($0) } ?? .nilValue
-        case "weekday": return box.components.weekday.map { .native($0) } ?? .nilValue
+        case "hour": return .native(box.components.hour)
+        case "minute": return .native(box.components.minute)
+        case "second": return .native(box.components.second)
+        case "day": return .native(box.components.day)
+        case "month": return .native(box.components.month)
+        case "year": return .native(box.components.year)
+        case "weekday": return .native(box.components.weekday)
         default: return nil
         }
     }
@@ -1482,8 +1498,12 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "range":
             return .hostFunction(HostFunction(name: "range") { args, _ in
                 guard let text = (args.labeled("of") ?? args.positional(0))?.stringValue,
-                      let range = box.attributed.range(of: text) else { return .nilValue }
-                return .native(AttributedRangeBox(range))
+                      let range = box.attributed.range(of: text) else {
+                    return .none(wrappedTypeName: "Range<AttributedString.Index>")
+                }
+                return .some(
+                    .native(AttributedRangeBox(range)),
+                    wrappedTypeName: "Range<AttributedString.Index>")
             })
         case "subscript":
             return .hostFunction(HostFunction(name: "subscript") { args, _ in
@@ -1526,8 +1546,10 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
         case "number":
             return .hostFunction(HostFunction(name: "number") { args, _ in
                 guard let text = (args.labeled("from") ?? args.positional(0))?.stringValue,
-                      let parsed = box.formatter.number(from: text) else { return .nilValue }
-                return .native(parsed.doubleValue)
+                      let parsed = box.formatter.number(from: text) else {
+                    return .none(wrappedTypeName: "NSNumber")
+                }
+                return .some(.native(parsed.doubleValue), wrappedTypeName: "NSNumber")
             })
         default:
             return nil
@@ -1613,7 +1635,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
             guard let text = (args.labeled("from") ?? args.positional(0))?.stringValue else {
                 throw RuntimeError(message: "date(from:) needs a String")
             }
-            return box.formatter.date(from: text).map { RuntimeValue.native($0) } ?? .nilValue
+            return .native(box.formatter.date(from: text))
         })
     default:
         return nil

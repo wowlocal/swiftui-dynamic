@@ -8,6 +8,9 @@ public final class EnumSymbol {
         public let associatedLabels: [String?]
         /// Raw value resolved at collection time (literal or index/name default).
         public let rawValue: RuntimeValue
+        /// Source annotations parallel to `associatedLabels`; retained so
+        /// Optional and generic payloads are contextualized at construction.
+        public let associatedTypeNames: [String]
 
         public var hasAssociatedValues: Bool { !associatedLabels.isEmpty }
     }

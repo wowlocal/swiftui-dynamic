@@ -15,6 +15,11 @@ extension Interpreter {
         "unsetenv", "getuid", "geteuid",
     ]
 
+    static let optionalIntrinsicMemberNames: Set<String> = [
+        "isNil", "isSome", "isNotNil", "unsafelyUnwrapped",
+        "map", "flatMap",
+    ]
+
     /// Identifier shapes that read as C imports (snake_case, leading
     /// underscore, or the known stdlib list) — these absorb via the C
     /// branch and must never be claimed by the modifier rescue.
@@ -29,7 +34,18 @@ extension Interpreter {
     /// read false.
     func valueIsType(_ value: RuntimeValue, _ rawType: String) -> Bool {
         var typeName = rawType.trimmingCharacters(in: .whitespaces)
-        if typeName.hasSuffix("?") { typeName = String(typeName.dropLast()) }
+        if let wrappedType = RuntimeOptionalValue.wrappedType(in: typeName) {
+            switch value.optionalState {
+            case .none(let observed):
+                return observed.map {
+                    HostSignature.equivalentTypeName($0, wrappedType)
+                } ?? true
+            case .some(let wrapped, _):
+                return valueIsType(wrapped, wrappedType)
+            case .notOptional:
+                return valueIsType(value, wrappedType)
+            }
+        }
         if let range = value.rangeValue, let annotation = Self.rangeAnnotation(typeName) {
             guard range.matchesNominalShape(annotation.name) else { return false }
             let bounds = [range.lowerBound, range.upperBound].compactMap { $0 }
@@ -54,6 +70,7 @@ extension Interpreter {
         }
         if let angle = typeName.firstIndex(of: "<") { typeName = String(typeName[..<angle]) }
         if typeName == "Any" || typeName == "AnyObject" { return !value.isNil }
+        if value.isOptional { return false }
         if value.isNil { return false }
         switch value {
         case .int: return ["Int", "Double", "CGFloat", "TimeInterval", "NSNumber"].contains(typeName)
@@ -168,9 +185,23 @@ extension Interpreter {
             // Special mutation dispatch receives this value and only probes
             // an lvalue after confirming the receiver/method shape.
             let baseValue = try evaluate(baseExpr, in: env)
+            // A call continuing an Optional chain dispatches the METHOD on
+            // the payload, then lifts the result. This matters for names that
+            // also have a property spelling (`array?.first(where:)`): member
+            // lookup alone would otherwise return `first`'s value and try to
+            // call that element. Optional's own members stay on the wrapper.
+            var specialBaseValue = baseValue
+            var liftsSpecialResult = false
+            if !Self.optionalIntrinsicMemberNames.contains(name),
+               case .optional(let optional) = baseValue,
+               let wrapped = optional.wrapped {
+                specialBaseValue = wrapped
+                liftsSpecialResult = !optional.isImplicitlyUnwrapped
+            }
             if let result = try specialMemberCall(
-                name, base: baseExpr, baseValue: baseValue, call: call, in: env) {
-                return result
+                name, base: baseExpr, baseValue: specialBaseValue,
+                call: call, in: env) {
+                return liftsSpecialResult ? result.liftedToOptional() : result
             }
             // Methods dispatch from call syntax, where labels disambiguate
             // overloads and a host-superclass property can coexist with a
@@ -244,7 +275,7 @@ extension Interpreter {
             // property `timeZone.nextDaylightSavingTimeTransition` is
             // honestly nil (a zone with no future DST), but the call shape
             // names the METHOD form (after:), which answers for real.
-            if case .nilValue = callee, let any = baseValue.hostPayload,
+            if callee.isNil, let any = baseValue.hostPayload,
                let method = registry?.hostMethod(name, on: any) {
                 return try invoke(method, with: args, node: call)
             }
@@ -686,13 +717,14 @@ extension Interpreter {
                 let value = try resolved(member)
                 let old = try set.remove(value, by: setElementsAreEqual)
                 _ = try set.insert(value, by: setElementsAreEqual)
-                result = old ?? .nilValue
+                result = .optional(old, wrappedTypeName: elementType)
             case "remove":
                 guard let member = args.positional(0) else {
                     throw error(call, "Set.remove needs a member")
                 }
-                result = try set.remove(
-                    resolved(member), by: setElementsAreEqual) ?? .nilValue
+                result = .optional(
+                    try set.remove(resolved(member), by: setElementsAreEqual),
+                    wrappedTypeName: elementType)
             case "removeAll":
                 if let closure = args.closure(labeled: "where")
                     ?? args.firstUnlabeledClosure {
@@ -718,7 +750,9 @@ extension Interpreter {
                 }
                 result = .void
             }
-            try relocating(call) { try target.writeOwned(.native(set), self) }
+            try relocating(call) {
+                try target.writeCanonicalOwned(.native(set), self)
+            }
             return result
         }
 
@@ -763,14 +797,18 @@ extension Interpreter {
                     for index in indices where array.indices.contains(index) {
                         array.remove(at: index)
                     }
-                    try relocating(call) { try target.writeOwned(.native(array), self) }
+                    try relocating(call) {
+                        try target.writeCanonicalOwned(.native(array), self)
+                    }
                     return .void
                 }
                 guard let index = args.labeled("at")?.intValue, array.indices.contains(index) else {
                     throw error(call, "remove(at:) index out of range")
                 }
                 let removed = array.remove(at: index)
-                try relocating(call) { try target.writeOwned(.native(array), self) }
+                try relocating(call) {
+                    try target.writeCanonicalOwned(.native(array), self)
+                }
                 return removed
             case "removeAll":
                 if let closure = args.closure(labeled: "where") {
@@ -785,12 +823,16 @@ extension Interpreter {
             case "removeFirst":
                 guard !array.isEmpty else { throw error(call, "removeFirst on an empty array") }
                 let removed = array.removeFirst()
-                try relocating(call) { try target.writeOwned(.native(array), self) }
+                try relocating(call) {
+                    try target.writeCanonicalOwned(.native(array), self)
+                }
                 return removed
             case "removeLast":
                 guard !array.isEmpty else { throw error(call, "removeLast on an empty array") }
                 let removed = array.removeLast()
-                try relocating(call) { try target.writeOwned(.native(array), self) }
+                try relocating(call) {
+                    try target.writeCanonicalOwned(.native(array), self)
+                }
                 return removed
             case "sort":
                 var failure: Error?
@@ -805,21 +847,22 @@ extension Interpreter {
             default:
                 return nil
             }
-            try relocating(call) { try target.writeOwned(.native(array), self) }
+            try relocating(call) {
+                try target.writeCanonicalOwned(.native(array), self)
+            }
             return .void
         }
 
         if name == "first" || name == "last" {
-            let baseValue = try evaluate(base, in: env)
             let array = baseValue.arrayValue ?? baseValue.rangeValue?.integerValues()
             if let array {
                 let args = try collectArguments(of: call, in: env)
                 if let closure = args.closure(labeled: "where") ?? args.firstUnlabeledClosure {
                     let ordered = name == "last" ? Array(array.reversed()) : array
                     for element in ordered where try callClosure(closure, arguments: [element]).boolValue == true {
-                        return element
+                        return .some(element)
                     }
-                    return .nilValue
+                    return .none()
                 }
             }
         }

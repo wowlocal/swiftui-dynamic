@@ -475,6 +475,31 @@ public enum Builtins {
     }
 
     static func areEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> Bool {
+        // Optional equality lifts a concrete peer into `.some` and compares
+        // one wrapper at a time. This is what makes `T??.some(.none)` differ
+        // from `T??.none` while still allowing `Int? == Int`.
+        if lhs.isOptional || rhs.isOptional || lhs.isNil || rhs.isNil {
+            func liftedState(_ value: RuntimeValue) -> RuntimeOptionalState {
+                switch value.optionalState {
+                case .notOptional:
+                    return .some(value, wrappedTypeName: nil)
+                case .none(let wrappedTypeName):
+                    return .none(wrappedTypeName: wrappedTypeName)
+                case .some(let wrapped, let wrappedTypeName):
+                    return .some(wrapped, wrappedTypeName: wrappedTypeName)
+                }
+            }
+            switch (liftedState(lhs), liftedState(rhs)) {
+            case (.none, .none):
+                return true
+            case (.none, .some), (.some, .none):
+                return false
+            case (.some(let left, _), .some(let right, _)):
+                return try areEqual(left, right)
+            case (.notOptional, _), (_, .notOptional):
+                preconditionFailure("concrete values were lifted above")
+            }
+        }
         // KeyPaths compare by their component chains (`kp == \\.zone`).
         if case .host(let l) = lhs, let lk = l as? KeyPathStub,
            case .host(let r) = rhs, let rk = r as? KeyPathStub {

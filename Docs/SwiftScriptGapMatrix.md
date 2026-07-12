@@ -11,25 +11,26 @@ SwiftScript's former decisive advantage—source structs accidentally behaving
 like classes here—is closed. This interpreter has one central ownership
 contract for bindings, arguments, returns, captures, properties, containers,
 and sync/async mutating lvalues; source classes, models, bindings, and host
-objects retain their required identity. Dedicated Set storage is now closed as
-a representation gap too: arrays and Sets have separate dispatch and type
-identity here. SwiftScript still has the cleaner physical split for explicit
-optionals and struct/class storage.
+objects retain their required identity. Dedicated Set storage and explicit
+Optional storage are now closed as representation gaps too: arrays and Sets
+have separate dispatch and type identity here, while nested Optionals retain
+their wrappers and declared type context. SwiftScript still has the cleaner
+physical struct/class split.
 
 This interpreter leads in the larger runtime architecture: parsed executable
 host contracts, genuinely suspending/cancellable task execution, resource
 limits, framework isolation, and multi-board verification. SwiftScript's
 parsed `Signature` serves its generic-method candidate path, while a separate
 hand-built validator covers selected ordinary calls. The old statement that
-“SwiftScript is architecturally better overall” no longer holds; SwiftScript
-still leads those remaining representation details, and this project still
-avoids an unqualified language-completeness claim until explicit optional
-storage and broader typed-gateway coverage land.
+“SwiftScript is architecturally better overall” no longer holds. This project
+still avoids an unqualified language-completeness claim until broader
+typed-gateway coverage lands.
 
 | Area | SwiftScript | This interpreter | Verdict / next acceptance criterion |
 | --- | --- | --- | --- |
 | Evaluator decomposition | Feature-oriented files under `Execution/` | Feature-oriented evaluators under `Eval/`; `Interpreter` owns shared session state | Comparable. Keep syntax implementations out of `Interpreter.swift`. |
-| Core value algebra | Dedicated optional, array, dictionary, set, tuple, range, struct, class, enum, and opaque cases | Dedicated primitive, string, array, Set, value-backed dictionary/tuple, range, instance, enum, and host cases plus one centralized shallow/COW ownership contract | SwiftScript retains the explicit optional and physical struct/class split. Set is no longer a representation gap; adopt a distinct/COW struct case only if profiling or API clarity justifies it. |
+| Core value algebra | Dedicated optional, array, dictionary, set, tuple, range, struct, class, enum, and opaque cases; Optional stores only `Value?` | Dedicated primitive, string, array, Set, value-backed dictionary/tuple, range, Optional, instance, enum, and host cases plus one centralized shallow/COW ownership contract; Optional additionally retains wrapped-type and IUO metadata | This interpreter now has the richer Optional model and SwiftScript retains the simpler physical struct/class split. Adopt a distinct/COW struct case only if profiling or API clarity justifies it. |
+| Optional semantics | Explicit recursive storage, nil coalescing/equality, binding, chaining, force unwrap, `map`/`flatMap`, and common failable APIs | Explicit recursive storage with typed `.none`, nested-layer identity, IUO behavior, annotated assignment/parameters/returns/enum and collection payloads, sync/async `try?`, casts, patterns, chaining/subscripts, `map`/`flatMap`, generated/ObjC/Codable boundaries, and generic binding from empty values | This interpreter now leads representation and covered boundary fidelity. Keep the untyped nil sentinel confined to literals/legacy inputs and add native differential tests for every new Optional-producing API. |
 | Set semantics | Dedicated ordered unique storage, sequence construction, iteration, algebra, relations, filtering, and core mutation; `insert` intentionally returns only `Bool` | Dedicated deterministic value storage with static element context, order-independent interpreter-aware equality, typed host matching, native-shaped `insert` tuple, `update(with:)`, strict relations, algebra/mutation, and Array/Set isolation | This interpreter now leads Set fidelity. Keep native differential tests around every added operation and never restore Array compatibility shims. |
 | Struct/class semantics | Struct fields live in enum values; classes use a reference cell | `Instance` is shared physical storage, but source-struct envelopes copy at language boundaries and composed lvalues detach only the nested mutation path; sync/async mutating calls copy out, classes/models retain identity, and wrapper locations follow SwiftUI identity | Behavioral parity on the covered boundaries, with native differential tests for assignment, arguments, returns, captures, containers, nesting, observers, classes, wrappers, and suspension. SwiftScript's physical split is simpler; this interpreter's ownership/write-back policy is more centralized and explicit. |
 | Async execution | `eval`, statement evaluation, expression evaluation, calls, and bridges are uniformly `async throws`; async bridges may suspend, while `Task`/task-group shims run bodies inline | Dual-mode evaluator preserves synchronous rendering while `runAsync` propagates suspension through expressions, statements, user calls, task bodies, host gateways, and host-to-interpreter callbacks; real tasks have descendant lifetime/cancellation and park evaluator frames across reentrancy | This interpreter leads in behavior and safety; SwiftScript's single async evaluator remains simpler. Keep sync and async semantics differential-tested as the language surface grows. |
@@ -41,8 +42,8 @@ storage and broader typed-gateway coverage land.
 
 ## Remaining blockers
 
-1. **Value-algebra completeness:** add explicit optional storage, then decide
-   from profiling whether the now-correct struct semantics should move from
+1. **Value-algebra completeness:** decide from profiling whether the
+   now-correct struct semantics should move from
    shallow storage-envelope copies to a distinct copy-on-write representation.
 2. **Typed-gateway coverage:** the executable contract layer is landed and
    representative globals, constructors, methods, and mutable properties use
@@ -53,8 +54,9 @@ storage and broader typed-gateway coverage land.
 
 The source-struct acceptance criterion is now met. The accurate architectural
 verdict is: this interpreter leads overall runtime design and verification;
-SwiftScript retains a cleaner explicit-optional and physical struct/class
-split, while this interpreter now has the more faithful Set subsystem. An
-unqualified “better Swift interpreter” claim still waits for explicit optional
-storage, typed coverage at the generated boundary, and a non-empty green
-`scripts/gate.sh` result for unit, corpus, live, and parity boards.
+SwiftScript retains a cleaner physical struct/class split, while this
+interpreter now has the richer Optional model and the more faithful Set
+subsystem. The architectural verdict is that this interpreter is stronger
+overall; an unqualified language-completeness claim still waits for broader
+typed coverage. `Scripts/gate.sh` is green across the unit, corpus, live, and
+parity boards and must remain the ratcheting acceptance boundary.

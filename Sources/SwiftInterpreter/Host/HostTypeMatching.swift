@@ -12,15 +12,36 @@ extension HostSignature {
         context: EvalContext,
         mayBind: Bool
     ) -> Int? {
-        var type = normalizedType(rawType)
+        let type = normalizedType(rawType)
 
-        if type.hasSuffix("?") || type.hasSuffix("!") {
-            type.removeLast()
-            if value.isNil { return 18 }
-            return matchType(
-                value, against: type, genericNames: genericNames,
-                bindings: &bindings, representatives: &representatives,
-                context: context, mayBind: mayBind).map { $0 - 1 }
+        if let wrappedType = RuntimeOptionalValue.wrappedType(in: type) {
+            switch value.optionalState {
+            case .none(let observedType):
+                let normalizedWrapped = normalizedType(wrappedType)
+                if genericNames.contains(normalizedWrapped), let observedType {
+                    if let bound = bindings[normalizedWrapped] {
+                        guard equivalentTypeName(bound, observedType) else { return nil }
+                    } else {
+                        guard mayBind else { return nil }
+                        bindings[normalizedWrapped] = observedType
+                    }
+                } else if let observedType,
+                          !genericNames.contains(normalizedWrapped),
+                          !equivalentTypeName(observedType, normalizedWrapped) {
+                    return nil
+                }
+                return 18
+            case .some(let wrapped, _):
+                return matchType(
+                    wrapped, against: wrappedType, genericNames: genericNames,
+                    bindings: &bindings, representatives: &representatives,
+                    context: context, mayBind: mayBind).map { $0 - 1 }
+            case .notOptional:
+                return matchType(
+                    value, against: wrappedType, genericNames: genericNames,
+                    bindings: &bindings, representatives: &representatives,
+                    context: context, mayBind: mayBind).map { $0 - 2 }
+            }
         }
         if value.isNil { return type == "Any" ? 1 : nil }
 
@@ -108,12 +129,32 @@ extension HostSignature {
         if let application = genericApplication(type) {
             switch application.name {
             case "Optional" where application.arguments.count == 1:
-                if value.isNil { return 18 }
-                return matchType(
-                    value, against: application.arguments[0],
-                    genericNames: genericNames,
-                    bindings: &bindings, representatives: &representatives,
-                    context: context, mayBind: mayBind)
+                let wrappedType = application.arguments[0]
+                switch value.optionalState {
+                case .none(let observedType):
+                    let normalizedWrapped = normalizedType(wrappedType)
+                    if genericNames.contains(normalizedWrapped), let observedType {
+                        if let bound = bindings[normalizedWrapped] {
+                            guard equivalentTypeName(bound, observedType) else { return nil }
+                        } else {
+                            guard mayBind else { return nil }
+                            bindings[normalizedWrapped] = observedType
+                        }
+                    }
+                    return 18
+                case .some(let wrapped, _):
+                    return matchType(
+                        wrapped, against: wrappedType,
+                        genericNames: genericNames,
+                        bindings: &bindings, representatives: &representatives,
+                        context: context, mayBind: mayBind)
+                case .notOptional:
+                    return matchType(
+                        value, against: wrappedType,
+                        genericNames: genericNames,
+                        bindings: &bindings, representatives: &representatives,
+                        context: context, mayBind: mayBind)
+                }
             case let container
                 where ["Array", "ContiguousArray"].contains(container)
                     && application.arguments.count == 1:
@@ -344,6 +385,11 @@ enum HostRuntimeTypeSystem {
             }
             let names = Set(set.elements.map(typeName))
             return "Set<\(names.count == 1 ? names.first! : "Any")>"
+        case .optional(let optional):
+            if let wrappedTypeName = optional.wrappedTypeName {
+                return "\(wrappedTypeName)?"
+            }
+            return "\(optional.wrapped.map(typeName) ?? "Any")?"
         case .dictionary(let dictionary):
             let keys = Set(dictionary.keys.map(typeName))
             let values = Set(dictionary.values.map(typeName))
@@ -375,12 +421,22 @@ enum HostRuntimeTypeSystem {
     }
 
     static func matches(_ value: RuntimeValue, type rawType: String) -> Bool {
-        var type = rawType.trimmingCharacters(in: .whitespaces)
-        if type.hasSuffix("?") || type.hasSuffix("!") {
-            type.removeLast()
-            if value.isNil { return true }
+        let type = rawType.trimmingCharacters(in: .whitespaces)
+        if let wrappedType = RuntimeOptionalValue.wrappedType(in: type) {
+            switch value.optionalState {
+            case .none(let observed):
+                guard let observed else { return true }
+                return HostSignature.equivalentTypeName(observed, wrappedType)
+            case .some(let wrapped, _):
+                return matches(wrapped, type: wrappedType)
+            case .notOptional:
+                // Swift injects a concrete argument into an Optional
+                // parameter at a call boundary.
+                return matches(value, type: wrappedType)
+            }
         }
         if type == "Any" { return true }
+        if value.isOptional { return false }
         if type == "Void" || type == "()" {
             if case .void = value { return true }
             return false
@@ -444,6 +500,10 @@ enum HostRuntimeTypeSystem {
         case "Equatable", "Hashable":
             switch value {
             case .int, .double, .bool, .string, .set, .enumCase: return true
+            case .optional(let optional):
+                return optional.wrapped.map {
+                    conforms($0, to: protocolName)
+                } ?? true
             default: return false
             }
         case "Comparable":

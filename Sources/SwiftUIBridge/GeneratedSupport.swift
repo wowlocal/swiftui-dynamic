@@ -395,15 +395,15 @@ extension GeneratedDispatch {
     }
 }
 
-/// Wraps a generated member's result: Optionals flatten (nil → .nilValue),
-/// everything else hosts through the normalizing `.native` constructors.
+/// Wrap a generated member result through the runtime's normalizer. It
+/// preserves host Optional wrappers (including nesting) before classifying
+/// scalar and framework payloads.
+func generatedMemberResult<Wrapped>(_ value: Wrapped?) -> RuntimeValue {
+    .native(value)
+}
+
 func generatedMemberResult(_ value: Any) -> RuntimeValue {
-    let mirror = Mirror(reflecting: value)
-    if mirror.displayStyle == .optional {
-        guard let child = mirror.children.first else { return .nilValue }
-        return generatedMemberResult(child.value)
-    }
-    return .native(value)
+    .native(value)
 }
 
 /// Namespace the generated file extends with `build()`.

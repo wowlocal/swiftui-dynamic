@@ -157,8 +157,23 @@ extension Interpreter {
     }
 
     func evaluateSubscript(_ call: SubscriptCallExprSyntax, in env: Environment) throws -> RuntimeValue {
-        let base = try evaluateContextualReceiver(call.calledExpression, in: env)
-        if base.isNil { return .nilValue }
+        let evaluatedBase = try evaluateContextualReceiver(
+            call.calledExpression, in: env)
+        let base: RuntimeValue
+        let isOptionalChain: Bool
+        switch evaluatedBase.optionalState {
+        case .some(let wrapped, _):
+            base = wrapped
+            isOptionalChain = true
+        case .none:
+            return .none()
+        case .notOptional:
+            base = evaluatedBase
+            isOptionalChain = false
+        }
+        func chained(_ value: RuntimeValue) -> RuntimeValue {
+            isOptionalChain ? value.liftedToOptional() : value
+        }
         guard let indexExpr = call.arguments.first?.expression else {
             throw error(call, "missing subscript index")
         }
@@ -167,49 +182,50 @@ extension Interpreter {
         // static defaultValue (pre-@Entry EnvironmentKey conformances).
         if case .host(let any) = base, any is EnvironmentValuesStub {
             if case .type(let keySymbol) = index {
-                return try staticMember("defaultValue", of: keySymbol) ?? .nilValue
+                return chained(
+                    try staticMember("defaultValue", of: keySymbol) ?? .nilValue)
             }
             return .nilValue
         }
         if call.arguments.first?.label?.text == "keyPath" {
             // `element[keyPath: kp]` — apply the stub's components.
             if case .host(let any) = index, let stub = any as? KeyPathStub {
-                return try applyKeyPath(stub, to: base)
+                return chained(try applyKeyPath(stub, to: base))
             }
             return .nilValue // unknowable keypath: fresh read
         }
         if let array = base.arrayValue {
             if let i = index.intValue, array.indices.contains(i) {
-                return array[i]
+                return chained(array[i])
             }
             if let range = index.rangeValue {
                 let bounds = try integerSlice(range, count: array.count, name: "array", node: call)
-                return .native(Array(array[bounds]))
+                return chained(.native(Array(array[bounds])))
             }
             throw error(call, "array index out of range")
         }
         if let dict = base.dictValue {
-            let found = try relocating(call) { try dict.lookup(index) }
+            let found = try relocating(call) { try dict.value(forKey: index) }
             // `sales[key, default: 0]` — missing keys read the default.
-            if found.isNil,
+            if found == nil,
                let defaultExpr = call.arguments.first(where: { $0.label?.text == "default" })?.expression {
-                return try evaluate(defaultExpr, in: env)
+                return chained(try evaluate(defaultExpr, in: env))
             }
-            return found
+            return found.map { .some($0) } ?? .none()
         }
         if let range = base.rangeValue, let i = index.intValue {
             guard let materialized = range.integerValues() else {
                 throw error(call, "only integer ranges can be indexed")
             }
             guard materialized.indices.contains(i) else { throw error(call, "range index out of range") }
-            return materialized[i]
+            return chained(materialized[i])
         }
         if case .host(let any) = base, let stub = any as? BindingStub, let i = index.intValue {
             // `$items[index]` — a write-through element binding.
             guard let element = stub.elementBinding(at: i) else {
                 throw error(call, "binding index out of range")
             }
-            return element
+            return chained(element)
         }
         if let (symbol, selfValue) = userSubscriptOwner(for: base) {
             // User subscript getter: `matrix[index]` / `grid[x, y]` — and
@@ -217,19 +233,20 @@ extension Interpreter {
             let indexArgs = CallArguments(arguments: try call.arguments.map {
                 .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
             })
-            return try relocating(call) {
+            return chained(try relocating(call) {
                 try runUserSubscriptGetter(symbol, selfValue: selfValue, args: indexArgs)
-            }
+            })
         }
         if let string = base.stringValue {
             // `text[range]` / `text[i]` with String.Index values.
             if let range = index.rangeValue {
-                return .native(String(string[try stringSlice(range, in: string, node: call)]))
+                return chained(.native(
+                    String(string[try stringSlice(range, in: string, node: call)])))
             }
             if case .host(let indexAny) = index,
                let position = indexAny as? String.Index,
                position >= string.startIndex, position < string.endIndex {
-                    return .native(String(string[position]))
+                    return chained(.native(String(string[position])))
             }
         }
         // Library key-value stores with DECLARED defaults (sindresorhus/
@@ -239,14 +256,14 @@ extension Interpreter {
         if let keyBag = try storeKeyBag(base: base, index: index),
            let declared = try readHostMember("default", on: keyBag)
                ?? readHostMember("defaultValue", on: keyBag) {
-            return declared
+            return chained(declared)
         }
         if case .host(let any) = base,
            case .hostFunction(let subscripting)? = try readHostMember(
             "subscript", on: any) {
             // Host subscripts (AttributedString[range] styling proxies).
             let args = CallArguments(arguments: [.init(label: nil, value: index)])
-            return try relocating(call) { try subscripting.invoke(args, self) }
+            return chained(try relocating(call) { try subscripting.invoke(args, self) })
         }
         if case .host(let dataAny) = base, let bytes = dataAny as? Data {
             // Byte access and slices (bech32 decoders index raw buffers).
@@ -254,13 +271,14 @@ extension Interpreter {
                 guard i >= 0, i < bytes.count else {
                     throw error(call, "Data index \(i) out of range")
                 }
-                return .native(Int(bytes[bytes.index(bytes.startIndex, offsetBy: i)]))
+                return chained(.native(
+                    Int(bytes[bytes.index(bytes.startIndex, offsetBy: i)])))
             }
             if let range = index.rangeValue {
                 let bounds = try integerSlice(range, count: bytes.count, name: "Data", node: call)
                 let start = bytes.index(bytes.startIndex, offsetBy: bounds.lowerBound)
                 let end = bytes.index(bytes.startIndex, offsetBy: bounds.upperBound)
-                return .native(Data(bytes[start..<end]))
+                return chained(.native(Data(bytes[start..<end])))
             }
         }
         // A TYPE base that isn't a declared-default store: in compiled

@@ -19,8 +19,9 @@ extension Interpreter {
         guard case .host(let any) = box.value, let lazy = any as? LazyGlobal else {
             return box.value
         }
-        var value: RuntimeValue = lazy.annotation?.trimmedDescription.hasSuffix("?") == true
-            ? .nilValue : .void
+        let annotationText = lazy.annotation?.trimmedDescription ?? ""
+        var value: RuntimeValue = RuntimeOptionalValue.wrappedType(in: annotationText) != nil
+            ? .none(forTypeAnnotation: annotationText) : .void
         if let initializer = lazy.initializer {
             value = try resolveAnnotated(try evaluate(initializer, in: globals), annotation: lazy.annotation)
         }
@@ -554,7 +555,8 @@ extension Interpreter {
             // LocalizedError's errorDescription first, then falls back to
             // the NSError boilerplate.
             if let described = try enumCaseMember("errorDescription", on: value),
-               let text = described.stringValue {
+               let unwrapped = described.unwrappedOptionalOrSelf,
+               let text = unwrapped.stringValue {
                 return .native(text)
             }
             return .native("The operation couldn\u{2019}t be completed. (\(value.symbol.name) error.)")
@@ -597,7 +599,9 @@ extension Interpreter {
             throw RuntimeError(message: "'\(symbol.name)' has no subscript")
         }
         let env = selfEnvironment(selfValue)
-        let closure = ClosureValue(parameters: member.parameters, body: member.getter, captured: env)
+        let closure = ClosureValue(
+            parameters: member.parameters, body: member.getter, captured: env,
+            returnTypeName: member.resultTypeName)
         return try callWithArguments(closure, args: args, node: nil)
     }
 
@@ -639,6 +643,10 @@ extension Interpreter {
         let result = try executeBlock(computed.accessor, in: env)
         switch result {
         case .normal(let value), .returnValue(let value):
+            if let typeName = computed.typeAnnotation?.trimmedDescription,
+               RuntimeOptionalValue.wrappedType(in: typeName) != nil {
+                return try resolveAnnotated(value, typeName: typeName)
+            }
             // Keep contextual markers lazy. Receiver operations that require
             // the concrete type (notably user subscripts) resolve this value
             // against the annotation at their dispatch boundary.
@@ -676,8 +684,64 @@ extension Interpreter {
                         method, body: body, captured: selfEnvironment(.nilValue)))
                 }
             }
-            // Optional chaining: member access on nil is nil.
-            return .nilValue
+            // Optional chaining: member access on an untyped nil becomes an
+            // explicit Optional.none at the first semantic operation.
+            return .none()
+
+        case .optional(let optional):
+            // Source extensions on Optional receive the wrapper as `self`.
+            if let optionalExtension = hostExtensionSymbols["Optional"] {
+                if let computed = optionalExtension.computedProperties[name] {
+                    return try evaluateComputed(
+                        computed, selfValue: baseValue, name: name)
+                }
+                if let overloads = optionalExtension.methods[name],
+                   let method = chooseFunction(
+                       from: overloads, for: CallArguments()) ?? overloads.first,
+                   let body = method.body {
+                    return .closure(makeFunctionClosure(
+                        method, body: body,
+                        captured: selfEnvironment(baseValue)))
+                }
+            }
+            if let member = optionalMember(name, optional) { return member }
+
+            let explicitlyChained = Syntax(node).as(MemberAccessExprSyntax.self)?
+                .base?.is(OptionalChainingExprSyntax.self) == true
+            // Any other member reached through `?.`: none propagates; some
+            // dispatches onto the payload and flattens the chain's result.
+            // An implicitly-unwrapped Optional uses the payload directly
+            // when no `?` appears at this access site.
+            guard let wrapped = optional.wrapped else {
+                if optional.isImplicitlyUnwrapped && !explicitlyChained {
+                    // Whole-project verification invokes every recorded
+                    // action, including controls that are disabled because
+                    // their imported/IUO payload is unavailable headlessly.
+                    // Keep strict standalone interpretation trapping, but
+                    // let compiled-import artifact mode preserve its existing
+                    // absorbing boundary instead of inventing a payload.
+                    if assumesCompiledImports { return .none() }
+                    throw error(node, "unexpectedly found nil while implicitly unwrapping")
+                }
+                return .none()
+            }
+            let member = try accessMember(name, on: wrapped, node: node, env: env)
+            if optional.isImplicitlyUnwrapped && !explicitlyChained {
+                return member
+            }
+            switch member {
+            case .closure, .hostFunction:
+                let callSite = Syntax(node)
+                return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
+                    guard let self else {
+                        throw RuntimeError(message: "interpreter gone")
+                    }
+                    return try self.invoke(member, with: args, node: callSite)
+                        .liftedToOptional()
+                })
+            default:
+                return member.liftedToOptional()
+            }
 
         case .instance(let instance):
             // `self.init(…)` — delegating initializers run another init on
@@ -785,8 +849,19 @@ extension Interpreter {
         case .enumType(let symbol):
             if let caseInfo = symbol.caseInfo(named: name) {
                 if caseInfo.hasAssociatedValues {
-                    return .hostFunction(HostFunction(name: name) { args, _ in
-                        .enumCase(EnumCaseValue(symbol: symbol, name: name, associated: args.arguments.map(\.value)))
+                    return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
+                        guard let self else {
+                            throw RuntimeError(message: "interpreter gone")
+                        }
+                        let associated = try zip(
+                            args.arguments.map(\.value),
+                            caseInfo.associatedTypeNames
+                        ).map { value, typeName in
+                            try self.resolveAnnotated(value, typeName: typeName)
+                        }
+                        return .enumCase(EnumCaseValue(
+                            symbol: symbol, name: name,
+                            associated: associated))
                     })
                 }
                 return .enumCase(EnumCaseValue(symbol: symbol, name: name))
@@ -922,6 +997,15 @@ extension Interpreter {
                 // `casePath.extract(action)` → the payload (labeled tuple
                 // for multi-payload cases) or nil on case mismatch.
                 return .hostFunction(HostFunction(name: name) { args, _ in
+                    let info = symbol.caseInfo(named: caseName)
+                    let wrappedTypeName: String? = {
+                        guard let info else { return nil }
+                        if info.associatedTypeNames.count == 1 {
+                            return info.associatedTypeNames[0]
+                        }
+                        if info.associatedTypeNames.isEmpty { return "Void" }
+                        return "(" + info.associatedTypeNames.joined(separator: ", ") + ")"
+                    }()
                     var payloads: [RuntimeValue]?
                     if case .enumCase(let value)? = args.positional(0),
                        value.symbol === symbol, value.name == caseName {
@@ -932,11 +1016,17 @@ extension Interpreter {
                         // slot) still carry the case shape.
                         payloads = call.arguments.arguments.map(\.value)
                     }
-                    guard let payloads else { return .nilValue }
-                    if payloads.count == 1 { return payloads[0] }
-                    let labels = symbol.caseInfo(named: caseName)?.associatedLabels
+                    guard let payloads else {
+                        return .none(wrappedTypeName: wrappedTypeName)
+                    }
+                    if payloads.count == 1 {
+                        return .some(payloads[0], wrappedTypeName: wrappedTypeName)
+                    }
+                    let labels = info?.associatedLabels
                         ?? Array(repeating: nil, count: payloads.count)
-                    return .native(TupleValue(labels: labels, values: payloads))
+                    return .some(
+                        .native(TupleValue(labels: labels, values: payloads)),
+                        wrappedTypeName: wrappedTypeName)
                 })
             }
             if any is PublishedProjection {

@@ -48,7 +48,19 @@ extension Interpreter {
         }
         switch callee {
         case .nilValue:
-            return .nilValue // optional chaining through a nil method
+            return .none() // optional chaining through an untyped nil method
+        case .optional(let optional):
+            let explicitlyChained = Syntax(node).as(FunctionCallExprSyntax.self)?
+                .calledExpression.is(OptionalChainingExprSyntax.self) == true
+            guard let wrapped = optional.wrapped else {
+                if optional.isImplicitlyUnwrapped && !explicitlyChained {
+                    throw error(node, "unexpectedly found nil while implicitly unwrapping")
+                }
+                return callee
+            }
+            let result = try invoke(wrapped, with: args, node: node)
+            return optional.isImplicitlyUnwrapped && !explicitlyChained
+                ? result : result.liftedToOptional()
         case .instance(let instance) where instance.symbol.conformsToLayout:
             // Parenthesized custom layouts use the value-call spelling:
             // `(FlowLayout(spacing: 8)) { children }`. SwiftUI supplies
@@ -159,10 +171,10 @@ extension Interpreter {
         case .enumType(let symbol):
             // `Icon(rawValue: 3)` — the raw-value initializer.
             if args.arguments.count == 1, let raw = args.labeled("rawValue") {
-                return symbol.cases
+                let matched = symbol.cases
                     .first { (try? Builtins.areEqual($0.rawValue, raw)) == true }
                     .map { RuntimeValue.enumCase(EnumCaseValue(symbol: symbol, name: $0.name)) }
-                    ?? .nilValue
+                return .optional(matched, wrappedTypeName: symbol.name)
             }
             // Custom enum inits run with a WRITABLE `self` (`self = .primary`);
             // the final self resolves against the enum's own type context.
@@ -205,7 +217,10 @@ extension Interpreter {
                 closure.debugName = "enumInit:\(symbol.name)"
                 _ = try callWithArguments(closure, args: args, node: Syntax(node))
                 let assigned = env.lookup("self") ?? .void
-                return try resolveAnnotated(assigned, typeName: symbol.name)
+                let initialized = try resolveAnnotated(assigned, typeName: symbol.name)
+                return chosen.optionalMark != nil
+                    ? initialized.liftedToOptional(wrappedTypeName: symbol.name)
+                    : initialized
             }
             // Shadowed host-type names (Aidoku's nested `enum State` vs
             // SwiftUI State(initialValue:)): fall through to the registry

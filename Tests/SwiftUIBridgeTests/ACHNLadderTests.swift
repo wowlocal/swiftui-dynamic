@@ -30,6 +30,26 @@ import SwiftInterpreter
         #expect(strings.contains { $0.contains("home alive") }, "\(strings)")
     }
 
+    @Test func itemSheetContentReceivesTheUnwrappedItem() throws {
+        let source = """
+        struct Route: Identifiable {
+            let id: Int
+            let title: String
+        }
+        struct Home: View {
+            @State private var route: Route? = Route(id: 1, title: "details")
+            var body: some View {
+                Text("home")
+                    .sheet(item: $route) { item in
+                        Text(item.title)
+                    }
+            }
+        }
+        """
+        let strings = try LiveCheckSupport.renderedStrings(source: source)
+        #expect(strings.contains("details"), "\(strings)")
+    }
+
     @Test func dateConstructorsAreReal() throws {
         let source = """
         let epoch = Date(timeIntervalSince1970: 100)

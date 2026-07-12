@@ -275,6 +275,28 @@ extension Interpreter {
         if let cast = matchCastSequence(expr, subject: subject, bindingInto: bindings) {
             return cast
         }
+        // `case let value?` is represented by SwiftSyntax as an expression
+        // pattern whose expression is OptionalChainingExpr. It unwraps one
+        // layer and applies/binds the inner pattern.
+        if let optionalPattern = expr.as(OptionalChainingExprSyntax.self) {
+            guard case .some(let wrapped, _) = subject.optionalState else {
+                return false
+            }
+            let inner = optionalPattern.expression
+            if let patternExpression = inner.as(PatternExprSyntax.self) {
+                return try matches(
+                    patternExpression.pattern, subject: wrapped,
+                    bindingInto: bindings, env: env)
+            }
+            if let reference = inner.as(DeclReferenceExprSyntax.self) {
+                bindings.define(reference.baseName.text, wrapped)
+                return true
+            }
+            if inner.is(DiscardAssignmentExprSyntax.self) { return true }
+            return try matchExpression(
+                inner, subject: wrapped,
+                bindingInto: bindings, env: env)
+        }
         // `.none` / `nil` over NATIVE optionals (payload positions recurse
         // here): matches exactly the nil subject.
         if expr.is(NilLiteralExprSyntax.self) { return subject.isNil }
@@ -289,11 +311,37 @@ extension Interpreter {
            member.base == nil, member.declName.baseName.text == "some",
            call.arguments.count == 1, let inner = call.arguments.first?.expression,
            caseShape(of: subject) == nil {
-            if subject.isNil { return false }
-            if let patternExpr = inner.as(PatternExprSyntax.self) {
-                return try matches(patternExpr.pattern, subject: subject, bindingInto: bindings, env: env)
+            guard case .some(let unwrapped, _) = subject.optionalState else {
+                return false
             }
-            return try matchExpression(inner, subject: subject, bindingInto: bindings, env: env)
+            if let patternExpr = inner.as(PatternExprSyntax.self) {
+                return try matches(
+                    patternExpr.pattern, subject: unwrapped,
+                    bindingInto: bindings, env: env)
+            }
+            return try matchExpression(
+                inner, subject: unwrapped,
+                bindingInto: bindings, env: env)
+        }
+        // For an Optional enum, `.case` is Swift shorthand for
+        // `.some(.case)`. Keep general expression constants comparing the
+        // outer Optional; only implicit enum-case spelling unwraps here.
+        if case .some(let wrapped, _) = subject.optionalState {
+            let isImplicitEnumCase: Bool = {
+                if let member = expr.as(MemberAccessExprSyntax.self) {
+                    return member.base == nil
+                }
+                if let call = expr.as(FunctionCallExprSyntax.self),
+                   let member = call.calledExpression.as(MemberAccessExprSyntax.self) {
+                    return member.base == nil
+                }
+                return false
+            }()
+            if isImplicitEnumCase, caseShape(of: wrapped) != nil {
+                return try matchExpression(
+                    expr, subject: wrapped,
+                    bindingInto: bindings, env: env)
+            }
         }
         // `case (_, .hideAll)` — tuple patterns in expression form match
         // ELEMENTWISE; `_` is the wildcard.

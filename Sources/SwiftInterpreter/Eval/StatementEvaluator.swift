@@ -157,9 +157,10 @@ extension Interpreter {
                     }
                     let annotationText = (binding.typeAnnotation?.type ?? sharedAnnotation(startingAt: bindingIndex))?
                         .trimmedDescription ?? ""
-                    if annotationText.hasSuffix("?") || annotationText.hasSuffix("!") {
+                    if RuntimeOptionalValue.wrappedType(in: annotationText) != nil {
                         env.define(
-                            ident.identifier.text, .nilValue,
+                            ident.identifier.text,
+                            .none(forTypeAnnotation: annotationText),
                             declaredTypeName: annotationText) // `var x: T?`/`T!` is nil
                         continue
                     }
@@ -328,7 +329,8 @@ extension Interpreter {
                     guard let initializer = optionalBinding.initializer?.value else {
                         throw error(optionalBinding, "'let _' needs an initializer")
                     }
-                    guard try !evaluate(initializer, in: bindings).isNil else { return false }
+                    guard try evaluate(initializer, in: bindings)
+                        .unwrappedOptionalOrSelf != nil else { return false }
                     continue
                 }
                 // `if let (a, b) = pair` — tuple destructuring. The pattern
@@ -349,7 +351,8 @@ extension Interpreter {
                 }
                 if let names = tupleNames, let initializer = optionalBinding.initializer?.value {
                     let value = try evaluate(initializer, in: bindings)
-                    guard !value.isNil, let tuple = value.tupleValue,
+                    guard let unwrapped = value.unwrappedOptionalOrSelf,
+                          let tuple = unwrapped.tupleValue,
                           tuple.values.count == names.count else { return false }
                     for (name, elementValue) in zip(names, tuple.values) {
                         if let name { bindings.define(name, elementValue) }
@@ -367,8 +370,8 @@ extension Interpreter {
                     // `if let x` shorthand
                     value = try resolveIdentifier(name, in: bindings, node: optionalBinding)
                 }
-                guard !value.isNil else { return false }
-                bindings.define(name, value)
+                guard let unwrapped = value.unwrappedOptionalOrSelf else { return false }
+                bindings.define(name, unwrapped)
             case .matchingPattern(let matching):
                 // `if case .loading = state` — rides the switch matcher.
                 let subject = try evaluate(matching.initializer.value, in: bindings)
@@ -658,6 +661,10 @@ extension Interpreter {
             // Optional views render nothing when nil — ViewBuilder's
             // buildExpression(Optional) (`randomIsland.map { … }`).
             break
+        case .optional(let optional):
+            if let wrapped = optional.wrapped {
+                appendViewValue(wrapped, to: &views)
+            }
         case .instance(let instance) where instance.symbol.rendersLikeView:
             if let registry {
                 views.append(registry.makeRenderable(instance: instance, interpreter: self))

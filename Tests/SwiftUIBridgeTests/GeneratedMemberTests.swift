@@ -25,12 +25,23 @@ import SwiftUIBridge
         #expect(result.stringValue == "https://example.com/a/dir/")
     }
 
-    @Test func optionalReturnsFlattenToNil() throws {
+    @Test func optionalReturnsUseDedicatedStorageAndCoalesce() throws {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let optional = try interpreter.run(source: """
+        let url = URL(string: "file:///tmp/x")!
+        url.host
+        """)
+        guard case .optional(let host) = optional else {
+            Issue.record("generated Optional member should retain its wrapper")
+            return
+        }
+        #expect(host.wrapped == nil)
+
         let source = """
         let url = URL(string: "file:///tmp/x")!
         url.host ?? "NO HOST"
         """
-        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        let result = try interpreter.run(source: source)
         #expect(result.stringValue == "NO HOST")
     }
 
@@ -44,6 +55,39 @@ import SwiftUIBridge
         """
         let result = try Interpreter(registry: ViewRegistry()).run(source: source)
         #expect(result.stringValue == "example.com")
+    }
+
+    @Test func handWrittenOptionalBoundariesRetainWrappers() throws {
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let constructed = try interpreter.run(source: "URL(string: \"https://example.com\")")
+        guard case .optional(let url) = constructed else {
+            Issue.record("failable handwritten constructor should return Optional storage")
+            return
+        }
+        #expect(url.wrapped != nil)
+        #expect(url.wrappedTypeName == "URL")
+
+        let scheme = try interpreter.run(source: """
+        let components = URLComponents(string: "https://example.com")!
+        components.scheme
+        """)
+        guard case .optional(let schemeOptional) = scheme else {
+            Issue.record("handwritten Optional property should retain its wrapper")
+            return
+        }
+        #expect(schemeOptional.wrapped?.stringValue == "https")
+        #expect(schemeOptional.wrappedTypeName == "String")
+
+        let fragment = try interpreter.run(source: """
+        let components = URLComponents(string: "https://example.com")!
+        components.fragment
+        """)
+        guard case .optional(let fragmentOptional) = fragment else {
+            Issue.record("nil handwritten Optional property should retain its wrapper")
+            return
+        }
+        #expect(fragmentOptional.wrapped == nil)
+        #expect(fragmentOptional.wrappedTypeName == "String")
     }
 
     @Test func absorbTelemetryRecordsUnknownHostMembers() throws {
