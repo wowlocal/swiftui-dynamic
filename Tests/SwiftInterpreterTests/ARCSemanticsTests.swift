@@ -116,6 +116,14 @@ private final class NativeWeakDefaultHolder {
     weak var value: NativeTemporaryARCProbe? = makeNativeTemporaryARCProbe()
 }
 
+private final class NativeWeakInstanceReference {
+    weak var value: Instance?
+
+    init(_ value: Instance) {
+        self.value = value
+    }
+}
+
 private final class NativeClassInitializedWeakSlot {
     static weak var value: NativeTemporaryARCProbe? = makeNativeTemporaryARCProbe()
 }
@@ -1325,5 +1333,71 @@ struct ARCSemanticsTests {
         """#, lazyTopLevelGlobals: true)
 
         #expect(interpreted == native)
+    }
+
+    @Test func hostWeakReferencesConfirmReleasedInstancesLeaveTheHeap() throws {
+        let interpreter = Interpreter()
+        try interpreter.run(source: #"""
+        final class HeapProbe {
+            var first = 1
+            var second = "payload"
+        }
+        """#)
+        let symbol = try #require(
+            interpreter.structSymbols.first { $0.name == "HeapProbe" })
+
+        var references: [NativeWeakInstanceReference] = []
+        do {
+            var values: [RuntimeValue] = []
+            values.reserveCapacity(2_000)
+            for _ in 0..<2_000 {
+                let value = try interpreter.instantiate(
+                    symbol, with: CallArguments())
+                if case .instance(let instance) = value {
+                    references.append(NativeWeakInstanceReference(instance))
+                }
+                values.append(value)
+            }
+            #expect(references.allSatisfy { $0.value != nil })
+            withExtendedLifetime(values) {}
+        }
+
+        // Native weak references become nil only after the Swift heap object
+        // has actually been deallocated; an interpreted deinit event alone
+        // would not be sufficient evidence for this assertion.
+        #expect(references.allSatisfy { $0.value == nil })
+    }
+
+    @Test func breakingAnInterpretedClosureCycleReclaimsTheHostInstance() throws {
+        let interpreter = Interpreter()
+        try interpreter.run(source: interpretedARCPrelude)
+        let symbol = try #require(
+            interpreter.structSymbols.first { $0.name == "Probe" })
+
+        func makeCycle() throws -> NativeWeakInstanceReference {
+            var value: RuntimeValue? = try interpreter.instantiate(
+                symbol, with: CallArguments(arguments: [
+                    .init(label: nil, value: .native("cycle"))
+                ]))
+            guard case .instance(let instance)? = value else {
+                throw RuntimeError(message: "expected a Probe instance")
+            }
+            let reference = NativeWeakInstanceReference(instance)
+            _ = try interpreter.callMethod(
+                named: "installStrongCycle", on: instance, arguments: [])
+            value = nil
+            return reference
+        }
+        let reference = try makeCycle()
+
+        // The callback still owns self, so dropping the external value is not
+        // enough. Keep this assertion inside the instance's lexical scope.
+        #expect(reference.value != nil)
+
+        func breakCycle(_ reference: NativeWeakInstanceReference) {
+            reference.value?.box(for: "callback")?.value = .nilValue
+        }
+        breakCycle(reference)
+        #expect(reference.value == nil)
     }
 }

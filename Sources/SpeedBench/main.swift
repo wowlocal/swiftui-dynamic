@@ -7,7 +7,229 @@
 // the interpreter's 100k-step budget; the native twin then runs the SAME n.
 
 import Foundation
+import Darwin
 import SwiftInterpreter
+
+// MARK: - Opt-in ARC memory probe
+
+private func physicalFootprint() -> UInt64 {
+    var info = task_vm_info_data_t()
+    var count = mach_msg_type_number_t(
+        MemoryLayout<task_vm_info_data_t>.size
+            / MemoryLayout<natural_t>.size)
+    let status = withUnsafeMutablePointer(to: &info) { pointer in
+        pointer.withMemoryRebound(
+            to: integer_t.self, capacity: Int(count)
+        ) {
+            task_info(
+                mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+        }
+    }
+    precondition(status == KERN_SUCCESS)
+    return info.phys_footprint
+}
+
+private struct AllocatorSnapshot {
+    let blocks: UInt64
+    let bytesInUse: UInt64
+}
+
+private func allocatorSnapshot() -> AllocatorSnapshot {
+    var statistics = malloc_statistics_t()
+    malloc_zone_statistics(nil, &statistics)
+    return AllocatorSnapshot(
+        blocks: UInt64(statistics.blocks_in_use),
+        bytesInUse: UInt64(statistics.size_in_use))
+}
+
+private func settleAllocator() {
+    autoreleasepool {}
+    for _ in 0..<3 {
+        _ = malloc_zone_pressure_relief(nil, 0)
+        usleep(20_000)
+    }
+}
+
+private func memoryMB(_ bytes: UInt64) -> String {
+    String(format: "%.2f", Double(bytes) / 1_048_576)
+}
+
+private final class NativeMemoryProbe {
+    var first = 1
+    var second = "payload"
+    var third = Array(0..<16)
+    var callback: (() -> Void)?
+}
+
+private final class NativeMemoryWeakReference {
+    weak var value: NativeMemoryProbe?
+
+    init(_ value: NativeMemoryProbe) {
+        self.value = value
+    }
+}
+
+private final class InterpretedMemoryWeakReference {
+    weak var value: Instance?
+
+    init(_ value: Instance) {
+        self.value = value
+    }
+}
+
+@inline(never)
+private func allocateNativeMemoryBatch(
+    count: Int
+) -> (
+    liveFootprint: UInt64, liveAllocator: AllocatorSnapshot,
+    reference: NativeMemoryWeakReference
+) {
+    var values: [NativeMemoryProbe] = []
+    values.reserveCapacity(count)
+    for _ in 0..<count {
+        values.append(NativeMemoryProbe())
+    }
+    let reference = NativeMemoryWeakReference(values[values.count / 2])
+    var liveFootprint: UInt64 = 0
+    var liveAllocator = allocatorSnapshot()
+    withExtendedLifetime(values) {
+        liveFootprint = physicalFootprint()
+        liveAllocator = allocatorSnapshot()
+    }
+    return (liveFootprint, liveAllocator, reference)
+}
+
+@inline(never)
+private func allocateInterpretedMemoryBatch(
+    interpreter: Interpreter, symbol: StructSymbol, count: Int
+) throws -> (
+    liveFootprint: UInt64, liveAllocator: AllocatorSnapshot,
+    reference: InterpretedMemoryWeakReference
+) {
+    var values: [RuntimeValue] = []
+    values.reserveCapacity(count)
+    var reference: InterpretedMemoryWeakReference?
+    for index in 0..<count {
+        let value = try interpreter.instantiateRoot(symbol)
+        if index == count / 2, case .instance(let instance) = value {
+            reference = InterpretedMemoryWeakReference(instance)
+        }
+        values.append(value)
+    }
+    var liveFootprint: UInt64 = 0
+    var liveAllocator = allocatorSnapshot()
+    withExtendedLifetime(values) {
+        liveFootprint = physicalFootprint()
+        liveAllocator = allocatorSnapshot()
+    }
+    guard let reference else {
+        throw RuntimeError(message: "memory probe did not instantiate a class")
+    }
+    return (liveFootprint, liveAllocator, reference)
+}
+
+private func runARCMemoryProbe(mode: String) throws {
+    let environment = ProcessInfo.processInfo.environment
+    let count = Int(environment["ARC_MEMORY_COUNT"] ?? "20000") ?? 20_000
+    let batches = Int(environment["ARC_MEMORY_BATCHES"] ?? "8") ?? 8
+    let warmupCount = min(count, 1_000)
+
+    var interpreter: Interpreter?
+    var symbol: StructSymbol?
+    if mode == "interpreted" {
+        let candidate = Interpreter()
+        try candidate.run(source: """
+        final class MemoryProbe {
+            var first = 1
+            var second = "payload"
+            var third = [0, 1, 2, 3, 4, 5, 6, 7,
+                         8, 9, 10, 11, 12, 13, 14, 15]
+            var callback: (() -> Void)?
+        }
+        """)
+        interpreter = candidate
+        symbol = candidate.structSymbols.first { $0.name == "MemoryProbe" }
+        guard let symbol else {
+            throw RuntimeError(message: "MemoryProbe was not collected")
+        }
+        _ = try allocateInterpretedMemoryBatch(
+            interpreter: candidate, symbol: symbol, count: warmupCount)
+    } else if mode == "native" {
+        _ = allocateNativeMemoryBatch(count: warmupCount)
+    } else {
+        throw RuntimeError(
+            message: "ARC_MEMORY must be 'native' or 'interpreted'")
+    }
+
+    settleAllocator()
+    let baseline = physicalFootprint()
+    let baselineAllocator = allocatorSnapshot()
+    var releasedFootprints: [UInt64] = []
+    var releasedAllocatorBytes: [UInt64] = []
+    var maximumLive = baseline
+    print(
+        "ARC_MEMORY mode=\(mode) pid=\(getpid()) count=\(count) "
+            + "batches=\(batches) baseline_mb=\(memoryMB(baseline))")
+
+    for batch in 1...batches {
+        let live: UInt64
+        let liveAllocator: AllocatorSnapshot
+        let released: Bool
+        if let interpreter, let symbol {
+            let result = try allocateInterpretedMemoryBatch(
+                interpreter: interpreter, symbol: symbol, count: count)
+            live = result.liveFootprint
+            liveAllocator = result.liveAllocator
+            released = result.reference.value == nil
+        } else {
+            let result = allocateNativeMemoryBatch(count: count)
+            live = result.liveFootprint
+            liveAllocator = result.liveAllocator
+            released = result.reference.value == nil
+        }
+        guard released else {
+            throw RuntimeError(
+                message: "batch \(batch) retained its weak sentinel")
+        }
+        maximumLive = max(maximumLive, live)
+        settleAllocator()
+        let afterRelease = physicalFootprint()
+        let afterReleaseAllocator = allocatorSnapshot()
+        releasedFootprints.append(afterRelease)
+        releasedAllocatorBytes.append(afterReleaseAllocator.bytesInUse)
+        print(
+            "ARC_MEMORY batch=\(batch) live_mb=\(memoryMB(live)) "
+                + "released_mb=\(memoryMB(afterRelease)) "
+                + "heap_live_mb=\(memoryMB(liveAllocator.bytesInUse)) "
+                + "heap_released_mb=\(memoryMB(afterReleaseAllocator.bytesInUse)) "
+                + "blocks_live=\(liveAllocator.blocks) "
+                + "blocks_released=\(afterReleaseAllocator.blocks) weak_nil=true")
+    }
+
+    let final = releasedFootprints.last ?? baseline
+    let finalAllocator = releasedAllocatorBytes.last
+        ?? baselineAllocator.bytesInUse
+    let drift = Int64(final) - Int64(baseline)
+    let allocatorDrift = Int64(finalAllocator)
+        - Int64(baselineAllocator.bytesInUse)
+    print(
+        "ARC_MEMORY summary mode=\(mode) peak_delta_mb="
+            + "\(memoryMB(maximumLive - baseline)) final_drift_mb="
+            + String(format: "%.2f", Double(drift) / 1_048_576)
+            + " heap_final_drift_mb="
+            + String(format: "%.2f", Double(allocatorDrift) / 1_048_576))
+
+    if let hold = Int(environment["ARC_MEMORY_HOLD_SECONDS"] ?? "0"), hold > 0 {
+        print("ARC_MEMORY holding pid=\(getpid()) for \(hold)s")
+        fflush(stdout)
+        sleep(UInt32(hold))
+    }
+}
+
+if let arcMemoryMode = ProcessInfo.processInfo.environment["ARC_MEMORY"] {
+    try runARCMemoryProbe(mode: arcMemoryMode)
+    exit(0)
+}
 
 // MARK: - Interpreted program
 
