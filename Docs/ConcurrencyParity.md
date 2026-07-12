@@ -27,8 +27,8 @@ major version 6.
 
 | Milestone | Status | Evidence | Remaining work |
 |---|---|---|---|
-| M0 native parity infrastructure | implementation complete; exit blocked | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe | Restore the repository corpus floor and rerun the closing gate |
-| M1 task-owned evaluator context | not started | Current implementation still uses `withParkedEvaluatorFrames` | Introduce `EvaluationTaskContext` after M0 closes |
+| M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None; M1 may begin |
+| M1 task-owned evaluator context | not started | Current implementation still uses `withParkedEvaluatorFrames` | Introduce `EvaluationTaskContext` and migrate task-owned dynamic state |
 | M2 task runtime | not started | `RuntimeTaskHandle` is observational and `value` does not suspend | Task IDs, outcomes, waiters, kinds, session policies |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
@@ -71,7 +71,7 @@ It checks only:
 | `cancelledEvaluationThrowsCancellationError` | Native host cancellation wrapper | Infrastructure cancellation; must later separate from source cancellation |
 | `asyncHostGatewaySuspendsThroughInterpretedFunction` | Event trace from test host | Host integration regression; no compiled same-source fixture yet |
 | `interpretedTaskBodyCanAwaitAsyncHostGateway` | Test host result | Host integration regression; no compiled same-source fixture yet |
-| `interleavedTasksKeepIndependentLexicalFrames` | Fixed interpreter trace | Important regression, but current shared-frame architecture is still order-sensitive |
+| `interleavedTasksKeepIndependentLexicalFrames` | `main-actor-task-partial-order` native fact plus value invariant | Both task-specific lexical values must survive; sibling completion order is deliberately not asserted. Shared-frame ownership remains an M1 gap |
 | `asyncGatewayCanReenterSuspendingInterpretedClosure` | Test host result | Host re-entry regression; no standalone native fixture yet |
 | `asyncControlFlowIsLazyAndCatchesHostErrors` | Test host counters | Semantically useful; needs native fixture extraction |
 | `cancellationInterruptsSuspendedHostGateway` | Native host task cancellation | Host-level cancellation regression; needs source/abort distinction |
@@ -104,16 +104,16 @@ ledger.
 Verification on Apple Swift 6.2.3 and the macOS 26.5 SDK:
 
 - `swift test --filter ConcurrencyParityTests`: 5 tests passed;
-- `swift test --filter 'AsyncExecutionTests|HostSignatureTests'`: 28 tests in
-  2 suites passed;
+- `swift test --filter 'ARCSemanticsTests|ClosureTests|ConcurrencyParityTests|AsyncExecutionTests|HostSignatureTests'`:
+  92 tests in 6 suites passed;
 - fresh runner process,
   `swift test --skip-build --filter AsyncExecutionTests.completedSessionsReleaseSchedulerTracking`:
   passed and exited, with scheduler tracking empty after consecutive sessions;
-- full `swift test`: 703 tests in 141 suites passed;
-- `Scripts/gate.sh`: suite 703/703, live 5/5, and API parity
-  345 match / 0 diverge / 0 interpreter errors all passed; corpus remained
-  675/680 against the ratcheted 678 floor, so the closing gate correctly
-  remained red.
+- full `swift test`: 706 tests in 141 suites passed, followed by five green
+  `--skip-build` full-suite repetitions;
+- `Scripts/gate.sh`: suite 706/706, corpus 678/680, live 5/5, and API parity
+  345 match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin all
+  passed; the unchanged 678 corpus floor is satisfied.
 
 The forced corpus sweep identified all non-passing units:
 
@@ -122,9 +122,18 @@ The forced corpus sweep identified all non-passing units:
 - `CustomTabView` and `oss:Ollamac`: the same `$projection` lookup regression;
 - `oss:iina`: an attempted read through a deallocated `unowned` reference.
 
-The three non-ledgered regressions are in the concurrently changing production
-tree and predate the final M0 harness revision. M0 itself adds only documentation,
-fixtures, and tests; `ProjectCheck` fingerprints `Package.swift` and `Sources`,
-so none of the M0 paths can change its verdict. M0 is therefore implemented and
-locally verified, but its milestone exit stays blocked until the repository
-corpus floor is restored. The floor and tests have not been weakened.
+The three non-ledgered regressions were closed with two construct-level
+mechanisms, each characterized against a standalone Swift 6 probe before its
+focused interpreter regression:
+
+- projected identifiers such as `$local` now capture the underlying lexical
+  wrapper box rather than falling through to an implicit instance lookup;
+- a headless synthesized root models the otherwise-absent embedding caller's
+  ownership of constructor arguments, including stable reference identity for
+  opaque imported values placed in `weak` or `unowned` slots. Ordinary source
+  construction and dead-`unowned` trapping remain unchanged.
+
+`CustomTabView`, `oss:Ollamac`, and `oss:iina` consequently pass. `Widgets` and
+`oss:Mythic` remain the same explicit ledgered exclusions. The corpus ratchet
+and all existing ARC expectations were preserved, so M0 is closed and M1 is
+the earliest incomplete milestone.

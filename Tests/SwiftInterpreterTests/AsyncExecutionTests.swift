@@ -292,7 +292,11 @@ struct AsyncExecutionTests {
         state
         """)
 
-        #expect(try stringArray(named: "values", in: state) == ["alpha", "beta"])
+        let values = try stringArray(named: "values", in: state)
+        #expect(
+            values.sorted() == ["alpha", "beta"],
+            "task completion order is unspecified; actual values: \(values)"
+        )
     }
 
     @Test func asyncGatewayCanReenterSuspendingInterpretedClosure() async throws {
