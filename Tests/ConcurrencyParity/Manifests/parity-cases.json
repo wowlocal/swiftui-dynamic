@@ -100,6 +100,18 @@
     "notes": "The child is held behind an explicit gate. The opener is created immediately before the value read and cannot run inline on MainActor, so the value read is the suspension that lets it run."
   },
   {
+    "id": "task-value-failure",
+    "fixture": "Fixtures/task-value-failure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskValueFailureProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A throwing task preserves its failure across suspension and try await task.value throws it to the awaiting caller.",
+    "notes": "The operation crosses parityYield before throwing a source enum; the probe asserts catchability, not version-specific error text."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

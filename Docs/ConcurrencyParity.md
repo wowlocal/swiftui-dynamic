@@ -50,6 +50,7 @@ major version 6.
 | `async-initializer-context` | predicate / event multiset | 100 extension-declared async initializers preserve their argument and lexical nested type across suspension; completion order is unspecified | Native/interpreter parity in 20 repetitions; 100 distinct evaluator contexts are explicitly cleaned |
 | `async-initializer-outcomes` | exact | Async initializers preserve successful, thrown-through-`try?`, failable-success, and failable-nil outcomes across suspension | Native/interpreter parity in 20 repetitions: `success,threw,accepted,rejected` |
 | `task-value-success` | exact | `await task.value` suspends until completion and returns the successful value | Native/interpreter parity in 20 repetitions with a gate-forced trace: `child-start,before-value,child-end,value` |
+| `task-value-failure` | exact | A throwing task preserves its source failure across suspension and `try await task.value` throws it to the caller | Native/interpreter parity in 20 repetitions; catchability is asserted without coupling to error text |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -271,3 +272,11 @@ Verification for this first M2 step:
 - full `swift test`: 709 tests in 141 suites passed;
 - synchronous raw task-member access remains a documented compatibility path
   until the complete M2 runtime removes incomplete placeholder reads.
+
+### Throwing task value
+
+`task-value-failure` crosses a real yield, throws a source enum from the task
+operation, and reads the handle with `try await value`. Twenty native and
+twenty interpreter runs all returned `caught`. The handle stores the original
+interpreted thrown value in its failure outcome rather than reducing it to the
+diagnostic description used by the compatibility inspection API.
