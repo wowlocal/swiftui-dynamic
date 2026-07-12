@@ -5,7 +5,7 @@ let mainActorByDefault: [SwiftSetting] = [.defaultIsolation(MainActor.self)]
 
 let package = Package(
     name: "DynamicSwiftUI",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v15), .iOS(.v18)],
     products: [
         .library(name: "SwiftInterpreter", targets: ["SwiftInterpreter"]),
         .library(name: "SwiftUIBridge", targets: ["SwiftUIBridge"]),

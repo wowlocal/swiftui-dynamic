@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import Combine
 import Foundation
 import SwiftUI
@@ -72,6 +76,7 @@ public final class UIImageBox {
     /// default in test helpers) — lockFocus would rasterize at the
     /// screen's backing scale and double the decoded size.
     static func solid(size: CGSize) -> UIImageBox {
+#if canImport(AppKit)
         let width = max(1, Int(size.width))
         let height = max(1, Int(size.height))
         guard let rep = NSBitmapImageRep(
@@ -87,15 +92,33 @@ public final class UIImageBox {
         NSGraphicsContext.restoreGraphicsState()
         let png = rep.representation(using: .png, properties: [:])
         return UIImageBox(size: size, pngData: png)
+#else
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let data = renderer.image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }.pngData()
+        return UIImageBox(size: size, pngData: data)
+#endif
     }
 
     static func decoding(_ data: Data) -> UIImageBox? {
+#if canImport(AppKit)
         guard let image = NSImage(data: data) else { return nil }
         // Pixel size, not point size — UIImage(data:) semantics (scale 1).
         let pixelSize = NSBitmapImageRep(data: data).map {
             CGSize(width: $0.pixelsWide, height: $0.pixelsHigh)
         } ?? image.size
         return UIImageBox(size: pixelSize, pngData: data)
+#else
+        guard let image = UIImage(data: data) else { return nil }
+        let pixelSize = image.cgImage.map {
+            CGSize(width: $0.width, height: $0.height)
+        } ?? CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        return UIImageBox(size: pixelSize, pngData: data)
+#endif
     }
 }
 
@@ -808,17 +831,23 @@ struct DateIntervalBox {
 }
 
 /// `UIFont.systemFont(ofSize: 16, weight: .semibold)` and friends arrive as
-/// implicit-member-call markers; map them onto real NSFonts so text
+/// implicit-member-call markers; map them onto real platform fonts so text
 /// measurement uses actual metrics. Unresolvable markers fall back to the
 /// system font.
-private func nsFont(from value: RuntimeValue) -> NSFont? {
-    if case .host(let any) = value, let font = any as? NSFont { return font }
+#if canImport(AppKit)
+private typealias PlatformFont = NSFont
+#else
+private typealias PlatformFont = UIFont
+#endif
+
+private func platformFont(from value: RuntimeValue) -> PlatformFont? {
+    if case .host(let any) = value, let font = any as? PlatformFont { return font }
     guard case .host(let any) = value, let call = any as? ImplicitMemberCall else { return nil }
     let size = call.arguments.labeled("ofSize")?.doubleValue.map { CGFloat($0) }
-        ?? NSFont.systemFontSize
+        ?? PlatformFont.systemFontSize
     switch call.name {
     case "systemFont":
-        var weight = NSFont.Weight.regular
+        var weight = PlatformFont.Weight.regular
         if case .implicitMember(let name)? = call.arguments.labeled("weight") {
             switch name {
             case "ultraLight": weight = .ultraLight
@@ -832,18 +861,26 @@ private func nsFont(from value: RuntimeValue) -> NSFont? {
             default: break
             }
         }
-        return NSFont.systemFont(ofSize: size, weight: weight)
+        return PlatformFont.systemFont(ofSize: size, weight: weight)
     case "boldSystemFont":
-        return NSFont.boldSystemFont(ofSize: size)
+        return PlatformFont.boldSystemFont(ofSize: size)
     case "italicSystemFont":
-        return NSFont.systemFont(ofSize: size)
+#if canImport(AppKit)
+        return PlatformFont.systemFont(ofSize: size)
+#else
+        return PlatformFont.italicSystemFont(ofSize: size)
+#endif
     case "monospacedSystemFont":
-        return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        return PlatformFont.monospacedSystemFont(ofSize: size, weight: .regular)
     case "preferredFont":
         guard case .implicitMember(let styleName)? = call.arguments.labeled("forTextStyle") else {
-            return NSFont.preferredFont(forTextStyle: .body, options: [:])
+#if canImport(AppKit)
+            return PlatformFont.preferredFont(forTextStyle: .body, options: [:])
+#else
+            return PlatformFont.preferredFont(forTextStyle: .body)
+#endif
         }
-        let style: NSFont.TextStyle
+        let style: PlatformFont.TextStyle
         switch styleName {
         case "largeTitle": style = .largeTitle
         case "title", "title1": style = .title1
@@ -857,7 +894,11 @@ private func nsFont(from value: RuntimeValue) -> NSFont? {
         case "caption2": style = .caption2
         default: style = .body
         }
-        return NSFont.preferredFont(forTextStyle: style, options: [:])
+#if canImport(AppKit)
+        return PlatformFont.preferredFont(forTextStyle: style, options: [:])
+#else
+        return PlatformFont.preferredFont(forTextStyle: style)
+#endif
     default:
         return nil
     }
@@ -1093,8 +1134,8 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let string = value as? String, name == "sizeWithAttributes" {
         return .hostFunction(HostFunction(name: "size") { args, _ in
             let attributes = (args.labeled("withAttributes") ?? args.positional(0))?.dictValue
-            let font = attributes?.values.lazy.compactMap(nsFont(from:)).first
-                ?? NSFont.systemFont(ofSize: NSFont.systemFontSize)
+            let font = attributes?.values.lazy.compactMap(platformFont(from:)).first
+                ?? PlatformFont.systemFont(ofSize: PlatformFont.systemFontSize)
             let measured = (string as NSString).size(withAttributes: [.font: font])
             return .native(CGSize(width: measured.width, height: measured.height))
         })

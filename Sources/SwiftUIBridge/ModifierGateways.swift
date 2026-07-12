@@ -343,7 +343,12 @@ extension ViewRegistry {
         register("tableStyle") { view, args, _ in
             switch args.positional(0) {
             case .implicitMember("inset"): return AnyView(view.tableStyle(.inset))
-            case .implicitMember("bordered"): return AnyView(view.tableStyle(.bordered))
+            case .implicitMember("bordered"):
+#if canImport(AppKit)
+                return AnyView(view.tableStyle(.bordered))
+#else
+                return AnyView(view.tableStyle(.automatic))
+#endif
             default: return AnyView(view.tableStyle(.automatic))
             }
         }
@@ -424,9 +429,11 @@ extension ViewRegistry {
                         return AnyView(view.tabViewStyle(.sidebarAdaptable))
                     }
                 case "grouped":
+#if canImport(AppKit)
                     if #available(macOS 15.0, *) {
                         return AnyView(view.tabViewStyle(.grouped))
                     }
+#endif
                 case "automatic":
                     return AnyView(view.tabViewStyle(.automatic))
                 default: break
@@ -533,7 +540,12 @@ extension ViewRegistry {
             case "plain": return AnyView(view.listStyle(.plain))
             case "inset": return AnyView(view.listStyle(.inset))
             case "sidebar": return AnyView(view.listStyle(.sidebar))
-            case "bordered": return AnyView(view.listStyle(.bordered))
+            case "bordered":
+#if canImport(AppKit)
+                return AnyView(view.listStyle(.bordered))
+#else
+                return AnyView(view.listStyle(.automatic))
+#endif
             default: return AnyView(view.listStyle(.automatic))
             }
         }
@@ -579,7 +591,12 @@ extension ViewRegistry {
             case "borderedProminent": return AnyView(view.buttonStyle(.borderedProminent))
             case "plain": return AnyView(view.buttonStyle(.plain))
             case "borderless": return AnyView(view.buttonStyle(.borderless))
-            case "link": return AnyView(view.buttonStyle(.link))
+            case "link":
+#if canImport(AppKit)
+                return AnyView(view.buttonStyle(.link))
+#else
+                return AnyView(view.buttonStyle(.plain))
+#endif
             default: return AnyView(view.buttonStyle(.automatic))
             }
         }
@@ -589,7 +606,12 @@ extension ViewRegistry {
             case "segmented": return AnyView(view.pickerStyle(.segmented))
             case "menu": return AnyView(view.pickerStyle(.menu))
             case "inline": return AnyView(view.pickerStyle(.inline))
-            case "radioGroup": return AnyView(view.pickerStyle(.radioGroup))
+            case "radioGroup":
+#if canImport(AppKit)
+                return AnyView(view.pickerStyle(.radioGroup))
+#else
+                return AnyView(view.pickerStyle(.automatic))
+#endif
             default: return AnyView(view.pickerStyle(.automatic))
             }
         }
@@ -598,7 +620,12 @@ extension ViewRegistry {
             switch name {
             case "roundedBorder": return AnyView(view.textFieldStyle(.roundedBorder))
             case "plain": return AnyView(view.textFieldStyle(.plain))
-            case "squareBorder": return AnyView(view.textFieldStyle(.squareBorder))
+            case "squareBorder":
+#if canImport(AppKit)
+                return AnyView(view.textFieldStyle(.squareBorder))
+#else
+                return AnyView(view.textFieldStyle(.roundedBorder))
+#endif
             default: return AnyView(view.textFieldStyle(.automatic))
             }
         }

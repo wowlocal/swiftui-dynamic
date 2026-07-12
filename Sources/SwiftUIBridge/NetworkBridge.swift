@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import Foundation
 import SwiftInterpreter
 
@@ -59,6 +63,7 @@ public enum NetworkBridge {
     }
 
     static let placeholderPNG: Data = {
+#if canImport(AppKit)
         let size = NSSize(width: 8, height: 8)
         let image = NSImage(size: size)
         image.lockFocus()
@@ -67,6 +72,15 @@ public enum NetworkBridge {
         image.unlockFocus()
         let rep = NSBitmapImageRep(data: image.tiffRepresentation!)!
         return rep.representation(using: .png, properties: [:])!
+#else
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8), format: format)
+        return renderer.image { context in
+            UIColor(red: 0.55, green: 0.63, blue: 0.75, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }.pngData()!
+#endif
     }()
 
     static func respond(to url: URL) throws -> (Data, HTTPURLResponse) {
@@ -97,6 +111,12 @@ public enum NetworkBridge {
         case .live:
             // Synchronous under the interpreter's inline-await model
             // (documented divergence: the calling slice blocks).
+            let resource = url.query.map { "\(url.path)?\($0)" } ?? url.path
+            func recordLiveRequest(_ outcome: String) {
+                if requestLog.count < 40 {
+                    requestLog.append("\(resource) \(outcome)")
+                }
+            }
             nonisolated final class Holder: @unchecked Sendable {
                 var result: Result<(Data, HTTPURLResponse), Error>?
             }
@@ -112,9 +132,15 @@ public enum NetworkBridge {
             }.resume()
             _ = semaphore.wait(timeout: .now() + 30)
             switch holder.result {
-            case .success(let pair): return pair
-            case .failure(let error): throw RuntimeError(message: "URLSession: \(error.localizedDescription)")
-            case nil: throw RuntimeError(message: "URLSession: request timed out")
+            case .success(let pair):
+                recordLiveRequest("HTTP \(pair.1.statusCode)")
+                return pair
+            case .failure(let error):
+                recordLiveRequest("ERROR")
+                throw RuntimeError(message: "URLSession: \(error.localizedDescription)")
+            case nil:
+                recordLiveRequest("TIMEOUT")
+                throw RuntimeError(message: "URLSession: request timed out")
             }
         }
     }

@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import SwiftUI
 import SwiftInterpreter
 
@@ -132,21 +136,33 @@ struct InterpretedShape: Shape {
     }
 }
 
-/// iOS code reads `UIScreen.main.bounds`; the honest macOS analog is the main
-/// screen's frame (fixed canvas headlessly).
+/// Platform screen geometry, with a deterministic iPhone-sized fallback for
+/// headless hosts.
 struct ScreenStub {
     var bounds: CGRect {
+#if canImport(AppKit)
         CGRect(origin: .zero, size: NSScreen.main?.frame.size ?? CGSize(width: 390, height: 844))
+#else
+        UIScreen.main.bounds
+#endif
     }
 
     /// `NSScreen.main?.visibleFrame` — the real screen when there is one,
     /// a laptop-shaped rect headlessly.
     var visibleFrame: CGRect {
+#if canImport(AppKit)
         NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 875)
+#else
+        UIScreen.main.bounds
+#endif
     }
 
     var frame: CGRect {
+#if canImport(AppKit)
         NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+#else
+        UIScreen.main.bounds
+#endif
     }
 }
 

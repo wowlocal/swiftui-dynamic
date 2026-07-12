@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import SwiftUI
 import SwiftInterpreter
 
@@ -421,6 +425,7 @@ extension ViewRegistry {
             let component: (String) -> Double? = { args.labeled($0)?.doubleValue }
             let opacity = component("opacity") ?? 1.0
             if let platformColor = args.labeled("uiColor") ?? args.labeled("nsColor") {
+#if canImport(AppKit)
                 if case .host(let any) = platformColor, let color = any as? NSColor {
                     return .native(Color(nsColor: color))
                 }
@@ -436,6 +441,24 @@ extension ViewRegistry {
                     return .native(Color(nsColor: color))
                 }
                 return .native(Color(nsColor: .windowBackgroundColor))
+#else
+                if case .host(let any) = platformColor, let color = any as? UIColor {
+                    return .native(Color(uiColor: color))
+                }
+                if case .implicitMember(let name) = platformColor {
+                    let color: UIColor = switch name {
+                    case "systemGray5": .systemGray5
+                    case "systemGray6": .systemGray6
+                    case "lightGray": .lightGray
+                    case "tertiarySystemFill": .tertiarySystemFill
+                    case "quaternarySystemFill": .quaternarySystemFill
+                    case "tertiarySystemBackground": .tertiarySystemBackground
+                    default: .systemBackground
+                    }
+                    return .native(Color(uiColor: color))
+                }
+                return .native(Color(uiColor: .systemBackground))
+#endif
             }
             if let red = component("red"), let green = component("green"), let blue = component("blue") {
                 return .native(Color(red: red, green: green, blue: blue, opacity: opacity))

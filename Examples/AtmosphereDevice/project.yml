@@ -1,0 +1,41 @@
+name: AtmosphereDevice
+
+options:
+  bundleIdPrefix: dev.dynamic-swiftui
+  deploymentTarget:
+    iOS: "18.0"
+
+packages:
+  DynamicSwiftUI:
+    path: ../..
+
+targets:
+  AtmosphereDevice:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: ../Atmosphere
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DynamicSwiftUI
+        product: SwiftUIBridge
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: H8QG3CBM96
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Atmosphere
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.dynamic-swiftui.atmosphere
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+
+schemes:
+  AtmosphereDevice:
+    build:
+      targets:
+        AtmosphereDevice: all
+    run:
+      config: Release
