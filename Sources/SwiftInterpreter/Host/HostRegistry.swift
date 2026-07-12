@@ -66,64 +66,6 @@ public struct CallArguments {
     }
 }
 
-/// A pre-compiled gateway into host (framework) functionality — the Bitrig
-/// trick: instead of reimplementing SwiftUI, gateways accept dynamic arguments
-/// and call the real API. Gateways are immutable reference descriptors: this
-/// keeps the runtime-value payload small while allowing dual sync/async entry
-/// points without exposing their storage layout.
-public final class HostFunction {
-    public let name: String
-    public let invoke: @MainActor (CallArguments, EvalContext) throws -> RuntimeValue
-    private let suspendingInvoke: @MainActor
-        (CallArguments, EvalContext) async throws -> RuntimeValue
-    public let canSuspend: Bool
-
-    public init(name: String, invoke: @escaping @MainActor (CallArguments, EvalContext) throws -> RuntimeValue) {
-        self.name = name
-        self.invoke = invoke
-        self.suspendingInvoke = { arguments, context in
-            try invoke(arguments, context)
-        }
-        self.canSuspend = false
-    }
-
-    /// A genuinely asynchronous host gateway. This is deliberately a
-    /// distinct label rather than an async overload of `invoke`: hundreds of
-    /// existing synchronous gateway literals remain unambiguous.
-    public init(
-        name: String,
-        asyncInvoke: @escaping @MainActor (CallArguments, EvalContext) async throws -> RuntimeValue
-    ) {
-        self.name = name
-        self.invoke = { _, _ in
-            throw RuntimeError(
-                message: "async host function '\(name)' requires runAsync and await")
-        }
-        self.suspendingInvoke = asyncInvoke
-        self.canSuspend = true
-    }
-
-    /// A wrapper can preserve both faces of another gateway (generic
-    /// specialization is the main use). The async face may suspend even when
-    /// the synchronous compatibility face cannot.
-    public init(
-        name: String,
-        invoke: @escaping @MainActor (CallArguments, EvalContext) throws -> RuntimeValue,
-        asyncInvoke: @escaping @MainActor (CallArguments, EvalContext) async throws -> RuntimeValue
-    ) {
-        self.name = name
-        self.invoke = invoke
-        self.suspendingInvoke = asyncInvoke
-        self.canSuspend = true
-    }
-
-    public func invokeSuspending(
-        _ arguments: CallArguments, _ context: EvalContext
-    ) async throws -> RuntimeValue {
-        try await suspendingInvoke(arguments, context)
-    }
-}
-
 /// A gateway for `.modifier(...)` calls on host view values.
 public struct HostModifier {
     public let name: String
@@ -157,6 +99,12 @@ public protocol EvalContext: AnyObject {
     /// on slice exhaustion, and never charges the caller's step budget.
     func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     func callBuilderClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> [RuntimeValue]
+    /// Runtime type services for parsed host declarations. Embedders get a
+    /// complete primitive/container implementation by default; Interpreter
+    /// augments it with source symbols and registry-owned opaque types.
+    func hostTypeName(of value: RuntimeValue) -> String
+    func hostValue(_ value: RuntimeValue, matchesType typeName: String) -> Bool
+    func hostValue(_ value: RuntimeValue, conformsTo protocolName: String) -> Bool
 }
 
 extension EvalContext {
@@ -167,6 +115,22 @@ extension EvalContext {
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
         try callClosure(closure, arguments: arguments)
+    }
+
+    public func hostTypeName(of value: RuntimeValue) -> String {
+        HostRuntimeTypeSystem.typeName(of: value)
+    }
+
+    public func hostValue(
+        _ value: RuntimeValue, matchesType typeName: String
+    ) -> Bool {
+        HostRuntimeTypeSystem.matches(value, type: typeName)
+    }
+
+    public func hostValue(
+        _ value: RuntimeValue, conformsTo protocolName: String
+    ) -> Bool {
+        HostRuntimeTypeSystem.conforms(value, to: protocolName)
     }
 }
 
@@ -191,6 +155,9 @@ public protocol HostRegistry: AnyObject {
     /// Members on host-native values the core can't know (GeometryProxy.size,
     /// CGSize.width, …). Return nil for unknown names.
     func hostMember(_ name: String, on value: Any) -> RuntimeValue?
+    /// Parsed property contract, consulted before the legacy dynamic member
+    /// hook. Registries can migrate one declaration at a time.
+    func hostProperty(named name: String, on value: Any) -> HostProperty?
     /// `$published` projection: replay/live registries deliver the CURRENT
     /// value as a synchronous publisher (the doctrine fork); absorbed mode
     /// returns nil and the projection stays inert.
@@ -228,6 +195,7 @@ extension HostRegistry {
     public func hostProtocolCandidates(of value: Any) -> [String] { [] }
     public func hostMutatedCopy(settingMember name: String, on value: Any, to newValue: RuntimeValue) -> Any? { nil }
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? { nil }
+    public func hostProperty(named name: String, on value: Any) -> HostProperty? { nil }
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? { nil }
     public func publishedProjection(current: RuntimeValue) -> RuntimeValue? { nil }
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool { false }

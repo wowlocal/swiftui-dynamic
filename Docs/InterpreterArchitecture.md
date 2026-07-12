@@ -28,8 +28,19 @@ source
   annotation resolution, and instance lifecycle behavior.
 - `Runtime/` owns value representation, containers, built-ins, and execution
   limits. It must not import SwiftUI.
+- `Host/HostSignature.swift` owns the declaration model and SwiftParser-based
+  parsing; `HostSignatureMatching.swift` owns call shape, generic binding, and
+  diagnostics; `HostTypeMatching.swift` owns structural runtime type checks.
+- `HostCallable.swift`'s `HostFunction` and `HostProperty` are the executable
+  typed boundary. They
+  validate registration effects once, then validate every argument/result or
+  property read/write. Legacy dynamic descriptors remain an explicit
+  compatibility path while tables migrate. Module descriptors are immutable
+  singletons, so parsing is registration work rather than per-session or
+  per-lookup work.
 - `HostRegistry` is the only framework capability boundary. SwiftUIBridge and
-  test registries implement it independently.
+  test registries implement it independently; the typed layer has no SwiftUI
+  dependency.
 
 ## Runtime-value migration
 
@@ -68,6 +79,15 @@ task's evaluator frames are parked and restored on resume, preventing
 main-actor reentrancy from mixing lexical, return-type, recursion, or budget
 stacks between interpreted tasks.
 
+Parsed `HostSignature` effects and gateway implementations agree at
+registration: a synchronous implementation cannot claim an `async`
+declaration and vice versa. Both invocation faces share argument, generic,
+and return validation. An async overload set selects a declaration before it
+suspends, and typed property access uses the same runtime type service as
+calls. Custom `EvalContext` implementations inherit primitive/container type
+matching; the concrete interpreter adds source-symbol and registry-owned host
+types.
+
 The synchronous `run` entry point deliberately keeps inline task execution and
 inline `await` compatibility for the SwiftUI renderer and existing embedding
 clients. An async-only host gateway reports a clear error there rather than
@@ -79,8 +99,8 @@ The remaining semantic migration is deliberately ordered:
    observable models.
 2. Extend copy-in/copy-out semantics to source structs, captures, and their
    mutating-method boundaries.
-3. Replace dynamically interpreted host calls with parsed, validated
-   signatures while retaining the injected `HostRegistry` boundary.
+3. Move generated and hand-written compatibility gateways onto the landed
+   typed declarations without weakening deliberate absorption fallbacks.
 
 New core code should not downcast `host(Any)` to a Swift-shaped value. Direct
 downcasts are reserved for opaque host/framework implementations and should be

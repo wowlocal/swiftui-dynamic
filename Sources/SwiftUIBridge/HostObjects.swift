@@ -10,6 +10,26 @@ final class DateFormatterBox {
     let formatter = DateFormatter()
 }
 
+private let dateFormatterConstructorGateway: HostFunction = {
+    do {
+        return try HostFunction(declaration: "init DateFormatter()") {
+            _, _ in .native(DateFormatterBox())
+        }
+    } catch {
+        preconditionFailure("invalid DateFormatter host declaration: \(error)")
+    }
+}()
+
+private let modelContextSaveGateway: HostFunction = {
+    do {
+        return try HostFunction(
+            declaration: "func ModelContext.save() throws"
+        ) { _, _ in .void }
+    } catch {
+        preconditionFailure("invalid ModelContext.save declaration: \(error)")
+    }
+}()
+
 /// `Timer.publish(every:on:in:).autoconnect()` — backed by the real Combine
 /// publisher; `.onReceive` drives interpreted closures from actual ticks.
 final class TimerPublisherBox {
@@ -320,7 +340,7 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             return .native(BundleBox(bundle: .main))
         }
     case "DateFormatter":
-        return HostFunction(name: name) { _, _ in .native(DateFormatterBox()) }
+        return dateFormatterConstructorGateway
     case "NumberFormatter":
         return HostFunction(name: name) { _, _ in .native(NumberFormatterBox()) }
     case "Data":
@@ -866,7 +886,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
                 return .void
             })
         case "save":
-            return .hostFunction(HostFunction(name: name) { _, _ in .void })
+            return .hostFunction(modelContextSaveGateway)
         case "transaction":
             // Runs the block immediately — the in-memory store has no
             // isolation to defer.
@@ -1597,6 +1617,35 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     default:
         return nil
     }
+}
+
+private let dateFormatterDateFormatProperty: HostProperty = {
+    do {
+        return try HostProperty(
+            declaration: "var DateFormatter.dateFormat: String",
+            get: { receiver, _ in
+                guard case .host(let any) = receiver,
+                      let box = any as? DateFormatterBox else {
+                    throw RuntimeError(message: "DateFormatter.dateFormat receiver mismatch")
+                }
+                return .native(box.formatter.dateFormat ?? "")
+            },
+            set: { receiver, value, _ in
+                guard case .host(let any) = receiver,
+                      let box = any as? DateFormatterBox,
+                      let format = value.stringValue else {
+                    throw RuntimeError(message: "DateFormatter.dateFormat setter mismatch")
+                }
+                box.formatter.dateFormat = format
+            })
+    } catch {
+        preconditionFailure("invalid DateFormatter property declaration: \(error)")
+    }
+}()
+
+func hostObjectProperty(_ name: String, on value: Any) -> HostProperty? {
+    guard value is DateFormatterBox, name == "dateFormat" else { return nil }
+    return dateFormatterDateFormatProperty
 }
 
 /// Writable members on host objects.

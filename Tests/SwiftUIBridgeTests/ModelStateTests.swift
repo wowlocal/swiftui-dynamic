@@ -307,7 +307,12 @@ import SwiftInterpreter
         let parsed = formatter.date(from: "2001")
         "\\(year.count) \\(readBack) \\(parsed == nil ? "no" : "yes")"
         """
-        let interpreter = Interpreter(registry: TraceRegistry())
+        let registry = TraceRegistry()
+        let firstConstructor = try #require(registry.constructor(named: "DateFormatter"))
+        let secondConstructor = try #require(registry.constructor(named: "DateFormatter"))
+        #expect(firstConstructor === secondConstructor)
+        #expect(firstConstructor.signature?.declaration == "init DateFormatter()")
+        let interpreter = Interpreter(registry: registry)
         let result = try interpreter.run(source: source)
         #expect(result.stringValue == "4 yyyy yes")
     }

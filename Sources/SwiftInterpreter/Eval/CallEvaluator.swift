@@ -540,7 +540,8 @@ extension Interpreter {
         if name == "size", call.arguments.first?.label?.text == "withAttributes" {
             let baseValue = try evaluate(base, in: env)
             if let string = baseValue.stringValue,
-               case .hostFunction(let measure)? = registry?.hostMember("sizeWithAttributes", on: string as Any) {
+               case .hostFunction(let measure)? = try readHostMember(
+                "sizeWithAttributes", on: string as Any) {
                 let args = try collectArguments(of: call, in: env)
                 do {
                     return try measure.invoke(args, self)

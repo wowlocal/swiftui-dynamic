@@ -222,7 +222,7 @@ extension Interpreter {
                 if name == "projectedValue" { return selfValue }
             }
             if let value = try nativeMember(name, on: selfValue) { return value }
-            if let value = registry?.hostMember(name, on: any) { return value }
+            if let value = try readHostMember(name, on: any) { return value }
             return try hostExtensionMember(name, candidates: hostCandidates(for: any), selfValue: selfValue)
         default:
             return nil
@@ -374,7 +374,7 @@ extension Interpreter {
            instance.symbol.attributeNames.contains("ModelActor"),
            let container = instance.box(for: "modelContainer")?.value,
            case .host(let containerAny) = container,
-           let member = registry?.hostMember("mainContext", on: containerAny) {
+           let member = try readHostMember("mainContext", on: containerAny) {
             return member
         }
         // Bare sibling STATICS are visible from any member context
@@ -799,7 +799,8 @@ extension Interpreter {
             // An interpreted enum SHADOWING a host type (home-assistant's
             // design-token `Color` vs SwiftUI.Color): statics the enum
             // doesn't declare cross the module boundary to the host.
-            if let member = registry?.hostMember(name, on: HostTypeMarker(name: symbol.name)) {
+            if let member = try readHostMember(
+                name, on: HostTypeMarker(name: symbol.name)) {
                 return member
             }
             if assumesCompiledImports, name.first?.isUppercase == true,
@@ -826,7 +827,8 @@ extension Interpreter {
             // Color`): the miss falls through to the bridge's statics
             // (Color.black) or the gateway-boundary implicit member.
             if registry?.constructor(named: symbol.name) != nil {
-                if let value = registry?.hostMember(name, on: HostTypeMarker(name: symbol.name)) {
+                if let value = try readHostMember(
+                    name, on: HostTypeMarker(name: symbol.name)) {
                     return value
                 }
                 return .implicitMember(name)
@@ -880,7 +882,8 @@ extension Interpreter {
                 default: return global
                 }
             }
-            if let value = registry?.hostMember(name, on: HostTypeMarker(name: function.name)) {
+            if let value = try readHostMember(
+                name, on: HostTypeMarker(name: function.name)) {
                 return value
             }
             if let symbol = hostExtensionSymbols[function.name],
@@ -1055,7 +1058,7 @@ extension Interpreter {
             }
             // The bridge gets first refusal on host natives (GeometryProxy,
             // CGRect, and static chains like UIScreen.main / DispatchQueue.main).
-            if let value = registry?.hostMember(name, on: any) {
+            if let value = try readHostMember(name, on: any) {
                 return value
             }
             if let marker = any as? HostTypeMarker {

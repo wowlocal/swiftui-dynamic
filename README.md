@@ -62,7 +62,8 @@ swift test
 source ──SwiftParser──▶ AST ──SwiftOperators.foldAll──▶ precedence-folded AST
        ──DeclarationCollector──▶ StructSymbols in globals
        ──tree-walking eval──▶ RuntimeValue (type-erased enum)
-       ──HostRegistry gateways──▶ real SwiftUI views (AnyView)
+       ──HostSignature contracts──▶ HostRegistry gateways
+       ──real SwiftUI views (AnyView)
 ```
 
 The core's responsibility boundaries and staged typed-value migration are
@@ -76,6 +77,14 @@ documented in [`Docs/InterpreterArchitecture.md`](Docs/InterpreterArchitecture.m
   `SwiftUIBridge` target through hand-written *gateway* tables — functions
   that accept dynamic arguments and call the real SwiftUI API (the Bitrig
   trick). A `TraceRegistry` implements the same protocol for headless tests.
+- **Executable host contracts.** Embedders can register Swift-shaped
+  declarations (`func`, `init`, instance/static methods, and mutable/read-only
+  properties) through `HostFunction` and `HostProperty`. SwiftParser caches
+  labels, defaults, variadics, generic constraints, effects, and return types;
+  the boundary validates arguments and results, ranks typed overloads, and
+  rejects ambiguity before gateway code runs. Legacy dynamic gateways remain
+  available for incremental migration, and none of this imports SwiftUI into
+  the language runtime.
 - **User View structs become real views** via a stub: `InterpretedView` is a
   SwiftUI `View` whose `body` asks the interpreter to evaluate the interpreted
   `body` property.

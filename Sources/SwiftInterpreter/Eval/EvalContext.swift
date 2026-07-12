@@ -1,6 +1,35 @@
 // MARK: - EvalContext (what gateways can call back into)
 
 extension Interpreter: EvalContext {
+    public func hostTypeName(of value: RuntimeValue) -> String {
+        if case .host(let any) = value {
+            if let marker = any as? HostTypeMarker { return marker.name + ".Type" }
+            if let typeName = registry?.hostTypeName(of: any) { return typeName }
+        }
+        return HostRuntimeTypeSystem.typeName(of: value)
+    }
+
+    public func hostValue(
+        _ value: RuntimeValue, matchesType typeName: String
+    ) -> Bool {
+        HostRuntimeTypeSystem.matches(value, type: typeName)
+            || valueIsType(value, typeName)
+    }
+
+    public func hostValue(
+        _ value: RuntimeValue, conformsTo protocolName: String
+    ) -> Bool {
+        if HostRuntimeTypeSystem.conforms(value, to: protocolName)
+            || valueIsType(value, protocolName) {
+            return true
+        }
+        if case .host(let any) = value {
+            return registry?.hostProtocolCandidates(of: any)
+                .contains(protocolName) == true
+        }
+        return false
+    }
+
     public func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue {
         steps = 0 // fresh entry, e.g. a Button action invoked from the UI
         let args = CallArguments(arguments: arguments.map { .init(label: nil, value: $0) })

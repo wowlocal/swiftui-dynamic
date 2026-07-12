@@ -719,7 +719,7 @@ extension Interpreter {
                 if let tuple = any as? TupleValue, let element = tuple.value(for: component) {
                     current = element
                 } else if let value = try nativeMember(component, on: current)
-                    ?? registry?.hostMember(component, on: any) {
+                    ?? readHostMember(component, on: any) {
                     current = value
                 } else {
                     current = .native(ChainedImplicitCall(

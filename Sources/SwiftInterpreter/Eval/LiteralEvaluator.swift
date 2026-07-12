@@ -237,12 +237,13 @@ extension Interpreter {
         // Key("…", default: NSSize(…))`): a fresh store answers the key's
         // declared default — the @Default-wrapper doctrine at subscript level.
         if let keyBag = try storeKeyBag(base: base, index: index),
-           let declared = registry?.hostMember("default", on: keyBag)
-               ?? registry?.hostMember("defaultValue", on: keyBag) {
+           let declared = try readHostMember("default", on: keyBag)
+               ?? readHostMember("defaultValue", on: keyBag) {
             return declared
         }
         if case .host(let any) = base,
-           case .hostFunction(let subscripting)? = registry?.hostMember("subscript", on: any) {
+           case .hostFunction(let subscripting)? = try readHostMember(
+            "subscript", on: any) {
             // Host subscripts (AttributedString[range] styling proxies).
             let args = CallArguments(arguments: [.init(label: nil, value: index)])
             return try relocating(call) { try subscripting.invoke(args, self) }

@@ -276,7 +276,7 @@ extension Interpreter {
                 if let stub = any as? BindingStub, name == "wrappedValue" {
                     return stub.box.value
                 }
-                if let value = interpreter.registry?.hostMember(name, on: any) { return value }
+                if let value = try interpreter.readHostMember(name, on: any) { return value }
                 if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
                     // Mutating an unknown stub member (`store.products += …`)
                     // reads an unknowable chain — the write absorbs.
@@ -318,7 +318,7 @@ extension Interpreter {
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
                 guard case .host(let any) = baseValue,
-                      let member = interpreter.registry?.hostMember(name, on: any) else {
+                      let member = try interpreter.readHostMember(name, on: any) else {
                     throw EvalMessage(text: "no readable member '\(name)'")
                 }
                 return member
@@ -424,7 +424,7 @@ extension Interpreter {
                 if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
                     return // writes through unavailable host properties absorb
                 }
-                guard interpreter.registry?.hostSetMember(name, on: any, to: value) == true else {
+                guard try interpreter.writeHostMember(name, on: any, to: value) else {
                     throw EvalMessage(text: "cannot assign to '\(name)' on \(type(of: any))")
                 }
             case .element(let base, let index):
@@ -863,7 +863,7 @@ extension Interpreter {
                     // class-backed boxes keep hostProperty reference writes.
                     let memberName = member.declName.baseName.text
                     if !(type(of: any) is AnyClass),
-                       registry?.hostMember(memberName, on: any) != nil,
+                       hasHostMember(memberName, on: any),
                        let baseLValue = try? resolveLValue(base, in: env) {
                         return .hostValueMember(baseLValue, memberName)
                     }

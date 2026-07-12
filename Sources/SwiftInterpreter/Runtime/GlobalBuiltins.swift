@@ -4,6 +4,86 @@ import SwiftSyntax
 extension Interpreter {
     // MARK: - Global builtins
 
+    /// Parsed once per process, then shared by every interpreter session.
+    /// HostFunction descriptors are immutable; reparsing these declarations
+    /// for each of the corpus's hundreds of interpreters would turn a cached
+    /// call contract into startup work.
+    @MainActor private static let typedMathBuiltins: [String: HostFunction] = {
+        @MainActor func typed(
+            _ declaration: String,
+            _ invoke: @escaping @MainActor
+                (CallArguments, EvalContext) throws -> RuntimeValue
+        ) -> HostFunction {
+            do {
+                return try HostFunction(declaration: declaration, invoke: invoke)
+            } catch {
+                preconditionFailure("invalid builtin declaration: \(error)")
+            }
+        }
+        @MainActor func overloads(_ functions: [HostFunction]) -> HostFunction {
+            do {
+                return try HostFunction(overloads: functions)
+            } catch {
+                preconditionFailure("invalid builtin overload set: \(error)")
+            }
+        }
+
+        var table: [String: HostFunction] = [:]
+        let abs = overloads([
+            typed("func abs(_ value: Int) -> Int") { args, _ in
+                .native(Swift.abs(args.positional(0)!.intValue!))
+            },
+            typed("func abs(_ value: Double) -> Double") { args, _ in
+                .native(Swift.abs(args.positional(0)!.doubleValue!))
+            },
+        ])
+        table[abs.name] = abs
+
+        let unary: [(String, @MainActor @Sendable (Double) -> Double)] = [
+            ("round", { $0.rounded() }),
+            ("floor", { $0.rounded(.down) }),
+            ("ceil", { $0.rounded(.up) }),
+            ("sqrt", { $0.squareRoot() }),
+            ("sin", Foundation.sin),
+            ("cos", Foundation.cos),
+            ("tan", Foundation.tan),
+            ("asin", Foundation.asin),
+            ("acos", Foundation.acos),
+            ("atan", Foundation.atan),
+            ("log", Foundation.log),
+            ("log2", Foundation.log2),
+            ("exp", Foundation.exp),
+        ]
+        for (name, operation) in unary {
+            table[name] = typed("func \(name)(_ value: Double) -> Double") {
+                arguments, _ in
+                .native(operation(arguments.positional(0)!.doubleValue!))
+            }
+        }
+        table["atan2"] = typed(
+            "func atan2(_ y: Double, _ x: Double) -> Double"
+        ) { arguments, _ in
+            .native(Foundation.atan2(
+                arguments.positional(0)!.doubleValue!,
+                arguments.positional(1)!.doubleValue!))
+        }
+        table["hypot"] = typed(
+            "func hypot(_ x: Double, _ y: Double) -> Double"
+        ) { arguments, _ in
+            .native(Foundation.hypot(
+                arguments.positional(0)!.doubleValue!,
+                arguments.positional(1)!.doubleValue!))
+        }
+        table["pow"] = typed(
+            "func pow(_ base: Double, _ exponent: Double) -> Double"
+        ) { arguments, _ in
+            .native(Foundation.pow(
+                arguments.positional(0)!.doubleValue!,
+                arguments.positional(1)!.doubleValue!))
+        }
+        return table
+    }()
+
     func defineGlobalBuiltins() {
         func define(_ name: String, _ invoke: @escaping @MainActor (CallArguments, EvalContext) throws -> RuntimeValue) {
             globals.define(name, .hostFunction(HostFunction(name: name, invoke: invoke)))
@@ -21,11 +101,8 @@ extension Interpreter {
             }
             throw RuntimeError(message: "Task needs an operation closure")
         }
-        define("abs") { args, _ in
-            guard let value = args.positional(0) else { throw RuntimeError(message: "abs needs a number") }
-            if let i = value.intValue { return .native(Swift.abs(i)) }
-            if let d = value.doubleValue { return .native(Swift.abs(d)) }
-            throw RuntimeError(message: "abs needs a number")
+        for (name, function) in Self.typedMathBuiltins {
+            globals.define(name, .hostFunction(function))
         }
         define("NSLocalizedString") { args, _ in
             // No string tables headlessly: Foundation's own miss behavior —
@@ -53,45 +130,6 @@ extension Interpreter {
             default:
                 return .native(HostTypeMarker(name: "Void"))
             }
-        }
-        func defineUnaryMath(_ name: String, _ op: @escaping (Double) -> Double) {
-            define(name) { args, _ in
-                guard let d = args.positional(0)?.doubleValue else {
-                    throw RuntimeError(message: "\(name) needs a number")
-                }
-                return .native(op(d))
-            }
-        }
-        defineUnaryMath("round") { $0.rounded() }
-        defineUnaryMath("floor") { $0.rounded(.down) }
-        defineUnaryMath("ceil") { $0.rounded(.up) }
-        defineUnaryMath("sqrt") { $0.squareRoot() }
-        defineUnaryMath("sin") { Foundation.sin($0) }
-        defineUnaryMath("cos") { Foundation.cos($0) }
-        defineUnaryMath("tan") { Foundation.tan($0) }
-        defineUnaryMath("asin") { Foundation.asin($0) }
-        defineUnaryMath("acos") { Foundation.acos($0) }
-        defineUnaryMath("atan") { Foundation.atan($0) }
-        defineUnaryMath("log") { Foundation.log($0) }
-        defineUnaryMath("log2") { Foundation.log2($0) }
-        defineUnaryMath("exp") { Foundation.exp($0) }
-        define("atan2") { args, _ in
-            guard let y = args.positional(0)?.doubleValue, let x = args.positional(1)?.doubleValue else {
-                throw RuntimeError(message: "atan2 needs two numbers")
-            }
-            return .native(Foundation.atan2(y, x))
-        }
-        define("hypot") { args, _ in
-            guard let x = args.positional(0)?.doubleValue, let y = args.positional(1)?.doubleValue else {
-                throw RuntimeError(message: "hypot needs two numbers")
-            }
-            return .native(Foundation.hypot(x, y))
-        }
-        define("pow") { args, _ in
-            guard let base = args.positional(0)?.doubleValue, let exponent = args.positional(1)?.doubleValue else {
-                throw RuntimeError(message: "pow needs two numbers")
-            }
-            return .native(Foundation.pow(base, exponent))
         }
         define("min") { args, _ in
             try Self.extremum(args, op: "<")

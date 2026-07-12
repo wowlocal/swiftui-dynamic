@@ -707,6 +707,10 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     return nil
 }
 
+func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
+    hostObjectProperty(name, on: value)
+}
+
 /// `.global` / `.local` / `.named("x")` / `.scrollView(axis:)` in frame(in:).
 private func coordinateSpace(_ value: RuntimeValue?) throws -> some CoordinateSpaceProtocol {
     guard let value else { return AnyCoordinateSpaceBox(.global) }
@@ -766,6 +770,10 @@ private struct AnyCoordinateSpaceBox: CoordinateSpaceProtocol {
 }
 
 extension ViewRegistry {
+    public func hostProperty(named name: String, on value: Any) -> HostProperty? {
+        bridgeHostProperty(name, on: value)
+    }
+
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
         bridgeHostMember(name, on: value)
     }

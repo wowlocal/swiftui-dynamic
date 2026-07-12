@@ -490,6 +490,10 @@ public final class TraceRegistry: HostRegistry {
         return false
     }
 
+    public func hostProperty(named name: String, on value: Any) -> HostProperty? {
+        bridgeHostProperty(name, on: value)
+    }
+
     public func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
         if let node = value as? TraceNode, let stored = node.config[name] {
             return stored

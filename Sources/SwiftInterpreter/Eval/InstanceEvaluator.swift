@@ -1012,7 +1012,8 @@ extension Interpreter {
                     return try builtin.invoke(call.arguments, self)
                 }
             }
-            if let member = registry?.hostMember(call.name, on: HostTypeMarker(name: typeName)) {
+            if let member = try readHostMember(
+                call.name, on: HostTypeMarker(name: typeName)) {
                 if case .hostFunction(let function) = member {
                     return try function.invoke(call.arguments, self)
                 }
@@ -1020,7 +1021,8 @@ extension Interpreter {
             }
         }
         if case .implicitMember(let memberName) = value,
-           let member = registry?.hostMember(memberName, on: HostTypeMarker(name: typeName)) {
+           let member = try readHostMember(
+            memberName, on: HostTypeMarker(name: typeName)) {
             return member
         }
         // `.success(x)` against a host-typed annotation (`Result<T, Error>`):
@@ -1028,7 +1030,8 @@ extension Interpreter {
         // Result carrier; head-only names — generics dropped above).
         if case .host(let any) = value, let call = any as? ImplicitMemberCall,
            case .hostFunction(let factory)? =
-               registry?.hostMember(call.name, on: HostTypeMarker(name: typeName)) {
+               try readHostMember(
+                call.name, on: HostTypeMarker(name: typeName)) {
             return try factory.invoke(call.arguments, self)
         }
         // `.now.startOfMonth` — chained markers resolve their base against
