@@ -7,6 +7,16 @@ extension Interpreter: EvalContext {
         return try callWithArguments(closure, args: args, node: nil)
     }
 
+    public func callClosureAsync(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        steps = 0
+        let args = CallArguments(arguments: arguments.map {
+            .init(label: nil, value: $0)
+        })
+        return try await callWithArgumentsSuspending(closure, args: args, node: nil)
+    }
+
     public func spawnBackgroundTask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
@@ -53,7 +63,8 @@ extension Interpreter: EvalContext {
                 return
             }
             do {
-                let value = try self.callBackgroundClosure(closure, arguments: arguments)
+                let value = try await self.callBackgroundClosureSuspending(
+                    closure, arguments: arguments)
                 try Task.checkCancellation()
                 handle.succeed(with: value)
             } catch is CancellationError {
@@ -91,6 +102,27 @@ extension Interpreter: EvalContext {
             return try callWithArguments(closure, args: args, node: nil)
         } catch let error as RuntimeError where error.budgetTrip {
             return .void // parked
+        }
+    }
+
+    /// Async-session task bodies share the same bounded evaluator budget but
+    /// keep suspension propagation intact. Cancellation is polled before and
+    /// after every host await and at every statement/loop boundary.
+    func callBackgroundClosureSuspending(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        let entrySteps = steps
+        let slice = 20_000
+        steps = max(0, stepBudget - slice)
+        defer { steps = entrySteps }
+        do {
+            let args = CallArguments(arguments: arguments.map {
+                .init(label: nil, value: $0)
+            })
+            return try await callWithArgumentsSuspending(
+                closure, args: args, node: nil)
+        } catch let error as RuntimeError where error.budgetTrip {
+            return .void
         }
     }
 

@@ -128,6 +128,9 @@ public final class Interpreter {
     var asyncSessionDepth = 0
     var synchronousTaskDepth = 0
     var scheduledTasks: [RuntimeTaskHandle] = []
+    /// Collision-free bindings used while lowering awaited subexpressions
+    /// into the established synchronous expression machinery.
+    var asyncTemporarySerial = 0
     let scheduledTaskLimit = 1_024
     /// Host-extension method frames currently executing (recursion guard:
     /// re-entrant same-name dispatch prefers the registry gateway).

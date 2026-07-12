@@ -68,14 +68,59 @@ public struct CallArguments {
 
 /// A pre-compiled gateway into host (framework) functionality — the Bitrig
 /// trick: instead of reimplementing SwiftUI, gateways accept dynamic arguments
-/// and call the real API.
-public struct HostFunction {
+/// and call the real API. Gateways are immutable reference descriptors: this
+/// keeps the runtime-value payload small while allowing dual sync/async entry
+/// points without exposing their storage layout.
+public final class HostFunction {
     public let name: String
     public let invoke: @MainActor (CallArguments, EvalContext) throws -> RuntimeValue
+    private let suspendingInvoke: @MainActor
+        (CallArguments, EvalContext) async throws -> RuntimeValue
+    public let canSuspend: Bool
 
     public init(name: String, invoke: @escaping @MainActor (CallArguments, EvalContext) throws -> RuntimeValue) {
         self.name = name
         self.invoke = invoke
+        self.suspendingInvoke = { arguments, context in
+            try invoke(arguments, context)
+        }
+        self.canSuspend = false
+    }
+
+    /// A genuinely asynchronous host gateway. This is deliberately a
+    /// distinct label rather than an async overload of `invoke`: hundreds of
+    /// existing synchronous gateway literals remain unambiguous.
+    public init(
+        name: String,
+        asyncInvoke: @escaping @MainActor (CallArguments, EvalContext) async throws -> RuntimeValue
+    ) {
+        self.name = name
+        self.invoke = { _, _ in
+            throw RuntimeError(
+                message: "async host function '\(name)' requires runAsync and await")
+        }
+        self.suspendingInvoke = asyncInvoke
+        self.canSuspend = true
+    }
+
+    /// A wrapper can preserve both faces of another gateway (generic
+    /// specialization is the main use). The async face may suspend even when
+    /// the synchronous compatibility face cannot.
+    public init(
+        name: String,
+        invoke: @escaping @MainActor (CallArguments, EvalContext) throws -> RuntimeValue,
+        asyncInvoke: @escaping @MainActor (CallArguments, EvalContext) async throws -> RuntimeValue
+    ) {
+        self.name = name
+        self.invoke = invoke
+        self.suspendingInvoke = asyncInvoke
+        self.canSuspend = true
+    }
+
+    public func invokeSuspending(
+        _ arguments: CallArguments, _ context: EvalContext
+    ) async throws -> RuntimeValue {
+        try await suspendingInvoke(arguments, context)
     }
 }
 
@@ -95,6 +140,11 @@ public struct HostModifier {
 /// mode (container content).
 public protocol EvalContext: AnyObject {
     func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
+    /// Suspension-aware callback for async gateways that need to invoke an
+    /// interpreted completion/body without collapsing it back to sync.
+    func callClosureAsync(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue
     /// Create an interpreted Task. Async interpreter sessions schedule it on
     /// a real Swift task; synchronous compatibility sessions execute it
     /// deterministically before returning.
@@ -107,6 +157,17 @@ public protocol EvalContext: AnyObject {
     /// on slice exhaustion, and never charges the caller's step budget.
     func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     func callBuilderClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> [RuntimeValue]
+}
+
+extension EvalContext {
+    /// Source-compatible fallback for embedders that only implement the
+    /// original synchronous callback surface. Interpreter supplies the real
+    /// suspension-aware implementation.
+    public func callClosureAsync(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        try callClosure(closure, arguments: arguments)
+    }
 }
 
 /// Implemented by the SwiftUI bridge (and by the trace registry in tests).

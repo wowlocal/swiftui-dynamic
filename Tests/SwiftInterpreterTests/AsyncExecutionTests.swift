@@ -3,6 +3,12 @@ import Testing
 
 @Suite("Async execution")
 struct AsyncExecutionTests {
+    private enum ProbeError: Error, CustomStringConvertible {
+        case failed
+
+        var description: String { "probe failed" }
+    }
+
     private func stringArray(
         named property: String, in value: RuntimeValue
     ) throws -> [String] {
@@ -149,6 +155,217 @@ struct AsyncExecutionTests {
 
         await #expect(throws: CancellationError.self) {
             _ = try await evaluation.value
+        }
+    }
+
+    @Test func asyncHostGatewaySuspendsThroughInterpretedFunction() async throws {
+        let interpreter = Interpreter()
+        var events: [String] = []
+        interpreter.globals.define("record", .hostFunction(HostFunction(
+            name: "record"
+        ) { arguments, _ in
+            events.append(arguments.positional(0)?.stringValue ?? "?")
+            return .void
+        }))
+        interpreter.globals.define("delayedText", .hostFunction(HostFunction(
+            name: "delayedText",
+            asyncInvoke: { arguments, _ in
+                events.append("host-enter")
+                await Task.yield()
+                events.append("host-exit")
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+
+        let result = try await interpreter.runAsync(source: """
+        func load() async -> String {
+            record("before")
+            let value: String = await delayedText("value")
+            record("after")
+            return value + "!"
+        }
+        await load()
+        """)
+
+        #expect(result.stringValue == "value!")
+        #expect(events == ["before", "host-enter", "host-exit", "after"])
+    }
+
+    @Test func interpretedTaskBodyCanAwaitAsyncHostGateway() async throws {
+        let interpreter = Interpreter()
+        interpreter.globals.define("delayedText", .hostFunction(HostFunction(
+            name: "delayedText",
+            asyncInvoke: { arguments, _ in
+                await Task.yield()
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+
+        let state = try await interpreter.runAsync(source: """
+        class State { var value = "pending" }
+        let state = State()
+        Task {
+            state.value = await delayedText("finished")
+        }
+        state
+        """)
+
+        guard case .instance(let instance) = state else {
+            Issue.record("expected an interpreted State")
+            return
+        }
+        #expect(instance.box(for: "value")?.value.stringValue == "finished")
+    }
+
+    @Test func interleavedTasksKeepIndependentLexicalFrames() async throws {
+        let interpreter = Interpreter()
+        interpreter.globals.define("yielding", .hostFunction(HostFunction(
+            name: "yielding",
+            asyncInvoke: { arguments, _ in
+                await Task.yield()
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+
+        let state = try await interpreter.runAsync(source: """
+        class State { var values = [String]() }
+        struct Alpha {
+            enum Token: String { case value = "alpha" }
+            func run() async -> String {
+                (await yielding("")) + Token.value.rawValue
+            }
+        }
+        struct Beta {
+            enum Token: String { case value = "beta" }
+            func run() async -> String {
+                (await yielding("")) + Token.value.rawValue
+            }
+        }
+        let state = State()
+        Task {
+            let value = await Alpha().run()
+            state.values.append(value)
+        }
+        Task {
+            let value = await Beta().run()
+            state.values.append(value)
+        }
+        state
+        """)
+
+        #expect(try stringArray(named: "values", in: state) == ["alpha", "beta"])
+    }
+
+    @Test func asyncGatewayCanReenterSuspendingInterpretedClosure() async throws {
+        let interpreter = Interpreter()
+        interpreter.globals.define("delayedText", .hostFunction(HostFunction(
+            name: "delayedText",
+            asyncInvoke: { arguments, _ in
+                await Task.yield()
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+        interpreter.globals.define("withValue", .hostFunction(HostFunction(
+            name: "withValue",
+            asyncInvoke: { arguments, context in
+                await Task.yield()
+                guard let closure = arguments.firstUnlabeledClosure else {
+                    throw ProbeError.failed
+                }
+                return try await context.callClosureAsync(
+                    closure, arguments: [.native("inside")])
+            }
+        )))
+
+        let result = try await interpreter.runAsync(source: """
+        func decorate(_ value: String) async -> String {
+            let delayed = await delayedText(value)
+            return delayed + "!"
+        }
+        await withValue { value in
+            await decorate(value)
+        }
+        """)
+
+        #expect(result.stringValue == "inside!")
+    }
+
+    @Test func asyncControlFlowIsLazyAndCatchesHostErrors() async throws {
+        let interpreter = Interpreter()
+        var calls = 0
+        interpreter.globals.define("mark", .hostFunction(HostFunction(
+            name: "mark",
+            asyncInvoke: { _, _ in
+                calls += 1
+                await Task.yield()
+                return .native(true)
+            }
+        )))
+        interpreter.globals.define("fail", .hostFunction(HostFunction(
+            name: "fail",
+            asyncInvoke: { _, _ in
+                await Task.yield()
+                throw ProbeError.failed
+            }
+        )))
+
+        let result = try await interpreter.runAsync(source: """
+        func recovered() async -> String {
+            do {
+                _ = try await fail()
+                return "missed"
+            } catch {
+                return "caught"
+            }
+        }
+        let andValue = false && (await mark())
+        let orValue = true || (await mark())
+        let branch = true ? "chosen" : (await mark() ? "wrong" : "also wrong")
+        let optional = try? await fail()
+        [andValue, orValue, branch, optional == nil, await recovered()]
+        """)
+
+        let values = try #require(result.arrayValue)
+        #expect(values[0].boolValue == false)
+        #expect(values[1].boolValue == true)
+        #expect(values[2].stringValue == "chosen")
+        #expect(values[3].boolValue == true)
+        #expect(values[4].stringValue == "caught")
+        #expect(calls == 0)
+    }
+
+    @Test func cancellationInterruptsSuspendedHostGateway() async {
+        let interpreter = Interpreter()
+        var started = false
+        interpreter.globals.define("waitForever", .hostFunction(HostFunction(
+            name: "waitForever",
+            asyncInvoke: { _, _ in
+                started = true
+                try await Task.sleep(for: .seconds(30))
+                return .void
+            }
+        )))
+
+        let evaluation = Task { @MainActor in
+            try await interpreter.runAsync(source: "await waitForever()")
+        }
+        while !started { await Task.yield() }
+        evaluation.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await evaluation.value
+        }
+    }
+
+    @Test func synchronousEntryRejectsAsyncOnlyGateway() {
+        let interpreter = Interpreter()
+        interpreter.globals.define("asyncOnly", .hostFunction(HostFunction(
+            name: "asyncOnly",
+            asyncInvoke: { _, _ in .void }
+        )))
+
+        #expect(throws: RuntimeError.self) {
+            _ = try interpreter.run(source: "await asyncOnly()")
         }
     }
 }

@@ -8,9 +8,9 @@ extension Interpreter {
     /// scheduled as real Swift tasks and this call waits for the complete
     /// task tree, including child tasks spawned by interpreted task bodies.
     ///
-    /// Expression evaluation is still single-actor and deterministic; the
-    /// suspension boundary here is task creation. Async host-call propagation
-    /// is the next migration layer.
+    /// The async session has a genuine suspension-aware evaluator and host
+    /// gateway path. SwiftUI rendering remains synchronous; script execution
+    /// crosses into this path only at source `await` boundaries.
     @discardableResult
     public func runAsync(
         source: String, lazyTopLevelGlobals: Bool = false
@@ -22,7 +22,8 @@ extension Interpreter {
 
         let result: RuntimeValue
         do {
-            result = try run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+            result = try await runProgramSuspending(
+                source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
         } catch {
             cancelScheduledTasks(startingAt: firstTask)
             await waitForScheduledTasks(startingAt: firstTask)
@@ -49,6 +50,88 @@ extension Interpreter {
         }
         discardScheduledTasks(startingAt: firstTask)
         return result
+    }
+
+    private func runProgramSuspending(
+        source: String, lazyTopLevelGlobals: Bool
+    ) async throws -> RuntimeValue {
+        let file = try parse(source: source)
+        steps = 0
+        assumesCompiledImports = lazyTopLevelGlobals
+        try collectDeclarations(from: file)
+        processDeferredExtensions()
+        resolvePendingMemberAliases()
+        reconcileStrandedExtensions()
+        resolveTransitiveViewConformance()
+
+        var last: RuntimeValue = .void
+        for item in expandedTopLevelItems(file.statements) {
+            try Task.checkCancellation()
+            if case .stmt(let statement) = item.item,
+               statement.is(DeferStmtSyntax.self) {
+                continue
+            }
+            if case .decl(let declaration) = item.item,
+               declaration.is(StructDeclSyntax.self)
+                    || declaration.is(ClassDeclSyntax.self)
+                    || declaration.is(ActorDeclSyntax.self)
+                    || declaration.is(ImportDeclSyntax.self)
+                    || declaration.is(FunctionDeclSyntax.self)
+                    || declaration.is(ProtocolDeclSyntax.self)
+                    || declaration.is(OperatorDeclSyntax.self)
+                    || declaration.is(PrecedenceGroupDeclSyntax.self)
+                    || declaration.is(TypeAliasDeclSyntax.self)
+                    || declaration.is(EnumDeclSyntax.self)
+                    || declaration.is(ExtensionDeclSyntax.self) {
+                continue
+            }
+            if lazyTopLevelGlobals,
+               case .decl(let declaration) = item.item,
+               let variable = declaration.as(VariableDeclSyntax.self),
+               isHoistableGlobal(variable) {
+                continue
+            }
+            if case .decl(let declaration) = item.item,
+               let variable = declaration.as(VariableDeclSyntax.self),
+               variable.bindings.allSatisfy({ $0.accessorBlock != nil }) {
+                continue
+            }
+            if case .decl(let declaration) = item.item,
+               let variable = declaration.as(VariableDeclSyntax.self),
+               isHoistableGlobal(variable) {
+                let alreadyForced = variable.bindings.contains { binding in
+                    guard let identifier = binding.pattern
+                        .as(IdentifierPatternSyntax.self),
+                          let box = globals.box(for: identifier.identifier.text)
+                    else { return false }
+                    if case .host(let any) = box.value, any is LazyGlobal {
+                        return false
+                    }
+                    return true
+                }
+                if alreadyForced { continue }
+            }
+
+            let result: StatementResult
+            do {
+                result = try await executeSuspending(item, in: globals)
+            } catch is InterpretedThrow where assumesCompiledImports {
+                continue
+            } catch let scriptError as RuntimeError
+                where assumesCompiledImports && !scriptError.fatal {
+                continue
+            }
+            switch result {
+            case .normal(let value):
+                last = value
+            case .returnValue(let value):
+                return value
+            case .breakLoop, .continueLoop:
+                throw RuntimeError(
+                    message: "break/continue outside a loop", line: 1, column: 1)
+            }
+        }
+        return last
     }
 
     private func cancelScheduledTasks(startingAt index: Int) {

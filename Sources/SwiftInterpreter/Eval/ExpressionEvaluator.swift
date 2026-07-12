@@ -305,11 +305,22 @@ extension Interpreter {
                     let genericText = spec.genericArgumentClause.arguments
                         .map { $0.argument.trimmedDescription }
                         .joined(separator: ", ")
-                    return .hostFunction(HostFunction(name: ctor.name) { args, ctx in
-                        var enriched = args.arguments
-                        enriched.append(.init(label: "__genericArguments", value: .native(genericText)))
-                        return try ctor.invoke(CallArguments(arguments: enriched), ctx)
-                    })
+                    return .hostFunction(HostFunction(
+                        name: ctor.name,
+                        invoke: { args, ctx in
+                            var enriched = args.arguments
+                            enriched.append(.init(
+                                label: "__genericArguments", value: .native(genericText)))
+                            return try ctor.invoke(CallArguments(arguments: enriched), ctx)
+                        },
+                        asyncInvoke: { args, ctx in
+                            var enriched = args.arguments
+                            enriched.append(.init(
+                                label: "__genericArguments", value: .native(genericText)))
+                            return try await ctor.invokeSuspending(
+                                CallArguments(arguments: enriched), ctx)
+                        }
+                    ))
                 }
                 return resolved
             }

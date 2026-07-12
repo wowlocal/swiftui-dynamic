@@ -57,10 +57,21 @@ exposes pending/running/succeeded/cancelled/failed state and drives real task
 cancellation. The evaluator checks native cancellation at every budget tick,
 so cancellation cannot be swallowed by interpreted `do`/`catch`.
 
-The synchronous `run` entry point deliberately keeps inline task execution for
-existing render and embedding clients. Await expressions and host calls are
-still synchronous inside either session; propagating suspension through those
-evaluator and registry boundaries is the next migration step.
+Await-bearing code runs through `AsyncEvaluator` and
+`AsyncStatementEvaluator`. Eager expression shells are lowered back into the
+established synchronous operator/member machinery after their awaited roots
+finish; lazy branches (`&&`, `||`, `??`, ternary, `if`, `switch`, and `try?`)
+stay suspension-aware so untaken work never runs. `HostFunction` has explicit
+sync and async gateway faces, and async gateways can re-enter interpreted code
+through `EvalContext.callClosureAsync`. When a gateway suspends, the current
+task's evaluator frames are parked and restored on resume, preventing
+main-actor reentrancy from mixing lexical, return-type, recursion, or budget
+stacks between interpreted tasks.
+
+The synchronous `run` entry point deliberately keeps inline task execution and
+inline `await` compatibility for the SwiftUI renderer and existing embedding
+clients. An async-only host gateway reports a clear error there rather than
+blocking the main actor.
 
 The remaining semantic migration is deliberately ordered:
 
@@ -68,9 +79,7 @@ The remaining semantic migration is deliberately ordered:
    observable models.
 2. Extend copy-in/copy-out semantics to source structs, captures, and their
    mutating-method boundaries.
-3. Propagate suspension through awaited expressions and host calls; task
-   creation, lifecycle, and cancellation are already explicit.
-4. Replace dynamically interpreted host calls with parsed, validated
+3. Replace dynamically interpreted host calls with parsed, validated
    signatures while retaining the injected `HostRegistry` boundary.
 
 New core code should not downcast `host(Any)` to a Swift-shaped value. Direct

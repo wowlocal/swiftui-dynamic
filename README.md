@@ -320,12 +320,12 @@ coverage.
   initializer side effects re-run (and are discarded) on view recreation.
 - An evaluation **step budget** (100k) guards the main thread against
   `while true {}`.
-- **Background tasks run a bounded slice, then park.** `Task { … }` bodies
-  execute synchronously (coverage over concurrency), so an intentionally
-  infinite background loop (`while true { poll(); try? await Task.sleep }`
-  — legitimate on device, where it suspends) gets a 20k-step slice and then
-  stops quietly; the surrounding flow's budget is never charged. Parked
-  tasks never resume.
+- **Async sessions schedule real task trees; synchronous renders are
+  bounded.** `runAsync` propagates host suspension and runs `Task { … }`
+  bodies as cancellable main-actor tasks, waiting for their descendants.
+  The synchronous renderer cannot wait for child work, so its compatibility
+  path executes one body inline with a 20k-step slice; an intentionally
+  infinite polling loop then parks without charging the surrounding flow.
 - **C interop is absorbing, hardware answers are real.** Unresolved
   snake_case/SCREAMING_SNAKE identifiers and bodyless functions read as C
   imports: calls absorb into writable bags, constants read as

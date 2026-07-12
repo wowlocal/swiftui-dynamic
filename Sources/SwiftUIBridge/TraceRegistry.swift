@@ -166,9 +166,10 @@ public final class TraceRegistry: HostRegistry {
                 return .native(node)
             }
         case "Task", "MainActor":
-            // `Task { try await … }` — the body runs (our async is
-            // synchronous), and UNHANDLED errors end the task silently,
-            // exactly as on device. NESTED tasks are SCHEDULED, not run:
+            // Synchronous-render compatibility for `Task { try await … }`:
+            // unhandled errors end the task silently, exactly as on device.
+            // Async sessions are claimed by the interpreter-core scheduler.
+            // NESTED compatibility tasks are SCHEDULED, not run:
             // recursive retry loops (`func poll() { Task { poll() } }`)
             // terminate exactly like real async scheduling.
             return HostFunction(name: name) { [weak self] args, ctx in

@@ -230,7 +230,7 @@ extension Interpreter {
     /// `@Dependency(\.workspacePool) var pool` in statement position: the
     /// capitalized keypath component names the type; a collected type yields
     /// a fresh instance, anything else an absorbing marker.
-    private func localDependencyValue(
+    func localDependencyValue(
         _ varDecl: VariableDeclSyntax, in env: Environment
     ) throws -> RuntimeValue? {
         for attribute in varDecl.attributes {
@@ -443,7 +443,7 @@ extension Interpreter {
     /// True when the block's last statement is a bare function call —
     /// compiled sources guarantee such a guard-else diverges (exit, abort,
     /// a Never-returning helper).
-    private static func endsInCall(_ statements: CodeBlockItemListSyntax) -> Bool {
+    static func endsInCall(_ statements: CodeBlockItemListSyntax) -> Bool {
         guard let last = statements.last else { return false }
         if case .expr(let expr) = last.item {
             return expr.is(FunctionCallExprSyntax.self)

@@ -44,7 +44,7 @@ extension Interpreter {
     }
 
     /// Swift requires `fallthrough` to be the LAST statement of a case.
-    private static func trailingFallthrough(_ statements: CodeBlockItemListSyntax) -> Bool {
+    static func trailingFallthrough(_ statements: CodeBlockItemListSyntax) -> Bool {
         guard let last = statements.last, case .stmt(let stmt) = last.item else { return false }
         return stmt.is(FallThroughStmtSyntax.self)
     }
@@ -73,7 +73,7 @@ extension Interpreter {
         return result
     }
 
-    private func caseStatements(
+    func caseStatements(
         after index: Int, in switchExpr: SwitchExprSyntax
     ) -> (index: Int, statements: CodeBlockItemListSyntax)? {
         let elements = flattenedSwitchCases(switchExpr)
@@ -126,7 +126,7 @@ extension Interpreter {
         throw error(switchExpr, "switch was not exhaustive for \(subject.stringified)")
     }
 
-    private func isUnknowable(_ value: RuntimeValue) -> Bool {
+    func isUnknowable(_ value: RuntimeValue) -> Bool {
         if case .host(let any) = value {
             return any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall
         }
@@ -137,7 +137,7 @@ extension Interpreter {
 
     /// `case .selection(let range):` chosen as the fresh branch — its
     /// bindings read unknowable chains that absorb downstream.
-    private func bindPatternsToUnknowables(_ pattern: PatternSyntax, into env: Environment) {
+    func bindPatternsToUnknowables(_ pattern: PatternSyntax, into env: Environment) {
         if let binding = pattern.as(ValueBindingPatternSyntax.self) {
             bindPatternsToUnknowables(binding.pattern, into: env)
             return

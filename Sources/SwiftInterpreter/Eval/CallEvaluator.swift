@@ -372,7 +372,7 @@ extension Interpreter {
     /// path: eagerly selecting every same-named method can steal calls from
     /// local/global declarations and can bypass constructor or subscript
     /// resolution in large merged modules.
-    private func shouldDirectlyDispatchInstanceCall(
+    func shouldDirectlyDispatchInstanceCall(
         named name: String,
         on instance: Instance,
         overloads: [FunctionDeclSyntax]

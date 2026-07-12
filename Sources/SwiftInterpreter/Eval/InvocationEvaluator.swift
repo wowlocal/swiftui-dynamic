@@ -18,7 +18,7 @@ extension Interpreter {
 
     /// A host-extension init fits only when labels align AND every
     /// argument's RUNTIME type satisfies the parameter annotation.
-    private func extensionInitFits(_ decl: InitializerDeclSyntax, args: CallArguments) -> Bool {
+    func extensionInitFits(_ decl: InitializerDeclSyntax, args: CallArguments) -> Bool {
         let parameters = initializerMetadata(for: decl).parameters
         var remaining = args.arguments
         for parameter in parameters {
@@ -395,7 +395,7 @@ extension Interpreter {
     /// annotation IS the call-site type context: unify the declared
     /// function-type parameter against the argument closure's annotations
     /// (the APIService completion genre).
-    private func bindGenericsFromClosureArguments(
+    func bindGenericsFromClosureArguments(
         _ closure: ClosureValue, args: CallArguments, into env: Environment
     ) {
         let unbound = closure.genericParameters.filter { env.lookup($0) == nil }
@@ -491,7 +491,7 @@ extension Interpreter {
         }
     }
 
-    private func bindGenericReturnParameter(_ closure: ClosureValue, into env: Environment) {
+    func bindGenericReturnParameter(_ closure: ClosureValue, into env: Environment) {
         guard let returnName = closure.returnTypeName,
               let hint = expectedAnnotationStack.last else { return }
         let hintText = strippedAnnotation(hint)

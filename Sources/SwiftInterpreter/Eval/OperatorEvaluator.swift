@@ -9,7 +9,7 @@ extension Interpreter {
     /// generics bind at the call site, exactly like `let x: [Status] = …`).
     /// Only self-rooted targets are inspected: their annotation is knowable
     /// without evaluating anything.
-    private func assignmentAnnotationHint(_ target: ExprSyntax, in env: Environment) -> String? {
+    func assignmentAnnotationHint(_ target: ExprSyntax, in env: Environment) -> String? {
         var propertyName: String?
         if let ref = target.as(DeclReferenceExprSyntax.self) {
             propertyName = ref.baseName.text
