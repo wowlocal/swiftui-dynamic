@@ -167,8 +167,32 @@ struct AsyncExecutionTests {
 
         _ = try await interpreter.runAsync(source: "Task { _ = 1 }")
         #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
         _ = try await interpreter.runAsync(source: "Task { _ = 2 }")
         #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func runtimeAssignsDistinctTaskIDsAndOneRootParent() async throws {
+        let interpreter = Interpreter()
+        _ = try await interpreter.runAsync(source: """
+        let first = Task { "first" }
+        let second = Task { "second" }
+        """)
+
+        guard case .host(let firstPayload)? = interpreter.globals.lookup("first"),
+              let first = firstPayload as? RuntimeTaskHandle,
+              case .host(let secondPayload)? = interpreter.globals.lookup("second"),
+              let second = secondPayload as? RuntimeTaskHandle else {
+            Issue.record("expected two runtime task handles")
+            return
+        }
+        #expect(first.id != second.id)
+        #expect(first.kind == .unstructured)
+        #expect(second.kind == .unstructured)
+        #expect(first.parent != nil)
+        #expect(first.parent == second.parent)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
     @Test func runtimeTaskHandleDispatchesCancellableExtensions() throws {

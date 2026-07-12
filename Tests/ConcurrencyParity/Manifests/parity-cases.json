@@ -112,6 +112,19 @@
     "notes": "The operation crosses parityYield before throwing a source enum; the probe asserts catchability, not version-specific error text."
   },
   {
+    "id": "task-value-multiple-waiters",
+    "fixture": "Fixtures/task-value-multiple-waiters.swift",
+    "mode": "runtime",
+    "assertion": "predicate",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "startMultipleTaskWaiterProbe()",
+    "interpreterProjection": "instance-string-array:events",
+    "predicate": "same-event-multiset",
+    "nativeFact": "Multiple tasks may await the same task value concurrently and every waiter receives the one completed success value.",
+    "notes": "Both waiter tasks mark their arrival and then suspend on MainActor before a controller opens the child gate. Relative waiter resume order is unspecified."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

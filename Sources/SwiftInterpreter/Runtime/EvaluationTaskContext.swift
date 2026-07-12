@@ -12,6 +12,7 @@ final class EvaluationTaskContext {
     @TaskLocal static var current: EvaluationTaskContext?
 
     let id: UInt64
+    let runtimeTaskID: RuntimeTaskID?
     weak var interpreter: Interpreter?
 
     var steps = 0
@@ -37,8 +38,12 @@ final class EvaluationTaskContext {
     var viewIdentitySalts: [String] = []
     var deferredExtensionRetry = false
 
-    init(id: UInt64, interpreter: Interpreter) {
+    init(
+        id: UInt64, runtimeTaskID: RuntimeTaskID? = nil,
+        interpreter: Interpreter
+    ) {
         self.id = id
+        self.runtimeTaskID = runtimeTaskID
         self.interpreter = interpreter
     }
 

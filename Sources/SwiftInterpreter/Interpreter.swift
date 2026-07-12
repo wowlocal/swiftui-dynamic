@@ -9,6 +9,7 @@ import SwiftSyntax
 /// tests).
 public final class Interpreter {
     public let globals = Environment()
+    let concurrencyRuntime = CooperativeConcurrencyRuntime()
     public var registry: HostRegistry?
     /// Struct symbols in declaration order (used to pick the root View).
     public internal(set) var structSymbols: [StructSymbol] = []
@@ -124,10 +125,13 @@ public final class Interpreter {
         return synchronousEvaluationTaskContext
     }
 
-    func makeEvaluationTaskContext() -> EvaluationTaskContext {
+    func makeEvaluationTaskContext(
+        runtimeTaskID: RuntimeTaskID? = nil
+    ) -> EvaluationTaskContext {
         let id = nextEvaluationTaskContextID
         nextEvaluationTaskContextID += 1
-        return EvaluationTaskContext(id: id, interpreter: self)
+        return EvaluationTaskContext(
+            id: id, runtimeTaskID: runtimeTaskID, interpreter: self)
     }
 
     /// White-box identity used by concurrency ownership and host re-entry

@@ -143,13 +143,18 @@ extension Interpreter: EvalContext {
     public func spawnBackgroundTask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
-        let handle = RuntimeTaskHandle()
+        let record = concurrencyRuntime.createTask(
+            kind: .unstructured,
+            parent: evaluationTaskContext.runtimeTaskID)
+        let handle = RuntimeTaskHandle(
+            runtime: concurrencyRuntime, record: record)
         let arguments = arguments
 
         // Existing synchronous clients cannot suspend to await child work.
         // Preserve their deterministic contract while returning the same
         // observable handle used by async sessions.
         guard asyncSessionDepth > 0 else {
+            defer { concurrencyRuntime.release(handle.id) }
             // Compatibility runs historically execute one task body inline
             // but suppress recursively-created tasks. Without this guard,
             // each nested body resets its background slice and can evade the
@@ -173,11 +178,14 @@ extension Interpreter: EvalContext {
         }
 
         guard scheduledTasks.count < scheduledTaskLimit else {
+            concurrencyRuntime.release(handle.id)
             throw RuntimeError(
                 message: "interpreted task limit exceeded", fatal: true)
         }
 
-        let taskContext = makeEvaluationTaskContext()
+        let taskContext = makeEvaluationTaskContext(
+            runtimeTaskID: handle.id)
+        concurrencyRuntime.bind(taskContext, to: record)
         let task = Task { @MainActor [weak self, weak handle] in
             await EvaluationTaskContext.$current.withValue(taskContext) {
                 defer { taskContext.removeAllDynamicState() }

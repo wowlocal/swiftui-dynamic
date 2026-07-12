@@ -213,8 +213,7 @@ extension Interpreter {
                     if case .host(let payload) = base,
                        let handle = payload as? RuntimeTaskHandle,
                        member.declName.baseName.text == "value" {
-                        return try await taskValue(
-                            from: handle, node: member)
+                        return try await taskValue(from: handle)
                     }
                 }
             }
@@ -259,10 +258,10 @@ extension Interpreter {
     }
 
     private func taskValue(
-        from handle: RuntimeTaskHandle,
-        node: some SyntaxProtocol
+        from handle: RuntimeTaskHandle
     ) async throws -> RuntimeValue {
-        switch await handle.waitForOutcome() {
+        switch await handle.waitForOutcome(
+            waiter: evaluationTaskContext.runtimeTaskID) {
         case .success(let value, _):
             return value
         case .failure(let errorValue, _):

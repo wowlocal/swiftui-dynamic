@@ -9,83 +9,75 @@ public enum RuntimeTaskOutcome {
 }
 
 public final class RuntimeTaskHandle {
-    public enum State: String, Sendable {
-        case pending
-        case running
-        case succeeded
-        case cancelled
-        case failed
+    public typealias State = RuntimeTaskState
+
+    private let runtime: CooperativeConcurrencyRuntime
+    let record: RuntimeTaskRecord
+
+    public var id: RuntimeTaskID { record.id }
+    public var kind: RuntimeTaskKind { record.kind }
+    public var parent: RuntimeTaskID? { record.parent }
+    public var state: State { record.state }
+    public var outcome: RuntimeTaskOutcome? { record.outcome }
+    public var failureDescription: String? { record.failureDescription }
+    var waiterCount: Int { record.waiters.count }
+
+    public convenience init() {
+        let runtime = CooperativeConcurrencyRuntime()
+        let record = runtime.createTask(kind: .unstructured, parent: nil)
+        self.init(runtime: runtime, record: record)
     }
 
-    public private(set) var state: State = .pending
-    public private(set) var outcome: RuntimeTaskOutcome?
-    public private(set) var failureDescription: String?
-
-    private var task: Task<Void, Never>?
-
-    public init() {}
+    init(
+        runtime: CooperativeConcurrencyRuntime,
+        record: RuntimeTaskRecord
+    ) {
+        self.runtime = runtime
+        self.record = record
+    }
 
     public var result: RuntimeValue? {
-        guard case .success(let value, _) = outcome else { return nil }
+        guard case .success(let value, _) = record.outcome else { return nil }
         return value
     }
 
-    public var isCancelled: Bool { state == .cancelled }
-    public var isCompleted: Bool {
-        switch state {
-        case .succeeded, .cancelled, .failed: true
-        case .pending, .running: false
-        }
-    }
+    public var isCancelled: Bool { record.state == .cancelled }
+    public var isCompleted: Bool { record.state.isCompleted }
 
     public func cancel() {
-        guard !isCompleted else { return }
-        outcome = .cancelled
-        state = .cancelled
-        task?.cancel()
+        runtime.cancel(record)
     }
 
     func attach(_ task: Task<Void, Never>) {
-        self.task = task
-        if state == .cancelled { task.cancel() }
+        runtime.attach(task, to: record)
     }
 
     @discardableResult
     func begin() -> Bool {
-        guard state == .pending else { return false }
-        state = .running
-        return true
+        runtime.begin(record)
     }
 
     func succeed(with value: RuntimeValue) {
-        guard state != .cancelled else { return }
-        outcome = .success(
-            value, successType: HostRuntimeTypeSystem.typeName(of: value))
-        state = .succeeded
+        runtime.succeed(record, with: value)
     }
 
     func fail(with error: Error) {
-        guard state != .cancelled else { return }
-        failureDescription = String(describing: error)
-        if let thrown = error as? InterpretedThrow {
-            outcome = .failure(
-                thrown.value,
-                failureType: HostRuntimeTypeSystem.typeName(of: thrown.value))
-        } else {
-            let value = RuntimeValue.native(String(describing: error))
-            outcome = .failure(
-                value, failureType: String(describing: type(of: error)))
-        }
-        state = .failed
+        runtime.fail(record, with: error)
     }
 
     func wait() async {
-        await task?.value
+        await record.nativeTask?.value
     }
 
-    func waitForOutcome() async -> RuntimeTaskOutcome {
-        await wait()
-        return outcome ?? .failure(
+    func waitForOutcome(
+        waiter: RuntimeTaskID? = nil
+    ) async -> RuntimeTaskOutcome {
+        if let waiter { record.waiters.insert(waiter) }
+        defer {
+            if let waiter { record.waiters.remove(waiter) }
+        }
+        await record.nativeTask?.value
+        return record.outcome ?? .failure(
             .native("task completed without an outcome"),
             failureType: "RuntimeTaskInvariant")
     }

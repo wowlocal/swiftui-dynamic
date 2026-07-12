@@ -184,6 +184,8 @@ private enum ConcurrencyParityHarness {
         var expectedDetachedContextID: UInt64?
         var taskValueGateStarted = false
         var taskValueGateOpen = false
+        var taskValueWaiterCount = 0
+        var registeredTaskValueSource: RuntimeTaskHandle?
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
             name: "parityYield",
             asyncInvoke: { arguments, _ in
@@ -263,6 +265,29 @@ private enum ConcurrencyParityHarness {
             taskValueGateOpen = true
             return .void
         }))
+        interpreter.globals.define("parityRegisterTaskValueSource", .hostFunction(HostFunction(
+            name: "parityRegisterTaskValueSource"
+        ) { arguments, _ in
+            registeredTaskValueSource =
+                arguments.positional(0)?.hostPayload as? RuntimeTaskHandle
+            return .void
+        }))
+        interpreter.globals.define("parityMarkTaskValueWaiter", .hostFunction(HostFunction(
+            name: "parityMarkTaskValueWaiter"
+        ) { _, _ in
+            taskValueWaiterCount += 1
+            return .void
+        }))
+        interpreter.globals.define("parityAwaitTaskValueWaiters", .hostFunction(HostFunction(
+            name: "parityAwaitTaskValueWaiters",
+            asyncInvoke: { _, _ in
+                while taskValueWaiterCount < 2
+                    || registeredTaskValueSource?.waiterCount != 2 {
+                    await Task.yield()
+                }
+                return .void
+            }
+        )))
         let value = try await interpreter.runAsync(source: source)
 
         if projection == "string" {
@@ -603,6 +628,7 @@ struct ConcurrencyParityTests {
             + "\nstartTaskContextProbe()\n"
         let interpreter = Interpreter()
         var contextIDs: [UInt64] = []
+        var runtimeTaskIDs: Set<RuntimeTaskID> = []
         var retainedContexts: [UInt64: EvaluationTaskContext] = [:]
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
             name: "parityYield",
@@ -612,6 +638,9 @@ struct ConcurrencyParityTests {
                 if let bound = context as? TaskBoundEvalContext {
                     contextID = bound.evaluationTaskContextID
                     retainedContexts[contextID] = bound.evaluationContext
+                    if let taskID = bound.evaluationContext.runtimeTaskID {
+                        runtimeTaskIDs.insert(taskID)
+                    }
                 } else if let interpreter = context as? Interpreter {
                     contextID = interpreter.currentEvaluationTaskContextID
                 } else {
@@ -630,6 +659,7 @@ struct ConcurrencyParityTests {
         }
         #expect(values.count == 100)
         #expect(Set(contextIDs).count == 100)
+        #expect(runtimeTaskIDs.count == 100)
         #expect(retainedContexts.count == 100)
         #expect(retainedContexts.values.allSatisfy { $0.isDynamicallyEmpty })
     }

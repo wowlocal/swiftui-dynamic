@@ -15,11 +15,26 @@ extension Interpreter {
     public func runAsync(
         source: String, lazyTopLevelGlobals: Bool = false
     ) async throws -> RuntimeValue {
-        let context = makeEvaluationTaskContext()
+        let root = concurrencyRuntime.createTask(kind: .root, parent: nil)
+        _ = concurrencyRuntime.begin(root)
+        let context = makeEvaluationTaskContext(runtimeTaskID: root.id)
+        concurrencyRuntime.bind(context, to: root)
+        defer { concurrencyRuntime.release(root.id) }
         return try await EvaluationTaskContext.$current.withValue(context) {
             defer { context.removeAllDynamicState() }
-            return try await runAsyncInCurrentTaskContext(
-                source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+            do {
+                let value = try await runAsyncInCurrentTaskContext(
+                    source: source,
+                    lazyTopLevelGlobals: lazyTopLevelGlobals)
+                concurrencyRuntime.succeed(root, with: value)
+                return value
+            } catch is CancellationError {
+                concurrencyRuntime.cancel(root)
+                throw CancellationError()
+            } catch {
+                concurrencyRuntime.fail(root, with: error)
+                throw error
+            }
         }
     }
 
@@ -161,6 +176,9 @@ extension Interpreter {
 
     private func discardScheduledTasks(startingAt index: Int) {
         guard index < scheduledTasks.count else { return }
+        for handle in scheduledTasks[index...] {
+            concurrencyRuntime.release(handle.id)
+        }
         scheduledTasks.removeSubrange(index...)
     }
 

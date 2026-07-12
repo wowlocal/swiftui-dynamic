@@ -86,6 +86,26 @@ func parityOpenTaskValueGate() {
     parityTaskValueGateOpen = true
 }
 
+@MainActor
+var parityTaskValueWaiterCount = 0
+
+@MainActor
+func parityRegisterTaskValueSource(_ task: Task<String, Never>) {
+    _ = task
+}
+
+@MainActor
+func parityMarkTaskValueWaiter() {
+    parityTaskValueWaiterCount += 1
+}
+
+@MainActor
+func parityAwaitTaskValueWaiters() async {
+    while parityTaskValueWaiterCount < 2 {
+        await Task.yield()
+    }
+}
+
 @main
 struct NativeMain {
     static func main() async throws {

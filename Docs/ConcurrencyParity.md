@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Task handles retain explicit success/failure/cancelled outcomes and `await task.value` suspends for successful completion | Task IDs/records, multiple explicit waiters, throwing value, result values, kinds, session policies, cancellation graph, priority/task-local foundations |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish roots and unstructured tasks; handles retain typed outcomes; `await task.value` suspends for success/failure and registers multiple explicit waiters | Result values, remaining task kinds, session policies, cancellation graph, priority/task-local foundations |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -51,6 +51,7 @@ major version 6.
 | `async-initializer-outcomes` | exact | Async initializers preserve successful, thrown-through-`try?`, failable-success, and failable-nil outcomes across suspension | Native/interpreter parity in 20 repetitions: `success,threw,accepted,rejected` |
 | `task-value-success` | exact | `await task.value` suspends until completion and returns the successful value | Native/interpreter parity in 20 repetitions with a gate-forced trace: `child-start,before-value,child-end,value` |
 | `task-value-failure` | exact | A throwing task preserves its source failure across suspension and `try await task.value` throws it to the caller | Native/interpreter parity in 20 repetitions; catchability is asserted without coupling to error text |
+| `task-value-multiple-waiters` | predicate / event multiset | Multiple tasks may concurrently await the same task and every waiter receives its one completed success value | Native/interpreter parity in 20 repetitions; both interpreted waiters are simultaneously registered on one task record and relative resume order is not asserted |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -280,3 +281,29 @@ operation, and reads the handle with `try await value`. Twenty native and
 twenty interpreter runs all returned `caught`. The handle stores the original
 interpreted thrown value in its failure outcome rather than reducing it to the
 diagnostic description used by the compatibility inspection API.
+
+### Runtime records and multiple waiters
+
+Every async interpreter session now creates a runtime-owned root record. Each
+source `Task {}` creates a distinct unstructured record whose parent is the
+current root or source task ID. The record owns lifecycle state, typed outcome,
+native driver, evaluator context, and the IDs of tasks currently waiting for
+its result. `RuntimeTaskHandle` is a source-facing reference to that record;
+removing a completed record from the active session registry does not invalidate
+an escaped handle.
+
+`task-value-multiple-waiters` starts one value-producing task behind an explicit
+gate, then starts two sibling waiter tasks. A controller opens the gate only
+after both waiters have reached the read. Twenty native Swift 6 runs and twenty
+interpreter runs each produced exactly one `first:value` and one `second:value`.
+The assertion is an event multiset because Swift does not promise which waiter
+resumes first. The interpreter runner additionally observes both distinct
+waiter IDs in the source record before opening its gate.
+
+Lifecycle regressions establish that sibling handles have distinct IDs and one
+root parent, 100 context-parity tasks have 100 distinct runtime task IDs, and a
+completed session leaves the runtime's active-record registry empty.
+
+Verification for the task-record step: the 37 concurrency-parity,
+async-execution, and host-signature tests passed; the full suite passed 710
+tests in 141 suites. Repository-wide gates remain a milestone-closing check.
