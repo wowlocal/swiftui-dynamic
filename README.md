@@ -106,8 +106,10 @@ let`/shorthand, `??`, `?.` chaining, `!`), `if`/`else`, `switch` with
 expression/range/enum-payload/`where` patterns (also as expressions and in
 builders), `for`-in, `while`, `break`/`continue`, functions (defaults,
 implicit return, trailing closures, `@ViewBuilder`/`some View` builder
-bodies), closures (`$0` shorthand, capture-by-reference), structs (stored/
-computed properties, methods, custom `init`s, memberwise init, statics),
+bodies), closures (`$0` shorthand, capture-by-reference, explicit capture-list
+snapshots), structs (value semantics across bindings/arguments/returns/
+containers, stored/computed properties, mutating methods, custom `init`s,
+memberwise init, statics),
 enums (raw + associated values, methods, computed properties, `CaseIterable`),
 **classes** (reference semantics, custom inits, statics, `super`
 inheritance-lite), **user subscripts** (get/set, tuple and multi-arg
@@ -214,9 +216,15 @@ coverage.
 
 ## Deliberate divergences from Swift
 
-- **Interpreted structs are reference-backed.** `Instance` is a class; there
-  is no copy-on-assignment. This is exactly what makes `@State` mutation from
-  an action closure observable without copy machinery. `mutating` is ignored.
+- **Struct storage is internally class-backed, but language semantics are
+  value-based.** New bindings, parameters, returns, properties, containers,
+  captures, and assignments copy source-struct storage envelopes. Native
+  containers retain their own copy-on-write storage, and composed lvalues
+  detach only a nested source-struct path when it is mutated. Nested and
+  sync/async `mutating` calls use lvalue copy-in/copy-out. Source classes and
+  host objects retain identity, while `@State`/`@StateObject` and `@Binding`
+  copies deliberately retain their external storage locations. Compile-time
+  exclusivity and let-vs-var diagnostics remain the compiler's job.
 - **Argument labels guide binding but are not compiler-strict.** Labeled
   arguments bind by name, defaults may be omitted in the middle, and trailing
   closures use function-parameter shape; unmatched positional arguments may

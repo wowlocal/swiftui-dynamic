@@ -27,12 +27,19 @@ public final class LiveModelStore {
 
     func delete(_ value: RuntimeValue) {
         guard case .instance(let target) = value else { return }
-        instances.removeAll {
-            if case .instance(let stored) = $0.value {
+        let index = instances.firstIndex { entry in
+            guard case .instance(let stored) = entry.value,
+                  stored.symbol.name == target.symbol.name else { return false }
+            if stored.symbol.isClass || target.symbol.isClass {
                 return stored === target
             }
-            return false
+            // Test/dynamic sources sometimes model a SwiftData row as a
+            // struct even though PersistentModel is class-bound natively.
+            // Fetch necessarily returns a value copy, so use its complete
+            // stored-value shape as the fallback row identity.
+            return Self.structuralKey(stored) == Self.structuralKey(target)
         }
+        if let index { instances.remove(at: index) }
     }
 
     func fetch(typeName: String?) -> [RuntimeValue] {
@@ -64,5 +71,12 @@ public final class LiveModelStore {
             return instance.symbol.name
         }
         return "?"
+    }
+
+    private static func structuralKey(_ instance: Instance) -> String {
+        let values = instance.symbol.storedProperties.map { property in
+            "\(property.name)=\(instance.box(for: property.name)?.value.stringified ?? "nil")"
+        }
+        return "\(instance.symbol.name){\(values.joined(separator: ";"))}"
     }
 }

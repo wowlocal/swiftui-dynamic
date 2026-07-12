@@ -86,7 +86,7 @@ extension Interpreter {
                 let combined = try relocating(infix) {
                     try Builtins.binary(String(op.dropLast()), current, rhs)
                 }
-                try target.write(combined, self)
+                try target.writeOwned(combined, self)
             } catch let builtinError as RuntimeError where !builtinError.fatal {
                 // USER-DECLARED operator functions: the whole compound form
                 // first (`func +=(lhs: inout [Int: Movie], rhs: [Movie])` —
@@ -98,7 +98,8 @@ extension Interpreter {
                     return .void
                 }
                 if case .closure(let fn)? = globals.lookup(String(op.dropLast())) {
-                    try target.write(try callClosure(fn, arguments: [current, rhs]), self)
+                    try target.writeOwned(
+                        try callClosure(fn, arguments: [current, rhs]), self)
                     return .void
                 }
                 throw builtinError
@@ -226,6 +227,10 @@ extension Interpreter {
     indirect enum LValue {
         case box(Box)
         case instanceProperty(Instance, String)
+        /// A stored/computed property on a source struct. Mutation happens on
+        /// an independent receiver and writes the whole value back through
+        /// its owner, recursively composing through nested members/containers.
+        case instanceValueProperty(LValue, StructSymbol, String)
         case hostProperty(Any, String)
         case element(LValue, Int)
         /// Dictionary writes are read-modify-write through their owning
@@ -236,6 +241,9 @@ extension Interpreter {
         case tupleElement(LValue, Int)
         /// `matrix[index] = block` — user subscript get/set.
         case instanceSubscript(Instance, CallArguments)
+        /// User subscript on a source struct, with the same copy-in/copy-out
+        /// ownership as an ordinary value property.
+        case instanceValueSubscript(LValue, CallArguments)
         /// `size.width = 300` — value-type member write-through: mutate a
         /// copy via the registry, re-write the base (state boxes notify).
         case hostValueMember(LValue, String)
@@ -248,8 +256,16 @@ extension Interpreter {
 
         /// The element type of an `[X]`-annotated instance property, if known.
         func annotatedElementType() -> String? {
-            guard case .instanceProperty(let instance, let name) = self,
-                  let annotation = instance.symbol.storedProperty(named: name)?.typeAnnotation else {
+            let property: StructSymbol.StoredProperty?
+            switch self {
+            case .instanceProperty(let instance, let name):
+                property = instance.symbol.storedProperty(named: name)
+            case .instanceValueProperty(_, let symbol, let name):
+                property = symbol.storedProperty(named: name)
+            default:
+                property = nil
+            }
+            guard let annotation = property?.typeAnnotation else {
                 return nil
             }
             let text = annotation.trimmedDescription.trimmingCharacters(in: .whitespaces)
@@ -272,6 +288,11 @@ extension Interpreter {
                         base: .implicitMember(superName), member: name, arguments: CallArguments()))
                 }
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
+            case .instanceValueProperty(let base, _, let name):
+                guard case .instance(let instance) = try base.read(interpreter) else {
+                    throw EvalMessage(text: "value-property receiver is not an instance")
+                }
+                return try LValue.instanceProperty(instance, name).read(interpreter)
             case .hostProperty(let any, let name):
                 if let stub = any as? BindingStub, name == "wrappedValue" {
                     return stub.box.value
@@ -307,6 +328,11 @@ extension Interpreter {
                 return tuple.values[index]
             case .instanceSubscript(let instance, let args):
                 return try interpreter.callUserSubscriptGetter(on: instance, with: args)
+            case .instanceValueSubscript(let base, let args):
+                guard case .instance(let instance) = try base.read(interpreter) else {
+                    throw EvalMessage(text: "value-subscript receiver is not an instance")
+                }
+                return try interpreter.callUserSubscriptGetter(on: instance, with: args)
             case .staticProperty(let symbol, let name):
                 return try interpreter.staticMember(name, of: symbol) ?? .nilValue
             case .dataElement(let base, let index):
@@ -325,10 +351,29 @@ extension Interpreter {
             }
         }
 
+        /// Store an external RHS. Source values copy at the first storage
+        /// boundary, matching ordinary Swift assignment.
         func write(_ value: RuntimeValue, _ interpreter: Interpreter) throws {
+            try write(value, interpreter, copyingInput: true)
+        }
+
+        /// Commit a value already made independent by read-modify-write or a
+        /// mutating-method transaction. Outward lvalue layers transfer this
+        /// owned value instead of recursively cloning it again.
+        func writeOwned(_ value: RuntimeValue, _ interpreter: Interpreter) throws {
+            try write(value, interpreter, copyingInput: false)
+        }
+
+        private func write(
+            _ value: RuntimeValue, _ interpreter: Interpreter,
+            copyingInput: Bool
+        ) throws {
+            @inline(__always) func stored(_ value: RuntimeValue) -> RuntimeValue {
+                copyingInput ? value.copiedForValueSemantics() : value
+            }
             switch self {
             case .box(let box):
-                box.value = value
+                box.value = stored(value)
             case .instanceProperty(let instance, let name):
                 if Interpreter.traceStateCells,
                    name == (ProcessInfo.processInfo.environment["INTERP_TRACE_PROP"] ?? "statusesState") {
@@ -363,13 +408,15 @@ extension Interpreter {
                     let resolved = try interpreter.resolveAnnotated(
                         incoming, annotation: property?.typeAnnotation
                     )
+                    let storedValue = stored(resolved)
                     let observerKey = Interpreter.ObserverKey(
                         instance: ObjectIdentifier(instance), property: name)
                     let observed = (property?.willSetBody != nil || property?.didSetBody != nil)
                         && !interpreter.activePropertyObservers.contains(observerKey)
+                        && !instance.isInitializing
                         && !interpreter.initializingInstances.contains(ObjectIdentifier(instance))
                     guard observed, let property else {
-                        box.value = resolved
+                        box.value = storedValue
                         return
                     }
                     // willSet(newValue) → write → didSet(oldValue), never
@@ -380,10 +427,10 @@ extension Interpreter {
                     let oldValue = box.value
                     if let willSet = property.willSetBody {
                         let env = interpreter.selfEnvironment(.instance(instance))
-                        env.define(property.willSetParameter, resolved)
+                        env.define(property.willSetParameter, storedValue)
                         _ = try interpreter.executeBlock(willSet, in: env)
                     }
-                    box.value = resolved
+                    box.value = storedValue
                     if let didSet = property.didSetBody {
                         let env = interpreter.selfEnvironment(.instance(instance))
                         env.define(property.didSetParameter, oldValue)
@@ -410,15 +457,26 @@ extension Interpreter {
                    !interpreter.isInterpretedType(superName) {
                     // Inherited HOST-superclass properties (NSPanel.title):
                     // writes create the box, later reads see the value.
-                    instance.properties[name] = Box(value)
+                    instance.properties[name] = Box(stored(value))
                     return
                 }
                 throw EvalMessage(text: "'\(instance.symbol.name)' has no property '\(name)'")
+            case .instanceValueProperty(let base, _, let name):
+                let current = try base.read(interpreter).copiedForValueSemantics()
+                guard case .instance(let instance) = current, !instance.symbol.isClass else {
+                    throw EvalMessage(text: "value-property receiver is not a struct")
+                }
+                if copyingInput {
+                    try LValue.instanceProperty(instance, name).write(value, interpreter)
+                } else {
+                    try LValue.instanceProperty(instance, name).writeOwned(value, interpreter)
+                }
+                try base.writeOwned(.instance(instance), interpreter)
             case .hostProperty(let any, let name):
                 if let stub = any as? BindingStub, name == "wrappedValue" {
                     // Extension methods on Binding write through the box —
                     // onChange fires the set-closure of computed bindings.
-                    stub.box.value = value
+                    stub.box.value = stored(value)
                     return
                 }
                 if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
@@ -433,34 +491,42 @@ extension Interpreter {
                 guard var array = try base.read(interpreter).arrayValue, array.indices.contains(index) else {
                     throw EvalMessage(text: "array index \(index) out of range")
                 }
-                array[index] = value
-                try base.write(.native(array), interpreter)
+                array[index] = stored(value)
+                try base.writeOwned(.native(array), interpreter)
             case .dictElement(let base, let key, _):
                 let current = try base.read(interpreter)
                 guard var dict = current.dictValue else {
                     throw EvalMessage(text: "dictionary lvalue contains \(current.stringified), not a dictionary")
                 }
-                try dict.update(key, to: value)
-                try base.write(.native(dict), interpreter)
+                try dict.update(stored(key), to: stored(value))
+                try base.writeOwned(.native(dict), interpreter)
             case .tupleElement(let base, let index):
                 guard var tuple = try base.read(interpreter).tupleValue,
                       tuple.values.indices.contains(index) else {
                     throw EvalMessage(text: "tuple element \(index) out of range")
                 }
-                tuple.values[index] = value
+                tuple.values[index] = stored(value)
                 // Re-write the base so state boxes notify.
-                try base.write(.native(tuple), interpreter)
+                try base.writeOwned(.native(tuple), interpreter)
             case .instanceSubscript(let instance, let args):
                 try interpreter.callUserSubscriptSetter(on: instance, with: args, newValue: value)
+            case .instanceValueSubscript(let base, let args):
+                let current = try base.read(interpreter).copiedForValueSemantics()
+                guard case .instance(let instance) = current, !instance.symbol.isClass else {
+                    throw EvalMessage(text: "value-subscript receiver is not a struct")
+                }
+                try interpreter.callUserSubscriptSetter(
+                    on: instance, with: args, newValue: stored(value))
+                try base.writeOwned(.instance(instance), interpreter)
             case .staticProperty(let symbol, let name):
-                symbol.staticCache[name] = value
+                symbol.staticCache[name] = stored(value)
             case .dataElement(let base, let index):
                 guard case .host(let any) = try base.read(interpreter), var bytes = any as? Data,
                       index >= 0, index < bytes.count, let byte = value.intValue else {
                     throw EvalMessage(text: "Data byte write out of range")
                 }
                 bytes[bytes.index(bytes.startIndex, offsetBy: index)] = UInt8(truncatingIfNeeded: byte)
-                try base.write(.native(bytes), interpreter)
+                try base.writeOwned(.native(bytes), interpreter)
             case .hostValueMember(let base, let name):
                 let baseValue = try base.read(interpreter)
                 guard case .host(let any) = baseValue,
@@ -468,7 +534,7 @@ extension Interpreter {
                         settingMember: name, on: any, to: value) else {
                     throw EvalMessage(text: "cannot assign to '\(name)' on \(baseValue.stringified)")
                 }
-                try base.write(.native(mutated), interpreter)
+                try base.writeOwned(.native(mutated), interpreter)
             }
         }
     }
@@ -842,7 +908,12 @@ extension Interpreter {
             }
             let baseValue = try evaluate(base, in: env)
             if case .instance(let instance) = baseValue {
-                return .instanceProperty(instance, instance.symbol.canonicalPropertyName(member.declName.baseName.text))
+                let name = instance.symbol.canonicalPropertyName(member.declName.baseName.text)
+                if !instance.symbol.isClass,
+                   let owner = try? resolveLValue(base, in: env) {
+                    return .instanceValueProperty(owner, instance.symbol, name)
+                }
+                return .instanceProperty(instance, name)
             }
             if let tuple = baseValue.tupleValue {
                 let memberName = member.declName.baseName.text
@@ -907,6 +978,10 @@ extension Interpreter {
                 let indexArgs = CallArguments(arguments: try subscriptCall.arguments.map {
                     .init(label: $0.label?.text, value: try evaluate($0.expression, in: env))
                 })
+                if !instance.symbol.isClass,
+                   let owner = try? resolveLValue(subscriptCall.calledExpression, in: env) {
+                    return .instanceValueSubscript(owner, indexArgs)
+                }
                 return .instanceSubscript(instance, indexArgs)
             }
             if baseValue?.dictValue != nil {

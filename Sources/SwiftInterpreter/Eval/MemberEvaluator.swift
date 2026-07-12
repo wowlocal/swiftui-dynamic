@@ -24,8 +24,9 @@ extension Interpreter {
         if let initializer = lazy.initializer {
             value = try resolveAnnotated(try evaluate(initializer, in: globals), annotation: lazy.annotation)
         }
-        box.value = value
-        return value
+        let stored = value.copiedForValueSemantics()
+        box.value = stored
+        return stored
     }
 
     /// Diagnostics: INTERP_TRACE_CALLS="a,b,c" prints each entry into a
@@ -254,7 +255,7 @@ extension Interpreter {
             // Force the lazy member now, with self bound.
             let value = try resolveAnnotated(
                 try evaluate(seed.initializer, in: selfEnvironment(.instance(instance))),
-                annotation: seed.annotation)
+                annotation: seed.annotation).copiedForValueSemantics()
             box.value = value
             return value
         }
@@ -310,7 +311,8 @@ extension Interpreter {
                 method = candidate
             }
             guard let body = method.body else { return nil }
-            return .closure(makeFunctionClosure(method, body: body, captured: selfEnvironment(.instance(instance))))
+            return .closure(makeFunctionClosure(
+                method, body: body, captured: instanceMethodEnvironment(instance)))
         }
         if let computed = instance.symbol.computedProperties[name] {
             return try evaluateComputed(computed, selfValue: .instance(instance), name: name)
@@ -324,7 +326,7 @@ extension Interpreter {
                     : firstMethod
                 if let body = method.body {
                     return .closure(makeFunctionClosure(
-                        method, body: body, captured: selfEnvironment(.instance(instance))))
+                        method, body: body, captured: instanceMethodEnvironment(instance)))
                 }
             }
             if let computed = parent.computedProperties[name] {
@@ -361,7 +363,7 @@ extension Interpreter {
                     : firstMethod
                 if let body = method.body {
                     return .closure(makeFunctionClosure(
-                        method, body: body, captured: selfEnvironment(.instance(instance))))
+                        method, body: body, captured: instanceMethodEnvironment(instance)))
                 }
             }
             if let computed = proto.computedProperties[name] {
@@ -698,9 +700,10 @@ extension Interpreter {
                             for argument in args.arguments {
                                 guard let label = argument.label else { continue }
                                 if let box = instance.box(for: label) {
-                                    box.value = argument.value
+                                    box.value = argument.value.copiedForValueSemantics()
                                 } else {
-                                    instance.properties[label] = Box(argument.value)
+                                    instance.properties[label] = Box(
+                                        argument.value.copiedForValueSemantics())
                                 }
                             }
                             return .void
@@ -714,7 +717,8 @@ extension Interpreter {
                         // A blind fallback here self-delegates forever.
                         for argument in args.arguments {
                             guard let label = argument.label else { continue }
-                            instance.properties[label] = Box(argument.value)
+                            instance.properties[label] = Box(
+                                argument.value.copiedForValueSemantics())
                         }
                         return .void
                     }
@@ -722,6 +726,15 @@ extension Interpreter {
                         chosen, on: instance, args: args, node: nil)
                     if outcome.isNil {
                         throw RuntimeError(message: Interpreter.initFailedSentinel)
+                    }
+                    // A struct initializer may replace `self` while assigning
+                    // through value-semantic lvalues. Delegation commits that
+                    // final value into the CALLER's initialization frame;
+                    // the old reference-backed representation made this
+                    // propagation happen accidentally through aliasing.
+                    if case .instance = outcome,
+                       let callerSelf = env.box(for: "self") {
+                        callerSelf.value = outcome
                     }
                     return .void
                 })

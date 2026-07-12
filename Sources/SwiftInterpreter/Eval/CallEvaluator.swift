@@ -155,10 +155,14 @@ extension Interpreter {
         // like `first` / `first(where:)`, need the base handled specially.
         if let member = call.calledExpression.as(MemberAccessExprSyntax.self), let baseExpr = member.base {
             let name = member.declName.baseName.text
-            if let result = try specialMemberCall(name, base: baseExpr, call: call, in: env) {
+            // Evaluate the receiver once, before arguments (native order).
+            // Special mutation dispatch receives this value and only probes
+            // an lvalue after confirming the receiver/method shape.
+            let baseValue = try evaluate(baseExpr, in: env)
+            if let result = try specialMemberCall(
+                name, base: baseExpr, baseValue: baseValue, call: call, in: env) {
                 return result
             }
-            let baseValue = try evaluate(baseExpr, in: env)
             // Methods dispatch from call syntax, where labels disambiguate
             // overloads and a host-superclass property can coexist with a
             // same-named subclass method (`window` vs `window(_:)`).
@@ -183,7 +187,7 @@ extension Interpreter {
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
                    let body = method.body {
                     let closure = makeFunctionClosure(
-                        method, body: body, captured: selfEnvironment(.instance(instance)))
+                        method, body: body, captured: instanceMethodEnvironment(instance))
                     return try invoke(.closure(closure), with: args, node: call)
                 }
             }
@@ -253,7 +257,7 @@ extension Interpreter {
                     if let method = chooseFunction(from: own, for: args),
                        let body = method.body {
                         let closure = makeFunctionClosure(
-                            method, body: body, captured: selfEnvironment(.instance(instance)))
+                            method, body: body, captured: instanceMethodEnvironment(instance))
                         return try invoke(.closure(closure), with: args, node: call)
                     }
                     for conformance in transitiveConformances(of: instance.symbol) {
@@ -265,7 +269,7 @@ extension Interpreter {
                         guard let method = chooseFunction(from: available, for: args),
                               let body = method.body else { continue }
                         let closure = makeFunctionClosure(
-                            method, body: body, captured: selfEnvironment(.instance(instance)))
+                            method, body: body, captured: instanceMethodEnvironment(instance))
                         return try invoke(.closure(closure), with: args, node: call)
                     }
                 }
@@ -341,8 +345,11 @@ extension Interpreter {
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
                    let body = method.body {
+                    let methodEnvironment = methodIsMutating(method)
+                        ? selfEnvironment(.instance(instance))
+                        : instanceMethodEnvironment(instance)
                     let closure = makeFunctionClosure(
-                        method, body: body, captured: selfEnvironment(.instance(instance)))
+                        method, body: body, captured: methodEnvironment)
                     return try invoke(.closure(closure), with: args, node: call)
                 }
             }
@@ -402,12 +409,28 @@ extension Interpreter {
         return nil
     }
 
+    /// Mutating candidates supplied directly by the nominal type or by a
+    /// protocol-extension default. Both dispatch paths must participate in
+    /// the same source-value copy-out transaction.
+    func mutatingInstanceMethods(
+        named name: String, on instance: Instance
+    ) -> [FunctionDeclSyntax] {
+        var methods = instance.symbol.methods[name] ?? []
+        for conformance in transitiveConformances(of: instance.symbol) {
+            if let defaults = hostExtensionSymbols[conformance]?.methods[name] {
+                methods.append(contentsOf: defaults)
+            }
+        }
+        return methods.filter(methodIsMutating)
+    }
+
     /// Mutating collection methods (`items.append(x)`) resolve the base as an
     /// lvalue; `first(where:)`/`last(where:)` collide with the same-named
     /// properties. Returns nil to fall through to normal dispatch.
     private func specialMemberCall(
         _ name: String,
         base: ExprSyntax,
+        baseValue: RuntimeValue,
         call: FunctionCallExprSyntax,
         in env: Environment
     ) throws -> RuntimeValue? {
@@ -424,7 +447,6 @@ extension Interpreter {
                let overloads = modifier.symbol.methods["body"],
                let method = overloads.first, method.body != nil,
                method.signature.parameterClause.parameters.count == 1 {
-                let baseValue = try evaluate(base, in: env)
                 injectEnvironmentValues(into: modifier, values: [:])
                 return try applyViewModifier(modifier, to: baseValue, node: Syntax(call))
             }
@@ -434,14 +456,13 @@ extension Interpreter {
         // copy whose `self` reassignments write BACK through the lvalue
         // (value semantics; through a Binding this fires the set-closure
         // exactly once, like the native read-modify-write).
-        if let target = try? resolveLValue(base, in: env),
-           let current = try? target.read(self),
-           case .enumCase(let receiver) = current,
+        if case .enumCase(let receiver) = baseValue,
            let overloads = receiver.symbol.methods[name],
            let method = overloads.first(where: { declared in
                declared.modifiers.contains { $0.name.text == "mutating" }
            }),
-           let body = method.body {
+           let body = method.body,
+           let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             let selfEnv = selfEnvironment(.enumCase(receiver))
             let closure = makeFunctionClosure(method, body: body, captured: selfEnv)
@@ -450,17 +471,42 @@ extension Interpreter {
                 // `self = .loaded(last)` rides as a marker — the receiver's
                 // own symbol is the annotation that resolves it to a case.
                 let resolved = try resolveAnnotated(newSelf, typeName: receiver.symbol.name)
-                try relocating(call) { try target.write(resolved, self) }
+                try relocating(call) { try target.writeOwned(resolved, self) }
             }
             return result
+        }
+        // MUTATING methods on source structs use the same copy-in/copy-out
+        // transaction as nested container writes. The method never receives
+        // the caller's storage node; its final `self` is committed through
+        // the complete lvalue path, firing outer observers/state hooks once.
+        if case .instance(let receiver) = baseValue,
+           !receiver.symbol.isClass {
+            let mutating = mutatingInstanceMethods(named: name, on: receiver)
+            if !mutating.isEmpty {
+                let args = try collectArguments(of: call, in: env)
+                if let method = chooseFunction(from: mutating, for: args) ?? mutating.first,
+                   let body = method.body,
+                   let target = try? resolveLValue(base, in: env),
+                   case .instance(let working) = baseValue.copiedForValueSemantics() {
+                    let selfEnv = selfEnvironment(.instance(working))
+                    let closure = makeFunctionClosure(method, body: body, captured: selfEnv)
+                    let result = try callWithArguments(
+                        closure, args: args, node: Syntax(call))
+                    let finalSelf = selfEnv.lookup("self") ?? .instance(working)
+                    let resolved = try resolveAnnotated(
+                        finalSelf, typeName: receiver.symbol.name)
+                    try relocating(call) { try target.writeOwned(resolved, self) }
+                    return result
+                }
+            }
         }
         // Bool.toggle() — ubiquitous in SwiftUI code (`show.toggle()`); writes
         // through the lvalue so @State/@Published notification fires.
         if name == "toggle",
-           let target = try? resolveLValue(base, in: env),
-           let current = try target.read(self).boolValue {
+           let current = baseValue.boolValue,
+           let target = try? resolveLValue(base, in: env) {
             _ = try collectArguments(of: call, in: env) // evaluate (empty) args for side effects
-            try relocating(call) { try target.write(.native(!current), self) }
+            try relocating(call) { try target.writeOwned(.native(!current), self) }
             return .void
         }
 
@@ -470,7 +516,7 @@ extension Interpreter {
         // guard keeps other `path(…)` calls off this route.
         if name == "path",
            call.arguments.contains(where: { $0.label?.text == "percentEncoded" }),
-           case .host(let any) = try evaluate(base, in: env),
+           case .host(let any) = baseValue,
            let url = any as? URL {
             let args = try collectArguments(of: call, in: env)
             let encoded = args.labeled("percentEncoded")?.boolValue ?? true
@@ -480,24 +526,24 @@ extension Interpreter {
         // Mutating String members write through the lvalue:
         // `text.replaceSubrange(range, with: "…")`.
         if name == "replaceSubrange",
-           let target = try? resolveLValue(base, in: env),
-           var text = try target.read(self).stringValue {
+           var text = baseValue.stringValue,
+           let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             guard let replacement = args.labeled("with")?.stringValue,
                   let range = args.positional(0)?.rangeValue else {
                 throw error(call, "replaceSubrange needs a range and 'with:'")
             }
             text.replaceSubrange(try stringSlice(range, in: text, node: call), with: replacement)
-            try relocating(call) { try target.write(.native(text), self) }
+            try relocating(call) { try target.writeOwned(.native(text), self) }
             return .void
         }
 
         // Mutating URL members write through the lvalue (value semantics):
         // `url.append(path:)` / `url.appendPathComponent(_:)`.
         if name == "append" || name == "appendPathComponent",
-           let target = try? resolveLValue(base, in: env),
-           case .host(let existingAny) = try target.read(self),
-           let url = existingAny as? URL {
+           case .host(let existingAny) = baseValue,
+           let url = existingAny as? URL,
+           let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             guard let component = (args.labeled("path") ?? args.labeled("component")
                 ?? args.positional(0))?.stringValue else {
@@ -505,16 +551,16 @@ extension Interpreter {
             }
             var updated = url
             updated.append(path: component)
-            try relocating(call) { try target.write(.native(updated), self) }
+            try relocating(call) { try target.writeOwned(.native(updated), self) }
             return .void
         }
 
         // Data mutations write through the lvalue (value semantics):
         // `data.append(other)` / `data.append(byte)`.
         if name == "append",
-           let target = try? resolveLValue(base, in: env),
-           case .host(let existingAny) = try target.read(self),
-           var bytes = existingAny as? Data {
+           case .host(let existingAny) = baseValue,
+           var bytes = existingAny as? Data,
+           let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             guard let value = args.positional(0) else {
                 throw error(call, "append needs a value")
@@ -528,7 +574,7 @@ extension Interpreter {
             } else {
                 throw error(call, "cannot append \(value.stringified) to Data")
             }
-            try relocating(call) { try target.write(.native(bytes), self) }
+            try relocating(call) { try target.writeOwned(.native(bytes), self) }
             return .void
         }
 
@@ -538,7 +584,6 @@ extension Interpreter {
         // wrapper around it, and plain member access must keep resolving to
         // that extension.
         if name == "size", call.arguments.first?.label?.text == "withAttributes" {
-            let baseValue = try evaluate(base, in: env)
             if let string = baseValue.stringValue,
                case .hostFunction(let measure)? = try readHostMember(
                 "sizeWithAttributes", on: string as Any) {
@@ -554,7 +599,6 @@ extension Interpreter {
         // `text.count(where: { … })` — count-as-function (the property wins
         // for plain `.count`; the call form is label-dispatched here).
         if name == "count", call.arguments.first?.label?.text == "where" {
-            let baseValue = try evaluate(base, in: env)
             let args = try collectArguments(of: call, in: env)
             guard let closure = args.closure(labeled: "where") else {
                 throw error(call, "count(where:) needs a closure")
@@ -575,21 +619,21 @@ extension Interpreter {
         // `code.append("7")` / `append(contentsOf:)` — mutating String
         // append through the lvalue.
         if name == "append",
-           let target = try? resolveLValue(base, in: env),
-           let current = try target.read(self).stringValue {
+           let current = baseValue.stringValue,
+           let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             guard let argument = args.labeled("contentsOf") ?? args.positional(0), !argument.isNil else {
                 throw error(call, "String.append needs a value")
             }
             let suffix = argument.stringValue ?? argument.stringified
-            try relocating(call) { try target.write(.native(current + suffix), self) }
+            try relocating(call) { try target.writeOwned(.native(current + suffix), self) }
             return .void
         }
         // `text.insert(char, at: index)` — String insertion at a String.Index.
         if name == "insert",
            call.arguments.contains(where: { $0.label?.text == "at" }),
-           let target = try? resolveLValue(base, in: env),
-           let current = try target.read(self).stringValue {
+           let current = baseValue.stringValue,
+           let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             guard let element = args.positional(0), !element.isNil,
                   case .host(let idxAny)? = args.labeled("at"),
@@ -599,14 +643,14 @@ extension Interpreter {
             var copy = current
             let clamped = min(index, copy.endIndex)
             copy.insert(contentsOf: element.stringValue ?? element.stringified, at: clamped)
-            try relocating(call) { try target.write(.native(copy), self) }
+            try relocating(call) { try target.writeOwned(.native(copy), self) }
             return .void
         }
 
         let mutating = ["append", "insert", "remove", "removeAll", "removeFirst", "removeLast", "sort"]
         if mutating.contains(name),
-           let target = try? resolveLValue(base, in: env),
-           var array = try target.read(self).arrayValue {
+           var array = baseValue.arrayValue,
+           let target = try? resolveLValue(base, in: env) {
             let args = try collectArguments(of: call, in: env)
             // `items.append(.init())` — the element type comes from the
             // target property's `[Type]` annotation.
@@ -632,7 +676,7 @@ extension Interpreter {
                     let value = try resolved(member)
                     let present = try array.contains { try Builtins.areEqual($0, value) }
                     if !present { array.append(value) }
-                    try relocating(call) { try target.write(.native(array), self) }
+                    try relocating(call) { try target.writeOwned(.native(array), self) }
                     return .native(TupleValue(
                         labels: ["inserted", "memberAfterInsert"],
                         values: [.bool(!present), value]))
@@ -656,14 +700,14 @@ extension Interpreter {
                     for index in indices where array.indices.contains(index) {
                         array.remove(at: index)
                     }
-                    try relocating(call) { try target.write(.native(array), self) }
+                    try relocating(call) { try target.writeOwned(.native(array), self) }
                     return .void
                 }
                 guard let index = args.labeled("at")?.intValue, array.indices.contains(index) else {
                     throw error(call, "remove(at:) index out of range")
                 }
                 let removed = array.remove(at: index)
-                try relocating(call) { try target.write(.native(array), self) }
+                try relocating(call) { try target.writeOwned(.native(array), self) }
                 return removed
             case "removeAll":
                 if let closure = args.closure(labeled: "where") {
@@ -678,12 +722,12 @@ extension Interpreter {
             case "removeFirst":
                 guard !array.isEmpty else { throw error(call, "removeFirst on an empty array") }
                 let removed = array.removeFirst()
-                try relocating(call) { try target.write(.native(array), self) }
+                try relocating(call) { try target.writeOwned(.native(array), self) }
                 return removed
             case "removeLast":
                 guard !array.isEmpty else { throw error(call, "removeLast on an empty array") }
                 let removed = array.removeLast()
-                try relocating(call) { try target.write(.native(array), self) }
+                try relocating(call) { try target.writeOwned(.native(array), self) }
                 return removed
             case "sort":
                 var failure: Error?
@@ -698,7 +742,7 @@ extension Interpreter {
             default:
                 return nil
             }
-            try relocating(call) { try target.write(.native(array), self) }
+            try relocating(call) { try target.writeOwned(.native(array), self) }
             return .void
         }
 

@@ -5,8 +5,371 @@ private func evaluateValueSemantics(_ source: String) throws -> RuntimeValue {
     try Interpreter().run(source: source)
 }
 
+private struct NativeValueCounter {
+    var value: Int
+
+    mutating func bump() {
+        value += 1
+    }
+
+    func reader() -> () -> Int {
+        { value }
+    }
+}
+
+private struct NativeValueHolder {
+    var counter: NativeValueCounter
+}
+
+private final class NativeReferenceCounter {
+    var value: Int
+
+    init(value: Int) {
+        self.value = value
+    }
+}
+
+private struct NativeReferenceHolder {
+    var counter: NativeReferenceCounter
+}
+
+private struct NativeValueBag {
+    var values: [Int]
+
+    subscript(index: Int) -> Int {
+        get { values[index] }
+        set { values[index] = newValue }
+    }
+}
+
+private struct NativeValueBagHolder {
+    var bag: NativeValueBag
+}
+
+private struct NativeDelegatingValue {
+    var first: Int
+    var second: Int
+
+    init(first: Int, second: Int) {
+        self.first = first
+        self.second = second
+    }
+
+    init(_ seed: Int) {
+        self.init(first: seed, second: seed + 1)
+    }
+}
+
+private protocol NativeIncrementable {
+    var value: Int { get set }
+}
+
+private extension NativeIncrementable {
+    mutating func increment() {
+        value += 1
+    }
+}
+
+private struct NativeProtocolCounter: NativeIncrementable {
+    var value: Int
+}
+
+private final class NativeObserverProbe {
+    var runs = 0
+}
+
+private struct NativeObservedHolder {
+    let observer: NativeObserverProbe
+    var counter: NativeValueCounter {
+        didSet { observer.runs += 1 }
+    }
+}
+
+private struct NativeInitializationObservedValue {
+    let observer: NativeObserverProbe
+    var value: Int {
+        didSet { observer.runs += 1 }
+    }
+
+    init(observer: NativeObserverProbe) {
+        self.observer = observer
+        self.value = 1
+    }
+}
+
 @Suite("Core value semantics")
 struct CoreValueSemanticsTests {
+    @Test func structInitializerSuppressesObserversAcrossValueCopies() throws {
+        let nativeObserver = NativeObserverProbe()
+        var nativeValue = NativeInitializationObservedValue(observer: nativeObserver)
+        nativeValue.value = 2
+        let native = "\(nativeValue.value) \(nativeObserver.runs)"
+
+        let source = #"""
+        var observerRuns = 0
+        struct Value {
+            var value: Int {
+                didSet { observerRuns += 1 }
+            }
+
+            init() {
+                self.value = 1
+            }
+        }
+        var value = Value()
+        value.value = 2
+        "\(value.value) \(observerRuns)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func sourceStructAssignmentAndNestedMutationMatchNativeSwift() throws {
+        let nativeOriginal = NativeValueHolder(counter: NativeValueCounter(value: 1))
+        var nativeCopy = nativeOriginal
+        nativeCopy.counter.value = 9
+        let native = "\(nativeOriginal.counter.value) \(nativeCopy.counter.value)"
+
+        let source = #"""
+        struct Counter { var value: Int }
+        struct Holder { var counter: Counter }
+        var original = Holder(counter: Counter(value: 1))
+        var copy = original
+        copy.counter.value = 9
+        "\(original.counter.value) \(copy.counter.value)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func sourceStructArgumentsReturnsAndMutatingMethodsMatchNativeSwift() throws {
+        func nativeChanged(_ input: NativeValueCounter) -> NativeValueCounter {
+            var result = input
+            result.bump()
+            return result
+        }
+        let nativeOriginal = NativeValueCounter(value: 3)
+        let nativeChangedValue = nativeChanged(nativeOriginal)
+        let native = "\(nativeOriginal.value) \(nativeChangedValue.value)"
+
+        let source = #"""
+        struct Counter {
+            var value: Int
+            mutating func bump() { value += 1 }
+        }
+        func changed(_ input: Counter) -> Counter {
+            var result = input
+            result.bump()
+            return result
+        }
+        let original = Counter(value: 3)
+        let changedValue = changed(original)
+        "\(original.value) \(changedValue.value)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func sourceStructsInsideArraysMatchNativeSwift() throws {
+        let nativeOriginal = [NativeValueHolder(counter: NativeValueCounter(value: 2))]
+        var nativeCopy = nativeOriginal
+        nativeCopy[0].counter.value = 8
+        let native = "\(nativeOriginal[0].counter.value) \(nativeCopy[0].counter.value)"
+
+        let source = #"""
+        struct Counter { var value: Int }
+        struct Holder { var counter: Counter }
+        var original = [Holder(counter: Counter(value: 2))]
+        var copy = original
+        copy[0].counter.value = 8
+        "\(original[0].counter.value) \(copy[0].counter.value)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func classReferencesInsideCopiedStructsMatchNativeSwift() throws {
+        let nativeOriginal = NativeReferenceHolder(counter: NativeReferenceCounter(value: 4))
+        let nativeCopy = nativeOriginal
+        nativeCopy.counter.value = 7
+        let native = "\(nativeOriginal.counter.value) \(nativeCopy.counter.value)"
+
+        let source = #"""
+        class Counter { var value: Int }
+        struct Holder { var counter: Counter }
+        let original = Holder(counter: Counter(value: 4))
+        let copy = original
+        copy.counter.value = 7
+        "\(original.counter.value) \(copy.counter.value)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func nestedMutatingMethodWritesBackThroughPropertyObserver() throws {
+        let nativeObserver = NativeObserverProbe()
+        var nativeHolder = NativeObservedHolder(
+            observer: nativeObserver, counter: NativeValueCounter(value: 5))
+        nativeHolder.counter.bump()
+        let native = "\(nativeHolder.counter.value) \(nativeObserver.runs)"
+
+        let source = #"""
+        var observerRuns = 0
+        struct Counter {
+            var value: Int
+            mutating func bump() { value += 1 }
+        }
+        struct Holder {
+            var counter: Counter {
+                didSet { observerRuns += 1 }
+            }
+        }
+        var holder = Holder(counter: Counter(value: 5))
+        holder.counter.bump()
+        "\(holder.counter.value) \(observerRuns)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func methodClosureCapturesStructSelfByValueLikeNativeSwift() throws {
+        var nativeCounter = NativeValueCounter(value: 6)
+        let nativeReader = nativeCounter.reader()
+        nativeCounter.value = 10
+        let native = "\(nativeReader()) \(nativeCounter.value)"
+
+        let source = #"""
+        struct Counter {
+            var value: Int
+            func reader() -> () -> Int { { value } }
+        }
+        var counter = Counter(value: 6)
+        let reader = counter.reader()
+        counter.value = 10
+        "\(reader()) \(counter.value)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func explicitClosureCaptureListSnapshotsStructValuesLikeNativeSwift() throws {
+        var nativeCounter = NativeValueCounter(value: 11)
+        let nativeReader = { [snapshot = nativeCounter] in snapshot.value }
+        nativeCounter.value = 12
+        let native = "\(nativeReader()) \(nativeCounter.value)"
+
+        let source = #"""
+        struct Counter { var value: Int }
+        var counter = Counter(value: 11)
+        let reader = { [snapshot = counter] in snapshot.value }
+        counter.value = 12
+        "\(reader()) \(counter.value)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func structCopiesKeepWrapperLocationsButSeparateOrdinaryStorage() throws {
+        let interpreter = Interpreter()
+        try interpreter.run(source: """
+        struct Sample {
+            @State var state = 1
+            @Binding var binding: Int
+            var ordinary: Int
+        }
+        """)
+        let symbol = try #require(
+            interpreter.structSymbols.first { $0.name == "Sample" })
+        let external = Box(.native(2))
+        let original = try interpreter.instantiate(symbol, with: CallArguments(arguments: [
+            .init(label: "binding", value: .native(BindingStub(box: external))),
+            .init(label: "ordinary", value: .native(3)),
+        ]))
+        guard case .instance(let originalInstance) = original,
+              case .instance(let copiedInstance) = original.copiedForValueSemantics() else {
+            Issue.record("Sample should copy as an interpreted struct")
+            return
+        }
+
+        #expect(copiedInstance !== originalInstance)
+        #expect(copiedInstance.stateBoxes["state"] === originalInstance.stateBoxes["state"])
+        #expect(copiedInstance.properties["binding"] === external)
+        #expect(copiedInstance.properties["ordinary"] !== originalInstance.properties["ordinary"])
+    }
+
+    @Test func nestedSourceStructSubscriptCopiesOutLikeNativeSwift() throws {
+        let nativeOriginal = NativeValueBagHolder(
+            bag: NativeValueBag(values: [1, 2]))
+        var nativeCopy = nativeOriginal
+        nativeCopy.bag[0] = 9
+        let native = "\(nativeOriginal.bag[0]) \(nativeCopy.bag[0])"
+
+        let source = #"""
+        struct Bag {
+            var values: [Int]
+            subscript(index: Int) -> Int {
+                get { values[index] }
+                set { values[index] = newValue }
+            }
+        }
+        struct Holder { var bag: Bag }
+        let original = Holder(bag: Bag(values: [1, 2]))
+        var copy = original
+        copy.bag[0] = 9
+        "\(original.bag[0]) \(copy.bag[0])"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func delegatingStructInitializerCommitsReplacementSelfLikeNativeSwift() throws {
+        let nativeValue = NativeDelegatingValue(4)
+        let native = "\(nativeValue.first) \(nativeValue.second)"
+
+        let source = #"""
+        struct Value {
+            var first: Int
+            var second: Int
+
+            init(first: Int, second: Int) {
+                self.first = first
+                self.second = second
+            }
+
+            init(_ seed: Int) {
+                self.init(first: seed, second: seed + 1)
+            }
+        }
+        let value = Value(4)
+        "\(value.first) \(value.second)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func protocolDefaultMutatingMethodCopiesOutLikeNativeSwift() throws {
+        let nativeOriginal = NativeProtocolCounter(value: 7)
+        var nativeCopy = nativeOriginal
+        nativeCopy.increment()
+        let native = "\(nativeOriginal.value) \(nativeCopy.value)"
+
+        let source = #"""
+        protocol Incrementable {
+            var value: Int { get set }
+        }
+        extension Incrementable {
+            mutating func increment() { value += 1 }
+        }
+        struct Counter: Incrementable { var value: Int }
+        let original = Counter(value: 7)
+        var copy = original
+        copy.increment()
+        "\(original.value) \(copy.value)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
     @Test func dictionaryAssignmentDoesNotAlias() throws {
         let source = #"""
         var original = ["count": 1]

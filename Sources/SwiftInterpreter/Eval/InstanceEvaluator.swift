@@ -93,7 +93,7 @@ extension Interpreter {
                     typeName: property.typeAnnotation?.trimmedDescription ?? "",
                     seen: &seen)) ?? .nilValue
             }
-            let box = Box(value)
+            let box = Box(value.copiedForValueSemantics())
             if notifying.contains(property.name) {
                 // @Published (or @Observable-tracked) mutation → model signal.
                 let signal = instance.changeSignal
@@ -174,7 +174,7 @@ extension Interpreter {
                     // arguments bind as properties so later reads
                     // (`size` in sceneDidLoad) see the passed values.
                     if let superName = symbol.superclassName, !isInterpretedType(superName) {
-                        instance.properties[label] = Box(argument.value)
+                        instance.properties[label] = Box(argument.value.copiedForValueSemantics())
                         assigned.insert(label)
                         continue
                     }
@@ -183,7 +183,7 @@ extension Interpreter {
                     // init is invisible to the merge — bind the argument
                     // as a property.
                     if symbol.attributeNames.contains(where: { $0.first?.isUppercase == true }) {
-                        instance.properties[label] = Box(argument.value)
+                        instance.properties[label] = Box(argument.value.copiedForValueSemantics())
                         assigned.insert(label)
                         continue
                     }
@@ -201,14 +201,17 @@ extension Interpreter {
                     // `.constant("")` — a binding to a fixed value.
                     instance.properties[label] = Box(try resolveAnnotated(
                         call.arguments.positional(0) ?? .void,
-                        annotation: property.typeAnnotation))
+                        annotation: property.typeAnnotation).copiedForValueSemantics())
                 } else if let closure = argument.value.closureValue,
                           property.isBuilderClosure,
                           !(property.typeAnnotation?.trimmedDescription.contains("->") ?? false) {
                     // Labeled trailing onto a builder property.
                     box.value = try builderValue(for: property, closure: closure)
+                        .copiedForValueSemantics()
                 } else {
-                    box.value = try resolveAnnotated(argument.value, annotation: property.typeAnnotation)
+                    box.value = try resolveAnnotated(
+                        argument.value, annotation: property.typeAnnotation)
+                        .copiedForValueSemantics()
                 }
             }
             for argument in args.arguments where argument.label == nil {
@@ -224,7 +227,8 @@ extension Interpreter {
                        !symbol.storedProperties.contains(where: { !assigned.contains($0.name) && $0.acceptsTrailingClosure }) {
                         let closure = argument.value.closureValue!
                         let children = try callBuilderClosure(closure, arguments: [])
-                        instance.properties[StructSymbol.layoutChildrenKey] = Box(.native(children))
+                        instance.properties[StructSymbol.layoutChildrenKey] = Box(
+                            RuntimeValue.native(children).copiedForValueSemantics())
                         if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
                             FileHandle.standardError.write(Data(
                                 "LAYOUTSTASH \(symbol.name) children=\(children.count)\n".utf8))
@@ -244,10 +248,11 @@ extension Interpreter {
                         // Builder property — build now (array or grouped views).
                         let closure = argument.value.closureValue!
                         box.value = try builderValue(for: property, closure: closure)
+                            .copiedForValueSemantics()
                     } else {
                         // `var content: (CGSize) -> Content` (builder or not) —
                         // store the closure; the body calls it with arguments.
-                        box.value = argument.value
+                        box.value = argument.value.copiedForValueSemantics()
                     }
                 } else {
                     let message = "argument '_' doesn't match a stored property of '\(symbol.name)'"
@@ -295,6 +300,9 @@ extension Interpreter {
         let instanceKey = ObjectIdentifier(instance)
         let instanceInserted = initializingInstances.insert(instanceKey).inserted
         defer { if instanceInserted { initializingInstances.remove(instanceKey) } }
+        let ownsInitializationFlag = !instance.isInitializing
+        if ownsInitializationFlag { instance.isInitializing = true }
+        defer { if ownsInitializationFlag { instance.isInitializing = false } }
         let parameters = initializerMetadata(for: chosen).parameters
         let initEnv = selfEnvironment(.instance(instance))
         let closure = ClosureValue(
@@ -316,6 +324,7 @@ extension Interpreter {
             return .nilValue // failable init: `return nil` means NO value
         }
         if case .instance(let final)? = initEnv.lookup("self"), final !== instance {
+            if ownsInitializationFlag { final.isInitializing = false }
             return .instance(final) // `self = other` reassigned the value
         }
         return .instance(instance)
@@ -436,7 +445,8 @@ extension Interpreter {
             pushedLexicalOwner = true
         }
         defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
-        let views = try collectBuilderViews(computed.accessor, in: selfEnvironment(.instance(instance)))
+        let views = try collectBuilderViews(
+            computed.accessor, in: selfEnvironment(.instance(instance)))
         return try groupViews(views)
     }
 
@@ -532,7 +542,8 @@ extension Interpreter {
             } else {
                 throw RuntimeError(message: "no ObservableObject of type '\(typeName)' in the environment — inject it with .environmentObject(_:)")
             }
-            instance.box(for: property.name)?.value = .instance(model)
+            instance.box(for: property.name)?.value = RuntimeValue.instance(model)
+                .copiedForValueSemantics()
         }
     }
 
@@ -543,7 +554,7 @@ extension Interpreter {
         for property in instance.symbol.storedProperties {
             guard case .environment(let key) = property.wrapper else { continue }
             if let value = values[key] {
-                instance.box(for: property.name)?.value = value
+                instance.box(for: property.name)?.value = value.copiedForValueSemantics()
                 continue
             }
             // CUSTOM environment keys (extension EnvironmentValues { @Entry
@@ -555,7 +566,9 @@ extension Interpreter {
                    let declared = envExtension.storedProperty(named: key),
                    let initializer = declared.initializer,
                    let value = try? evaluate(initializer, in: globals) {
-                    box.value = (try? resolveAnnotated(value, annotation: declared.typeAnnotation)) ?? value
+                    box.value = ((try? resolveAnnotated(
+                        value, annotation: declared.typeAnnotation)) ?? value)
+                        .copiedForValueSemantics()
                     continue
                 }
                 // Pre-@Entry custom keys: `var currentDate: Date {
@@ -567,12 +580,14 @@ extension Interpreter {
                    let value = try? evaluateComputed(
                        computed, selfValue: .native(EnvironmentValuesStub()), name: key),
                    !value.isNil {
-                    box.value = value
+                    box.value = value.copiedForValueSemantics()
                     continue
                 }
                 let typeName = property.typeAnnotation?.trimmedDescription ?? ""
                 var seen: Set<String> = []
-                box.value = (try? synthesizedFreshValue(typeName: typeName, seen: &seen)) ?? .nilValue
+                box.value = ((try? synthesizedFreshValue(
+                    typeName: typeName, seen: &seen)) ?? .nilValue)
+                    .copiedForValueSemantics()
             }
         }
     }
@@ -784,8 +799,24 @@ extension Interpreter {
 
     func selfEnvironment(_ selfValue: RuntimeValue) -> Environment {
         let env = Environment(parent: globals)
-        env.define("self", selfValue)
+        env.defineBorrowing("self", selfValue)
         return env
+    }
+
+    /// A bound source-struct method owns a snapshot of its receiver rather
+    /// than the caller's storage node. That also makes closures returned by
+    /// the method capture the invocation's value, as native Swift does.
+    /// Class method values retain their receiver identity.
+    func boundMethodSelfValue(_ selfValue: RuntimeValue) -> RuntimeValue {
+        selfValue.copiedForValueSemantics()
+    }
+
+    func instanceMethodEnvironment(_ instance: Instance) -> Environment {
+        selfEnvironment(boundMethodSelfValue(.instance(instance)))
+    }
+
+    func methodIsMutating(_ declaration: FunctionDeclSyntax) -> Bool {
+        declaration.modifiers.contains { $0.name.text == "mutating" }
     }
 
     /// A type annotation turns a bare `.member` (or `.member(payload)`) into

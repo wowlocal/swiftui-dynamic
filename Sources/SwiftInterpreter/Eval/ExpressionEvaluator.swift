@@ -88,7 +88,7 @@ extension Interpreter {
         case .functionCallExpr:
             return try evaluateCall(expr.cast(FunctionCallExprSyntax.self), in: env)
         case .closureExpr:
-            return .closure(makeClosure(expr.cast(ClosureExprSyntax.self), in: env))
+            return .closure(try makeClosure(expr.cast(ClosureExprSyntax.self), in: env))
         case .infixOperatorExpr:
             return try evaluateInfix(expr.cast(InfixOperatorExprSyntax.self), in: env)
         case .prefixOperatorExpr:

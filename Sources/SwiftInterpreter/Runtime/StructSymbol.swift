@@ -115,8 +115,9 @@ public final class StructSymbol {
     public var conformsToLayout: Bool { conformances.contains("Layout") }
     /// Trailing-closure children of a Layout container, stashed at init.
     public static let layoutChildrenKey = "__layoutChildren"
-    /// Declared with `class` — matters for observation; reference semantics
-    /// are the default for ALL instances (the documented struct divergence).
+    /// Declared with `class`: class values retain Instance identity, while
+    /// struct storage envelopes copy at language boundaries and detach nested
+    /// values lazily through composed lvalues.
     public internal(set) var isClass = false
     /// Declared `deinit` body. The interpreter has no reference counting, so
     /// this only runs where a deallocation point is KNOWN — the test harness

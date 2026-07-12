@@ -50,7 +50,17 @@ public final class Environment {
         self.parent = parent
     }
 
+    /// Define a new Swift binding. A fresh binding is a value-ownership
+    /// boundary, so interpreted structs and containers receive independent
+    /// storage while classes, closures, and host objects retain identity.
     public func define(_ name: String, _ value: RuntimeValue) {
+        bindings[name] = Box(value.copiedForValueSemantics())
+    }
+
+    /// Bind an evaluator-owned borrow without introducing a language-level
+    /// copy. `self` environments use this; mutation is committed explicitly
+    /// by their lvalue/copy-out boundary.
+    func defineBorrowing(_ name: String, _ value: RuntimeValue) {
         bindings[name] = Box(value)
     }
 

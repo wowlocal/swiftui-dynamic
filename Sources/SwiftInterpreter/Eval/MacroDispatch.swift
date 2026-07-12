@@ -27,11 +27,13 @@ extension Interpreter {
         }
         if let trailingClosure {
             callArguments.append(.init(
-                label: nil, value: .closure(makeClosure(trailingClosure, in: env)), isTrailing: true))
+                label: nil, value: .closure(try makeClosure(trailingClosure, in: env)),
+                isTrailing: true))
         }
         for extra in additionalTrailingClosures {
             callArguments.append(.init(
-                label: extra.label.text, value: .closure(makeClosure(extra.closure, in: env)),
+                label: extra.label.text,
+                value: .closure(try makeClosure(extra.closure, in: env)),
                 isTrailing: true))
         }
         // The raw argument SOURCE rides along so failure messages can name

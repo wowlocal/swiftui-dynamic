@@ -8,10 +8,15 @@ extension Interpreter {
             arguments.append(.init(label: labeled.label?.text, value: try evaluate(labeled.expression, in: env)))
         }
         if let trailing = call.trailingClosure {
-            arguments.append(.init(label: nil, value: .closure(makeClosure(trailing, in: env)), isTrailing: true))
+            arguments.append(.init(
+                label: nil, value: .closure(try makeClosure(trailing, in: env)),
+                isTrailing: true))
         }
         for extra in call.additionalTrailingClosures {
-            arguments.append(.init(label: extra.label.text, value: .closure(makeClosure(extra.closure, in: env)), isTrailing: true))
+            arguments.append(.init(
+                label: extra.label.text,
+                value: .closure(try makeClosure(extra.closure, in: env)),
+                isTrailing: true))
         }
         return CallArguments(arguments: arguments)
     }
@@ -55,7 +60,8 @@ extension Interpreter {
                 throw error(node, "a Layout value needs a content closure")
             }
             let children = try callBuilderClosure(content, arguments: [])
-            instance.properties[StructSymbol.layoutChildrenKey] = Box(.native(children))
+            instance.properties[StructSymbol.layoutChildrenKey] = Box(
+                RuntimeValue.native(children).copiedForValueSemantics())
             guard let registry else {
                 return try groupViews(children)
             }
@@ -67,7 +73,7 @@ extension Interpreter {
                let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
                let body = method.body {
                 let closure = makeFunctionClosure(
-                    method, body: body, captured: selfEnvironment(.instance(instance)))
+                    method, body: body, captured: instanceMethodEnvironment(instance))
                 return try callWithArguments(closure, args: args, node: Syntax(node))
             }
             return .void
@@ -255,7 +261,7 @@ extension Interpreter {
         }
     }
 
-    func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) -> ClosureValue {
+    func makeClosure(_ closure: ClosureExprSyntax, in env: Environment) throws -> ClosureValue {
         var parameters: [ClosureValue.Parameter] = []
         if let input = closure.signature?.parameterClause {
             switch input {
@@ -269,7 +275,37 @@ extension Interpreter {
                 }
             }
         }
-        let value = ClosureValue(parameters: parameters, body: closure.statements, captured: env)
+        var snapshot: Environment?
+        // A closure literal inside a source-struct member captures `self` by
+        // value. Snapshot only when the closure is created, rather than deep-
+        // copying the receiver for every computed-property/body evaluation.
+        if case .instance(let instance)? = env.lookup("self"),
+           !instance.symbol.isClass {
+            let selfSnapshot = Environment(parent: env)
+            selfSnapshot.define("self", .instance(instance))
+            snapshot = selfSnapshot
+        }
+        if let captureList = closure.signature?.capture?.items, !captureList.isEmpty {
+            let captureSnapshot = snapshot ?? Environment(parent: env)
+            for capture in captureList {
+                let name = capture.name.text
+                let capturedValue: RuntimeValue
+                if let initializer = capture.initializer?.value {
+                    capturedValue = try evaluate(initializer, in: env)
+                } else {
+                    capturedValue = try resolveIdentifier(name, in: env, node: capture)
+                }
+                // Environment.define is the value boundary. Struct captures
+                // snapshot their storage envelope; class/weak/unowned
+                // captures retain their source identity (ARC lifetime is
+                // outside this VM).
+                captureSnapshot.define(name, capturedValue)
+            }
+            snapshot = captureSnapshot
+        }
+        let value = ClosureValue(
+            parameters: parameters, body: closure.statements,
+            captured: snapshot ?? env)
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
         // only the value environment lets same-named nested types resolve in
@@ -318,7 +354,7 @@ extension Interpreter {
         func applyInoutWriteBacks() throws {
             for entry in writeBacks {
                 if let target = entry.slot.target, let box = env.box(for: entry.name) {
-                    try target.write(box.value, self)
+                    try target.writeOwned(box.value, self)
                 }
             }
         }

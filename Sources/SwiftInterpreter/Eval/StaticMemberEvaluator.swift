@@ -15,6 +15,7 @@ extension Interpreter {
         if let property = symbol.staticProperties[name] {
             let raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
             let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+                .copiedForValueSemantics()
             symbol.staticCache[name] = value
             return value
         }
@@ -58,6 +59,7 @@ extension Interpreter {
                 }
                 backing = try instantiate(
                     wrapperSymbol, with: CallArguments(arguments: arguments), node: nil)
+                    .copiedForValueSemantics()
                 symbol.staticCache[backingKey] = backing
             }
             if case .instance(let wrapper) = backing {
@@ -76,6 +78,7 @@ extension Interpreter {
         if let property = symbol.staticProperties[name] {
             let raw = try evaluate(property.initializer, in: staticInitEnvironment(for: symbol))
             let value = try resolveAnnotated(raw, annotation: property.typeAnnotation)
+                .copiedForValueSemantics()
             symbol.staticCache[name] = value
             return value
         }

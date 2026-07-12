@@ -53,6 +53,29 @@ one. Arrays use Swift's copy-on-write storage; `TupleValue` and `DictValue` are
 value types, and collection lvalues perform read-modify-write through their
 owner so nested updates retain value semantics.
 
+`Runtime/ValueSemantics.swift` is the single ownership authority for source
+values. A new `Environment` binding, call parameter/return slot, lvalue write,
+or container/property slot copies a source struct's immediate storage envelope
+while preserving source-class and opaque-host identity. Native arrays,
+dictionaries, tuples, ranges, and immutable enum cases retain their value/COW
+storage instead of being walked eagerly. `Instance` remains a shared physical
+storage node, but `StructSymbol.isClass` selects its language semantics.
+Wrapper-bearing struct copies share only the locations that are
+reference-bearing in SwiftUI (`@State`, `@StateObject`, `@Binding`).
+Escaping host snapshot stores that can mutate without an interpreter lvalue
+use the same module's explicit deep-isolation operation on copy-in and
+copy-out; `CurrentValueSubject` is the canonical example.
+
+`OperatorEvaluator.LValue` composes source-value property and subscript paths
+with array, dictionary, tuple, and host-value paths. A nested write or
+`mutating` call executes against an independent receiver and commits the final
+value outward one owner at a time, so outer property observers and state hooks
+fire. The same transaction spans suspending methods. Nonmutating member reads
+borrow struct `self`; bound method values and closures created inside a struct
+member snapshot it when they escape. Explicit closure capture lists likewise
+create snapshot environments, while ordinary lexical captures continue
+sharing their variable box.
+
 Declaration bodies also retain lexical ownership independently of their
 runtime caller. Functions, initializers, computed properties, view bodies,
 and deferred closures push their declaring type onto an outward-searching
@@ -95,12 +118,13 @@ blocking the main actor.
 
 The remaining semantic migration is deliberately ordered:
 
-1. Separate value-backed interpreted structs from reference-backed classes and
-   observable models.
-2. Extend copy-in/copy-out semantics to source structs, captures, and their
-   mutating-method boundaries.
-3. Move generated and hand-written compatibility gateways onto the landed
+1. Add explicit optional and set cases, and consider a distinct/COW struct
+   representation if profiling shows storage-envelope copies are material;
+   the observable struct/class semantics no longer depend on that refactor.
+2. Move generated and hand-written compatibility gateways onto the landed
    typed declarations without weakening deliberate absorption fallbacks.
+3. Tighten compile-time-only rules (mutability/exclusivity and unsupported
+   ownership forms) where runtime diagnostics add practical value.
 
 New core code should not downcast `host(Any)` to a Swift-shaped value. Direct
 downcasts are reserved for opaque host/framework implementations and should be

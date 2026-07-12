@@ -246,7 +246,8 @@ extension Interpreter {
 
         case .infixOperatorExpr:
             return try await evaluateInfixSuspending(
-                expression.cast(InfixOperatorExprSyntax.self), in: env)
+                expression.cast(InfixOperatorExprSyntax.self), in: env,
+                forceInvocation: forceInvocation)
 
         case .ifExpr:
             try tick(expression)
@@ -323,7 +324,8 @@ extension Interpreter {
     }
 
     private func evaluateInfixSuspending(
-        _ infix: InfixOperatorExprSyntax, in env: Environment
+        _ infix: InfixOperatorExprSyntax, in env: Environment,
+        forceInvocation: Bool
     ) async throws -> RuntimeValue {
         try Task.checkCancellation()
         try tick(infix)
@@ -335,7 +337,9 @@ extension Interpreter {
                 .contains(op) {
             let hint = assignmentAnnotationHint(infix.leftOperand, in: env)
             let rhs = try await withExpectedAnnotationSuspending(hint) {
-                try await evaluateSuspending(infix.rightOperand, in: env)
+                try await evaluateSuspending(
+                    infix.rightOperand, in: env,
+                    forceInvocation: forceInvocation)
             }
             let child = Environment(parent: env)
             let name = temporaryName()
@@ -351,26 +355,42 @@ extension Interpreter {
         switch op {
         case "&&":
             guard try expectBool(
-                await evaluateSuspending(infix.leftOperand, in: env),
+                await evaluateSuspending(
+                    infix.leftOperand, in: env,
+                    forceInvocation: forceInvocation),
                 node: infix.leftOperand) else { return .native(false) }
             return .native(try expectBool(
-                await evaluateSuspending(infix.rightOperand, in: env),
+                await evaluateSuspending(
+                    infix.rightOperand, in: env,
+                    forceInvocation: forceInvocation),
                 node: infix.rightOperand))
         case "||":
             if try expectBool(
-                await evaluateSuspending(infix.leftOperand, in: env),
+                await evaluateSuspending(
+                    infix.leftOperand, in: env,
+                    forceInvocation: forceInvocation),
                 node: infix.leftOperand) { return .native(true) }
             return .native(try expectBool(
-                await evaluateSuspending(infix.rightOperand, in: env),
+                await evaluateSuspending(
+                    infix.rightOperand, in: env,
+                    forceInvocation: forceInvocation),
                 node: infix.rightOperand))
         case "??":
-            let lhs = try await evaluateSuspending(infix.leftOperand, in: env)
+            let lhs = try await evaluateSuspending(
+                infix.leftOperand, in: env,
+                forceInvocation: forceInvocation)
             return lhs.isNil
-                ? try await evaluateSuspending(infix.rightOperand, in: env)
+                ? try await evaluateSuspending(
+                    infix.rightOperand, in: env,
+                    forceInvocation: forceInvocation)
                 : lhs
         default:
-            let lhs = try await evaluateSuspending(infix.leftOperand, in: env)
-            let rhs = try await evaluateSuspending(infix.rightOperand, in: env)
+            let lhs = try await evaluateSuspending(
+                infix.leftOperand, in: env,
+                forceInvocation: forceInvocation)
+            let rhs = try await evaluateSuspending(
+                infix.rightOperand, in: env,
+                forceInvocation: forceInvocation)
             let child = Environment(parent: env)
             let lhsName = temporaryName()
             let rhsName = temporaryName()
@@ -398,13 +418,13 @@ extension Interpreter {
         }
         if let trailing = call.trailingClosure {
             arguments.append(.init(
-                label: nil, value: .closure(makeClosure(trailing, in: env)),
+                label: nil, value: .closure(try makeClosure(trailing, in: env)),
                 isTrailing: true))
         }
         for extra in call.additionalTrailingClosures {
             arguments.append(.init(
                 label: extra.label.text,
-                value: .closure(makeClosure(extra.closure, in: env)),
+                value: .closure(try makeClosure(extra.closure, in: env)),
                 isTrailing: true))
         }
         return CallArguments(arguments: arguments)
@@ -420,6 +440,30 @@ extension Interpreter {
            let baseExpression = member.base {
             let name = member.declName.baseName.text
             let baseValue = try await evaluateSuspending(baseExpression, in: env)
+
+            if let target = try? resolveLValue(baseExpression, in: env),
+               let current = try? target.read(self),
+               case .instance(let receiver) = current,
+               !receiver.symbol.isClass {
+                let mutating = mutatingInstanceMethods(named: name, on: receiver)
+                if !mutating.isEmpty {
+                    let args = try await collectArgumentsSuspending(of: call, in: env)
+                    if let method = chooseFunction(from: mutating, for: args) ?? mutating.first,
+                       let body = method.body,
+                       case .instance(let working) = current.copiedForValueSemantics() {
+                        let selfEnv = selfEnvironment(.instance(working))
+                        let closure = makeFunctionClosure(
+                            method, body: body, captured: selfEnv)
+                        let result = try await callWithArgumentsSuspending(
+                            closure, args: args, node: Syntax(call))
+                        let finalSelf = selfEnv.lookup("self") ?? .instance(working)
+                        let resolved = try resolveAnnotated(
+                            finalSelf, typeName: receiver.symbol.name)
+                        try relocating(call) { try target.writeOwned(resolved, self) }
+                        return result
+                    }
+                }
+            }
 
             if case .instance(let instance) = baseValue,
                let overloads = instance.symbol.methods[name],
@@ -437,7 +481,7 @@ extension Interpreter {
                    let body = method.body {
                     let closure = makeFunctionClosure(
                         method, body: body,
-                        captured: selfEnvironment(.instance(instance)))
+                        captured: instanceMethodEnvironment(instance))
                     return try await invokeSuspending(
                         .closure(closure), with: args, node: call)
                 }
@@ -486,7 +530,7 @@ extension Interpreter {
                        let body = method.body {
                         let closure = makeFunctionClosure(
                             method, body: body,
-                            captured: selfEnvironment(.instance(instance)))
+                            captured: instanceMethodEnvironment(instance))
                         return try await invokeSuspending(
                             .closure(closure), with: args, node: call)
                     }
@@ -522,9 +566,12 @@ extension Interpreter {
                     : overloads
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
                    let body = function.body {
+                    let methodEnvironment = methodIsMutating(function)
+                        ? selfEnvironment(.instance(instance))
+                        : instanceMethodEnvironment(instance)
                     let closure = makeFunctionClosure(
                         function, body: body,
-                        captured: selfEnvironment(.instance(instance)))
+                        captured: methodEnvironment)
                     return try await invokeSuspending(
                         .closure(closure), with: args, node: call)
                 }
@@ -561,7 +608,7 @@ extension Interpreter {
                let body = method.body {
                 let closure = makeFunctionClosure(
                     method, body: body,
-                    captured: selfEnvironment(.instance(instance)))
+                    captured: instanceMethodEnvironment(instance))
                 return try await callWithArgumentsSuspending(
                     closure, args: arguments, node: Syntax(node))
             }
@@ -657,7 +704,7 @@ extension Interpreter {
         func applyInoutWriteBacks() throws {
             for entry in writeBacks {
                 if let target = entry.slot.target, let box = env.box(for: entry.name) {
-                    try target.write(box.value, self)
+                    try target.writeOwned(box.value, self)
                 }
             }
         }

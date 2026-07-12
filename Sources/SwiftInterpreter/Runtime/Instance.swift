@@ -15,11 +15,10 @@ public final class ChangeSignal {
     }
 }
 
-/// A user-struct instance. Deliberately class-backed even though the source
-/// declares a struct: reference semantics are what let a Button action closure
-/// mutate `self.count` and have the next `body` evaluation observe it, with no
-/// copy machinery. Documented divergence from Swift value semantics.
-/// (For `class` declarations, reference semantics is simply correct.)
+/// Storage for an interpreted nominal value. Source structs use this mutable
+/// node behind the runtime's explicit copy/write-back boundary; source classes
+/// retain the node directly. The representation is shared, the semantics are
+/// not: `RuntimeValue.copiedForValueSemantics()` is the ownership authority.
 public final class Instance: CustomStringConvertible {
     public let symbol: StructSymbol
     /// Fired when a notifying (@Published / @Observable-tracked) property mutates.
@@ -30,6 +29,10 @@ public final class Instance: CustomStringConvertible {
     /// `@State`-marked properties, kept separate so the SwiftUI bridge can swap
     /// in persisted boxes across instance recreations.
     public var stateBoxes: [String: Box] = [:]
+    /// Stored after the established public fields so incremental clients keep
+    /// their existing offsets. Struct COW envelopes created while assigning
+    /// `self` carry this observer-suppression state to the final value.
+    var isInitializing = false
 
     public init(symbol: StructSymbol) {
         self.symbol = symbol

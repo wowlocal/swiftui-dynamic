@@ -1,6 +1,15 @@
 import Testing
 @testable import SwiftInterpreter
 
+private struct NativeAsyncCounter {
+    var value: Int
+
+    mutating func bump() async {
+        await Task.yield()
+        value += 1
+    }
+}
+
 @Suite("Async execution")
 struct AsyncExecutionTests {
     private enum ProbeError: Error, CustomStringConvertible {
@@ -17,6 +26,36 @@ struct AsyncExecutionTests {
             return []
         }
         return try #require(instance.box(for: property)?.value.arrayValue).compactMap(\.stringValue)
+    }
+
+    @Test func asyncMutatingStructMethodCopiesOutLikeNativeSwift() async throws {
+        let nativeOriginal = NativeAsyncCounter(value: 1)
+        var nativeCopy = nativeOriginal
+        await nativeCopy.bump()
+        let native = "\(nativeOriginal.value) \(nativeCopy.value)"
+
+        let interpreter = Interpreter()
+        interpreter.globals.define("yielding", .hostFunction(HostFunction(
+            name: "yielding",
+            asyncInvoke: { arguments, _ in
+                await Task.yield()
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+        let interpreted = try await interpreter.runAsync(source: #"""
+        struct Counter {
+            var value: Int
+            mutating func bump() async {
+                value = await yielding(value) + 1
+            }
+        }
+        let original = Counter(value: 1)
+        var copy = original
+        await copy.bump()
+        "\(original.value) \(copy.value)"
+        """#)
+
+        #expect(interpreted.stringValue == native)
     }
 
     @Test func runAsyncMatchesNativeTaskOrdering() async throws {

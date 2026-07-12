@@ -18,8 +18,8 @@ public final class BindingStub {
         element.onChange = {
             guard var updated = parent.value.arrayValue,
                   updated.indices.contains(index) else { return }
-            updated[index] = element.value
-            parent.value = .native(updated)
+            updated[index] = element.value.copiedForValueSemantics()
+            parent.value = RuntimeValue.native(updated).copiedForValueSemantics()
         }
         return .native(BindingStub(box: element))
     }
