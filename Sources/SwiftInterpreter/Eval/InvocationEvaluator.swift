@@ -613,8 +613,16 @@ extension Interpreter {
                 needsSelf = true
                 continue
             }
-            if let box = env.box(for: name, before: globals) {
-                captured.define(name, sharing: box)
+            // `$local.member` is a reference to the projected value of the
+            // underlying local wrapper storage, whose lexical binding is
+            // named `local` (there is no source variable literally named
+            // `$local`). Instance-wrapper projections still fall through to
+            // the implicit-self path below when no such local box exists.
+            let storageName = name.hasPrefix("$") && name.count > 1
+                && !name.dropFirst().allSatisfy(\.isNumber)
+                ? String(name.dropFirst()) : name
+            if let box = env.box(for: storageName, before: globals) {
+                captured.define(storageName, sharing: box)
                 continue
             }
             if case .instance(let instance)? = env.lookup("self"),

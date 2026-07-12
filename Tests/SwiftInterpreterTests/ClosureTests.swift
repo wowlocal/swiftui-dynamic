@@ -85,4 +85,32 @@ private func eval(_ source: String) throws -> RuntimeValue {
         """
         #expect(try eval(source).intValue == 6)
     }
+
+    /// Native Swift 6 strict-concurrency probe: a nested closure that uses
+    /// `$local.flag` retains the body-local `@Bindable` storage and writes
+    /// through to its observable model (`true`).
+    @Test func projectedLocalCaptureKeepsUnderlyingBindableStorage() throws {
+        let source = """
+        @Observable
+        final class Model {
+            var flag = false
+        }
+
+        func probe() -> Bool {
+            let model = Model()
+            @Bindable var local = model
+            let outer = {
+                let inner = {
+                    $local.flag.wrappedValue = true
+                }
+                inner()
+            }
+            outer()
+            return model.flag
+        }
+
+        probe()
+        """
+        #expect(try eval(source).boolValue == true)
+    }
 }
