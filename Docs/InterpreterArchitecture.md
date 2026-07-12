@@ -107,7 +107,11 @@ copy-out; `CurrentValueSubject` is the canonical example.
 with array, dictionary, tuple, and host-value paths. A nested write or
 `mutating` call executes against an independent receiver and commits the final
 value outward one owner at a time, so outer property observers and state hooks
-fire. The same transaction spans suspending methods. Nonmutating member reads
+fire. Dictionary paths distinguish a missing key from a stored Optional
+`.none`; a `default:` read returns the dictionary's `Value` and defers its
+fallback during read-modify access, while a direct write preserves Swift's
+setter-side fallback evaluation. The same transaction spans suspending methods.
+Nonmutating member reads
 borrow struct `self`; bound method values and closures created inside a struct
 member snapshot it when they escape. Explicit closure capture lists likewise
 create snapshot environments, while ordinary lexical captures continue

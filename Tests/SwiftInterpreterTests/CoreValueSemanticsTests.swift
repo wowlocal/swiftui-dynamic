@@ -449,6 +449,54 @@ struct CoreValueSemanticsTests {
         #expect(try evaluateValueSemantics(source).stringValue == "1 4")
     }
 
+    @Test func dictionaryDefaultSubscriptMatchesNativeReadAndMutation() throws {
+        let source = #"""
+        var fallbackCalls = 0
+        func fallback(_ value: Int) -> Int {
+            fallbackCalls += 1
+            return value
+        }
+
+        var values = ["present": 2]
+        let present = values["present", default: fallback(10)]
+        let missing = values["missing", default: fallback(20)]
+        values["direct", default: fallback(30)] = 7
+        values["present", default: fallback(40)] += 3
+        values["compound", default: fallback(50)] += 1
+
+        let optionalValues: [String: Int?] = ["presentNil": nil]
+        let retainedNil = optionalValues["presentNil", default: 9] == nil
+        let injectedDefault = optionalValues["missing", default: 9] == 9
+
+        "\(present)|\(missing)|\(values["present"]!)|\(values["direct"]!)|\(values["compound"]!)|\(fallbackCalls)|\(retainedNil)|\(injectedDefault)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue ==
+            "2|20|5|7|51|3|true|true")
+    }
+
+    @Test func dictionaryDefaultSubscriptCombinesFoodTruckSummaries() throws {
+        let source = #"""
+        struct Summary {
+            var sales: [Int: Int]
+
+            func union(_ other: Summary) -> Summary {
+                var copy = self
+                for key in Set(copy.sales.keys).union(Set(other.sales.keys)) {
+                    copy.sales[key, default: 0] += other.sales[key, default: 0]
+                }
+                return copy
+            }
+        }
+
+        let combined = Summary(sales: [1: 2])
+            .union(Summary(sales: [1: 41, 2: 3]))
+        "\(combined.sales[1]!)|\(combined.sales[2]!)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == "43|3")
+    }
+
     @Test func reduceIntoMutatesItsValueAccumulator() throws {
         let source = #"""
         let counts = ["a", "bb", "a"].reduce(into: [:]) { result, value in

@@ -1247,3 +1247,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   hierarchical-chain band pin) + PlatformCanImportTests. **GATE
   GREEN: suite 539; corpus 678/680; live 5/5; parity 345/0/0;
   R1 9/9.**
+- 2026-07-12 Dictionary default-subscript fidelity: the dedicated Optional
+  representation exposed a semantic leak in FoodTruck summary union — an
+  existing `dictionary[key, default: value]` read returned `Optional<Value>`
+  instead of `Value`, so `0 + Optional(41)` dropped two R1 screens (7/9).
+  Defaulted reads now preserve the nonoptional result, distinguish an absent
+  key from a present Optional `.none`, and evaluate the fallback only on a
+  miss. Lvalue resolution carries its access mode: read-modify paths defer the
+  fallback, while direct setters preserve native Swift's observable eager
+  `@autoclosure` evaluation. Pins cover reads, direct/compound mutation,
+  fallback side effects, Optional-valued dictionaries, and FoodTruck's exact
+  two-summary union. SwiftScript comparison rechecked at upstream
+  `71605b28`; FoodTruck restored 7/9→9/9. **GATE GREEN: suite 646; corpus
+  678/680; live 5/5; parity 345/0/0; R1 9/9.**

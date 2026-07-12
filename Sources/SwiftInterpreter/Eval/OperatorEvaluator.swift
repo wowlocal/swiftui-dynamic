@@ -47,12 +47,14 @@ extension Interpreter {
                 }
                 for (element, elementValue) in zip(tuple.elements, values) {
                     if element.expression.is(DiscardAssignmentExprSyntax.self) { continue }
-                    let target = try resolveLValue(element.expression, in: env)
+                    let target = try resolveLValue(
+                        element.expression, in: env, access: .writeOnly)
                     try relocating(infix) { try target.write(elementValue, self) }
                 }
                 return .void
             }
-            let target = try resolveLValue(infix.leftOperand, in: env)
+            let target = try resolveLValue(
+                infix.leftOperand, in: env, access: .writeOnly)
             try relocating(infix) { try target.write(value, self) }
             return .void
         }
@@ -268,6 +270,25 @@ extension Interpreter {
         return false
     }
 
+    enum LValueAccess {
+        case readModify
+        case writeOnly
+    }
+
+    enum DictionaryDefault {
+        case resolved(RuntimeValue)
+        case deferred(ExprSyntax, Environment)
+
+        func value(in interpreter: Interpreter) throws -> RuntimeValue {
+            switch self {
+            case .resolved(let value):
+                return value
+            case .deferred(let expression, let environment):
+                return try interpreter.evaluate(expression, in: environment)
+            }
+        }
+    }
+
     indirect enum LValue {
         case box(Box)
         case instanceProperty(Instance, String)
@@ -279,7 +300,8 @@ extension Interpreter {
         case element(LValue, Int)
         /// Dictionary writes are read-modify-write through their owning
         /// lvalue, preserving value semantics and outer-container write-back.
-        case dictElement(LValue, RuntimeValue, fallback: RuntimeValue? = nil)
+        case dictElement(
+            LValue, RuntimeValue, fallback: DictionaryDefault? = nil)
         /// `trigger.0 = …` / `pair.label = …` — writes mutate the tuple and
         /// re-write the base, so state boxes still notify.
         case tupleElement(LValue, Int)
@@ -394,11 +416,12 @@ extension Interpreter {
                 guard let dict = current.dictValue else {
                     throw EvalMessage(text: "dictionary lvalue contains \(current.stringified), not a dictionary")
                 }
-                let found = try dict.lookup(key)
+                let found = try dict.value(forKey: key)
                 // `sales[key, default: 0] += v` — missing keys read the
                 // default before the mutation, exactly like native.
-                if found.isNil, let fallback { return fallback }
-                return found
+                if let found { return found }
+                if let fallback { return try fallback.value(in: interpreter) }
+                return .nilValue
             case .tupleElement(let base, let index):
                 guard let tuple = try base.read(interpreter).tupleValue,
                       tuple.values.indices.contains(index) else {
@@ -989,7 +1012,30 @@ extension Interpreter {
         return resolved
     }
 
-    func resolveLValue(_ expr: ExprSyntax, in env: Environment) throws -> LValue {
+    private func dictionaryDefault(
+        in call: SubscriptCallExprSyntax, environment: Environment,
+        access: LValueAccess
+    ) throws -> DictionaryDefault? {
+        guard let expression = call.arguments.first(where: {
+            $0.label?.text == "default"
+        })?.expression else {
+            return nil
+        }
+        switch access {
+        case .readModify:
+            return .deferred(expression, environment)
+        case .writeOnly:
+            // Dictionary's setter evaluates its @autoclosure even though the
+            // assigned value replaces the element. Preserve that observable
+            // side effect; read-modify-write keeps it lazy until a miss.
+            return .resolved(try evaluate(expression, in: environment))
+        }
+    }
+
+    func resolveLValue(
+        _ expr: ExprSyntax, in env: Environment,
+        access: LValueAccess = .readModify
+    ) throws -> LValue {
         // `_ = sideEffect()` — a discard sink.
         if expr.is(DiscardAssignmentExprSyntax.self) {
             return .box(Box(.void))
@@ -1227,9 +1273,8 @@ extension Interpreter {
                 return .instanceSubscript(instance, indexArgs)
             }
             if baseValue?.dictValue != nil {
-                let fallback = try subscriptCall.arguments
-                    .first(where: { $0.label?.text == "default" })
-                    .map { try evaluate($0.expression, in: env) }
+                let fallback = try dictionaryDefault(
+                    in: subscriptCall, environment: env, access: access)
                 let base = try resolveLValue(subscriptCall.calledExpression, in: env)
                 return .dictElement(base, try evaluate(indexExpr, in: env), fallback: fallback)
             }
@@ -1295,9 +1340,8 @@ extension Interpreter {
                     if case .hostFunction = current { return true }
                     return false
                 }()
-                let fallback = try subscriptCall.arguments
-                    .first(where: { $0.label?.text == "default" })
-                    .map { try evaluate($0.expression, in: env) }
+                let fallback = try dictionaryDefault(
+                    in: subscriptCall, environment: env, access: access)
                 if current.isNil || isVoid || isMarker {
                     let dict = DictValue()
                     try base.write(.native(dict), self)
@@ -1314,7 +1358,7 @@ extension Interpreter {
             return .element(base, index)
         }
         if let tuple = expr.as(TupleExprSyntax.self), tuple.elements.count == 1, let only = tuple.elements.first {
-            return try resolveLValue(only.expression, in: env)
+            return try resolveLValue(only.expression, in: env, access: access)
         }
         // `components.hour! += 1` — optionals ARE the value, so the
         // force-unwrap lvalue writes through the wrapped path.

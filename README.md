@@ -101,7 +101,8 @@ documented in [`Docs/InterpreterArchitecture.md`](Docs/InterpreterArchitecture.m
 ## Supported subset
 
 **Language**: literals + interpolation, arrays/dictionaries/tuples with
-subscripts, dedicated `Set` values (array-literal/sequence construction,
+subscripts (including Dictionary `default:` reads and mutations with native
+fallback evaluation), dedicated `Set` values (array-literal/sequence construction,
 membership, algebra, mutation, and value semantics), operators with real
 precedence, dedicated recursive Optional values (typed `.none`, nested
 Optionals, IUOs, `if let`/`guard let`/shorthand, `??`, `?.` chaining,

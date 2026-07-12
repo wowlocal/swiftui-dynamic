@@ -206,9 +206,12 @@ extension Interpreter {
         }
         if let dict = base.dictValue {
             let found = try relocating(call) { try dict.value(forKey: index) }
-            // `sales[key, default: 0]` — missing keys read the default.
-            if found == nil,
-               let defaultExpr = call.arguments.first(where: { $0.label?.text == "default" })?.expression {
+            // Dictionary's `default:` subscript returns Value, not Value?.
+            // Its @autoclosure runs only for a missing key on the read path.
+            if let defaultExpr = call.arguments.first(where: {
+                $0.label?.text == "default"
+            })?.expression {
+                if let found { return chained(found) }
                 return chained(try evaluate(defaultExpr, in: env))
             }
             return found.map { .some($0) } ?? .none()
