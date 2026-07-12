@@ -51,6 +51,18 @@
     "notes": "The started barrier forces cancellation-during-suspension. No task-start or sibling-completion order is asserted."
   },
   {
+    "id": "detached-host-context-reentry",
+    "fixture": "Fixtures/detached-host-context-reentry.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await detachedHostContextProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Task.detached does not inherit a TaskLocal value, but an explicitly captured value can be rebound around an async callback and remains visible inside that callback.",
+    "notes": "The interpreter twin uses a real native detached task and verifies that TaskBoundEvalContext rebinds the exact originating EvaluationTaskContext ID."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

@@ -54,6 +54,19 @@ private struct ConcurrencyToolchainFingerprint: CustomStringConvertible {
     }
 }
 
+/// Test host carrier: the callback payload is consumed only by its MainActor
+/// method. `Task.detached` crosses the native task-local boundary while all
+/// interpreter access remains actor-confined.
+private struct DetachedHostCallback: @unchecked Sendable {
+    let context: EvalContext
+    let closure: ClosureValue
+
+    @MainActor
+    func call() async throws -> RuntimeValue {
+        try await context.callClosureAsync(closure, arguments: [])
+    }
+}
+
 private enum ConcurrencyParityHarness {
     static let packageRoot: URL = {
         URL(fileURLWithPath: #filePath)
@@ -168,6 +181,7 @@ private enum ConcurrencyParityHarness {
             + "\n" + entry + "\n"
         let interpreter = Interpreter()
         var waitStarted = false
+        var expectedDetachedContextID: UInt64?
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
             name: "parityYield",
             asyncInvoke: { arguments, _ in
@@ -188,6 +202,42 @@ private enum ConcurrencyParityHarness {
             asyncInvoke: { _, _ in
                 while !waitStarted { await Task.yield() }
                 return .void
+            }
+        )))
+        interpreter.globals.define("parityDetachedInheritance", .hostFunction(HostFunction(
+            name: "parityDetachedInheritance",
+            asyncInvoke: { _, _ in
+                let inherited = await Task.detached { @MainActor in
+                    EvaluationTaskContext.current != nil
+                }.value
+                return .native(inherited ? "inherited" : "lost")
+            }
+        )))
+        interpreter.globals.define("parityDetachedReentry", .hostFunction(HostFunction(
+            name: "parityDetachedReentry",
+            asyncInvoke: { arguments, context in
+                guard let closure = arguments.firstUnlabeledClosure,
+                      let bound = context as? TaskBoundEvalContext else {
+                    throw RuntimeError(message:
+                        "detached re-entry requires a task-bound closure context")
+                }
+                expectedDetachedContextID = bound.evaluationTaskContextID
+                let callback = DetachedHostCallback(
+                    context: context, closure: closure)
+                return try await Task.detached {
+                    try await callback.call()
+                }.value
+            }
+        )))
+        interpreter.globals.define("parityCheckContext", .hostFunction(HostFunction(
+            name: "parityCheckContext",
+            asyncInvoke: { _, context in
+                guard let bound = context as? TaskBoundEvalContext else {
+                    return .native("wrong")
+                }
+                return .native(
+                    bound.evaluationTaskContextID == expectedDetachedContextID
+                        ? "preserved" : "wrong")
             }
         )))
         let value = try await interpreter.runAsync(source: source)
