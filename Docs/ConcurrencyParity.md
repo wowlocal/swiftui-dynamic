@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered | Closing repository gate is 677/680 because the independently added off-platform UIKit bridge returns an empty `UIApplication.openSettingsURLString`; structured task constructs begin in M4 after M3 |
+| M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -839,7 +839,38 @@ Combined verification on Apple Swift 6.3.3 / macOS 26.5 SDK:
   generated platform bridge exposes an unrelated IceCubes
   `UIApplication.openSettingsURLString` fallback regression.
 
-All M2 architecture deliverables and semantic proofs are present, but M2 stays
-`in progress` until the repository gate again satisfies its 678/680 corpus
-ratchet. No structured-concurrency support is claimed; that starts in M4 only
-after the M3 suspension foundation.
+At this audit point all M2 architecture deliverables and semantic proofs were
+present, but M2 stayed `in progress` until the repository gate again satisfied
+its 678/680 corpus ratchet. No structured-concurrency support was claimed;
+that starts in M4 only after the M3 suspension foundation.
+
+### M2 closing repository gate
+
+The closing audit found two platform-bridge regressions outside the task
+runtime. Both were fixed at their metadata category rather than for IceCubes:
+
+- opposite-platform non-optional static `String` properties now preserve an
+  opaque symbol instead of inventing an empty string, so valid SDK URL tokens
+  do not become `nil` at `URL(string:)`;
+- `UIFontMetrics` is a UIKit type-level BridgeGen root, which generates its
+  complete mechanically supported surface, including `default` and
+  `scaledValue(for:)`, instead of absorbing that call as an untyped marker.
+
+The committed same-source Catalyst probes compile and run with Apple Swift
+6.3.3 in Swift 6 strict-concurrency mode. Both return `true` natively. Before
+their respective fixes, the interpreter returned `false` for the settings URL
+and diagnosed no matching `systemFont(ofSize:)` overload for the scaled-font
+chain; after the general fixes, both match native behavior.
+
+Closing verification on Apple Swift 6.3.3 / macOS 26.5 SDK:
+
+- 8 generated-platform bridge tests passed;
+- all 53 M2 concurrency-parity, async-execution, host-signature,
+  task-cancellation, task-completion, and task-diagnostic tests passed;
+- all 740 tests passed in 146 suites;
+- `Scripts/gate.sh` passed with suite 740/740, corpus 678/680, live 5/5, and
+  API parity 345 match / 0 diverge / 0 interpreter errors / 17 unstable /
+  0 no-twin.
+
+M2 is complete. Structured concurrency is still not claimed; M3 must first
+provide scheduler-owned suspension and clocks.

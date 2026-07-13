@@ -261,7 +261,7 @@ colors, fonts, images, text and collection views, plus their nested types),
 every mechanically supported public member is generated; there is no
 member-name allowlist. The current SDK produces **102 AppKit types, 83
 constructors, 943 properties, 376 methods, and 423 contextual values**, plus
-**102 UIKit types, 70 constructors, 676 properties, 254 methods, and 363
+**103 UIKit types, 71 constructors, 678 properties, 257 methods, and 364
 contextual values**. Calls compile statically against the real framework on
 its native platform. The same typed contracts remain available on the other
 platform as deterministic inert values, so shared source can still construct,
