@@ -938,7 +938,9 @@ sibling progresses, then verifies its retained `.yielding` suspension history
 and terminal cleanup without using wall-clock delay. The focused concurrency/
 runtime gate passed 56 tests in six suites, including all twenty differential
 repetitions. A clean full build of the exact isolated change set passed all
-743 tests in 146 suites.
+743 tests in 146 suites. `Scripts/gate.sh` passed with suite 743/743, corpus
+678/680, live 5/5, and API parity 345 match / 0 diverge / 0 interpreter errors /
+17 unstable / 0 no-twin.
 
 M3 remains in progress. Cancellation handlers and the remaining first-class
 suspension categories are not yet implemented.
