@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; handles retain typed outcomes; task reads suspend; top-level/drain/cancel host session policies are task-kind neutral | Remaining task kinds, cancellation graph, priority/task-local foundations |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome and source cancellation is catchable | Remaining task kinds, cancellation propagation graph, priority/task-local foundations |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -56,6 +56,7 @@ major version 6.
 | `task-result-cancellation` | exact | A throwing task cancelled during a cancellable suspension completes its result as `.failure` | Native/interpreter parity in 20 repetitions; the fixture asserts case shape rather than error text |
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
 | `unstructured-top-level-lifetime` | exact | An unstructured task may continue after its creating function returns; lexical scope does not join it | Native/interpreter parity in 20 repetitions: `returned,task`; interpreter execution uses the explicit drain policy rather than claiming structured ownership |
+| `task-cancellation-caught` | exact | A task may catch `CancellationError` and complete successfully while its handle remains marked cancelled | Native/interpreter parity in 20 repetitions: `success:caught,cancelled`; request state and terminal outcome are asserted independently |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -387,3 +388,32 @@ already inside host suspension, stored handle state, and empty scheduler/runtime
 tracking after cleanup. In a clean worktree, the 41 concurrency-parity,
 async-execution, and host-signature tests passed, followed by all 714 tests in
 141 suites.
+
+### Cancellation request, observation, and outcome
+
+`task-cancellation-caught` waits inside a throwing suspension, cancels the task
+only after the suspension starts, catches `CancellationError` in source, and
+then inspects both the result and cancellation flag. Twenty Swift 6.3.3 runs
+produced `success:caught,cancelled`. Before implementation, all twenty
+interpreter runs produced `failure,cancelled` because cancellation immediately
+installed a terminal outcome and bypassed source `catch`.
+
+Task records now retain a deterministic `RuntimeCancellationState`: request
+sources plus first request/observation sequence numbers. Requesting cancellation
+of a running task marks and wakes its native task but does not choose its
+outcome. An uncaught observation completes as cancelled; a source catch may
+continue and complete successfully while `isCancelled` remains true. The
+white-box regression verifies a `taskHandle` request, later observation, and a
+successful stored `caught` result.
+
+Automatic evaluator polling no longer turns an ordinary source-task request
+into repeated throws at arbitrary statements. Explicit `Task.checkCancellation`
+and cancellable host operations remain catchable. Root native cancellation and
+`cancelRemainingTasks` use `InterpreterSessionAbort`, which source catch blocks
+cannot consume; boundary code converts it back to the public
+`CancellationError` after owned-task cleanup. Existing host-abort and session
+cleanup regressions remain green.
+
+Verification for the cancellation request/outcome step: the 42
+concurrency-parity, async-execution, and host-signature tests passed, followed
+by all 718 tests in 141 suites.

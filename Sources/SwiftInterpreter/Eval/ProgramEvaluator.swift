@@ -37,8 +37,15 @@ extension Interpreter {
                     sessionID: sessionID)
                 concurrencyRuntime.succeed(root, with: value)
                 return value
+            } catch is InterpreterSessionAbort {
+                concurrencyRuntime.requestCancellation(
+                    root, source: .hostTask)
+                concurrencyRuntime.completeCancellation(root)
+                throw CancellationError()
             } catch is CancellationError {
-                concurrencyRuntime.cancel(root)
+                concurrencyRuntime.requestCancellation(
+                    root, source: .hostTask)
+                concurrencyRuntime.completeCancellation(root)
                 throw CancellationError()
             } catch {
                 concurrencyRuntime.fail(root, with: error)
@@ -53,7 +60,7 @@ extension Interpreter {
         completionPolicy: SessionCompletionPolicy,
         sessionID: RuntimeSessionID
     ) async throws -> RuntimeValue {
-        try Task.checkCancellation()
+        try checkRuntimeCancellation()
 
         let result: RuntimeValue
         do {
@@ -73,7 +80,7 @@ extension Interpreter {
             case .cancelRemainingTasks:
                 await cancelOwnedTasks(in: sessionID)
             }
-            try Task.checkCancellation()
+            try checkRuntimeCancellation()
         } catch {
             await cancelOwnedTasks(in: sessionID)
             throw error
@@ -95,7 +102,7 @@ extension Interpreter {
 
         var last: RuntimeValue = .void
         for item in expandedTopLevelItems(file.statements) {
-            try Task.checkCancellation()
+            try checkRuntimeCancellation()
             if case .stmt(let statement) = item.item,
                statement.is(DeferStmtSyntax.self) {
                 continue
@@ -169,7 +176,7 @@ extension Interpreter {
         while let handle = scheduledTasks.first(where: {
             $0.sessionID == sessionID
         }) {
-            try Task.checkCancellation()
+            try checkRuntimeCancellation()
             await handle.wait()
             releaseScheduledTask(handle)
         }
@@ -179,7 +186,7 @@ extension Interpreter {
         while let handle = scheduledTasks.first(where: {
             $0.sessionID == sessionID
         }) {
-            handle.cancel()
+            handle.cancel(source: .sessionPolicy)
             await handle.wait()
             releaseScheduledTask(handle)
         }

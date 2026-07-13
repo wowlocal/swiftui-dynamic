@@ -115,7 +115,7 @@ extension Interpreter {
         let child = Environment(parent: env)
         var replacements: [SyntaxIdentifier: String] = [:]
         for root in roots {
-            try Task.checkCancellation()
+            try checkRuntimeCancellation()
             let name = temporaryName()
             let value = try await evaluateSuspending(root, in: env)
             child.define(name, value)
@@ -134,7 +134,7 @@ extension Interpreter {
         in env: Environment,
         forceInvocation: Bool = false
     ) async throws -> RuntimeValue {
-        try Task.checkCancellation()
+        try checkRuntimeCancellation()
 
         switch expression.kind {
         case .awaitExpr:
@@ -299,7 +299,7 @@ extension Interpreter {
         _ infix: InfixOperatorExprSyntax, in env: Environment,
         forceInvocation: Bool
     ) async throws -> RuntimeValue {
-        try Task.checkCancellation()
+        try checkRuntimeCancellation()
         try tick(infix)
 
         let binary = infix.operator.as(BinaryOperatorExprSyntax.self)

@@ -46,6 +46,38 @@ public enum RuntimeTaskState: String, Sendable {
     case failed
 }
 
+public enum RuntimeCancellationSource: Hashable, Sendable {
+    case taskHandle
+    case sessionPolicy
+    case hostTask
+    case structuredParent
+}
+
+public struct RuntimeCancellationState: Sendable {
+    public private(set) var sources: Set<RuntimeCancellationSource> = []
+    public private(set) var requestSequence: UInt64?
+    public private(set) var observationSequence: UInt64?
+
+    public var isRequested: Bool { !sources.isEmpty }
+    public var isObserved: Bool { observationSequence != nil }
+
+    mutating func request(
+        from source: RuntimeCancellationSource,
+        sequence: UInt64
+    ) {
+        sources.insert(source)
+        if requestSequence == nil { requestSequence = sequence }
+    }
+
+    mutating func observe(sequence: UInt64) {
+        if observationSequence == nil { observationSequence = sequence }
+    }
+}
+
+/// Infrastructure teardown must not be catchable as an ordinary source
+/// `CancellationError`.
+struct InterpreterSessionAbort: Error {}
+
 /// Mutable lifecycle record owned by the cooperative concurrency runtime.
 /// The source-level handle retains this record after session bookkeeping has
 /// released it, so completed task values remain readable without leaking them
@@ -58,6 +90,7 @@ final class RuntimeTaskRecord {
     var state: RuntimeTaskState = .pending
     var outcome: RuntimeTaskOutcome?
     var failureDescription: String?
+    var cancellation = RuntimeCancellationState()
     var waiters: Set<RuntimeTaskID> = []
     var nativeTask: Task<Void, Never>?
     var evaluationContext: EvaluationTaskContext?
@@ -78,6 +111,7 @@ final class RuntimeTaskRecord {
 final class CooperativeConcurrencyRuntime {
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
+    private var nextEventSequence: UInt64 = 1
     private(set) var records: [RuntimeTaskID: RuntimeTaskRecord] = [:]
 
     func createSession() -> RuntimeSessionID {
@@ -143,12 +177,44 @@ final class CooperativeConcurrencyRuntime {
         record.evaluationContext = nil
     }
 
-    func cancel(_ record: RuntimeTaskRecord) {
+    func requestCancellation(
+        _ record: RuntimeTaskRecord,
+        source: RuntimeCancellationSource
+    ) {
         guard !record.state.isCompleted else { return }
+        record.cancellation.request(
+            from: source, sequence: takeEventSequence())
+        record.nativeTask?.cancel()
+        if record.state == .pending {
+            completeCancellation(record)
+        }
+    }
+
+    func completeCancellation(_ record: RuntimeTaskRecord) {
+        guard !record.state.isCompleted else { return }
+        record.cancellation.observe(sequence: takeEventSequence())
         record.outcome = .cancelled
         record.state = .cancelled
         record.evaluationContext = nil
-        record.nativeTask?.cancel()
+    }
+
+    func observeCancellation(
+        _ id: RuntimeTaskID,
+        inferredSource: RuntimeCancellationSource = .hostTask
+    ) {
+        guard let record = records[id] else { return }
+        if !record.cancellation.isRequested {
+            record.cancellation.request(
+                from: inferredSource, sequence: takeEventSequence())
+        }
+        record.cancellation.observe(sequence: takeEventSequence())
+    }
+
+    func requiresSessionAbort(_ id: RuntimeTaskID) -> Bool {
+        guard let record = records[id] else { return false }
+        return record.kind == .root
+            || record.cancellation.sources.contains(.sessionPolicy)
+            || record.cancellation.sources.contains(.hostTask)
     }
 
     func release(_ id: RuntimeTaskID) {
@@ -156,6 +222,11 @@ final class CooperativeConcurrencyRuntime {
     }
 
     var activeRecordCount: Int { records.count }
+
+    private func takeEventSequence() -> UInt64 {
+        defer { nextEventSequence += 1 }
+        return nextEventSequence
+    }
 }
 
 extension RuntimeTaskState {

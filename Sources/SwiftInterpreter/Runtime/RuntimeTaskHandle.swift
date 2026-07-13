@@ -63,6 +63,7 @@ public final class RuntimeTaskHandle {
     public var state: State { record.state }
     public var outcome: RuntimeTaskOutcome? { record.outcome }
     public var failureDescription: String? { record.failureDescription }
+    public var cancellation: RuntimeCancellationState { record.cancellation }
     var waiterCount: Int { record.waiters.count }
 
     public convenience init() {
@@ -91,11 +92,19 @@ public final class RuntimeTaskHandle {
         record.outcome.map(RuntimeResultValue.init(taskOutcome:))
     }
 
-    public var isCancelled: Bool { record.state == .cancelled }
+    public var isCancelled: Bool { record.cancellation.isRequested }
     public var isCompleted: Bool { record.state.isCompleted }
 
     public func cancel() {
-        runtime.cancel(record)
+        cancel(source: .taskHandle)
+    }
+
+    func cancel(source: RuntimeCancellationSource) {
+        runtime.requestCancellation(record, source: source)
+    }
+
+    func completeCancellation() {
+        runtime.completeCancellation(record)
     }
 
     func attach(_ task: Task<Void, Never>) {

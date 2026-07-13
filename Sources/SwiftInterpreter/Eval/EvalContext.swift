@@ -223,17 +223,24 @@ extension Interpreter: EvalContext {
                 // A newly-created Task never runs inline with its constructor.
                 await Task.yield()
                 guard let self, let handle else { return }
-                guard !Task.isCancelled, handle.begin() else {
-                    handle.cancel()
+                guard handle.begin() else {
+                    handle.completeCancellation()
+                    return
+                }
+                if Task.isCancelled {
+                    handle.cancel(source: .structuredParent)
+                    handle.completeCancellation()
                     return
                 }
                 do {
                     let value = try await self.callBackgroundClosureSuspending(
                         closure, arguments: arguments)
-                    try Task.checkCancellation()
+                    try self.checkRuntimeCancellation()
                     handle.succeed(with: value)
+                } catch is InterpreterSessionAbort {
+                    handle.completeCancellation()
                 } catch is CancellationError {
-                    handle.cancel()
+                    handle.completeCancellation()
                 } catch {
                     handle.fail(with: error)
                 }

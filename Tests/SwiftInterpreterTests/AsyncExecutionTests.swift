@@ -263,6 +263,8 @@ struct AsyncExecutionTests {
         #expect(waitStarted)
         #expect(handle.state == .cancelled)
         #expect(handle.isCancelled)
+        #expect(handle.cancellation.sources.contains(.sessionPolicy))
+        #expect(handle.cancellation.isObserved)
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
@@ -326,6 +328,62 @@ struct AsyncExecutionTests {
         #expect(first.parent != nil)
         #expect(first.parent == second.parent)
         #expect(first.sessionID == second.sessionID)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func caughtCancellationKeepsRequestAndSuccessfulOutcome() async throws {
+        let interpreter = Interpreter()
+        var waitStarted = false
+        interpreter.globals.define("waitForCaughtCancellation", .hostFunction(HostFunction(
+            name: "waitForCaughtCancellation",
+            asyncInvoke: { _, _ in
+                waitStarted = true
+                try await Task.sleep(for: .seconds(30))
+                return .void
+            }
+        )))
+        interpreter.globals.define("awaitCaughtCancellationStarted", .hostFunction(HostFunction(
+            name: "awaitCaughtCancellationStarted",
+            asyncInvoke: { _, _ in
+                while !waitStarted { await Task.yield() }
+                return .void
+            }
+        )))
+
+        _ = try await interpreter.runAsync(source: """
+        func recoverFromCancellation() async -> String {
+            do {
+                await waitForCaughtCancellation()
+                return "not-cancelled"
+            } catch {
+                return "caught"
+            }
+        }
+        let caughtCancellationHandle = Task {
+            await recoverFromCancellation()
+        }
+        await awaitCaughtCancellationStarted()
+        caughtCancellationHandle.cancel()
+        await caughtCancellationHandle.value
+        """)
+
+        guard case .host(let payload)? =
+                interpreter.globals.lookup("caughtCancellationHandle"),
+              let handle = payload as? RuntimeTaskHandle else {
+            Issue.record("expected caught-cancellation task handle")
+            return
+        }
+        #expect(handle.state == .succeeded)
+        #expect(handle.result?.stringValue == "caught")
+        #expect(handle.isCancelled)
+        #expect(handle.cancellation.sources == [.taskHandle])
+        #expect(handle.cancellation.isObserved)
+        if let requested = handle.cancellation.requestSequence,
+           let observed = handle.cancellation.observationSequence {
+            #expect(requested < observed)
+        } else {
+            Issue.record("expected cancellation request and observation sequence")
+        }
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 

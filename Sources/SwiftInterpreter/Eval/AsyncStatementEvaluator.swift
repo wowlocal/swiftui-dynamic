@@ -18,7 +18,7 @@ extension Interpreter {
 
         do {
             for item in items {
-                try Task.checkCancellation()
+                try checkRuntimeCancellation()
                 if case .stmt(let statement) = item.item,
                    let deferStatement = statement.as(DeferStmtSyntax.self) {
                     deferredBodies.append(deferStatement.body.statements)
@@ -42,7 +42,7 @@ extension Interpreter {
     func executeSuspending(
         _ item: CodeBlockItemSyntax, in env: Environment
     ) async throws -> StatementResult {
-        try Task.checkCancellation()
+        try checkRuntimeCancellation()
         try tick(item)
         switch item.item {
         case .decl(let declaration):
@@ -228,7 +228,7 @@ extension Interpreter {
         bindingInto bindings: Environment
     ) async throws -> Bool {
         for element in conditions {
-            try Task.checkCancellation()
+            try checkRuntimeCancellation()
             switch element.condition {
             case .expression(let condition):
                 guard try expectBool(
@@ -350,8 +350,15 @@ extension Interpreter {
         do {
             return try await executeBlockSuspending(
                 doStatement.body.statements, in: Environment(parent: env))
+        } catch is InterpreterSessionAbort {
+            throw InterpreterSessionAbort()
         } catch is CancellationError {
-            throw CancellationError()
+            observeSourceCancellation()
+            try checkRuntimeCancellation()
+            return try await executeCatchSuspending(
+                doStatement.catchClauses,
+                error: .native(CancellationError()),
+                in: env)
         } catch let thrown as InterpretedThrow {
             return try await executeCatchSuspending(
                 doStatement.catchClauses, error: thrown.value, in: env)
@@ -509,7 +516,7 @@ extension Interpreter {
         }
 
         loop: for element in elements {
-            try Task.checkCancellation()
+            try checkRuntimeCancellation()
             try tick(forStatement)
             let child = Environment(parent: env)
             if let casePattern {
@@ -547,7 +554,7 @@ extension Interpreter {
         _ whileStatement: WhileStmtSyntax, in env: Environment
     ) async throws -> StatementResult {
         while true {
-            try Task.checkCancellation()
+            try checkRuntimeCancellation()
             try tick(whileStatement)
             let child = Environment(parent: env)
             guard try await conditionsHoldSuspending(
