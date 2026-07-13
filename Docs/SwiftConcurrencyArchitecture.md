@@ -898,6 +898,26 @@ host contract with:
 - cancellation behavior;
 - preferred resume executor.
 
+Ordinary SDK work should be forwarded, not reimplemented. A generated gateway
+converts source runtime values, performs a statically compiled native Swift
+call when the framework is present in-process, and converts the result back.
+This is the default API-coverage strategy.
+
+Native forwarding does not replace source-language concurrency semantics. A
+native runtime cannot execute an interpreted AST closure, mutate its captured
+environment, or infer the logical parent, cancellation graph, structured
+lifetime, task locals, actor, and resume executor of a source task. The
+interpreter therefore owns those identities and parks its task around the
+native operation; callbacks re-enter through the bound task/executor
+capability below. Compiling arbitrary source closures into forwarding wrappers
+would be a JIT/AOT compiler and would discard the dynamic interpreter model.
+
+If a required framework is unavailable in the host process, the same gateway
+protocol may later target a simulator/device worker with RPC, native-object
+handles, and callback re-entry. That backend can improve platform fidelity,
+but it still uses the same logical suspension and callback machinery and is
+not a substitute for it.
+
 An async host gateway receives a context-bound callback capability. It may:
 
 - suspend the current source task;

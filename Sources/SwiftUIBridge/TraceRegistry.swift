@@ -42,6 +42,7 @@ public final class TraceNode: InertCallable {
 public final class TraceRegistry: HostRegistry {
     /// Nested `Task {}` bodies are scheduled, never run synchronously.
     var taskDepth = 0
+    private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
 
     public init() {}
 
@@ -50,7 +51,10 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func cFunction(named name: String) -> HostFunction? {
-        if let generated = GeneratedPlatformBridge.globalFunction(named: name) {
+        if let generated = GeneratedPlatformBridge.globalFunction(
+            named: name,
+            fallbackRuntime: generatedPlatformFallbacks
+        ) {
             return generated
         }
         switch name {

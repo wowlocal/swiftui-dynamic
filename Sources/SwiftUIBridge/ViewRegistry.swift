@@ -9,6 +9,7 @@ public final class ViewRegistry: HostRegistry {
     var constructors: [String: HostFunction] = [:]
     var modifiers: [String: HostModifier] = [:]
     let mainQueueDeliveryMode: MainQueueDeliveryMode
+    private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
 
     public convenience init() {
         self.init(mainQueueDeliveryMode: .wallClock)
@@ -32,7 +33,10 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func cFunction(named name: String) -> HostFunction? {
-        if let generated = GeneratedPlatformBridge.globalFunction(named: name) {
+        if let generated = GeneratedPlatformBridge.globalFunction(
+            named: name,
+            fallbackRuntime: generatedPlatformFallbacks
+        ) {
             return generated
         }
         switch name {

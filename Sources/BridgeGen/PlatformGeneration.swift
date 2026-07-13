@@ -363,9 +363,11 @@ private func parsePlatformFramework(
     var propertySeen = Set<String>()
     var enumSeen = Set<String>()
 
-    // Clang-imported frameworks expose module functions alongside their
-    // nominals. Select a global when its signature reaches one of the chosen
-    // types; this keeps policy type-level while avoiding an API-name list.
+    // Clang-imported frameworks expose module functions alongside, rather
+    // than beneath, their nominals. Emit every mechanically bridgeable public
+    // global: availability and the shared type/coercion rules are the policy,
+    // so primitive-only Begin/End functions are not lost merely because their
+    // declarations do not mention a selected framework nominal.
     for symbol in graph.symbols where symbol.kind.identifier == "swift.func" {
         guard platformSymbolIsAvailable(symbol, for: spec),
               let function = parsePlatformDecl(symbol.declaration)?
@@ -392,12 +394,8 @@ private func parsePlatformFramework(
               let analyzed = analyzePlatformParameters(
                 function.signature.parameterClause.parameters,
                 framework: spec.name, selectedTypes: selectedTypes,
-                allowNilOnlyPointers: false, blockers: &blockers),
-              platformTypeReferencesSelected(nativeResultType, selectedTypes: selectedTypes)
-                || analyzed.contains(where: {
-                    platformTypeReferencesSelected(
-                        $0.nativeType, selectedTypes: selectedTypes)
-                }) else { continue }
+                allowNilOnlyPointers: false, blockers: &blockers)
+        else { continue }
         for selection in platformParameterSelections(analyzed) {
             let callable = PlatformCallable(
                 framework: spec.name, kind: .globalFunction,
@@ -615,13 +613,18 @@ private func parsePlatformFramework(
     return ParsedPlatformFramework(
         spec: spec, graph: graph, nominals: selected,
         supertypesByType: supertypesByType.mapValues { $0.sorted() },
-        constructors: constructors,
-        methods: methods,
-        staticMethods: staticMethods,
-        globalFunctions: globalFunctions,
-        properties: properties,
-        staticProperties: staticProperties,
-        enumValues: enumValues,
+        // `swift-symbolgraph-extract` does not promise array order. Stable
+        // signature ordering keeps checked-in generation reproducible after a
+        // clean cache or a different machine extracts the same SDK surface.
+        constructors: constructors.sorted { $0.signatureKey < $1.signatureKey },
+        methods: methods.sorted { $0.signatureKey < $1.signatureKey },
+        staticMethods: staticMethods.sorted { $0.signatureKey < $1.signatureKey },
+        globalFunctions: globalFunctions.sorted { $0.signatureKey < $1.signatureKey },
+        properties: properties.sorted { $0.signatureKey < $1.signatureKey },
+        staticProperties: staticProperties.sorted { $0.signatureKey < $1.signatureKey },
+        enumValues: enumValues.sorted {
+            ($0.framework, $0.type, $0.name) < ($1.framework, $1.type, $1.name)
+        },
         knownMembers: knownMembersByKey.values.sorted {
             ($0.type, $0.name) < ($1.type, $1.name)
         },

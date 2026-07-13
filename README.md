@@ -255,23 +255,33 @@ below the registry (the core's `nativeMember`) are pinned in BridgeGen's
 AppKit and UIKit need a second metadata source because most of their
 Clang-imported Objective-C surface is absent from the textual Swift overlay.
 BridgeGen therefore caches `swift-symbolgraph-extract` output for both SDKs
-and emits `Generated/GeneratedPlatformBridge.swift`. Selection is type-level:
-for each configured platform primitive (`NSView`/`UIView`, controls, windows,
-colors, fonts, images, text and collection views, plus their nested types),
-every mechanically supported public member is generated; there is no
-member-name allowlist. The current SDK produces **102 AppKit types, 83
-constructors, 943 properties, 376 methods, and 423 contextual values**, plus
-**103 UIKit types, 71 constructors, 678 properties, 257 methods, and 364
-contextual values**. Calls compile statically against the real framework on
-its native platform. The same typed contracts remain available on the other
-platform as deterministic inert values, so shared source can still construct,
-read, write, and chain the API without pretending that the unavailable
-framework exists. Generated carriers preserve native struct value semantics
-and class identity. Inherited/importer-synthesized initializer shapes and
+and emits `Generated/GeneratedPlatformBridge.swift`. Extracted declarations
+are ordered by stable signature keys, so regenerating before and after a clean
+package cache is byte-identical. Member selection is type-level: for each
+configured platform primitive (`NSView`/`UIView`, controls, windows, colors,
+fonts, images, text and collection views, plus their nested types), every
+mechanically supported public member is generated; there is no member-name
+allowlist. Module-global functions have no nominal parent, so every public
+global accepted by the same availability and type/coercion rules is emitted
+too. The current SDK produces **113 AppKit types, 164 constructors,
+1,029 properties, 516 methods, 13 global functions, and 496 contextual
+values**; **103 UIKit types, 123 constructors, 680 properties, 263 methods, 15
+global functions, and 364 contextual values**; and **14 Metal types, 4
+constructors, 69 properties, 48 methods, 4 global functions, and 12 contextual
+values**. Calls compile statically against the real framework on its native
+platform: ordinary SDK coverage is native forwarding, not a reimplementation.
+The same typed contracts remain available on the other platform as
+deterministic inert values, so shared source can still construct, read, write,
+and chain the API without pretending that the unavailable framework exists.
+Generated carriers preserve native struct value semantics and class identity.
+Complete module-global `Begin…Context`/`End…Context`/
+`Get…FromCurrent…Context` families additionally retain a per-registry nested
+context lifecycle off-platform; this preserves control flow but does not claim
+pixel or device parity. Inherited/importer-synthesized initializer shapes and
 unsupported signatures (for example `inout` delegates) retain the existing
 inert compiled-import fallback instead of weakening matched generated
-contracts. The JSON coverage report's schema v2 records this surface
-under `platformMembers`, including availability filtering and blocker counts.
+contracts. The JSON coverage report's schema v2 records this surface under
+`platformMembers`, including availability filtering and blocker counts.
 
 **The parity harness closes the confidence loop**: `swift run BridgeGen
 --emit --probes` also generates one expression probe per generated member

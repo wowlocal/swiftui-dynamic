@@ -188,15 +188,78 @@ struct GeneratedPlatformGlobalFunctionEntry {
     let resultType: String
     let invoke: Invoke
 
-    func function() throws -> HostFunction {
+    func function(
+        fallbackRuntime: GeneratedPlatformFallbackRuntime,
+        fallbackEffect: GeneratedPlatformGlobalFallbackEffect
+    ) throws -> HostFunction {
         try HostFunction(signature: signature) { arguments, context in
             guard GeneratedPlatformBridge.frameworkIsNative(framework) else {
-                return GeneratedPlatformBridge.fallbackResult(
-                    framework: framework, type: resultType)
+                return fallbackRuntime.result(
+                    for: fallbackEffect,
+                    framework: framework,
+                    resultType: resultType)
             }
             return try invoke(arguments.arguments.map(\.value), context)
         }
     }
+}
+
+/// Per-registry state for deterministic opposite-platform behavior inferred
+/// from generated global-function families. Keeping this beside the registry
+/// isolates one interpreter session's context stack from every other session.
+final class GeneratedPlatformFallbackRuntime {
+    private var contextDepths: [String: Int] = [:]
+
+    func result(
+        for effect: GeneratedPlatformGlobalFallbackEffect,
+        framework: String,
+        resultType: String
+    ) -> RuntimeValue {
+        func key(_ context: String) -> String { "\(framework)|\(context)" }
+
+        switch effect {
+        case .plain:
+            return GeneratedPlatformBridge.fallbackResult(
+                framework: framework, type: resultType)
+        case .pushContext(let context):
+            let contextKey = key(context)
+            contextDepths[contextKey, default: 0] += 1
+            return GeneratedPlatformBridge.fallbackResult(
+                framework: framework, type: resultType)
+        case .popContext(let context):
+            let contextKey = key(context)
+            if let depth = contextDepths[contextKey], depth > 1 {
+                contextDepths[contextKey] = depth - 1
+            } else {
+                contextDepths.removeValue(forKey: contextKey)
+            }
+            return GeneratedPlatformBridge.fallbackResult(
+                framework: framework, type: resultType)
+        case .currentContextValue(let context):
+            guard contextDepths[key(context), default: 0] > 0,
+                  let wrappedType = RuntimeOptionalValue.wrappedType(in: resultType)
+            else {
+                return GeneratedPlatformBridge.fallbackResult(
+                    framework: framework, type: resultType)
+            }
+            return .some(
+                GeneratedPlatformBridge.fallbackResult(
+                    framework: framework, type: wrappedType),
+                wrappedTypeName: wrappedType)
+        }
+    }
+}
+
+enum GeneratedPlatformGlobalFallbackEffect {
+    case plain
+    case pushContext(String)
+    case popContext(String)
+    case currentContextValue(String)
+}
+
+private struct GeneratedPlatformGlobalFunctionKey: Hashable {
+    let framework: String
+    let name: String
 }
 
 struct GeneratedPlatformPropertyEntry {
@@ -240,6 +303,8 @@ enum GeneratedPlatformBridge {
     private static let properties = buildProperties()
     private static let staticMethods = buildStaticMethods()
     private static let globalFunctions = buildGlobalFunctions()
+    private static let globalFallbackEffects = inferGlobalFallbackEffects(
+        from: globalFunctions)
     private static let staticProperties = buildStaticProperties()
     private static let enumValues = buildEnumValues()
     private static let equalityAdapters = buildEqualityAdapters()
@@ -293,7 +358,10 @@ enum GeneratedPlatformBridge {
 #endif
     }
 
-    static func globalFunction(named name: String) -> HostFunction? {
+    static func globalFunction(
+        named name: String,
+        fallbackRuntime: GeneratedPlatformFallbackRuntime
+    ) -> HostFunction? {
         guard let entries = globalFunctions[name], !entries.isEmpty else {
             return nil
         }
@@ -302,13 +370,119 @@ enum GeneratedPlatformBridge {
         }
         guard !ordered.isEmpty else { return nil }
         do {
-            let functions = try ordered.map { try $0.function() }
+            let functions = try ordered.map { entry in
+                let effect = globalFallbackEffects[
+                    GeneratedPlatformGlobalFunctionKey(
+                        framework: entry.framework, name: name)
+                ] ?? .plain
+                return try entry.function(
+                    fallbackRuntime: fallbackRuntime,
+                    fallbackEffect: effect)
+            }
             return functions.count == 1
                 ? functions[0] : try HostFunction(overloads: functions)
         } catch {
             preconditionFailure(
                 "invalid generated global function set '\(name)': \(error)")
         }
+    }
+
+    /// Clang global APIs commonly express balanced state using
+    /// `Begin…Context`/`End…Context` and
+    /// `Get…FromCurrent…Context` naming. Infer only complete families present
+    /// in the generated symbol-graph surface, so the runtime contains no SDK
+    /// function-name allowlist and unrelated optional results remain nil.
+    private static func inferGlobalFallbackEffects(
+        from functions: [String: [GeneratedPlatformGlobalFunctionEntry]]
+    ) -> [GeneratedPlatformGlobalFunctionKey: GeneratedPlatformGlobalFallbackEffect] {
+        var namesByFramework: [String: Set<String>] = [:]
+        for (name, entries) in functions {
+            for entry in entries {
+                namesByFramework[entry.framework, default: []].insert(name)
+            }
+        }
+
+        var effects: [
+            GeneratedPlatformGlobalFunctionKey: GeneratedPlatformGlobalFallbackEffect
+        ] = [:]
+        for (framework, names) in namesByFramework {
+            func entries(named name: String) -> [GeneratedPlatformGlobalFunctionEntry] {
+                (functions[name] ?? []).filter { $0.framework == framework }
+            }
+
+            var endNamesByContext: [String: [String]] = [:]
+            for name in names {
+                if let context = endContextKey(in: name),
+                   entries(named: name).allSatisfy({
+                       $0.resultType == "Void" && $0.signature.parameters.isEmpty
+                   }) {
+                    endNamesByContext[context, default: []].append(name)
+                }
+            }
+            let endContexts = endNamesByContext.compactMapValues { names in
+                names.count == 1 ? names[0] : nil
+            }
+            let begins = names.compactMap { name -> (String, String)? in
+                guard let context = beginContextKey(in: name),
+                      endContexts[context] != nil,
+                      entries(named: name).allSatisfy({ $0.resultType == "Void" })
+                else { return nil }
+                return (name, context)
+            }
+            let activeContexts = Set(begins.map(\.1))
+            for (name, context) in begins {
+                effects[.init(framework: framework, name: name)] =
+                    .pushContext(context)
+            }
+            for context in activeContexts {
+                if let name = endContexts[context] {
+                    effects[.init(framework: framework, name: name)] =
+                        .popContext(context)
+                }
+            }
+            for name in names {
+                guard let context = currentContextKey(in: name),
+                      activeContexts.contains(context),
+                      entries(named: name).allSatisfy({
+                          $0.signature.parameters.isEmpty
+                              && RuntimeOptionalValue.wrappedType(
+                                  in: $0.resultType) != nil
+                      })
+                else { continue }
+                effects[.init(framework: framework, name: name)] =
+                    .currentContextValue(context)
+            }
+        }
+        return effects
+    }
+
+    private static func beginContextKey(in name: String) -> String? {
+        guard let marker = name.range(of: "Begin") else { return nil }
+        let prefix = name[..<marker.lowerBound]
+        let remainder = name[marker.upperBound...]
+        guard let context = remainder.range(of: "Context") else { return nil }
+        let suffix = remainder[context.upperBound...]
+        guard suffix.isEmpty || suffix.hasPrefix("With") else { return nil }
+        return String(prefix + remainder[..<context.upperBound])
+    }
+
+    private static func endContextKey(in name: String) -> String? {
+        guard let marker = name.range(of: "End") else { return nil }
+        let prefix = name[..<marker.lowerBound]
+        let remainder = name[marker.upperBound...]
+        guard remainder.hasSuffix("Context") else { return nil }
+        return String(prefix + remainder)
+    }
+
+    private static func currentContextKey(in name: String) -> String? {
+        guard let get = name.range(of: "Get"),
+              let current = name.range(
+                  of: "FromCurrent", range: get.upperBound..<name.endIndex)
+        else { return nil }
+        let prefix = name[..<get.lowerBound]
+        let context = name[current.upperBound...]
+        guard context.hasSuffix("Context") else { return nil }
+        return String(prefix + context)
     }
 
     static func nativeConstructor(named name: String) -> HostFunction? {

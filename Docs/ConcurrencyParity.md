@@ -30,8 +30,8 @@ major version 6.
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | implementation complete; closing gate pending | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage | Restore the parent-level corpus floor from 676 to the unchanged 678 ratchet before declaring the milestone closed or beginning M4; actor/group/stream/continuation reasons remain with their owning milestones |
-| M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
+| M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
+| M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Earliest open milestone; M1–M3 prerequisites are complete |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1242,6 +1242,53 @@ floor: `oss:PlayCover` still fails native ABI derivation for `sockaddr_in`, and
 on the clean parent commits. No new corpus, live, or API-parity failure was
 introduced.
 
-All M3 semantic deliverables are now implemented. M3 remains unclosed only
-because the repository closing gate is below its unchanged parent-level corpus
-ratchet; M4 must not begin until that gate is restored.
+All M3 semantic deliverables were implemented at this point. The milestone
+remained unclosed until the parent-level repository corpus ratchet was restored
+by the closing work recorded next.
+
+### M3 repository closing gate
+
+The closing gate was two projects below its unchanged 678/680 ratchet because
+of parent-level platform-bridge gaps, not a concurrency regression. Both were
+fixed through host capabilities and generated SDK contracts before beginning
+M4.
+
+`darwin-socket-memory-layout.swift` compiled and ran with the real Apple Swift
+6 compiler against Darwin and established the exact
+size/stride/alignment sequence
+`16,16,1,16,16,4,28,28,4,128,128,8,106,106,1` for `sockaddr`,
+`sockaddr_in`, `sockaddr_in6`, `sockaddr_storage`, and `sockaddr_un`.
+The first interpreter run was RED while trying to guess a stable layout for
+`sockaddr_in`. `HostRegistry.hostABILayout` now lets the selected host bridge
+supply compile-time native layouts for the coherent Darwin socket family;
+source-defined types still take precedence. The isolated `PlayCover` check is
+GREEN at 199 nodes and 32 actions.
+
+`uigraphics-context-image.swift` asks a stateful API question that a declaration
+alone cannot answer: is the current image nil before, during nested image
+contexts, after restoring the outer context, and after ending it? The exact
+fixture compiled with Apple Swift 6.3.3 in Swift 6 strict-concurrency mode for
+an iOS 26.5 simulator and returned
+`nil,image,image,image,nil`. The same source was RED in both generated fallback
+registries as `nil,nil,nil,nil,nil`.
+
+BridgeGen now emits every mechanically bridgeable public module-global
+function from the platform symbol graph, rather than requiring its signature
+to mention a selected nominal type. On the framework's native platform those
+generated gateways directly call the real Swift-imported SDK functions. On an
+opposite-platform verifier, a per-registry generated fallback runtime infers
+only complete `Begin…Context`/`End…Context`/
+`Get…FromCurrent…Context` declaration families and maintains their nested
+context depth; unrelated optional SDK results remain nil. There is no project,
+fixture, literal, or UIKit function-name branch. The exact differential source
+is GREEN through both `ViewRegistry` and `TraceRegistry`, and the isolated
+`home-assistant-ios` check is GREEN at 756 nodes and 8 actions.
+
+The generated platform bridge also has identical warm-cache and clean-cache
+SHA-1 `b1b236488bc217bbf70f4787c9b88e7469eec4b6`; symbol-graph declaration
+order is therefore not part of the checked-in output contract.
+
+The final repository gate passed 767/767 tests in 147 suites. `Scripts/gate.sh`
+also passed corpus 678/680, live 5/5, and API parity 345 match /
+0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin. M3 is complete;
+M4 is now the earliest open milestone.

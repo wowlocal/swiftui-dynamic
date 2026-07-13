@@ -63,6 +63,22 @@ import AppKit
     }
 
 #if canImport(AppKit)
+    @Test func oppositePlatformGraphicsContextPreservesImageLifecycle() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/PlatformParity/Fixtures/uigraphics-context-image.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nuiGraphicsContextImageLifecycle()\n"
+
+        let viewResult = try Interpreter(registry: ViewRegistry()).run(source: source)
+        let traceResult = try Interpreter(registry: TraceRegistry()).run(source: source)
+        #expect(viewResult.stringValue == "nil,image,image,image,nil")
+        #expect(traceResult.stringValue == "nil,image,image,image,nil")
+    }
+
     @Test func appKitDecodedBitmapPropertiesUseNativeScalarContracts() throws {
         let fixtureData = NetworkBridge.placeholderPNG
         let native = try #require(NSBitmapImageRep(data: fixtureData))
