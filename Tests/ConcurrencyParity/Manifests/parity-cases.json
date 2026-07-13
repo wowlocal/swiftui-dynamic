@@ -437,6 +437,18 @@
     "notes": "The child first enters a 30-second cancellable suspension, so natural completion is impossible within the process bound. The parent records scope-exit before returning; exact output child-start,scope-exit,child-cancelled,after-scope proves both implicit cancellation and the scope-exit join."
   },
   {
+    "id": "async-let-early-return",
+    "fixture": "Fixtures/async-let-early-return.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetEarlyReturnProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An early return cancels an unconsumed async-let child and joins it before the caller receives the returned value.",
+    "notes": "The child is already inside a 30-second cancellable suspension when the function records early-return. Exact output is child-start,early-return,child-cancelled,returned,after-return in 20 Swift 6.3.3 runs; the caller-side returned event therefore proves cleanup completed first."
+  },
+  {
     "id": "async-let-value-failure",
     "fixture": "Fixtures/async-let-value-failure.swift",
     "mode": "runtime",
