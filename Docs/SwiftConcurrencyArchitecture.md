@@ -718,14 +718,28 @@ with source-observable task cancellation.
 
 ### 6.14 Task locals
 
-Task-local values live in a persistent inherited map owned by the task record.
-Creation semantics differ by task kind:
+Task-local values live in a logical inherited map owned by the task record.
+The evaluator context for that task receives a capability to the same storage;
+no other task shares the mutable storage object. Creation semantics differ by
+task kind:
 
 - child and unstructured task inheritance is verified natively;
 - detached task inheritance is verified separately;
 - scoped `withValue` pushes a binding for the dynamic extent, including across
   suspension;
 - child mutation cannot mutate the parent's inherited binding.
+
+Ordinary task creation snapshots the map with interpreter value semantics;
+detached creation starts from an empty map unless a separately verified task
+kind says otherwise. Dynamic binding restoration uses structured cleanup so
+throwing and cancelled exits cannot strand the replacement value. Completed
+task contexts clear their maps together with the rest of their dynamic state.
+
+A source `@TaskLocal` declaration is keyed by declaration identity, never by
+its textual member name. Host integrations may use explicitly namespaced
+runtime keys and a task-bound read/scope capability. A host context without
+that capability must diagnose scoped binding as unsupported rather than
+silently run the operation without the binding.
 
 Task locals are never stored in shared interpreter globals.
 

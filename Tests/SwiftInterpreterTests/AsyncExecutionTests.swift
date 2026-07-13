@@ -554,6 +554,82 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func taskLocalStorageIsTaskOwnedInheritedAndCleaned() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("task-local-inheritance.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait taskLocalInheritanceProbe()\n"
+        let interpreter = Interpreter()
+        let key = RuntimeTaskLocalKey(rawValue: "AsyncExecutionTests.value")
+        var observations: [(RuntimeTaskID, RuntimeTaskKind, String)] = []
+        var retainedStorage: [RuntimeTaskID: RuntimeTaskLocalStorage] = [:]
+        var recordStorageMatched = true
+        interpreter.globals.define(
+            "parityYield",
+            .hostFunction(HostFunction(
+                name: "parityYield",
+                asyncInvoke: { arguments, _ in
+                    await Task.yield()
+                    return arguments.positional(0) ?? .nilValue
+                }
+            )))
+        interpreter.globals.define(
+            "parityReadTaskLocal",
+            .hostFunction(HostFunction(
+                name: "parityReadTaskLocal",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let taskID = bound.evaluationContext.runtimeTaskID,
+                          let record = interpreter.concurrencyRuntime
+                            .records[taskID] else {
+                        throw RuntimeError(message:
+                            "task-local read requires a runtime task context")
+                    }
+                    let storage = bound.evaluationContext.taskLocals
+                    retainedStorage[taskID] = storage
+                    recordStorageMatched = recordStorageMatched
+                        && record.taskLocals === storage
+                    let value = context.taskLocalValue(for: key)
+                        ?? .native("default")
+                    observations.append((
+                        taskID, record.kind, value.stringValue ?? "wrong"))
+                    return value
+                }
+            )))
+        interpreter.globals.define(
+            "parityWithTaskLocalValue",
+            .hostFunction(HostFunction(
+                name: "parityWithTaskLocalValue",
+                asyncInvoke: { arguments, context in
+                    guard let value = arguments.positional(0),
+                          let operation = arguments.firstUnlabeledClosure else {
+                        throw RuntimeError(message:
+                            "task-local scope requires a value and operation")
+                    }
+                    return try await context.withTaskLocalValue(
+                        value, for: key, operation: operation, arguments: [])
+                }
+            )))
+
+        let result = try await interpreter.runAsync(source: source)
+        #expect(result.stringValue == "parent,parent:child:parent,default")
+        #expect(observations.filter { $0.1 == .root }.map { $0.2 }
+            == ["parent"])
+        #expect(observations.filter { $0.1 == .unstructured }.map { $0.2 }
+            == ["parent", "child", "parent"])
+        #expect(observations.filter { $0.1 == .detached }.map { $0.2 }
+            == ["default"])
+        #expect(retainedStorage.count == 3)
+        #expect(Set(retainedStorage.values.map(ObjectIdentifier.init)).count == 3)
+        #expect(recordStorageMatched)
+        #expect(retainedStorage.values.allSatisfy { $0.isEmpty })
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func runtimeTaskHandleDispatchesCancellableExtensions() throws {
         let interpreter = Interpreter()
         let result = try interpreter.run(source: """

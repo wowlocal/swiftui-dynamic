@@ -16,6 +16,7 @@ final class EvaluationTaskContext {
     let runtimeSessionID: RuntimeSessionID?
     let isAsyncSession: Bool
     var priority: RuntimeTaskPriority
+    let taskLocals: RuntimeTaskLocalStorage
     weak var interpreter: Interpreter?
 
     var steps = 0
@@ -47,6 +48,7 @@ final class EvaluationTaskContext {
         runtimeSessionID: RuntimeSessionID? = nil,
         isAsyncSession: Bool = false,
         priority: RuntimeTaskPriority = .medium,
+        taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage(),
         interpreter: Interpreter
     ) {
         self.id = id
@@ -54,6 +56,7 @@ final class EvaluationTaskContext {
         self.runtimeSessionID = runtimeSessionID
         self.isAsyncSession = isAsyncSession
         self.priority = priority
+        self.taskLocals = taskLocals
         self.interpreter = interpreter
     }
 
@@ -77,6 +80,7 @@ final class EvaluationTaskContext {
             && expectedAnnotationStack.isEmpty
             && enclosingReturnAnnotations.isEmpty
             && viewIdentitySalts.isEmpty
+            && taskLocals.isEmpty
             && !deferredExtensionRetry
     }
 
@@ -103,6 +107,7 @@ final class EvaluationTaskContext {
         expectedAnnotationStack.removeAll(keepingCapacity: false)
         enclosingReturnAnnotations.removeAll(keepingCapacity: false)
         viewIdentitySalts.removeAll(keepingCapacity: false)
+        taskLocals.removeAll()
         deferredExtensionRetry = false
     }
 }

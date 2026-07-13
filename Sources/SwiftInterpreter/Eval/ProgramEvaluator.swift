@@ -18,15 +18,18 @@ extension Interpreter {
         completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
     ) async throws -> RuntimeValue {
         let sessionID = concurrencyRuntime.createSession()
+        let taskLocals = RuntimeTaskLocalStorage()
         let root = concurrencyRuntime.createTask(
             sessionID: sessionID, kind: .root, parent: nil,
-            priority: RuntimeTaskPriority(Task.currentPriority))
+            priority: RuntimeTaskPriority(Task.currentPriority),
+            taskLocals: taskLocals)
         _ = concurrencyRuntime.begin(root)
         let context = makeEvaluationTaskContext(
             runtimeTaskID: root.id,
             runtimeSessionID: sessionID,
             isAsyncSession: true,
-            priority: root.effectivePriority)
+            priority: root.effectivePriority,
+            taskLocals: taskLocals)
         concurrencyRuntime.bind(context, to: root)
         defer { concurrencyRuntime.release(root.id) }
         return try await EvaluationTaskContext.$current.withValue(context) {

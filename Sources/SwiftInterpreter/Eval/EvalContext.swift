@@ -81,6 +81,22 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue? {
+        bound { interpreter.taskLocalValue(for: key) }
+    }
+
+    func withTaskLocalValue(
+        _ value: RuntimeValue,
+        for key: RuntimeTaskLocalKey,
+        operation: ClosureValue,
+        arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        try await bound {
+            try await interpreter.withTaskLocalValue(
+                value, for: key, operation: operation, arguments: arguments)
+        }
+    }
+
     func invokeHostConstructor(
         named name: String, arguments: CallArguments
     ) throws -> RuntimeValue? {
@@ -170,6 +186,25 @@ extension Interpreter: EvalContext {
         return try await callWithArgumentsSuspending(closure, args: args, node: nil)
     }
 
+    public func taskLocalValue(
+        for key: RuntimeTaskLocalKey
+    ) -> RuntimeValue? {
+        evaluationTaskContext.taskLocals.value(for: key)
+    }
+
+    public func withTaskLocalValue(
+        _ value: RuntimeValue,
+        for key: RuntimeTaskLocalKey,
+        operation: ClosureValue,
+        arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        try await evaluationTaskContext.taskLocals.withValue(
+            value, for: key
+        ) {
+            try await callClosureAsync(operation, arguments: arguments)
+        }
+    }
+
     public func spawnBackgroundTask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
@@ -216,12 +251,16 @@ extension Interpreter: EvalContext {
             ?? concurrencyRuntime.createSession()
         let priority = explicitPriority ?? (kind == .detached
             ? .medium : evaluationTaskContext.priority)
+        let taskLocals = kind == .detached
+            ? RuntimeTaskLocalStorage()
+            : evaluationTaskContext.taskLocals.inheritedCopy()
         let record = concurrencyRuntime.createTask(
             sessionID: sessionID,
             kind: kind,
             parent: kind == .detached
                 ? nil : evaluationTaskContext.runtimeTaskID,
-            priority: priority)
+            priority: priority,
+            taskLocals: taskLocals)
         let handle = RuntimeTaskHandle(
             runtime: concurrencyRuntime, record: record)
         let arguments = arguments
@@ -263,7 +302,8 @@ extension Interpreter: EvalContext {
             runtimeTaskID: handle.id,
             runtimeSessionID: sessionID,
             isAsyncSession: true,
-            priority: record.effectivePriority)
+            priority: record.effectivePriority,
+            taskLocals: taskLocals)
         concurrencyRuntime.bind(taskContext, to: record)
         let operation: @MainActor @Sendable () async -> Void = {
             [weak self, weak handle] in

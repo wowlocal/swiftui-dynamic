@@ -186,11 +186,38 @@ private enum ConcurrencyParityHarness {
         var taskValueGateOpen = false
         var taskValueWaiterCount = 0
         var registeredTaskValueSource: RuntimeTaskHandle?
+        let parityTaskLocalKey = RuntimeTaskLocalKey(
+            rawValue: "ConcurrencyParity.value")
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
             name: "parityYield",
             asyncInvoke: { arguments, _ in
                 await Task.yield()
                 return arguments.positional(0) ?? .nilValue
+            }
+        )))
+        interpreter.globals.define("parityReadTaskLocal", .hostFunction(HostFunction(
+            name: "parityReadTaskLocal",
+            asyncInvoke: { _, context in
+                context.taskLocalValue(for: parityTaskLocalKey)
+                    ?? .native("default")
+            }
+        )))
+        interpreter.globals.define("parityWithTaskLocalValue", .hostFunction(HostFunction(
+            name: "parityWithTaskLocalValue",
+            asyncInvoke: { arguments, context in
+                guard let operation = arguments.firstUnlabeledClosure else {
+                    throw RuntimeError(message:
+                        "parityWithTaskLocalValue requires an operation closure")
+                }
+                guard let value = arguments.positional(0) else {
+                    throw RuntimeError(message:
+                        "parityWithTaskLocalValue requires a value")
+                }
+                return try await context.withTaskLocalValue(
+                    value,
+                    for: parityTaskLocalKey,
+                    operation: operation,
+                    arguments: [])
             }
         )))
         interpreter.globals.define("parityWaitForever", .hostFunction(HostFunction(

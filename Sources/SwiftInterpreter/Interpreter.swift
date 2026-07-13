@@ -129,7 +129,8 @@ public final class Interpreter {
         runtimeTaskID: RuntimeTaskID? = nil,
         runtimeSessionID: RuntimeSessionID? = nil,
         isAsyncSession: Bool = false,
-        priority: RuntimeTaskPriority = .medium
+        priority: RuntimeTaskPriority = .medium,
+        taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage()
     ) -> EvaluationTaskContext {
         let id = nextEvaluationTaskContextID
         nextEvaluationTaskContextID += 1
@@ -139,6 +140,7 @@ public final class Interpreter {
             runtimeSessionID: runtimeSessionID,
             isAsyncSession: isAsyncSession,
             priority: priority,
+            taskLocals: taskLocals,
             interpreter: self)
     }
 

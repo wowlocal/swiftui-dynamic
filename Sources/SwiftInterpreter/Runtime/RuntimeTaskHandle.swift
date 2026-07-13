@@ -73,6 +73,7 @@ public final class RuntimeTaskHandle {
     var structuredChildIDs: Set<RuntimeTaskID> {
         record.structuredChildren
     }
+    var taskLocalCount: Int { record.taskLocals.count }
 
     public convenience init() {
         let runtime = CooperativeConcurrencyRuntime()
@@ -80,7 +81,8 @@ public final class RuntimeTaskHandle {
             sessionID: runtime.createSession(),
             kind: .unstructured,
             parent: nil,
-            priority: .medium)
+            priority: .medium,
+            taskLocals: RuntimeTaskLocalStorage())
         self.init(runtime: runtime, record: record)
     }
 

@@ -24,6 +24,20 @@ enum ParityNativeTaskLocal {
     @TaskLocal static var value = "default"
 }
 
+func parityReadTaskLocal() async -> String {
+    ParityNativeTaskLocal.value
+}
+
+@MainActor
+func parityWithTaskLocalValue(
+    _ value: String,
+    operation: @escaping @MainActor @Sendable () async -> String
+) async -> String {
+    await ParityNativeTaskLocal.$value.withValue(value) {
+        await operation()
+    }
+}
+
 @MainActor
 func parityDetachedInheritance() async -> String {
     await ParityNativeTaskLocal.$value.withValue("parent") {

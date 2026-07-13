@@ -151,6 +151,7 @@ final class RuntimeTaskRecord {
     let parent: RuntimeTaskID?
     let basePriority: RuntimeTaskPriority
     var effectivePriority: RuntimeTaskPriority
+    let taskLocals: RuntimeTaskLocalStorage
     var state: RuntimeTaskState = .pending
     var outcome: RuntimeTaskOutcome?
     var failureDescription: String?
@@ -166,7 +167,8 @@ final class RuntimeTaskRecord {
         sessionID: RuntimeSessionID,
         kind: RuntimeTaskKind,
         parent: RuntimeTaskID?,
-        priority: RuntimeTaskPriority
+        priority: RuntimeTaskPriority,
+        taskLocals: RuntimeTaskLocalStorage
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -174,6 +176,7 @@ final class RuntimeTaskRecord {
         self.parent = parent
         basePriority = priority
         effectivePriority = priority
+        self.taskLocals = taskLocals
     }
 }
 
@@ -193,13 +196,14 @@ final class CooperativeConcurrencyRuntime {
         sessionID: RuntimeSessionID,
         kind: RuntimeTaskKind,
         parent: RuntimeTaskID?,
-        priority: RuntimeTaskPriority
+        priority: RuntimeTaskPriority,
+        taskLocals: RuntimeTaskLocalStorage
     ) -> RuntimeTaskRecord {
         let id = RuntimeTaskID(rawValue: nextTaskID)
         nextTaskID += 1
         let record = RuntimeTaskRecord(
             id: id, sessionID: sessionID, kind: kind, parent: parent,
-            priority: priority)
+            priority: priority, taskLocals: taskLocals)
         records[id] = record
         if let parent, let parentRecord = records[parent] {
             // Creation/inheritance and structured ownership are deliberately

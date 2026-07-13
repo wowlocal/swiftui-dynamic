@@ -107,6 +107,15 @@ public protocol EvalContext: AnyObject {
         arguments: [RuntimeValue],
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue
+    /// Read and scope a runtime task-local value while preserving the source
+    /// task identity across an async host callback.
+    func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue?
+    func withTaskLocalValue(
+        _ value: RuntimeValue,
+        for key: RuntimeTaskLocalKey,
+        operation: ClosureValue,
+        arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue
     /// Let a core builtin with a colliding Swift name defer non-builtin call
     /// shapes to the injected host type (`Task(context:)` for a generated
     /// Core Data entity versus concurrency `Task {}`).
@@ -153,6 +162,20 @@ extension EvalContext {
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue {
         try spawnDetachedTask(closure, arguments: arguments)
+    }
+
+    public func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue? {
+        nil
+    }
+
+    public func withTaskLocalValue(
+        _ value: RuntimeValue,
+        for key: RuntimeTaskLocalKey,
+        operation: ClosureValue,
+        arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        throw RuntimeError(message:
+            "runtime task-local bindings require a task-aware evaluation context")
     }
 
     public func hostTypeName(of value: RuntimeValue) -> String {

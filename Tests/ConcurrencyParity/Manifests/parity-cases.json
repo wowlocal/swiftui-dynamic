@@ -173,6 +173,18 @@
     "notes": "No handle is awaited by higher-priority code before the three raw values are captured, so priority escalation cannot contaminate the inheritance observation. Exact output is 17,17,21 on the active Swift 6.3.3 toolchain."
   },
   {
+    "id": "task-local-inheritance",
+    "fixture": "Fixtures/task-local-inheritance.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskLocalInheritanceProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A scoped task-local binding is inherited by an unstructured Task, not inherited by Task.detached, and restored after a nested binding exits.",
+    "notes": "The same parityWithTaskLocalValue/parityReadTaskLocal declarations are supplied by native and interpreter support. The nested binding crosses a real parityYield suspension. Exact output is parent,parent:child:parent,default."
+  },
+  {
     "id": "unstructured-top-level-lifetime",
     "fixture": "Fixtures/unstructured-top-level-lifetime.swift",
     "mode": "runtime",
