@@ -6,6 +6,69 @@ import Foundation
 /// and never reach this table. Errors are unlocated `EvalMessage`s; the
 /// evaluator re-throws them with the operator node's source location.
 public enum Builtins {
+    /// Integer operator core shared by the ordinary tree evaluator and the
+    /// prepared finite-loop executor. Keeping overflow, division, and shift
+    /// semantics here prevents the optimized path from becoming a second
+    /// language implementation.
+    @inline(__always)
+    static func fastIntBinary(_ op: String, _ lhs: Int, _ rhs: Int) throws -> Int? {
+        switch op {
+        case "+":
+            let (value, overflow) = lhs.addingReportingOverflow(rhs)
+            guard !overflow else { throw EvalMessage(text: "integer overflow") }
+            return value
+        case "-":
+            let (value, overflow) = lhs.subtractingReportingOverflow(rhs)
+            guard !overflow else { throw EvalMessage(text: "integer overflow") }
+            return value
+        case "*":
+            let (value, overflow) = lhs.multipliedReportingOverflow(by: rhs)
+            guard !overflow else { throw EvalMessage(text: "integer overflow") }
+            return value
+        case "/":
+            guard rhs != 0 else { throw EvalMessage(text: "division by zero") }
+            let (value, overflow) = lhs.dividedReportingOverflow(by: rhs)
+            guard !overflow else { throw EvalMessage(text: "integer overflow") }
+            return value
+        case "%":
+            guard rhs != 0 else { throw EvalMessage(text: "division by zero") }
+            let (value, overflow) = lhs.remainderReportingOverflow(dividingBy: rhs)
+            guard !overflow else { throw EvalMessage(text: "integer overflow") }
+            return value
+        case "&+": return lhs &+ rhs
+        case "&-": return lhs &- rhs
+        case "&*": return lhs &* rhs
+        case "&<<": return lhs &<< rhs
+        case "&>>": return lhs &>> rhs
+        case "&": return lhs & rhs
+        case "|": return lhs | rhs
+        case "^": return lhs ^ rhs
+        case "<<": return lhs << rhs
+        case ">>": return lhs >> rhs
+        default: return nil
+        }
+    }
+
+    @inline(__always)
+    static func fastIntComparison(_ op: String, _ lhs: Int, _ rhs: Int) -> Bool? {
+        switch op {
+        case "==": return lhs == rhs
+        case "!=": return lhs != rhs
+        case "<": return lhs < rhs
+        case "<=": return lhs <= rhs
+        case ">": return lhs > rhs
+        case ">=": return lhs >= rhs
+        default: return nil
+        }
+    }
+
+    @inline(__always)
+    static func fastIntNegation(_ value: Int) throws -> Int {
+        let (negated, overflow) = 0.subtractingReportingOverflow(value)
+        guard !overflow else { throw EvalMessage(text: "integer overflow") }
+        return negated
+    }
+
     /// Direct arithmetic/comparison on pure numeric operands — the hot path
     /// for loop counters and recursion, where the general path's marker
     /// adoption, registry consult, and absorption checks are all no-ops.
@@ -14,33 +77,9 @@ public enum Builtins {
     /// Int/Int overflow and division by zero throw exactly like `binary`.
     static func fastNumericBinary(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) throws -> RuntimeValue? {
         if let l = lhs.intValue, let r = rhs.intValue {
-            switch op {
-            case "+":
-                let (v, overflow) = l.addingReportingOverflow(r)
-                guard !overflow else { throw EvalMessage(text: "integer overflow") }
-                return .native(v)
-            case "-":
-                let (v, overflow) = l.subtractingReportingOverflow(r)
-                guard !overflow else { throw EvalMessage(text: "integer overflow") }
-                return .native(v)
-            case "*":
-                let (v, overflow) = l.multipliedReportingOverflow(by: r)
-                guard !overflow else { throw EvalMessage(text: "integer overflow") }
-                return .native(v)
-            case "/":
-                guard r != 0 else { throw EvalMessage(text: "division by zero") }
-                return .native(l / r)
-            case "%":
-                guard r != 0 else { throw EvalMessage(text: "division by zero") }
-                return .native(l % r)
-            case "==": return .native(l == r)
-            case "!=": return .native(l != r)
-            case "<": return .native(l < r)
-            case "<=": return .native(l <= r)
-            case ">": return .native(l > r)
-            case ">=": return .native(l >= r)
-            default: return nil
-            }
+            if let value = try fastIntBinary(op, l, r) { return .native(value) }
+            if let value = fastIntComparison(op, l, r) { return .native(value) }
+            return nil
         }
         guard let l = lhs.doubleValue, let r = rhs.doubleValue else { return nil }
         switch op {
@@ -183,7 +222,7 @@ public enum Builtins {
     static func prefix(_ op: String, _ value: RuntimeValue) throws -> RuntimeValue {
         switch op {
         case "-":
-            if let i = value.intValue { return .native(-i) }
+            if let i = value.intValue { return .native(try fastIntNegation(i)) }
             if let d = value.doubleValue { return .native(-d) }
             // Unknowables negate their fresh numeric reading (0 → 0).
             if let z = absorbedNumeric(value) { return .native(-z) }

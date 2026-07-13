@@ -78,19 +78,26 @@ The idle-state comparison isolates the UI renderer from Metal and is exact:
 With `METAL_SIGNAL_AUTORENDER=1`, both sides show the same computed Aurora
 field and telemetry. In the final verification run:
 
-- exact absolute-error pixels: `329 / 904,800` (`0.036%`)
-- absolute-error pixels with 5/255 channel fuzz: `275 / 904,800` (`0.030%`)
-- normalized RMSE: `0.00503777`
+- exact absolute-error pixels: `313 / 904,800` (`0.035%`)
+- absolute-error pixels with 5/255 channel fuzz: `231 / 904,800` (`0.026%`)
+- normalized RMSE: `0.00292162`
 - 480 × 300 GPU preview crop: `0 / 144,000` differing pixels (`0.000%`)
 
 The remaining whole-window difference is the deliberately live GPU-duration
 label: native and interpreted dispatch plumbing has different CPU overhead,
 and neither value is deterministic, so the whole-window count varies between
-runs. Every differing pixel in this run was inside that label's 47 × 9-pixel
+runs. Every differing pixel in this run was inside that label's 48 × 9-pixel
 bounding box; rendering, output bytes, derived metrics, layout, and every other
-visible state match. Interpreting the two large byte statistics loops is also
-substantially slower than native Swift; this is a performance difference, not
-a Metal or timer-speed difference.
+visible state match.
+
+The interpreter prepares the repeated integer operations in large, finite
+byte loops once while retaining the ordinary evaluator as an all-or-nothing
+fallback for unsupported syntax and capture-sensitive bodies. On the same
+debug build, the two-dispatch interpreted autorender snapshot now completes in
+`3.83 s` (`3.63 s` user CPU), down from `72.09 s`; the native snapshot takes
+`0.63 s`. Metal itself remains a few milliseconds on both paths. The remaining
+gap is interpreter overhead, but it no longer presents as an application hang.
+
 Reproduce both functional snapshots from the repository root with:
 
 ```bash

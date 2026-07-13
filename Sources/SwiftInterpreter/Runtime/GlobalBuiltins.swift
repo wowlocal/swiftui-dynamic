@@ -1,6 +1,12 @@
 import Foundation
 import SwiftSyntax
 
+enum CoreFunctionIntrinsic {
+    case intConversion
+    case integerMinimum
+    case integerMaximum
+}
+
 extension Interpreter {
     // MARK: - Global builtins
 
@@ -85,8 +91,17 @@ extension Interpreter {
     }()
 
     func defineGlobalBuiltins() {
-        func define(_ name: String, _ invoke: @escaping @MainActor (CallArguments, EvalContext) throws -> RuntimeValue) {
-            globals.define(name, .hostFunction(HostFunction(name: name, invoke: invoke)))
+        func define(
+            _ name: String,
+            intrinsic: CoreFunctionIntrinsic? = nil,
+            _ invoke: @escaping @MainActor
+                (CallArguments, EvalContext) throws -> RuntimeValue
+        ) {
+            let function = HostFunction(name: name, invoke: invoke)
+            if let intrinsic {
+                registerCoreFunctionIntrinsic(intrinsic, for: function)
+            }
+            globals.define(name, .hostFunction(function))
         }
         define("print") { args, _ in
             Swift.print(args.arguments.map { $0.value.stringValue ?? $0.value.stringified }.joined(separator: " "))
@@ -138,10 +153,10 @@ extension Interpreter {
                 return .native(HostTypeMarker(name: "Void"))
             }
         }
-        define("min") { args, _ in
+        define("min", intrinsic: .integerMinimum) { args, _ in
             try Self.extremum(args, op: "<")
         }
-        define("max") { args, _ in
+        define("max", intrinsic: .integerMaximum) { args, _ in
             try Self.extremum(args, op: ">")
         }
         define("stride") { args, _ in
@@ -290,7 +305,7 @@ extension Interpreter {
             if let i = value.intValue { return .native(UInt64(max(0, i))) }
             return .native(UInt64(0))
         }
-        define("Int") { args, _ in
+        define("Int", intrinsic: .intConversion) { args, _ in
             guard let value = args.positional(0) ?? args.labeled("exactly") else {
                 return .none(wrappedTypeName: "Int")
             }

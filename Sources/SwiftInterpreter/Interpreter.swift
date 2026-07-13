@@ -29,6 +29,30 @@ public final class Interpreter {
     public static var interpretsAsPlatform = "iOS"
     /// RNG_TRACE diagnostics only.
     public static var rngDrawCount = 0
+    /// Number of large finite loops prepared by this interpreter instance.
+    /// Kept as a white-box metric so parity tests can prove that optimized
+    /// semantics, rather than the tree-walking fallback, were exercised.
+    private(set) var preparedFiniteLoopPlanCount = 0
+    var coreFunctionIntrinsics: [
+        ObjectIdentifier: (function: HostFunction, intrinsic: CoreFunctionIntrinsic)
+    ] = [:]
+
+    func recordPreparedFiniteLoopPlan() {
+        preparedFiniteLoopPlanCount += 1
+    }
+
+    func registerCoreFunctionIntrinsic(
+        _ intrinsic: CoreFunctionIntrinsic,
+        for function: HostFunction
+    ) {
+        coreFunctionIntrinsics[ObjectIdentifier(function)] = (function, intrinsic)
+    }
+
+    func coreFunctionIntrinsic(for function: HostFunction) -> CoreFunctionIntrinsic? {
+        guard let registration = coreFunctionIntrinsics[ObjectIdentifier(function)],
+              registration.function === function else { return nil }
+        return registration.intrinsic
+    }
 
     /// Interpreted protocol declarations' inheritance (`protocol
     /// ConnectedView: View`) — conformance through a protocol must count as

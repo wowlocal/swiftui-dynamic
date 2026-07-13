@@ -159,6 +159,153 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).intValue == 120_000)
     }
 
+    @Test func preparedIntegerLoopsPreserveImageStatisticsSemantics() throws {
+        let nativeBytes = (0..<4_096).map { ($0 * 37 + 11) & 255 }
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "bytes", .native(nativeBytes.map(RuntimeValue.native)))
+
+        let result = try #require(try interpreter.run(source: """
+        var checksum = 17
+        var redTotal = 0
+        var greenTotal = 0
+        var blueTotal = 0
+        var minimumLuma = 255
+        var maximumLuma = 0
+        var sampledTotal = 0
+        var pixel = 0
+
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            let red = Int(bytes[offset])
+            let green = Int(bytes[offset + 1])
+            let blue = Int(bytes[offset + 2])
+            redTotal += red
+            greenTotal += green
+            blueTotal += blue
+            let luma = (red * 54 + green * 183 + blue * 19) / 256
+            minimumLuma = min(minimumLuma, luma)
+            maximumLuma = max(maximumLuma, luma)
+            if pixel % 97 == 0 {
+                sampledTotal += red << 16 | green << 8 | blue
+            }
+            pixel += 1
+        }
+
+        for byte in bytes {
+            checksum = (checksum * 31 + Int(byte)) % 1_000_003
+        }
+        (checksum, redTotal, greenTotal, blueTotal,
+         minimumLuma, maximumLuma, sampledTotal, pixel)
+        """).tupleValue)
+
+        var expectedChecksum = 17
+        var expectedRed = 0
+        var expectedGreen = 0
+        var expectedBlue = 0
+        var expectedMinimumLuma = 255
+        var expectedMaximumLuma = 0
+        var expectedSampledTotal = 0
+        var expectedPixel = 0
+        for offset in stride(from: 0, to: nativeBytes.count, by: 4) {
+            let red = nativeBytes[offset]
+            let green = nativeBytes[offset + 1]
+            let blue = nativeBytes[offset + 2]
+            expectedRed += red
+            expectedGreen += green
+            expectedBlue += blue
+            let luma = (red * 54 + green * 183 + blue * 19) / 256
+            expectedMinimumLuma = min(expectedMinimumLuma, luma)
+            expectedMaximumLuma = max(expectedMaximumLuma, luma)
+            if expectedPixel % 97 == 0 {
+                expectedSampledTotal += red << 16 | green << 8 | blue
+            }
+            expectedPixel += 1
+        }
+        for byte in nativeBytes {
+            expectedChecksum = (expectedChecksum * 31 + byte) % 1_000_003
+        }
+
+        #expect(result.values.compactMap(\.intValue) == [
+            expectedChecksum, expectedRed, expectedGreen, expectedBlue,
+            expectedMinimumLuma, expectedMaximumLuma,
+            expectedSampledTotal, expectedPixel,
+        ])
+        #expect(interpreter.preparedFiniteLoopPlanCount == 2)
+    }
+
+    @Test func preparedLoopPropagatesContinueBreakAndBudgetFailures() throws {
+        let interpreter = Interpreter()
+        let value = try interpreter.run(source: """
+        var total = 0
+        for value in 0..<1_000 {
+            if value % 17 == 0 { continue }
+            if value == 900 { break }
+            total += value
+        }
+        total
+        """)
+        let expected = (0..<900).filter { $0 % 17 != 0 }.reduce(0, +)
+        #expect(value.intValue == expected)
+        #expect(interpreter.preparedFiniteLoopPlanCount == 1)
+
+        let runaway = Interpreter()
+        do {
+            _ = try runaway.run(source: """
+            for value in 0..<300 {
+                if value == 0 { while true {} }
+            }
+            """)
+            Issue.record("expected an infinite prepared-loop branch to trip the budget")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("budget"))
+        }
+        #expect(runaway.preparedFiniteLoopPlanCount == 1)
+    }
+
+    @Test func loopsWithCapturesKeepFreshIterationBindings() throws {
+        let interpreter = Interpreter()
+        let tuple = try #require(try interpreter.run(source: """
+        var callbacks: [() -> Int] = []
+        for value in 0..<300 {
+            callbacks.append({ value })
+        }
+        (callbacks[0](), callbacks[299]())
+        """).tupleValue)
+        #expect(tuple.values.compactMap(\.intValue) == [0, 299])
+        #expect(interpreter.preparedFiniteLoopPlanCount == 0)
+    }
+
+    @Test func preparedLoopsRespectShadowedCoreFunctions() throws {
+        let interpreter = Interpreter()
+        let value = try interpreter.run(source: """
+        func min(_ lhs: Int, _ rhs: Int) -> Int { 42 }
+        var total = 0
+        for value in 0..<300 {
+            total += min(value, 1)
+        }
+        total
+        """)
+        #expect(value.intValue == 12_600)
+        #expect(interpreter.preparedFiniteLoopPlanCount == 0)
+    }
+
+    @Test func asyncSessionsSharePreparedFiniteLoopSemantics() async throws {
+        let interpreter = Interpreter()
+        let value = try await interpreter.runAsync(source: """
+        var checksum = 17
+        for byte in 0..<10_000 {
+            checksum = (checksum * 31 + byte) % 1_000_003
+        }
+        checksum
+        """)
+        var expected = 17
+        for byte in 0..<10_000 {
+            expected = (expected * 31 + byte) % 1_000_003
+        }
+        #expect(value.intValue == expected)
+        #expect(interpreter.preparedFiniteLoopPlanCount == 1)
+    }
+
     @Test func strideSequencesUseNativeBoundsAndDirection() throws {
         let source = """
         var forward: [Int] = []

@@ -198,6 +198,38 @@ inline `await` compatibility for the SwiftUI renderer and existing embedding
 clients. An async-only host gateway reports a clear error there rather than
 blocking the main actor.
 
+## Prepared finite-loop execution
+
+`for-in` already materializes its sequence before executing the body, which
+proves that the loop itself makes finite progress. For large scalar integer
+loops, `Eval/PreparedFiniteLoop.swift` now uses that proof to lower a closed,
+reusable subset of the body once instead of decoding the same SwiftSyntax tree
+for every element. The prepared representation covers integer bindings,
+arithmetic and comparisons, integer collection reads, and simple conditions.
+It shares the integer operator core with the ordinary evaluator, so overflow,
+division, shifts, and comparisons do not acquire a second set of semantics.
+Calls such as integer conversion and extrema lower only when their resolved
+`HostFunction` has the retained core-intrinsic identity registered at builtin
+creation; a user declaration or injected gateway that shadows the same source
+spelling rejects the plan and keeps its own behavior.
+
+Preparation of the repeatedly executed path is all-or-nothing and purely an
+execution optimization. An unsupported expression or statement rejects the
+plan and leaves the existing tree evaluator in charge. The one explicit
+boundary is a supported condition, whose taken body may execute through the
+ordinary synchronous or suspension-aware evaluator. This permits infrequent
+complex work without charging every untaken iteration for syntax dispatch.
+Loops containing a closure, local function, or `defer` are rejected
+because reusing their binding boxes could make per-iteration identity
+observable. `break`, `continue`, returns, cancellation polling, and the
+per-iteration infinite-work budget propagate through both paths.
+
+The lowering knows only core language/runtime value categories; it contains no
+framework, project, fixture, source-name, or literal-specific behavior. A
+white-box plan counter and native-equivalent regression cases ensure that both
+synchronous and async sessions exercise the prepared path, while capture and
+budget cases exercise its conservative fallback boundaries.
+
 The remaining semantic migration is deliberately ordered:
 
 1. Consider a distinct/COW struct representation if profiling shows

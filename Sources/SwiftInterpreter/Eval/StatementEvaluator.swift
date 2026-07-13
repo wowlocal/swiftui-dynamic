@@ -534,8 +534,34 @@ extension Interpreter {
             throw error(forStmt.sequence, "for-in requires a range or an array, got \(sequence.stringified)")
         }
 
-        loop: for element in elements {
-            try checkRuntimeCancellation()
+        let preparedLoop: PreparedFiniteLoop?
+        if casePattern == nil, tupleNames == nil {
+            preparedLoop = prepareFiniteIntegerLoop(
+                body: forStmt.body.statements,
+                loopVariableName: name,
+                parent: env,
+                elements: elements)
+        } else {
+            preparedLoop = nil
+        }
+
+        loop: for (iteration, element) in elements.enumerated() {
+            // Mirror syntax-node cancellation polling in the prepared path;
+            // the ordinary path continues to poll on every element as before.
+            if preparedLoop == nil || iteration & 63 == 0 {
+                try checkRuntimeCancellation()
+            }
+            if let preparedLoop {
+                let result = try withFiniteIterationSlice {
+                    try preparedLoop.execute(element: element, interpreter: self)
+                }
+                switch result {
+                case .normal, .continueLoop: continue
+                case .breakLoop: break loop
+                case .returnValue: return result
+                }
+            }
+
             let child = Environment(parent: env)
             if let casePattern {
                 guard try matches(casePattern, subject: element, bindingInto: child, env: env) else {
