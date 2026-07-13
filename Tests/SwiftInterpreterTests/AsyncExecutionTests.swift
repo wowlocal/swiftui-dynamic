@@ -1449,6 +1449,115 @@ struct AsyncExecutionTests {
         #expect(handle.state == .succeeded)
     }
 
+    @Test func cancellationHandlersAreRemovedAfterNormalAndThrowingExit()
+        async throws {
+        let interpreter = Interpreter()
+        var exitedScopes: Set<String> = []
+        var exitObservations: [(String, RuntimeTaskID?, Int)] = []
+        var unexpectedHandlers: [String] = []
+        interpreter.globals.define(
+            "markHandlerScopeExit",
+            .hostFunction(HostFunction(
+                name: "markHandlerScopeExit",
+                invoke: { arguments, _ in
+                    let label = arguments.positional(0)?.stringValue ?? "missing"
+                    let taskID = interpreter.evaluationTaskContext.runtimeTaskID
+                    let count = taskID.flatMap {
+                        interpreter.concurrencyRuntime.records[$0]?
+                            .activeCancellationHandlerCount
+                    } ?? -1
+                    exitObservations.append((label, taskID, count))
+                    exitedScopes.insert(label)
+                    return .void
+                })))
+        interpreter.globals.define(
+            "handlerScopeExited",
+            .hostFunction(HostFunction(
+                name: "handlerScopeExited",
+                invoke: { arguments, _ in
+                    .bool(exitedScopes.contains(
+                        arguments.positional(0)?.stringValue ?? "missing"))
+                })))
+        interpreter.globals.define(
+            "recordUnexpectedScopeHandler",
+            .hostFunction(HostFunction(
+                name: "recordUnexpectedScopeHandler",
+                invoke: { arguments, _ in
+                    unexpectedHandlers.append(
+                        arguments.positional(0)?.stringValue ?? "missing")
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        enum HandlerScopeError: Error {
+            case expected
+        }
+
+        let normal = Task {
+            let value = await withTaskCancellationHandler(operation: {
+                return "normal"
+            }, onCancel: {
+                recordUnexpectedScopeHandler("normal")
+            })
+            markHandlerScopeExit("normal")
+            while !Task.isCancelled {
+                await Task.yield()
+            }
+            return value
+        }
+        while !handlerScopeExited("normal") {
+            await Task.yield()
+        }
+        normal.cancel()
+        let normalValue = await normal.value
+
+        let throwing = Task {
+            var value = "unexpected-success"
+            do {
+                _ = try await withTaskCancellationHandler(operation: {
+                    () async throws -> String in
+                    throw HandlerScopeError.expected
+                }, onCancel: {
+                    recordUnexpectedScopeHandler("throwing")
+                })
+            } catch HandlerScopeError.expected {
+                value = "throwing"
+            } catch {
+                value = "unexpected-error"
+            }
+            markHandlerScopeExit("throwing")
+            while !Task.isCancelled {
+                await Task.yield()
+            }
+            return value
+        }
+        while !handlerScopeExited("throwing") {
+            await Task.yield()
+        }
+        throwing.cancel()
+        normalValue + "," + (await throwing.value)
+        """)
+
+        guard case .host(let normalPayload)? = interpreter.globals.lookup("normal"),
+              let normal = normalPayload as? RuntimeTaskHandle,
+              case .host(let throwingPayload)? = interpreter.globals.lookup("throwing"),
+              let throwing = throwingPayload as? RuntimeTaskHandle else {
+            Issue.record("expected both retained task handles")
+            return
+        }
+        #expect(result.stringValue == "normal,throwing")
+        #expect(exitObservations.map(\.0) == ["normal", "throwing"])
+        #expect(exitObservations.map(\.1) == [normal.id, throwing.id])
+        #expect(exitObservations.map(\.2) == [0, 0])
+        #expect(unexpectedHandlers.isEmpty)
+        #expect(normal.cancellationHandlerInvocationCount == 0)
+        #expect(throwing.cancellationHandlerInvocationCount == 0)
+        #expect(normal.cancellationHandlerCount == 0)
+        #expect(throwing.cancellationHandlerCount == 0)
+        #expect(normal.isCancelled && throwing.isCancelled)
+        #expect(normal.state == .succeeded && throwing.state == .succeeded)
+    }
+
     @Test func labeledSuspendingClosureBodyRemainsDeferredUntilInvocation()
         async throws {
         let interpreter = Interpreter()

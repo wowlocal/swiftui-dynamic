@@ -389,6 +389,18 @@
     "notes": "A MainActor started barrier makes both registrations active before cancellation and keeps the worker from resuming during cancel(). Exact output is inner,outer,operation on Swift 6.3.3; no ordering between independent ready tasks is asserted."
   },
   {
+    "id": "task-cancellation-handler-scope-exit",
+    "fixture": "Fixtures/task-cancellation-handler-scope-exit.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskCancellationHandlerScopeExitProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A cancellation handler is no longer active after its operation returns or throws, so later cancellation does not invoke it.",
+    "notes": "MainActor exit barriers place each cancel() strictly after the corresponding handler scope unwinds. Exact output is normal-operation,normal-exit,normal-cancelled,throwing-operation,throwing-exit,throwing-cancelled on Swift 6.3.3; handler event names are deliberately absent."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

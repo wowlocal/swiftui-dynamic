@@ -30,7 +30,7 @@ major version 6.
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active, pre-cancelled, and nested cancellation handlers have runtime-owned scoped registrations, synchronous inner-to-outer cancel-time dispatch, and immediate already-cancelled registration; same-source Swift 6 parity and deterministic runtime-state tests are green | Remaining cancellation-handler exit paths and suspension reasons |
+| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active, pre-cancelled, nested, normal-exit, and throwing-exit cancellation-handler paths have runtime-owned scoped registrations, synchronous inner-to-outer cancel-time dispatch, immediate already-cancelled registration, and verified unwind cleanup; same-source Swift 6 parity and deterministic runtime-state tests are green | Remaining suspension reasons and distinct source cancellation versus host session abortion |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
@@ -74,6 +74,7 @@ major version 6.
 | `task-cancellation-handler-active` | exact | An active handler runs synchronously before `cancel()` returns, is invoked once across repeated requests, and uses the cancelling task's dynamic context | Native/interpreter parity in 20 repetitions: `0,1,1,false,true,done`; MainActor serialization fixes the observation points without choosing a ready-task order |
 | `task-cancellation-handler-pre-cancelled` | exact | Registering a handler in an already-cancelled task invokes it immediately, in that task's cancelled dynamic context, before the operation begins | Native/interpreter parity in 20 repetitions: `1,true,true,operation-cancelled`; MainActor prevents operation entry before the two pre-start cancellation requests |
 | `task-cancellation-handler-nested` | exact | Simultaneously active nested handlers run once from inner to outer before the cancelled operation resumes | Native/interpreter parity in 20 repetitions: `inner,outer,operation`; a MainActor started barrier fixes the cancel-time happens-before edges without asserting independent task scheduling |
+| `task-cancellation-handler-scope-exit` | exact | A handler is inactive after its operation returns or throws, so later cancellation does not invoke it | Native/interpreter parity in 20 repetitions; MainActor exit barriers place cancellation strictly after each unwind, and the runtime regression observes zero registrations at both exit points |
 | `task-read-missing-await-diagnostic` | diagnostic | `Task.value` and `Task.result` are async property accesses, so omitting `await` is rejected even inside an async function | Real Swift 6 diagnostics require `await`; runtime member dispatch now diagnoses instead of returning `()` for either property |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
@@ -1066,5 +1067,36 @@ failures reproduce verbatim when each project is run against a clean detached
 `c6ec54b` worktree without this concurrency change. The concurrency step does
 not claim a green repository gate or hide the parent failure.
 
-M3 remains in progress. Remaining scope-exit/error behavior and the remaining
-first-class suspension categories are not yet fully characterized.
+### Cancellation handler scope exit
+
+Native question: after a cancellation-handler operation has returned normally
+or unwound by throwing, can cancelling the still-running task invoke that old
+handler?
+
+`task-cancellation-handler-scope-exit` runs the normal and throwing forms in
+separate unstructured tasks. Each task publishes a MainActor exit barrier only
+after leaving `withTaskCancellationHandler`, then remains alive by yielding
+until the controller cancels it. Twenty strict Swift 6.3.3 runs all returned
+`normal-operation,normal-exit,normal-cancelled,throwing-operation,throwing-exit,throwing-cancelled`.
+Neither handler event appears. The barriers establish that each cancellation
+happens after its dynamic scope has unwound; no independent scheduler order is
+asserted.
+
+The first equivalent interpreter differential was already GREEN in all twenty
+repetitions. The runtime's general registration path surrounds the operation
+with `defer`-based removal, so both a returned value and a propagated source
+error remove the same task-owned registration. No production branch was added.
+A deterministic regression observes each task record at the post-scope barrier:
+both have zero active registrations. It then verifies zero handler invocations,
+successful task outcomes after cancellation, and final registration cleanup.
+
+The focused concurrency/runtime/host gate passed all 61 tests in six suites,
+and the full suite passed all 760 tests in 146 suites. `Scripts/gate.sh`
+reported suite 760/760, cached corpus 676/680 with unchanged runtime sources,
+live 5/5, and API parity 345 match / 0 diverge / 0 interpreter errors /
+17 unstable / 0 no-twin. It returned RED solely on the already isolated
+parent-level corpus floor described above.
+
+M3 remains in progress. Remaining first-class suspension categories and the
+distinction between source cancellation and host session abortion are not yet
+fully characterized.
