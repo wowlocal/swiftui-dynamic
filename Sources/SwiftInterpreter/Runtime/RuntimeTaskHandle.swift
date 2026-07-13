@@ -69,6 +69,12 @@ public final class RuntimeTaskHandle {
     public var failureDescription: String? { record.failureDescription }
     public var cancellation: RuntimeCancellationState { record.cancellation }
     var waiterCount: Int { record.waiters.count }
+    var waitingOnTaskIDs: Set<RuntimeTaskID> { record.waitingOnTasks }
+    var priorityEscalationHistory: [
+        RuntimeTaskID: RuntimeTaskPriority
+    ] {
+        record.priorityEscalationHistory
+    }
     var spawnedTaskIDs: Set<RuntimeTaskID> { record.spawnedTasks }
     var structuredChildIDs: Set<RuntimeTaskID> {
         record.structuredChildren
@@ -142,9 +148,9 @@ public final class RuntimeTaskHandle {
     func waitForOutcome(
         waiter: RuntimeTaskID? = nil
     ) async -> RuntimeTaskOutcome {
-        if let waiter { record.waiters.insert(waiter) }
+        if let waiter { runtime.beginWaiting(waiter, on: record) }
         defer {
-            if let waiter { record.waiters.remove(waiter) }
+            if let waiter { runtime.endWaiting(waiter, on: record) }
         }
         await record.nativeTask?.value
         return record.outcome ?? .failure(

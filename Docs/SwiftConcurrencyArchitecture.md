@@ -751,8 +751,7 @@ scheduling. It records:
 - base priority;
 - inherited priority;
 - effective priority;
-- optional escalation caused by awaiting a task, if native probes establish a
-  relevant observable rule.
+- escalation caused by awaiting a task.
 
 `basePriority` is immutable creation state; `effectivePriority` may change as
 the result of a separately verified escalation rule. An ordinary unstructured
@@ -761,6 +760,15 @@ priority is supplied. Detached defaults and explicit-priority behavior are
 characterized independently. The native task used to drive cooperative
 execution receives the logical value, but querying that native driver is not
 the source of truth for an interpreted task after creation.
+
+An interpreted value wait is a runtime-owned dependency edge. A waiter donates
+its current effective priority to the awaited task when higher; the runtime
+updates both the record and its live evaluator context before the awaited task
+can resume. Donation propagates transitively when that task is itself waiting
+on another task, and a child created after escalation inherits the updated
+effective value. Dependency edges are removed when the wait exits and must not
+retain completed records. Escalation is modeled monotonically for a task's
+lifetime; de-escalation is not invented without a separate native guarantee.
 
 Tests assert priority values and inheritance. They do not assert that a
 higher-priority task always executes first unless Swift guarantees it.

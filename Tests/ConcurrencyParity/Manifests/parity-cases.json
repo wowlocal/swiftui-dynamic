@@ -173,6 +173,30 @@
     "notes": "No handle is awaited by higher-priority code before the three raw values are captured, so priority escalation cannot contaminate the inheritance observation. Exact output is 17,17,21 on the active Swift 6.3.3 toolchain."
   },
   {
+    "id": "task-priority-escalation",
+    "fixture": "Fixtures/task-priority-escalation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskPriorityEscalationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A running background-priority task is escalated to high priority when a high-priority task awaits its value, and a subsequently created unstructured child inherits that effective priority.",
+    "notes": "The low task records 9 before the high waiter exists. On MainActor, the high task opens the low gate and immediately awaits the low handle with no intervening suspension, so the second read and child creation occur only after waiter registration. Exact output is 9,25,25 on Swift 6.3.3."
+  },
+  {
+    "id": "task-priority-transitive-escalation",
+    "fixture": "Fixtures/task-priority-transitive-escalation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskPriorityTransitiveProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "High-priority donation propagates through a chain when the awaited task is itself awaiting another task.",
+    "notes": "MainActor barriers ensure the utility middle task is already awaiting the background bottom task before the high task opens the bottom gate and immediately awaits the middle task. Exact output is 9,25,25 on Swift 6.3.3."
+  },
+  {
     "id": "task-local-inheritance",
     "fixture": "Fixtures/task-local-inheritance.swift",
     "mode": "runtime",

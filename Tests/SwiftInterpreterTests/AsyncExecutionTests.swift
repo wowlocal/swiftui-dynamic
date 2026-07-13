@@ -554,6 +554,108 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func awaitedTaskPriorityEscalatesAndChildInheritsIt() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("task-priority-escalation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nstartTaskPriorityEscalationProbe()\n"
+        let interpreter = Interpreter()
+        interpreter.globals.define("parityYield", .hostFunction(HostFunction(
+            name: "parityYield",
+            asyncInvoke: { arguments, _ in
+                await Task.yield()
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+        let value = try await interpreter.runAsync(source: source)
+        guard case .instance(let recorder) = value else {
+            Issue.record("expected a priority-escalation recorder")
+            return
+        }
+
+        func handle(_ property: String) throws -> RuntimeTaskHandle {
+            let value = try #require(
+                recorder.box(for: property)?.value.unwrappedOptionalOrSelf)
+            return try #require(value.hostPayload as? RuntimeTaskHandle)
+        }
+
+        let low = try handle("lowTask")
+        let high = try handle("highTask")
+        let inherited = try handle("inheritedTask")
+        #expect(low.basePriority == .background)
+        #expect(low.effectivePriority == .high)
+        #expect(high.basePriority == .high)
+        #expect(inherited.parent == low.id)
+        #expect(inherited.basePriority == .high)
+        #expect(low.priorityEscalationHistory[high.id] == .high)
+        #expect(low.waiterCount == 0)
+        #expect(high.waitingOnTaskIDs.isEmpty)
+        #expect(recorder.box(for: "before")?.value.intValue
+            == Int(TaskPriority.background.rawValue))
+        #expect(recorder.box(for: "after")?.value.intValue
+            == Int(TaskPriority.high.rawValue))
+        #expect(recorder.box(for: "inherited")?.value.intValue
+            == Int(TaskPriority.high.rawValue))
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func priorityEscalationPropagatesThroughWaitChain() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent(
+                "task-priority-transitive-escalation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nstartTaskPriorityTransitiveProbe()\n"
+        let interpreter = Interpreter()
+        interpreter.globals.define("parityYield", .hostFunction(HostFunction(
+            name: "parityYield",
+            asyncInvoke: { arguments, _ in
+                await Task.yield()
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+        let value = try await interpreter.runAsync(source: source)
+        guard case .instance(let recorder) = value else {
+            Issue.record("expected a transitive-priority recorder")
+            return
+        }
+
+        func handle(_ property: String) throws -> RuntimeTaskHandle {
+            let value = try #require(
+                recorder.box(for: property)?.value.unwrappedOptionalOrSelf)
+            return try #require(value.hostPayload as? RuntimeTaskHandle)
+        }
+
+        let bottom = try handle("bottomTask")
+        let middle = try handle("middleTask")
+        let high = try handle("highTask")
+        #expect(bottom.basePriority == .background)
+        #expect(bottom.effectivePriority == .high)
+        #expect(middle.basePriority == .low)
+        #expect(middle.effectivePriority == .high)
+        #expect(high.basePriority == .high)
+        #expect(middle.priorityEscalationHistory[high.id] == .high)
+        #expect(bottom.priorityEscalationHistory[middle.id] == .high)
+        #expect(bottom.waiterCount == 0)
+        #expect(middle.waiterCount == 0)
+        #expect(middle.waitingOnTaskIDs.isEmpty)
+        #expect(high.waitingOnTaskIDs.isEmpty)
+        #expect(recorder.box(for: "bottomBefore")?.value.intValue
+            == Int(TaskPriority.background.rawValue))
+        #expect(recorder.box(for: "bottomAfter")?.value.intValue
+            == Int(TaskPriority.high.rawValue))
+        #expect(recorder.box(for: "middleAfter")?.value.intValue
+            == Int(TaskPriority.high.rawValue))
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskLocalStorageIsTaskOwnedInheritedAndCleaned() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

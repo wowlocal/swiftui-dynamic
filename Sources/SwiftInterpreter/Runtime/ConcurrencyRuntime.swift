@@ -31,7 +31,8 @@ public struct RuntimeTaskID: Hashable, Sendable, CustomStringConvertible {
 /// Logical source-task priority. The native value drives today's cooperative
 /// task, while keeping it on the runtime record/context gives later schedulers
 /// and priority escalation one stable source of truth.
-public struct RuntimeTaskPriority: Hashable, Sendable, CustomStringConvertible {
+public struct RuntimeTaskPriority: Hashable, Sendable, Comparable,
+    CustomStringConvertible {
     public let rawValue: UInt8
 
     public init(rawValue: UInt8) {
@@ -48,6 +49,12 @@ public struct RuntimeTaskPriority: Hashable, Sendable, CustomStringConvertible {
     public static let background = Self(TaskPriority.background)
 
     var nativePriority: TaskPriority { TaskPriority(rawValue: rawValue) }
+
+    public static func < (
+        lhs: RuntimeTaskPriority, rhs: RuntimeTaskPriority
+    ) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
 
     public var description: String { "TaskPriority(rawValue: \(rawValue))" }
 
@@ -157,6 +164,10 @@ final class RuntimeTaskRecord {
     var failureDescription: String?
     var cancellation = RuntimeCancellationState()
     var waiters: Set<RuntimeTaskID> = []
+    var waitingOnTasks: Set<RuntimeTaskID> = []
+    var priorityEscalationHistory: [
+        RuntimeTaskID: RuntimeTaskPriority
+    ] = [:]
     var spawnedTasks: Set<RuntimeTaskID> = []
     var structuredChildren: Set<RuntimeTaskID> = []
     var nativeTask: Task<Void, Never>?
@@ -220,7 +231,36 @@ final class CooperativeConcurrencyRuntime {
     func bind(
         _ context: EvaluationTaskContext, to record: RuntimeTaskRecord
     ) {
+        context.priority = record.effectivePriority
         record.evaluationContext = context
+    }
+
+    /// Register one source task's suspension on another task and donate the
+    /// waiter's effective priority. Escalation is monotonic for the lifetime
+    /// of a task, matching Swift's task-priority model; ending the wait removes
+    /// only the dependency edge, not an escalation already observed by the
+    /// awaited task.
+    func beginWaiting(
+        _ waiterID: RuntimeTaskID, on awaited: RuntimeTaskRecord
+    ) {
+        guard let waiter = records[waiterID] else { return }
+        awaited.waiters.insert(waiterID)
+        waiter.waitingOnTasks.insert(awaited.id)
+        guard !awaited.state.isCompleted else { return }
+
+        var visited: Set<RuntimeTaskID> = [waiterID]
+        donatePriority(
+            waiter.effectivePriority,
+            from: waiterID,
+            to: awaited.id,
+            visited: &visited)
+    }
+
+    func endWaiting(
+        _ waiterID: RuntimeTaskID, on awaited: RuntimeTaskRecord
+    ) {
+        awaited.waiters.remove(waiterID)
+        records[waiterID]?.waitingOnTasks.remove(awaited.id)
     }
 
     func attach(
@@ -313,6 +353,32 @@ final class CooperativeConcurrencyRuntime {
     }
 
     var activeRecordCount: Int { records.count }
+
+    private func donatePriority(
+        _ priority: RuntimeTaskPriority,
+        from donorID: RuntimeTaskID,
+        to targetID: RuntimeTaskID,
+        visited: inout Set<RuntimeTaskID>
+    ) {
+        guard visited.insert(targetID).inserted,
+              let target = records[targetID],
+              !target.state.isCompleted,
+              target.effectivePriority < priority else { return }
+
+        target.effectivePriority = priority
+        target.priorityEscalationHistory[donorID] = priority
+        target.evaluationContext?.priority = priority
+
+        // If the escalated task is itself suspended on another task, Swift's
+        // priority donation follows that dependency transitively.
+        for dependencyID in target.waitingOnTasks {
+            donatePriority(
+                priority,
+                from: target.id,
+                to: dependencyID,
+                visited: &visited)
+        }
+    }
 
     private func takeEventSequence() -> UInt64 {
         defer { nextEventSequence += 1 }

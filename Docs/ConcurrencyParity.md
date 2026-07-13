@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; creation lineage is distinct from structured cancellation edges; base/effective priority and task-local storage are task-owned and covered for initial inheritance | Remaining priority escalation, source-level `@TaskLocal` declaration/projection support, structured task creation, and cancellation paths beyond the covered Task cases |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; creation lineage is distinct from structured cancellation edges; base/effective priority, direct/transitive escalation, and task-local storage are task-owned and natively covered | Remaining source-level `@TaskLocal` declaration/projection support, structured task creation, and cancellation paths beyond the covered Task cases |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -56,6 +56,8 @@ major version 6.
 | `task-result-cancellation` | exact | A throwing task cancelled during a cancellable suspension completes its result as `.failure` | Native/interpreter parity in 20 repetitions; the fixture asserts case shape rather than error text |
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
 | `task-priority-inheritance` | exact | An explicit `.utility` task sees raw priority 17, its unstructured child inherits 17, and a detached task without an explicit priority starts at `.medium`/21 | Native/interpreter parity in 20 repetitions: `17,17,21`; values are captured before any higher-priority handle await can cause escalation |
+| `task-priority-escalation` | exact | A high-priority value waiter escalates an already-running background task, and a child created afterward inherits the effective priority | Native/interpreter parity in 20 repetitions: `9,25,25`; MainActor barriers put the reads and child creation after waiter registration without asserting scheduler order |
+| `task-priority-transitive-escalation` | exact | Priority donation propagates through an awaited task that is itself awaiting another task | Native/interpreter parity in 20 repetitions: `9,25,25`; the utility middle and background bottom tasks both observe high priority |
 | `task-local-inheritance` | exact | A scoped task-local binding is inherited by an unstructured `Task`, absent from `Task.detached`, and restored after a nested binding exits | Native/interpreter parity in 20 repetitions: `parent,parent:child:parent,default`; every interpreted task owns distinct storage and completion clears it |
 | `task-local-unwind` | exact | A scoped task-local binding is removed on both a thrown exit and cancellation, so an outer catch observes the inherited parent value | Native/interpreter parity in 20 repetitions: `parent,parent`; both inner values are checked before unwinding and cancellation starts only after an explicit suspension barrier |
 | `unstructured-top-level-lifetime` | exact | An unstructured task may continue after its creating function returns; lexical scope does not join it | Native/interpreter parity in 20 repetitions: `returned,task`; interpreter execution uses the explicit drain policy rather than claiming structured ownership |
@@ -484,13 +486,57 @@ existing embedders through a fallback to their older task-creation method.
 The white-box regression retains all three handles and verifies priority
 storage, the ordinary parent edge, detached parentlessness, successful
 outcomes, and an empty active-record registry after completion. Await-driven
-priority escalation is not inferred from this probe and remains explicitly
-open. Task-local storage was still open at this point and is addressed by the
-next independently verified step.
+priority escalation is not inferred from this probe; it is addressed by the
+next independently verified step. Task-local storage was also still open at
+this point and is addressed afterward.
 
 Verification for this priority-foundation step on Apple Swift 6.3.3 / macOS
 26.5 SDK: the 44 concurrency-parity, async-execution, and host-signature tests
 passed, followed by all 720 tests in 141 suites.
+
+### Await-driven priority escalation
+
+`task-priority-escalation` starts a `.background` task and lets it record raw
+priority 9 before any higher-priority waiter exists. After an explicit started
+barrier, a `.high` task opens the low task's gate and immediately reads
+`await low.value`. Both operations are MainActor-isolated and there is no
+suspension between the gate write and value read, so the low task cannot resume
+until the high waiter has been registered. It then reads raw priority 25 and
+creates an ordinary child that also reads 25. Twenty Apple Swift 6.3.3 runs
+produced `9,25,25` exactly.
+
+`task-priority-transitive-escalation` constructs a second controlled chain.
+The utility middle task marks its state and immediately awaits a blocked
+background bottom task. Only after that dependency exists does a high task
+open the bottom gate and await the middle task. Twenty native runs produced
+`9,25,25`: the bottom begins at background, then both bottom and middle observe
+high priority. Neither probe asserts which runnable task the scheduler chooses
+outside the explicit MainActor barriers.
+
+The first direct differential run captured the intended RED in all twenty
+repetitions: native `9,25`, interpreter `9,9`. Runtime waiters previously
+existed only as an observational ID set and never affected the awaited task's
+logical priority.
+
+Wait registration is now owned by `CooperativeConcurrencyRuntime`. It records
+both sides of the dependency, monotonically donates the waiter's effective
+priority when it is higher, updates the awaited record and its live
+`EvaluationTaskContext`, and propagates an increase through any tasks that the
+awaited task is itself waiting on. A visited set makes malformed cyclic wait
+graphs safe. Ending an await removes both dependency edges with `defer`; it
+does not rewrite immutable `basePriority` or infer a de-escalation that the
+native cases did not establish. Donor histories contain task IDs and values,
+not retained task records.
+
+The direct white-box regression verifies background base/high effective
+priority, the high donor ID, cleaned waiter edges, and high initial priority in
+the child created after escalation. The transitive regression verifies high
+effective priority in both lower records, the two donation links, cleaned
+wait chains, successful values, and an empty active runtime registry.
+
+Verification after both escalation cases: 47 concurrency-parity,
+async-execution, and host-signature tests passed in three suites, followed by
+all 723 tests in 141 suites.
 
 ### Task-local storage and initial inheritance
 
