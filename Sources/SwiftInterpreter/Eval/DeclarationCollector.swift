@@ -597,17 +597,25 @@ extension Interpreter {
             }
             let name = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
             if isTaskLocal {
-                guard binding.accessorBlock == nil,
-                      let initializer = binding.initializer?.value else {
+                guard binding.accessorBlock == nil else {
                     throw error(
                         binding,
-                        "@TaskLocal '\(name)' requires a stored default value")
+                        "@TaskLocal '\(name)' must be a stored property")
+                }
+                let initializer = binding.initializer?.value
+                let annotation = binding.typeAnnotation?.type
+                if initializer == nil,
+                   RuntimeOptionalValue.wrappedType(
+                    in: annotation?.trimmedDescription ?? "") == nil {
+                    throw error(
+                        binding,
+                        "@TaskLocal '\(name)' must have a default value or be optional")
                 }
                 symbol.taskLocalProperties[name] = RuntimeTaskLocalDeclaration(
                     declarationID: binding.id,
                     debugName: "\(symbol.name).\(name)",
                     initializer: initializer,
-                    typeAnnotation: binding.typeAnnotation?.type)
+                    typeAnnotation: annotation)
                 continue
             }
             // A binding with an accessor block is computed only if it has a
@@ -861,18 +869,26 @@ extension Interpreter {
                 // like cases and struct properties everywhere else.
                 let memberName = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
                 if isTaskLocal {
-                    guard binding.accessorBlock == nil,
-                          let initializer = binding.initializer?.value else {
+                    guard binding.accessorBlock == nil else {
                         throw error(
                             binding,
-                            "@TaskLocal '\(memberName)' requires a stored default value")
+                            "@TaskLocal '\(memberName)' must be a stored property")
+                    }
+                    let initializer = binding.initializer?.value
+                    let annotation = binding.typeAnnotation?.type
+                    if initializer == nil,
+                       RuntimeOptionalValue.wrappedType(
+                        in: annotation?.trimmedDescription ?? "") == nil {
+                        throw error(
+                            binding,
+                            "@TaskLocal '\(memberName)' must have a default value or be optional")
                     }
                     symbol.taskLocalProperties[memberName] =
                         RuntimeTaskLocalDeclaration(
                             declarationID: binding.id,
                             debugName: "\(symbol.name).\(memberName)",
                             initializer: initializer,
-                            typeAnnotation: binding.typeAnnotation?.type)
+                            typeAnnotation: annotation)
                     continue
                 }
                 if let accessorBlock = binding.accessorBlock,

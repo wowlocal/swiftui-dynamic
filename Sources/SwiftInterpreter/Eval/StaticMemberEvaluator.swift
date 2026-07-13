@@ -29,7 +29,13 @@ extension Interpreter {
             return cached.copiedForValueSemantics()
         }
 
-        let raw = try evaluate(declaration.initializer, in: environment)
+        let raw: RuntimeValue
+        if let initializer = declaration.initializer {
+            raw = try evaluate(initializer, in: environment)
+        } else {
+            raw = .none(forTypeAnnotation:
+                declaration.typeAnnotation?.trimmedDescription ?? "")
+        }
         let resolved = try resolveAnnotated(
             raw, annotation: declaration.typeAnnotation)
             .copiedForValueSemantics()

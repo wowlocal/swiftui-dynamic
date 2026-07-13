@@ -600,6 +600,11 @@ enum RuntimeTaskOutcome {
 `task.result` produces the corresponding result value without inventing a
 placeholder for an incomplete task.
 
+Both properties remain suspending language operations after the task has
+completed. Source that omits `await` must be diagnosed; synchronous native
+member dispatch is never a compatibility path for reading either an incomplete
+or a completed task handle.
+
 The first completed read does not consume an outcome. Later `value` and
 `result` reads reproduce the same stored logical success or failure, including
 its interpreted payload and nominal type. Active-registry cleanup may release
@@ -782,6 +787,9 @@ static default; `$member` is a dedicated scoped-binding capability, not a
 general property-wrapper absorber. Its synchronous and suspending `withValue`
 paths enter the same task-owned storage and share structured unwind cleanup.
 Source declaration identities and host string keys occupy disjoint key domains.
+An optional `@TaskLocal` may omit its initializer, in which case Swift supplies
+a typed `nil` default. A non-optional declaration must provide an initializer;
+the interpreter diagnoses the invalid form rather than inventing a value.
 
 Task locals are never stored in shared interpreter globals.
 

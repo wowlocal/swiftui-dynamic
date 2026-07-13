@@ -210,10 +210,8 @@ extension Interpreter {
                 return .native(handle.isCompleted)
             case "state":
                 return .native(handle.state.rawValue)
-            case "value":
-                return handle.result ?? .void
-            case "result":
-                return handle.resultValue.map(RuntimeValue.native) ?? .void
+            case "value", "result":
+                throw RuntimeError(message: "Task.\(name) requires await")
             case "failureDescription":
                 return .native(handle.failureDescription)
             default:

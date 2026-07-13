@@ -37,18 +37,20 @@ public struct RuntimeTaskLocalKey: Hashable, Sendable, CustomStringConvertible {
 
 /// Collected source declaration for `@TaskLocal static var`. The key is tied
 /// to the binding node rather than the member spelling, so two declarations
-/// named `value` remain independent. Its default has ordinary static
-/// initialization semantics and is cached after the first successful read.
+/// named `value` remain independent. An absent initializer represents Swift's
+/// implicit `nil` default for an optional declaration. The default has ordinary
+/// static initialization semantics and is cached after the first successful
+/// read.
 final class RuntimeTaskLocalDeclaration {
     let key: RuntimeTaskLocalKey
-    let initializer: ExprSyntax
+    let initializer: ExprSyntax?
     let typeAnnotation: TypeSyntax?
     var cachedDefault: RuntimeValue?
 
     init(
         declarationID: SyntaxIdentifier,
         debugName: String,
-        initializer: ExprSyntax,
+        initializer: ExprSyntax?,
         typeAnnotation: TypeSyntax?
     ) {
         key = RuntimeTaskLocalKey(

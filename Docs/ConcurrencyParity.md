@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend and completed reads preserve typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Closing milestone gate and status audit; structured task constructs begin in M4 after M3 |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered | Closing repository gate is 677/680 because the independently added off-platform UIKit bridge returns an empty `UIApplication.openSettingsURLString`; structured task constructs begin in M4 after M3 |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -62,12 +62,14 @@ major version 6.
 | `task-priority-escalation` | exact | A high-priority value waiter escalates an already-running background task, and a child created afterward inherits the effective priority | Native/interpreter parity in 20 repetitions: `9,25,25`; MainActor barriers put the reads and child creation after waiter registration without asserting scheduler order |
 | `task-priority-transitive-escalation` | exact | Priority donation propagates through an awaited task that is itself awaiting another task | Native/interpreter parity in 20 repetitions: `9,25,25`; the utility middle and background bottom tasks both observe high priority |
 | `task-local-declaration` | exact | Distinct source `@TaskLocal` declarations with the same member name retain separate identities; synchronous and suspending `withValue` scopes restore correctly, ordinary tasks inherit, and detached tasks do not | Native/interpreter parity in 20 repetitions; three task-owned storage objects are observed and explicitly empty after completion |
+| `task-local-implicit-optional-default` | exact | An optional `@TaskLocal` may omit its initializer; its implicit default is `nil`, and a scoped binding restores that `nil` after exit | Native/interpreter parity in 20 repetitions: `nil,bound,nil`; non-optional declarations without a default remain diagnosed |
 | `task-local-inheritance` | exact | A scoped task-local binding is inherited by an unstructured `Task`, absent from `Task.detached`, and restored after a nested binding exits | Native/interpreter parity in 20 repetitions: `parent,parent:child:parent,default`; every interpreted task owns distinct storage and completion clears it |
 | `task-local-unwind` | exact | A scoped task-local binding is removed on both a thrown exit and cancellation, so an outer catch observes the inherited parent value | Native/interpreter parity in 20 repetitions: `parent,parent`; both inner values are checked before unwinding and cancellation starts only after an explicit suspension barrier |
 | `unstructured-top-level-lifetime` | exact | An unstructured task may continue after its creating function returns; lexical scope does not join it | Native/interpreter parity in 20 repetitions: `returned,task`; interpreter execution uses the explicit drain policy rather than claiming structured ownership |
 | `task-handle-deallocation` | exact | Discarding the last source-level handle neither cancels an unstructured task nor ends its operation; active task lifetime is independent of handle lifetime | Native/interpreter parity in 20 repetitions: `completed,active`; every interpreted parity repetition also ends with empty scheduler and runtime registries |
 | `task-cancellation-caught` | exact | A task may catch `CancellationError` and complete successfully while its handle remains marked cancelled | Native/interpreter parity in 20 repetitions: `success:caught,cancelled`; request state and terminal outcome are asserted independently |
 | `unstructured-cancellation-isolation` | exact | Cancelling an unstructured task does not cancel another unstructured `Task` that it created | Native/interpreter parity in 20 repetitions: `cancelled,child`; runtime records preserve a creation edge but no structured cancellation edge |
+| `task-read-missing-await-diagnostic` | diagnostic | `Task.value` and `Task.result` are async property accesses, so omitting `await` is rejected even inside an async function | Real Swift 6 diagnostics require `await`; runtime member dispatch now diagnoses instead of returning `()` for either property |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -791,3 +793,53 @@ retained cancellation flag with only the `.taskHandle` source, and an empty
 active registry. Verification: 51 concurrency-parity, task-cancellation,
 async-execution, and host-signature tests passed in four suites, followed by
 all 728 tests in 142 suites.
+
+### Task reads that omit await
+
+`task-read-missing-await-diagnostic` contains one `Task.value` read and one
+`Task.result` read without `await`, both inside async functions. Apple Swift
+6.3.3 rejects both as async property access; the stable diagnostics are
+`expression is 'async' but is not marked with 'await'` and
+`property access is 'async'`.
+
+Before the audit fix, the interpreter's synchronous task-handle member path
+returned `()` for both reads. The focused regression recorded both placeholder
+values as RED. Synchronous dispatch now diagnoses `Task.<member> requires
+await` for incomplete and completed handles alike. Explicit awaited access
+continues through the existing `waitForOutcome` path, so this closes the final
+placeholder escape without adding a second completion mechanism. Compiler-
+backed source preflight remains M7; the runtime boundary is no longer silently
+wrong in the meantime.
+
+### Optional task-local declarations without an initializer
+
+`task-local-implicit-optional-default` declares
+`@TaskLocal static var value: String?` without an initializer, reads it before
+and after a suspending `withValue` scope, and crosses a real yield inside the
+scope. Twenty Apple Swift 6.3.3 runs produced `nil,bound,nil` exactly. A
+separate compiler probe rejects the corresponding non-optional declaration
+with the rule that a task-local must have a default value or be optional.
+
+The same-source interpreter case initially failed during collection with
+`requires a stored default value`. `RuntimeTaskLocalDeclaration` now represents
+the initializer explicitly as optional. Collection accepts the absent form
+only for an Optional annotation, and static default resolution materializes a
+typed `nil`; all binding identity, inheritance, and cleanup reuse the existing
+task-owned storage mechanism. The four corpus projects that exposed the gap —
+Sidekick, CopilotForXcode, session-ios, and apple-browsers — each pass their
+focused ProjectCheck run after the change.
+
+Combined verification on Apple Swift 6.3.3 / macOS 26.5 SDK:
+
+- 53 concurrency-parity, async-execution, host-signature, task-cancellation,
+  task-completion, and task-diagnostic tests passed in six suites;
+- all 736 tests passed in 145 suites;
+- the full corpus improved from 674/680 to 677/680; the four task-local
+  failures are gone, while `oss:Mythic` remains ledgered and the newly merged
+  generated platform bridge exposes an unrelated IceCubes
+  `UIApplication.openSettingsURLString` fallback regression.
+
+All M2 architecture deliverables and semantic proofs are present, but M2 stays
+`in progress` until the repository gate again satisfies its 678/680 corpus
+ratchet. No structured-concurrency support is claimed; that starts in M4 only
+after the M3 suspension foundation.

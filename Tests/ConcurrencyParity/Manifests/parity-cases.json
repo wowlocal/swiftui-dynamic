@@ -269,6 +269,18 @@
     "notes": "Both paths use the same source fixture and task-local support declarations. The throwing scope crosses parityYield; the cancellation path uses an explicit wait-started barrier before cancel(). Exact output is parent,parent."
   },
   {
+    "id": "task-local-implicit-optional-default",
+    "fixture": "Fixtures/task-local-implicit-optional-default.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskLocalImplicitOptionalDefaultProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An optional @TaskLocal static variable may omit its initializer; its implicit default is nil and scoped bindings restore that nil value.",
+    "notes": "The same source declaration and withValue scope run on both sides and cross parityYield. Exact output is nil,bound,nil."
+  },
+  {
     "id": "unstructured-top-level-lifetime",
     "fixture": "Fixtures/unstructured-top-level-lifetime.swift",
     "mode": "runtime",
@@ -315,6 +327,18 @@
     "interpreterProjection": "string",
     "nativeFact": "Cancelling an unstructured task does not propagate cancellation to another unstructured Task created inside it.",
     "notes": "The parent reaches a cancellable suspension only after storing the child handle. The child remains behind a separate gate until after parent cancellation; exact output is cancelled,child."
+  },
+  {
+    "id": "task-read-missing-await-diagnostic",
+    "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
+    "mode": "diagnostic",
+    "assertion": "diagnostic",
+    "repetitions": 1,
+    "timeoutSeconds": 15,
+    "diagnosticContains": ["expression is 'async' but is not marked with 'await'", "property access is 'async'"],
+    "diagnosticLine": 4,
+    "nativeFact": "Task.value and Task.result are async property accesses and source that omits await is rejected even inside an async function.",
+    "notes": "The fixture diagnoses both properties with the same stable missing-await category. Compiler-backed interpreter preflight remains M7; M2's runtime dispatcher must still never return a placeholder."
   },
   {
     "id": "actor-isolation-diagnostic",
