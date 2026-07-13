@@ -1378,4 +1378,113 @@ struct AsyncExecutionTests {
         #expect(handle.isCancelled)
         #expect(handle.state == .succeeded)
     }
+
+    @Test func nestedCancellationHandlersRunInnerFirstAndCleanUp()
+        async throws {
+        let interpreter = Interpreter()
+        var started = false
+        var events: [(String, RuntimeTaskID?, Bool)] = []
+        interpreter.globals.define(
+            "markNestedHandlerStarted",
+            .hostFunction(HostFunction(
+                name: "markNestedHandlerStarted",
+                invoke: { _, _ in
+                    started = true
+                    return .void
+                })))
+        interpreter.globals.define(
+            "nestedHandlerHasStarted",
+            .hostFunction(HostFunction(
+                name: "nestedHandlerHasStarted",
+                invoke: { _, _ in .bool(started) })))
+        interpreter.globals.define(
+            "recordNestedHandlerEvent",
+            .hostFunction(HostFunction(
+                name: "recordNestedHandlerEvent",
+                invoke: { arguments, _ in
+                    events.append((
+                        arguments.positional(0)?.stringValue ?? "missing",
+                        interpreter.evaluationTaskContext.runtimeTaskID,
+                        Task.isCancelled))
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        let worker = Task {
+            await withTaskCancellationHandler(operation: {
+                await withTaskCancellationHandler(operation: {
+                    markNestedHandlerStarted()
+                    while !Task.isCancelled {
+                        await Task.yield()
+                    }
+                    recordNestedHandlerEvent("operation")
+                    return "done"
+                }, onCancel: {
+                    recordNestedHandlerEvent("inner")
+                })
+            }, onCancel: {
+                recordNestedHandlerEvent("outer")
+            })
+        }
+        while !nestedHandlerHasStarted() {
+            await Task.yield()
+        }
+        worker.cancel()
+        worker.cancel()
+        await worker.value
+        """)
+
+        guard case .host(let payload)? = interpreter.globals.lookup("worker"),
+              let handle = payload as? RuntimeTaskHandle else {
+            Issue.record("expected retained worker task handle")
+            return
+        }
+        #expect(result.stringValue == "done")
+        #expect(events.map(\.0) == ["inner", "outer", "operation"])
+        #expect(events.map(\.1) == [handle.parent, handle.parent, handle.id])
+        #expect(events.map(\.2) == [false, false, true])
+        #expect(handle.cancellationHandlerInvocationCount == 2)
+        #expect(handle.cancellationHandlerCount == 0)
+        #expect(handle.isCancelled)
+        #expect(handle.state == .succeeded)
+    }
+
+    @Test func labeledSuspendingClosureBodyRemainsDeferredUntilInvocation()
+        async throws {
+        let interpreter = Interpreter()
+        var events: [String] = []
+        interpreter.globals.define(
+            "recordDeferredBody",
+            .hostFunction(HostFunction(
+                name: "recordDeferredBody",
+                asyncInvoke: { _, _ in
+                    events.append("body")
+                    return .void
+                })))
+        interpreter.globals.define(
+            "runDeferredOperation",
+            .hostFunction(HostFunction(
+                name: "runDeferredOperation",
+                asyncInvoke: { arguments, context in
+                    events.append("gateway")
+                    guard let operation = arguments.closure(
+                        labeled: "operation") else {
+                        throw RuntimeError(message: "missing operation")
+                    }
+                    let value = try await context.callClosureAsync(
+                        operation, arguments: [])
+                    events.append("after")
+                    return value
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        await runDeferredOperation(operation: {
+            await recordDeferredBody()
+            return "done"
+        })
+        """)
+
+        #expect(result.stringValue == "done")
+        #expect(events == ["gateway", "body", "after"])
+    }
 }

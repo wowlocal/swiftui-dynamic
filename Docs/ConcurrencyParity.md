@@ -30,7 +30,7 @@ major version 6.
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active and pre-cancelled cancellation handlers have runtime-owned scoped registrations, synchronous cancel-time dispatch, and immediate already-cancelled registration; same-source Swift 6 parity and deterministic runtime-state tests are green | Nested cancellation-handler characterization, remaining handler exit paths, and the remaining suspension reasons |
+| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active, pre-cancelled, and nested cancellation handlers have runtime-owned scoped registrations, synchronous inner-to-outer cancel-time dispatch, and immediate already-cancelled registration; same-source Swift 6 parity and deterministic runtime-state tests are green | Remaining cancellation-handler exit paths and suspension reasons |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
@@ -73,6 +73,7 @@ major version 6.
 | `task-yield-progress` | stress / completion | Repeated `Task.yield` calls let a ready MainActor sibling make progress | Native/interpreter completion in 20 repetitions; no yield count or relative scheduler order is asserted |
 | `task-cancellation-handler-active` | exact | An active handler runs synchronously before `cancel()` returns, is invoked once across repeated requests, and uses the cancelling task's dynamic context | Native/interpreter parity in 20 repetitions: `0,1,1,false,true,done`; MainActor serialization fixes the observation points without choosing a ready-task order |
 | `task-cancellation-handler-pre-cancelled` | exact | Registering a handler in an already-cancelled task invokes it immediately, in that task's cancelled dynamic context, before the operation begins | Native/interpreter parity in 20 repetitions: `1,true,true,operation-cancelled`; MainActor prevents operation entry before the two pre-start cancellation requests |
+| `task-cancellation-handler-nested` | exact | Simultaneously active nested handlers run once from inner to outer before the cancelled operation resumes | Native/interpreter parity in 20 repetitions: `inner,outer,operation`; a MainActor started barrier fixes the cancel-time happens-before edges without asserting independent task scheduling |
 | `task-read-missing-await-diagnostic` | diagnostic | `Task.value` and `Task.result` are async property accesses, so omitting `await` is rejected even inside an async function | Real Swift 6 diagnostics require `await`; runtime member dispatch now diagnoses instead of returning `()` for either property |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
@@ -1015,6 +1016,55 @@ set passed all 749 tests in 146 suites. `Scripts/gate.sh` passed with suite
 749/749, corpus 678/680, live 5/5, and API parity 345 match / 0 diverge /
 0 interpreter errors / 17 unstable / 0 no-twin.
 
-M3 remains in progress. Nested-handler and remaining scope-exit/error behavior,
-plus the remaining first-class suspension categories, are not yet fully
-characterized.
+### Nested task cancellation handlers
+
+Native question: when two dynamically nested cancellation handlers are active,
+in which order do they run relative to one another and to resumption of the
+cancelled operation, and does a repeated request invoke either one again?
+
+`task-cancellation-handler-nested` enters both scopes before exposing a
+MainActor `started` barrier. The controller then calls `cancel()` twice without
+suspending, and the operation records its final event only after observing its
+cancellation flag. Twenty strict Swift 6.3.3 runs all returned
+`inner,outer,operation`: both handlers finish synchronously in inner-to-outer
+order before the worker can resume, and the repeated request adds no event. No
+relative order between independent ready tasks is asserted.
+
+The first current-runtime differential run was RED in all twenty repetitions:
+native returned `inner,outer,operation`, while the interpreter returned
+`inner,operation,outer,inner,operation`. The root cause was general async
+lowering, not handler storage. A labeled closure argument reached
+`suspensionRoots` as the root expression, but traversal began at its children;
+that bypassed the closure guard and eagerly executed an `await` from the
+deferred body while collecting arguments. The inner scope therefore ran once
+before the outer handler was registered and then ran again during the real
+operation.
+
+Async lowering now rejects a root `ClosureExpr` as a suspension source, just as
+it already rejected nested closure nodes. Deferred closure bodies consequently
+run only when invoked. The runtime's task-owned registration stack then applies
+the natively established reverse traversal, while one-shot state prevents a
+second cancellation request from re-invoking either registration. This is a
+construct-level fix for every labeled async closure argument; no handler or
+fixture symbol is inspected.
+
+A deterministic unit test additionally verifies exact event order, both
+handlers' cancelling-task context, the operation's worker context, two total
+invocations, successful cancelled-operation completion, and zero active
+registrations after both scopes unwind. A separate lowering regression routes a
+labeled closure containing a real `await` through an async gateway and proves
+the gateway observes control before the deferred body runs exactly once. The
+focused concurrency/runtime/host gate passed all 60 tests in six suites. A
+full build of `c6ec54b` plus this exact change set passed all 759 tests in 146
+suites. `Scripts/gate.sh` reported suite 759/759, corpus 676/680, live 5/5, and
+API parity 345 match / 0 diverge / 0 interpreter errors / 17 unstable /
+0 no-twin; it correctly returned RED because the repository corpus floor is
+678. The two units below the previous floor are parent-level regressions:
+`oss:PlayCover` fails while deriving the native ABI layout of `sockaddr_in`, and
+`oss:home-assistant-ios` reaches an app-authored missing-image assertion. Both
+failures reproduce verbatim when each project is run against a clean detached
+`c6ec54b` worktree without this concurrency change. The concurrency step does
+not claim a green repository gate or hide the parent failure.
+
+M3 remains in progress. Remaining scope-exit/error behavior and the remaining
+first-class suspension categories are not yet fully characterized.

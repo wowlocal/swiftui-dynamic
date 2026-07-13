@@ -471,9 +471,10 @@ final class CooperativeConcurrencyRuntime {
     var activeRecordCount: Int { records.count }
 
     private func invokeCancellationHandlers(on record: RuntimeTaskRecord) {
-        // Native stores dynamically nested handlers as a stack. Order is not
-        // exposed as a parity claim yet, but reverse traversal also prevents
-        // a handler removed by an enclosing unwind from being treated as new.
+        // The same-source Swift 6.3.3 probe establishes inner-to-outer
+        // invocation for simultaneously active nested registrations. Taking
+        // the reverse view also leaves one-shot state on each registration,
+        // so repeated cancellation cannot invoke either handler again.
         for registration in record.cancellationHandlers.reversed() {
             invokeCancellationHandler(registration, on: record)
         }

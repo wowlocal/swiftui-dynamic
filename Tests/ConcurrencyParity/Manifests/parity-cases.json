@@ -377,6 +377,18 @@
     "notes": "MainActor prevents the task from starting before two cancellation requests. Registration then occurs on that cancelled task, so Task.isCancelled is true in both onCancel and operation; exact output is 1,true,true,operation-cancelled on Swift 6.3.3."
   },
   {
+    "id": "task-cancellation-handler-nested",
+    "fixture": "Fixtures/task-cancellation-handler-nested.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await nestedCancellationHandlerProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Two nested active cancellation handlers run once in inner-to-outer order before the cancelled operation resumes.",
+    "notes": "A MainActor started barrier makes both registrations active before cancellation and keeps the worker from resuming during cancel(). Exact output is inner,outer,operation on Swift 6.3.3; no ordering between independent ready tasks is asserted."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

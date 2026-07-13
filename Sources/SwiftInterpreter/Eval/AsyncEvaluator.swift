@@ -66,6 +66,11 @@ extension Interpreter {
     /// expression. Lazy/error-handling roots are kept whole so ternaries,
     /// short-circuit operators, and `try?` never execute an untaken branch.
     private func suspensionRoots(in expression: ExprSyntax) -> [ExprSyntax] {
+        // A labeled closure argument reaches this helper as the expression
+        // root itself. Starting the walk at its children would bypass the
+        // closure guard below and eagerly execute awaits from the deferred
+        // body while collecting call arguments.
+        guard !expression.is(ClosureExprSyntax.self) else { return [] }
         var roots: [ExprSyntax] = []
 
         func walk(_ syntax: Syntax) {
