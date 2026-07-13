@@ -18,3 +18,9 @@ never weaken tests). The native twin already exists at
 Examples/FoodTruckNativeTwin (swift run FoodTruckNativeTwin --out DIR). Use
 `Scripts/gate.sh` as the closing gate — one build, all boards parallel (~3 min,
 replaces your serial ~20-min chain); ProjectCheck --all self-caches.
+
+BINDING BRIDGE POLICY (user directive 2026-07-13): read `AGENTS.md`. Missing
+ordinary SwiftUI/SDK API coverage MUST be fixed by improving BridgeGen, shared
+coercions, or reusable generated adapters. Never add a per-API gateway special
+case. Only the narrowly documented, interface-inexpressible SwiftUI magic in
+`AGENTS.md` may remain handwritten.

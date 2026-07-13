@@ -47,10 +47,13 @@ The lock is a FILE outside git (instant, no merge latency):
    architecture; fixtures are REAL recorded bytes or the repo's own
    committed resources, never hand-written).
 4. **Claim it** (see above).
-5. **Fix properly** — no per-scenario hacks. The absorbed-environment
-   doctrine holds: gateways absorb rather than die; native-baseline rule:
-   expectations encode what COMPILED SwiftUI does. New capability without
-   a regression test doesn't count.
+5. **Fix properly** — no per-scenario hacks. A missing ordinary SwiftUI/SDK
+   API is fixed in BridgeGen, shared coercions, or a reusable generated
+   adapter, never with a new API-name gateway special case. The only exception
+   is the narrow interface-inexpressible SwiftUI magic defined in `AGENTS.md`.
+   The absorbed-environment doctrine holds: gateways absorb rather than die;
+   native-baseline rule: expectations encode what COMPILED SwiftUI does. New
+   capability without a regression test doesn't count.
 6. **Verify (lane gate, scaled to blast radius)**: mid-iteration use
    targeted probes ONLY (`--scenario X`, `--filter Y`); the full lane
    gate runs exactly ONCE at close: `swift test` green AND
@@ -72,7 +75,9 @@ The lock is a FILE outside git (instant, no merge latency):
 ## Rules (inherited from LOOP.md, binding)
 
 - Small commits, one wall each. No drive-by refactors.
-- Hand-written gateways stay authoritative over generated ones.
+- Existing handwritten semantic overrides stay authoritative only for the
+  SwiftUI-magic exception in `AGENTS.md`. Runtime priority is not permission to
+  add per-API special cases; grow ordinary coverage through BridgeGen.
 - Tests are never weakened; divergences are documented in README or fixed.
 - Fixtures: real bytes captured once (curl / repo-committed resources).
 - Network only through NetworkPolicy; auth flows out of scope.

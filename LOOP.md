@@ -4,10 +4,11 @@
 
 A Swift interpreter that **matches native SwiftUI's abilities and runs real
 open-source SwiftUI projects without errors**. Architecture (settled, don't
-relitigate): tree-walk SwiftSyntax ASTs directly (never SIL), delegate all
-framework behavior to gateways (hand-written overrides + BridgeGen-generated
-tables from the SDK's swiftinterfaces), stub types (`InterpretedView`) for
-protocol conformance. See README.md for what already works.
+relitigate): tree-walk SwiftSyntax ASTs directly (never SIL), derive framework
+API coverage from SDK swiftinterfaces through BridgeGen-generated tables, keep
+only the narrow SwiftUI-magic semantic primitives allowed by `AGENTS.md`, and
+use stub types (`InterpretedView`) for protocol conformance. See README.md for
+what already works.
 
 ## PRIMARY TARGET: Food Truck — pixel-perfect, fully functional (user directive 2026-07-11)
 
@@ -64,12 +65,14 @@ Account/Store/City screens must still render pixel-identically in their
 signed-out/unpurchased/sample-weather states. Widgets/, ActivityKit, and
 AppIntents surfaces are OUT (extension processes, not the app window).
 
-**Framework gaps this target will surface (build as gateways when the
+**Framework gaps this target will surface (build through BridgeGen when the
 histogram demands, biggest first):** Swift Charts (salesHistory, topFive),
 StoreKit 2 models/SubscriptionStoreView, AuthenticationServices,
 WeatherKit types, CoreLocation, MapKit. The generated-members sweep +
 parity harness (Instruments below) is the cheap way in for value-type
-surface; hand gateways for view-producing API.
+surface; view-producing API must also grow through generated interfaces and
+reusable adapters. Only interface-inexpressible SwiftUI magic may remain
+handwritten, under the rule in `AGENTS.md`.
 
 **North-star metric: FoodTruckCheck total rungs**, then `swift run
 ProjectCheck` pass rate as the health backstop. 587 real zipped SwiftUI
@@ -238,9 +241,13 @@ Each iteration does exactly this:
 4. **Classify and fix properly** (no per-project hacks):
    - *Language gap* (unsupported syntax/semantics) → implement in
      `Sources/SwiftInterpreter/` following existing evaluator patterns.
-   - *Missing view/modifier/type* → prefer teaching BridgeGen a coercion or
-     mapping and regenerate (`swift run BridgeGen --emit`); hand-write in
-     `ViewGateways`/`ModifierGateways` only when generation can't express it.
+   - *Missing view/modifier/type* → this is a BridgeGen gap. Teach BridgeGen a
+     coercion, mapping, interface analysis rule, or reusable generated adapter,
+     then regenerate (`swift run BridgeGen --emit`). NEVER add a per-API entry
+     to `ViewGateways`/`ModifierGateways` merely to pass the current example.
+     Handwritten work is allowed only for the narrow, interface-inexpressible
+     SwiftUI magic defined in `AGENTS.md`, and must be reusable, documented,
+     and regression-tested.
    - *Missing MEMBER on a host native* (a Foundation/SDK value's property or
      method absorbs or errors) → this is a GENERATED-MEMBERS gap, not a
      hand-box job. Read the demand signal first: LiveCheck failure messages
@@ -250,10 +257,12 @@ Each iteration does exactly this:
      type to `memberTypes`, add a `memberMapping` entry + `ParamTag` coercion
      for a blocked parameter type (report mode prints the member-blocking
      histogram), or lift a sweep filter — and regenerate with `swift run
-     BridgeGen --emit`. Write a NEW hand box only for semantics generation
-     can't express (write-back mutation, stateful boxes like URLSessionBox);
-     if the core's `nativeMember` already hand-serves a member the sweep would
-     emit, pin it in `denyMembers` instead of shadowing it.
+     BridgeGen --emit`. Do not add a member-specific hand box. A state-bearing
+     host service whose lifecycle is absent from value-type interface metadata
+     may use a reusable, type-level runtime adapter, but that is not an escape
+     hatch for ordinary members. If the core's `nativeMember` already
+     hand-serves a member the sweep would emit, pin it in `denyMembers` instead
+     of shadowing it.
    - *iOS-only / platform-impossible API* (UIKit interop, UIScreen…) → add a
      minimal inert stub if cheap and honest (renders something reasonable),
      otherwise record the project name + reason in the Quarantine section
@@ -342,8 +351,8 @@ Each iteration does exactly this:
       the fix is nativeMember stdlib-table entries, NOT the generated
       swiftinterface tier (its sweep serves SDK types only). Minor tier
       items from the same audit: URLSessionBox.webSocketTask (stateful
-      hand box), URL.resourceValues (throws — sweep-filtered; consider
-      a do/catch-wrapping emit policy for throwing members).
+      runtime-service adapter), URL.resourceValues (throws — sweep-filtered;
+      consider a do/catch-wrapping emit policy for throwing members).
       RESOLUTION: Dictionary Collection members land in nativeMember —
       contains(where:)/filter/compactMap/map/sorted(by:) over native
       (key:, value:) tuple elements (DictEnumeratedTests). Post-fix
@@ -393,7 +402,12 @@ Each iteration does exactly this:
   record who made the change with a trailer line before Co-Authored-By:
   `Model: <model name> (<model id>), effort=<effort>`.
 - Small commits, one failure class each. No drive-by refactors.
-- Hand-written gateways stay authoritative over generated ones.
+- **Swiftinterface-first bridge invariant:** ordinary SwiftUI/SDK API gaps are
+  fixed only in BridgeGen, shared coercions, or reusable generated adapters.
+  Never add an API/project/literal special case. Existing handwritten semantic
+  overrides may stay authoritative at runtime only when they meet the narrow
+  SwiftUI-magic exception in `AGENTS.md`; their dispatch priority is not
+  permission to grow the handwritten surface.
 - Semantic divergences (reference-backed structs, positional identity, etc.)
   are documented in README.md, not silently extended. If a fix requires a NEW
   divergence, document it in the same commit.

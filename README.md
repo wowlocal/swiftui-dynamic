@@ -74,8 +74,9 @@ documented in [`Docs/InterpreterArchitecture.md`](Docs/InterpreterArchitecture.m
   precedence.
 - **No reimplemented frameworks.** The interpreter core (`SwiftInterpreter`)
   never imports SwiftUI. "What does `VStack` mean" is answered by the
-  `SwiftUIBridge` target through hand-written *gateway* tables — functions
-  that accept dynamic arguments and call the real SwiftUI API (the Bitrig
+  `SwiftUIBridge` target through BridgeGen tables derived from the SDK's
+  swiftinterfaces, plus a narrow set of semantic primitives for SwiftUI magic
+  the interfaces cannot encode. Both call the real SwiftUI API (the Bitrig
   trick). A `TraceRegistry` implements the same protocol for headless tests.
 - **Executable host contracts.** Embedders can register Swift-shaped
   declarations (`func`, `init`, instance/static methods, and mutable/read-only
@@ -177,7 +178,9 @@ fails at build time rather than in a session. Dispatch
 goes through the ArgumentMatcher (`GeneratedSupport.swift`): per-overload
 parameter specs (label + coercible type tag), label/coercibility filtering,
 most-specific-first ranking. Hand-written gateways are consulted first and
-always win. The report mode (no `--emit`) prints the blocking-type histogram —
+always win for compatibility with existing semantic overrides; this dispatch
+order is not permission to add new API-specific gateways. The report mode (no
+`--emit`) prints the blocking-type histogram —
 the priority list for new coercions. Defaulted parameters are expanded into
 every valid labeled omission shape, including defaults before required
 parameters (`VStack(spacing:) { ... }`); an omitted unlabeled default never
@@ -194,6 +197,16 @@ coerces 14 types directly from their SDK-declared cases instead of maintaining
 handwritten switches. CI can request a
 stable inventory of emitted signatures and blocker counts with
 `swift run BridgeGen --report-json .build/bridgegen-coverage.json`.
+
+**Development invariant:** an ordinary missing initializer, modifier, or SDK
+member is always a generator problem. Fix the interface analysis, type
+mapping/coercion, or a reusable generated adapter; never add an API-, project-,
+fixture-, or literal-specific gateway to make one case pass. Handwritten code
+is reserved for narrowly documented SwiftUI magic absent from a
+`swiftinterface`: builder execution and supplied inputs, state/binding identity,
+child identity/composition, and opaque view/shape/style preservation or
+erasure. Even that magic must be reusable where possible and covered by native
+parity or integration tests. See `AGENTS.md` for the binding agent rule.
 
 The same generator sweeps the SDK's **Foundation swiftinterface** for the
 member surface of value types (`URL`, `Data`, `Date`, `Calendar`, `UUID`,

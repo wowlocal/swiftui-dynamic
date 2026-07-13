@@ -63,6 +63,23 @@ source
   return boundaries. Turning those values into `AnyView` or an absorbing bag
   destroys the conformance that generated gateways need.
 
+## Swiftinterface-first bridge invariant
+
+Ordinary SwiftUI and SDK API coverage is derived from swiftinterfaces. A
+missing initializer, modifier, or member must be fixed by improving BridgeGen,
+shared type coercions, or a reusable generated adapter and regenerating the
+checked-in tables. Per-API, per-project, fixture-name, source-name, and literal
+special cases are forbidden.
+
+The sole exception is SwiftUI runtime magic not represented in interface
+metadata: result-builder execution and framework-supplied closure arguments,
+state/binding/observation identity, collection child identity/composition, and
+preservation or erasure of opaque `View`, `Shape`, and `ShapeStyle` values.
+These remain centralized semantic primitives, not precedent for API-specific
+gateways. If an API-specific hook is unavoidable, it belongs to a small
+documented allowlist with the absent interface semantics and native-parity or
+integration coverage. The binding agent instructions live in `AGENTS.md`.
+
 ## Runtime-value migration
 
 `RuntimeValue` stores primitives, strings, arrays, Sets, dictionaries, tuples,
@@ -172,10 +189,10 @@ The remaining semantic migration is deliberately ordered:
 1. Consider a distinct/COW struct representation if profiling shows
    storage-envelope copies are material; the observable struct/class
    semantics no longer depend on that refactor.
-2. Move generated SwiftUI modifier/constructor tables and remaining
-   hand-written compatibility gateways onto
-   the landed typed declarations without weakening deliberate absorption
-   fallbacks.
+2. Move generated SwiftUI modifier/constructor tables and existing
+   compatibility gateways onto the landed typed declarations. Migrate every
+   interface-expressible gateway into BridgeGen; retain only the documented
+   SwiftUI-magic primitives without weakening deliberate absorption fallbacks.
 3. Tighten compile-time-only rules (mutability/exclusivity and unsupported
    ownership forms) where runtime diagnostics add practical value.
 
