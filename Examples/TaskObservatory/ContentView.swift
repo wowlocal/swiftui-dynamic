@@ -22,7 +22,7 @@ struct ContentView: View {
         }
         .padding(22)
         .frame(width: 980, height: 720)
-        .background(Color.black.opacity(0.03))
+        .background(Color.primary.opacity(0.025))
     }
 
     var header: some View {
@@ -84,7 +84,7 @@ struct ContentView: View {
         }
         .padding(16)
         .frame(width: 310, height: 330)
-        .background(Color.white)
+        .background(Color.primary.opacity(0.055))
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
     }
@@ -119,7 +119,7 @@ struct ContentView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 330, maxHeight: 330)
-        .background(Color.white)
+        .background(Color.primary.opacity(0.055))
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
     }
@@ -182,7 +182,7 @@ struct WorkerCard: View {
         }
         .padding(15)
         .frame(maxWidth: .infinity, minHeight: 138)
-        .background(Color.white)
+        .background(Color.primary.opacity(0.055))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(worker.color.opacity(0.2), lineWidth: 1)
@@ -223,7 +223,7 @@ struct ObserverRow: View {
             Spacer()
         }
         .padding(10)
-        .background(Color.black.opacity(0.035))
+        .background(Color.primary.opacity(0.045))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

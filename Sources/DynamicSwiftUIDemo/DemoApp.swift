@@ -127,10 +127,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         switch InterpreterHost().render(source: source, lazyTopLevelGlobals: lazyGlobals) {
         case .success(let view):
+            let darkSnapshot = CommandLine.arguments.firstIndex(of: "--appearance").flatMap { index in
+                CommandLine.arguments.indices.contains(index + 1)
+                    ? CommandLine.arguments[index + 1].lowercased() : nil
+            } == "dark"
+            let appearance = NSAppearance(named: darkSnapshot ? .darkAqua : .aqua)
+            let colorScheme: ColorScheme = darkSnapshot ? .dark : .light
             // NSHostingView in a never-shown window (not ImageRenderer):
             // AppKit-backed controls don't draw under ImageRenderer, and
             // SwiftUI layers don't draw via cacheDisplay without a window.
-            let hosting = NSHostingView(rootView: view.padding(40).background(Color.white))
+            let hosting = NSHostingView(rootView: view
+                .environment(\.colorScheme, colorScheme)
+                .padding(40)
+                .background(Color(nsColor: .windowBackgroundColor)))
+            hosting.appearance = appearance
             hosting.layoutSubtreeIfNeeded()
             // Samples are components — size to fit. Projects are full-screen
             // apps (scroll/GeometryReader roots collapse fittingSize to
@@ -149,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             hosting.frame = NSRect(origin: .zero, size: size)
             let window = NSWindow(contentRect: hosting.frame, styleMask: .borderless, backing: .buffered, defer: false)
-            window.appearance = NSAppearance(named: .aqua)
+            window.appearance = appearance
             window.contentView = hosting
             window.orderFrontRegardless()
             // Nested interpreted views publish additional SwiftUI updates as

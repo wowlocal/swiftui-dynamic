@@ -17,6 +17,13 @@ Run it from the repository root:
 swift run DynamicSwiftUIDemo --project Examples/TaskObservatory
 ```
 
+Render deterministic light and dark verification snapshots with:
+
+```sh
+swift run DynamicSwiftUIDemo --project Examples/TaskObservatory \
+  --render-png /tmp/task-observatory.png --size 980x720 --appearance dark
+```
+
 Retest checklist:
 
 - Atlas, Beacon, and Comet make independent progress.
