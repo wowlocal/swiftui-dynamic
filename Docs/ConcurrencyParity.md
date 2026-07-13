@@ -30,7 +30,7 @@ major version 6.
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active, pre-cancelled, nested, normal-exit, and throwing-exit cancellation-handler paths have runtime-owned scoped registrations, synchronous inner-to-outer cancel-time dispatch, immediate already-cancelled registration, and verified unwind cleanup; ordinary source cancellation remains catchable while host/session abort is non-catchable and source-tagged independently; same-source Swift 6 parity and deterministic runtime-state tests are green | Remaining first-class suspension reasons |
+| M3 suspension and clocks | in progress | Incomplete task-value/result reads, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active, pre-cancelled, nested, normal-exit, and throwing-exit cancellation-handler paths have runtime-owned scoped registrations, synchronous inner-to-outer cancel-time dispatch, immediate already-cancelled registration, and verified unwind cleanup; ordinary source cancellation remains catchable while host/session abort is non-catchable and source-tagged independently; same-source Swift 6 parity and deterministic runtime-state tests are green | First-class async host-gateway suspension; later actor/group/stream/continuation reasons remain with their owning milestones |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
@@ -49,7 +49,7 @@ major version 6.
 | `detached-host-context-reentry` | exact | `Task.detached` does not inherit a TaskLocal value; explicit capture/rebind preserves it inside an async callback | Native/interpreter parity in 20 repetitions; the interpreter host checks exact `EvaluationTaskContext` ID equality after detached re-entry |
 | `async-initializer-context` | predicate / event multiset | 100 extension-declared async initializers preserve their argument and lexical nested type across suspension; completion order is unspecified | Native/interpreter parity in 20 repetitions; 100 distinct evaluator contexts are explicitly cleaned |
 | `async-initializer-outcomes` | exact | Async initializers preserve successful, thrown-through-`try?`, failable-success, and failable-nil outcomes across suspension | Native/interpreter parity in 20 repetitions: `success,threw,accepted,rejected` |
-| `task-value-success` | exact | `await task.value` suspends until completion and returns the successful value | Native/interpreter parity in 20 repetitions with a gate-forced trace: `child-start,before-value,child-end,value` |
+| `task-value-success` | exact | `await task.value` suspends until completion and returns the successful value | Native/interpreter parity in 20 repetitions with a gate-forced trace: `child-start,before-value,child-end,value`; an incomplete interpreted target records `.awaitingTask(targetID)` on the waiter until completion |
 | `task-value-failure` | exact | A throwing task preserves its source failure across suspension and `try await task.value` throws it to the caller | Native/interpreter parity in 20 repetitions; catchability is asserted without coupling to error text |
 | `task-value-multiple-waiters` | predicate / event multiset | Multiple tasks may concurrently await the same task and every waiter receives its one completed success value | Native/interpreter parity in 20 repetitions; both interpreted waiters are simultaneously registered on one task record and relative resume order is not asserted |
 | `task-value-waiter-cancellation` | exact | Cancelling a task while it awaits another unstructured task's value neither ends the value wait nor cancels the target; the waiter receives the value and remains marked cancelled | Native/interpreter parity in 20 repetitions: `target-active,waiter-cancelled,handle-cancelled`; request/observation order and cleanup of both wait-graph edges are verified directly |
@@ -1146,3 +1146,47 @@ failure.
 
 M3 remains in progress only for the remaining first-class suspension
 categories.
+
+### Task-value suspension reason
+
+Native question: while an unstructured target is held incomplete behind an
+explicit MainActor gate, does `await target.value` suspend its caller so that a
+separately created controller can run, release the target, and let the caller
+resume with the value?
+
+The existing committed same-source `task-value-success` fixture answers this
+without relying on scheduler choice. The target records `child-start` and
+waits at the gate. The caller records `before-value`, creates the controller,
+and immediately reads the value; the controller cannot execute inline on
+MainActor, so that read must suspend before it can open the gate. Twenty
+bounded Apple Swift 6.3.3 strict-concurrency runs again produced
+`child-start,before-value,child-end,value` exactly.
+
+Before the runtime change, the new deterministic regression observed a
+partially represented dependency: the target's waiter set and the caller's
+`waitingOnTasks` edge were correct, but the caller remained `.running`, its
+active suspension was `nil`, and its suspension history was empty. The logical
+scheduler therefore could not explain why that task was unable to execute.
+
+`RuntimeSuspension` now includes `.awaitingTask(RuntimeTaskID)`.
+`RuntimeTaskHandle.waitForOutcome` installs that reason and moves the caller to
+`.waiting` whenever `value` or `result` targets an incomplete task. Actual
+target completion resumes the same caller and removes both dependency edges;
+completed targets do not acquire a fictitious wait reason. The mechanism is
+shared by successful, failed, and cancelled outcomes, multiple waiters, and
+priority-donation chains.
+
+At the forced observation point, the regression sees exactly one target
+waiter, the reciprocal caller dependency, and
+`.waiting/.awaitingTask(targetID)`. After completion it sees a successful
+caller, no active suspension, one retained history entry, no wait edges, and
+an empty active registry. The focused concurrency/runtime/host/parity gate
+passed all 63 tests in six suites, including every native repetition; the full
+suite passed all 762 tests in 146 suites. `Scripts/gate.sh` reported suite
+762/762, corpus 676/680, live 5/5, and API parity 345 match / 0 diverge /
+0 interpreter errors / 17 unstable / 0 no-twin. It returned RED solely on the
+already isolated parent-level corpus floor; the forced sweep introduced no new
+failure.
+
+The next smallest open M3 suspension category is an async host gateway, which
+needs a runtime-owned host-operation identity rather than a name-based marker.

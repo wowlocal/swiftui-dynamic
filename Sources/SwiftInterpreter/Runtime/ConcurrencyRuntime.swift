@@ -120,11 +120,13 @@ public enum RuntimeTaskState: String, Sendable {
 }
 
 public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
+    case awaitingTask(RuntimeTaskID)
     case yielding
     case sleeping(until: RuntimeInstant)
 
     public var description: String {
         switch self {
+        case .awaitingTask(let taskID): "awaitingTask(\(taskID))"
         case .yielding: "yielding"
         case .sleeping(let deadline): "sleeping(until: \(deadline))"
         }

@@ -5,6 +5,92 @@ import Testing
 @Suite("Task completion runtime")
 struct TaskCompletionRuntimeTests {
     @Test
+    func taskValueWaitRecordsFirstClassAwaitingTaskSuspension() async throws {
+        let interpreter = Interpreter()
+        var targetGateOpen = false
+        var observedWaiterState: RuntimeTaskState?
+        var observedSuspension: RuntimeSuspension?
+        var observedTargetWaiters: Set<RuntimeTaskID> = []
+        var observedWaiterDependencies: Set<RuntimeTaskID> = []
+
+        interpreter.globals.define(
+            "waitForTaskValueSuspensionGate",
+            .hostFunction(HostFunction(
+                name: "waitForTaskValueSuspensionGate",
+                asyncInvoke: { _, _ in
+                    while !targetGateOpen { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "observeTaskValueSuspension",
+            .hostFunction(HostFunction(
+                name: "observeTaskValueSuspension",
+                asyncInvoke: { _, _ in
+                    while true {
+                        guard case .host(let targetPayload)? =
+                                interpreter.globals.lookup("suspensionTarget"),
+                              let target = targetPayload as? RuntimeTaskHandle,
+                              case .host(let waiterPayload)? =
+                                interpreter.globals.lookup("suspensionWaiter"),
+                              let waiter = waiterPayload as? RuntimeTaskHandle,
+                              target.waiterCount == 1 else {
+                            await Task.yield()
+                            continue
+                        }
+                        observedWaiterState = waiter.state
+                        observedSuspension = waiter.suspension
+                        observedTargetWaiters = target.record.waiters
+                        observedWaiterDependencies = waiter.waitingOnTaskIDs
+                        targetGateOpen = true
+                        return .void
+                    }
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        let suspensionTarget = Task {
+            await waitForTaskValueSuspensionGate()
+            return "value"
+        }
+        let suspensionWaiter = Task {
+            await suspensionTarget.value
+        }
+        await observeTaskValueSuspension()
+        _ = await suspensionWaiter.value
+        let completedTargetWaiter = Task {
+            await suspensionTarget.value
+        }
+        await completedTargetWaiter.value
+        """)
+
+        guard case .host(let targetPayload)? =
+                interpreter.globals.lookup("suspensionTarget"),
+              let target = targetPayload as? RuntimeTaskHandle,
+              case .host(let waiterPayload)? =
+                interpreter.globals.lookup("suspensionWaiter"),
+              let waiter = waiterPayload as? RuntimeTaskHandle,
+              case .host(let completedWaiterPayload)? =
+                interpreter.globals.lookup("completedTargetWaiter"),
+              let completedWaiter =
+                completedWaiterPayload as? RuntimeTaskHandle else {
+            Issue.record("expected task-value suspension handles")
+            return
+        }
+        #expect(result.stringValue == "value")
+        #expect(observedWaiterState == .waiting)
+        #expect(observedSuspension == .awaitingTask(target.id))
+        #expect(observedTargetWaiters == [waiter.id])
+        #expect(observedWaiterDependencies == [target.id])
+        #expect(waiter.state == .succeeded)
+        #expect(waiter.suspension == nil)
+        #expect(waiter.suspensionHistory == [.awaitingTask(target.id)])
+        #expect(completedWaiter.state == .succeeded)
+        #expect(completedWaiter.suspensionHistory.isEmpty)
+        #expect(target.waiterCount == 0)
+        #expect(waiter.waitingOnTaskIDs.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func completedHandlesRetainTypedOutcomesAfterRuntimeRelease() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

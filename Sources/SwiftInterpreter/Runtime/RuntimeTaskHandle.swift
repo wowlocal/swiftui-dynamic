@@ -158,9 +158,20 @@ public final class RuntimeTaskHandle {
     func waitForOutcome(
         waiter: RuntimeTaskID? = nil
     ) async -> RuntimeTaskOutcome {
-        if let waiter { runtime.beginWaiting(waiter, on: record) }
+        let suspension: RuntimeSuspension?
+        if let waiter, !record.state.isCompleted {
+            runtime.beginWaiting(waiter, on: record)
+            let reason = RuntimeSuspension.awaitingTask(record.id)
+            runtime.suspend(waiter, for: reason)
+            suspension = reason
+        } else {
+            suspension = nil
+        }
         defer {
-            if let waiter { runtime.endWaiting(waiter, on: record) }
+            if let waiter, let suspension {
+                runtime.resume(waiter, from: suspension)
+                runtime.endWaiting(waiter, on: record)
+            }
         }
         await record.nativeTask?.value
         return record.outcome ?? .failure(
