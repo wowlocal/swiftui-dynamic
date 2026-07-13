@@ -449,6 +449,18 @@
     "notes": "The child is already inside a 30-second cancellable suspension when the function records early-return. Exact output is child-start,early-return,child-cancelled,returned,after-return in 20 Swift 6.3.3 runs; the caller-side returned event therefore proves cleanup completed first."
   },
   {
+    "id": "async-let-throwing-scope-exit",
+    "fixture": "Fixtures/async-let-throwing-scope-exit.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetThrowingScopeExitProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Throwing out of a scope cancels and joins an unconsumed async-let child before the owner error reaches the caller's catch.",
+    "notes": "The nonthrowing child catches cancellation inside a 30-second suspension, so it cannot replace the owner's error. Exact output is child-start,scope-throw,child-cancelled,caught,after-catch in 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "async-let-value-failure",
     "fixture": "Fixtures/async-let-value-failure.swift",
     "mode": "runtime",
