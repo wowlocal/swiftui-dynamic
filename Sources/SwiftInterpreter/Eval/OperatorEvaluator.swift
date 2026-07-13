@@ -620,12 +620,18 @@ extension Interpreter {
                     stub.box.value = stored(value)
                     return
                 }
-                if any is InertCallable || any is ImplicitMemberCall || any is ChainedImplicitCall {
-                    return // writes through unavailable host properties absorb
+                // A typed descriptor or explicit compatibility setter makes
+                // this a known writable host member, even when the enclosing
+                // object is otherwise inert (for example an off-platform SDK
+                // value). Only unknown writes fall through to absorption.
+                if try interpreter.writeHostMember(name, on: any, to: value) {
+                    return
                 }
-                guard try interpreter.writeHostMember(name, on: any, to: value) else {
-                    throw EvalMessage(text: "cannot assign to '\(name)' on \(type(of: any))")
+                if any is InertCallable || any is ImplicitMemberCall
+                    || any is ChainedImplicitCall {
+                    return
                 }
+                throw EvalMessage(text: "cannot assign to '\(name)' on \(type(of: any))")
             case .element(let base, let index):
                 // Read-modify-write through the base lvalue, so element writes
                 // propagate box/publisher notifications all the way up.

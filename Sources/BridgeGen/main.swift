@@ -65,6 +65,7 @@ let modulePrefixes = [
     "UniformTypeIdentifiers.", "DeveloperToolsSupport.",
     "CoreFoundation.", "CoreGraphics.",
     "Observation.", "SwiftUICore.", "Foundation.", "CoreData.", "SwiftUI.",
+    "AppKit.", "UIKit.", "QuartzCore.", "ObjectiveC.",
     "Combine.", "Swift.", "os.",
 ]
 
@@ -970,6 +971,13 @@ if let foundationFile {
     }
 }
 
+// AppKit/UIKit are predominantly Clang-imported Objective-C APIs, so their
+// textual Swift overlays do not contain the declarations Swift source sees.
+// Xcode's symbol graphs are the compiler-produced Swift interface for that
+// imported surface; PlatformGeneration applies the same metadata-first rule
+// and emits statically compiled calls plus opposite-platform typed fallbacks.
+let platformGeneration = try generatePlatformBridge()
+
 // MARK: - Report
 
 let parameterBlockers = modifierBlockers.merging(initBlockers, uniquingKeysWith: +)
@@ -1014,6 +1022,11 @@ for (type, count) in memberSettablePropertyTypes.sorted(by: {
     print(String(format: "%5d  %@", count, type))
 }
 
+print("\n═══ AppKit/UIKit generated platform tier ═══")
+for summary in platformGeneration.summaries {
+    print(summary)
+}
+
 func sdkEnumType(from tag: String) -> String? {
     let prefix = "sdkEnum(\""
     let suffix = "\")"
@@ -1054,12 +1067,13 @@ struct BridgeCoverageReport: Encodable {
     let modifiers: CoverageSection
     let constructors: CoverageSection
     let foundationMembers: FoundationCoverageSection
+    let platformMembers: [String: PlatformCoverageSection]
     let generatedSDKEnums: [String: [String]]
 }
 
 if let jsonReportPath {
     let report = BridgeCoverageReport(
-        schemaVersion: 1,
+        schemaVersion: 2,
         sdkPath: sdk,
         deploymentTarget: deploymentTarget,
         modifiers: CoverageSection(
@@ -1083,6 +1097,7 @@ if let jsonReportPath {
                 .map { "\($0.type).\($0.name) -> \($0.returnType)" }.sorted(),
             emittedMethodSignatures: memberMethodVariants.map(\.key).sorted(),
             blockers: memberBlockers),
+        platformMembers: platformGeneration.coverage,
         generatedSDKEnums: Dictionary(uniqueKeysWithValues: emittedSDKEnumTypes.sorted().compactMap { type in
             sdkEnumCases[type].map { (type, $0) }
         }))
@@ -1090,7 +1105,7 @@ if let jsonReportPath {
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(report)
     try data.write(to: URL(fileURLWithPath: jsonReportPath), options: .atomic)
-    print("\nwrote \(jsonReportPath) (coverage schema v1)")
+    print("\nwrote \(jsonReportPath) (coverage schema v2)")
 }
 
 // MARK: - Emit
@@ -1352,6 +1367,11 @@ membersOutput += "}\n"
 let membersPath = "Sources/SwiftUIBridge/Generated/GeneratedMembers.swift"
 try membersOutput.write(toFile: membersPath, atomically: true, encoding: .utf8)
 print("wrote \(membersPath) (\(sortedProperties.count) properties, \(sortedMembers.count) method variants)")
+
+let platformPath = "Sources/SwiftUIBridge/Generated/GeneratedPlatformBridge.swift"
+try platformGeneration.output.write(
+    toFile: platformPath, atomically: true, encoding: .utf8)
+print("wrote \(platformPath)")
 
 
 // MARK: - Emit parity probes (--probes)

@@ -165,7 +165,8 @@ properties before generated modifiers consume them.
 
 Hand-writing gateways doesn't scale to SwiftUI's real surface, so
 `swift run BridgeGen --emit` parses the SDK's **actual swiftinterface files**
-(SwiftUICore + SwiftUI — the modern SDK splits them) and generates
+(SwiftUICore + SwiftUI — the modern SDK splits them), extracts the public
+AppKit/UIKit symbol graphs, and generates
 `Generated/GeneratedModifiers.swift` (**428 overload variants across 151
 modifier names**) and `Generated/GeneratedViews.swift` (**113 initializer
 variants across 32 View structs** — containers, navigation, Button, Toggle,
@@ -237,6 +238,27 @@ histogram per scenario (`absorbed: URLSessionBox.webSocketTask×3`) — the
 priority list for growing the sweep's `memberTypes`/tags. Members hand-served
 below the registry (the core's `nativeMember`) are pinned in BridgeGen's
 `denyMembers` so generated entries never shadow them.
+
+AppKit and UIKit need a second metadata source because most of their
+Clang-imported Objective-C surface is absent from the textual Swift overlay.
+BridgeGen therefore caches `swift-symbolgraph-extract` output for both SDKs
+and emits `Generated/GeneratedPlatformBridge.swift`. Selection is type-level:
+for each configured platform primitive (`NSView`/`UIView`, controls, windows,
+colors, fonts, images, text and collection views, plus their nested types),
+every mechanically supported public member is generated; there is no
+member-name allowlist. The current SDK produces **102 AppKit types, 83
+constructors, 943 properties, 376 methods, and 423 contextual values**, plus
+**102 UIKit types, 70 constructors, 676 properties, 254 methods, and 363
+contextual values**. Calls compile statically against the real framework on
+its native platform. The same typed contracts remain available on the other
+platform as deterministic inert values, so shared source can still construct,
+read, write, and chain the API without pretending that the unavailable
+framework exists. Generated carriers preserve native struct value semantics
+and class identity. Inherited/importer-synthesized initializer shapes and
+unsupported signatures (for example `inout` delegates) retain the existing
+inert compiled-import fallback instead of weakening matched generated
+contracts. The JSON coverage report's schema v2 records this surface
+under `platformMembers`, including availability filtering and blocker counts.
 
 **The parity harness closes the confidence loop**: `swift run BridgeGen
 --emit --probes` also generates one expression probe per generated member

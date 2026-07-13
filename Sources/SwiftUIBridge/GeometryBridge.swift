@@ -257,6 +257,11 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let member = networkBridgeMember(name, on: value) {
         return member
     }
+    if let platform = value as? GeneratedPlatformValue {
+        if let member = GeneratedPlatformBridge.member(name, on: platform) {
+            return member
+        }
+    }
     // Generated Foundation methods are the dynamic-member fallback here;
     // generated properties take the typed HostProperty path first.
     if let member = GeneratedMembers.member(name, on: value) {
@@ -450,16 +455,28 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 let payload = args.positional(0) ?? .void
                 return .native(ResultBox(isSuccess ? .success(payload) : .failure(payload)))
             })
-        case ("Color", _), ("UIColor", _), ("NSColor", _):
+        case ("Color", _):
             // Asset-catalog accessors (SwiftGen's `Color.haPrimary`) are
             // build-time generated — no source can ever declare them, so a
             // missing lowercase color static reads as a deterministic
             // placeholder (assets resolve only on device).
             guard name.first?.isLowercase == true else { return nil }
             return .native(SwiftUI.Color.gray)
+        case ("UIColor", _), ("NSColor", _):
+            if let generated = GeneratedPlatformBridge.staticMember(
+                name, typeName: marker.name) {
+                return generated
+            }
+            guard name.first?.isLowercase == true else { return nil }
+            return .native(SwiftUI.Color.gray)
         default:
-            return nil
+            break
         }
+        if let generated = GeneratedPlatformBridge.staticMember(
+            name, typeName: marker.name) {
+            return generated
+        }
+        return nil
     }
     if let stub = value as? UIKitStub {
         if let stored = stub.config[name] { return stored }
@@ -748,6 +765,10 @@ private enum HandNormalizedGeneratedPropertyCache {
 }
 
 func bridgeHostProperty(_ name: String, on value: Any) -> HostProperty? {
+    if let platform = value as? GeneratedPlatformValue,
+       let property = GeneratedPlatformBridge.property(name, on: platform) {
+        return property
+    }
     if let property = hostObjectProperty(name, on: value) { return property }
     // Preserve hand-normalized reads (notably URLComponents.queryItems), but
     // put swept writable SDK properties behind their generated contract.
@@ -837,7 +858,10 @@ extension ViewRegistry {
     }
 
     public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
-        GeneratedMembers.method(name, on: value)
+        if let platform = value as? GeneratedPlatformValue {
+            return GeneratedPlatformBridge.method(name, on: platform)
+        }
+        return GeneratedMembers.method(name, on: value)
     }
 
     public func hostProtocolCandidates(of value: Any) -> [String] {
@@ -1022,6 +1046,9 @@ func bridgeHostProtocolCandidates(of value: Any) -> [String] {
     case is AnyCancellableBox: return ["AnyCancellable", "Cancellable"]
     case is PassthroughSubjectBox: return ["PassthroughSubject", "Publisher"]
     case let stub as UIKitStub: return stub.roles
+    case let platform as GeneratedPlatformValue:
+        return GeneratedPlatformBridge.typeCandidates(
+            framework: platform.framework, type: platform.typeName)
     default: return []
     }
 }
@@ -1047,6 +1074,7 @@ func bridgeHostTypeName(of value: Any) -> String? {
     case is DateComponentsBox: return "DateComponents"
     case is URLComponentsBox: return "URLComponents"
     case is URLRequestBox: return "URLRequest"
+    case let platform as GeneratedPlatformValue: return platform.typeName
     default: return nil
     }
 }

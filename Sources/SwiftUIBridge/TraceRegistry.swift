@@ -104,6 +104,9 @@ public final class TraceRegistry: HostRegistry {
 
     public func constructor(named name: String) -> HostFunction? {
         if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
+        if let platform = GeneratedPlatformBridge.constructor(named: name) {
+            return platform
+        }
         if name == "UserDefaults" || name == "NSUserDefaults" {
             return ObjCTrampoline.constructor(named: name)
         }
@@ -542,6 +545,13 @@ public final class TraceRegistry: HostRegistry {
             }
         }
         return bridgeHostMember(name, on: value)
+    }
+
+    public func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
+        if let platform = value as? GeneratedPlatformValue {
+            return GeneratedPlatformBridge.method(name, on: platform)
+        }
+        return GeneratedMembers.method(name, on: value)
     }
 
     /// `Text("a") + Text("b")` — concatenation records a combined node.

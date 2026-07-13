@@ -53,6 +53,17 @@ source
   method-argument conversion
   into statically compiled Foundation calls; it no longer decides labels,
   arity, types, ranking, receiver validity, or result validity for this family.
+- Clang-imported AppKit/UIKit declarations are recovered from the SDK symbol
+  graphs (their textual Swift overlays omit most of the public surface).
+  BridgeGen selects platform roots at the type level and emits every
+  mechanically supported constructor, method, property, and contextual value
+  beneath them. The generated calls are statically compiled on the native
+  platform; the opposite platform uses the same `HostFunction`/`HostProperty`
+  contracts with typed inert results. A shared carrier preserves SDK struct
+  copies and framework-object identity without placing either framework in the
+  interpreter core. Shapes omitted by the importer or rejected by the shared
+  coercion rules fall through to the existing inert compiled-import boundary;
+  they never bypass a generated declaration that actually matches the call.
 - `HostRegistry` is the only framework capability boundary. SwiftUIBridge and
   test registries implement it independently; the typed layer has no SwiftUI
   dependency.
@@ -65,7 +76,9 @@ source
 
 ## Swiftinterface-first bridge invariant
 
-Ordinary SwiftUI and SDK API coverage is derived from swiftinterfaces. A
+Ordinary SwiftUI and SDK API coverage is derived from SDK interface metadata:
+swiftinterfaces where they contain the Swift declarations, and symbol graphs
+for Clang-imported platform declarations omitted from textual overlays. A
 missing initializer, modifier, or member must be fixed by improving BridgeGen,
 shared type coercions, or a reusable generated adapter and regenerating the
 checked-in tables. Per-API, per-project, fixture-name, source-name, and literal
@@ -94,7 +107,8 @@ value semantics. Opaque host classes retain identity by default; a registry's
 class-backed carrier for a native Swift struct can explicitly adopt
 `HostValueSemantic`, causing ordinary and deep storage copies to clone the
 carrier. The Foundation bridge uses that opt-in for `DateComponents`,
-`URLComponents`, and `URLRequest`.
+`URLComponents`, and `URLRequest`; the generated platform carrier applies it
+from symbol-graph nominal-kind metadata to AppKit/UIKit structs.
 
 `RuntimeOptionalValue` retains both `.some` and `.none` as physical runtime
 values, including every layer of a nested Optional. Its wrapped-type metadata
