@@ -1629,7 +1629,36 @@ It is a separate optimization/capability milestone.
 
 ## 19. Autonomous GOAL prompt
 
-The following prompt is ready to use as the long-running GOAL instruction.
+Use this concise prompt when creating the long-running GOAL. The rest of this
+document is the specification; the expanded execution contract below is for
+the agent to read, not something that must be copied into the GOAL field.
+
+```text
+Реализуй стабильный фундамент Swift Concurrency для интерпретатора строго по
+Docs/SwiftConcurrencyArchitecture.md.
+
+Перед началом полностью прочитай документ. Начни с самого раннего
+незавершённого milestone и двигайся небольшими проверяемыми изменениями.
+
+Для каждого изменения семантики обязательно:
+1. Сформулируй один точный семантический вопрос.
+2. Напиши минимальный native Swift probe.
+3. Скомпилируй и запусти его реальным swiftc в Swift 6 mode.
+4. Зафиксируй только доказанную гарантию, не случайный порядок scheduler.
+5. Добавь same-source differential test и сначала зафиксируй RED.
+6. Реализуй минимальный общий механизм без fixture-specific special cases.
+7. Доведи differential test до GREEN, запусти targeted tests и gate milestone.
+8. Обнови Docs/ConcurrencyParity.md и сделай минимальный зелёный коммит.
+
+Не добавляй silent no-op support, не ослабляй тесты и не затрагивай пользовательские
+изменения в worktree. Не переходи к более поздним API, пока не выполнены архитектурные
+предпосылки.
+
+Продолжай автономно до Definition of done из этого документа или до настоящего
+внешнего блокера.
+```
+
+The expanded execution contract follows.
 
 ```text
 GOAL: implement the target Swift Concurrency architecture described in
