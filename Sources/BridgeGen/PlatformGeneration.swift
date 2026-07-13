@@ -55,7 +55,7 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         roots: [
             "UIApplication", "UIResponder", "UIWindow", "UIWindowScene",
             "UIScreen", "UIView", "UIControl", "UIViewController",
-            "UIColor", "UIFont", "UIImage", "UIBezierPath",
+            "UIColor", "UIFont", "UIFontMetrics", "UIImage", "UIBezierPath",
             "UIEdgeInsets", "UIOffset", "NSDirectionalEdgeInsets",
             "UIButton", "UIImageView", "UILabel", "UIScrollView",
             "UITableView", "UICollectionView", "UITextField", "UITextView",

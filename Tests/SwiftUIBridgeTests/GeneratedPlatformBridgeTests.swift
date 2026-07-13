@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
@@ -118,4 +119,34 @@ import SwiftInterpreter
         #expect(value.config["frame"] != nil)
 #endif
     }
+
+#if canImport(AppKit)
+    @Test func oppositePlatformImplicitStaticFactoryUsesReturnTypeContext() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/PlatformParity/Fixtures/implicit-uifont-static-factory.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nimplicitPlatformStaticFactorySucceeds()\n"
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.boolValue == true)
+    }
+
+    @Test func oppositePlatformStaticStringPreservesSymbolicIdentity() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/PlatformParity/Fixtures/uiapplication-open-settings-url.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nplatformStaticStringURLExists()\n"
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.boolValue == true)
+    }
+#endif
 }

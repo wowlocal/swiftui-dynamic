@@ -17,6 +17,7 @@ extension GeneratedPlatformBridge {
         buildConstructorsAppKit2(&t)
         buildConstructorsUIKit0(&t)
         buildConstructorsUIKit1(&t)
+        buildConstructorsUIKit2(&t)
         return t
     }
 
@@ -1559,6 +1560,19 @@ extension GeneratedPlatformBridge {
             resultType: "UITableView") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UITableView(frame: try generatedPlatformArgument(v[0], as: CGRect.self, framework: "UIKit", typeName: "CGRect", context: ctx), style: try generatedPlatformArgument(v[1], as: UITableView.Style.self, framework: "UIKit", typeName: "UITableView.Style", context: ctx)), framework: "UIKit", declaredType: "UITableView")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildConstructorsUIKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init UIFontMetrics(forTextStyle p0: UIFont.TextStyle)",
+            resultType: "UIFontMetrics") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIFontMetrics(forTextStyle: try generatedPlatformArgument(v[0], as: UIFont.TextStyle.self, framework: "UIKit", typeName: "UIFont.TextStyle", context: ctx)), framework: "UIKit", declaredType: "UIFontMetrics")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -9422,6 +9436,45 @@ extension GeneratedPlatformBridge {
             }
             receiver.`deselectRow`(at: try generatedPlatformArgument(v[0], as: IndexPath.self, framework: "UIKit", typeName: "IndexPath", context: ctx), animated: try generatedPlatformArgument(v[1], as: Bool.self, framework: "UIKit", typeName: "Bool", context: ctx))
             return .void
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIFontMetrics.scaledFont(for p0: UIFont) -> UIFont",
+            resultType: "UIFont") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIFontMetrics else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`scaledFont`(for: try generatedPlatformArgument(v[0], as: UIFont.self, framework: "UIKit", typeName: "UIFont", context: ctx)), framework: "UIKit", declaredType: "UIFont")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIFontMetrics.scaledFont(for p0: UIFont, maximumPointSize p1: CGFloat) -> UIFont",
+            resultType: "UIFont") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIFontMetrics else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`scaledFont`(for: try generatedPlatformArgument(v[0], as: UIFont.self, framework: "UIKit", typeName: "UIFont", context: ctx), maximumPointSize: try generatedPlatformArgument(v[1], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx)), framework: "UIKit", declaredType: "UIFont")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIFontMetrics.scaledValue(for p0: CGFloat) -> CGFloat",
+            resultType: "CGFloat") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIFontMetrics else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`scaledValue`(for: try generatedPlatformArgument(v[0], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx)), framework: "UIKit", declaredType: "CGFloat")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -22086,6 +22139,23 @@ extension GeneratedPlatformBridge {
             })
         registerProperty(
             &t, framework: "UIKit",
+            declaration: "var UIFont.TextStyle.metrics: UIFontMetrics { get }",
+            resultType: "UIFontMetrics", get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UIFont.TextStyle else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`metrics`,
+                    framework: "UIKit",
+                    declaredType: "UIFontMetrics")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "UIKit",
             declaration: "var UIImage.baselineOffsetFromBottom: CGFloat? { get }",
             resultType: "CGFloat?", get: { base in
 #if canImport(UIKit)
@@ -22333,6 +22403,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITextField.adjustsFontSizeToFitWidth: Bool { get set }",
@@ -22362,9 +22435,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITextField.minimumFontSize: CGFloat { get set }",
@@ -23243,6 +23313,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UICollectionView.allowsSelectionDuringEditing: Bool { get set }",
@@ -23272,9 +23345,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UICollectionView.allowsMultipleSelectionDuringEditing: Bool { get set }",
@@ -23937,6 +24007,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.canBecomeFocused: Bool { get }",
@@ -23954,9 +24027,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesUIKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.isFocused: Bool { get }",
@@ -24847,6 +24917,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.intrinsicContentSize: CGSize { get }",
@@ -24864,9 +24937,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesUIKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.hasAmbiguousLayout: Bool { get }",
@@ -25721,6 +25791,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIBezierPath.miterLimit: CGFloat { get set }",
@@ -25750,9 +25823,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIBezierPath.flatness: CGFloat { get set }",
@@ -26679,6 +26749,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIEdgeInsets.bottom: CGFloat { get set }",
@@ -26708,9 +26781,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIEdgeInsets.right: CGFloat { get set }",
@@ -27661,6 +27731,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIScrollView.showsHorizontalScrollIndicator: Bool { get set }",
@@ -27690,9 +27763,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIScrollView.indicatorStyle: UIScrollView.IndicatorStyle { get set }",
@@ -28499,6 +28569,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIViewController.restoresFocusAfterTransition: Bool { get set }",
@@ -28528,9 +28601,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIViewController.focusGroupIdentifier: String? { get set }",
@@ -29253,6 +29323,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIApplication.isIdleTimerDisabled: Bool { get set }",
@@ -29282,9 +29355,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIApplication.applicationSupportsShakeToEdit: Bool { get set }",
@@ -29923,6 +29993,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIControl.contentVerticalAlignment: UIControl.ContentVerticalAlignment { get set }",
@@ -29952,9 +30025,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIControl.contentHorizontalAlignment: UIControl.ContentHorizontalAlignment { get set }",
@@ -30677,6 +30747,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.sectionHeaderHeight: CGFloat { get set }",
@@ -30706,9 +30779,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.sectionFooterHeight: CGFloat { get set }",
@@ -31635,6 +31705,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.hasActiveDrag: Bool { get }",
@@ -31652,9 +31725,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesUIKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.hasActiveDrop: Bool { get }",
@@ -41819,6 +41889,20 @@ extension GeneratedPlatformBridge {
         }
         registerStaticProperty(
             &t, framework: "UIKit",
+            type: "UIFontMetrics",
+            name: "default",
+            resultType: "UIFontMetrics") {
+#if canImport(UIKit)
+            generatedPlatformResult(
+                UIFontMetrics.`default`,
+                framework: "UIKit",
+                declaredType: "UIFontMetrics")
+#else
+            preconditionFailure("UIKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "UIKit",
             type: "UIApplication",
             name: "stateRestorationViewControllerStoryboardKey",
             resultType: "String") {
@@ -49062,6 +49146,15 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit enum value invoked off-platform")
 #endif
         }
+        registerEnumValue(
+            &t, framework: "UIKit",
+            type: "UIFontMetrics", name: "default") {
+#if canImport(UIKit)
+            UIFontMetrics.`default`
+#else
+            preconditionFailure("UIKit enum value invoked off-platform")
+#endif
+        }
     }
 
     static func buildKnownMembers() -> [GeneratedPlatformMemberKey: Bool] {
@@ -55769,6 +55862,14 @@ extension GeneratedPlatformBridge {
             member: "hashValue")] = false
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
+            type: "UIFontMetrics",
+            member: "scaledFont")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
+            type: "UIFontMetrics",
+            member: "scaledValue")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "UIKit",
             type: "UIImage",
             member: "alignmentRectInsets")] = false
         t[GeneratedPlatformMemberKey(
@@ -55863,6 +55964,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIImage",
             member: "jpegData")] = true
+    }
+
+    private static func buildKnownMembersUIKit9(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIImage",
@@ -55871,9 +55975,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIImage",
             member: "pngData")] = true
-    }
-
-    private static func buildKnownMembersUIKit9(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIImage",
@@ -56006,6 +56107,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIImageView",
             member: "animationImages")] = false
+    }
+
+    private static func buildKnownMembersUIKit10(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIImageView",
@@ -56014,9 +56118,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIImageView",
             member: "highlightedAnimationImages")] = false
-    }
-
-    private static func buildKnownMembersUIKit10(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIImageView",
@@ -56149,6 +56250,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UILabel",
             member: "showsExpansionTextWhenTruncated")] = false
+    }
+
+    private static func buildKnownMembersUIKit11(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UILabel",
@@ -56157,9 +56261,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UILabel",
             member: "textAlignment")] = false
-    }
-
-    private static func buildKnownMembersUIKit11(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UILabel",
@@ -56292,6 +56393,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIResponder",
             member: "target")] = true
+    }
+
+    private static func buildKnownMembersUIKit12(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIResponder",
@@ -56300,9 +56404,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIResponder",
             member: "textInputMode")] = false
-    }
-
-    private static func buildKnownMembersUIKit12(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIResponder",
@@ -56435,6 +56536,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIScrollView",
             member: "adjustedContentInsetDidChange")] = true
+    }
+
+    private static func buildKnownMembersUIKit13(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIScrollView",
@@ -56443,9 +56547,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIScrollView",
             member: "alwaysBounceHorizontal")] = false
-    }
-
-    private static func buildKnownMembersUIKit13(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIScrollView",
@@ -56578,6 +56679,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIScrollView",
             member: "keyboardDismissMode")] = false
+    }
+
+    private static func buildKnownMembersUIKit14(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIScrollView",
@@ -56586,9 +56690,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIScrollView",
             member: "minimumZoomScale")] = false
-    }
-
-    private static func buildKnownMembersUIKit14(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIScrollView",
@@ -56721,6 +56822,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITableView",
             member: "contextMenuInteraction")] = false
+    }
+
+    private static func buildKnownMembersUIKit15(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITableView",
@@ -56729,9 +56833,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITableView",
             member: "delegate")] = false
-    }
-
-    private static func buildKnownMembersUIKit15(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITableView",
@@ -56864,6 +56965,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITableView",
             member: "numberOfSections")] = false
+    }
+
+    private static func buildKnownMembersUIKit16(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITableView",
@@ -56872,9 +56976,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITableView",
             member: "prefetchDataSource")] = false
-    }
-
-    private static func buildKnownMembersUIKit16(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITableView",
@@ -57007,6 +57108,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITableView",
             member: "tableHeaderView")] = false
+    }
+
+    private static func buildKnownMembersUIKit17(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITableView",
@@ -57015,9 +57119,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITextField",
             member: "adjustsFontSizeToFitWidth")] = false
-    }
-
-    private static func buildKnownMembersUIKit17(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextField",
@@ -57150,6 +57251,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITextField",
             member: "textRect")] = true
+    }
+
+    private static func buildKnownMembersUIKit18(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextField",
@@ -57158,9 +57262,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITextView",
             member: "allowedWritingToolsResultOptions")] = false
-    }
-
-    private static func buildKnownMembersUIKit18(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextView",
@@ -57293,6 +57394,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITextView",
             member: "textHighlightAttributes")] = false
+    }
+
+    private static func buildKnownMembersUIKit19(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextView",
@@ -57301,9 +57405,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UITextView",
             member: "textStorage")] = false
-    }
-
-    private static func buildKnownMembersUIKit19(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UITextView",
@@ -57436,6 +57537,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "contentHuggingPriority")] = true
+    }
+
+    private static func buildKnownMembersUIKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -57444,9 +57548,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "contentScaleFactor")] = false
-    }
-
-    private static func buildKnownMembersUIKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -57579,6 +57680,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "isExclusiveTouch")] = false
+    }
+
+    private static func buildKnownMembersUIKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -57587,9 +57691,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "isHidden")] = false
-    }
-
-    private static func buildKnownMembersUIKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -57722,6 +57823,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "removeLayoutGuide")] = true
+    }
+
+    private static func buildKnownMembersUIKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -57730,9 +57834,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "resizableSnapshotView")] = true
-    }
-
-    private static func buildKnownMembersUIKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -57865,6 +57966,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "updateConstraintsIfNeeded")] = true
+    }
+
+    private static func buildKnownMembersUIKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -57873,9 +57977,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIView",
             member: "viewPrintFormatter")] = true
-    }
-
-    private static func buildKnownMembersUIKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIView",
@@ -58008,6 +58109,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "didReceiveMemoryWarning")] = true
+    }
+
+    private static func buildKnownMembersUIKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -58016,9 +58120,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "dismiss")] = true
-    }
-
-    private static func buildKnownMembersUIKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -58151,6 +58252,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "preferredScreenEdgesDeferringSystemGestures")] = false
+    }
+
+    private static func buildKnownMembersUIKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -58159,9 +58263,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "preferredStatusBarUpdateAnimation")] = false
-    }
-
-    private static func buildKnownMembersUIKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -58294,6 +58395,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "storyboard")] = false
+    }
+
+    private static func buildKnownMembersUIKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -58302,9 +58406,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController",
             member: "systemMinimumLayoutMargins")] = false
-    }
-
-    private static func buildKnownMembersUIKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController",
@@ -58437,6 +58538,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController.Transition.ZoomOptions",
             member: "interactiveDismissShouldBegin")] = false
+    }
+
+    private static func buildKnownMembersUIKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController.Transition.ZoomOptions.AlignmentRectContext",
@@ -58445,9 +58549,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIViewController.Transition.ZoomOptions.AlignmentRectContext",
             member: "zoomedViewController")] = false
-    }
-
-    private static func buildKnownMembersUIKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIViewController.Transition.ZoomOptions.InteractionContext",
@@ -58580,6 +58681,9 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindowScene",
             member: "sizeRestrictions")] = false
+    }
+
+    private static func buildKnownMembersUIKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindowScene",
@@ -58588,9 +58692,6 @@ extension GeneratedPlatformBridge {
             framework: "UIKit",
             type: "UIWindowScene",
             member: "traitCollection")] = false
-    }
-
-    private static func buildKnownMembersUIKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "UIKit",
             type: "UIWindowScene",
@@ -58780,6 +58881,7 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIFont.TextStyle")] = true
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIFont.Weight")] = true
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIFont.Width")] = true
+        t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIFontMetrics")] = false
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIImage")] = false
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIImage.Configuration")] = false
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIImage.DynamicRange")] = true

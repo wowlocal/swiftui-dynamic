@@ -296,8 +296,7 @@ enum GeneratedPlatformBridge {
                     if frameworkIsNative(framework) {
                         return try? property.get()
                     }
-                    return fallbackResult(
-                        framework: framework, type: property.resultType)
+                    return staticPropertyFallback(property)
                 }
                 if let cases = enumValues[key], let value = cases.first {
                     if frameworkIsNative(framework) {
@@ -383,6 +382,28 @@ enum GeneratedPlatformBridge {
                 isValueType: isValueType(framework: framework, type: type),
                 payload: nil))
         }
+    }
+
+    /// Static SDK strings are commonly identity-bearing constants rather than
+    /// user-visible empty text (URL schemes, notification names, pasteboard
+    /// types, and similar tokens). On the opposite platform their bytes are
+    /// unknowable, so preserve the generated symbol as an opaque value instead
+    /// of inventing `""`. Gateways such as `URL(string:)` can then propagate
+    /// that uncertainty without turning a valid native constant into `nil`.
+    private static func staticPropertyFallback(
+        _ property: GeneratedPlatformStaticPropertyEntry
+    ) -> RuntimeValue {
+        let resultType = property.resultType.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        guard resultType == "String" || resultType == "Substring"
+                || resultType == "Character" else {
+            return fallbackResult(
+                framework: property.framework, type: property.resultType)
+        }
+        return .native(ChainedImplicitCall(
+            base: .implicitMember("\(property.framework).\(property.type)"),
+            member: property.name,
+            arguments: CallArguments()))
     }
 
     // MARK: Generated registration API
