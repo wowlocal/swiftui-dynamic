@@ -978,6 +978,8 @@ extension Interpreter {
                     })
                 case "sleep" where evaluationTaskContext.isAsyncSession:
                     return .hostFunction(sourceTaskSleepFunction())
+                case "yield" where evaluationTaskContext.isAsyncSession:
+                    return .hostFunction(sourceTaskYieldFunction())
                 default:
                     break
                 }

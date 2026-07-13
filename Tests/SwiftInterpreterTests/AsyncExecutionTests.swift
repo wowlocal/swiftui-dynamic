@@ -28,6 +28,12 @@ private enum DetachedRuntimeProbeLocal {
     @TaskLocal static var value = "default"
 }
 
+@MainActor
+private final class YieldProgressGate {
+    var reached = false
+    var released = false
+}
+
 @Suite("Async execution")
 struct AsyncExecutionTests {
     private enum ProbeError: Error, CustomStringConvertible {
@@ -1199,5 +1205,57 @@ struct AsyncExecutionTests {
         #expect(handle.suspension == nil)
         #expect(clock.now == .zero)
         #expect(clock.sleepingTaskCount == 0)
+    }
+
+    @Test func taskYieldRecordsSuspensionAndLetsSiblingProgress() async throws {
+        let interpreter = Interpreter()
+        let gate = YieldProgressGate()
+        interpreter.globals.define("holdAfterYieldProgress", .hostFunction(
+            HostFunction(
+                name: "holdAfterYieldProgress",
+                asyncInvoke: { _, _ in
+                    gate.reached = true
+                    while !gate.released { await Task.yield() }
+                    return .void
+                }
+            )
+        ))
+        let execution = Task { @MainActor in
+            try await interpreter.runAsync(source: """
+            @MainActor
+            final class YieldState {
+                var workerRan = false
+            }
+
+            let state = YieldState()
+            let worker = Task {
+                state.workerRan = true
+            }
+            while !state.workerRan {
+                await Task.yield()
+            }
+            await holdAfterYieldProgress()
+            "completed"
+            """)
+        }
+
+        var root: RuntimeTaskRecord?
+        for _ in 0..<1_000 {
+            root = interpreter.concurrencyRuntime.records.values.first {
+                $0.kind == .root
+            }
+            if gate.reached { break }
+            await Task.yield()
+        }
+
+        let record = try #require(root)
+        #expect(gate.reached)
+        #expect(record.suspensionHistory.contains(.yielding))
+
+        gate.released = true
+        let result = try await execution.value
+        #expect(result.stringValue == "completed")
+        #expect(record.state == .succeeded)
+        #expect(record.suspension == nil)
     }
 }

@@ -1,6 +1,26 @@
 import Foundation
 
 extension Interpreter {
+    func sourceTaskYieldFunction() -> HostFunction {
+        HostFunction(name: "yield", asyncInvoke: { [weak self] _, _ in
+            guard let self else {
+                throw RuntimeError(message: "interpreter was released during Task.yield")
+            }
+            try await yieldCurrentTask()
+            return .void
+        })
+    }
+
+    private func yieldCurrentTask() async throws {
+        guard let taskID = evaluationTaskContext.runtimeTaskID else {
+            throw RuntimeError(message: "Task.yield requires an async runtime task")
+        }
+        let suspension = RuntimeSuspension.yielding
+        concurrencyRuntime.suspend(taskID, for: suspension)
+        defer { concurrencyRuntime.resume(taskID, from: suspension) }
+        await Task.yield()
+    }
+
     func sourceTaskSleepFunction() -> HostFunction {
         HostFunction(name: "sleep", asyncInvoke: { [weak self] arguments, _ in
             guard let self else {

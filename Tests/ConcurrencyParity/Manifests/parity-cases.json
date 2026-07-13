@@ -341,6 +341,18 @@
     "notes": "A separate async helper waits for the explicit started marker before cancellation. The 30-second deadline cannot expire within the five-second process bound; exact output is started,cancelled."
   },
   {
+    "id": "task-yield-progress",
+    "fixture": "Fixtures/task-yield-progress.swift",
+    "mode": "runtime",
+    "assertion": "stress",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskYieldProgressProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A MainActor task can repeatedly yield its executor until a ready sibling task makes observable progress.",
+    "notes": "Task creation cannot run the worker inline, so progress requires a suspension. This completion-only liveness probe asserts neither a yield count nor relative scheduler order; every bounded native run returns completed."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",
