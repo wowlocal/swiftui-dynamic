@@ -105,6 +105,9 @@ extension Interpreter {
             }
             throw RuntimeError(message: "Task needs an operation closure")
         }
+        globals.define(
+            "withTaskCancellationHandler",
+            .hostFunction(sourceTaskCancellationHandlerFunction()))
         for (name, function) in Self.typedMathBuiltins {
             globals.define(name, .hostFunction(function))
         }

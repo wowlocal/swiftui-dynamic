@@ -353,6 +353,18 @@
     "notes": "Task creation cannot run the worker inline, so progress requires a suspension. This completion-only liveness probe asserts neither a yield count nor relative scheduler order; every bounded native run returns completed."
   },
   {
+    "id": "task-cancellation-handler-active",
+    "fixture": "Fixtures/task-cancellation-handler-active.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskCancellationHandlerActiveProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An active task cancellation handler runs before cancel() returns, runs only once when cancellation is requested repeatedly, and executes in the cancelling task's dynamic context.",
+    "notes": "MainActor serialization keeps the operation from resuming until the controller has observed both cancel calls. The uncancelled controller makes Task.isCancelled false inside onCancel; exact output is 0,1,1,false,true,done on Swift 6.3.3. No ready-task scheduler order is asserted."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

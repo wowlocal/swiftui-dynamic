@@ -57,10 +57,12 @@ extension Interpreter {
     /// Only root-host cancellation or session teardown aborts the evaluator at
     /// arbitrary safe points.
     func checkRuntimeCancellation() throws {
-        guard Task.isCancelled else { return }
         guard let taskID = evaluationTaskContext.runtimeTaskID else {
+            guard Task.isCancelled else { return }
             throw InterpreterSessionAbort()
         }
+        try concurrencyRuntime.throwCancellationHandlerFailure(for: taskID)
+        guard Task.isCancelled else { return }
         guard concurrencyRuntime.requiresSessionAbort(taskID) else { return }
         concurrencyRuntime.observeCancellation(taskID)
         throw InterpreterSessionAbort()

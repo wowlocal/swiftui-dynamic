@@ -28,6 +28,10 @@ public struct RuntimeTaskID: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "task-\(rawValue)" }
 }
 
+struct RuntimeCancellationHandlerID: Hashable, Sendable {
+    let rawValue: UInt64
+}
+
 /// Logical source-task priority. The native value drives today's cooperative
 /// task, while keeping it on the runtime record/context gives later schedulers
 /// and priority escalation one stable source of truth.
@@ -160,6 +164,24 @@ public struct RuntimeCancellationState: Sendable {
 /// `CancellationError`.
 struct InterpreterSessionAbort: Error {}
 
+/// One dynamically-scoped source cancellation handler. The runtime invokes
+/// the callback synchronously from the task that requests cancellation, just
+/// as native `Task.cancel()` does; the closure's lexical captures remain its
+/// own, while task-local dynamic context belongs to the cancelling task.
+private final class RuntimeCancellationHandlerRegistration {
+    let id: RuntimeCancellationHandlerID
+    let invoke: @MainActor () throws -> Void
+    var wasInvoked = false
+
+    init(
+        id: RuntimeCancellationHandlerID,
+        invoke: @escaping @MainActor () throws -> Void
+    ) {
+        self.id = id
+        self.invoke = invoke
+    }
+}
+
 /// Mutable lifecycle record owned by the cooperative concurrency runtime.
 /// The source-level handle retains this record after session bookkeeping has
 /// released it, so completed task values remain readable without leaking them
@@ -178,6 +200,14 @@ final class RuntimeTaskRecord {
     var outcome: RuntimeTaskOutcome?
     var failureDescription: String?
     var cancellation = RuntimeCancellationState()
+    fileprivate var cancellationHandlers: [
+        RuntimeCancellationHandlerRegistration
+    ] = []
+    var activeCancellationHandlerCount: Int {
+        cancellationHandlers.count
+    }
+    var cancellationHandlerInvocationCount = 0
+    var cancellationHandlerFailure: Error?
     var waiters: Set<RuntimeTaskID> = []
     var waitingOnTasks: Set<RuntimeTaskID> = []
     var priorityEscalationHistory: [
@@ -210,6 +240,7 @@ final class CooperativeConcurrencyRuntime {
     let clock: any RuntimeClock
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
+    private var nextCancellationHandlerID: UInt64 = 1
     private var nextEventSequence: UInt64 = 1
     private(set) var records: [RuntimeTaskID: RuntimeTaskRecord] = [:]
 
@@ -328,17 +359,56 @@ final class CooperativeConcurrencyRuntime {
         source: RuntimeCancellationSource
     ) {
         guard !record.state.isCompleted else { return }
+        let wasAlreadyRequested = record.cancellation.isRequested
         let alreadyRequestedFromSource =
             record.cancellation.sources.contains(source)
         record.cancellation.request(
             from: source, sequence: takeEventSequence())
         record.nativeTask?.cancel()
         clock.cancelSleep(task: record.id)
+        if !wasAlreadyRequested {
+            invokeCancellationHandlers(on: record)
+        }
         guard !alreadyRequestedFromSource else { return }
         for childID in record.structuredChildren {
             guard let child = records[childID] else { continue }
             requestCancellation(child, source: .structuredParent)
         }
+    }
+
+    func addCancellationHandler(
+        to taskID: RuntimeTaskID,
+        invoke: @escaping @MainActor () throws -> Void
+    ) -> RuntimeCancellationHandlerID {
+        guard let record = records[taskID], !record.state.isCompleted else {
+            preconditionFailure(
+                "cannot register a cancellation handler on inactive task \(taskID)")
+        }
+        let id = RuntimeCancellationHandlerID(
+            rawValue: nextCancellationHandlerID)
+        nextCancellationHandlerID += 1
+        let registration = RuntimeCancellationHandlerRegistration(
+            id: id, invoke: invoke)
+        record.cancellationHandlers.append(registration)
+        if record.cancellation.isRequested {
+            invokeCancellationHandler(registration, on: record)
+        }
+        return id
+    }
+
+    func removeCancellationHandler(
+        _ handlerID: RuntimeCancellationHandlerID,
+        from taskID: RuntimeTaskID
+    ) {
+        guard let record = records[taskID] else { return }
+        record.cancellationHandlers.removeAll { $0.id == handlerID }
+    }
+
+    func throwCancellationHandlerFailure(for taskID: RuntimeTaskID) throws {
+        guard let failure = records[taskID]?.cancellationHandlerFailure else {
+            return
+        }
+        throw failure
     }
 
     func completeCancellation(_ record: RuntimeTaskRecord) {
@@ -371,6 +441,7 @@ final class CooperativeConcurrencyRuntime {
 
     func release(_ id: RuntimeTaskID) {
         clock.cancelSleep(task: id)
+        records[id]?.cancellationHandlers.removeAll(keepingCapacity: false)
         records.removeValue(forKey: id)
     }
 
@@ -398,6 +469,34 @@ final class CooperativeConcurrencyRuntime {
     }
 
     var activeRecordCount: Int { records.count }
+
+    private func invokeCancellationHandlers(on record: RuntimeTaskRecord) {
+        // Native stores dynamically nested handlers as a stack. Order is not
+        // exposed as a parity claim yet, but reverse traversal also prevents
+        // a handler removed by an enclosing unwind from being treated as new.
+        for registration in record.cancellationHandlers.reversed() {
+            invokeCancellationHandler(registration, on: record)
+        }
+    }
+
+    private func invokeCancellationHandler(
+        _ registration: RuntimeCancellationHandlerRegistration,
+        on record: RuntimeTaskRecord
+    ) {
+        guard !registration.wasInvoked else { return }
+        registration.wasInvoked = true
+        record.cancellationHandlerInvocationCount += 1
+        do {
+            try registration.invoke()
+        } catch {
+            // Legal Swift handlers are nonthrowing. Preserve an interpreter
+            // failure defensively and surface it from the cancelled task's
+            // next safe point instead of silently swallowing it.
+            if record.cancellationHandlerFailure == nil {
+                record.cancellationHandlerFailure = error
+            }
+        }
+    }
 
     private func donatePriority(
         _ priority: RuntimeTaskPriority,

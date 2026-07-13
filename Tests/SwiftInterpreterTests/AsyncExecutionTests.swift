@@ -1258,4 +1258,60 @@ struct AsyncExecutionTests {
         #expect(record.state == .succeeded)
         #expect(record.suspension == nil)
     }
+
+    @Test func taskCancellationHandlerUsesCancellingTaskContextAndCleansUp()
+        async throws {
+        let interpreter = Interpreter()
+        var handlerContextID: RuntimeTaskID?
+        var handlerObservedCancellation: Bool?
+        interpreter.globals.define(
+            "recordCancellationHandlerContext",
+            .hostFunction(HostFunction(
+                name: "recordCancellationHandlerContext",
+                invoke: { _, _ in
+                    handlerContextID = interpreter.evaluationTaskContext
+                        .runtimeTaskID
+                    handlerObservedCancellation = Task.isCancelled
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        final class HandlerState {
+            var started = false
+        }
+
+        let state = HandlerState()
+        let worker = Task {
+            await withTaskCancellationHandler(operation: {
+                state.started = true
+                while !Task.isCancelled {
+                    await Task.yield()
+                }
+                return "done"
+            }, onCancel: {
+                recordCancellationHandlerContext()
+            })
+        }
+        while !state.started {
+            await Task.yield()
+        }
+        worker.cancel()
+        worker.cancel()
+        await worker.value
+        """)
+
+        guard case .host(let payload)? = interpreter.globals.lookup("worker"),
+              let handle = payload as? RuntimeTaskHandle else {
+            Issue.record("expected retained worker task handle")
+            return
+        }
+        #expect(result.stringValue == "done")
+        #expect(handlerContextID == handle.parent)
+        #expect(handlerObservedCancellation == false)
+        #expect(handle.cancellationHandlerInvocationCount == 1)
+        #expect(handle.cancellationHandlerCount == 0)
+        #expect(handle.isCancelled)
+        #expect(handle.state == .succeeded)
+    }
 }

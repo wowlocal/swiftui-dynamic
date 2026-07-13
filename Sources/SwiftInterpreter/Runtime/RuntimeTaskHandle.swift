@@ -84,6 +84,12 @@ public final class RuntimeTaskHandle {
         record.structuredChildren
     }
     var taskLocalCount: Int { record.taskLocals.count }
+    var cancellationHandlerCount: Int {
+        record.activeCancellationHandlerCount
+    }
+    var cancellationHandlerInvocationCount: Int {
+        record.cancellationHandlerInvocationCount
+    }
 
     public convenience init() {
         let runtime = CooperativeConcurrencyRuntime()
