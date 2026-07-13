@@ -30,7 +30,7 @@ major version 6.
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | in progress | Incomplete task-value/result reads, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active, pre-cancelled, nested, normal-exit, and throwing-exit cancellation-handler paths have runtime-owned scoped registrations, synchronous inner-to-outer cancel-time dispatch, immediate already-cancelled registration, and verified unwind cleanup; ordinary source cancellation remains catchable while host/session abort is non-catchable and source-tagged independently; same-source Swift 6 parity and deterministic runtime-state tests are green | First-class async host-gateway suspension; later actor/group/stream/continuation reasons remain with their owning milestones |
+| M3 suspension and clocks | implementation complete; closing gate pending | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage | Restore the parent-level corpus floor from 676 to the unchanged 678 ratchet before declaring the milestone closed or beginning M4; actor/group/stream/continuation reasons remain with their owning milestones |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
@@ -43,6 +43,7 @@ major version 6.
 | Case | Assertion | Native fact | Interpreter status |
 |---|---|---|---|
 | `async-function-exact` | exact | Awaiting the fixture function returns `ready` | Expected native parity |
+| `host-gateway-suspension` | exact | Awaiting the controlled async wrapper suspends until its explicit gate opens, so a ready MainActor controller records progress before the wrapper returns | Native/interpreter parity in 20 repetitions: `before,host-enter,controller,host-exit,value`; the interpreted caller is `.waiting/.awaitingHost(operationID)` at the forced barrier and the operation registry is empty after completion |
 | `main-actor-task-partial-order` | partial order | A newly created MainActor task does not execute inline; `sync` precedes both task events | Expected native parity through async-session drain policy; relative child order is not asserted |
 | `task-owned-evaluator-context` | predicate / event multiset | 100 sibling MainActor tasks preserve their own local index and lexical nested type across a forced yield; completion order is unspecified | Native parity in 20 native and 20 interpreter repetitions; each source task also has a distinct, explicitly cleaned evaluator context |
 | `task-context-cancellation` | exact invariant | A task cancelled only after entering a cancellable suspension completes as cancelled; an interleaved sibling resolves its extension-scoped nested type and returns `beta` | Native/interpreter parity in 20 repetitions; no start-order assumption because the cancellation uses an explicit started barrier |
@@ -101,8 +102,8 @@ It checks only:
 | `completedSessionsReleaseSchedulerTracking` | Interpreter internal state | Cleanup regression, not native semantic parity |
 | `runtimeTaskHandleDispatchesCancellableExtensions` | Interpreter-only | Dynamic protocol-dispatch regression |
 | `cancelledEvaluationThrowsCancellationError` | Native host cancellation wrapper plus runtime-state regression | Public host cancellation remains `CancellationError`, while the internal non-catchable abort records only `.hostTask` and bypasses source `catch` |
-| `asyncHostGatewaySuspendsThroughInterpretedFunction` | Event trace from test host | Host integration regression; no compiled same-source fixture yet |
-| `interpretedTaskBodyCanAwaitAsyncHostGateway` | Test host result | Host integration regression; no compiled same-source fixture yet |
+| `asyncHostGatewaySuspendsThroughInterpretedFunction` | `host-gateway-suspension` native fact plus event trace from test host | Host integration regression backed by the compiled same-source suspension fixture |
+| `interpretedTaskBodyCanAwaitAsyncHostGateway` | `host-gateway-suspension` native fact plus test host result | Host integration regression backed by the compiled same-source suspension fixture |
 | `interleavedTasksKeepIndependentLexicalFrames` | `main-actor-task-partial-order` native fact plus value invariant | Both task-specific lexical values survive in task-owned contexts; sibling completion order is deliberately not asserted |
 | `asyncGatewayCanReenterSuspendingInterpretedClosure` | Test host result | Host re-entry regression; no standalone native fixture yet |
 | `asyncControlFlowIsLazyAndCatchesHostErrors` | Test host counters | Semantically useful; needs native fixture extraction |
@@ -1190,3 +1191,57 @@ failure.
 
 The next smallest open M3 suspension category is an async host gateway, which
 needs a runtime-owned host-operation identity rather than a name-based marker.
+
+### Async host-gateway suspension reason
+
+Native question: if a MainActor caller awaits an async wrapper that has entered
+but is held behind an explicit gate, can a separately created ready controller
+run and open that gate before the wrapper returns?
+
+The committed `host-gateway-suspension` fixture records `before`, creates the
+controller without suspending, and then awaits the wrapper. The controller
+cannot run inline with `Task` construction. It waits for the wrapper's explicit
+started marker, records `controller`, and opens the gate. The wrapper records
+entry and yields behind that gate, so no scheduler order beyond the forced
+happens-before edges is asserted. Twenty bounded Apple Swift 6.3.3 strict-
+concurrency runs produced
+`before,host-enter,controller,host-exit,value` exactly.
+
+Before the runtime change, the equivalent interpreter trace was already
+externally correct because the native host closure genuinely suspended. The
+white-box RED showed the missing logical semantics: at the forced barrier the
+source root was still `.running`, its suspension and history were empty, and no
+runtime operation identified what it was awaiting.
+
+The cooperative runtime now assigns every external async gateway invocation a
+`HostOperationID`, registers its owning source task, and records
+`.waiting/.awaitingHost(operationID)` until the implementation returns or
+throws. Argument validation runs before this lifecycle and result validation
+runs after it. Overload and generic forwarding wrappers delegate ownership to
+the selected leaf, while interpreter-owned implementations of `Task.sleep`,
+`Task.yield`, task-local scopes, and cancellation handlers opt out because they
+already install their own more precise runtime semantics.
+
+`TaskBoundEvalContext` also makes host re-entry explicit. Calling an interpreted
+closure temporarily resumes the source task while retaining the outer operation
+identity. A nested async gateway then receives a different ID; after that nested
+operation finishes, leaving the callback restores the outer wait. The focused
+regression observes the exact history
+`awaitingHost(outer), awaitingHost(nested), awaitingHost(outer)`, with one active
+operation during interpreted callback execution, two during the nested gateway,
+and an empty registry after completion. The same mechanism applies to every
+async host function and does not inspect gateway names or fixture source.
+
+The focused concurrency/runtime/host/parity gate passed all 64 tests in seven
+suites, including every native repetition. The full suite passed all 763 tests
+in 147 suites. `Scripts/gate.sh` reported suite 763/763, corpus 676/680, live
+5/5, and API parity 345 match / 0 diverge / 0 interpreter errors / 17 unstable /
+0 no-twin. It returned RED solely on the already isolated parent-level corpus
+floor: `oss:PlayCover` still fails native ABI derivation for `sockaddr_in`, and
+`oss:home-assistant-ios` still reaches its app-authored missing-image assertion
+on the clean parent commits. No new corpus, live, or API-parity failure was
+introduced.
+
+All M3 semantic deliverables are now implemented. M3 remains unclosed only
+because the repository closing gate is below its unchanged parent-level corpus
+ratchet; M4 must not begin until that gate is restored.

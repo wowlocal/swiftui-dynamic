@@ -87,6 +87,12 @@ public protocol EvalContext: AnyObject {
     func callClosureAsync(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue
+    /// Run one validated asynchronous host implementation while the bound
+    /// source task is represented as waiting on a runtime-owned operation.
+    /// Non-interpreter embedders inherit the transparent default below.
+    func withHostOperation<T>(
+        _ operation: () async throws -> T
+    ) async throws -> T
     /// Create an interpreted Task. Async interpreter sessions schedule it on
     /// a real Swift task; synchronous compatibility sessions execute it
     /// deterministically before returning.
@@ -146,6 +152,12 @@ extension EvalContext {
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
         try callClosure(closure, arguments: arguments)
+    }
+
+    public func withHostOperation<T>(
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        try await operation()
     }
 
     public func spawnDetachedTask(

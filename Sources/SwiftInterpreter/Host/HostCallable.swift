@@ -34,16 +34,35 @@ public final class HostFunction {
     /// A genuinely asynchronous host gateway. This is deliberately a
     /// distinct label rather than an async overload of `invoke`: hundreds of
     /// existing synchronous gateway literals remain unambiguous.
-    public init(
+    public convenience init(
         name: String,
         asyncInvoke: @escaping @MainActor (CallArguments, EvalContext) async throws -> RuntimeValue
+    ) {
+        self.init(
+            name: name,
+            tracksHostOperation: true,
+            asyncInvoke: asyncInvoke)
+    }
+
+    init(
+        name: String,
+        tracksHostOperation: Bool,
+        asyncInvoke: @escaping @MainActor
+            (CallArguments, EvalContext) async throws -> RuntimeValue
     ) {
         self.name = name
         self.invoke = { _, _ in
             throw RuntimeError(
                 message: "async host function '\(name)' requires runAsync and await")
         }
-        self.suspendingInvoke = asyncInvoke
+        self.suspendingInvoke = { arguments, context in
+            try await Self.runSuspendingImplementation(
+                trackingHostOperation: tracksHostOperation,
+                context: context
+            ) {
+                try await asyncInvoke(arguments, context)
+            }
+        }
         self.canSuspend = true
         self.signatures = []
     }
@@ -51,14 +70,36 @@ public final class HostFunction {
     /// A wrapper can preserve both faces of another gateway (generic
     /// specialization is the main use). The async face may suspend even when
     /// the synchronous compatibility face cannot.
-    public init(
+    public convenience init(
         name: String,
         invoke: @escaping @MainActor (CallArguments, EvalContext) throws -> RuntimeValue,
         asyncInvoke: @escaping @MainActor (CallArguments, EvalContext) async throws -> RuntimeValue
     ) {
+        self.init(
+            name: name,
+            invoke: invoke,
+            tracksHostOperation: true,
+            asyncInvoke: asyncInvoke)
+    }
+
+    init(
+        name: String,
+        invoke: @escaping @MainActor
+            (CallArguments, EvalContext) throws -> RuntimeValue,
+        tracksHostOperation: Bool,
+        asyncInvoke: @escaping @MainActor
+            (CallArguments, EvalContext) async throws -> RuntimeValue
+    ) {
         self.name = name
         self.invoke = invoke
-        self.suspendingInvoke = asyncInvoke
+        self.suspendingInvoke = { arguments, context in
+            try await Self.runSuspendingImplementation(
+                trackingHostOperation: tracksHostOperation,
+                context: context
+            ) {
+                try await asyncInvoke(arguments, context)
+            }
+        }
         self.canSuspend = true
         self.signatures = []
     }
@@ -129,11 +170,12 @@ public final class HostFunction {
         }
         self.suspendingInvoke = { arguments, context in
             let match = try signature.validate(arguments: arguments, in: context)
-            let result: RuntimeValue
-            do {
-                result = try await implementation(arguments, context)
-            } catch {
-                throw Self.checkedImplementationError(error, for: signature)
+            let result = try await context.withHostOperation {
+                do {
+                    return try await implementation(arguments, context)
+                } catch {
+                    throw Self.checkedImplementationError(error, for: signature)
+                }
             }
             try signature.validateReturn(result, match: match, in: context)
             return result
@@ -178,11 +220,13 @@ public final class HostFunction {
         }
         self.suspendingInvoke = { arguments, context in
             let match = try signature.validate(arguments: arguments, in: context)
-            let result: RuntimeValue
-            do {
-                result = try await asynchronousImplementation(arguments, context)
-            } catch {
-                throw Self.checkedImplementationError(error, for: signature)
+            let result = try await context.withHostOperation {
+                do {
+                    return try await asynchronousImplementation(
+                        arguments, context)
+                } catch {
+                    throw Self.checkedImplementationError(error, for: signature)
+                }
             }
             try signature.validateReturn(result, match: match, in: context)
             return result
@@ -234,6 +278,18 @@ public final class HostFunction {
         _ arguments: CallArguments, _ context: EvalContext
     ) async throws -> RuntimeValue {
         try await suspendingInvoke(arguments, context)
+    }
+
+    @MainActor
+    private static func runSuspendingImplementation<T>(
+        trackingHostOperation: Bool,
+        context: EvalContext,
+        operation: () async throws -> T
+    ) async throws -> T {
+        if trackingHostOperation {
+            return try await context.withHostOperation(operation)
+        }
+        return try await operation()
     }
 
     private static func validateRegistration(

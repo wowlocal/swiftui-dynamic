@@ -4,6 +4,7 @@ extension Interpreter {
     func sourceTaskCancellationHandlerFunction() -> HostFunction {
         HostFunction(
             name: "withTaskCancellationHandler",
+            tracksHostOperation: false,
             asyncInvoke: { [weak self] arguments, _ in
                 guard let self else {
                     throw RuntimeError(message:

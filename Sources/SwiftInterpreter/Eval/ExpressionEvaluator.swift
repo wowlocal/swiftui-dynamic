@@ -369,6 +369,7 @@ extension Interpreter {
                                 label: "__genericArguments", value: .native(genericText)))
                             return try ctor.invoke(CallArguments(arguments: enriched), ctx)
                         },
+                        tracksHostOperation: false,
                         asyncInvoke: { args, ctx in
                             var enriched = args.arguments
                             enriched.append(.init(

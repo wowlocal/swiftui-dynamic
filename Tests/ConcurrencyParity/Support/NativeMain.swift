@@ -75,6 +75,48 @@ func parityCheckContext() async -> String {
 }
 
 @MainActor
+var parityHostGatewayEventStorage: [String] = []
+
+@MainActor
+var parityHostGatewayStarted = false
+
+@MainActor
+var parityHostGatewayOpen = false
+
+@MainActor
+func parityRecordHostGatewayEvent(_ event: String) {
+    parityHostGatewayEventStorage.append(event)
+}
+
+@MainActor
+func parityHostGatewayValue(_ value: String) async -> String {
+    parityHostGatewayEventStorage.append("host-enter")
+    parityHostGatewayStarted = true
+    while !parityHostGatewayOpen {
+        await Task.yield()
+    }
+    parityHostGatewayEventStorage.append("host-exit")
+    return value
+}
+
+@MainActor
+func parityAwaitHostGatewayStarted() async {
+    while !parityHostGatewayStarted {
+        await Task.yield()
+    }
+}
+
+@MainActor
+func parityOpenHostGateway() {
+    parityHostGatewayOpen = true
+}
+
+@MainActor
+func parityHostGatewayEvents() -> String {
+    parityHostGatewayEventStorage.joined(separator: ",")
+}
+
+@MainActor
 var parityTaskValueGateStarted = false
 
 @MainActor

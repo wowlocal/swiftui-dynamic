@@ -182,6 +182,9 @@ private enum ConcurrencyParityHarness {
         let interpreter = Interpreter()
         var waitStarted = false
         var expectedDetachedContextID: UInt64?
+        var hostGatewayEvents: [String] = []
+        var hostGatewayStarted = false
+        var hostGatewayOpen = false
         var taskValueGateStarted = false
         var taskValueGateOpen = false
         var taskValueWaiterCount = 0
@@ -200,6 +203,49 @@ private enum ConcurrencyParityHarness {
                 return arguments.positional(0) ?? .nilValue
             }
         )))
+        interpreter.globals.define(
+            "parityRecordHostGatewayEvent",
+            .hostFunction(HostFunction(
+                name: "parityRecordHostGatewayEvent"
+            ) { arguments, _ in
+                hostGatewayEvents.append(
+                    arguments.positional(0)?.stringValue ?? "?")
+                return .void
+            }))
+        interpreter.globals.define(
+            "parityHostGatewayValue",
+            .hostFunction(HostFunction(
+                name: "parityHostGatewayValue",
+                asyncInvoke: { arguments, _ in
+                    hostGatewayEvents.append("host-enter")
+                    hostGatewayStarted = true
+                    while !hostGatewayOpen { await Task.yield() }
+                    hostGatewayEvents.append("host-exit")
+                    return arguments.positional(0) ?? .nilValue
+                })))
+        interpreter.globals.define(
+            "parityAwaitHostGatewayStarted",
+            .hostFunction(HostFunction(
+                name: "parityAwaitHostGatewayStarted",
+                asyncInvoke: { _, _ in
+                    while !hostGatewayStarted { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "parityOpenHostGateway",
+            .hostFunction(HostFunction(
+                name: "parityOpenHostGateway"
+            ) { _, _ in
+                hostGatewayOpen = true
+                return .void
+            }))
+        interpreter.globals.define(
+            "parityHostGatewayEvents",
+            .hostFunction(HostFunction(
+                name: "parityHostGatewayEvents"
+            ) { _, _ in
+                .native(hostGatewayEvents.joined(separator: ","))
+            }))
         interpreter.globals.define("parityReadTaskLocal", .hostFunction(HostFunction(
             name: "parityReadTaskLocal",
             asyncInvoke: { _, context in

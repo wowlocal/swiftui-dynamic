@@ -12,6 +12,18 @@
     "notes": "Smoke test for the same-fixture native/interpreter pipeline."
   },
   {
+    "id": "host-gateway-suspension",
+    "fixture": "Fixtures/host-gateway-suspension.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await hostGatewaySuspensionProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Awaiting the controlled async wrapper suspends the caller until its gate opens, allowing a ready MainActor controller to make progress before the wrapper returns.",
+    "notes": "The controller cannot run inline with Task construction. The host wrapper records entry and yields behind an explicit gate; only the barrier-forced trace is asserted."
+  },
+  {
     "id": "main-actor-task-partial-order",
     "fixture": "Fixtures/main-actor-task-partial-order.swift",
     "mode": "runtime",

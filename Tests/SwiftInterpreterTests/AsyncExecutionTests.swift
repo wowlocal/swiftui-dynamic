@@ -41,6 +41,21 @@ private final class HostSessionAbortProbeState {
     var rootRecord: RuntimeTaskRecord?
 }
 
+@MainActor
+private final class HostReentrySuspensionState {
+    var rootRecord: RuntimeTaskRecord?
+    var outerOperationID: HostOperationID?
+    var callbackState: RuntimeTaskState?
+    var callbackSuspension: RuntimeSuspension?
+    var callbackHostOperationCount = 0
+    var callbackOuterTaskID: RuntimeTaskID?
+    var nestedOperationID: HostOperationID?
+    var nestedState: RuntimeTaskState?
+    var nestedHostOperationCount = 0
+    var nestedOuterTaskID: RuntimeTaskID?
+    var nestedOperationTaskID: RuntimeTaskID?
+}
+
 @Suite("Async execution")
 struct AsyncExecutionTests {
     private enum ProbeError: Error, CustomStringConvertible {
@@ -1083,16 +1098,60 @@ struct AsyncExecutionTests {
 
     @Test func asyncGatewayCanReenterSuspendingInterpretedClosure() async throws {
         let interpreter = Interpreter()
+        let state = HostReentrySuspensionState()
         interpreter.globals.define("delayedText", .hostFunction(HostFunction(
             name: "delayedText",
             asyncInvoke: { arguments, _ in
+                guard let root = state.rootRecord,
+                      let outerOperationID = state.outerOperationID,
+                      case .awaitingHost(let nestedOperationID) = root.suspension
+                else {
+                    throw RuntimeError(message:
+                        "nested host gateway requires a suspended root task")
+                }
+                state.nestedOperationID = nestedOperationID
+                state.nestedState = root.state
+                state.nestedHostOperationCount = interpreter
+                    .concurrencyRuntime.activeHostOperationCount
+                state.nestedOuterTaskID = interpreter.concurrencyRuntime
+                    .hostOperations[outerOperationID]
+                state.nestedOperationTaskID = interpreter.concurrencyRuntime
+                    .hostOperations[nestedOperationID]
                 await Task.yield()
                 return arguments.positional(0) ?? .nilValue
             }
         )))
+        interpreter.globals.define(
+            "observeHostReentry",
+            .hostFunction(HostFunction(
+                name: "observeHostReentry",
+                invoke: { _, _ in
+                    guard let root = state.rootRecord,
+                          let outerOperationID = state.outerOperationID else {
+                        throw RuntimeError(message:
+                            "host callback requires an outer host operation")
+                    }
+                    state.callbackState = root.state
+                    state.callbackSuspension = root.suspension
+                    state.callbackHostOperationCount = interpreter
+                        .concurrencyRuntime.activeHostOperationCount
+                    state.callbackOuterTaskID = interpreter
+                        .concurrencyRuntime.hostOperations[outerOperationID]
+                    return .void
+                })))
         interpreter.globals.define("withValue", .hostFunction(HostFunction(
             name: "withValue",
             asyncInvoke: { arguments, context in
+                guard let bound = context as? TaskBoundEvalContext,
+                      let taskID = bound.evaluationContext.runtimeTaskID,
+                      let root = interpreter.concurrencyRuntime.records[taskID],
+                      case .awaitingHost(let operationID) = root.suspension
+                else {
+                    throw RuntimeError(message:
+                        "outer host gateway requires a suspended root task")
+                }
+                state.rootRecord = root
+                state.outerOperationID = operationID
                 await Task.yield()
                 guard let closure = arguments.firstUnlabeledClosure else {
                     throw ProbeError.failed
@@ -1108,11 +1167,30 @@ struct AsyncExecutionTests {
             return delayed + "!"
         }
         await withValue { value in
+            observeHostReentry()
             await decorate(value)
         }
         """)
 
+        let root = try #require(state.rootRecord)
+        let outerOperationID = try #require(state.outerOperationID)
+        let nestedOperationID = try #require(state.nestedOperationID)
         #expect(result.stringValue == "inside!")
+        #expect(outerOperationID != nestedOperationID)
+        #expect(state.callbackState == .running)
+        #expect(state.callbackSuspension == nil)
+        #expect(state.callbackHostOperationCount == 1)
+        #expect(state.callbackOuterTaskID == root.id)
+        #expect(state.nestedState == .waiting)
+        #expect(state.nestedHostOperationCount == 2)
+        #expect(state.nestedOuterTaskID == root.id)
+        #expect(state.nestedOperationTaskID == root.id)
+        #expect(root.suspensionHistory == [
+            .awaitingHost(outerOperationID),
+            .awaitingHost(nestedOperationID),
+            .awaitingHost(outerOperationID),
+        ])
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
     }
 
     @Test func asyncControlFlowIsLazyAndCatchesHostErrors() async throws {

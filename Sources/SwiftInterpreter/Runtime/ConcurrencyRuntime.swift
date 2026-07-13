@@ -28,6 +28,16 @@ public struct RuntimeTaskID: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "task-\(rawValue)" }
 }
 
+public struct HostOperationID: Hashable, Sendable, CustomStringConvertible {
+    public let rawValue: UInt64
+
+    public init(rawValue: UInt64) {
+        self.rawValue = rawValue
+    }
+
+    public var description: String { "host-operation-\(rawValue)" }
+}
+
 struct RuntimeCancellationHandlerID: Hashable, Sendable {
     let rawValue: UInt64
 }
@@ -121,12 +131,14 @@ public enum RuntimeTaskState: String, Sendable {
 
 public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
     case awaitingTask(RuntimeTaskID)
+    case awaitingHost(HostOperationID)
     case yielding
     case sleeping(until: RuntimeInstant)
 
     public var description: String {
         switch self {
         case .awaitingTask(let taskID): "awaitingTask(\(taskID))"
+        case .awaitingHost(let operationID): "awaitingHost(\(operationID))"
         case .yielding: "yielding"
         case .sleeping(let deadline): "sleeping(until: \(deadline))"
         }
@@ -242,9 +254,11 @@ final class CooperativeConcurrencyRuntime {
     let clock: any RuntimeClock
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
+    private var nextHostOperationID: UInt64 = 1
     private var nextCancellationHandlerID: UInt64 = 1
     private var nextEventSequence: UInt64 = 1
     private(set) var records: [RuntimeTaskID: RuntimeTaskRecord] = [:]
+    private(set) var hostOperations: [HostOperationID: RuntimeTaskID] = [:]
 
     init(clock: any RuntimeClock = ContinuousRuntimeClock()) {
         self.clock = clock
@@ -442,6 +456,9 @@ final class CooperativeConcurrencyRuntime {
     }
 
     func release(_ id: RuntimeTaskID) {
+        precondition(
+            !hostOperations.values.contains(id),
+            "cannot release runtime task \(id) with an active host operation")
         clock.cancelSleep(task: id)
         records[id]?.cancellationHandlers.removeAll(keepingCapacity: false)
         records.removeValue(forKey: id)
@@ -470,7 +487,45 @@ final class CooperativeConcurrencyRuntime {
         record.state = .running
     }
 
+    func beginHostOperation(for taskID: RuntimeTaskID) -> HostOperationID {
+        let operationID = HostOperationID(rawValue: nextHostOperationID)
+        nextHostOperationID += 1
+        precondition(
+            hostOperations.updateValue(taskID, forKey: operationID) == nil,
+            "duplicate host operation ID \(operationID)")
+        suspend(taskID, for: .awaitingHost(operationID))
+        return operationID
+    }
+
+    func endHostOperation(
+        _ operationID: HostOperationID, for taskID: RuntimeTaskID
+    ) {
+        precondition(
+            hostOperations.removeValue(forKey: operationID) == taskID,
+            "host operation \(operationID) has the wrong runtime task")
+        resume(taskID, from: .awaitingHost(operationID))
+    }
+
+    func resumeHostOperationForCallback(
+        _ operationID: HostOperationID, taskID: RuntimeTaskID
+    ) {
+        precondition(
+            hostOperations[operationID] == taskID,
+            "cannot re-enter inactive host operation \(operationID)")
+        resume(taskID, from: .awaitingHost(operationID))
+    }
+
+    func suspendHostOperationAfterCallback(
+        _ operationID: HostOperationID, taskID: RuntimeTaskID
+    ) {
+        precondition(
+            hostOperations[operationID] == taskID,
+            "cannot leave inactive host operation \(operationID)")
+        suspend(taskID, for: .awaitingHost(operationID))
+    }
+
     var activeRecordCount: Int { records.count }
+    var activeHostOperationCount: Int { hostOperations.count }
 
     private func invokeCancellationHandlers(on record: RuntimeTaskRecord) {
         // The same-source Swift 6.3.3 probe establishes inner-to-outer

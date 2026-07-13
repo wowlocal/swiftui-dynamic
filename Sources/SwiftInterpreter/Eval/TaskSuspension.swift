@@ -2,13 +2,17 @@ import Foundation
 
 extension Interpreter {
     func sourceTaskYieldFunction() -> HostFunction {
-        HostFunction(name: "yield", asyncInvoke: { [weak self] _, _ in
-            guard let self else {
-                throw RuntimeError(message: "interpreter was released during Task.yield")
-            }
-            try await yieldCurrentTask()
-            return .void
-        })
+        HostFunction(
+            name: "yield",
+            tracksHostOperation: false,
+            asyncInvoke: { [weak self] _, _ in
+                guard let self else {
+                    throw RuntimeError(message:
+                        "interpreter was released during Task.yield")
+                }
+                try await yieldCurrentTask()
+                return .void
+            })
     }
 
     private func yieldCurrentTask() async throws {
@@ -22,14 +26,18 @@ extension Interpreter {
     }
 
     func sourceTaskSleepFunction() -> HostFunction {
-        HostFunction(name: "sleep", asyncInvoke: { [weak self] arguments, _ in
-            guard let self else {
-                throw RuntimeError(message: "interpreter was released during Task.sleep")
-            }
-            let duration = try Self.sourceSleepDuration(from: arguments)
-            try await sleepCurrentTask(for: duration)
-            return .void
-        })
+        HostFunction(
+            name: "sleep",
+            tracksHostOperation: false,
+            asyncInvoke: { [weak self] arguments, _ in
+                guard let self else {
+                    throw RuntimeError(message:
+                        "interpreter was released during Task.sleep")
+                }
+                let duration = try Self.sourceSleepDuration(from: arguments)
+                try await sleepCurrentTask(for: duration)
+                return .void
+            })
     }
 
     private func sleepCurrentTask(for duration: RuntimeDuration) async throws {

@@ -5,6 +5,7 @@
 final class TaskBoundEvalContext: EvalContext {
     let interpreter: Interpreter
     let evaluationContext: EvaluationTaskContext
+    private var activeHostOperationID: HostOperationID?
 
     init(interpreter: Interpreter, evaluationContext: EvaluationTaskContext) {
         self.interpreter = interpreter
@@ -26,10 +27,62 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func withHostOperation<T>(
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        guard activeHostOperationID == nil else {
+            preconditionFailure(
+                "one host-call context cannot own nested host operations")
+        }
+        guard let taskID = evaluationContext.runtimeTaskID else {
+            throw RuntimeError(message:
+                "async host gateway requires a runtime task")
+        }
+        let operationID = interpreter.concurrencyRuntime.beginHostOperation(
+            for: taskID)
+        activeHostOperationID = operationID
+        defer {
+            activeHostOperationID = nil
+            interpreter.concurrencyRuntime.endHostOperation(
+                operationID, for: taskID)
+        }
+        return try await operation()
+    }
+
+    private func callback<T>(_ operation: () throws -> T) throws -> T {
+        guard let operationID = activeHostOperationID,
+              let taskID = evaluationContext.runtimeTaskID else {
+            return try bound(operation)
+        }
+        interpreter.concurrencyRuntime.resumeHostOperationForCallback(
+            operationID, taskID: taskID)
+        defer {
+            interpreter.concurrencyRuntime.suspendHostOperationAfterCallback(
+                operationID, taskID: taskID)
+        }
+        return try bound(operation)
+    }
+
+    private func callback<T>(
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        guard let operationID = activeHostOperationID,
+              let taskID = evaluationContext.runtimeTaskID else {
+            return try await bound(operation)
+        }
+        interpreter.concurrencyRuntime.resumeHostOperationForCallback(
+            operationID, taskID: taskID)
+        defer {
+            interpreter.concurrencyRuntime.suspendHostOperationAfterCallback(
+                operationID, taskID: taskID)
+        }
+        return try await bound(operation)
+    }
+
     func callClosure(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
-        try bound {
+        try callback {
             try interpreter.callClosure(closure, arguments: arguments)
         }
     }
@@ -37,7 +90,7 @@ final class TaskBoundEvalContext: EvalContext {
     func callClosureAsync(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
-        try await bound {
+        try await callback {
             try await interpreter.callClosureAsync(
                 closure, arguments: arguments)
         }
@@ -91,7 +144,7 @@ final class TaskBoundEvalContext: EvalContext {
         operation: ClosureValue,
         arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
-        try bound {
+        try callback {
             try interpreter.withTaskLocalValue(
                 value, for: key, operation: operation, arguments: arguments)
         }
@@ -103,7 +156,7 @@ final class TaskBoundEvalContext: EvalContext {
         operation: ClosureValue,
         arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
-        try await bound {
+        try await callback {
             try await interpreter.withTaskLocalValue(
                 value, for: key, operation: operation, arguments: arguments)
         }
@@ -120,7 +173,7 @@ final class TaskBoundEvalContext: EvalContext {
     func callBackgroundClosure(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
-        try bound {
+        try callback {
             try interpreter.callBackgroundClosure(closure, arguments: arguments)
         }
     }
@@ -128,7 +181,7 @@ final class TaskBoundEvalContext: EvalContext {
     func callBuilderClosure(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> [RuntimeValue] {
-        try bound {
+        try callback {
             try interpreter.callBuilderClosure(closure, arguments: arguments)
         }
     }

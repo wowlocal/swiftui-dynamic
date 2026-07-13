@@ -1053,6 +1053,7 @@ extension Interpreter {
                             operation: operation,
                             arguments: [])
                     },
+                    tracksHostOperation: false,
                     asyncInvoke: { arguments, context in
                         guard let value = arguments.positional(0)
                                 ?? arguments.labeled("value"),
