@@ -130,6 +130,26 @@ private func eval(_ source: String) throws -> RuntimeValue {
         }
     }
 
+    @Test func nestedFiniteLoopsReceiveBoundedPerIterationSlices() throws {
+        let source = """
+        var count = 0
+        for _ in 0..<400 {
+            for _ in 0..<400 {
+                count += 1
+            }
+        }
+        count
+        """
+        #expect(try eval(source).intValue == 160_000)
+
+        do {
+            _ = try eval("for _ in 0..<1 { while true { } }")
+            Issue.record("expected an infinite element body to trip the budget")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("budget"))
+        }
+    }
+
     @Test func runawayRecursionIsAFatalLocatedError() throws {
         // WHICH guard trips (call-depth counter vs native stack probe)
         // depends on per-frame stack cost; the INVARIANT is a fatal,

@@ -24,6 +24,8 @@ enum ParamTag: Hashable {
     /// A concrete, payload-free enum collected from the SDK interface. The
     /// associated value is its normalized Swift type name.
     case sdkEnum(String)
+    /// A native AppKit/UIKit payload selected from the platform symbol graph.
+    case platformValue(String, String)
 }
 
 struct ParamSpec {
@@ -244,6 +246,18 @@ enum GeneratedDispatch {
             return Set(try array.map(Coerce.calendarComponent))
         case .sdkEnum(let typeName):
             return try GeneratedSDKEnumCoercions.coerce(typeName, value)
+        case .platformValue(let framework, let typeName):
+            guard case .host(let any) = value,
+                  let box = any as? GeneratedPlatformValue,
+                  box.framework == framework,
+                  GeneratedPlatformBridge.typeCandidates(
+                    framework: framework, type: box.typeName
+                  ).contains(typeName),
+                  let payload = box.payload else {
+                throw RuntimeError(message:
+                    "expected a native \(framework).\(typeName) value")
+            }
+            return payload
         }
     }
 

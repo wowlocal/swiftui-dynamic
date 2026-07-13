@@ -15,9 +15,12 @@ extension GeneratedPlatformBridge {
         buildConstructorsAppKit0(&t)
         buildConstructorsAppKit1(&t)
         buildConstructorsAppKit2(&t)
+        buildConstructorsAppKit3(&t)
+        buildConstructorsAppKit4(&t)
         buildConstructorsUIKit0(&t)
         buildConstructorsUIKit1(&t)
         buildConstructorsUIKit2(&t)
+        buildConstructorsUIKit3(&t)
         return t
     }
 
@@ -114,6 +117,16 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSFont(name p0: String, size p1: CGFloat)",
+            resultType: "NSFont") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSFont(name: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx), size: try generatedPlatformArgument(v[1], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx)), framework: "AppKit", declaredType: "NSFont")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSBezierPath(rect p0: CGRect)",
             resultType: "NSBezierPath") { v, ctx in
 #if canImport(AppKit)
@@ -144,6 +157,86 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSBezierPath.LineCapStyle(rawValue p0: UInt)",
+            resultType: "NSBezierPath.LineCapStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBezierPath.LineCapStyle(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSBezierPath.LineCapStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSBezierPath.LineJoinStyle(rawValue p0: UInt)",
+            resultType: "NSBezierPath.LineJoinStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBezierPath.LineJoinStyle(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSBezierPath.LineJoinStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSBezierPath.WindingRule(rawValue p0: UInt)",
+            resultType: "NSBezierPath.WindingRule") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBezierPath.WindingRule(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSBezierPath.WindingRule")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSBezierPath.ElementType(rawValue p0: UInt)",
+            resultType: "NSBezierPath.ElementType") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBezierPath.ElementType(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSBezierPath.ElementType")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage(systemSymbolName p0: String, accessibilityDescription p1: String?)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(systemSymbolName: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx), accessibilityDescription: try generatedPlatformArgument(v[1], as: String?.self, framework: "AppKit", typeName: "String?", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage(systemSymbolName p0: String, variableValue p1: Double, accessibilityDescription p2: String?)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(systemSymbolName: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx), variableValue: try generatedPlatformArgument(v[1], as: Double.self, framework: "AppKit", typeName: "Double", context: ctx), accessibilityDescription: try generatedPlatformArgument(v[2], as: String?.self, framework: "AppKit", typeName: "String?", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage(symbolName p0: String, variableValue p1: Double)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(symbolName: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx), variableValue: try generatedPlatformArgument(v[1], as: Double.self, framework: "AppKit", typeName: "Double", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage(symbolName p0: String, bundle p1: Bundle?, variableValue p2: Double)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(symbolName: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx), bundle: try generatedPlatformArgument(v[1], as: Bundle?.self, framework: "AppKit", typeName: "Bundle?", context: ctx), variableValue: try generatedPlatformArgument(v[2], as: Double.self, framework: "AppKit", typeName: "Double", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSImage(size p0: CGSize)",
             resultType: "NSImage") { v, ctx in
 #if canImport(AppKit)
@@ -154,10 +247,60 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSImage(data p0: Data)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(data: try generatedPlatformArgument(v[0], as: Data.self, framework: "AppKit", typeName: "Data", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage(contentsOfFile p0: String)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(contentsOfFile: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage(contentsOf p0: URL)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(contentsOf: try generatedPlatformArgument(v[0], as: URL.self, framework: "AppKit", typeName: "URL", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage(byReferencingFile p0: String)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(byReferencingFile: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSImage(byReferencing p0: URL)",
             resultType: "NSImage") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSImage(byReferencing: try generatedPlatformArgument(v[0], as: URL.self, framework: "AppKit", typeName: "URL", context: ctx)), framework: "AppKit", declaredType: "NSImage")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage(dataIgnoringOrientation p0: Data)",
+            resultType: "NSImage") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage(dataIgnoringOrientation: try generatedPlatformArgument(v[0], as: Data.self, framework: "AppKit", typeName: "Data", context: ctx)), framework: "AppKit", declaredType: "NSImage")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -232,12 +375,65 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsAppKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSImage.SymbolConfiguration(paletteColors p0: [NSColor])",
             resultType: "NSImage.SymbolConfiguration") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSImage.SymbolConfiguration(paletteColors: try generatedPlatformArgument(v[0], as: [NSColor].self, framework: "AppKit", typeName: "[NSColor]", context: ctx)), framework: "AppKit", declaredType: "NSImage.SymbolConfiguration")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage.LoadStatus(rawValue p0: UInt)",
+            resultType: "NSImage.LoadStatus") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage.LoadStatus(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSImage.LoadStatus")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage.CacheMode(rawValue p0: UInt)",
+            resultType: "NSImage.CacheMode") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage.CacheMode(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSImage.CacheMode")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage.ResizingMode(rawValue p0: Int)",
+            resultType: "NSImage.ResizingMode") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage.ResizingMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSImage.ResizingMode")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage.SymbolScale(rawValue p0: Int)",
+            resultType: "NSImage.SymbolScale") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage.SymbolScale(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSImage.SymbolScale")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSCollectionView.ScrollDirection(rawValue p0: Int)",
+            resultType: "NSCollectionView.ScrollDirection") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSCollectionView.ScrollDirection(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSCollectionView.ScrollDirection")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -314,6 +510,16 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init NSColor(colorSpace p0: NSColorSpace, hue p1: CGFloat, saturation p2: CGFloat, brightness p3: CGFloat, alpha p4: CGFloat)",
+            resultType: "NSColor") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSColor(colorSpace: try generatedPlatformArgument(v[0], as: NSColorSpace.self, framework: "AppKit", typeName: "NSColorSpace", context: ctx), hue: try generatedPlatformArgument(v[1], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx), saturation: try generatedPlatformArgument(v[2], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx), brightness: try generatedPlatformArgument(v[3], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx), alpha: try generatedPlatformArgument(v[4], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx)), framework: "AppKit", declaredType: "NSColor")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSColor(deviceWhite p0: CGFloat, alpha p1: CGFloat)",
             resultType: "NSColor") { v, ctx in
 #if canImport(AppKit)
@@ -372,9 +578,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsAppKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSColor(calibratedHue p0: CGFloat, saturation p1: CGFloat, brightness p2: CGFloat, alpha p3: CGFloat)",
@@ -391,6 +594,36 @@ extension GeneratedPlatformBridge {
             resultType: "NSColor") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSColor(patternImage: try generatedPlatformArgument(v[0], as: NSImage.self, framework: "AppKit", typeName: "NSImage", context: ctx)), framework: "AppKit", declaredType: "NSColor")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSColor(cgColor p0: CGColor)",
+            resultType: "NSColor") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSColor(cgColor: try generatedPlatformArgument(v[0], as: CGColor.self, framework: "AppKit", typeName: "CGColor", context: ctx)), framework: "AppKit", declaredType: "NSColor")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSColor.ColorType(rawValue p0: Int)",
+            resultType: "NSColor.ColorType") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSColor.ColorType(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSColor.ColorType")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSColor.SystemEffect(rawValue p0: Int)",
+            resultType: "NSColor.SystemEffect") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSColor.SystemEffect(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSColor.SystemEffect")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -427,6 +660,56 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init NSColorSpaceName(rawValue p0: String)",
+            resultType: "NSColorSpaceName") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSColorSpaceName(rawValue: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSColorSpaceName")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.BackingStoreType(rawValue p0: UInt)",
+            resultType: "NSWindow.BackingStoreType") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.BackingStoreType(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSWindow.BackingStoreType")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.OrderingMode(rawValue p0: Int)",
+            resultType: "NSWindow.OrderingMode") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.OrderingMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSWindow.OrderingMode")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.Depth(rawValue p0: Int32)",
+            resultType: "NSWindow.Depth") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.Depth(rawValue: try generatedPlatformArgument(v[0], as: Int32.self, framework: "AppKit", typeName: "Int32", context: ctx)), framework: "AppKit", declaredType: "NSWindow.Depth")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSCollectionView.DropOperation(rawValue p0: Int)",
+            resultType: "NSCollectionView.DropOperation") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSCollectionView.DropOperation(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSCollectionView.DropOperation")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSCollectionView.ScrollPosition(rawValue p0: UInt)",
             resultType: "NSCollectionView.ScrollPosition") { v, ctx in
 #if canImport(AppKit)
@@ -445,6 +728,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsAppKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSTextField(wrappingLabelWithString p0: String)",
@@ -471,6 +757,46 @@ extension GeneratedPlatformBridge {
             resultType: "NSTextField") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSTextField(string: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSTextField")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSApplication.RequestUserAttentionType(rawValue p0: UInt)",
+            resultType: "NSApplication.RequestUserAttentionType") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSApplication.RequestUserAttentionType(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSApplication.RequestUserAttentionType")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSApplication.DelegateReply(rawValue p0: UInt)",
+            resultType: "NSApplication.DelegateReply") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSApplication.DelegateReply(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSApplication.DelegateReply")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSApplication.TerminateReply(rawValue p0: UInt)",
+            resultType: "NSApplication.TerminateReply") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSApplication.TerminateReply(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSApplication.TerminateReply")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSApplication.PrintReply(rawValue p0: UInt)",
+            resultType: "NSApplication.PrintReply") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSApplication.PrintReply(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSApplication.PrintReply")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -547,10 +873,160 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSBitmapImageRep(bitmapDataPlanes p0: Never?, pixelsWide p1: Int, pixelsHigh p2: Int, bitsPerSample p3: Int, samplesPerPixel p4: Int, hasAlpha p5: Bool, isPlanar p6: Bool, colorSpaceName p7: NSColorSpaceName, bytesPerRow p8: Int, bitsPerPixel p9: Int)",
+            resultType: "NSBitmapImageRep") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep(bitmapDataPlanes: try generatedPlatformArgument(v[0], as: UnsafeMutablePointer<UnsafeMutablePointer<UInt8>?>?.self, framework: "AppKit", typeName: "UnsafeMutablePointer<UnsafeMutablePointer<UInt8>?>?", context: ctx), pixelsWide: try generatedPlatformArgument(v[1], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), pixelsHigh: try generatedPlatformArgument(v[2], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), bitsPerSample: try generatedPlatformArgument(v[3], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), samplesPerPixel: try generatedPlatformArgument(v[4], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), hasAlpha: try generatedPlatformArgument(v[5], as: Bool.self, framework: "AppKit", typeName: "Bool", context: ctx), isPlanar: try generatedPlatformArgument(v[6], as: Bool.self, framework: "AppKit", typeName: "Bool", context: ctx), colorSpaceName: try generatedPlatformArgument(v[7], as: NSColorSpaceName.self, framework: "AppKit", typeName: "NSColorSpaceName", context: ctx), bytesPerRow: try generatedPlatformArgument(v[8], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), bitsPerPixel: try generatedPlatformArgument(v[9], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSBitmapImageRep(bitmapDataPlanes p0: Never?, pixelsWide p1: Int, pixelsHigh p2: Int, bitsPerSample p3: Int, samplesPerPixel p4: Int, hasAlpha p5: Bool, isPlanar p6: Bool, colorSpaceName p7: NSColorSpaceName, bitmapFormat p8: NSBitmapImageRep.Format, bytesPerRow p9: Int, bitsPerPixel p10: Int)",
+            resultType: "NSBitmapImageRep") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep(bitmapDataPlanes: try generatedPlatformArgument(v[0], as: UnsafeMutablePointer<UnsafeMutablePointer<UInt8>?>?.self, framework: "AppKit", typeName: "UnsafeMutablePointer<UnsafeMutablePointer<UInt8>?>?", context: ctx), pixelsWide: try generatedPlatformArgument(v[1], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), pixelsHigh: try generatedPlatformArgument(v[2], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), bitsPerSample: try generatedPlatformArgument(v[3], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), samplesPerPixel: try generatedPlatformArgument(v[4], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), hasAlpha: try generatedPlatformArgument(v[5], as: Bool.self, framework: "AppKit", typeName: "Bool", context: ctx), isPlanar: try generatedPlatformArgument(v[6], as: Bool.self, framework: "AppKit", typeName: "Bool", context: ctx), colorSpaceName: try generatedPlatformArgument(v[7], as: NSColorSpaceName.self, framework: "AppKit", typeName: "NSColorSpaceName", context: ctx), bitmapFormat: try generatedPlatformArgument(v[8], as: NSBitmapImageRep.Format.self, framework: "AppKit", typeName: "NSBitmapImageRep.Format", context: ctx), bytesPerRow: try generatedPlatformArgument(v[9], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), bitsPerPixel: try generatedPlatformArgument(v[10], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSBitmapImageRep(cgImage p0: CGImage)",
+            resultType: "NSBitmapImageRep") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep(cgImage: try generatedPlatformArgument(v[0], as: CGImage.self, framework: "AppKit", typeName: "CGImage", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSBitmapImageRep(data p0: Data)",
+            resultType: "NSBitmapImageRep") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep(data: try generatedPlatformArgument(v[0], as: Data.self, framework: "AppKit", typeName: "Data", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSBitmapImageRep(forIncrementalLoad p0: Void)",
+            resultType: "NSBitmapImageRep") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep(forIncrementalLoad: try generatedPlatformArgument(v[0], as: Void.self, framework: "AppKit", typeName: "Void", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSBitmapImageRep.TIFFCompression(rawValue p0: UInt)",
+            resultType: "NSBitmapImageRep.TIFFCompression") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.TIFFCompression(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep.TIFFCompression")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSBitmapImageRep.FileType(rawValue p0: UInt)",
+            resultType: "NSBitmapImageRep.FileType") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.FileType(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep.FileType")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSBitmapImageRep.LoadStatus(rawValue p0: Int)",
+            resultType: "NSBitmapImageRep.LoadStatus") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.LoadStatus(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep.LoadStatus")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSBitmapImageRep.Format(rawValue p0: UInt)",
+            resultType: "NSBitmapImageRep.Format") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.Format(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep.Format")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSBitmapImageRep.PropertyKey(_ p0: String)",
+            resultType: "NSBitmapImageRep.PropertyKey") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.PropertyKey(try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSBitmapImageRep.PropertyKey(rawValue p0: String)",
+            resultType: "NSBitmapImageRep.PropertyKey") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.PropertyKey(rawValue: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSButton.ButtonType(rawValue p0: UInt)",
+            resultType: "NSButton.ButtonType") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSButton.ButtonType(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSButton.ButtonType")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSButton.BezelStyle(rawValue p0: UInt)",
+            resultType: "NSButton.BezelStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSButton.BezelStyle(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSButton.BezelStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSTableView(frame p0: CGRect)",
             resultType: "NSTableView") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSTableView(frame: try generatedPlatformArgument(v[0], as: CGRect.self, framework: "AppKit", typeName: "CGRect", context: ctx)), framework: "AppKit", declaredType: "NSTableView")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSTableView.DropOperation(rawValue p0: UInt)",
+            resultType: "NSTableView.DropOperation") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSTableView.DropOperation(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSTableView.DropOperation")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSTableView.ColumnAutoresizingStyle(rawValue p0: UInt)",
+            resultType: "NSTableView.ColumnAutoresizingStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSTableView.ColumnAutoresizingStyle(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSTableView.ColumnAutoresizingStyle")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -567,10 +1043,83 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSTableView.RowSizeStyle(rawValue p0: Int)",
+            resultType: "NSTableView.RowSizeStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSTableView.RowSizeStyle(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSTableView.RowSizeStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSTableView.Style(rawValue p0: Int)",
+            resultType: "NSTableView.Style") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSTableView.Style(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSTableView.Style")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSTableView.SelectionHighlightStyle(rawValue p0: Int)",
+            resultType: "NSTableView.SelectionHighlightStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSTableView.SelectionHighlightStyle(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSTableView.SelectionHighlightStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSTableView.DraggingDestinationFeedbackStyle(rawValue p0: Int)",
+            resultType: "NSTableView.DraggingDestinationFeedbackStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSTableView.DraggingDestinationFeedbackStyle(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSTableView.DraggingDestinationFeedbackStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildConstructorsAppKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSTableView.RowActionEdge(rawValue p0: Int)",
+            resultType: "NSTableView.RowActionEdge") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSTableView.RowActionEdge(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSTableView.RowActionEdge")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSTableView.AnimationOptions(rawValue p0: UInt)",
             resultType: "NSTableView.AnimationOptions") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSTableView.AnimationOptions(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSTableView.AnimationOptions")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSTextField.BezelStyle(rawValue p0: UInt)",
+            resultType: "NSTextField.BezelStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSTextField.BezelStyle(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSTextField.BezelStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSCollectionView.UpdateAction(rawValue p0: Int)",
+            resultType: "NSCollectionView.UpdateAction") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSCollectionView.UpdateAction(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSCollectionView.UpdateAction")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -627,10 +1176,30 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSWindow.SharingType(rawValue p0: UInt)",
+            resultType: "NSWindow.SharingType") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.SharingType(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSWindow.SharingType")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSWindow.CollectionBehavior(rawValue p0: UInt)",
             resultType: "NSWindow.CollectionBehavior") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSWindow.CollectionBehavior(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSWindow.CollectionBehavior")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.AnimationBehavior(rawValue p0: Int)",
+            resultType: "NSWindow.AnimationBehavior") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.AnimationBehavior(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSWindow.AnimationBehavior")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -677,10 +1246,80 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSWindow.SelectionDirection(rawValue p0: UInt)",
+            resultType: "NSWindow.SelectionDirection") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.SelectionDirection(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSWindow.SelectionDirection")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.ButtonType(rawValue p0: UInt)",
+            resultType: "NSWindow.ButtonType") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.ButtonType(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSWindow.ButtonType")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.TitleVisibility(rawValue p0: Int)",
+            resultType: "NSWindow.TitleVisibility") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.TitleVisibility(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSWindow.TitleVisibility")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.ToolbarStyle(rawValue p0: Int)",
+            resultType: "NSWindow.ToolbarStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.ToolbarStyle(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSWindow.ToolbarStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.UserTabbingPreference(rawValue p0: Int)",
+            resultType: "NSWindow.UserTabbingPreference") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.UserTabbingPreference(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSWindow.UserTabbingPreference")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSWindow.TabbingMode(rawValue p0: Int)",
+            resultType: "NSWindow.TabbingMode") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSWindow.TabbingMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSWindow.TabbingMode")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSApplication.ActivationOptions(rawValue p0: UInt)",
             resultType: "NSApplication.ActivationOptions") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSApplication.ActivationOptions(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSApplication.ActivationOptions")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSApplication.ActivationPolicy(rawValue p0: Int)",
+            resultType: "NSApplication.ActivationPolicy") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSApplication.ActivationPolicy(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSApplication.ActivationPolicy")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -697,10 +1336,50 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSScrollView.Elasticity(rawValue p0: Int)",
+            resultType: "NSScrollView.Elasticity") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSScrollView.Elasticity(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSScrollView.Elasticity")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSScrollView.FindBarPosition(rawValue p0: Int)",
+            resultType: "NSScrollView.FindBarPosition") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSScrollView.FindBarPosition(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSScrollView.FindBarPosition")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSImageView(image p0: NSImage)",
             resultType: "NSImageView") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSImageView(image: try generatedPlatformArgument(v[0], as: NSImage.self, framework: "AppKit", typeName: "NSImage", context: ctx)), framework: "AppKit", declaredType: "NSImageView")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage.DynamicRange(rawValue p0: Int)",
+            resultType: "NSImage.DynamicRange") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage.DynamicRange(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSImage.DynamicRange")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImageView.FrameStyle(rawValue p0: UInt)",
+            resultType: "NSImageView.FrameStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImageView.FrameStyle(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSImageView.FrameStyle")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -725,9 +1404,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsAppKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSFont.Width(_ p0: CGFloat)",
@@ -758,12 +1434,35 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsAppKit4(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "AppKit",
             declaration: "init NSFont.TextStyleOptionKey(rawValue p0: String)",
             resultType: "NSFont.TextStyleOptionKey") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSFont.TextStyleOptionKey(rawValue: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSFont.TextStyleOptionKey")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSAppearance(named p0: NSAppearance.Name)",
+            resultType: "NSAppearance") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSAppearance(named: try generatedPlatformArgument(v[0], as: NSAppearance.Name.self, framework: "AppKit", typeName: "NSAppearance.Name", context: ctx)), framework: "AppKit", declaredType: "NSAppearance")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSAppearance(appearanceNamed p0: NSAppearance.Name, bundle p1: Bundle?)",
+            resultType: "NSAppearance") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSAppearance(appearanceNamed: try generatedPlatformArgument(v[0], as: NSAppearance.Name.self, framework: "AppKit", typeName: "NSAppearance.Name", context: ctx), bundle: try generatedPlatformArgument(v[1], as: Bundle?.self, framework: "AppKit", typeName: "Bundle?", context: ctx)), framework: "AppKit", declaredType: "NSAppearance")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -810,6 +1509,26 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSView.LayerContentsRedrawPolicy(rawValue p0: Int)",
+            resultType: "NSView.LayerContentsRedrawPolicy") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSView.LayerContentsRedrawPolicy(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSView.LayerContentsRedrawPolicy")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSView.LayerContentsPlacement(rawValue p0: Int)",
+            resultType: "NSView.LayerContentsPlacement") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSView.LayerContentsPlacement(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSView.LayerContentsPlacement")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSView.FullScreenModeOptionKey(rawValue p0: String)",
             resultType: "NSView.FullScreenModeOptionKey") { v, ctx in
 #if canImport(AppKit)
@@ -840,6 +1559,16 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "AppKit",
+            declaration: "init? NSControl.ImagePosition(rawValue p0: UInt)",
+            resultType: "NSControl.ImagePosition") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSControl.ImagePosition(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSControl.ImagePosition")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
             declaration: "init NSControl.StateValue(_ p0: Int)",
             resultType: "NSControl.StateValue") { v, ctx in
 #if canImport(AppKit)
@@ -854,6 +1583,96 @@ extension GeneratedPlatformBridge {
             resultType: "NSControl.StateValue") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSControl.StateValue(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSControl.StateValue")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSControl.ControlSize(rawValue p0: UInt)",
+            resultType: "NSControl.ControlSize") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSControl.ControlSize(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "AppKit", typeName: "UInt", context: ctx)), framework: "AppKit", declaredType: "NSControl.ControlSize")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSView.BackgroundStyle(rawValue p0: Int)",
+            resultType: "NSView.BackgroundStyle") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSView.BackgroundStyle(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSView.BackgroundStyle")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSColorSpace(iccProfileData p0: Data)",
+            resultType: "NSColorSpace") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSColorSpace(iccProfileData: try generatedPlatformArgument(v[0], as: Data.self, framework: "AppKit", typeName: "Data", context: ctx)), framework: "AppKit", declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSColorSpace.Model(rawValue p0: Int)",
+            resultType: "NSColorSpace.Model") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSColorSpace.Model(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSColorSpace.Model")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSImageRep()",
+            resultType: "NSImageRep") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImageRep(), framework: "AppKit", declaredType: "NSImageRep")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImageRep(contentsOfFile p0: String)",
+            resultType: "NSImageRep") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImageRep(contentsOfFile: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSImageRep")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImageRep(contentsOf p0: URL)",
+            resultType: "NSImageRep") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImageRep(contentsOf: try generatedPlatformArgument(v[0], as: URL.self, framework: "AppKit", typeName: "URL", context: ctx)), framework: "AppKit", declaredType: "NSImageRep")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init? NSImage.LayoutDirection(rawValue p0: Int)",
+            resultType: "NSImage.LayoutDirection") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImage.LayoutDirection(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSImage.LayoutDirection")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "AppKit",
+            declaration: "init NSImageRep.HintKey(rawValue p0: String)",
+            resultType: "NSImageRep.HintKey") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImageRep.HintKey(rawValue: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "NSImageRep.HintKey")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -923,6 +1742,106 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init? UIImage(systemName p0: String, variableValue p1: Double)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(systemName: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), variableValue: try generatedPlatformArgument(v[1], as: Double.self, framework: "UIKit", typeName: "Double", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(systemName p0: String, variableValue p1: Double, configuration p2: UIImage.Configuration?)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(systemName: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), variableValue: try generatedPlatformArgument(v[1], as: Double.self, framework: "UIKit", typeName: "Double", context: ctx), configuration: try generatedPlatformArgument(v[2], as: UIImage.Configuration?.self, framework: "UIKit", typeName: "UIImage.Configuration?", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(named p0: String, variableValue p1: Double)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), variableValue: try generatedPlatformArgument(v[1], as: Double.self, framework: "UIKit", typeName: "Double", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(named p0: String, variableValue p1: Double, configuration p2: UIImage.Configuration?)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), variableValue: try generatedPlatformArgument(v[1], as: Double.self, framework: "UIKit", typeName: "Double", context: ctx), configuration: try generatedPlatformArgument(v[2], as: UIImage.Configuration?.self, framework: "UIKit", typeName: "UIImage.Configuration?", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(named p0: String, in p1: Bundle?, variableValue p2: Double)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), in: try generatedPlatformArgument(v[1], as: Bundle?.self, framework: "UIKit", typeName: "Bundle?", context: ctx), variableValue: try generatedPlatformArgument(v[2], as: Double.self, framework: "UIKit", typeName: "Double", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(named p0: String, in p1: Bundle?, variableValue p2: Double, configuration p3: UIImage.Configuration?)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), in: try generatedPlatformArgument(v[1], as: Bundle?.self, framework: "UIKit", typeName: "Bundle?", context: ctx), variableValue: try generatedPlatformArgument(v[2], as: Double.self, framework: "UIKit", typeName: "Double", context: ctx), configuration: try generatedPlatformArgument(v[3], as: UIImage.Configuration?.self, framework: "UIKit", typeName: "UIImage.Configuration?", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITextField.BorderStyle(rawValue p0: Int)",
+            resultType: "UITextField.BorderStyle") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITextField.BorderStyle(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITextField.BorderStyle")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITextField.ViewMode(rawValue p0: Int)",
+            resultType: "UITextField.ViewMode") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITextField.ViewMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITextField.ViewMode")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITextField.DidEndEditingReason(rawValue p0: Int)",
+            resultType: "UITextField.DidEndEditingReason") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITextField.DidEndEditingReason(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITextField.DidEndEditingReason")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage.DynamicRange(rawValue p0: Int)",
+            resultType: "UIImage.DynamicRange") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage.DynamicRange(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIImage.DynamicRange")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIColor(white p0: CGFloat, alpha p1: CGFloat)",
             resultType: "UIColor") { v, ctx in
 #if canImport(UIKit)
@@ -983,10 +1902,80 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init? UIColor(named p0: String)",
+            resultType: "UIColor") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIColor(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx)), framework: "UIKit", declaredType: "UIColor")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIColor.Prominence(rawValue p0: Int)",
+            resultType: "UIColor.Prominence") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIColor.Prominence(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIColor.Prominence")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UICollectionView.ScrollPosition(rawValue p0: UInt)",
             resultType: "UICollectionView.ScrollPosition") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UICollectionView.ScrollPosition(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "UIKit", typeName: "UInt", context: ctx)), framework: "UIKit", declaredType: "UICollectionView.ScrollPosition")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UICollectionView.ReorderingCadence(rawValue p0: Int)",
+            resultType: "UICollectionView.ReorderingCadence") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UICollectionView.ReorderingCadence(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UICollectionView.ReorderingCadence")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UICollectionView.SelfSizingInvalidation(rawValue p0: Int)",
+            resultType: "UICollectionView.SelfSizingInvalidation") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UICollectionView.SelfSizingInvalidation(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UICollectionView.SelfSizingInvalidation")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIScreen.OverscanCompensation(rawValue p0: Int)",
+            resultType: "UIScreen.OverscanCompensation") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIScreen.OverscanCompensation(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIScreen.OverscanCompensation")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIScreen.ReferenceDisplayModeStatus(rawValue p0: Int)",
+            resultType: "UIScreen.ReferenceDisplayModeStatus") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIScreen.ReferenceDisplayModeStatus(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIScreen.ReferenceDisplayModeStatus")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIFont(name p0: String, size p1: CGFloat)",
+            resultType: "UIFont") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIFont(name: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), size: try generatedPlatformArgument(v[1], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx)), framework: "UIKit", declaredType: "UIFont")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -1011,6 +2000,39 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIView.AnimationCurve(rawValue p0: Int)",
+            resultType: "UIView.AnimationCurve") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIView.AnimationCurve(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIView.AnimationCurve")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIView.ContentMode(rawValue p0: Int)",
+            resultType: "UIView.ContentMode") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIView.ContentMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIView.ContentMode")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIView.AnimationTransition(rawValue p0: Int)",
+            resultType: "UIView.AnimationTransition") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIView.AnimationTransition(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIView.AnimationTransition")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildConstructorsUIKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIView.AutoresizingMask(rawValue p0: UInt)",
@@ -1043,10 +2065,40 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init? UIView.SystemAnimation(rawValue p0: UInt)",
+            resultType: "UIView.SystemAnimation") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIView.SystemAnimation(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "UIKit", typeName: "UInt", context: ctx)), framework: "UIKit", declaredType: "UIView.SystemAnimation")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIView.TintAdjustmentMode(rawValue p0: Int)",
+            resultType: "UIView.TintAdjustmentMode") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIView.TintAdjustmentMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIView.TintAdjustmentMode")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UITextView(usingTextLayoutManager p0: Bool)",
             resultType: "UITextView") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UITextView(usingTextLayoutManager: try generatedPlatformArgument(v[0], as: Bool.self, framework: "UIKit", typeName: "Bool", context: ctx)), framework: "UIKit", declaredType: "UITextView")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITextView.BorderStyle(rawValue p0: Int)",
+            resultType: "UITextView.BorderStyle") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITextView.BorderStyle(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITextView.BorderStyle")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -1211,9 +2263,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit1(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIImageView(image p0: UIImage?)",
@@ -1230,6 +2279,46 @@ extension GeneratedPlatformBridge {
             resultType: "UIImageView") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIImageView(image: try generatedPlatformArgument(v[0], as: UIImage?.self, framework: "UIKit", typeName: "UIImage?", context: ctx), highlightedImage: try generatedPlatformArgument(v[1], as: UIImage?.self, framework: "UIKit", typeName: "UIImage?", context: ctx)), framework: "UIKit", declaredType: "UIImageView")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIScrollView.IndicatorStyle(rawValue p0: Int)",
+            resultType: "UIScrollView.IndicatorStyle") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIScrollView.IndicatorStyle(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIScrollView.IndicatorStyle")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIScrollView.KeyboardDismissMode(rawValue p0: Int)",
+            resultType: "UIScrollView.KeyboardDismissMode") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIScrollView.KeyboardDismissMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIScrollView.KeyboardDismissMode")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIScrollView.IndexDisplayMode(rawValue p0: Int)",
+            resultType: "UIScrollView.IndexDisplayMode") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIScrollView.IndexDisplayMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIScrollView.IndexDisplayMode")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIScrollView.ContentInsetAdjustmentBehavior(rawValue p0: Int)",
+            resultType: "UIScrollView.ContentInsetAdjustmentBehavior") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIScrollView.ContentInsetAdjustmentBehavior(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIScrollView.ContentInsetAdjustmentBehavior")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -1294,6 +2383,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIImage.SymbolConfiguration(pointSize p0: CGFloat, weight p1: UIImage.SymbolWeight)",
@@ -1376,6 +2468,36 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init? UIImage.SymbolScale(rawValue p0: Int)",
+            resultType: "UIImage.SymbolScale") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage.SymbolScale(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIImage.SymbolScale")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage.SymbolWeight(rawValue p0: Int)",
+            resultType: "UIImage.SymbolWeight") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage.SymbolWeight(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIImage.SymbolWeight")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIWindowScene.DismissalAnimation(rawValue p0: Int)",
+            resultType: "UIWindowScene.DismissalAnimation") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIWindowScene.DismissalAnimation(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIWindowScene.DismissalAnimation")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIApplication.LaunchOptionsKey(rawValue p0: String)",
             resultType: "UIApplication.LaunchOptionsKey") { v, ctx in
 #if canImport(UIKit)
@@ -1406,10 +2528,90 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init? UIApplication.State(rawValue p0: Int)",
+            resultType: "UIApplication.State") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIApplication.State(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIApplication.State")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIApplication.OpenExternalURLOptionsKey(rawValue p0: String)",
             resultType: "UIApplication.OpenExternalURLOptionsKey") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIApplication.OpenExternalURLOptionsKey(rawValue: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx)), framework: "UIKit", declaredType: "UIApplication.OpenExternalURLOptionsKey")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(systemName p0: String)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(systemName: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(systemName p0: String, withConfiguration p1: UIImage.Configuration?)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(systemName: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), withConfiguration: try generatedPlatformArgument(v[1], as: UIImage.Configuration?.self, framework: "UIKit", typeName: "UIImage.Configuration?", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(named p0: String)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(named p0: String, in p1: Bundle?, with p2: UIImage.Configuration?)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(named: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), in: try generatedPlatformArgument(v[1], as: Bundle?.self, framework: "UIKit", typeName: "Bundle?", context: ctx), with: try generatedPlatformArgument(v[2], as: UIImage.Configuration?.self, framework: "UIKit", typeName: "UIImage.Configuration?", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(contentsOfFile p0: String)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(contentsOfFile: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(data p0: Data)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(data: try generatedPlatformArgument(v[0], as: Data.self, framework: "UIKit", typeName: "Data", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage(data p0: Data, scale p1: CGFloat)",
+            resultType: "UIImage") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage(data: try generatedPlatformArgument(v[0], as: Data.self, framework: "UIKit", typeName: "Data", context: ctx), scale: try generatedPlatformArgument(v[1], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx)), framework: "UIKit", declaredType: "UIImage")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -1430,6 +2632,36 @@ extension GeneratedPlatformBridge {
             resultType: "UIImage") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIImage(cgImage: try generatedPlatformArgument(v[0], as: CGImage.self, framework: "UIKit", typeName: "CGImage", context: ctx), scale: try generatedPlatformArgument(v[1], as: CGFloat.self, framework: "UIKit", typeName: "CGFloat", context: ctx), orientation: try generatedPlatformArgument(v[2], as: UIImage.Orientation.self, framework: "UIKit", typeName: "UIImage.Orientation", context: ctx)), framework: "UIKit", declaredType: "UIImage")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage.Orientation(rawValue p0: Int)",
+            resultType: "UIImage.Orientation") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage.Orientation(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIImage.Orientation")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage.ResizingMode(rawValue p0: Int)",
+            resultType: "UIImage.ResizingMode") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage.ResizingMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIImage.ResizingMode")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIImage.RenderingMode(rawValue p0: Int)",
+            resultType: "UIImage.RenderingMode") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIImage.RenderingMode(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIImage.RenderingMode")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -1476,6 +2708,26 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init? UIControl.ContentVerticalAlignment(rawValue p0: Int)",
+            resultType: "UIControl.ContentVerticalAlignment") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIControl.ContentVerticalAlignment(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIControl.ContentVerticalAlignment")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIControl.ContentHorizontalAlignment(rawValue p0: Int)",
+            resultType: "UIControl.ContentHorizontalAlignment") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIControl.ContentHorizontalAlignment(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIControl.ContentHorizontalAlignment")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UIControl.State(rawValue p0: UInt)",
             resultType: "UIControl.State") { v, ctx in
 #if canImport(UIKit)
@@ -1484,6 +2736,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildConstructorsUIKit3(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIButton(frame p0: CGRect)",
@@ -1500,6 +2755,26 @@ extension GeneratedPlatformBridge {
             resultType: "UIButton") { v, ctx in
 #if canImport(UIKit)
             return generatedPlatformResult(UIButton(type: try generatedPlatformArgument(v[0], as: UIButton.ButtonType.self, framework: "UIKit", typeName: "UIButton.ButtonType", context: ctx)), framework: "UIKit", declaredType: "UIButton")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIButton.ButtonType(rawValue p0: Int)",
+            resultType: "UIButton.ButtonType") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIButton.ButtonType(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIButton.ButtonType")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UIButton.Role(rawValue p0: Int)",
+            resultType: "UIButton.Role") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UIButton.Role(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UIButton.Role")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -1556,6 +2831,26 @@ extension GeneratedPlatformBridge {
         }
         registerConstructor(
             &t, framework: "UIKit",
+            declaration: "init? UICollectionView.ScrollDirection(rawValue p0: Int)",
+            resultType: "UICollectionView.ScrollDirection") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UICollectionView.ScrollDirection(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UICollectionView.ScrollDirection")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UICollectionView.ElementCategory(rawValue p0: UInt)",
+            resultType: "UICollectionView.ElementCategory") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UICollectionView.ElementCategory(rawValue: try generatedPlatformArgument(v[0], as: UInt.self, framework: "UIKit", typeName: "UInt", context: ctx)), framework: "UIKit", declaredType: "UICollectionView.ElementCategory")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
             declaration: "init UITableView(frame p0: CGRect, style p1: UITableView.Style)",
             resultType: "UITableView") { v, ctx in
 #if canImport(UIKit)
@@ -1564,9 +2859,56 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildConstructorsUIKit2(_ t: inout [String: [GeneratedPlatformConstructorEntry]]) {
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITableView.Style(rawValue p0: Int)",
+            resultType: "UITableView.Style") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITableView.Style(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITableView.Style")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITableView.ScrollPosition(rawValue p0: Int)",
+            resultType: "UITableView.ScrollPosition") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITableView.ScrollPosition(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITableView.ScrollPosition")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITableView.RowAnimation(rawValue p0: Int)",
+            resultType: "UITableView.RowAnimation") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITableView.RowAnimation(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITableView.RowAnimation")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITableView.SeparatorInsetReference(rawValue p0: Int)",
+            resultType: "UITableView.SeparatorInsetReference") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITableView.SeparatorInsetReference(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITableView.SeparatorInsetReference")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerConstructor(
+            &t, framework: "UIKit",
+            declaration: "init? UITableView.SelfSizingInvalidation(rawValue p0: Int)",
+            resultType: "UITableView.SelfSizingInvalidation") { v, ctx in
+#if canImport(UIKit)
+            return generatedPlatformResult(UITableView.SelfSizingInvalidation(rawValue: try generatedPlatformArgument(v[0], as: Int.self, framework: "UIKit", typeName: "Int", context: ctx)), framework: "UIKit", declaredType: "UITableView.SelfSizingInvalidation")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
         registerConstructor(
             &t, framework: "UIKit",
             declaration: "init UIFontMetrics(forTextStyle p0: UIFont.TextStyle)",
@@ -1591,6 +2933,10 @@ extension GeneratedPlatformBridge {
         buildMethodsAppKit7(&t)
         buildMethodsAppKit8(&t)
         buildMethodsAppKit9(&t)
+        buildMethodsAppKit10(&t)
+        buildMethodsAppKit11(&t)
+        buildMethodsAppKit12(&t)
+        buildMethodsAppKit13(&t)
         buildMethodsUIKit0(&t)
         buildMethodsUIKit1(&t)
         buildMethodsUIKit2(&t)
@@ -1855,6 +3201,20 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSViewController.dismiss(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSViewController else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`dismiss`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSViewController.presentAsSheet(_ p0: NSViewController) -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -2076,6 +3436,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsAppKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSBezierPath.curve(to p0: CGPoint, controlPoint p1: CGPoint) -> Void",
@@ -2090,9 +3453,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSBezierPath.close() -> Void",
@@ -2359,6 +3719,33 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSApplication.orderFrontColorPanel(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontColorPanel`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSImage.drawRepresentation(_ p0: NSImageRep, in p1: CGRect) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImage else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`drawRepresentation`(try generatedPlatformArgument(v[0], as: NSImageRep.self, framework: "AppKit", typeName: "NSImageRep", context: ctx), in: try generatedPlatformArgument(v[1], as: CGRect.self, framework: "AppKit", typeName: "CGRect", context: ctx)), framework: "AppKit", declaredType: "Bool")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSImage.draw(in p0: CGRect) -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -2387,6 +3774,61 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSImage.tiffRepresentation(using p0: NSBitmapImageRep.TIFFCompression, factor p1: Float) -> Data?",
+            resultType: "Data?") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImage else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`tiffRepresentation`(using: try generatedPlatformArgument(v[0], as: NSBitmapImageRep.TIFFCompression.self, framework: "AppKit", typeName: "NSBitmapImageRep.TIFFCompression", context: ctx), factor: try generatedPlatformArgument(v[1], as: Float.self, framework: "AppKit", typeName: "Float", context: ctx)), framework: "AppKit", declaredType: "Data?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSImage.addRepresentations(_ p0: [NSImageRep]) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImage else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`addRepresentations`(try generatedPlatformArgument(v[0], as: [NSImageRep].self, framework: "AppKit", typeName: "[NSImageRep]", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSImage.addRepresentation(_ p0: NSImageRep) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImage else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`addRepresentation`(try generatedPlatformArgument(v[0], as: NSImageRep.self, framework: "AppKit", typeName: "NSImageRep", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSImage.removeRepresentation(_ p0: NSImageRep) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImage else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`removeRepresentation`(try generatedPlatformArgument(v[0], as: NSImageRep.self, framework: "AppKit", typeName: "NSImageRep", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSImage.recommendedLayerContentsScale(_ p0: CGFloat) -> CGFloat",
             resultType: "CGFloat") { base, v, ctx in
 #if canImport(AppKit)
@@ -2394,6 +3836,19 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             return generatedPlatformResult(receiver.`recommendedLayerContentsScale`(try generatedPlatformArgument(v[0], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx)), framework: "AppKit", declaredType: "CGFloat")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSImage.layerContents(forContentsScale p0: CGFloat) -> Any",
+            resultType: "Any") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImage else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`layerContents`(forContentsScale: try generatedPlatformArgument(v[0], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx)), framework: "AppKit", declaredType: "Any")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -2462,6 +3917,22 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             return generatedPlatformResult(receiver.`usingType`(try generatedPlatformArgument(v[0], as: NSColor.ColorType.self, framework: "AppKit", typeName: "NSColor.ColorType", context: ctx)), framework: "AppKit", declaredType: "NSColor?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildMethodsAppKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSColor.usingColorSpace(_ p0: NSColorSpace) -> NSColor?",
+            resultType: "NSColor?") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSColor else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`usingColorSpace`(try generatedPlatformArgument(v[0], as: NSColorSpace.self, framework: "AppKit", typeName: "NSColorSpace", context: ctx)), framework: "AppKit", declaredType: "NSColor?")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -2573,9 +4044,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSColor.drawSwatch(in p0: CGRect) -> Void",
@@ -2612,6 +4080,104 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`sizeToFit`()
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSControl.takeIntValueFrom(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSControl else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`takeIntValueFrom`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSControl.takeFloatValueFrom(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSControl else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`takeFloatValueFrom`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSControl.takeDoubleValueFrom(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSControl else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`takeDoubleValueFrom`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSControl.takeStringValueFrom(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSControl else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`takeStringValueFrom`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSControl.takeObjectValueFrom(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSControl else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`takeObjectValueFrom`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSControl.takeIntegerValueFrom(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSControl else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`takeIntegerValueFrom`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSControl.performClick(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSControl else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`performClick`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -2768,6 +4334,20 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSApplication.runPageLayout(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`runPageLayout`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSTextView.invalidateTextContainerOrigin() -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -2789,6 +4369,275 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`setConstrainedFrameSize`(try generatedPlatformArgument(v[0], as: CGSize.self, framework: "AppKit", typeName: "CGSize", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.turnOffKerning(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`turnOffKerning`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.tightenKerning(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`tightenKerning`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildMethodsAppKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.loosenKerning(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`loosenKerning`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.useStandardKerning(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`useStandardKerning`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.turnOffLigatures(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`turnOffLigatures`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.useStandardLigatures(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`useStandardLigatures`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.useAllLigatures(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`useAllLigatures`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.raiseBaseline(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`raiseBaseline`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.lowerBaseline(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`lowerBaseline`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.outline(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`outline`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.performFindPanelAction(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`performFindPanelAction`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.alignJustified(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`alignJustified`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.changeColor(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`changeColor`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.changeAttributes(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`changeAttributes`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.changeDocumentBackgroundColor(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`changeDocumentBackgroundColor`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.orderFrontSpacingPanel(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontSpacingPanel`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.orderFrontLinkPanel(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontLinkPanel`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.orderFrontListPanel(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontListPanel`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.orderFrontTablePanel(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontTablePanel`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -2880,6 +4729,62 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSTextView.clicked(onLink p0: Any, at p1: Int) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`clicked`(onLink: try generatedPlatformArgument(v[0], as: Any.self, framework: "AppKit", typeName: "Any", context: ctx), at: try generatedPlatformArgument(v[1], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.startSpeaking(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`startSpeaking`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.stopSpeaking(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`stopSpeaking`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.changeLayoutOrientation(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`changeLayoutOrientation`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSTextView.characterIndexForInsertion(at p0: CGPoint) -> Int",
             resultType: "Int") { base, v, ctx in
 #if canImport(AppKit)
@@ -2906,6 +4811,20 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSTextView.complete(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`complete`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSTextView.insertCompletion(_ p0: String, forPartialWordRange p1: NSRange, movement p2: Int, isFinal p3: Bool) -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -2913,6 +4832,34 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`insertCompletion`(try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx), forPartialWordRange: try generatedPlatformArgument(v[1], as: NSRange.self, framework: "AppKit", typeName: "NSRange", context: ctx), movement: try generatedPlatformArgument(v[2], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), isFinal: try generatedPlatformArgument(v[3], as: Bool.self, framework: "AppKit", typeName: "Bool", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.pasteAsPlainText(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`pasteAsPlainText`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.pasteAsRichText(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`pasteAsRichText`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -2941,6 +4888,37 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`updateInsertionPointStateAndRestartTimer`(try generatedPlatformArgument(v[0], as: Bool.self, framework: "AppKit", typeName: "Bool", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildMethodsAppKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleContinuousSpellChecking(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleContinuousSpellChecking`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleGrammarChecking(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleGrammarChecking`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -3044,6 +5022,20 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleSmartInsertDelete(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleSmartInsertDelete`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSTextView.smartInsert(beforeStringFor p0: String, replacing p1: NSRange) -> String?",
             resultType: "String?") { base, v, ctx in
 #if canImport(AppKit)
@@ -3055,9 +5047,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSTextView.smartInsert(afterStringFor p0: String, replacing p1: NSRange) -> String?",
@@ -3073,6 +5062,146 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleAutomaticQuoteSubstitution(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleAutomaticQuoteSubstitution`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleAutomaticLinkDetection(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleAutomaticLinkDetection`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleAutomaticDataDetection(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleAutomaticDataDetection`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleAutomaticDashSubstitution(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleAutomaticDashSubstitution`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleAutomaticTextReplacement(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleAutomaticTextReplacement`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleAutomaticSpellingCorrection(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleAutomaticSpellingCorrection`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.orderFrontSubstitutionsPanel(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontSubstitutionsPanel`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.checkTextInSelection(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`checkTextInSelection`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.checkTextInDocument(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`checkTextInDocument`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleQuickLookPreviewPanel(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleQuickLookPreviewPanel`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSTextView.updateQuickLookPreviewPanel() -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -3080,6 +5209,34 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`updateQuickLookPreviewPanel`()
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.orderFrontSharingServicePicker(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontSharingServicePicker`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.toggleAutomaticTextCompletion(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleAutomaticTextCompletion`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -3122,6 +5279,20 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`updateCandidates`()
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextView.highlight(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`highlight`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -3182,6 +5353,37 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSCollectionView.selectAll(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSCollectionView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`selectAll`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSCollectionView.deselectAll(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSCollectionView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`deselectAll`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildMethodsAppKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSCollectionView.indexPathForItem(at p0: CGPoint) -> IndexPath?",
             resultType: "IndexPath?") { base, v, ctx in
 #if canImport(AppKit)
@@ -3216,6 +5418,34 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`moveItem`(at: try generatedPlatformArgument(v[0], as: IndexPath.self, framework: "AppKit", typeName: "IndexPath", context: ctx), to: try generatedPlatformArgument(v[1], as: IndexPath.self, framework: "AppKit", typeName: "IndexPath", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSCollectionView.toggleSectionCollapse(_ p0: Any) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSCollectionView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleSectionCollapse`(try generatedPlatformArgument(v[0], as: Any.self, framework: "AppKit", typeName: "Any", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTextField.selectText(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTextField else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`selectText`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -3333,6 +5563,34 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSApplication.hide(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`hide`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.unhide(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`unhide`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSApplication.unhideWithoutActivation() -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -3416,6 +5674,34 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSApplication.hideOtherApplications(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`hideOtherApplications`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.unhideAllApplications(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`unhideAllApplications`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSApplication.finishLaunching() -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -3451,6 +5737,20 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             return generatedPlatformResult(receiver.`runModal`(for: try generatedPlatformArgument(v[0], as: NSWindow.self, framework: "AppKit", typeName: "NSWindow", context: ctx)), framework: "AppKit", declaredType: "NSApplication.ModalResponse")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.stop(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`stop`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -3499,6 +5799,20 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSApplication.terminate(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`terminate`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSApplication.requestUserAttention(_ p0: NSApplication.RequestUserAttentionType) -> Int",
             resultType: "Int") { base, v, ctx in
 #if canImport(AppKit)
@@ -3538,9 +5852,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSApplication.setWindowsNeedUpdate(_ p0: Bool) -> Void",
@@ -3555,6 +5866,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsAppKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSApplication.updateWindows() -> Void",
@@ -3625,6 +5939,34 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSApplication.orderFrontCharacterPalette(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontCharacterPalette`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.arrangeInFront(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`arrangeInFront`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSApplication.removeWindowsItem(_ p0: NSWindow) -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -3674,6 +6016,62 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`updateWindowsItem`(try generatedPlatformArgument(v[0], as: NSWindow.self, framework: "AppKit", typeName: "NSWindow", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.miniaturizeAll(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`miniaturizeAll`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.orderFrontStandardAboutPanel(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontStandardAboutPanel`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.orderFrontStandardAboutPanel() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontStandardAboutPanel`()
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.orderFrontStandardAboutPanel(options p0: [NSApplication.AboutPanelOptionKey: Any]) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFrontStandardAboutPanel`(options: try generatedPlatformArgument(v[0], as: [NSApplication.AboutPanelOptionKey: Any].self, framework: "AppKit", typeName: "[NSApplication.AboutPanelOptionKey: Any]", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -3751,6 +6149,153 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.setCompression(_ p0: NSBitmapImageRep.TIFFCompression, factor p1: Float) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`setCompression`(try generatedPlatformArgument(v[0], as: NSBitmapImageRep.TIFFCompression.self, framework: "AppKit", typeName: "NSBitmapImageRep.TIFFCompression", context: ctx), factor: try generatedPlatformArgument(v[1], as: Float.self, framework: "AppKit", typeName: "Float", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.tiffRepresentation(using p0: NSBitmapImageRep.TIFFCompression, factor p1: Float) -> Data?",
+            resultType: "Data?") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`tiffRepresentation`(using: try generatedPlatformArgument(v[0], as: NSBitmapImageRep.TIFFCompression.self, framework: "AppKit", typeName: "NSBitmapImageRep.TIFFCompression", context: ctx), factor: try generatedPlatformArgument(v[1], as: Float.self, framework: "AppKit", typeName: "Float", context: ctx)), framework: "AppKit", declaredType: "Data?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.canBeCompressed(using p0: NSBitmapImageRep.TIFFCompression) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`canBeCompressed`(using: try generatedPlatformArgument(v[0], as: NSBitmapImageRep.TIFFCompression.self, framework: "AppKit", typeName: "NSBitmapImageRep.TIFFCompression", context: ctx)), framework: "AppKit", declaredType: "Bool")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.colorize(byMappingGray p0: CGFloat, to p1: NSColor?, blackMapping p2: NSColor?, whiteMapping p3: NSColor?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`colorize`(byMappingGray: try generatedPlatformArgument(v[0], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx), to: try generatedPlatformArgument(v[1], as: NSColor?.self, framework: "AppKit", typeName: "NSColor?", context: ctx), blackMapping: try generatedPlatformArgument(v[2], as: NSColor?.self, framework: "AppKit", typeName: "NSColor?", context: ctx), whiteMapping: try generatedPlatformArgument(v[3], as: NSColor?.self, framework: "AppKit", typeName: "NSColor?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.incrementalLoad(from p0: Data, complete p1: Bool) -> Int",
+            resultType: "Int") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`incrementalLoad`(from: try generatedPlatformArgument(v[0], as: Data.self, framework: "AppKit", typeName: "Data", context: ctx), complete: try generatedPlatformArgument(v[1], as: Bool.self, framework: "AppKit", typeName: "Bool", context: ctx)), framework: "AppKit", declaredType: "Int")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.setColor(_ p0: NSColor, atX p1: Int, y p2: Int) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`setColor`(try generatedPlatformArgument(v[0], as: NSColor.self, framework: "AppKit", typeName: "NSColor", context: ctx), atX: try generatedPlatformArgument(v[1], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), y: try generatedPlatformArgument(v[2], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.colorAt(x p0: Int, y p1: Int) -> NSColor?",
+            resultType: "NSColor?") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`colorAt`(x: try generatedPlatformArgument(v[0], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx), y: try generatedPlatformArgument(v[1], as: Int.self, framework: "AppKit", typeName: "Int", context: ctx)), framework: "AppKit", declaredType: "NSColor?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.retagging(with p0: NSColorSpace) -> NSBitmapImageRep?",
+            resultType: "NSBitmapImageRep?") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`retagging`(with: try generatedPlatformArgument(v[0], as: NSColorSpace.self, framework: "AppKit", typeName: "NSColorSpace", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.representation(using p0: NSBitmapImageRep.FileType, properties p1: [NSBitmapImageRep.PropertyKey: Any]) -> Data?",
+            resultType: "Data?") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`representation`(using: try generatedPlatformArgument(v[0], as: NSBitmapImageRep.FileType.self, framework: "AppKit", typeName: "NSBitmapImageRep.FileType", context: ctx), properties: try generatedPlatformArgument(v[1], as: [NSBitmapImageRep.PropertyKey: Any].self, framework: "AppKit", typeName: "[NSBitmapImageRep.PropertyKey: Any]", context: ctx)), framework: "AppKit", declaredType: "Data?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.setProperty(_ p0: NSBitmapImageRep.PropertyKey, withValue p1: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`setProperty`(try generatedPlatformArgument(v[0], as: NSBitmapImageRep.PropertyKey.self, framework: "AppKit", typeName: "NSBitmapImageRep.PropertyKey", context: ctx), withValue: try generatedPlatformArgument(v[1], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSBitmapImageRep.value(forProperty p0: NSBitmapImageRep.PropertyKey) -> Any?",
+            resultType: "Any?") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSBitmapImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`value`(forProperty: try generatedPlatformArgument(v[0], as: NSBitmapImageRep.PropertyKey.self, framework: "AppKit", typeName: "NSBitmapImageRep.PropertyKey", context: ctx)), framework: "AppKit", declaredType: "Any?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSWindow.disableSnapshotRestoration() -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -3805,6 +6350,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsAppKit7(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSApplication.completeStateRestoration() -> Void",
@@ -3947,6 +6495,34 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSTableView.selectAll(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTableView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`selectAll`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSTableView.deselectAll(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSTableView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`deselectAll`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSTableView.deselectColumn(_ p0: Int) -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -4025,9 +6601,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSTableView.rows(in p0: CGRect) -> NSRange",
@@ -4257,6 +6830,51 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsAppKit8(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSResponder.showContextHelp(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSResponder else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`showContextHelp`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSResponder.performTextFinderAction(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSResponder else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`performTextFinderAction`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSResponder.newWindowForTab(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSResponder else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`newWindowForTab`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSWindow.frameRect(forContentRect p0: CGRect) -> CGRect",
@@ -4306,6 +6924,20 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`setTitleWithRepresentedFilename`(try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.endEditing(for p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`endEditing`(for: try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -4491,6 +7123,48 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSWindow.miniaturize(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`miniaturize`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.deminiaturize(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`deminiaturize`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.zoom(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`zoom`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSWindow.center() -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -4503,9 +7177,62 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.makeKeyAndOrderFront(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`makeKeyAndOrderFront`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.orderFront(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderFront`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.orderBack(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderBack`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.orderOut(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`orderOut`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSWindow.order(_ p0: NSWindow.OrderingMode, relativeTo p1: Int) -> Void",
@@ -4590,6 +7317,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsAppKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSWindow.becomeMain() -> Void",
@@ -4724,6 +7454,48 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSWindow.performClose(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`performClose`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.performMiniaturize(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`performMiniaturize`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.performZoom(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`performZoom`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSWindow.dataWithEPS(inside p0: CGRect) -> Data",
             resultType: "Data") { base, v, ctx in
 #if canImport(AppKit)
@@ -4744,6 +7516,20 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             return generatedPlatformResult(receiver.`dataWithPDF`(inside: try generatedPlatformArgument(v[0], as: CGRect.self, framework: "AppKit", typeName: "CGRect", context: ctx)), framework: "AppKit", declaredType: "Data")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.printWindow(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`printWindow`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -4771,6 +7557,20 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`invalidateShadow`()
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.toggleFullScreen(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleFullScreen`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -4840,6 +7640,34 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`removeChildWindow`(try generatedPlatformArgument(v[0], as: NSWindow.self, framework: "AppKit", typeName: "NSWindow", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.selectNextKeyView(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`selectNextKeyView`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.selectPreviousKeyView(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`selectPreviousKeyView`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -4917,6 +7745,121 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSWindow.toggleToolbarShown(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleToolbarShown`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.runToolbarCustomizationPalette(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`runToolbarCustomizationPalette`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.selectNextTab(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`selectNextTab`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.selectPreviousTab(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`selectPreviousTab`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildMethodsAppKit10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.moveTabToNewWindow(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`moveTabToNewWindow`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.mergeAllWindows(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`mergeAllWindows`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.toggleTabBar(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleTabBar`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSWindow.toggleTabOverview(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSWindow else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleTabOverview`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSWindow.addTabbedWindow(_ p0: NSWindow, ordered p1: NSWindow.OrderingMode) -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(AppKit)
@@ -4985,9 +7928,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit7(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSWindow.resetCursorRects() -> Void",
@@ -5067,6 +8007,48 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`setMagnification`(try generatedPlatformArgument(v[0], as: CGFloat.self, framework: "AppKit", typeName: "CGFloat", context: ctx), centeredAt: try generatedPlatformArgument(v[1], as: CGPoint.self, framework: "AppKit", typeName: "CGPoint", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.toggleTouchBarCustomizationPalette(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`toggleTouchBarCustomizationPalette`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.activateContextHelpMode(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`activateContextHelpMode`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSApplication.showHelp(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSApplication else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`showHelp`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -5306,6 +8288,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsAppKit11(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSView.removeFromSuperviewWithoutNeedingDisplay() -> Void",
@@ -5473,9 +8458,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit8(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSView.convert(_ p0: CGPoint, to p1: NSView?) -> CGPoint",
@@ -5780,6 +8762,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsAppKit12(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSView.displayIfNeeded(_ p0: CGRect) -> Void",
@@ -5831,6 +8816,33 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`draw`(try generatedPlatformArgument(v[0], as: CGRect.self, framework: "AppKit", typeName: "CGRect", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSView.bitmapImageRepForCachingDisplay(in p0: CGRect) -> NSBitmapImageRep?",
+            resultType: "NSBitmapImageRep?") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`bitmapImageRepForCachingDisplay`(in: try generatedPlatformArgument(v[0], as: CGRect.self, framework: "AppKit", typeName: "CGRect", context: ctx)), framework: "AppKit", declaredType: "NSBitmapImageRep?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSView.cacheDisplay(in p0: CGRect, to p1: NSBitmapImageRep) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`cacheDisplay`(in: try generatedPlatformArgument(v[0], as: CGRect.self, framework: "AppKit", typeName: "CGRect", context: ctx), to: try generatedPlatformArgument(v[1], as: NSBitmapImageRep.self, framework: "AppKit", typeName: "NSBitmapImageRep", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -5943,9 +8955,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsAppKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSView.updateLayer() -> Void",
@@ -6155,6 +9164,20 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "AppKit",
+            declaration: "func NSView.printView(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`printView`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "AppKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
             declaration: "func NSView.rectForPage(_ p0: Int) -> CGRect",
             resultType: "CGRect") { base, v, ctx in
 #if canImport(AppKit)
@@ -6221,6 +9244,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsAppKit13(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "AppKit",
             declaration: "func NSView.beginPage(in p0: CGRect, atPlacement p1: CGPoint) -> Void",
@@ -6258,6 +9284,60 @@ extension GeneratedPlatformBridge {
                 throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
             }
             receiver.`unregisterDraggedTypes`()
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSView.enterFullScreenMode(_ p0: NSScreen) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`enterFullScreenMode`(try generatedPlatformArgument(v[0], as: NSScreen.self, framework: "AppKit", typeName: "NSScreen", context: ctx)), framework: "AppKit", declaredType: "Bool")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSView.enterFullScreenMode(_ p0: NSScreen, withOptions p1: [NSView.FullScreenModeOptionKey: Any]?) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`enterFullScreenMode`(try generatedPlatformArgument(v[0], as: NSScreen.self, framework: "AppKit", typeName: "NSScreen", context: ctx), withOptions: try generatedPlatformArgument(v[1], as: [NSView.FullScreenModeOptionKey: Any]?.self, framework: "AppKit", typeName: "[NSView.FullScreenModeOptionKey: Any]?", context: ctx)), framework: "AppKit", declaredType: "Bool")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSView.exitFullScreenMode() -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`exitFullScreenMode`()
+            return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSView.exitFullScreenMode(options p0: [NSView.FullScreenModeOptionKey: Any]?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSView else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            receiver.`exitFullScreenMode`(options: try generatedPlatformArgument(v[0], as: [NSView.FullScreenModeOptionKey: Any]?.self, framework: "AppKit", typeName: "[NSView.FullScreenModeOptionKey: Any]?", context: ctx))
             return .void
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
@@ -6315,6 +9395,45 @@ extension GeneratedPlatformBridge {
             }
             receiver.`resetCursorRects`()
             return .void
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSImageRep.draw() -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`draw`(), framework: "AppKit", declaredType: "Bool")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSImageRep.draw(at p0: CGPoint) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`draw`(at: try generatedPlatformArgument(v[0], as: CGPoint.self, framework: "AppKit", typeName: "CGPoint", context: ctx)), framework: "AppKit", declaredType: "Bool")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "AppKit",
+            declaration: "func NSImageRep.draw(in p0: CGRect) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(AppKit)
+            guard let receiver = base.payload as? NSImageRep else {
+                throw RuntimeError(message: "generated AppKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`draw`(in: try generatedPlatformArgument(v[0], as: CGRect.self, framework: "AppKit", typeName: "CGRect", context: ctx)), framework: "AppKit", declaredType: "Bool")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -6938,6 +10057,20 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "UIKit",
+            declaration: "func UIResponder.captureTextFromCamera(_ p0: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIResponder else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            receiver.`captureTextFromCamera`(try generatedPlatformArgument(v[0], as: Any?.self, framework: "UIKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
             declaration: "func UIView.convert(_ p0: CGPoint, to p1: UIView?) -> CGPoint",
             resultType: "CGPoint") { base, v, ctx in
 #if canImport(UIKit)
@@ -7265,6 +10398,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIView.layoutSubviews() -> Void",
@@ -7279,9 +10415,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIView.layoutMarginsDidChange() -> Void",
@@ -7749,6 +10882,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UILabel.textRect(forBounds p0: CGRect, limitedToNumberOfLines p1: Int) -> CGRect",
@@ -7762,9 +10898,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UILabel.drawText(in p0: CGRect) -> Void",
@@ -8084,6 +11217,33 @@ extension GeneratedPlatformBridge {
         }
         registerMethod(
             &t, framework: "UIKit",
+            declaration: "func UIViewController.performSegue(withIdentifier p0: String, sender p1: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIViewController else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            receiver.`performSegue`(withIdentifier: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), sender: try generatedPlatformArgument(v[1], as: Any?.self, framework: "UIKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIViewController.shouldPerformSegue(withIdentifier p0: String, sender p1: Any?) -> Bool",
+            resultType: "Bool") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIViewController else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`shouldPerformSegue`(withIdentifier: try generatedPlatformArgument(v[0], as: String.self, framework: "UIKit", typeName: "String", context: ctx), sender: try generatedPlatformArgument(v[1], as: Any?.self, framework: "UIKit", typeName: "Any?", context: ctx)), framework: "UIKit", declaredType: "Bool")
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
             declaration: "func UIViewController.viewWillAppear(_ p0: Bool) -> Void",
             resultType: "Void") { base, v, ctx in
 #if canImport(UIKit)
@@ -8208,6 +11368,37 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIViewController.show(_ p0: UIViewController, sender p1: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIViewController else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            receiver.`show`(try generatedPlatformArgument(v[0], as: UIViewController.self, framework: "UIKit", typeName: "UIViewController", context: ctx), sender: try generatedPlatformArgument(v[1], as: Any?.self, framework: "UIKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIViewController.showDetailViewController(_ p0: UIViewController, sender p1: Any?) -> Void",
+            resultType: "Void") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIViewController else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            receiver.`showDetailViewController`(try generatedPlatformArgument(v[0], as: UIViewController.self, framework: "UIKit", typeName: "UIViewController", context: ctx), sender: try generatedPlatformArgument(v[1], as: Any?.self, framework: "UIKit", typeName: "Any?", context: ctx))
+            return .void
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIViewController.setNeedsUpdateOfSupportedInterfaceOrientations() -> Void",
@@ -8250,9 +11441,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIViewController.removeFromParent() -> Void",
@@ -8667,6 +11855,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIImage.withAlignmentRectInsets(_ p0: UIEdgeInsets) -> UIImage",
@@ -8732,9 +11923,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIImage.imageWithoutBaseline() -> UIImage",
@@ -8901,6 +12089,19 @@ extension GeneratedPlatformBridge {
             }
             receiver.`performPrimaryAction`()
             return .void
+#else
+            preconditionFailure("UIKit gateway invoked off-platform")
+#endif
+        }
+        registerMethod(
+            &t, framework: "UIKit",
+            declaration: "func UIControl.actions(forTarget p0: Any?, forControlEvent p1: UIControl.Event) -> [String]?",
+            resultType: "[String]?") { base, v, ctx in
+#if canImport(UIKit)
+            guard let receiver = base.payload as? UIControl else {
+                throw RuntimeError(message: "generated UIKit receiver mismatch", fatal: true)
+            }
+            return generatedPlatformResult(receiver.`actions`(forTarget: try generatedPlatformArgument(v[0], as: Any?.self, framework: "UIKit", typeName: "Any?", context: ctx), forControlEvent: try generatedPlatformArgument(v[1], as: UIControl.Event.self, framework: "UIKit", typeName: "UIControl.Event", context: ctx)), framework: "UIKit", declaredType: "[String]?")
 #else
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
@@ -9123,6 +12324,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildMethodsUIKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UIButton.attributedTitle(for p0: UIControl.State) -> NSAttributedString?",
@@ -9201,9 +12405,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("UIKit gateway invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildMethodsUIKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformMethodEntry]]) {
         registerMethod(
             &t, framework: "UIKit",
             declaration: "func UITableView.indexPathForRow(at p0: CGPoint) -> IndexPath?",
@@ -9484,6 +12685,7 @@ extension GeneratedPlatformBridge {
     static func buildStaticMethods() -> [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]] {
         var t: [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]] = [:]
         buildStaticMethodsAppKit0(&t)
+        buildStaticMethodsAppKit1(&t)
         buildStaticMethodsUIKit0(&t)
         return t
     }
@@ -9694,6 +12896,26 @@ extension GeneratedPlatformBridge {
         }
         registerStaticMethod(
             &t, framework: "AppKit",
+            declaration: "static func NSFont.preferredFont(forTextStyle p0: NSFont.TextStyle) -> NSFont",
+            resultType: "NSFont") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSFont.`preferredFont`(forTextStyle: try generatedPlatformArgument(v[0], as: NSFont.TextStyle.self, framework: "AppKit", typeName: "NSFont.TextStyle", context: ctx)), framework: "AppKit", declaredType: "NSFont")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSFont.preferredFont(forTextStyle p0: NSFont.TextStyle, options p1: [NSFont.TextStyleOptionKey: Any]) -> NSFont",
+            resultType: "NSFont") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSFont.`preferredFont`(forTextStyle: try generatedPlatformArgument(v[0], as: NSFont.TextStyle.self, framework: "AppKit", typeName: "NSFont.TextStyle", context: ctx), options: try generatedPlatformArgument(v[1], as: [NSFont.TextStyleOptionKey: Any].self, framework: "AppKit", typeName: "[NSFont.TextStyleOptionKey: Any]", context: ctx)), framework: "AppKit", declaredType: "NSFont")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
             declaration: "static func NSBezierPath.fill(_ p0: CGRect) -> Void",
             resultType: "Void") { v, ctx in
 #if canImport(AppKit)
@@ -9779,6 +13001,59 @@ extension GeneratedPlatformBridge {
         }
         registerStaticMethod(
             &t, framework: "AppKit",
+            declaration: "static func NSBitmapImageRep.imageReps(with p0: Data) -> [NSImageRep]",
+            resultType: "[NSImageRep]") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.`imageReps`(with: try generatedPlatformArgument(v[0], as: Data.self, framework: "AppKit", typeName: "Data", context: ctx)), framework: "AppKit", declaredType: "[NSImageRep]")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSBitmapImageRep.tiffRepresentationOfImageReps(in p0: [NSImageRep]) -> Data?",
+            resultType: "Data?") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.`tiffRepresentationOfImageReps`(in: try generatedPlatformArgument(v[0], as: [NSImageRep].self, framework: "AppKit", typeName: "[NSImageRep]", context: ctx)), framework: "AppKit", declaredType: "Data?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSBitmapImageRep.tiffRepresentationOfImageReps(in p0: [NSImageRep], using p1: NSBitmapImageRep.TIFFCompression, factor p2: Float) -> Data?",
+            resultType: "Data?") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.`tiffRepresentationOfImageReps`(in: try generatedPlatformArgument(v[0], as: [NSImageRep].self, framework: "AppKit", typeName: "[NSImageRep]", context: ctx), using: try generatedPlatformArgument(v[1], as: NSBitmapImageRep.TIFFCompression.self, framework: "AppKit", typeName: "NSBitmapImageRep.TIFFCompression", context: ctx), factor: try generatedPlatformArgument(v[2], as: Float.self, framework: "AppKit", typeName: "Float", context: ctx)), framework: "AppKit", declaredType: "Data?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSBitmapImageRep.localizedName(forTIFFCompressionType p0: NSBitmapImageRep.TIFFCompression) -> String?",
+            resultType: "String?") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.`localizedName`(forTIFFCompressionType: try generatedPlatformArgument(v[0], as: NSBitmapImageRep.TIFFCompression.self, framework: "AppKit", typeName: "NSBitmapImageRep.TIFFCompression", context: ctx)), framework: "AppKit", declaredType: "String?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSBitmapImageRep.representationOfImageReps(in p0: [NSImageRep], using p1: NSBitmapImageRep.FileType, properties p2: [NSBitmapImageRep.PropertyKey: Any]) -> Data?",
+            resultType: "Data?") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSBitmapImageRep.`representationOfImageReps`(in: try generatedPlatformArgument(v[0], as: [NSImageRep].self, framework: "AppKit", typeName: "[NSImageRep]", context: ctx), using: try generatedPlatformArgument(v[1], as: NSBitmapImageRep.FileType.self, framework: "AppKit", typeName: "NSBitmapImageRep.FileType", context: ctx), properties: try generatedPlatformArgument(v[2], as: [NSBitmapImageRep.PropertyKey: Any].self, framework: "AppKit", typeName: "[NSBitmapImageRep.PropertyKey: Any]", context: ctx)), framework: "AppKit", declaredType: "Data?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+    }
+
+    private static func buildStaticMethodsAppKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformStaticMethodEntry]]) {
+        registerStaticMethod(
+            &t, framework: "AppKit",
             declaration: "static func NSWindow.frameRect(forContentRect p0: CGRect, styleMask p1: NSWindow.StyleMask) -> CGRect",
             resultType: "CGRect") { v, ctx in
 #if canImport(AppKit)
@@ -9833,6 +13108,46 @@ extension GeneratedPlatformBridge {
             resultType: "NSAppearance") { v, ctx in
 #if canImport(AppKit)
             return generatedPlatformResult(NSAppearance.`currentDrawing`(), framework: "AppKit", declaredType: "NSAppearance")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSColorSpace.availableColorSpaces(with p0: NSColorSpace.Model) -> [NSColorSpace]",
+            resultType: "[NSColorSpace]") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSColorSpace.`availableColorSpaces`(with: try generatedPlatformArgument(v[0], as: NSColorSpace.Model.self, framework: "AppKit", typeName: "NSColorSpace.Model", context: ctx)), framework: "AppKit", declaredType: "[NSColorSpace]")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSImageRep.canInit(with p0: Data) -> Bool",
+            resultType: "Bool") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImageRep.`canInit`(with: try generatedPlatformArgument(v[0], as: Data.self, framework: "AppKit", typeName: "Data", context: ctx)), framework: "AppKit", declaredType: "Bool")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSImageRep.imageReps(withContentsOfFile p0: String) -> [NSImageRep]?",
+            resultType: "[NSImageRep]?") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImageRep.`imageReps`(withContentsOfFile: try generatedPlatformArgument(v[0], as: String.self, framework: "AppKit", typeName: "String", context: ctx)), framework: "AppKit", declaredType: "[NSImageRep]?")
+#else
+            preconditionFailure("AppKit gateway invoked off-platform")
+#endif
+        }
+        registerStaticMethod(
+            &t, framework: "AppKit",
+            declaration: "static func NSImageRep.imageReps(withContentsOf p0: URL) -> [NSImageRep]?",
+            resultType: "[NSImageRep]?") { v, ctx in
+#if canImport(AppKit)
+            return generatedPlatformResult(NSImageRep.`imageReps`(withContentsOf: try generatedPlatformArgument(v[0], as: URL.self, framework: "AppKit", typeName: "URL", context: ctx)), framework: "AppKit", declaredType: "[NSImageRep]?")
 #else
             preconditionFailure("AppKit gateway invoked off-platform")
 #endif
@@ -10134,6 +13449,7 @@ extension GeneratedPlatformBridge {
         buildPropertiesAppKit11(&t)
         buildPropertiesAppKit12(&t)
         buildPropertiesAppKit13(&t)
+        buildPropertiesAppKit14(&t)
         buildPropertiesUIKit0(&t)
         buildPropertiesUIKit1(&t)
         buildPropertiesUIKit2(&t)
@@ -10335,6 +13651,35 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSViewController.representedObject: Any? { get set }",
+            resultType: "Any?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSViewController else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`representedObject`,
+                    framework: "AppKit",
+                    declaredType: "Any?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSViewController else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`representedObject` = try generatedPlatformArgument(
+                    newValue, as: Any?.self,
+                    framework: "AppKit",
+                    typeName: "Any?", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSViewController.title: String? { get set }",
@@ -10861,6 +14206,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesAppKit1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSFont.mostCompatibleStringEncoding: UInt { get }",
@@ -10878,9 +14226,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit1(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSFont.boundingRectForFont: CGRect { get }",
@@ -11603,6 +14948,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSImage.tiffRepresentation: Data? { get }",
@@ -11620,9 +14968,23 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImage.representations: [NSImageRep] { get }",
+            resultType: "[NSImageRep]", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImage else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`representations`,
+                    framework: "AppKit",
+                    declaredType: "[NSImageRep]")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
 
-    private static func buildPropertiesAppKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+                }, set: nil)
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSImage.isValid: Bool { get }",
@@ -12042,6 +15404,23 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "AppKit",
+            declaration: "var NSColor.colorSpace: NSColorSpace { get }",
+            resultType: "NSColorSpace", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSColor else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`colorSpace`,
+                    framework: "AppKit",
+                    declaredType: "NSColorSpace")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
             declaration: "var NSColor.numberOfComponents: Int { get }",
             resultType: "Int", get: { base in
 #if canImport(AppKit)
@@ -12311,6 +15690,38 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSControl.objectValue: Any? { get set }",
+            resultType: "Any?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSControl else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`objectValue`,
+                    framework: "AppKit",
+                    declaredType: "Any?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSControl else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`objectValue` = try generatedPlatformArgument(
+                    newValue, as: Any?.self,
+                    framework: "AppKit",
+                    typeName: "Any?", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSControl.stringValue: String { get set }",
@@ -12398,9 +15809,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSControl.integerValue: Int { get set }",
@@ -13237,6 +16645,26 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "AppKit",
+            declaration: "var NSScreen.colorSpace: NSColorSpace? { get }",
+            resultType: "NSColorSpace?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSScreen else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`colorSpace`,
+                    framework: "AppKit",
+                    declaredType: "NSColorSpace?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+    }
+
+    private static func buildPropertiesAppKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
+        registerProperty(
+            &t, framework: "AppKit",
             declaration: "var NSScreen.backingScaleFactor: CGFloat { get }",
             resultType: "CGFloat", get: { base in
 #if canImport(AppKit)
@@ -13320,9 +16748,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSScreen.maximumFramesPerSecond: Int { get }",
@@ -14037,6 +17462,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextView.drawsBackground: Bool { get set }",
@@ -14182,9 +17610,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextView.allowedInputSourceLocales: [String]? { get set }",
@@ -14581,6 +18006,23 @@ extension GeneratedPlatformBridge {
             })
         registerProperty(
             &t, framework: "AppKit",
+            declaration: "var NSColorSpaceName.hashValue: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSColorSpaceName else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`hashValue`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
             declaration: "var NSWindow.Depth.isPlanar: Bool { get }",
             resultType: "Bool", get: { base in
 #if canImport(AppKit)
@@ -14591,6 +18033,23 @@ extension GeneratedPlatformBridge {
                     receiver.`isPlanar`,
                     framework: "AppKit",
                     declaredType: "Bool")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSWindow.Depth.colorSpaceName: NSColorSpaceName? { get }",
+            resultType: "NSColorSpaceName?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSWindow.Depth else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`colorSpaceName`,
+                    framework: "AppKit",
+                    declaredType: "NSColorSpaceName?")
 #else
                 preconditionFailure("AppKit getter invoked off-platform")
 #endif
@@ -14630,6 +18089,52 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSColorSpaceName.numberOfColorComponents: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSColorSpaceName else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`numberOfColorComponents`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSCollectionView.content: [Any] { get set }",
+            resultType: "[Any]", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSCollectionView else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`content`,
+                    framework: "AppKit",
+                    declaredType: "[Any]")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSCollectionView else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`content` = try generatedPlatformArgument(
+                    newValue, as: [Any].self,
+                    framework: "AppKit",
+                    typeName: "[Any]", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSCollectionView.backgroundView: NSView? { get set }",
@@ -14867,6 +18372,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextField.placeholderAttributedString: NSAttributedString? { get set }",
@@ -15116,9 +18624,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTextField.bezelStyle: NSTextField.BezelStyle { get set }",
@@ -15717,6 +19222,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSApplication.presentationOptions: NSApplication.PresentationOptions { get set }",
@@ -15862,6 +19370,35 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "AppKit",
+            declaration: "var NSApplication.servicesProvider: Any? { get set }",
+            resultType: "Any?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSApplication else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`servicesProvider`,
+                    framework: "AppKit",
+                    declaredType: "Any?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSApplication else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`servicesProvider` = try generatedPlatformArgument(
+                    newValue, as: Any?.self,
+                    framework: "AppKit",
+                    typeName: "Any?", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
             declaration: "var NSApplication.isRegisteredForRemoteNotifications: Bool { get }",
             resultType: "Bool", get: { base in
 #if canImport(AppKit)
@@ -15894,9 +19431,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSApplication.AboutPanelOptionKey.hashValue: Int { get }",
@@ -15920,6 +19454,193 @@ extension GeneratedPlatformBridge {
             resultType: "Int", get: { base in
 #if canImport(AppKit)
                 guard let receiver = base as? NSApplication.ModalResponse else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`hashValue`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.isPlanar: Bool { get }",
+            resultType: "Bool", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`isPlanar`,
+                    framework: "AppKit",
+                    declaredType: "Bool")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.samplesPerPixel: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`samplesPerPixel`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.bitsPerPixel: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`bitsPerPixel`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.bytesPerRow: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`bytesPerRow`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.bytesPerPlane: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`bytesPerPlane`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.numberOfPlanes: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`numberOfPlanes`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.bitmapFormat: NSBitmapImageRep.Format { get }",
+            resultType: "NSBitmapImageRep.Format", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`bitmapFormat`,
+                    framework: "AppKit",
+                    declaredType: "NSBitmapImageRep.Format")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.tiffRepresentation: Data? { get }",
+            resultType: "Data?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`tiffRepresentation`,
+                    framework: "AppKit",
+                    declaredType: "Data?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.cgImage: CGImage? { get }",
+            resultType: "CGImage?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`cgImage`,
+                    framework: "AppKit",
+                    declaredType: "CGImage?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.colorSpace: NSColorSpace { get }",
+            resultType: "NSColorSpace", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`colorSpace`,
+                    framework: "AppKit",
+                    declaredType: "NSColorSpace")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSBitmapImageRep.PropertyKey.hashValue: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSBitmapImageRep.PropertyKey else {
                     throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
                 }
                 return generatedPlatformResult(
@@ -16267,6 +19988,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesAppKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTableView.rowHeight: CGFloat { get set }",
@@ -16744,9 +20468,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSTableView.floatsGroupRows: Bool { get set }",
@@ -17073,6 +20794,23 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "AppKit",
+            declaration: "var NSWindow.contentLayoutGuide: Any? { get }",
+            resultType: "Any?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSWindow else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`contentLayoutGuide`,
+                    framework: "AppKit",
+                    declaredType: "Any?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
             declaration: "var NSWindow.representedURL: URL? { get set }",
             resultType: "URL?", get: { base in
 #if canImport(AppKit)
@@ -17100,6 +20838,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.representedFilename: String { get set }",
@@ -17654,9 +21395,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.canHide: Bool { get set }",
@@ -17950,6 +21688,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.backingType: NSWindow.BackingStoreType { get set }",
@@ -18540,9 +22281,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.sheets: [NSWindow] { get }",
@@ -18652,6 +22390,35 @@ extension GeneratedPlatformBridge {
                     newValue, as: NSWindow?.self,
                     framework: "AppKit",
                     typeName: "NSWindow?", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSWindow.colorSpace: NSColorSpace? { get set }",
+            resultType: "NSColorSpace?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSWindow else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`colorSpace`,
+                    framework: "AppKit",
+                    declaredType: "NSColorSpace?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSWindow else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`colorSpace` = try generatedPlatformArgument(
+                    newValue, as: NSColorSpace?.self,
+                    framework: "AppKit",
+                    typeName: "NSColorSpace?", context: ctx)
                 base = receiver
 #else
                 preconditionFailure("AppKit setter invoked off-platform")
@@ -18807,6 +22574,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSWindow.tabbingMode: NSWindow.TabbingMode { get set }",
@@ -19390,9 +23160,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesAppKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSScrollView.horizontalScrollElasticity: NSScrollView.Elasticity { get set }",
@@ -19741,6 +23508,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("AppKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesAppKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSImageView.image: NSImage? { get set }",
@@ -20264,9 +24034,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.wantsDefaultClipping: Bool { get }",
@@ -20567,6 +24334,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesAppKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.isOpaque: Bool { get }",
@@ -21114,9 +24884,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesAppKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.preparedContentRect: CGRect { get set }",
@@ -21345,6 +25112,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesAppKit14(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "AppKit",
             declaration: "var NSView.printJobTitle: String { get }",
@@ -21470,6 +25240,323 @@ extension GeneratedPlatformBridge {
             resultType: "Int", get: { base in
 #if canImport(AppKit)
                 guard let receiver = base as? NSControl.StateValue else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`hashValue`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSColorSpace.iccProfileData: Data? { get }",
+            resultType: "Data?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSColorSpace else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`iccProfileData`,
+                    framework: "AppKit",
+                    declaredType: "Data?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSColorSpace.numberOfColorComponents: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSColorSpace else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`numberOfColorComponents`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSColorSpace.colorSpaceModel: NSColorSpace.Model { get }",
+            resultType: "NSColorSpace.Model", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSColorSpace else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`colorSpaceModel`,
+                    framework: "AppKit",
+                    declaredType: "NSColorSpace.Model")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSColorSpace.localizedName: String? { get }",
+            resultType: "String?", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSColorSpace else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`localizedName`,
+                    framework: "AppKit",
+                    declaredType: "String?")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+
+                }, set: nil)
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.size: CGSize { get set }",
+            resultType: "CGSize", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`size`,
+                    framework: "AppKit",
+                    declaredType: "CGSize")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`size` = try generatedPlatformArgument(
+                    newValue, as: CGSize.self,
+                    framework: "AppKit",
+                    typeName: "CGSize", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.hasAlpha: Bool { get set }",
+            resultType: "Bool", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`hasAlpha`,
+                    framework: "AppKit",
+                    declaredType: "Bool")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`hasAlpha` = try generatedPlatformArgument(
+                    newValue, as: Bool.self,
+                    framework: "AppKit",
+                    typeName: "Bool", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.isOpaque: Bool { get set }",
+            resultType: "Bool", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`isOpaque`,
+                    framework: "AppKit",
+                    declaredType: "Bool")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`isOpaque` = try generatedPlatformArgument(
+                    newValue, as: Bool.self,
+                    framework: "AppKit",
+                    typeName: "Bool", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.colorSpaceName: NSColorSpaceName { get set }",
+            resultType: "NSColorSpaceName", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`colorSpaceName`,
+                    framework: "AppKit",
+                    declaredType: "NSColorSpaceName")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`colorSpaceName` = try generatedPlatformArgument(
+                    newValue, as: NSColorSpaceName.self,
+                    framework: "AppKit",
+                    typeName: "NSColorSpaceName", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.bitsPerSample: Int { get set }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`bitsPerSample`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`bitsPerSample` = try generatedPlatformArgument(
+                    newValue, as: Int.self,
+                    framework: "AppKit",
+                    typeName: "Int", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.pixelsWide: Int { get set }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`pixelsWide`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`pixelsWide` = try generatedPlatformArgument(
+                    newValue, as: Int.self,
+                    framework: "AppKit",
+                    typeName: "Int", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.pixelsHigh: Int { get set }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`pixelsHigh`,
+                    framework: "AppKit",
+                    declaredType: "Int")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`pixelsHigh` = try generatedPlatformArgument(
+                    newValue, as: Int.self,
+                    framework: "AppKit",
+                    typeName: "Int", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.layoutDirection: NSImage.LayoutDirection { get set }",
+            resultType: "NSImage.LayoutDirection", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`layoutDirection`,
+                    framework: "AppKit",
+                    declaredType: "NSImage.LayoutDirection")
+#else
+                preconditionFailure("AppKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep else {
+                    throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
+                }
+                receiver.`layoutDirection` = try generatedPlatformArgument(
+                    newValue, as: NSImage.LayoutDirection.self,
+                    framework: "AppKit",
+                    typeName: "NSImage.LayoutDirection", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("AppKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "AppKit",
+            declaration: "var NSImageRep.HintKey.hashValue: Int { get }",
+            resultType: "Int", get: { base in
+#if canImport(AppKit)
+                guard let receiver = base as? NSImageRep.HintKey else {
                     throw RuntimeError(message: "generated AppKit property receiver mismatch", fatal: true)
                 }
                 return generatedPlatformResult(
@@ -22802,6 +26889,35 @@ extension GeneratedPlatformBridge {
             })
         registerProperty(
             &t, framework: "UIKit",
+            declaration: "var UITextField.interactionState: Any { get set }",
+            resultType: "Any", get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UITextField else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`interactionState`,
+                    framework: "UIKit",
+                    declaredType: "Any")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(UIKit)
+                guard let receiver = base as? UITextField else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                receiver.`interactionState` = try generatedPlatformArgument(
+                    newValue, as: Any.self,
+                    framework: "UIKit",
+                    typeName: "Any", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("UIKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "UIKit",
             declaration: "var UIViewController.hidesBottomBarWhenPushed: Bool { get set }",
             resultType: "Bool", get: { base in
 #if canImport(UIKit)
@@ -23284,6 +27400,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UICollectionView.isEditing: Bool { get set }",
@@ -23313,9 +27432,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit2(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UICollectionView.allowsSelectionDuringEditing: Bool { get set }",
@@ -23978,6 +28094,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.tag: Int { get set }",
@@ -24007,9 +28126,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit3(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.canBecomeFocused: Bool { get }",
@@ -24900,6 +29016,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.forLastBaselineLayout: UIView { get }",
@@ -24917,9 +29036,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesUIKit4(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIView.intrinsicContentSize: CGSize { get }",
@@ -25713,6 +29829,35 @@ extension GeneratedPlatformBridge {
                 }, set: nil)
         registerProperty(
             &t, framework: "UIKit",
+            declaration: "var UITextView.interactionState: Any { get set }",
+            resultType: "Any", get: { base in
+#if canImport(UIKit)
+                guard let receiver = base as? UITextView else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                return generatedPlatformResult(
+                    receiver.`interactionState`,
+                    framework: "UIKit",
+                    declaredType: "Any")
+#else
+                preconditionFailure("UIKit getter invoked off-platform")
+#endif
+            }, set: { base, newValue, ctx in
+#if canImport(UIKit)
+                guard let receiver = base as? UITextView else {
+                    throw RuntimeError(message: "generated UIKit property receiver mismatch", fatal: true)
+                }
+                receiver.`interactionState` = try generatedPlatformArgument(
+                    newValue, as: Any.self,
+                    framework: "UIKit",
+                    typeName: "Any", context: ctx)
+                base = receiver
+#else
+                preconditionFailure("UIKit setter invoked off-platform")
+#endif
+            })
+        registerProperty(
+            &t, framework: "UIKit",
             declaration: "var UIBezierPath.isEmpty: Bool { get }",
             resultType: "Bool", get: { base in
 #if canImport(UIKit)
@@ -25745,6 +29890,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIBezierPath.currentPoint: CGPoint { get }",
@@ -25791,9 +29939,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIBezierPath.miterLimit: CGFloat { get set }",
@@ -26691,6 +30836,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIEdgeInsets.top: CGFloat { get set }",
@@ -26749,9 +30897,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIEdgeInsets.bottom: CGFloat { get set }",
@@ -27673,6 +31818,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIScrollView.transfersVerticalScrollingToParent: Bool { get set }",
@@ -27731,9 +31879,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIScrollView.showsHorizontalScrollIndicator: Bool { get set }",
@@ -28511,6 +32656,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIViewController.definesPresentationContext: Bool { get set }",
@@ -28569,9 +32717,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIViewController.restoresFocusAfterTransition: Bool { get set }",
@@ -29289,6 +33434,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIWindowScene.keyWindow: UIWindow? { get }",
@@ -29323,9 +33471,6 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
-    }
-
-    private static func buildPropertiesUIKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIApplication.isIdleTimerDisabled: Bool { get set }",
@@ -29935,6 +34080,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIControl.isSelected: Bool { get set }",
@@ -29993,9 +34141,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UIControl.contentVerticalAlignment: UIControl.ContentVerticalAlignment { get set }",
@@ -30689,6 +34834,9 @@ extension GeneratedPlatformBridge {
 #endif
 
                 }, set: nil)
+    }
+
+    private static func buildPropertiesUIKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.isPrefetchingEnabled: Bool { get set }",
@@ -30747,9 +34895,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.sectionHeaderHeight: CGFloat { get set }",
@@ -31647,6 +35792,9 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
+    }
+
+    private static func buildPropertiesUIKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.allowsFocusDuringEditing: Bool { get set }",
@@ -31705,9 +35853,6 @@ extension GeneratedPlatformBridge {
                 preconditionFailure("UIKit setter invoked off-platform")
 #endif
             })
-    }
-
-    private static func buildPropertiesUIKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]) {
         registerProperty(
             &t, framework: "UIKit",
             declaration: "var UITableView.hasActiveDrag: Bool { get }",
@@ -31760,6 +35905,7 @@ extension GeneratedPlatformBridge {
         buildStaticPropertiesAppKit11(&t)
         buildStaticPropertiesAppKit12(&t)
         buildStaticPropertiesAppKit13(&t)
+        buildStaticPropertiesAppKit14(&t)
         buildStaticPropertiesUIKit0(&t)
         buildStaticPropertiesUIKit1(&t)
         buildStaticPropertiesUIKit2(&t)
@@ -34026,6 +38172,48 @@ extension GeneratedPlatformBridge {
         }
         registerStaticProperty(
             &t, framework: "AppKit",
+            type: "NSImageRep.HintKey",
+            name: "ctm",
+            resultType: "NSImageRep.HintKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSImageRep.HintKey.`ctm`,
+                framework: "AppKit",
+                declaredType: "NSImageRep.HintKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSImageRep.HintKey",
+            name: "interpolation",
+            resultType: "NSImageRep.HintKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSImageRep.HintKey.`interpolation`,
+                framework: "AppKit",
+                declaredType: "NSImageRep.HintKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSImageRep.HintKey",
+            name: "userInterfaceLayoutDirection",
+            resultType: "NSImageRep.HintKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSImageRep.HintKey.`userInterfaceLayoutDirection`,
+                framework: "AppKit",
+                declaredType: "NSImageRep.HintKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
             type: "NSCollectionView",
             name: "elementKindSectionHeader",
             resultType: "String") {
@@ -34192,6 +38380,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSColor",
@@ -34234,9 +38425,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit5(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSColor",
@@ -34685,6 +38873,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSColor",
@@ -34727,9 +38918,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit6(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSColor",
@@ -35178,6 +39366,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSApplication.ModalResponse",
@@ -35220,9 +39411,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit7(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSTextView",
@@ -35289,6 +39477,118 @@ extension GeneratedPlatformBridge {
                 NSTextView.`didSwitchToNSLayoutManagerNotification`,
                 framework: "AppKit",
                 declaredType: "Notification.Name")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName",
+            name: "calibratedWhite",
+            resultType: "NSColorSpaceName") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpaceName.`calibratedWhite`,
+                framework: "AppKit",
+                declaredType: "NSColorSpaceName")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName",
+            name: "calibratedRGB",
+            resultType: "NSColorSpaceName") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpaceName.`calibratedRGB`,
+                framework: "AppKit",
+                declaredType: "NSColorSpaceName")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName",
+            name: "deviceWhite",
+            resultType: "NSColorSpaceName") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpaceName.`deviceWhite`,
+                framework: "AppKit",
+                declaredType: "NSColorSpaceName")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName",
+            name: "deviceRGB",
+            resultType: "NSColorSpaceName") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpaceName.`deviceRGB`,
+                framework: "AppKit",
+                declaredType: "NSColorSpaceName")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName",
+            name: "deviceCMYK",
+            resultType: "NSColorSpaceName") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpaceName.`deviceCMYK`,
+                framework: "AppKit",
+                declaredType: "NSColorSpaceName")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName",
+            name: "named",
+            resultType: "NSColorSpaceName") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpaceName.`named`,
+                framework: "AppKit",
+                declaredType: "NSColorSpaceName")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName",
+            name: "pattern",
+            resultType: "NSColorSpaceName") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpaceName.`pattern`,
+                framework: "AppKit",
+                declaredType: "NSColorSpaceName")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName",
+            name: "custom",
+            resultType: "NSColorSpaceName") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpaceName.`custom`,
+                framework: "AppKit",
+                declaredType: "NSColorSpaceName")
 #else
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
@@ -35559,6 +39859,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSApplication",
@@ -35713,9 +40016,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit8(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSApplication",
@@ -36052,6 +40352,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSApplication.ModalResponse",
@@ -36090,6 +40393,314 @@ extension GeneratedPlatformBridge {
                 NSApplication.ModalResponse.`continue`,
                 framework: "AppKit",
                 declaredType: "NSApplication.ModalResponse")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format",
+            name: "alphaFirst",
+            resultType: "NSBitmapImageRep.Format") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.Format.`alphaFirst`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.Format")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format",
+            name: "alphaNonpremultiplied",
+            resultType: "NSBitmapImageRep.Format") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.Format.`alphaNonpremultiplied`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.Format")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format",
+            name: "floatingPointSamples",
+            resultType: "NSBitmapImageRep.Format") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.Format.`floatingPointSamples`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.Format")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format",
+            name: "sixteenBitLittleEndian",
+            resultType: "NSBitmapImageRep.Format") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.Format.`sixteenBitLittleEndian`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.Format")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format",
+            name: "thirtyTwoBitLittleEndian",
+            resultType: "NSBitmapImageRep.Format") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.Format.`thirtyTwoBitLittleEndian`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.Format")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format",
+            name: "sixteenBitBigEndian",
+            resultType: "NSBitmapImageRep.Format") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.Format.`sixteenBitBigEndian`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.Format")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format",
+            name: "thirtyTwoBitBigEndian",
+            resultType: "NSBitmapImageRep.Format") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.Format.`thirtyTwoBitBigEndian`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.Format")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "compressionMethod",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`compressionMethod`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "compressionFactor",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`compressionFactor`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "ditherTransparency",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`ditherTransparency`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "rgbColorTable",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`rgbColorTable`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "interlaced",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`interlaced`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "colorSyncProfileData",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`colorSyncProfileData`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "frameCount",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`frameCount`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "currentFrame",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`currentFrame`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "currentFrameDuration",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`currentFrameDuration`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "loopCount",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`loopCount`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "gamma",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`gamma`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "progressive",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`progressive`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "exifData",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`exifData`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "imageIPTCData",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`imageIPTCData`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            name: "fallbackBackgroundColor",
+            resultType: "NSBitmapImageRep.PropertyKey") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSBitmapImageRep.PropertyKey.`fallbackBackgroundColor`,
+                framework: "AppKit",
+                declaredType: "NSBitmapImageRep.PropertyKey")
 #else
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
@@ -36206,9 +40817,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit9(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSApplication",
@@ -36237,6 +40845,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSTableView.GridLineStyle",
@@ -36699,9 +41310,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit10(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSWindow.CollectionBehavior",
@@ -36730,6 +41338,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSWindow.CollectionBehavior",
@@ -37192,9 +41803,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit11(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSWindow",
@@ -37223,6 +41831,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSWindow",
@@ -37685,9 +42296,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit12(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSFont.TextStyle",
@@ -37716,6 +42324,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSFont.TextStyle",
@@ -38178,9 +42789,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildStaticPropertiesAppKit13(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSView",
@@ -38209,6 +42817,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildStaticPropertiesAppKit14(_ t: inout [GeneratedPlatformMemberKey: GeneratedPlatformStaticPropertyEntry]) {
         registerStaticProperty(
             &t, framework: "AppKit",
             type: "NSView",
@@ -38359,6 +42970,216 @@ extension GeneratedPlatformBridge {
                 NSControl.StateValue.`on`,
                 framework: "AppKit",
                 declaredType: "NSControl.StateValue")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "sRGB",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`sRGB`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "genericGamma22Gray",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`genericGamma22Gray`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "extendedSRGB",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`extendedSRGB`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "extendedGenericGamma22Gray",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`extendedGenericGamma22Gray`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "displayP3",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`displayP3`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "adobeRGB1998",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`adobeRGB1998`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "genericRGB",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`genericRGB`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "genericGray",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`genericGray`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "genericCMYK",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`genericCMYK`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "deviceRGB",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`deviceRGB`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "deviceGray",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`deviceGray`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSColorSpace",
+            name: "deviceCMYK",
+            resultType: "NSColorSpace") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSColorSpace.`deviceCMYK`,
+                framework: "AppKit",
+                declaredType: "NSColorSpace")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSImageRep",
+            name: "imageUnfilteredTypes",
+            resultType: "[String]") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSImageRep.`imageUnfilteredTypes`,
+                framework: "AppKit",
+                declaredType: "[String]")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSImageRep",
+            name: "imageTypes",
+            resultType: "[String]") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSImageRep.`imageTypes`,
+                framework: "AppKit",
+                declaredType: "[String]")
+#else
+            preconditionFailure("AppKit getter invoked off-platform")
+#endif
+        }
+        registerStaticProperty(
+            &t, framework: "AppKit",
+            type: "NSImageRep",
+            name: "registryDidChangeNotification",
+            resultType: "Notification.Name") {
+#if canImport(AppKit)
+            generatedPlatformResult(
+                NSImageRep.`registryDidChangeNotification`,
+                framework: "AppKit",
+                declaredType: "Notification.Name")
 #else
             preconditionFailure("AppKit getter invoked off-platform")
 #endif
@@ -41988,6 +46809,8 @@ extension GeneratedPlatformBridge {
         buildEnumValuesAppKit10(&t)
         buildEnumValuesAppKit11(&t)
         buildEnumValuesAppKit12(&t)
+        buildEnumValuesAppKit13(&t)
+        buildEnumValuesAppKit14(&t)
         buildEnumValuesUIKit0(&t)
         buildEnumValuesUIKit1(&t)
         buildEnumValuesUIKit2(&t)
@@ -42323,6 +47146,33 @@ extension GeneratedPlatformBridge {
     private static func buildEnumValuesAppKit1(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
+            type: "NSImageRep.HintKey", name: "ctm") {
+#if canImport(AppKit)
+            NSImageRep.HintKey.`ctm`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSImageRep.HintKey", name: "interpolation") {
+#if canImport(AppKit)
+            NSImageRep.HintKey.`interpolation`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSImageRep.HintKey", name: "userInterfaceLayoutDirection") {
+#if canImport(AppKit)
+            NSImageRep.HintKey.`userInterfaceLayoutDirection`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
             type: "NSCollectionView.ScrollDirection", name: "vertical") {
 #if canImport(AppKit)
             NSCollectionView.ScrollDirection.`vertical`
@@ -42609,6 +47459,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSColor", name: "controlBackgroundColor") {
@@ -42636,9 +47489,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit2(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSColor", name: "findHighlightColor") {
@@ -42927,6 +47777,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSColor", name: "quinarySystemFill") {
@@ -42954,9 +47807,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit3(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSColor", name: "shadowColor") {
@@ -43130,6 +47980,78 @@ extension GeneratedPlatformBridge {
         }
         registerEnumValue(
             &t, framework: "AppKit",
+            type: "NSColorSpaceName", name: "calibratedWhite") {
+#if canImport(AppKit)
+            NSColorSpaceName.`calibratedWhite`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName", name: "calibratedRGB") {
+#if canImport(AppKit)
+            NSColorSpaceName.`calibratedRGB`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName", name: "deviceWhite") {
+#if canImport(AppKit)
+            NSColorSpaceName.`deviceWhite`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName", name: "deviceRGB") {
+#if canImport(AppKit)
+            NSColorSpaceName.`deviceRGB`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName", name: "deviceCMYK") {
+#if canImport(AppKit)
+            NSColorSpaceName.`deviceCMYK`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName", name: "named") {
+#if canImport(AppKit)
+            NSColorSpaceName.`named`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName", name: "pattern") {
+#if canImport(AppKit)
+            NSColorSpaceName.`pattern`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpaceName", name: "custom") {
+#if canImport(AppKit)
+            NSColorSpaceName.`custom`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
             type: "NSCollectionView.DropOperation", name: "on") {
 #if canImport(AppKit)
             NSCollectionView.DropOperation.`on`
@@ -43173,6 +48095,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSCollectionView.ScrollPosition", name: "nearestHorizontalEdge") {
@@ -43272,9 +48197,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit4(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSApplication.DelegateReply", name: "cancel") {
@@ -43491,6 +48413,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSApplication.PresentationOptions", name: "disableCursorLocationAssistance") {
@@ -43590,9 +48515,387 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.TIFFCompression", name: "none") {
+#if canImport(AppKit)
+            NSBitmapImageRep.TIFFCompression.`none`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.TIFFCompression", name: "ccittfax3") {
+#if canImport(AppKit)
+            NSBitmapImageRep.TIFFCompression.`ccittfax3`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.TIFFCompression", name: "ccittfax4") {
+#if canImport(AppKit)
+            NSBitmapImageRep.TIFFCompression.`ccittfax4`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.TIFFCompression", name: "lzw") {
+#if canImport(AppKit)
+            NSBitmapImageRep.TIFFCompression.`lzw`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.TIFFCompression", name: "jpeg") {
+#if canImport(AppKit)
+            NSBitmapImageRep.TIFFCompression.`jpeg`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.TIFFCompression", name: "next") {
+#if canImport(AppKit)
+            NSBitmapImageRep.TIFFCompression.`next`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.TIFFCompression", name: "packBits") {
+#if canImport(AppKit)
+            NSBitmapImageRep.TIFFCompression.`packBits`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.TIFFCompression", name: "oldJPEG") {
+#if canImport(AppKit)
+            NSBitmapImageRep.TIFFCompression.`oldJPEG`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.FileType", name: "tiff") {
+#if canImport(AppKit)
+            NSBitmapImageRep.FileType.`tiff`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.FileType", name: "bmp") {
+#if canImport(AppKit)
+            NSBitmapImageRep.FileType.`bmp`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.FileType", name: "gif") {
+#if canImport(AppKit)
+            NSBitmapImageRep.FileType.`gif`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.FileType", name: "jpeg") {
+#if canImport(AppKit)
+            NSBitmapImageRep.FileType.`jpeg`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.FileType", name: "png") {
+#if canImport(AppKit)
+            NSBitmapImageRep.FileType.`png`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.FileType", name: "jpeg2000") {
+#if canImport(AppKit)
+            NSBitmapImageRep.FileType.`jpeg2000`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.LoadStatus", name: "unknownType") {
+#if canImport(AppKit)
+            NSBitmapImageRep.LoadStatus.`unknownType`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.LoadStatus", name: "readingHeader") {
+#if canImport(AppKit)
+            NSBitmapImageRep.LoadStatus.`readingHeader`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.LoadStatus", name: "willNeedAllData") {
+#if canImport(AppKit)
+            NSBitmapImageRep.LoadStatus.`willNeedAllData`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.LoadStatus", name: "invalidData") {
+#if canImport(AppKit)
+            NSBitmapImageRep.LoadStatus.`invalidData`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.LoadStatus", name: "unexpectedEOF") {
+#if canImport(AppKit)
+            NSBitmapImageRep.LoadStatus.`unexpectedEOF`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.LoadStatus", name: "completed") {
+#if canImport(AppKit)
+            NSBitmapImageRep.LoadStatus.`completed`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format", name: "alphaFirst") {
+#if canImport(AppKit)
+            NSBitmapImageRep.Format.`alphaFirst`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format", name: "alphaNonpremultiplied") {
+#if canImport(AppKit)
+            NSBitmapImageRep.Format.`alphaNonpremultiplied`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format", name: "floatingPointSamples") {
+#if canImport(AppKit)
+            NSBitmapImageRep.Format.`floatingPointSamples`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format", name: "sixteenBitLittleEndian") {
+#if canImport(AppKit)
+            NSBitmapImageRep.Format.`sixteenBitLittleEndian`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
     }
 
-    private static func buildEnumValuesAppKit5(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format", name: "thirtyTwoBitLittleEndian") {
+#if canImport(AppKit)
+            NSBitmapImageRep.Format.`thirtyTwoBitLittleEndian`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format", name: "sixteenBitBigEndian") {
+#if canImport(AppKit)
+            NSBitmapImageRep.Format.`sixteenBitBigEndian`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.Format", name: "thirtyTwoBitBigEndian") {
+#if canImport(AppKit)
+            NSBitmapImageRep.Format.`thirtyTwoBitBigEndian`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "compressionMethod") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`compressionMethod`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "compressionFactor") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`compressionFactor`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "ditherTransparency") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`ditherTransparency`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "rgbColorTable") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`rgbColorTable`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "interlaced") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`interlaced`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "colorSyncProfileData") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`colorSyncProfileData`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "frameCount") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`frameCount`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "currentFrame") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`currentFrame`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "currentFrameDuration") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`currentFrameDuration`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "loopCount") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`loopCount`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "gamma") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`gamma`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "progressive") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`progressive`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "exifData") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`exifData`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "imageIPTCData") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`imageIPTCData`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey", name: "fallbackBackgroundColor") {
+#if canImport(AppKit)
+            NSBitmapImageRep.PropertyKey.`fallbackBackgroundColor`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSButton.ButtonType", name: "momentaryLight") {
@@ -43746,6 +49049,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit7(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSButton.BezelStyle", name: "toolbar") {
@@ -43908,9 +49214,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit6(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSTableView.ColumnAutoresizingStyle", name: "sequentialColumnAutoresizingStyle") {
@@ -44064,6 +49367,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit8(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSTableView.SelectionHighlightStyle", name: "none") {
@@ -44226,9 +49532,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit7(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSCollectionView.UpdateAction", name: "reload") {
@@ -44382,6 +49685,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSWindow.CollectionBehavior", name: "canJoinAllSpaces") {
@@ -44544,9 +49850,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit8(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSWindow.AnimationBehavior", name: "utilityWindow") {
@@ -44700,6 +50003,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSWindow.ToolbarStyle", name: "expanded") {
@@ -44862,9 +50168,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit9(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSWindow.Level", name: "modalPanel") {
@@ -45018,6 +50321,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit11(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSImageView.FrameStyle", name: "none") {
@@ -45180,9 +50486,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit10(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSFont.Weight", name: "light") {
@@ -45336,6 +50639,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit12(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSAppearance.Name", name: "accessibilityHighContrastVibrantLight") {
@@ -45498,9 +50804,6 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
-    }
-
-    private static func buildEnumValuesAppKit11(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSView.LayerContentsPlacement", name: "top") {
@@ -45654,6 +50957,9 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+    }
+
+    private static func buildEnumValuesAppKit13(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSControl.ImagePosition", name: "imageLeft") {
@@ -45816,9 +51122,189 @@ extension GeneratedPlatformBridge {
             preconditionFailure("AppKit enum value invoked off-platform")
 #endif
         }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "sRGB") {
+#if canImport(AppKit)
+            NSColorSpace.`sRGB`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "genericGamma22Gray") {
+#if canImport(AppKit)
+            NSColorSpace.`genericGamma22Gray`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "extendedSRGB") {
+#if canImport(AppKit)
+            NSColorSpace.`extendedSRGB`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "extendedGenericGamma22Gray") {
+#if canImport(AppKit)
+            NSColorSpace.`extendedGenericGamma22Gray`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "displayP3") {
+#if canImport(AppKit)
+            NSColorSpace.`displayP3`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "adobeRGB1998") {
+#if canImport(AppKit)
+            NSColorSpace.`adobeRGB1998`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "genericRGB") {
+#if canImport(AppKit)
+            NSColorSpace.`genericRGB`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "genericGray") {
+#if canImport(AppKit)
+            NSColorSpace.`genericGray`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "genericCMYK") {
+#if canImport(AppKit)
+            NSColorSpace.`genericCMYK`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "deviceRGB") {
+#if canImport(AppKit)
+            NSColorSpace.`deviceRGB`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "deviceGray") {
+#if canImport(AppKit)
+            NSColorSpace.`deviceGray`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace", name: "deviceCMYK") {
+#if canImport(AppKit)
+            NSColorSpace.`deviceCMYK`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace.Model", name: "unknown") {
+#if canImport(AppKit)
+            NSColorSpace.Model.`unknown`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace.Model", name: "gray") {
+#if canImport(AppKit)
+            NSColorSpace.Model.`gray`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace.Model", name: "rgb") {
+#if canImport(AppKit)
+            NSColorSpace.Model.`rgb`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace.Model", name: "cmyk") {
+#if canImport(AppKit)
+            NSColorSpace.Model.`cmyk`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace.Model", name: "lab") {
+#if canImport(AppKit)
+            NSColorSpace.Model.`lab`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
     }
 
-    private static func buildEnumValuesAppKit12(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+    private static func buildEnumValuesAppKit14(_ t: inout [GeneratedPlatformMemberKey: [GeneratedPlatformEnumEntry]]) {
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace.Model", name: "deviceN") {
+#if canImport(AppKit)
+            NSColorSpace.Model.`deviceN`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace.Model", name: "indexed") {
+#if canImport(AppKit)
+            NSColorSpace.Model.`indexed`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
+        registerEnumValue(
+            &t, framework: "AppKit",
+            type: "NSColorSpace.Model", name: "patterned") {
+#if canImport(AppKit)
+            NSColorSpace.Model.`patterned`
+#else
+            preconditionFailure("AppKit enum value invoked off-platform")
+#endif
+        }
         registerEnumValue(
             &t, framework: "AppKit",
             type: "NSImage.LayoutDirection", name: "unspecified") {
@@ -49198,6 +54684,7 @@ extension GeneratedPlatformBridge {
         buildKnownMembersAppKit36(&t)
         buildKnownMembersAppKit37(&t)
         buildKnownMembersAppKit38(&t)
+        buildKnownMembersAppKit39(&t)
         buildKnownMembersUIKit0(&t)
         buildKnownMembersUIKit1(&t)
         buildKnownMembersUIKit2(&t)
@@ -49794,15 +55281,127 @@ extension GeneratedPlatformBridge {
             member: "windingRule")] = false
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "bitmapData")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "bitmapFormat")] = false
+    }
+
+    private static func buildKnownMembersAppKit4(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "bitsPerPixel")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "bytesPerPlane")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "bytesPerRow")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "canBeCompressed")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "cgImage")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "colorAt")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "colorSpace")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "colorize")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "converting")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "getBitmapDataPlanes")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "getCompression")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "getPixel")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "incrementalLoad")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "isPlanar")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "numberOfPlanes")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "representation")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "retagging")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "samplesPerPixel")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "setColor")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "setCompression")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "setPixel")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "setProperty")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "tiffRepresentation")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep",
+            member: "value")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            member: "hash")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSBitmapImageRep.PropertyKey",
+            member: "hashValue")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
             type: "NSButton",
             member: "activeCompressionOptions")] = false
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSButton",
             member: "allowsMixedState")] = false
-    }
-
-    private static func buildKnownMembersAppKit4(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSButton",
@@ -49831,6 +55430,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSButton",
             member: "compress")] = true
+    }
+
+    private static func buildKnownMembersAppKit5(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSButton",
@@ -49943,9 +55545,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSCollectionView",
             member: "backgroundView")] = false
-    }
-
-    private static func buildKnownMembersAppKit5(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSCollectionView",
@@ -49974,6 +55573,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSCollectionView",
             member: "deleteSections")] = true
+    }
+
+    private static func buildKnownMembersAppKit6(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSCollectionView",
@@ -50086,9 +55688,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSCollectionView",
             member: "scrollToItems")] = true
-    }
-
-    private static func buildKnownMembersAppKit6(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSCollectionView",
@@ -50117,6 +55716,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSCollectionView",
             member: "toggleSectionCollapse")] = true
+    }
+
+    private static func buildKnownMembersAppKit7(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSCollectionView",
@@ -50229,9 +55831,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSColor",
             member: "saturationComponent")] = false
-    }
-
-    private static func buildKnownMembersAppKit7(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSColor",
@@ -50260,6 +55859,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSColor",
             member: "usingType")] = true
+    }
+
+    private static func buildKnownMembersAppKit8(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSColor",
@@ -50280,6 +55882,42 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSColor",
             member: "yellowComponent")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpace",
+            member: "cgColorSpace")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpace",
+            member: "colorSpaceModel")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpace",
+            member: "colorSyncProfile")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpace",
+            member: "iccProfileData")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpace",
+            member: "localizedName")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpace",
+            member: "numberOfColorComponents")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpaceName",
+            member: "hash")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpaceName",
+            member: "hashValue")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSColorSpaceName",
+            member: "numberOfColorComponents")] = false
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSControl",
@@ -50364,6 +56002,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSControl",
             member: "intValue")] = false
+    }
+
+    private static func buildKnownMembersAppKit9(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSControl",
@@ -50372,9 +56013,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSControl",
             member: "invalidateIntrinsicContentSize")] = true
-    }
-
-    private static func buildKnownMembersAppKit8(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSControl",
@@ -50507,6 +56145,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSDirectionalEdgeInsets",
             member: "trailing")] = false
+    }
+
+    private static func buildKnownMembersAppKit10(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSFont",
@@ -50515,9 +56156,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSFont",
             member: "ascender")] = false
-    }
-
-    private static func buildKnownMembersAppKit9(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSFont",
@@ -50650,6 +56288,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSFont.TextStyle",
             member: "hash")] = true
+    }
+
+    private static func buildKnownMembersAppKit11(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSFont.TextStyle",
@@ -50658,9 +56299,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSFont.TextStyleOptionKey",
             member: "hash")] = true
-    }
-
-    private static func buildKnownMembersAppKit10(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSFont.TextStyleOptionKey",
@@ -50793,6 +56431,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSImage",
             member: "resizingMode")] = false
+    }
+
+    private static func buildKnownMembersAppKit12(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSImage",
@@ -50801,9 +56442,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSImage",
             member: "size")] = false
-    }
-
-    private static func buildKnownMembersAppKit11(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSImage",
@@ -50832,6 +56470,54 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSImage.SymbolConfiguration",
             member: "applying")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "bitsPerSample")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "cgImage")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "colorSpaceName")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "draw")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "hasAlpha")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "isOpaque")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "layoutDirection")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "pixelsHigh")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "pixelsWide")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep",
+            member: "size")] = false
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep.HintKey",
+            member: "hash")] = true
+        t[GeneratedPlatformMemberKey(
+            framework: "AppKit",
+            type: "NSImageRep.HintKey",
+            member: "hashValue")] = false
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSImageView",
@@ -50888,6 +56574,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSImageView",
             member: "setSymbolImage")] = true
+    }
+
+    private static func buildKnownMembersAppKit13(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSImageView",
@@ -50944,9 +56633,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSResponder",
             member: "invalidateRestorableState")] = true
-    }
-
-    private static func buildKnownMembersAppKit12(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSResponder",
@@ -51031,6 +56717,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSResponder",
             member: "pressureChange")] = true
+    }
+
+    private static func buildKnownMembersAppKit14(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSResponder",
@@ -51087,9 +56776,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSResponder",
             member: "tabletPoint")] = true
-    }
-
-    private static func buildKnownMembersAppKit13(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSResponder",
@@ -51174,6 +56860,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSScreen",
             member: "colorSpace")] = false
+    }
+
+    private static func buildKnownMembersAppKit15(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSScreen",
@@ -51230,9 +56919,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSScreen",
             member: "maximumRefreshInterval")] = false
-    }
-
-    private static func buildKnownMembersAppKit14(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSScreen",
@@ -51317,6 +57003,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSScrollView",
             member: "hasHorizontalScroller")] = false
+    }
+
+    private static func buildKnownMembersAppKit16(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSScrollView",
@@ -51373,9 +57062,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSScrollView",
             member: "reflectScrolledClipView")] = true
-    }
-
-    private static func buildKnownMembersAppKit15(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSScrollView",
@@ -51460,6 +57146,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "allowsTypeSelect")] = false
+    }
+
+    private static func buildKnownMembersAppKit17(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -51516,9 +57205,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "deselectAll")] = true
-    }
-
-    private static func buildKnownMembersAppKit16(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -51603,6 +57289,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "gridStyleMask")] = false
+    }
+
+    private static func buildKnownMembersAppKit18(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -51659,9 +57348,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "noteHeightOfRows")] = true
-    }
-
-    private static func buildKnownMembersAppKit17(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -51746,6 +57432,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "selectColumnIndexes")] = true
+    }
+
+    private static func buildKnownMembersAppKit19(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -51802,9 +57491,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTableView",
             member: "tableColumn")] = true
-    }
-
-    private static func buildKnownMembersAppKit18(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTableView",
@@ -51889,6 +57575,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextField",
             member: "isBordered")] = false
+    }
+
+    private static func buildKnownMembersAppKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextField",
@@ -51945,9 +57634,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextField",
             member: "textShouldBeginEditing")] = true
-    }
-
-    private static func buildKnownMembersAppKit19(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextField",
@@ -52032,6 +57718,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "checkTextInSelection")] = true
+    }
+
+    private static func buildKnownMembersAppKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -52088,9 +57777,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "drawTextHighlightBackground")] = true
-    }
-
-    private static func buildKnownMembersAppKit20(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -52175,6 +57861,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "isGrammarCheckingEnabled")] = false
+    }
+
+    private static func buildKnownMembersAppKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -52231,9 +57920,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "orderFrontSharingServicePicker")] = true
-    }
-
-    private static func buildKnownMembersAppKit21(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -52318,6 +58004,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "replaceTextContainer")] = true
+    }
+
+    private static func buildKnownMembersAppKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -52374,9 +58063,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "setSpellingState")] = true
-    }
-
-    private static func buildKnownMembersAppKit22(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -52461,6 +58147,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "toggleAutomaticQuoteSubstitution")] = true
+    }
+
+    private static func buildKnownMembersAppKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -52517,9 +58206,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSTextView",
             member: "updateInsertionPointStateAndRestartTimer")] = true
-    }
-
-    private static func buildKnownMembersAppKit23(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSTextView",
@@ -52604,6 +58290,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "addConstraints")] = true
+    }
+
+    private static func buildKnownMembersAppKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -52660,9 +58349,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "allowedTouchTypes")] = false
-    }
-
-    private static func buildKnownMembersAppKit24(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -52747,6 +58433,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "candidateListTouchBarItem")] = false
+    }
+
+    private static func buildKnownMembersAppKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -52803,9 +58492,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "convertToBacking")] = true
-    }
-
-    private static func buildKnownMembersAppKit25(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -52890,6 +58576,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "exitFullScreenMode")] = true
+    }
+
+    private static func buildKnownMembersAppKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -52946,9 +58635,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "heightAnchor")] = false
-    }
-
-    private static func buildKnownMembersAppKit26(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -53033,6 +58719,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "layer")] = false
+    }
+
+    private static func buildKnownMembersAppKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -53089,9 +58778,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "needsDisplay")] = false
-    }
-
-    private static func buildKnownMembersAppKit27(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -53176,6 +58862,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "printJobTitle")] = false
+    }
+
+    private static func buildKnownMembersAppKit29(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -53232,9 +58921,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "removeGestureRecognizer")] = true
-    }
-
-    private static func buildKnownMembersAppKit28(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -53319,6 +59005,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "setContentHuggingPriority")] = true
+    }
+
+    private static func buildKnownMembersAppKit30(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -53375,9 +59064,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "trackingAreas")] = false
-    }
-
-    private static func buildKnownMembersAppKit29(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -53462,6 +59148,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView",
             member: "viewWithTag")] = true
+    }
+
+    private static func buildKnownMembersAppKit31(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView",
@@ -53518,9 +59207,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSView.DefinitionOptionKey",
             member: "hashValue")] = false
-    }
-
-    private static func buildKnownMembersAppKit30(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSView.DefinitionPresentationType",
@@ -53605,6 +59291,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSViewController",
             member: "nibName")] = false
+    }
+
+    private static func buildKnownMembersAppKit32(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSViewController",
@@ -53661,9 +59350,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSViewController",
             member: "representedObject")] = false
-    }
-
-    private static func buildKnownMembersAppKit31(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSViewController",
@@ -53748,6 +59434,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "allowsToolTipsWhenApplicationIsInactive")] = false
+    }
+
+    private static func buildKnownMembersAppKit33(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -53804,9 +59493,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "backingType")] = false
-    }
-
-    private static func buildKnownMembersAppKit32(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -53891,6 +59577,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "contentLayoutGuide")] = false
+    }
+
+    private static func buildKnownMembersAppKit34(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -53947,9 +59636,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "convertToScreen")] = true
-    }
-
-    private static func buildKnownMembersAppKit33(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54034,6 +59720,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "enableCursorRects")] = true
+    }
+
+    private static func buildKnownMembersAppKit35(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54090,9 +59779,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "hasActiveWindowSharingSession")] = false
-    }
-
-    private static func buildKnownMembersAppKit34(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54177,6 +59863,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "isMovableByWindowBackground")] = false
+    }
+
+    private static func buildKnownMembersAppKit36(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54233,9 +59922,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "makeKey")] = true
-    }
-
-    private static func buildKnownMembersAppKit35(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54320,6 +60006,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "parent")] = false
+    }
+
+    private static func buildKnownMembersAppKit37(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54376,9 +60065,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "representedURL")] = false
-    }
-
-    private static func buildKnownMembersAppKit36(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54463,6 +60149,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "setDynamicDepthLimit")] = true
+    }
+
+    private static func buildKnownMembersAppKit38(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54519,9 +60208,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "standardWindowButton")] = true
-    }
-
-    private static func buildKnownMembersAppKit37(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54606,6 +60292,9 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow",
             member: "tryToPerform")] = true
+    }
+
+    private static func buildKnownMembersAppKit39(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow",
@@ -54662,9 +60351,6 @@ extension GeneratedPlatformBridge {
             framework: "AppKit",
             type: "NSWindow.Depth",
             member: "colorSpaceName")] = false
-    }
-
-    private static func buildKnownMembersAppKit38(_ t: inout [GeneratedPlatformMemberKey: Bool]) {
         t[GeneratedPlatformMemberKey(
             framework: "AppKit",
             type: "NSWindow.Depth",
@@ -58764,6 +64450,12 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBezierPath.LineCapStyle")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBezierPath.LineJoinStyle")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBezierPath.WindingRule")] = true
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBitmapImageRep")] = false
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBitmapImageRep.FileType")] = true
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBitmapImageRep.Format")] = true
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBitmapImageRep.LoadStatus")] = true
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBitmapImageRep.PropertyKey")] = true
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBitmapImageRep.TIFFCompression")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSButton")] = false
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSButton.BezelStyle")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSButton.ButtonType")] = true
@@ -58775,6 +64467,9 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSColor")] = false
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSColor.ColorType")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSColor.SystemEffect")] = true
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSColorSpace")] = false
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSColorSpace.Model")] = true
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSColorSpaceName")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSControl")] = false
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSControl.ControlSize")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSControl.ImagePosition")] = true
@@ -58793,6 +64488,8 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSImage.ResizingMode")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSImage.SymbolConfiguration")] = false
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSImage.SymbolScale")] = true
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSImageRep")] = false
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSImageRep.HintKey")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSImageView")] = false
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSImageView.FrameStyle")] = true
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSResponder")] = false
@@ -58955,6 +64652,7 @@ extension GeneratedPlatformBridge {
     static func buildSupertypes() -> [GeneratedPlatformTypeKey: String] {
         var t: [GeneratedPlatformTypeKey: String] = [:]
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSApplication")] = "NSResponder"
+        t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSBitmapImageRep")] = "NSImageRep"
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSButton")] = "NSControl"
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSCollectionView")] = "NSView"
         t[GeneratedPlatformTypeKey(framework: "AppKit", type: "NSControl")] = "NSView"
@@ -58986,5 +64684,14 @@ extension GeneratedPlatformBridge {
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIWindowScene.GeometryPreferences.Mac")] = "UIWindowScene.GeometryPreferences"
         t[GeneratedPlatformTypeKey(framework: "UIKit", type: "UIWindowScene.GeometryPreferences.iOS")] = "UIWindowScene.GeometryPreferences"
         return t
+    }
+
+    static func buildTypeAliases() -> [String: String] {
+        [
+            "NSNotification.Name": "Notification.Name",
+            "NSPoint": "CGPoint",
+            "NSRect": "CGRect",
+            "NSSize": "CGSize",
+        ]
     }
 }

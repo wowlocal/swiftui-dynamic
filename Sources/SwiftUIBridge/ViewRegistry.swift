@@ -68,17 +68,28 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func constructor(named name: String) -> HostFunction? {
-        if let hostObject = bridgeHostObjectConstructor(named: name) { return hostObject }
-        if let task = interpretedTaskConstructor(named: name) { return task }
-        if let platform = GeneratedPlatformBridge.constructor(named: name) {
+        let resolvedName = GeneratedPlatformBridge.canonicalTypeName(name)
+        // Native SDK constructors come from BridgeGen before compatibility
+        // boxes. The boxes remain the cross-platform fallback when the named
+        // framework is unavailable on this host.
+        if let nativePlatform = GeneratedPlatformBridge.nativeConstructor(
+            named: resolvedName
+        ) {
+            return nativePlatform
+        }
+        if let hostObject = bridgeHostObjectConstructor(named: resolvedName) {
+            return hostObject
+        }
+        if let task = interpretedTaskConstructor(named: resolvedName) { return task }
+        if let platform = GeneratedPlatformBridge.constructor(named: resolvedName) {
             return platform
         }
-        let hand = constructors[name]
-        let generated = GeneratedConstructors.table[name]
+        let hand = constructors[resolvedName]
+        let generated = GeneratedConstructors.table[resolvedName]
         if hand == nil && generated == nil {
             // The automatic ObjC tier constructs allowlisted NSObject types
             // for REAL before anything absorbs.
-            if let trampoline = ObjCTrampoline.constructor(named: name) {
+            if let trampoline = ObjCTrampoline.constructor(named: resolvedName) {
                 return trampoline
             }
             // Unknown TYPE-looking constructors (external SDKs: KeychainSwift,
@@ -87,9 +98,9 @@ public final class ViewRegistry: HostRegistry {
             // unresolved so genuine errors surface. The bag PLAYS the type
             // (roles), so user extensions of the host type dispatch on it
             // (`UNAuthorizationStatus(rawValue: 10)?.map`).
-            guard name.first?.isUppercase == true else { return nil }
+            guard resolvedName.first?.isUppercase == true else { return nil }
             return HostFunction(name: name) { args, _ in
-                let stub = UIKitStub(roles: [name])
+                let stub = UIKitStub(roles: [resolvedName])
                 for argument in args.arguments {
                     if let label = argument.label { stub.config[label] = argument.value }
                 }
@@ -108,9 +119,11 @@ public final class ViewRegistry: HostRegistry {
                 }
             }
             guard let generated else {
-                throw RuntimeError(message: "no constructor for \(name)")
+                throw RuntimeError(message: "no constructor for \(resolvedName)")
             }
-            return .native(try GeneratedDispatch.construct(name: name, overloads: generated, args: args, ctx: ctx))
+            return .native(try GeneratedDispatch.construct(
+                name: resolvedName, overloads: generated,
+                args: args, ctx: ctx))
         }
     }
 

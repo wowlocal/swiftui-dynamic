@@ -145,6 +145,17 @@ enum GeneratedPlatformBridge {
     private static let knownMembers = buildKnownMembers()
     private static let nominalKinds = buildNominalKinds()
     private static let supertypes = buildSupertypes()
+    private static let typeAliases = buildTypeAliases()
+
+    static func canonicalTypeName(_ name: String) -> String {
+        var current = name
+        var visited: Set<String> = []
+        while visited.insert(current).inserted,
+              let canonical = typeAliases[current] {
+            current = canonical
+        }
+        return current
+    }
 
     static func frameworkIsNative(_ framework: String) -> Bool {
         switch framework {
@@ -175,9 +186,20 @@ enum GeneratedPlatformBridge {
 #endif
     }
 
+    static func nativeConstructor(named name: String) -> HostFunction? {
+        constructor(named: name, nativeOnly: true)
+    }
+
     static func constructor(named name: String) -> HostFunction? {
+        constructor(named: name, nativeOnly: false)
+    }
+
+    private static func constructor(
+        named name: String, nativeOnly: Bool
+    ) -> HostFunction? {
         guard let entries = constructors[name] else { return nil }
         for framework in frameworkPreference {
+            if nativeOnly, !frameworkIsNative(framework) { continue }
             let candidates = entries.filter { $0.framework == framework }
             guard !candidates.isEmpty else { continue }
             do {
@@ -359,6 +381,9 @@ enum GeneratedPlatformBridge {
         if let wrapped = optionalWrappedType(type) {
             return .none(wrappedTypeName: wrapped)
         }
+        if dictionaryComponentTypes(type) != nil {
+            return .native(DictValue())
+        }
         if collectionElementType(type) != nil { return .native([RuntimeValue]()) }
         switch type {
         case "Void", "()": return .void
@@ -424,12 +449,15 @@ enum GeneratedPlatformBridge {
                     for argument in arguments.arguments {
                         if let label = argument.label { config[label] = argument.value }
                     }
-                    return .native(GeneratedPlatformValue(
+                    let value = RuntimeValue.native(GeneratedPlatformValue(
                         framework: framework,
                         typeName: resultType,
                         isValueType: isValueType(framework: framework, type: resultType),
                         payload: nil,
                         config: config))
+                    return signature.isFailable
+                        ? .some(value, wrappedTypeName: resultType)
+                        : value
                 }
                 return try invoke(arguments.arguments.map(\.value), context)
             }
@@ -632,6 +660,31 @@ extension Array: GeneratedPlatformRuntimeConvertible {
     }
 }
 
+extension Dictionary: GeneratedPlatformRuntimeConvertible {
+    fileprivate static func generatedPlatformValue(
+        from value: RuntimeValue,
+        framework: String,
+        typeName: String,
+        context: EvalContext
+    ) throws -> Any {
+        guard let dictionary = value.dictValue else {
+            throw RuntimeError(message: "expected a Dictionary for '\(typeName)'")
+        }
+        let componentTypes = dictionaryComponentTypes(typeName)
+            ?? (String(describing: Key.self), String(describing: Value.self))
+        var result: [Key: Value] = [:]
+        for (key, entry) in zip(dictionary.keys, dictionary.values) {
+            result[try generatedPlatformArgument(
+                key, as: Key.self, framework: framework,
+                typeName: componentTypes.0, context: context)] =
+                try generatedPlatformArgument(
+                    entry, as: Value.self, framework: framework,
+                    typeName: componentTypes.1, context: context)
+        }
+        return result
+    }
+}
+
 func generatedPlatformArgument<T>(
     _ value: RuntimeValue,
     as _: T.Type,
@@ -796,6 +849,24 @@ func generatedPlatformResult<Element>(
     })
 }
 
+func generatedPlatformResult<Key, Value>(
+    _ value: [Key: Value],
+    framework: String,
+    declaredType: String
+) -> RuntimeValue {
+    let componentTypes = dictionaryComponentTypes(declaredType)
+        ?? (String(describing: Key.self), String(describing: Value.self))
+    var keys: [RuntimeValue] = []
+    var values: [RuntimeValue] = []
+    for (key, entry) in value {
+        keys.append(generatedPlatformResult(
+            key, framework: framework, declaredType: componentTypes.0))
+        values.append(generatedPlatformResult(
+            entry, framework: framework, declaredType: componentTypes.1))
+    }
+    return .native(DictValue(keys: keys, values: values))
+}
+
 private func optionalWrappedType(_ type: String) -> String? {
     let trimmed = type.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.hasSuffix("?") { return String(trimmed.dropLast()) }
@@ -814,4 +885,34 @@ private func collectionElementType(_ type: String) -> String? {
         return nil
     }
     return String(trimmed.dropFirst("Array<".count).dropLast())
+}
+
+private func dictionaryComponentTypes(
+    _ type: String
+) -> (String, String)? {
+    let trimmed = type.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("["), trimmed.hasSuffix("]") else { return nil }
+    let inner = trimmed.dropFirst().dropLast()
+    var angleDepth = 0
+    var squareDepth = 0
+    var parenDepth = 0
+    for index in inner.indices {
+        switch inner[index] {
+        case "<": angleDepth += 1
+        case ">": angleDepth -= 1
+        case "[": squareDepth += 1
+        case "]": squareDepth -= 1
+        case "(": parenDepth += 1
+        case ")": parenDepth -= 1
+        case ":" where angleDepth == 0 && squareDepth == 0 && parenDepth == 0:
+            let key = String(inner[..<index])
+                .trimmingCharacters(in: .whitespaces)
+            let value = String(inner[inner.index(after: index)...])
+                .trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty, !value.isEmpty else { return nil }
+            return (key, value)
+        default: break
+        }
+    }
+    return nil
 }

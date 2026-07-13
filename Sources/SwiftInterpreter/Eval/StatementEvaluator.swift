@@ -551,7 +551,9 @@ extension Interpreter {
                     if let elementName { child.define(elementName, value) }
                 }
             }
-            let result = try executeBlock(forStmt.body.statements, in: child)
+            let result = try withFiniteIterationSlice {
+                try executeBlock(forStmt.body.statements, in: child)
+            }
             switch result {
             case .normal, .continueLoop: continue
             case .breakLoop: break loop

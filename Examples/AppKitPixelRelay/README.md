@@ -61,22 +61,21 @@ passed all 9 checks:
 The native UI autoload also completed one job and produced a 2,067-byte warm
 PNG with checksum `328447` and average color `#233427`.
 
-The interpreter was tested only through its public CLI as a black box. It
-successfully rendered the complete initial UI and its live networking path
-returned HTTP 200 with all 3,171 bytes in 12 ms. `NSBitmapImageRep(data:)` was
-non-`nil`, but reading `pixelsWide` and `pixelsHigh` yielded placeholder values
-instead of native integers; the observed diagnostic was:
+After the generated AppKit bridge repair, the public interpreter CLI completes
+the same live workflow end to end. It received HTTP 200 with all 3,171 bytes,
+decoded and transformed the 96 × 64 bitmap, produced the same 2,067-byte warm
+PNG, checksum `328447`, and average color `#233427`, then reported one completed
+UI job. The deterministic interpreter integration test also runs the actual
+Pixel Relay pipeline over the bundled 96 × 64 fixture; it completed in 7.69 s
+on the verification machine.
 
-```text
-RelayPipelineError.emptyBitmapDimensions(
-    SwiftUIBridge.UIKitStub,
-    SwiftUIBridge.UIKitStub
-)
-```
-
-Consequently, interpreter-side pixel iteration, effect processing, histogram
-calculation, preview construction, and export are blocked at that AppKit
-property-access boundary. Networking is not the failing component.
+The repair is generator-level rather than app-specific: SDK-derived failable
+constructors, inherited members, dictionary parameters, nil unsafe-pointer
+parameters, platform-valued SwiftUI initializers such as `Image(nsImage:)`, and
+CoreGraphics compatibility aliases now share reusable generated contracts.
+Finite `for-in` loops also receive bounded per-element evaluator slices, so
+legitimate nested pixel work can exceed the global syntax-step count while an
+infinite loop inside any element still trips the fatal budget guard.
 
 ## Pixel diff
 

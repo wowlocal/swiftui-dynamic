@@ -82,11 +82,26 @@ func normalize(_ type: String) -> String {
 struct TypeMapping {
     let tag: String
     let cast: String
+    let requiredFramework: String?
+
+    init(
+        tag: String, cast: String, requiredFramework: String? = nil
+    ) {
+        self.tag = tag
+        self.cast = cast
+        self.requiredFramework = requiredFramework
+    }
 }
+
+/// Filled from the same platform symbol graphs that generate SDK gateways.
+/// SwiftUI initializers/modifiers can then accept any selected AppKit/UIKit
+/// nominal without maintaining a second type-name allowlist.
+var platformTypeFrameworks: [String: Set<String>] = [:]
 
 /// Public, deployment-compatible SDK enums and their payload-free cases.
 /// Populated from the same interfaces before the modifier/init sweep.
 var sdkEnumCases: [String: [String]] = [:]
+var sdkEnumFrameworkRequirements: [String: Set<String>] = [:]
 
 func directMapping(for normalized: String) -> TypeMapping? {
     switch normalized {
@@ -130,8 +145,19 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Date": return .init(tag: "date", cast: "%@ as! Date")
     case "Data": return .init(tag: "data", cast: "%@ as! Data")
     default:
+        if let frameworks = platformTypeFrameworks[normalized],
+           frameworks.count == 1, let framework = frameworks.first {
+            return .init(
+                tag: "platformValue(\"\(framework)\", \"\(normalized)\")",
+                cast: "%@ as! \(normalized)",
+                requiredFramework: framework)
+        }
         guard sdkEnumCases[normalized] != nil else { return nil }
-        return .init(tag: "sdkEnum(\"\(normalized)\")", cast: "%@ as! \(normalized)")
+        let requirements = sdkEnumFrameworkRequirements[normalized] ?? []
+        return .init(
+            tag: "sdkEnum(\"\(normalized)\")", cast: "%@ as! \(normalized)",
+            requiredFramework: requirements.count == 1
+                ? requirements.first : nil)
     }
 }
 
@@ -348,7 +374,31 @@ func isUsable(_ attributes: AttributeListSyntax) -> Bool {
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
         let text = attr.trimmedDescription
-        if text.contains("unavailable") || text.contains("deprecated") || text.contains("obsoleted") {
+        if attr.attributeName.trimmedDescription == "available" {
+            // This generator consumes the macOS SwiftUI interface. An API
+            // being unavailable on iOS/tvOS/watchOS is evidence that it is
+            // platform-specific, not that it is unusable here.
+            let appliesToMacOS = text.contains("macOS")
+                || text.hasPrefix("@available(*,")
+            if appliesToMacOS,
+               text.contains("unavailable") || text.contains("deprecated")
+                || text.contains("obsoleted") {
+                return false
+            }
+        }
+        if attr.attributeName.trimmedDescription.hasSuffix("_spi") { return false }
+    }
+    return true
+}
+
+/// GeneratedSDKEnumCoercions is shared without a platform payload wrapper, so
+/// keep that table restricted to declarations present on every target.
+func isUniversallyUsable(_ attributes: AttributeListSyntax) -> Bool {
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self) else { continue }
+        let text = attr.trimmedDescription
+        if text.contains("unavailable") || text.contains("deprecated")
+            || text.contains("obsoleted") {
             return false
         }
         if attr.attributeName.trimmedDescription.hasSuffix("_spi") { return false }
@@ -373,98 +423,157 @@ func needsAvailabilityGuard(_ attributes: AttributeListSyntax) -> Bool {
     return false
 }
 
+/// Compile-time framework requirements encoded by cross-platform availability.
+/// The generator reads the macOS interface, so `iOS, unavailable` means the
+/// emitted declaration must stay behind `canImport(AppKit)` on shared builds.
+func platformFrameworkRequirements(
+    _ attributes: AttributeListSyntax
+) -> Set<String> {
+    var result: Set<String> = []
+    for attribute in attributes {
+        guard let attr = attribute.as(AttributeSyntax.self),
+              attr.attributeName.trimmedDescription == "available" else {
+            continue
+        }
+        let text = attr.trimmedDescription
+        if text.contains("iOS"), text.contains("unavailable") {
+            result.insert("AppKit")
+        }
+    }
+    return result
+}
+
 // MARK: - Automatically coercible SDK enums
 
 func isPublicSDKDecl(_ modifiers: DeclModifierListSyntax) -> Bool {
     modifiers.contains { $0.name.text == "public" }
 }
 
-func collectSDKEnums(in members: MemberBlockItemListSyntax, path: [String], guarded: Bool) {
+func collectSDKEnums(
+    in members: MemberBlockItemListSyntax, path: [String], guarded: Bool,
+    frameworkRequirements: Set<String>
+) {
     for member in members {
-        collectSDKEnums(in: member.decl, path: path, guarded: guarded)
+        collectSDKEnums(
+            in: member.decl, path: path, guarded: guarded,
+            frameworkRequirements: frameworkRequirements)
     }
 }
 
-func collectSDKEnums(in decl: DeclSyntax, path: [String], guarded inheritedGuarded: Bool) {
+func collectSDKEnums(
+    in decl: DeclSyntax, path: [String], guarded inheritedGuarded: Bool,
+    frameworkRequirements inheritedRequirements: Set<String>
+) {
     if let enumDecl = decl.as(EnumDeclSyntax.self) {
-        guard isPublicSDKDecl(enumDecl.modifiers), isUsable(enumDecl.attributes),
+        guard isPublicSDKDecl(enumDecl.modifiers),
+              isUniversallyUsable(enumDecl.attributes),
               !enumDecl.name.text.hasPrefix("_") else { return }
         let path = path + [enumDecl.name.text]
         let guarded = inheritedGuarded || needsAvailabilityGuard(enumDecl.attributes)
+        let requirements = inheritedRequirements.union(
+            platformFrameworkRequirements(enumDecl.attributes))
         if !guarded {
             var cases: [String] = []
             for member in enumDecl.memberBlock.members {
                 guard let caseDecl = member.decl.as(EnumCaseDeclSyntax.self),
-                      isUsable(caseDecl.attributes),
+                      isUniversallyUsable(caseDecl.attributes),
                       !needsAvailabilityGuard(caseDecl.attributes) else { continue }
                 for element in caseDecl.elements where element.parameterClause == nil {
                     cases.append(element.name.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")))
                 }
             }
             if !cases.isEmpty {
-                sdkEnumCases[path.joined(separator: ".")] = Array(Set(cases)).sorted()
+                let type = path.joined(separator: ".")
+                sdkEnumCases[type] = Array(Set(cases)).sorted()
+                sdkEnumFrameworkRequirements[type] = requirements
             }
         }
-        collectSDKEnums(in: enumDecl.memberBlock.members, path: path, guarded: guarded)
+        collectSDKEnums(
+            in: enumDecl.memberBlock.members, path: path, guarded: guarded,
+            frameworkRequirements: requirements)
         return
     }
 
     if let structDecl = decl.as(StructDeclSyntax.self) {
-        guard isPublicSDKDecl(structDecl.modifiers), isUsable(structDecl.attributes),
+        guard isPublicSDKDecl(structDecl.modifiers),
+              isUniversallyUsable(structDecl.attributes),
               !structDecl.name.text.hasPrefix("_") else { return }
         collectSDKEnums(
             in: structDecl.memberBlock.members,
             path: path + [structDecl.name.text],
-            guarded: inheritedGuarded || needsAvailabilityGuard(structDecl.attributes))
+            guarded: inheritedGuarded || needsAvailabilityGuard(structDecl.attributes),
+            frameworkRequirements: inheritedRequirements.union(
+                platformFrameworkRequirements(structDecl.attributes)))
         return
     }
 
     if let classDecl = decl.as(ClassDeclSyntax.self) {
-        guard isPublicSDKDecl(classDecl.modifiers), isUsable(classDecl.attributes),
+        guard isPublicSDKDecl(classDecl.modifiers),
+              isUniversallyUsable(classDecl.attributes),
               !classDecl.name.text.hasPrefix("_") else { return }
         collectSDKEnums(
             in: classDecl.memberBlock.members,
             path: path + [classDecl.name.text],
-            guarded: inheritedGuarded || needsAvailabilityGuard(classDecl.attributes))
+            guarded: inheritedGuarded || needsAvailabilityGuard(classDecl.attributes),
+            frameworkRequirements: inheritedRequirements.union(
+                platformFrameworkRequirements(classDecl.attributes)))
         return
     }
 
     if let actorDecl = decl.as(ActorDeclSyntax.self) {
-        guard isPublicSDKDecl(actorDecl.modifiers), isUsable(actorDecl.attributes),
+        guard isPublicSDKDecl(actorDecl.modifiers),
+              isUniversallyUsable(actorDecl.attributes),
               !actorDecl.name.text.hasPrefix("_") else { return }
         collectSDKEnums(
             in: actorDecl.memberBlock.members,
             path: path + [actorDecl.name.text],
-            guarded: inheritedGuarded || needsAvailabilityGuard(actorDecl.attributes))
+            guarded: inheritedGuarded || needsAvailabilityGuard(actorDecl.attributes),
+            frameworkRequirements: inheritedRequirements.union(
+                platformFrameworkRequirements(actorDecl.attributes)))
         return
     }
 
     if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
-        guard isPublicSDKDecl(protocolDecl.modifiers), isUsable(protocolDecl.attributes),
+        guard isPublicSDKDecl(protocolDecl.modifiers),
+              isUniversallyUsable(protocolDecl.attributes),
               !protocolDecl.name.text.hasPrefix("_") else { return }
         collectSDKEnums(
             in: protocolDecl.memberBlock.members,
             path: path + [protocolDecl.name.text],
-            guarded: inheritedGuarded || needsAvailabilityGuard(protocolDecl.attributes))
+            guarded: inheritedGuarded || needsAvailabilityGuard(protocolDecl.attributes),
+            frameworkRequirements: inheritedRequirements.union(
+                platformFrameworkRequirements(protocolDecl.attributes)))
         return
     }
 
-    if let extensionDecl = decl.as(ExtensionDeclSyntax.self), isUsable(extensionDecl.attributes) {
+    if let extensionDecl = decl.as(ExtensionDeclSyntax.self),
+       isUniversallyUsable(extensionDecl.attributes) {
         let extendedPath = normalize(extensionDecl.extendedType.trimmedDescription)
             .split(separator: ".").map(String.init)
         collectSDKEnums(
             in: extensionDecl.memberBlock.members,
             path: extendedPath,
-            guarded: inheritedGuarded || needsAvailabilityGuard(extensionDecl.attributes))
+            guarded: inheritedGuarded || needsAvailabilityGuard(extensionDecl.attributes),
+            frameworkRequirements: inheritedRequirements.union(
+                platformFrameworkRequirements(extensionDecl.attributes)))
     }
 }
 
 for file in interfaceFiles {
     for statement in file.statements {
         guard case .decl(let decl) = statement.item else { continue }
-        collectSDKEnums(in: decl, path: [], guarded: false)
+        collectSDKEnums(
+            in: decl, path: [], guarded: false,
+            frameworkRequirements: [])
     }
 }
+
+// AppKit/UIKit are predominantly Clang-imported Objective-C APIs, so their
+// textual Swift overlays do not contain the declarations Swift source sees.
+// Build that metadata model before sweeping SwiftUI so platform-valued
+// SwiftUI parameters reuse the exact same selected nominal set.
+let platformGeneration = try generatePlatformBridge()
+platformTypeFrameworks = platformGeneration.typeFrameworks
 
 // MARK: - Sweep
 
@@ -475,21 +584,32 @@ struct EmittableParam {
     /// The concrete type accepted by a generated Foundation gateway. View
     /// modifiers and constructors still use their ParamTag-only boundary.
     let contractType: String?
+    let requiredFramework: String?
 
-    init(label: String?, tag: String, cast: String, contractType: String? = nil) {
+    init(
+        label: String?, tag: String, cast: String,
+        contractType: String? = nil, requiredFramework: String? = nil
+    ) {
         self.label = label
         self.tag = tag
         self.cast = cast
         self.contractType = contractType
+        self.requiredFramework = requiredFramework
     }
 }
 
 struct Variant {
     let name: String
     let params: [EmittableParam]
+    let inheritedFrameworkRequirements: Set<String>
 
     var key: String {
         name + "|" + params.map { "\($0.label ?? "_"):\($0.tag)" }.joined(separator: ",")
+    }
+
+    var requiredFrameworks: [String] {
+        Array(inheritedFrameworkRequirements.union(
+            params.compactMap(\.requiredFramework))).sorted()
     }
 }
 
@@ -511,7 +631,11 @@ func acceptableModifierReturn(_ type: String) -> Bool {
     return normalized.contains("some View") || normalized.hasPrefix("ModifiedContent<")
 }
 
-func processModifier(_ function: FunctionDeclSyntax, guarded: Bool) {
+func processModifier(
+    _ function: FunctionDeclSyntax, guarded: Bool,
+    frameworkRequirements: Set<String>
+) {
+    guard isPublicSDKDecl(function.modifiers) else { return }
     let name = function.name.text
     guard !name.hasPrefix("_") else { return } // SPI-adjacent underscore APIs
     modifierTotal += 1
@@ -549,8 +673,13 @@ func processModifier(_ function: FunctionDeclSyntax, guarded: Bool) {
         let variant = Variant(
             name: name,
             params: selection.map {
-                .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast)
-            }
+                .init(
+                    label: $0.label, tag: $0.mapping!.tag,
+                    cast: $0.mapping!.cast,
+                    requiredFramework: $0.mapping!.requiredFramework)
+            },
+            inheritedFrameworkRequirements: frameworkRequirements.union(
+                platformFrameworkRequirements(function.attributes))
         )
         if seenKeys.insert(variant.key).inserted {
             variants.append(variant)
@@ -579,7 +708,12 @@ func structGenerics(_ structDecl: StructDeclSyntax) -> Generics {
     return generics
 }
 
-func processInit(_ structName: String, _ initDecl: InitializerDeclSyntax, generics baseGenerics: Generics, guarded: Bool) {
+func processInit(
+    _ structName: String, _ initDecl: InitializerDeclSyntax,
+    generics baseGenerics: Generics, guarded: Bool,
+    frameworkRequirements: Set<String>
+) {
+    guard isPublicSDKDecl(initDecl.modifiers) else { return }
     initTotal += 1
     guard initDecl.optionalMark == nil else { return } // failable inits
 
@@ -617,8 +751,13 @@ func processInit(_ structName: String, _ initDecl: InitializerDeclSyntax, generi
         let variant = Variant(
             name: structName,
             params: selection.map {
-                .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast)
-            }
+                .init(
+                    label: $0.label, tag: $0.mapping!.tag,
+                    cast: $0.mapping!.cast,
+                    requiredFramework: $0.mapping!.requiredFramework)
+            },
+            inheritedFrameworkRequirements: frameworkRequirements.union(
+                platformFrameworkRequirements(initDecl.attributes))
         )
         if initSeenKeys.insert(variant.key).inserted {
             initVariants.append(variant)
@@ -626,9 +765,45 @@ func processInit(_ structName: String, _ initDecl: InitializerDeclSyntax, generi
     }
 }
 
+struct ViewConformanceInfo {
+    let generics: Generics
+    let guarded: Bool
+    let frameworkRequirements: Set<String>
+}
+
+// A public type's protocol conformances are frequently emitted separately
+// from its declaration in a swiftinterface (`struct Image { ... }` followed
+// by `extension Image: View`). Discover those conformances before looking at
+// declarations so the constructor sweep is driven by interface semantics,
+// independent of which spelling the SDK chose.
+var extensionViewConformances: [String: ViewConformanceInfo] = [:]
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let decl) = statement.item,
+              let ext = decl.as(ExtensionDeclSyntax.self),
+              isUsable(ext.attributes),
+              ext.inheritanceClause?.inheritedTypes.contains(where: {
+                  normalize($0.type.trimmedDescription) == "View"
+              }) == true else { continue }
+        var generics: Generics = [:]
+        collectWhereClause(ext.genericWhereClause, into: &generics)
+        extensionViewConformances[
+            normalize(ext.extendedType.trimmedDescription)
+        ] = ViewConformanceInfo(
+            generics: generics,
+            guarded: needsAvailabilityGuard(ext.attributes),
+            frameworkRequirements: platformFrameworkRequirements(
+                ext.attributes))
+    }
+}
+
 // Pass A: View-extension modifiers + View structs (recording their generics
 // so pass B can process extension-declared inits, where most of them live).
-var viewStructInfo: [String: (generics: Generics, guarded: Bool)] = [:]
+var viewStructInfo: [String: (
+    generics: Generics,
+    guarded: Bool,
+    frameworkRequirements: Set<String>
+)] = [:]
 
 for file in interfaceFiles {
     for statement in file.statements {
@@ -643,25 +818,44 @@ for file in interfaceFiles {
                       isUsable(function.attributes),
                       let returnType = function.signature.returnClause?.type.trimmedDescription,
                       acceptableModifierReturn(returnType) else { continue }
-                processModifier(function, guarded: extGuarded)
+                processModifier(
+                    function, guarded: extGuarded,
+                    frameworkRequirements: platformFrameworkRequirements(
+                        ext.attributes))
             }
         }
 
         if let structDecl = decl.as(StructDeclSyntax.self),
+           isPublicSDKDecl(structDecl.modifiers),
            isUsable(structDecl.attributes),
-           !structDecl.name.text.hasPrefix("_"),
-           structDecl.inheritanceClause?.inheritedTypes.contains(where: {
-               normalize($0.type.trimmedDescription) == "View"
-           }) == true {
+           !structDecl.name.text.hasPrefix("_") {
             let name = structDecl.name.text
+            let directlyConforms = structDecl.inheritanceClause?.inheritedTypes
+                .contains(where: {
+                    normalize($0.type.trimmedDescription) == "View"
+                }) == true
+            let extensionConformance = extensionViewConformances[name]
+            guard directlyConforms || extensionConformance != nil else {
+                continue
+            }
             viewStructs.insert(name)
             let guarded = needsAvailabilityGuard(structDecl.attributes)
-            let generics = structGenerics(structDecl)
-            viewStructInfo[name] = (generics, guarded)
+                || (extensionConformance?.guarded ?? false)
+            let frameworkRequirements = platformFrameworkRequirements(
+                structDecl.attributes).union(
+                    extensionConformance?.frameworkRequirements ?? [])
+            var generics = structGenerics(structDecl)
+            for (name, facts) in extensionConformance?.generics ?? [:] {
+                generics[name] = facts
+            }
+            viewStructInfo[name] = (
+                generics, guarded, frameworkRequirements)
             for member in structDecl.memberBlock.members {
                 guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
                       isUsable(initDecl.attributes) else { continue }
-                processInit(name, initDecl, generics: generics, guarded: guarded)
+                processInit(
+                    name, initDecl, generics: generics, guarded: guarded,
+                    frameworkRequirements: frameworkRequirements)
             }
         }
     }
@@ -679,10 +873,14 @@ for file in interfaceFiles {
         var generics = info.generics
         collectWhereClause(ext.genericWhereClause, into: &generics)
         let guarded = info.guarded || needsAvailabilityGuard(ext.attributes)
+        let frameworkRequirements = info.frameworkRequirements.union(
+            platformFrameworkRequirements(ext.attributes))
         for member in ext.memberBlock.members {
             guard let initDecl = member.decl.as(InitializerDeclSyntax.self),
                   isUsable(initDecl.attributes) else { continue }
-            processInit(extendedName, initDecl, generics: generics, guarded: guarded)
+            processInit(
+                extendedName, initDecl, generics: generics, guarded: guarded,
+                frameworkRequirements: frameworkRequirements)
         }
     }
 }
@@ -971,13 +1169,6 @@ if let foundationFile {
     }
 }
 
-// AppKit/UIKit are predominantly Clang-imported Objective-C APIs, so their
-// textual Swift overlays do not contain the declarations Swift source sees.
-// Xcode's symbol graphs are the compiler-produced Swift interface for that
-// imported surface; PlatformGeneration applies the same metadata-first rule
-// and emits statically compiled calls plus opposite-platform typed fallbacks.
-let platformGeneration = try generatePlatformBridge()
-
 // MARK: - Report
 
 let parameterBlockers = modifierBlockers.merging(initBlockers, uniquingKeysWith: +)
@@ -1130,7 +1321,15 @@ func entryCode(_ variant: Variant) -> String {
     }
     lines.append("        return AnyView(view.\(variant.name)(\(argList)))")
     lines.append("    }")
-    return lines.joined(separator: "\n")
+    return compileGuarded(lines.joined(separator: "\n"), for: variant)
+}
+
+func compileGuarded(_ source: String, for variant: Variant) -> String {
+    guard !variant.requiredFrameworks.isEmpty else { return source }
+    let condition = variant.requiredFrameworks
+        .map { "canImport(\($0))" }
+        .joined(separator: " && ")
+    return "#if \(condition)\n\(source)\n#endif"
 }
 
 let sorted = variants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
@@ -1145,6 +1344,12 @@ var output = """
 // \(sorted.count) modifier overload variants across \(Set(sorted.map(\.name)).count) names.
 import SwiftUI
 import SwiftInterpreter
+#if canImport(AppKit)
+import AppKit
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 extension GeneratedModifiers {
     static func build() -> [String: [GeneratedOverload]] {
@@ -1189,7 +1394,7 @@ func initEntryCode(_ variant: Variant) -> String {
     }
     lines.append("        return AnyView(\(variant.name)(\(argList)))")
     lines.append("    }")
-    return lines.joined(separator: "\n")
+    return compileGuarded(lines.joined(separator: "\n"), for: variant)
 }
 
 let sortedInits = initVariants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
@@ -1203,6 +1408,12 @@ var viewsOutput = """
 // \(sortedInits.count) initializer variants across \(Set(sortedInits.map(\.name)).count) View structs.
 import SwiftUI
 import SwiftInterpreter
+#if canImport(AppKit)
+import AppKit
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 extension GeneratedConstructors {
     static func build() -> [String: [GeneratedConstructor]] {

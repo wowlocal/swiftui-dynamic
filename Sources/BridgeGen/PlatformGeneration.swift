@@ -19,6 +19,7 @@ struct PlatformGenerationResult {
     let output: String
     let coverage: [String: PlatformCoverageSection]
     let summaries: [String]
+    let typeFrameworks: [String: Set<String>]
 }
 
 private struct PlatformFrameworkSpec {
@@ -43,7 +44,8 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
         roots: [
             "NSApplication", "NSResponder", "NSWindow", "NSScreen",
             "NSView", "NSControl", "NSViewController", "NSAppearance",
-            "NSColor", "NSFont", "NSImage", "NSBezierPath",
+            "NSColor", "NSColorSpace", "NSColorSpaceName", "NSFont",
+            "NSImage", "NSImageRep", "NSBitmapImageRep", "NSBezierPath",
             "NSDirectionalEdgeInsets", "NSButton", "NSImageView",
             "NSScrollView", "NSTableView", "NSCollectionView",
             "NSTextField", "NSTextView",
@@ -121,6 +123,9 @@ private struct PlatformNominal {
 private struct PlatformParameter {
     let label: String?
     let type: String
+    /// Runtime overload contract. Usually identical to `type`; nil-only
+    /// unsafe pointers use `Never?` so only a nil source value can match.
+    let contractType: String
     let hasDefault: Bool
     let isAction: Bool
 }
@@ -138,9 +143,10 @@ private struct PlatformCallable {
     let isThrowing: Bool
     let isFailable: Bool
 
-    var declaration: String {
+    private func formattedDeclaration(useContractTypes: Bool) -> String {
         let parameters = params.enumerated().map { index, param in
-            "\(param.label ?? "_") p\(index): \(param.type)"
+            let type = useContractTypes ? param.contractType : param.type
+            return "\(param.label ?? "_") p\(index): \(type)"
         }.joined(separator: ", ")
         let effects = isThrowing ? " throws" : ""
         switch kind {
@@ -151,6 +157,15 @@ private struct PlatformCallable {
         case .staticMethod:
             return "static func \(receiverType).\(name)(\(parameters))\(effects) -> \(resultType)"
         }
+    }
+
+    /// SDK-facing declaration used by coverage and stable identity.
+    var declaration: String { formattedDeclaration(useContractTypes: false) }
+
+    /// Executable host contract. `Never?` precisely models parameters for
+    /// which the bridge can construct a typed nil but no non-nil pointer.
+    var hostDeclaration: String {
+        formattedDeclaration(useContractTypes: true)
     }
 
     var signatureKey: String { "\(framework)|\(declaration)" }
@@ -207,7 +222,11 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
     let output = emitPlatformBridge(parsed)
     var coverage: [String: PlatformCoverageSection] = [:]
     var summaries: [String] = []
+    var typeFrameworks: [String: Set<String>] = [:]
     for framework in parsed {
+        for nominal in framework.nominals.values {
+            typeFrameworks[nominal.type, default: []].insert(framework.spec.name)
+        }
         let signatures = (
             framework.constructors.map(\.signatureKey)
                 + framework.methods.map(\.signatureKey)
@@ -234,7 +253,8 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
                 + "\(framework.enumValues.count) contextual values")
     }
     return PlatformGenerationResult(
-        output: output, coverage: coverage, summaries: summaries)
+        output: output, coverage: coverage, summaries: summaries,
+        typeFrameworks: typeFrameworks)
 }
 
 private func parsePlatformFramework(
@@ -312,9 +332,8 @@ private func parsePlatformFramework(
                 continue
             }
             guard initDecl.genericParameterClause == nil,
-                  initDecl.genericWhereClause == nil,
-                  initDecl.optionalMark == nil else {
-                blockers["generic/failable initializer", default: 0] += 1
+                  initDecl.genericWhereClause == nil else {
+                blockers["generic initializer", default: 0] += 1
                 continue
             }
             let effects = initDecl.signature.effectSpecifiers?.trimmedDescription ?? ""
@@ -332,6 +351,7 @@ private func parsePlatformFramework(
                 initDecl.signature.parameterClause.parameters,
                 framework: spec.name,
                 selectedTypes: selectedTypes,
+                allowNilOnlyPointers: true,
                 blockers: &blockers) else { continue }
             for selection in platformParameterSelections(analyzed) {
                 let callable = PlatformCallable(
@@ -342,7 +362,7 @@ private func parsePlatformFramework(
                     resultType: nominal.type,
                     params: selection,
                     isThrowing: effects.contains("throws") || effects.contains("rethrows"),
-                    isFailable: false)
+                    isFailable: initDecl.optionalMark != nil)
                 if callableSeen.insert(callable.signatureKey).inserted {
                     constructors.append(callable)
                 }
@@ -391,6 +411,7 @@ private func parsePlatformFramework(
                 function.signature.parameterClause.parameters,
                 framework: spec.name,
                 selectedTypes: selectedTypes,
+                allowNilOnlyPointers: false,
                 blockers: &blockers) else { continue }
             let kind: PlatformCallable.Kind = symbol.kind.identifier == "swift.type.method"
                 ? .staticMethod : .method
@@ -596,6 +617,7 @@ private func analyzePlatformParameters(
     _ parameters: FunctionParameterListSyntax,
     framework: String,
     selectedTypes: Set<String>,
+    allowNilOnlyPointers: Bool,
     blockers: inout [String: Int]
 ) -> [PlatformParameter]? {
     var result: [PlatformParameter] = []
@@ -614,14 +636,17 @@ private func analyzePlatformParameters(
         var normalized = platformContractType(normalize(type.trimmedDescription))
         if normalized == "@escaping () -> Void" { normalized = "() -> Void" }
         if normalized == "() -> Void" { isAction = true }
+        let nilOnly = platformTypeSupportsNilOnly(normalized)
         guard isAction || platformTypeIsSupported(
             normalized, framework: framework,
-            selectedTypes: selectedTypes) else {
+            selectedTypes: selectedTypes)
+            || (allowNilOnlyPointers && nilOnly) else {
             blockers["parameter \(normalized)", default: 0] += 1
             return nil
         }
         result.append(PlatformParameter(
             label: label, type: normalized,
+            contractType: nilOnly ? "Never?" : normalized,
             hasDefault: parameter.defaultValue != nil,
             isAction: isAction))
     }
@@ -659,7 +684,7 @@ private func platformParameterSelections(
 }
 
 private let platformDirectTypes: Set<String> = [
-    "Void", "()", "Bool", "String", "Substring", "Character",
+    "Void", "()", "Any", "Bool", "String", "Substring", "Character",
     "Int", "Int8", "Int16", "Int32", "Int64",
     "UInt", "UInt8", "UInt16", "UInt32", "UInt64",
     "Double", "Float", "CGFloat", "TimeInterval",
@@ -668,8 +693,20 @@ private let platformDirectTypes: Set<String> = [
     "ComparisonResult", "Bundle", "Notification.Name", "NSAttributedString",
 ]
 
+/// Clang overlays expose compatibility spellings that are true aliases of a
+/// Swift/CoreGraphics type. Keep the canonicalization table shared by emitted
+/// member contracts and runtime constructor lookup so an alias has exactly
+/// the same behavior as its canonical type at every bridge boundary.
+private let platformContractAliases: [String: String] = [
+    "NSRect": "CGRect",
+    "NSPoint": "CGPoint",
+    "NSSize": "CGSize",
+    "NSNotification.Name": "Notification.Name",
+]
+
 private func platformContractType(_ type: String) -> String {
     var result = type.trimmingCharacters(in: .whitespacesAndNewlines)
+    if result == "()" { return "Void" }
     while result.hasPrefix("@escaping ") {
         result = String(result.dropFirst("@escaping ".count))
     }
@@ -686,6 +723,9 @@ private func platformContractType(_ type: String) -> String {
         return platformContractType(
             String(result.dropFirst("Optional<".count).dropLast())) + "?"
     }
+    if let (key, value) = platformDictionaryComponents(result) {
+        return "[\(platformContractType(key)): \(platformContractType(value))]"
+    }
     if result.hasPrefix("["), result.hasSuffix("]"), !result.contains(":") {
         return "[" + platformContractType(String(result.dropFirst().dropLast())) + "]"
     }
@@ -693,13 +733,7 @@ private func platformContractType(_ type: String) -> String {
         return "[" + platformContractType(
             String(result.dropFirst("Array<".count).dropLast())) + "]"
     }
-    let aliases = [
-        "NSRect": "CGRect",
-        "NSPoint": "CGPoint",
-        "NSSize": "CGSize",
-        "NSNotification.Name": "Notification.Name",
-    ]
-    return aliases[result] ?? memberContractType(for: result)
+    return platformContractAliases[result] ?? memberContractType(for: result)
 }
 
 private func platformTypeIsSupported(
@@ -722,6 +756,12 @@ private func platformTypeIsSupported(
             String(type.dropFirst("Optional<".count).dropLast()),
             framework: framework, selectedTypes: selectedTypes)
     }
+    if let (key, value) = platformDictionaryComponents(type) {
+        return platformTypeIsSupported(
+            key, framework: framework, selectedTypes: selectedTypes)
+            && platformTypeIsSupported(
+                value, framework: framework, selectedTypes: selectedTypes)
+    }
     if type.hasPrefix("["), type.hasSuffix("]"), !type.contains(":") {
         return platformTypeIsSupported(
             String(type.dropFirst().dropLast()), framework: framework,
@@ -733,6 +773,59 @@ private func platformTypeIsSupported(
             framework: framework, selectedTypes: selectedTypes)
     }
     return platformDirectTypes.contains(type) || selectedTypes.contains(type)
+}
+
+/// Unsafe pointer constructor parameters are mechanically bridgeable when
+/// source passes `nil`: Optional's shared runtime adapter can construct the
+/// statically typed nil without manufacturing or dereferencing a pointer.
+/// Methods with pointer parameters stay on the typed inert fallback until the
+/// runtime has real inout storage; emitting a nil-only overload there would
+/// incorrectly shadow valid `&value` calls.
+private func platformTypeSupportsNilOnly(_ rawType: String) -> Bool {
+    let type = rawType.trimmingCharacters(in: .whitespacesAndNewlines)
+    let wrapped: String
+    if type.hasSuffix("?") {
+        wrapped = String(type.dropLast())
+    } else if type.hasPrefix("Optional<"), type.hasSuffix(">") {
+        wrapped = String(type.dropFirst("Optional<".count).dropLast())
+    } else {
+        return false
+    }
+    let name = wrapped.prefix { $0 != "<" }
+    return [
+        "UnsafePointer", "UnsafeMutablePointer",
+        "UnsafeRawPointer", "UnsafeMutableRawPointer",
+        "AutoreleasingUnsafeMutablePointer",
+    ].contains(String(name))
+}
+
+private func platformDictionaryComponents(
+    _ rawType: String
+) -> (key: String, value: String)? {
+    let type = rawType.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard type.hasPrefix("["), type.hasSuffix("]") else { return nil }
+    let inner = type.dropFirst().dropLast()
+    var angleDepth = 0
+    var squareDepth = 0
+    var parenDepth = 0
+    for index in inner.indices {
+        switch inner[index] {
+        case "<": angleDepth += 1
+        case ">": angleDepth -= 1
+        case "[": squareDepth += 1
+        case "]": squareDepth -= 1
+        case "(": parenDepth += 1
+        case ")": parenDepth -= 1
+        case ":" where angleDepth == 0 && squareDepth == 0 && parenDepth == 0:
+            let key = inner[..<index].trimmingCharacters(in: .whitespaces)
+            let value = inner[inner.index(after: index)...]
+                .trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty, !value.isEmpty else { return nil }
+            return (key, value)
+        default: break
+        }
+    }
+    return nil
 }
 
 private func platformPropertyIsSettable(_ variable: VariableDeclSyntax) -> Bool {
@@ -829,6 +922,15 @@ private func emitPlatformBridge(
         }
     }
     output += "        return t\n    }\n"
+
+    output += "\n    static func buildTypeAliases() -> [String: String] {\n"
+    output += "        [\n"
+    for (alias, canonical) in platformContractAliases.sorted(by: {
+        $0.key < $1.key
+    }) {
+        output += "            \(swiftLiteral(alias)): \(swiftLiteral(canonical)),\n"
+    }
+    output += "        ]\n    }\n"
     output += "}\n"
     return output
 }
@@ -875,7 +977,7 @@ private func emitPlatformConstructor(_ value: PlatformCallable) -> String {
     return """
             registerConstructor(
                 &t, framework: \(swiftLiteral(value.framework)),
-                declaration: \(swiftLiteral(value.declaration)),
+                declaration: \(swiftLiteral(value.hostDeclaration)),
                 resultType: \(swiftLiteral(value.resultType))) { v, ctx in
     #if canImport(\(value.framework))
     \(body)
@@ -897,7 +999,7 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
     return """
             registerMethod(
                 &t, framework: \(swiftLiteral(value.framework)),
-                declaration: \(swiftLiteral(value.declaration)),
+                declaration: \(swiftLiteral(value.hostDeclaration)),
                 resultType: \(swiftLiteral(value.resultType))) { base, v, ctx in
     #if canImport(\(value.framework))
                 guard let receiver = base.payload as? \(value.receiverType) else {
@@ -922,7 +1024,7 @@ private func emitPlatformStaticMethod(_ value: PlatformCallable) -> String {
     return """
             registerStaticMethod(
                 &t, framework: \(swiftLiteral(value.framework)),
-                declaration: \(swiftLiteral(value.declaration)),
+                declaration: \(swiftLiteral(value.hostDeclaration)),
                 resultType: \(swiftLiteral(value.resultType))) { v, ctx in
     #if canImport(\(value.framework))
     \(body)

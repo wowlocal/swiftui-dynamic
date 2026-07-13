@@ -536,8 +536,10 @@ extension Interpreter {
                     if let elementName { child.define(elementName, value) }
                 }
             }
-            let result = try await executeBlockSuspending(
-                forStatement.body.statements, in: child)
+            let result = try await withFiniteIterationSlice {
+                try await executeBlockSuspending(
+                    forStatement.body.statements, in: child)
+            }
             switch result {
             case .normal, .continueLoop:
                 continue

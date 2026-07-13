@@ -24,6 +24,34 @@ extension Interpreter {
         }
     }
 
+    /// A `for-in` sequence is fully materialized before execution, so the
+    /// loop itself has a compiler-like proof of finite progress. Give each
+    /// element body an independent bounded slice and charge the enclosing
+    /// evaluation one step per completed element. This permits legitimate
+    /// nested finite work (image pixels, matrix transforms) without weakening
+    /// the guard for `while true`, recursion, or an infinite loop inside an
+    /// element body: each of those still exhausts its own full step budget.
+    func withFiniteIterationSlice<T>(
+        _ body: () throws -> T
+    ) throws -> T {
+        let enclosingSteps = steps
+        steps = 0
+        defer { steps = enclosingSteps + 1 }
+        return try body()
+    }
+
+    /// Suspending counterpart of `withFiniteIterationSlice`. Evaluator state
+    /// is task-owned, so actor reentrancy cannot mix another task's counter
+    /// into this slice while the body awaits.
+    func withFiniteIterationSlice<T>(
+        _ body: () async throws -> T
+    ) async throws -> T {
+        let enclosingSteps = steps
+        steps = 0
+        defer { steps = enclosingSteps + 1 }
+        return try await body()
+    }
+
     /// Source-task cancellation is cooperative: it becomes visible through
     /// `Task.isCancelled`, explicit checks, and cancellable suspension APIs.
     /// Only root-host cancellation or session teardown aborts the evaluator at

@@ -2,6 +2,9 @@ import Foundation
 import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
+#if canImport(AppKit)
+import AppKit
+#endif
 
 @Suite(.serialized) struct GeneratedPlatformBridgeTests {
     @Test func nativePlatformConstructorMethodAndProperties() throws {
@@ -28,10 +31,132 @@ import SwiftInterpreter
     }
 
 #if canImport(AppKit)
+    @Test func appKitDecodedBitmapPropertiesUseNativeScalarContracts() throws {
+        let fixtureData = NetworkBridge.placeholderPNG
+        let native = try #require(NSBitmapImageRep(data: fixtureData))
+        let source = """
+        guard let bitmap = NSBitmapImageRep(data: bitmapFixture) else {
+            fatalError("decode failed")
+        }
+        (bitmap.pixelsWide, bitmap.pixelsHigh, bitmap.bitsPerSample)
+        """
+
+        let interpreter = Interpreter(registry: ViewRegistry())
+        interpreter.globals.define("bitmapFixture", .native(fixtureData))
+        let result = try interpreter.run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == native.pixelsWide)
+        #expect(tuple.values[1].intValue == native.pixelsHigh)
+        #expect(tuple.values[2].intValue == native.bitsPerSample)
+    }
+
+    @Test func appKitBitmapPipelineMatchesNativeRoundTrip() throws {
+        let fixtureData = NetworkBridge.placeholderPNG
+        let nativeSource = try #require(NSBitmapImageRep(data: fixtureData))
+        let nativeOutput = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: nativeSource.pixelsWide,
+            pixelsHigh: nativeSource.pixelsHigh,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ))
+        let nativeColor = try #require(
+            nativeSource.colorAt(x: 0, y: 0)?.usingColorSpace(.deviceRGB))
+        nativeOutput.setColor(nativeColor, atX: 0, y: 0)
+        nativeOutput.size = NSSize(
+            width: nativeSource.pixelsWide,
+            height: nativeSource.pixelsHigh)
+        let nativePNG = try #require(
+            nativeOutput.representation(using: .png, properties: [:]))
+        let nativeImage = try #require(NSImage(data: nativePNG))
+
+        let source = """
+        guard let source = NSBitmapImageRep(data: bitmapFixture) else {
+            fatalError("decode failed")
+        }
+        guard let output = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: source.pixelsWide,
+            pixelsHigh: source.pixelsHigh,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
+            fatalError("allocation failed")
+        }
+        guard let color = source.colorAt(x: 0, y: 0)?.usingColorSpace(.deviceRGB) else {
+            fatalError("color conversion failed")
+        }
+        output.setColor(color, atX: 0, y: 0)
+        output.size = NSSize(width: source.pixelsWide, height: source.pixelsHigh)
+        guard let png = output.representation(using: .png, properties: [:]),
+              let image = NSImage(data: png) else {
+            fatalError("encoding failed")
+        }
+        (png.count, Int(image.size.width), Int(image.size.height))
+        """
+
+        let interpreter = Interpreter(registry: ViewRegistry())
+        interpreter.globals.define("bitmapFixture", .native(fixtureData))
+        let result = try interpreter.run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == nativePNG.count)
+        #expect(tuple.values[1].intValue == Int(nativeImage.size.width))
+        #expect(tuple.values[2].intValue == Int(nativeImage.size.height))
+    }
+
+    @Test func appKitPixelRelayPipelineRunsThroughGeneratedBridge() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixtures = packageRoot.appendingPathComponent(
+            "Examples/AppKitPixelRelay/Fixtures")
+        let fixture = fixtures.appendingPathComponent(
+            "pixel-relay-source.png")
+        let fixtureData = try Data(contentsOf: fixture)
+        let native = try #require(NSBitmapImageRep(data: fixtureData))
+        let pipelineFile = packageRoot.appendingPathComponent(
+            "Examples/AppKitPixelRelay/Sources/AppKitPixelRelay/ImagePipeline.swift")
+        let source = ProjectMaterial.mergedSource(files: [pipelineFile.path]) + """
+
+        let output = try AppKitImagePipeline.process(
+            data: pixelRelayFixture,
+            effect: .warm,
+            intensity: 0.82
+        )
+        (
+            output.width,
+            output.height,
+            output.pngData.count,
+            output.histogram.count
+        )
+        """
+
+        let interpreter = Interpreter(registry: ViewRegistry())
+        interpreter.globals.define("pixelRelayFixture", .native(fixtureData))
+        let result = try interpreter.run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == native.pixelsWide)
+        #expect(tuple.values[1].intValue == native.pixelsHigh)
+        #expect((tuple.values[2].intValue ?? 0) > 100)
+        #expect(tuple.values[3].intValue == 12)
+    }
+
     @Test func appKitGeometryAliasesGenerateAsCoreGraphicsContracts() throws {
         let source = """
-        let view = NSView(frame: CGRect(x: 1, y: 2, width: 30, height: 40))
-        view.frame = CGRect(x: 3, y: 4, width: 50, height: 60)
+        let origin = NSPoint(x: 3, y: 4)
+        let size = NSSize(width: 50, height: 60)
+        let view = NSView(frame: NSRect(origin: origin, size: size))
         "\\(Int(view.frame.minX))|\\(Int(view.frame.width))"
         """
 
