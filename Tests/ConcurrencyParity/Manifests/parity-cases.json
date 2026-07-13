@@ -365,6 +365,18 @@
     "notes": "MainActor serialization keeps the operation from resuming until the controller has observed both cancel calls. The uncancelled controller makes Task.isCancelled false inside onCancel; exact output is 0,1,1,false,true,done on Swift 6.3.3. No ready-task scheduler order is asserted."
   },
   {
+    "id": "task-cancellation-handler-pre-cancelled",
+    "fixture": "Fixtures/task-cancellation-handler-pre-cancelled.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await preCancelledHandlerProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Registering a cancellation handler in an already-cancelled task invokes it immediately and before the operation begins.",
+    "notes": "MainActor prevents the task from starting before two cancellation requests. Registration then occurs on that cancelled task, so Task.isCancelled is true in both onCancel and operation; exact output is 1,true,true,operation-cancelled on Swift 6.3.3."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

@@ -30,7 +30,7 @@ major version 6.
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active cancellation handlers have runtime-owned scoped registrations and synchronous cancel-time dispatch; same-source Swift 6 parity and deterministic runtime-state tests are green | Pre-cancelled and nested cancellation-handler characterization, remaining handler exit paths, and the remaining suspension reasons |
+| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active and pre-cancelled cancellation handlers have runtime-owned scoped registrations, synchronous cancel-time dispatch, and immediate already-cancelled registration; same-source Swift 6 parity and deterministic runtime-state tests are green | Nested cancellation-handler characterization, remaining handler exit paths, and the remaining suspension reasons |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
@@ -72,6 +72,7 @@ major version 6.
 | `task-sleep-cancellation` | exact | `Task.sleep` suspends without blocking the executor, and cancelling the sleeping task resumes it by throwing `CancellationError` | Native/interpreter parity in 20 repetitions: `started,cancelled`; an explicit started barrier makes the 30-second deadline unreachable within the five-second process bound |
 | `task-yield-progress` | stress / completion | Repeated `Task.yield` calls let a ready MainActor sibling make progress | Native/interpreter completion in 20 repetitions; no yield count or relative scheduler order is asserted |
 | `task-cancellation-handler-active` | exact | An active handler runs synchronously before `cancel()` returns, is invoked once across repeated requests, and uses the cancelling task's dynamic context | Native/interpreter parity in 20 repetitions: `0,1,1,false,true,done`; MainActor serialization fixes the observation points without choosing a ready-task order |
+| `task-cancellation-handler-pre-cancelled` | exact | Registering a handler in an already-cancelled task invokes it immediately, in that task's cancelled dynamic context, before the operation begins | Native/interpreter parity in 20 repetitions: `1,true,true,operation-cancelled`; MainActor prevents operation entry before the two pre-start cancellation requests |
 | `task-read-missing-await-diagnostic` | diagnostic | `Task.value` and `Task.result` are async property accesses, so omitting `await` is rejected even inside an async function | Real Swift 6 diagnostics require `await`; runtime member dispatch now diagnoses instead of returning `()` for either property |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
@@ -979,6 +980,41 @@ cleanup after scope exit. A clean build of the isolated change set passed all
 678/680, live 5/5, and API parity 345 match / 0 diverge / 0 interpreter errors /
 17 unstable / 0 no-twin.
 
-M3 remains in progress. Pre-cancelled registration, nested-handler and remaining
-scope-exit/error behavior, plus the remaining first-class suspension categories,
-are not yet fully characterized.
+### Pre-cancelled task cancellation handler
+
+Native question: if an unstructured task receives repeated cancellation
+requests before it enters `withTaskCancellationHandler`, does registration run
+`onCancel` immediately, which dynamic cancellation context does it observe, and
+can the operation begin first?
+
+`task-cancellation-handler-pre-cancelled` creates the worker and controller on
+MainActor. The controller calls `cancel()` twice without suspending, so the
+worker cannot enter its operation before both requests. When the worker later
+registers its handler, twenty strict Swift 6.3.3 runs all returned
+`1,true,true,operation-cancelled`. The first `true` is `Task.isCancelled` inside
+`onCancel`; the second proves the operation observed the handler's one prior
+invocation. Actor serialization establishes that ordering without asserting
+which unrelated ready task a scheduler would otherwise choose.
+
+On the pre-handler runtime, the same-source differential case was RED with
+`13:15: unresolved identifier 'withTaskCancellationHandler'`. The general
+runtime mechanism from the active-handler step already closes this path:
+registration checks the owning task's cancellation record and immediately
+invokes a newly registered one-shot handler when cancellation was previously
+requested. Because registration occurs while evaluating the worker, both the
+handler and operation retain the worker's task context; structured `defer`
+still removes the registration on scope exit. No production branch or fixture-
+specific behavior was added for this case.
+
+A deterministic unit test additionally verifies the worker context ID in both
+closures, cancelled native context, handler-before-operation ordering, one
+invocation across repeated requests, successful operation completion, and zero
+active handlers after scope exit. The focused concurrency/runtime/host gate
+passed all 58 tests in six suites. A clean build of the exact isolated change
+set passed all 749 tests in 146 suites. `Scripts/gate.sh` passed with suite
+749/749, corpus 678/680, live 5/5, and API parity 345 match / 0 diverge /
+0 interpreter errors / 17 unstable / 0 no-twin.
+
+M3 remains in progress. Nested-handler and remaining scope-exit/error behavior,
+plus the remaining first-class suspension categories, are not yet fully
+characterized.

@@ -1314,4 +1314,68 @@ struct AsyncExecutionTests {
         #expect(handle.isCancelled)
         #expect(handle.state == .succeeded)
     }
+
+    @Test func preCancelledTaskRegistersHandlerBeforeOperationAndCleansUp()
+        async throws {
+        let interpreter = Interpreter()
+        var handlerCallCount = 0
+        var handlerContextID: RuntimeTaskID?
+        var handlerObservedCancellation: Bool?
+        var operationContextID: RuntimeTaskID?
+        var operationObservedCancellation: Bool?
+        var operationObservedHandler = false
+        interpreter.globals.define(
+            "recordPreCancelledHandlerContext",
+            .hostFunction(HostFunction(
+                name: "recordPreCancelledHandlerContext",
+                invoke: { _, _ in
+                    handlerCallCount += 1
+                    handlerContextID = interpreter.evaluationTaskContext
+                        .runtimeTaskID
+                    handlerObservedCancellation = Task.isCancelled
+                    return .void
+                })))
+        interpreter.globals.define(
+            "preCancelledOperationResult",
+            .hostFunction(HostFunction(
+                name: "preCancelledOperationResult",
+                invoke: { _, _ in
+                    operationContextID = interpreter.evaluationTaskContext
+                        .runtimeTaskID
+                    operationObservedCancellation = Task.isCancelled
+                    operationObservedHandler = handlerCallCount == 1
+                    return .string(Task.isCancelled
+                        ? "operation-cancelled" : "operation-active")
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        let worker = Task {
+            await withTaskCancellationHandler(operation: {
+                preCancelledOperationResult()
+            }, onCancel: {
+                recordPreCancelledHandlerContext()
+            })
+        }
+        worker.cancel()
+        worker.cancel()
+        await worker.value
+        """)
+
+        guard case .host(let payload)? = interpreter.globals.lookup("worker"),
+              let handle = payload as? RuntimeTaskHandle else {
+            Issue.record("expected retained worker task handle")
+            return
+        }
+        #expect(result.stringValue == "operation-cancelled")
+        #expect(handlerCallCount == 1)
+        #expect(handlerContextID == handle.id)
+        #expect(handlerObservedCancellation == true)
+        #expect(operationContextID == handle.id)
+        #expect(operationObservedCancellation == true)
+        #expect(operationObservedHandler)
+        #expect(handle.cancellationHandlerInvocationCount == 1)
+        #expect(handle.cancellationHandlerCount == 0)
+        #expect(handle.isCancelled)
+        #expect(handle.state == .succeeded)
+    }
 }
