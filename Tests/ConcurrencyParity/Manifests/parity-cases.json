@@ -125,6 +125,18 @@
     "notes": "Both waiter tasks mark their arrival and then suspend on MainActor before a controller opens the child gate. Relative waiter resume order is unspecified."
   },
   {
+    "id": "task-value-waiter-cancellation",
+    "fixture": "Fixtures/task-value-waiter-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskValueWaiterCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling a task while it awaits another unstructured task's value does not end the value wait or cancel the target; the waiter receives the value and remains marked cancelled.",
+    "notes": "MainActor isolation guarantees the waiter has entered target.value before the controller can cancel it. The target remains behind a separate gate until after cancellation. Exact output is target-active,waiter-cancelled,handle-cancelled on Swift 6.3.3."
+  },
+  {
     "id": "task-result",
     "fixture": "Fixtures/task-result.swift",
     "mode": "runtime",

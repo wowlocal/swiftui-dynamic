@@ -968,7 +968,9 @@ extension Interpreter {
                 case "currentPriority":
                     return .native(evaluationTaskContext.priority)
                 case "isCancelled":
-                    return .native(Task.isCancelled)
+                    let isCancelled = Task.isCancelled
+                    if isCancelled { observeSourceCancellation() }
+                    return .native(isCancelled)
                 case "checkCancellation":
                     return .hostFunction(HostFunction(name: name) { _, _ in
                         try Task.checkCancellation()

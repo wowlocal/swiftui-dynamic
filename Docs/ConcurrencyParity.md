@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; creation lineage is distinct from structured cancellation edges; base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Remaining structured task creation and cancellation paths beyond the covered Task cases |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation during another task's value wait, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Standalone cancellation-before-start, task-handle deallocation, and remaining structured task creation/cancellation cases |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -52,6 +52,7 @@ major version 6.
 | `task-value-success` | exact | `await task.value` suspends until completion and returns the successful value | Native/interpreter parity in 20 repetitions with a gate-forced trace: `child-start,before-value,child-end,value` |
 | `task-value-failure` | exact | A throwing task preserves its source failure across suspension and `try await task.value` throws it to the caller | Native/interpreter parity in 20 repetitions; catchability is asserted without coupling to error text |
 | `task-value-multiple-waiters` | predicate / event multiset | Multiple tasks may concurrently await the same task and every waiter receives its one completed success value | Native/interpreter parity in 20 repetitions; both interpreted waiters are simultaneously registered on one task record and relative resume order is not asserted |
+| `task-value-waiter-cancellation` | exact | Cancelling a task while it awaits another unstructured task's value neither ends the value wait nor cancels the target; the waiter receives the value and remains marked cancelled | Native/interpreter parity in 20 repetitions: `target-active,waiter-cancelled,handle-cancelled`; request/observation order and cleanup of both wait-graph edges are verified directly |
 | `task-result` | exact | `await task.result` waits and returns `.success`/`.failure` without throwing the failure from the property read; `get()` rethrows it | Native/interpreter parity in 20 repetitions: `success:value,failure,get-caught` |
 | `task-result-cancellation` | exact | A throwing task cancelled during a cancellable suspension completes its result as `.failure` | Native/interpreter parity in 20 repetitions; the fixture asserts case shape rather than error text |
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
@@ -664,3 +665,38 @@ empty active-record registry.
 Verification for source declaration support: 48 concurrency-parity,
 async-execution, and host-signature tests passed in three suites, followed by
 all 724 tests in 141 suites.
+
+### Cancellation while awaiting another task value
+
+`task-value-waiter-cancellation` blocks a target task behind an explicit gate.
+A waiter marks that it has started and then immediately reads
+`await target.value`. Both the controller and these operations are
+MainActor-isolated, with no suspension between the mark and the value read, so
+the controller can resume only after the wait edge exists. It cancels the
+waiter, observes the handle flag, and only then opens the independent target
+gate. No scheduler order outside these barriers is asserted.
+
+Twenty Apple Swift 6.3.3 strict-concurrency runs produced the exact result
+`target-active,waiter-cancelled,handle-cancelled`. Thus cancellation does not
+interrupt this value wait or propagate to the unstructured target. The waiter
+receives the target value, completes successfully, and still observes its own
+cancellation flag.
+
+The same-source interpreter differential was already GREEN before a runtime
+change. The focused white-box regression captured the architectural RED
+instead: the waiter had a `.taskHandle` request and returned from an explicit
+`Task.isCancelled == true` read, but its `observationSequence` was still
+`nil`. Manufacturing a different source result would have contradicted the
+existing general wait and cooperative-cancellation behavior.
+
+Source evaluation of `Task.isCancelled` now snapshots the native flag and,
+when it is true, records the first source observation in the owning runtime
+task. Observation is bookkeeping only: it neither throws nor chooses a
+terminal outcome. The regression verifies request-before-observation order,
+the waiter's successful cancelled-marked outcome, the target's independent
+successful outcome, removal of both wait-graph edges, and an empty active
+registry.
+
+Verification on Apple Swift 6.3.3 / macOS 26.5 SDK: 50 concurrency-parity,
+task-cancellation, async-execution, and host-signature tests passed in four
+suites, followed by all 727 tests in 142 suites.

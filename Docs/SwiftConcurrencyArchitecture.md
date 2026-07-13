@@ -716,6 +716,20 @@ interpreter run is being force-cancelled.
 This distinction prevents infrastructure cancellation from being confused
 with source-observable task cancellation.
 
+A true source read of `Task.isCancelled` is itself an observation and records
+the first observation sequence without forcing an error or terminal cancelled
+outcome. Reading another task handle's `isCancelled` does not observe the
+current task's cancellation.
+
+The committed Swift 6 probe for an ordinary unstructured task establishes one
+additional value-wait rule: cancelling the waiter while it is suspended on
+`await target.value` does not by itself interrupt that wait or cancel the
+target. The waiter remains registered until the target completes, receives the
+value, and may finish successfully while its own cancellation flag remains
+true. Runtime wait edges must therefore be removed on actual wait completion,
+not merely on cancellation request. Other suspension kinds require their own
+native probes and may be cancellable.
+
 ### 6.14 Task locals
 
 Task-local values live in a logical inherited map owned by the task record.
