@@ -449,6 +449,18 @@
     "notes": "The child crosses an explicit yield before throwing the fixture's only error. Exact output is caught in 20 Swift 6.3.3 runs; no ready-task ordering is asserted."
   },
   {
+    "id": "async-let-value-cancellation",
+    "fixture": "Fixtures/async-let-value-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetValueCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling a parent suspended on an async-let value propagates cancellation to the structured child; the child's cancellation completes before the parent receives CancellationError, which the parent may catch and then return successfully.",
+    "notes": "A MainActor flag is set immediately before the parent reaches the incomplete value wait, while the child is held in a cancellable 30-second suspension. Exact output is child-start,parent-await,child-cancelled,parent-caught,parent-finished in 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

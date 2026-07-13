@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier-bound `async let` creates a runtime-owned structured child; successful and throwing value reads suspend and preserve their outcomes, unconsumed children cancel and join at lexical scope exit, and missing `await` is diagnosed; same-source Swift 6 exact probes cover the first normal, failure, and scope-exit paths | Cancelled values, early exits, multiple bindings, tuple patterns, task groups, group iteration/cancellation, and complete scope cleanup matrix |
+| M4 structured concurrency | partial | Identifier-bound `async let` creates a runtime-owned structured child; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes, unconsumed children cancel and join at lexical scope exit, and missing `await` is diagnosed; same-source Swift 6 exact probes cover the first normal, failure, cancellation, and scope-exit paths | Early exits, multiple bindings, tuple patterns, task groups, group iteration/cancellation, and complete scope cleanup matrix |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1341,9 +1341,9 @@ task/scope registries empty after completion.
 
 M4 remains partial. This step claims native parity only for successful explicit
 value access, unconsumed normal scope exit, and the missing-await diagnostic.
-Cancelled child values, early-return and throwing scope exits, multiple
-bindings, tuple patterns, and task groups require their own native fixtures
-before their behavior is classified.
+Early-return and throwing scope exits, multiple bindings, tuple patterns, and
+task groups require their own native fixtures before their behavior is
+classified.
 
 Closing verification for this step is green: the focused async-let tests pass
 2/2, `AsyncExecutionTests` pass 41/41, `HostSignatureTests` pass 12/12,
@@ -1370,3 +1370,26 @@ stored failure back into `InterpretedThrow`; this probe therefore expands the
 proved surface without adding a failure-specific dispatch path. The parity
 harness also confirmed that the child task and structured scope registries are
 empty after every repetition.
+
+### M4 parent-cancelled async-let value
+
+`async-let-value-cancellation.swift` holds a throwing child inside the shared
+30-second cancellable suspension and sets a MainActor flag immediately before
+the parent reaches `try await value`. The outer task cannot issue cancellation
+until that flag is visible; because the value is still incomplete, the parent
+must then suspend before any other MainActor work can observe the flag.
+Cancellation-handler and result events therefore form forced edges rather than
+an assumed scheduler order.
+
+Twenty bounded Apple Swift 6.3.3 strict-concurrency runs produced
+`child-start,parent-await,child-cancelled,parent-caught,parent-finished`
+exactly. This proves that parent cancellation reaches the structured child,
+the child finishes cancellation before the value wait throws, and the parent
+may catch that `CancellationError` and complete successfully.
+
+The same-source interpreter case was again GREEN before an additional
+production change and matched all 20 repetitions. The existing structured
+child edge propagates the request, the child's native cancellable operation
+stores a cancelled outcome, and `RuntimeAsyncLetBinding.value` translates that
+outcome into `CancellationError` for source `do`/`catch`. Per-repetition cleanup
+also left both the task registry and structured-scope registry empty.
