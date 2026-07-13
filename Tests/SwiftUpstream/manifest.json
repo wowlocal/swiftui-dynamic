@@ -1,0 +1,47 @@
+{
+  "repository": "https://github.com/swiftlang/swift.git",
+  "revision": "swift-6.2.3-RELEASE",
+  "commit": "484e622d1c0afcae5b12a31c090a74ad0901e44f",
+  "cases": [
+    {
+      "id": "hello-toplevel",
+      "fixture": "Fixtures/hello_toplevel.swift",
+      "upstreamPath": "test/Interpreter/hello_toplevel.swift"
+    },
+    {
+      "id": "hello-function",
+      "fixture": "Fixtures/hello_func.swift",
+      "upstreamPath": "test/Interpreter/hello_func.swift"
+    },
+    {
+      "id": "ternary-expression",
+      "fixture": "Fixtures/ternary_expr.swift",
+      "upstreamPath": "test/Interpreter/ternary_expr.swift"
+    },
+    {
+      "id": "array-of-optional",
+      "fixture": "Fixtures/array_of_optional.swift",
+      "upstreamPath": "test/Interpreter/array_of_optional.swift"
+    },
+    {
+      "id": "break-continue",
+      "fixture": "Fixtures/break_continue.swift",
+      "upstreamPath": "test/Interpreter/break_continue.swift"
+    },
+    {
+      "id": "protocol-existentials",
+      "fixture": "Fixtures/protocols.swift",
+      "upstreamPath": "test/Interpreter/protocols.swift"
+    },
+    {
+      "id": "captured-inout",
+      "fixture": "Fixtures/capture_inout.swift",
+      "upstreamPath": "test/Interpreter/capture_inout.swift"
+    },
+    {
+      "id": "rosetta-code",
+      "fixture": "Fixtures/RosettaCode.swift",
+      "upstreamPath": "test/Interpreter/RosettaCode.swift"
+    }
+  ]
+}
