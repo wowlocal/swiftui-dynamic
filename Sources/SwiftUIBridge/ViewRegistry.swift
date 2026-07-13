@@ -8,8 +8,14 @@ import SwiftInterpreter
 public final class ViewRegistry: HostRegistry {
     var constructors: [String: HostFunction] = [:]
     var modifiers: [String: HostModifier] = [:]
+    let mainQueueDeliveryMode: MainQueueDeliveryMode
 
-    public init() {
+    public convenience init() {
+        self.init(mainQueueDeliveryMode: .wallClock)
+    }
+
+    init(mainQueueDeliveryMode: MainQueueDeliveryMode) {
+        self.mainQueueDeliveryMode = mainQueueDeliveryMode
         registerViews()
         registerModifiers()
         registerGeometryViews()

@@ -42,12 +42,12 @@ Tested on 2026-07-13 without inspecting interpreter implementation:
 | `NSFont` metadata and `NSTextField` mutation | Pass | Pass |
 | Isolated `NSPasteboard` string round-trip | Pass | Fail: `setString` returns `false` |
 | `NSLevelIndicator` through `NSViewRepresentable` | Renders | Does not render; SwiftUI fallback remains visible |
-| One-second dispatch timer cadence | 1.049 s average | 0.224 s average |
+| One-second dispatch timer cadence | ≈1.05 s | ≈1.05 s |
 
-The interpreted timer fires and advances the countdown, but it runs about 4.7
-times too fast. The measurements above use host wall-clock timestamps between
-the app's `scheduled timer fired` lines, so they do not depend on interpreted
-clock APIs. Set `FOCUS_STUDIO_AUTOSTART=1` to start that probe automatically.
+The timer fires and advances the countdown at native cadence in both runners.
+The measurements above use host wall-clock timestamps between the app's
+`scheduled timer fired` lines, so they do not depend on interpreted clock APIs.
+Set `FOCUS_STUDIO_AUTOSTART=1` to start that probe automatically.
 
 Other API-shape differences found while building the shared example:
 

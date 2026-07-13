@@ -2471,11 +2471,10 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     // delays run once per drain (never spin like self-rescheduling
     // retries).
     @Test func boundedDelayDeliversOnDrain() throws {
-        // A rendering test may have flipped the demo's wall-clock mode on
-        // (a global): probes drain.
-        let previous = MainQueueDrain.schedulesRealTimers
-        MainQueueDrain.schedulesRealTimers = false
-        defer { MainQueueDrain.schedulesRealTimers = previous }
+        // Trace registries use deterministic delivery; isolate this test's
+        // explicit drain from other probe work.
+        MainQueueDrain.reset()
+        defer { MainQueueDrain.reset() }
         let source = """
         final class Recorder {
             var fired = false
@@ -2711,9 +2710,8 @@ state.movies += [Movie(id: 5, title: "Dune"), Movie(id: 9, title: "Arrival")]
     // One program's queued deliveries must never fire inside the next
     // verification (corpus determinism).
     @Test func resetClearsQueuedDeliveries() throws {
-        let previous = MainQueueDrain.schedulesRealTimers
-        MainQueueDrain.schedulesRealTimers = false
-        defer { MainQueueDrain.schedulesRealTimers = previous }
+        MainQueueDrain.reset()
+        defer { MainQueueDrain.reset() }
         let source = """
         final class Recorder {
             var fired = false

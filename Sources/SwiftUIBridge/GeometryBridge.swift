@@ -189,17 +189,27 @@ final class UIKitStub: InertCallable {
 /// `DispatchQueue.main` — async dispatches through the real main queue.
 struct MainQueueStub {}
 
+enum MainQueueDeliveryMode: Equatable {
+    case deterministicDrain
+    case wallClock
+}
+
+protocol MainQueueDeliveryPolicy: AnyObject {
+    var mainQueueDeliveryMode: MainQueueDeliveryMode { get }
+}
+
+extension ViewRegistry: MainQueueDeliveryPolicy {}
+
+extension TraceRegistry: MainQueueDeliveryPolicy {
+    var mainQueueDeliveryMode: MainQueueDeliveryMode { .deterministicDrain }
+}
+
 /// Deliveries queued by `DispatchQueue.main.async`: a Task drains them on
 /// the live main loop, and the render probe drains SYNCHRONOUSLY between
 /// passes — a task spawned from within another task's delivery would
 /// otherwise sit past the probe's RunLoop pumps (the SwiftUIFlux
 /// dispatch-inside-dispatch genre).
 public enum MainQueueDrain {
-    /// Interactive sessions (the demo app) run real wall-clock timers for
-    /// positive asyncAfter delays; headless probes (Project/Test/LiveCheck)
-    /// deliver bounded delays on the next drain instead — a probe frame
-    /// never spans real time.
-    public static var schedulesRealTimers = false
     static var pending: [ActionValue] = []
     /// Bounded asyncAfter deliveries (URLProtocol mocks' loadingTime).
     /// Each runs AT MOST ONCE per drain — a delayed action that
@@ -211,6 +221,52 @@ public enum MainQueueDrain {
     /// pumps drain dozens of times per pass — unbounded retries turned a
     /// 90s board into 5+ minutes).
     static var delayedFireBudget = 64
+
+    static func deliveryMode(for context: EvalContext) -> MainQueueDeliveryMode {
+        guard let interpreter = context as? Interpreter,
+              let policy = interpreter.registry as? MainQueueDeliveryPolicy else {
+            return .deterministicDrain
+        }
+        return policy.mainQueueDeliveryMode
+    }
+
+    /// Single delivery policy for interpreted main-queue work. Interactive
+    /// hosts use the SDK's wall clock; deterministic verifiers enqueue work
+    /// for an explicit drain. Keeping this decision here prevents gateways
+    /// from accidentally mixing the two execution models.
+    static func schedule(
+        _ action: ActionValue,
+        after delay: Double,
+        mode: MainQueueDeliveryMode
+    ) {
+        let boundedDelay = max(0, delay)
+        if mode == .wallClock {
+            if boundedDelay > 0.001 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + boundedDelay) {
+                    action.run()
+                }
+            } else {
+                DispatchQueue.main.async {
+                    action.run()
+                }
+            }
+            return
+        }
+
+        if boundedDelay > 0.001 {
+            if boundedDelay <= 30 {
+                // Headless mode: bounded delays run on the next explicit
+                // drain. Far-future timers remain inert because a probe frame
+                // cannot contain them.
+                delayedPending.append(action)
+                Task { @MainActor in drain() }
+            }
+            return
+        }
+
+        pending.append(action)
+        Task { @MainActor in drain() }
+    }
 
     public static func drain() {
         runZeroDelay()
@@ -586,29 +642,11 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                 let action = ActionValue(run: {
                     _ = try? ctx.callClosure(closure, arguments: [])
                 })
-                if delay > 0.001 {
-                    if MainQueueDrain.schedulesRealTimers {
-                        Task { @MainActor in
-                            try? await Task.sleep(
-                                nanoseconds: UInt64(max(0, delay) * 1_000_000_000)
-                            )
-                            action.run()
-                        }
-                        return .void
-                    }
-                    // Trace mode: BOUNDED delays deliver on the next drain,
-                    // once per drain (URLProtocol mocks ship loadingTime:
-                    // 0.1 — the await in the test spans it on device).
-                    // Far-future timers stay inert: no probe frame would
-                    // ever contain them.
-                    if delay <= 30 {
-                        MainQueueDrain.delayedPending.append(action)
-                        Task { @MainActor in MainQueueDrain.drain() }
-                    }
-                    return .void
-                }
-                MainQueueDrain.pending.append(action)
-                Task { @MainActor in MainQueueDrain.drain() }
+                MainQueueDrain.schedule(
+                    action,
+                    after: delay,
+                    mode: MainQueueDrain.deliveryMode(for: ctx)
+                )
                 return .void
             })
         }
@@ -628,8 +666,11 @@ func bridgeHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                         }
                     }
                 })
-                MainQueueDrain.pending.append(action)
-                Task { @MainActor in MainQueueDrain.drain() }
+                MainQueueDrain.schedule(
+                    action,
+                    after: 0,
+                    mode: MainQueueDrain.deliveryMode(for: ctx)
+                )
                 return .void
             })
         }

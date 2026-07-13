@@ -47,7 +47,10 @@ public enum TestHarness {
 
     public static func run(source: String) throws -> Report {
         let recorder = AssertionRecorder()
-        let registry = ViewRegistry()
+        // Tests execute synchronously and advance deferred main-queue work at
+        // explicit suspension points; they need deterministic delivery even
+        // though the registry renders real SwiftUI values.
+        let registry = ViewRegistry(mainQueueDeliveryMode: .deterministicDrain)
         registry.registerXCTestGateways(recorder)
         // Native XCTest sets this in every test process; apps branch on it
         // (`isRunningTests`). The harness IS the test runner, so it presents

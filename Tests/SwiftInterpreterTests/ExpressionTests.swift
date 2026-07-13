@@ -66,6 +66,7 @@ private func eval(_ source: String) throws -> RuntimeValue {
     /// DispatchTime deadlines: the `.now()` anchor absorbs into the offset.
     @Test func nowAnchorArithmeticYieldsOffsetSeconds() throws {
         #expect(try eval(".now() + 0.5").doubleValue == 0.5)
+        #expect(try eval(".now() + .milliseconds(500)").doubleValue == 0.5)
         #expect(try eval(".now() + 3").doubleValue == 3)
         #expect(try eval(".now() - 2").doubleValue == -2)
     }

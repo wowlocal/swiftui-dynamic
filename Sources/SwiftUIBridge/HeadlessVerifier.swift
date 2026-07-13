@@ -15,10 +15,9 @@ public enum HeadlessVerifier {
     public static func resetBridgeEnvironment() {
         FileManagerBox.resetSandbox()
         ObjCTrampoline.resetEphemeralDefaults()
-        // A prior interactive render (the demo facade) may have switched
-        // asyncAfter to wall-clock timers; probes drain instead — and its
-        // QUEUES empty: one program's deliveries never fire in the next.
-        MainQueueDrain.schedulesRealTimers = false
+        // Delivery mode belongs to each interpreter's registry; this reset
+        // only clears delayed deterministic probe work. One interpreter can no
+        // longer overwrite another's wall-clock scheduling policy.
         MainQueueDrain.reset()
     }
 
