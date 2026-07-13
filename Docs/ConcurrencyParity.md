@@ -57,6 +57,7 @@ major version 6.
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
 | `task-priority-inheritance` | exact | An explicit `.utility` task sees raw priority 17, its unstructured child inherits 17, and a detached task without an explicit priority starts at `.medium`/21 | Native/interpreter parity in 20 repetitions: `17,17,21`; values are captured before any higher-priority handle await can cause escalation |
 | `task-local-inheritance` | exact | A scoped task-local binding is inherited by an unstructured `Task`, absent from `Task.detached`, and restored after a nested binding exits | Native/interpreter parity in 20 repetitions: `parent,parent:child:parent,default`; every interpreted task owns distinct storage and completion clears it |
+| `task-local-unwind` | exact | A scoped task-local binding is removed on both a thrown exit and cancellation, so an outer catch observes the inherited parent value | Native/interpreter parity in 20 repetitions: `parent,parent`; both inner values are checked before unwinding and cancellation starts only after an explicit suspension barrier |
 | `unstructured-top-level-lifetime` | exact | An unstructured task may continue after its creating function returns; lexical scope does not join it | Native/interpreter parity in 20 repetitions: `returned,task`; interpreter execution uses the explicit drain policy rather than claiming structured ownership |
 | `task-cancellation-caught` | exact | A task may catch `CancellationError` and complete successfully while its handle remains marked cancelled | Native/interpreter parity in 20 repetitions: `success:caught,cancelled`; request state and terminal outcome are asserted independently |
 | `unstructured-cancellation-isolation` | exact | Cancelling an unstructured task does not cancel another unstructured `Task` that it created | Native/interpreter parity in 20 repetitions: `cancelled,child`; runtime records preserve a creation edge but no structured cancellation edge |
@@ -524,11 +525,45 @@ storage identity within each task, and retains the objects through completion
 to verify explicit cleanup. A non-task-aware host context diagnoses scoped
 binding as unsupported instead of silently executing it without a binding.
 Direct parsing/lowering of source `@TaskLocal` declarations is not claimed by
-this foundation step. Restoration through throwing and cancelled scoped
-operations remains to be established by separate native cases before parity is
-claimed for those exits.
+this foundation step. Throwing and cancelled scoped exits are covered by the
+next independently compiled case.
 
 Focused verification passed 45 concurrency-parity, async-execution, and
 host-signature tests in three suites, including 20/20 native/interpreter
 repetitions of the new case. The full repository suite passed 721 tests in
 141 suites.
+
+### Task-local unwind on throw and cancellation
+
+`task-local-unwind` begins under `parent`. Its first nested binding crosses a
+real `Task.yield`, verifies that it sees `throwing`, and throws a source error;
+the catch outside that scope then reads `parent`. A child task inherits the
+same parent value, verifies a nested `cancelled` binding, enters the shared
+30-second cancellable suspension, and is cancelled only after the explicit
+wait-started barrier. Its source catch also reads `parent`; the deadline is not
+used as synchronization and is never reached.
+
+Twenty Apple Swift 6.3.3 strict-concurrency runs produced `parent,parent`
+exactly, followed by the same result in all twenty interpreter repetitions.
+The shared native task-local wrapper was generalized from a nonthrowing
+operation to `async rethrows`; the source fixture and all control flow remain
+identical on both sides.
+
+This case was already GREEN when introduced. No runtime change was made: the
+previous task-owned storage implementation deliberately scopes replacement
+values with `defer`, so both error paths validated a general mechanism rather
+than exposing another special case. The original missing-storage RED remains
+the preceding inheritance case's
+`default,default:default:default,default` result; manufacturing a new failure
+after the mechanism existed would provide no useful evidence.
+
+The differential runner now retains every storage observed by any
+`task-local-*` fixture. On each interpreter repetition it additionally proves
+that tasks do not share storage objects, each record and evaluator context
+refer to the same per-task object, completion empties every retained map, and
+the active record registry is empty. Source-level `@TaskLocal` declaration and
+projection lowering remains explicitly unsupported.
+
+Verification after adding the unwind case: 45 concurrency-parity,
+async-execution, and host-signature tests passed in three suites, followed by
+all 721 tests in 141 suites.

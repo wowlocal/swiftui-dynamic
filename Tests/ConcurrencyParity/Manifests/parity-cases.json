@@ -185,6 +185,18 @@
     "notes": "The same parityWithTaskLocalValue/parityReadTaskLocal declarations are supplied by native and interpreter support. The nested binding crosses a real parityYield suspension. Exact output is parent,parent:child:parent,default."
   },
   {
+    "id": "task-local-unwind",
+    "fixture": "Fixtures/task-local-unwind.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskLocalUnwindProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A task-local scoped binding is removed when its operation throws or is cancelled, so a catch outside the scope observes the inherited parent value.",
+    "notes": "Both paths use the same source fixture and task-local support declarations. The throwing scope crosses parityYield; the cancellation path uses an explicit wait-started barrier before cancel(). Exact output is parent,parent."
+  },
+  {
     "id": "unstructured-top-level-lifetime",
     "fixture": "Fixtures/unstructured-top-level-lifetime.swift",
     "mode": "runtime",

@@ -186,6 +186,10 @@ private enum ConcurrencyParityHarness {
         var taskValueGateOpen = false
         var taskValueWaiterCount = 0
         var registeredTaskValueSource: RuntimeTaskHandle?
+        var taskLocalStorageByTask: [
+            RuntimeTaskID: RuntimeTaskLocalStorage
+        ] = [:]
+        var taskLocalRecordStorageMatched = true
         let parityTaskLocalKey = RuntimeTaskLocalKey(
             rawValue: "ConcurrencyParity.value")
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
@@ -198,7 +202,18 @@ private enum ConcurrencyParityHarness {
         interpreter.globals.define("parityReadTaskLocal", .hostFunction(HostFunction(
             name: "parityReadTaskLocal",
             asyncInvoke: { _, context in
-                context.taskLocalValue(for: parityTaskLocalKey)
+                guard let bound = context as? TaskBoundEvalContext,
+                      let taskID = bound.evaluationContext.runtimeTaskID,
+                      let record = interpreter.concurrencyRuntime
+                        .records[taskID] else {
+                    throw RuntimeError(message:
+                        "task-local read requires a runtime task context")
+                }
+                let storage = bound.evaluationContext.taskLocals
+                taskLocalStorageByTask[taskID] = storage
+                taskLocalRecordStorageMatched = taskLocalRecordStorageMatched
+                    && record.taskLocals === storage
+                return context.taskLocalValue(for: parityTaskLocalKey)
                     ?? .native("default")
             }
         )))
@@ -316,6 +331,19 @@ private enum ConcurrencyParityHarness {
             }
         )))
         let value = try await interpreter.runAsync(source: source)
+
+        if !taskLocalStorageByTask.isEmpty {
+            let distinctStorageCount = Set(
+                taskLocalStorageByTask.values.map(ObjectIdentifier.init)
+            ).count
+            guard distinctStorageCount == taskLocalStorageByTask.count,
+                  taskLocalRecordStorageMatched,
+                  taskLocalStorageByTask.values.allSatisfy({ $0.isEmpty }),
+                  interpreter.concurrencyRuntime.activeRecordCount == 0 else {
+                throw RuntimeError(message:
+                    "case '\(parityCase.id)' violated task-local ownership or cleanup")
+            }
+        }
 
         if projection == "string" {
             guard let string = value.stringValue else {

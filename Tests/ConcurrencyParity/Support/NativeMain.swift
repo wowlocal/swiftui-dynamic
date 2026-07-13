@@ -31,10 +31,10 @@ func parityReadTaskLocal() async -> String {
 @MainActor
 func parityWithTaskLocalValue(
     _ value: String,
-    operation: @escaping @MainActor @Sendable () async -> String
-) async -> String {
-    await ParityNativeTaskLocal.$value.withValue(value) {
-        await operation()
+    operation: @escaping @MainActor @Sendable () async throws -> String
+) async rethrows -> String {
+    try await ParityNativeTaskLocal.$value.withValue(value) {
+        try await operation()
     }
 }
 
