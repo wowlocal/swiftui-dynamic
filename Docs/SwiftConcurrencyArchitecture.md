@@ -741,6 +741,13 @@ runtime keys and a task-bound read/scope capability. A host context without
 that capability must diagnose scoped binding as unsupported rather than
 silently run the operation without the binding.
 
+The collected declaration owns an immutable identity/default descriptor. A
+direct member read consults the current task map and falls back to the one
+static default; `$member` is a dedicated scoped-binding capability, not a
+general property-wrapper absorber. Its synchronous and suspending `withValue`
+paths enter the same task-owned storage and share structured unwind cleanup.
+Source declaration identities and host string keys occupy disjoint key domains.
+
 Task locals are never stored in shared interpreter globals.
 
 ### 6.15 Priority

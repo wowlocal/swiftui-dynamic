@@ -26,6 +26,9 @@ public final class EnumSymbol {
     public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var computedProperties: [String: ComputedProperty] = [:]
     public internal(set) var staticProperties: [String: StructSymbol.StaticProperty] = [:]
+    /// Source task-local declarations use the enum as a namespace but retain
+    /// declaration identity independently of their textual member names.
+    var taskLocalProperties: [String: RuntimeTaskLocalDeclaration] = [:]
     public internal(set) var staticMethods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var staticComputedProperties: [String: ComputedProperty] = [:]
     public internal(set) var initializers: [InitializerDeclSyntax] = []

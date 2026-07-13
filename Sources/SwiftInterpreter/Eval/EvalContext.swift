@@ -90,6 +90,18 @@ final class TaskBoundEvalContext: EvalContext {
         for key: RuntimeTaskLocalKey,
         operation: ClosureValue,
         arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.withTaskLocalValue(
+                value, for: key, operation: operation, arguments: arguments)
+        }
+    }
+
+    func withTaskLocalValue(
+        _ value: RuntimeValue,
+        for key: RuntimeTaskLocalKey,
+        operation: ClosureValue,
+        arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
         try await bound {
             try await interpreter.withTaskLocalValue(
@@ -190,6 +202,19 @@ extension Interpreter: EvalContext {
         for key: RuntimeTaskLocalKey
     ) -> RuntimeValue? {
         evaluationTaskContext.taskLocals.value(for: key)
+    }
+
+    public func withTaskLocalValue(
+        _ value: RuntimeValue,
+        for key: RuntimeTaskLocalKey,
+        operation: ClosureValue,
+        arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        try evaluationTaskContext.taskLocals.withValue(
+            value, for: key
+        ) {
+            try callClosure(operation, arguments: arguments)
+        }
     }
 
     public func withTaskLocalValue(

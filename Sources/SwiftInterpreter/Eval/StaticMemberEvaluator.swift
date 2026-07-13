@@ -9,7 +9,41 @@ extension Interpreter {
         selfEnvironment(.enumType(symbol))
     }
 
+    private func sourceTaskLocalMember(
+        _ rawName: String,
+        declarations: [String: RuntimeTaskLocalDeclaration],
+        environment: Environment
+    ) throws -> RuntimeValue? {
+        let isProjection = rawName.hasPrefix("$") && rawName.count > 1
+        let name = isProjection ? String(rawName.dropFirst()) : rawName
+        guard let declaration = declarations[name] else { return nil }
+
+        if isProjection {
+            return .native(RuntimeTaskLocalProjection(key: declaration.key))
+        }
+        if let bound = evaluationTaskContext.taskLocals.value(
+            for: declaration.key) {
+            return bound.copiedForValueSemantics()
+        }
+        if let cached = declaration.cachedDefault {
+            return cached.copiedForValueSemantics()
+        }
+
+        let raw = try evaluate(declaration.initializer, in: environment)
+        let resolved = try resolveAnnotated(
+            raw, annotation: declaration.typeAnnotation)
+            .copiedForValueSemantics()
+        declaration.cachedDefault = resolved
+        return resolved.copiedForValueSemantics()
+    }
+
     func staticMember(_ name: String, of symbol: StructSymbol) throws -> RuntimeValue? {
+        if let taskLocal = try sourceTaskLocalMember(
+            name,
+            declarations: symbol.taskLocalProperties,
+            environment: staticInitEnvironment(for: symbol)) {
+            return taskLocal
+        }
         if let nested = symbol.nestedTypes[name] { return nested }
         if let box = symbol.staticReferenceBoxes[name] { return try box.load() }
         if let cached = symbol.staticCache[name] { return cached }
@@ -95,6 +129,12 @@ extension Interpreter {
     }
 
     func staticMember(_ name: String, of symbol: EnumSymbol) throws -> RuntimeValue? {
+        if let taskLocal = try sourceTaskLocalMember(
+            name,
+            declarations: symbol.taskLocalProperties,
+            environment: staticInitEnvironment(for: symbol)) {
+            return taskLocal
+        }
         // Own nested types shadow same-named globals inside the body —
         // the struct-path doctrine applied to enum namespaces.
         if let nested = symbol.nestedTypes[name] { return nested }

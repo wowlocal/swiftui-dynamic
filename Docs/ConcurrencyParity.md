@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; creation lineage is distinct from structured cancellation edges; base/effective priority, direct/transitive escalation, and task-local storage are task-owned and natively covered | Remaining source-level `@TaskLocal` declaration/projection support, structured task creation, and cancellation paths beyond the covered Task cases |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; creation lineage is distinct from structured cancellation edges; base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Remaining structured task creation and cancellation paths beyond the covered Task cases |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -58,6 +58,7 @@ major version 6.
 | `task-priority-inheritance` | exact | An explicit `.utility` task sees raw priority 17, its unstructured child inherits 17, and a detached task without an explicit priority starts at `.medium`/21 | Native/interpreter parity in 20 repetitions: `17,17,21`; values are captured before any higher-priority handle await can cause escalation |
 | `task-priority-escalation` | exact | A high-priority value waiter escalates an already-running background task, and a child created afterward inherits the effective priority | Native/interpreter parity in 20 repetitions: `9,25,25`; MainActor barriers put the reads and child creation after waiter registration without asserting scheduler order |
 | `task-priority-transitive-escalation` | exact | Priority donation propagates through an awaited task that is itself awaiting another task | Native/interpreter parity in 20 repetitions: `9,25,25`; the utility middle and background bottom tasks both observe high priority |
+| `task-local-declaration` | exact | Distinct source `@TaskLocal` declarations with the same member name retain separate identities; synchronous and suspending `withValue` scopes restore correctly, ordinary tasks inherit, and detached tasks do not | Native/interpreter parity in 20 repetitions; three task-owned storage objects are observed and explicitly empty after completion |
 | `task-local-inheritance` | exact | A scoped task-local binding is inherited by an unstructured `Task`, absent from `Task.detached`, and restored after a nested binding exits | Native/interpreter parity in 20 repetitions: `parent,parent:child:parent,default`; every interpreted task owns distinct storage and completion clears it |
 | `task-local-unwind` | exact | A scoped task-local binding is removed on both a thrown exit and cancellation, so an outer catch observes the inherited parent value | Native/interpreter parity in 20 repetitions: `parent,parent`; both inner values are checked before unwinding and cancellation starts only after an explicit suspension barrier |
 | `unstructured-top-level-lifetime` | exact | An unstructured task may continue after its creating function returns; lexical scope does not join it | Native/interpreter parity in 20 repetitions: `returned,task`; interpreter execution uses the explicit drain policy rather than claiming structured ownership |
@@ -562,17 +563,18 @@ ordinary task receives a value-semantic snapshot at creation; a detached task
 starts empty. Scoped binding copies the supplied runtime value, restores the
 previous binding with `defer`, remains active across the probed suspension,
 and never mutates the creator's map. Public host gateways address bindings
-through a namespaced `RuntimeTaskLocalKey`; future source-level `@TaskLocal`
-lowering must derive keys from declaration identity rather than spelling alone.
+through a namespaced `RuntimeTaskLocalKey`. Source-level lowering is covered by
+the later declaration case and derives keys from declaration identity rather
+than spelling alone.
 
 The white-box regression observes the root, ordinary, and detached reads,
 proves that their three storage objects are distinct, proves record/context
 storage identity within each task, and retains the objects through completion
 to verify explicit cleanup. A non-task-aware host context diagnoses scoped
 binding as unsupported instead of silently executing it without a binding.
-Direct parsing/lowering of source `@TaskLocal` declarations is not claimed by
+Direct parsing/lowering of source `@TaskLocal` declarations was not claimed by
 this foundation step. Throwing and cancelled scoped exits are covered by the
-next independently compiled case.
+next independently compiled case; declaration lowering follows afterward.
 
 Focused verification passed 45 concurrency-parity, async-execution, and
 host-signature tests in three suites, including 20/20 native/interpreter
@@ -607,9 +609,58 @@ The differential runner now retains every storage observed by any
 `task-local-*` fixture. On each interpreter repetition it additionally proves
 that tasks do not share storage objects, each record and evaluator context
 refer to the same per-task object, completion empties every retained map, and
-the active record registry is empty. Source-level `@TaskLocal` declaration and
-projection lowering remains explicitly unsupported.
+the active record registry is empty. Source-level declaration and projection
+lowering was still open at this point and is addressed by the next case.
 
 Verification after adding the unwind case: 45 concurrency-parity,
 async-execution, and host-signature tests passed in three suites, followed by
 all 721 tests in 141 suites.
+
+### Source task-local declarations and projection
+
+`task-local-declaration` declares `PrimaryTaskLocal.value` and
+`SecondaryTaskLocal.value` with the real source spelling
+`@TaskLocal static var`. The identical member names make accidental
+name-based aliasing observable. Under a primary binding, the fixture exercises
+the synchronous `withValue` overload, creates an ordinary inherited task and a
+detached task, then enters a suspending secondary binding and reads both
+declarations after a controlled yield. Every created task is awaited, so the
+case asserts no scheduler order.
+
+Twenty Apple Swift 6.3.3 strict-concurrency runs produced one exact value:
+
+```text
+primary-default|secondary-default;primary-bound|secondary-default;primary-bound|secondary-sync;primary-bound|secondary-default;primary-default|secondary-default;primary-bound|secondary-bound;primary-bound|secondary-default;primary-default|secondary-default
+```
+
+The first differential run reached the intended RED before implementation:
+the interpreter reported that `PrimaryTaskLocal` had no static member
+`$value`. Its collector had treated `@TaskLocal` as an ordinary cached static,
+so there was neither a source declaration identity nor a projected binding
+capability.
+
+Collection now recognizes module-qualified or bare `@TaskLocal`, requires a
+static `var` with a stored default, and records a
+`RuntimeTaskLocalDeclaration`. Its `RuntimeTaskLocalKey` hashes the binding's
+SwiftSyntax `SyntaxIdentifier`; the debug spelling is not part of equality.
+Consequently declarations named `value` in different types cannot collide,
+and host string keys occupy a separate identity domain.
+
+A direct static read first consults the current task-owned map and otherwise
+returns the declaration's lazily cached static default using interpreter value
+semantics. `$value` returns a dedicated projection rather than an inert wrapper
+marker. The projection exposes synchronous and suspending `withValue` paths
+through the task-aware host contract; both delegate to scoped storage cleanup,
+so error and cancellation restoration reuse the previously proven mechanism.
+Unknown projected members diagnose instead of being absorbed.
+
+The white-box regression observes task-local storage at three source yields.
+The root has two active bindings, its ordinary child has one inherited binding,
+and its detached child has none. All three evaluator contexts point to their
+own record-owned storage objects. It also verifies distinct declaration keys,
+cached defaults, exact output, empty retained maps after completion, and an
+empty active-record registry.
+
+Verification for source declaration support: 48 concurrency-parity,
+async-execution, and host-signature tests passed in three suites, followed by
+all 724 tests in 141 suites.

@@ -197,6 +197,18 @@
     "notes": "MainActor barriers ensure the utility middle task is already awaiting the background bottom task before the high task opens the bottom gate and immediately awaits the middle task. Exact output is 9,25,25 on Swift 6.3.3."
   },
   {
+    "id": "task-local-declaration",
+    "fixture": "Fixtures/task-local-declaration.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskLocalDeclarationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Distinct source @TaskLocal declarations with the same member name retain separate identities; projected withValue is dynamically scoped across suspension, inherited by Task, absent from Task.detached, and restored afterward.",
+    "notes": "Every task is awaited, so the exact assertion depends only on task-local scope rather than scheduling order. The two defaults and bindings make textual-name aliasing observable, and both synchronous and suspending withValue overloads are exercised. Exact output is primary-default|secondary-default;primary-bound|secondary-default;primary-bound|secondary-sync;primary-bound|secondary-default;primary-default|secondary-default;primary-bound|secondary-bound;primary-bound|secondary-default;primary-default|secondary-default on Swift 6.3.3."
+  },
+  {
     "id": "task-local-inheritance",
     "fixture": "Fixtures/task-local-inheritance.swift",
     "mode": "runtime",

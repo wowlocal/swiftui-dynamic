@@ -732,6 +732,80 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func sourceTaskLocalDeclarationsUseIdentityAndTaskStorage() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("task-local-declaration.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait taskLocalDeclarationProbe()\n"
+        let interpreter = Interpreter()
+        var retainedStorage: [String: RuntimeTaskLocalStorage] = [:]
+        var storageCountAtYield: [String: Int] = [:]
+        var taskKindAtYield: [String: RuntimeTaskKind] = [:]
+        var recordStorageMatched = true
+        interpreter.globals.define(
+            "parityYield",
+            .hostFunction(HostFunction(
+                name: "parityYield",
+                asyncInvoke: { arguments, context in
+                    guard let label = arguments.positional(0)?.stringValue,
+                          let bound = context as? TaskBoundEvalContext,
+                          let taskID = bound.evaluationContext.runtimeTaskID,
+                          let record = interpreter.concurrencyRuntime
+                            .records[taskID] else {
+                        throw RuntimeError(message:
+                            "source task-local yield requires a runtime task")
+                    }
+                    let storage = bound.evaluationContext.taskLocals
+                    retainedStorage[label] = storage
+                    storageCountAtYield[label] = storage.count
+                    taskKindAtYield[label] = record.kind
+                    recordStorageMatched = recordStorageMatched
+                        && record.taskLocals === storage
+                    await Task.yield()
+                    return .native(label)
+                }
+            )))
+
+        let result = try await interpreter.runAsync(source: source)
+        let expected = [
+            "primary-default|secondary-default",
+            "primary-bound|secondary-default",
+            "primary-bound|secondary-sync",
+            "primary-bound|secondary-default",
+            "primary-default|secondary-default",
+            "primary-bound|secondary-bound",
+            "primary-bound|secondary-default",
+            "primary-default|secondary-default",
+        ].joined(separator: ";")
+        #expect(result.stringValue == expected)
+
+        let primary = try #require(
+            interpreter.enumSymbols["PrimaryTaskLocal"]?
+                .taskLocalProperties["value"])
+        let secondary = try #require(
+            interpreter.enumSymbols["SecondaryTaskLocal"]?
+                .taskLocalProperties["value"])
+        #expect(primary.key != secondary.key)
+        #expect(primary.cachedDefault?.stringValue == "primary-default")
+        #expect(secondary.cachedDefault?.stringValue == "secondary-default")
+
+        #expect(storageCountAtYield["source-task-local-inherited"] == 1)
+        #expect(storageCountAtYield["source-task-local-detached"] == 0)
+        #expect(storageCountAtYield["inside-source-task-local-scope"] == 2)
+        #expect(taskKindAtYield["source-task-local-inherited"] == .unstructured)
+        #expect(taskKindAtYield["source-task-local-detached"] == .detached)
+        #expect(taskKindAtYield["inside-source-task-local-scope"] == .root)
+        #expect(retainedStorage.count == 3)
+        #expect(Set(retainedStorage.values.map(ObjectIdentifier.init)).count == 3)
+        #expect(recordStorageMatched)
+        #expect(retainedStorage.values.allSatisfy { $0.isEmpty })
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func runtimeTaskHandleDispatchesCancellableExtensions() throws {
         let interpreter = Interpreter()
         let result = try interpreter.run(source: """

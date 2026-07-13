@@ -1015,6 +1015,46 @@ extension Interpreter {
             // but standard-library dispatch receives the typed RuntimeValue
             // before any compatibility boxing occurs.
             let any = baseValue.hostPayload!
+            if let projection = any as? RuntimeTaskLocalProjection {
+                guard name == "withValue" else {
+                    throw error(
+                        node,
+                        "TaskLocal projection has no member '\(name)'")
+                }
+                return .hostFunction(HostFunction(
+                    name: name,
+                    invoke: { arguments, context in
+                        guard let value = arguments.positional(0)
+                                ?? arguments.labeled("value"),
+                              let operation = arguments.closure(
+                                labeled: "operation")
+                                ?? arguments.firstUnlabeledClosure else {
+                            throw RuntimeError(message:
+                                "TaskLocal.withValue requires a value and operation")
+                        }
+                        return try context.withTaskLocalValue(
+                            value,
+                            for: projection.key,
+                            operation: operation,
+                            arguments: [])
+                    },
+                    asyncInvoke: { arguments, context in
+                        guard let value = arguments.positional(0)
+                                ?? arguments.labeled("value"),
+                              let operation = arguments.closure(
+                                labeled: "operation")
+                                ?? arguments.firstUnlabeledClosure else {
+                            throw RuntimeError(message:
+                                "TaskLocal.withValue requires a value and operation")
+                        }
+                        return try await context.withTaskLocalValue(
+                            value,
+                            for: projection.key,
+                            operation: operation,
+                            arguments: [])
+                    }
+                ))
+            }
             if let casePath = any as? CasePathMarker, name == "extract",
                let symbol = casePath.enumSymbol, let caseName = casePath.caseName {
                 // `casePath.extract(action)` → the payload (labeled tuple

@@ -177,6 +177,9 @@ public final class StructSymbol {
     public internal(set) var methods: [String: [FunctionDeclSyntax]] = [:]
     public internal(set) var initializers: [InitializerDeclSyntax] = []
     public internal(set) var staticProperties: [String: StaticProperty] = [:]
+    /// Real source `@TaskLocal static var` declarations. Their defaults are
+    /// static, while bound values live only in each runtime task's storage.
+    var taskLocalProperties: [String: RuntimeTaskLocalDeclaration] = [:]
     public internal(set) var staticMethods: [String: [FunctionDeclSyntax]] = [:]
     /// Types declared inside this type (`Outer.Kind`) — `.enumType`/`.type` values.
     public internal(set) var nestedTypes: [String: RuntimeValue] = [:]

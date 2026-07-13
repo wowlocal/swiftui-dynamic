@@ -175,6 +175,10 @@ extension Interpreter {
                 where symbol.staticProperties[name] == nil {
                     symbol.staticProperties[name] = property
                 }
+                for (name, declaration) in stranded.taskLocalProperties
+                where symbol.taskLocalProperties[name] == nil {
+                    symbol.taskLocalProperties[name] = declaration
+                }
                 for (name, computed) in stranded.staticComputedProperties
                 where symbol.staticComputedProperties[name] == nil {
                     if let id = computed.declarationID { declLexicalOwners[id] = symbol }
@@ -205,6 +209,10 @@ extension Interpreter {
                 for (name, property) in stranded.staticProperties
                 where symbol.staticProperties[name] == nil {
                     symbol.staticProperties[name] = property
+                }
+                for (name, declaration) in stranded.taskLocalProperties
+                where symbol.taskLocalProperties[name] == nil {
+                    symbol.taskLocalProperties[name] = declaration
                 }
                 for (name, policy) in stranded.staticStoragePolicies
                 where symbol.staticStoragePolicies[name] == nil {
@@ -542,8 +550,24 @@ extension Interpreter {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
         }
         let isStaticDecl = isStatic(varDecl.modifiers)
+        let isTaskLocal = hasAttribute(
+            varDecl.attributes, named: "TaskLocal")
+        if isTaskLocal {
+            guard isStaticDecl else {
+                throw error(varDecl, "@TaskLocal properties must be static")
+            }
+            guard varDecl.bindingSpecifier.text == "var" else {
+                throw error(varDecl, "@TaskLocal properties must be declared with var")
+            }
+        }
 
         for binding in varDecl.bindings {
+            if isTaskLocal,
+               !binding.pattern.is(IdentifierPatternSyntax.self) {
+                throw error(
+                    binding,
+                    "@TaskLocal requires a single identifier binding")
+            }
             // Tuple-pattern stored properties (`let (first, second, third):
             // (A, B, C)`) declare each element; annotations split when the
             // tuple type's arity matches.
@@ -572,6 +596,20 @@ extension Interpreter {
                 throw error(binding, "unsupported property pattern")
             }
             let name = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
+            if isTaskLocal {
+                guard binding.accessorBlock == nil,
+                      let initializer = binding.initializer?.value else {
+                    throw error(
+                        binding,
+                        "@TaskLocal '\(name)' requires a stored default value")
+                }
+                symbol.taskLocalProperties[name] = RuntimeTaskLocalDeclaration(
+                    declarationID: binding.id,
+                    debugName: "\(symbol.name).\(name)",
+                    initializer: initializer,
+                    typeAnnotation: binding.typeAnnotation?.type)
+                continue
+            }
             // A binding with an accessor block is computed only if it has a
             // getter; willSet/didSet-only observers mean a stored property
             // whose observers run on assignment (see the write funnel).
@@ -690,6 +728,10 @@ extension Interpreter {
         where existing.staticProperties[name] == nil {
             existing.staticProperties[name] = property
         }
+        for (name, declaration) in symbol.taskLocalProperties
+        where existing.taskLocalProperties[name] == nil {
+            existing.taskLocalProperties[name] = declaration
+        }
         for (name, policy) in symbol.staticStoragePolicies
         where existing.staticStoragePolicies[name] == nil {
             existing.staticStoragePolicies[name] = policy
@@ -793,13 +835,46 @@ extension Interpreter {
             let hasBuilderAttribute = varDecl.attributes.contains {
             // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-        }
+            }
             let isStaticDecl = isStatic(varDecl.modifiers)
+            let isTaskLocal = hasAttribute(
+                varDecl.attributes, named: "TaskLocal")
+            if isTaskLocal {
+                guard isStaticDecl else {
+                    throw error(varDecl, "@TaskLocal properties must be static")
+                }
+                guard varDecl.bindingSpecifier.text == "var" else {
+                    throw error(
+                        varDecl, "@TaskLocal properties must be declared with var")
+                }
+            }
             for binding in varDecl.bindings {
-                guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
+                guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                    if isTaskLocal {
+                        throw error(
+                            binding,
+                            "@TaskLocal requires a single identifier binding")
+                    }
+                    continue
+                }
                 // Backticked members (`static var \`default\``) normalize,
                 // like cases and struct properties everywhere else.
                 let memberName = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
+                if isTaskLocal {
+                    guard binding.accessorBlock == nil,
+                          let initializer = binding.initializer?.value else {
+                        throw error(
+                            binding,
+                            "@TaskLocal '\(memberName)' requires a stored default value")
+                    }
+                    symbol.taskLocalProperties[memberName] =
+                        RuntimeTaskLocalDeclaration(
+                            declarationID: binding.id,
+                            debugName: "\(symbol.name).\(memberName)",
+                            initializer: initializer,
+                            typeAnnotation: binding.typeAnnotation?.type)
+                    continue
+                }
                 if let accessorBlock = binding.accessorBlock,
                    let accessors = parseAccessors(of: accessorBlock) {
                     declLexicalOwners[binding.id] = symbol

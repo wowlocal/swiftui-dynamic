@@ -108,8 +108,14 @@ public protocol EvalContext: AnyObject {
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue
     /// Read and scope a runtime task-local value while preserving the source
-    /// task identity across an async host callback.
+    /// task identity across synchronous and asynchronous host callbacks.
     func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue?
+    func withTaskLocalValue(
+        _ value: RuntimeValue,
+        for key: RuntimeTaskLocalKey,
+        operation: ClosureValue,
+        arguments: [RuntimeValue]
+    ) throws -> RuntimeValue
     func withTaskLocalValue(
         _ value: RuntimeValue,
         for key: RuntimeTaskLocalKey,
@@ -166,6 +172,16 @@ extension EvalContext {
 
     public func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue? {
         nil
+    }
+
+    public func withTaskLocalValue(
+        _ value: RuntimeValue,
+        for key: RuntimeTaskLocalKey,
+        operation: ClosureValue,
+        arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        throw RuntimeError(message:
+            "runtime task-local bindings require a task-aware evaluation context")
     }
 
     public func withTaskLocalValue(
