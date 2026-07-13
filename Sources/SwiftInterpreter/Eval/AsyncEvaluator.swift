@@ -541,7 +541,7 @@ extension Interpreter {
             }
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instance.symbol.methods[name],
-               shouldDirectlyDispatchInstanceCall(
+               shouldDirectlyDispatchImplicitSelfCall(
                    named: name, on: instance, overloads: overloads) {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.count > 1

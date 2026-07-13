@@ -17,6 +17,24 @@ private struct NativeValueCounter {
     }
 }
 
+private struct NativeNestedMutator {
+    var values: [Int]
+    var revision: Int
+
+    mutating func update() {
+        replaceValues()
+        markUpdated()
+    }
+
+    private mutating func replaceValues() {
+        values[0] = 9
+    }
+
+    private mutating func markUpdated() {
+        revision = 2
+    }
+}
+
 private struct NativeValueHolder {
     var counter: NativeValueCounter
 }
@@ -195,6 +213,38 @@ struct CoreValueSemanticsTests {
         let original = Counter(value: 3)
         let changedValue = changed(original)
         "\(original.value) \(changedValue.value)"
+        """#
+
+        #expect(try evaluateValueSemantics(source).stringValue == native)
+    }
+
+    @Test func nestedImplicitSelfMutatingCallsWriteBackLikeNativeSwift() throws {
+        var nativeValue = NativeNestedMutator(values: [1], revision: 1)
+        nativeValue.update()
+        let native = "\(nativeValue.values[0]) \(nativeValue.revision)"
+
+        let source = #"""
+        struct Value {
+            var values: [Int]
+            var revision: Int
+
+            mutating func update() {
+                replaceValues()
+                markUpdated()
+            }
+
+            private mutating func replaceValues() {
+                values[0] = 9
+            }
+
+            private mutating func markUpdated() {
+                revision = 2
+            }
+        }
+
+        var value = Value(values: [1], revision: 1)
+        value.update()
+        "\(value.values[0]) \(value.revision)"
         """#
 
         #expect(try evaluateValueSemantics(source).stringValue == native)

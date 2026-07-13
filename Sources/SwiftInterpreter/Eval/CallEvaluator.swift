@@ -370,7 +370,7 @@ extension Interpreter {
             }
             if case .instance(let instance)? = env.lookup("self"),
                let overloads = instance.symbol.methods[name],
-               shouldDirectlyDispatchInstanceCall(
+               shouldDirectlyDispatchImplicitSelfCall(
                    named: name, on: instance, overloads: overloads
                ) {
                 let args = try collectArguments(of: call, in: env)
@@ -434,6 +434,20 @@ extension Interpreter {
                 $0.defaultValue == nil
             }
         }
+    }
+
+    /// A bare nested mutating call must borrow the current method's working
+    /// self. Bound-method lookup snapshots source structs by value, which is
+    /// correct for nonmutating method values but would discard every write
+    /// made by the nested call.
+    func shouldDirectlyDispatchImplicitSelfCall(
+        named name: String,
+        on instance: Instance,
+        overloads: [FunctionDeclSyntax]
+    ) -> Bool {
+        overloads.contains(where: methodIsMutating)
+            || shouldDirectlyDispatchInstanceCall(
+                named: name, on: instance, overloads: overloads)
     }
 
     /// The value a retried modifier applies to: view values directly,

@@ -91,6 +91,18 @@ struct CircuitGameTests {
     }
 
     @Test
+    func nestedMutatingResetPersistsScalarMetadata() {
+        var game = CircuitGame()
+        game.tap(5)
+        #expect(game.moves == 1)
+        #expect(game.lastPulse == 5)
+
+        game.nextPattern()
+        #expect(game.moves == 0)
+        #expect(game.lastPulse == -1)
+    }
+
+    @Test
     func nextPatternReplacesCellsAndMetadata() {
         var game = CircuitGame()
         game.tap(5)

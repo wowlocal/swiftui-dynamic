@@ -11,6 +11,19 @@ private struct NativeAsyncCounter {
     }
 }
 
+private struct NativeNestedAsyncCounter {
+    var value: Int
+
+    mutating func update() async {
+        await bump()
+    }
+
+    private mutating func bump() async {
+        await Task.yield()
+        value += 1
+    }
+}
+
 private enum DetachedRuntimeProbeLocal {
     @TaskLocal static var value = "default"
 }
@@ -61,6 +74,39 @@ struct AsyncExecutionTests {
         """#)
 
         #expect(interpreted.stringValue == native)
+    }
+
+    @Test func nestedAsyncMutatingMethodCopiesOutLikeNativeSwift() async throws {
+        var nativeCounter = NativeNestedAsyncCounter(value: 4)
+        await nativeCounter.update()
+
+        let interpreter = Interpreter()
+        interpreter.globals.define("yielding", .hostFunction(HostFunction(
+            name: "yielding",
+            asyncInvoke: { arguments, _ in
+                await Task.yield()
+                return arguments.positional(0) ?? .nilValue
+            }
+        )))
+        let interpreted = try await interpreter.runAsync(source: #"""
+        struct Counter {
+            var value: Int
+
+            mutating func update() async {
+                await bump()
+            }
+
+            private mutating func bump() async {
+                value = await yielding(value) + 1
+            }
+        }
+
+        var counter = Counter(value: 4)
+        await counter.update()
+        counter.value
+        """#)
+
+        #expect(interpreted.intValue == nativeCounter.value)
     }
 
     @Test func runAsyncMatchesNativeTaskOrdering() async throws {
