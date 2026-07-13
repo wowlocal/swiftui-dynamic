@@ -11,6 +11,19 @@ expressions][bitrig-2]) and [Cocoanetics/SwiftScript][swiftscript].
 swift run DynamicSwiftUIDemo
 ```
 
+To exercise the generated native platform bridge in a small interpreted app,
+render the shared smoke project with the host's platform identity:
+
+```bash
+swift run DynamicSwiftUIDemo \
+  --platform macOS \
+  --project Examples/PlatformBridgeSmoke
+```
+
+The same `PlatformBridgeSmoke` source is bundled by the iOS
+`Examples/AtmosphereDevice` host and can be selected with the launch argument
+`--project-resource PlatformBridgeSmoke`.
+
 An editor opens on the left and a live interpreted **Atmosphere** app renders on
 the right: a complete networked weather and air-quality dashboard. Its source
 performs a three-stage request pipeline

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		03C307C268BA7329DEC7B569 /* Atmosphere in Resources */ = {isa = PBXBuildFile; fileRef = 438F580F6A38C438AA58C7D7 /* Atmosphere */; };
+		36D3A4F0478C41FD98C1A205 /* PlatformBridgeSmoke in Resources */ = {isa = PBXBuildFile; fileRef = 94DB17D805604BB5A81A624F /* PlatformBridgeSmoke */; };
 		71BD5C3D0C578E002DBDA3C1 /* SwiftUIBridge in Frameworks */ = {isa = PBXBuildFile; productRef = 17AB183F48AD001EF6D1688D /* SwiftUIBridge */; };
 		A0D6A8C1555C26F68FC8BB27 /* AtmosphereDeviceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1931E9C207176ACDCB1FD22B /* AtmosphereDeviceApp.swift */; };
 /* End PBXBuildFile section */
@@ -15,6 +16,7 @@
 /* Begin PBXFileReference section */
 		1931E9C207176ACDCB1FD22B /* AtmosphereDeviceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtmosphereDeviceApp.swift; sourceTree = "<group>"; };
 		438F580F6A38C438AA58C7D7 /* Atmosphere */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Atmosphere; path = ../Atmosphere; sourceTree = SOURCE_ROOT; };
+		94DB17D805604BB5A81A624F /* PlatformBridgeSmoke */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PlatformBridgeSmoke; path = ../PlatformBridgeSmoke; sourceTree = SOURCE_ROOT; };
 		9D1CEDCE1C9C3FDE984B2F63 /* 2026-07-08-swiftui-dynamic */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "2026-07-08-swiftui-dynamic"; path = ../..; sourceTree = SOURCE_ROOT; };
 		F71EAD2836A26B7CC863D640 /* AtmosphereDevice.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AtmosphereDevice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -35,6 +37,7 @@
 			isa = PBXGroup;
 			children = (
 				438F580F6A38C438AA58C7D7 /* Atmosphere */,
+				94DB17D805604BB5A81A624F /* PlatformBridgeSmoke */,
 				9EB40B6C56116EA92F6B8899 /* App */,
 				668D94088904981CB26D42DE /* Packages */,
 				9C6CE1C01B1F023E4975F24E /* Products */,
@@ -131,6 +134,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				03C307C268BA7329DEC7B569 /* Atmosphere in Resources */,
+				36D3A4F0478C41FD98C1A205 /* PlatformBridgeSmoke in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

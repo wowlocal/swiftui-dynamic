@@ -37,6 +37,17 @@ struct DemoApp: App {
         }
     }
 
+    /// Override the interpreted `#if os(...)` / `#if canImport(...)` identity.
+    /// The corpus-oriented default is iOS; native macOS project checks can use
+    /// `--platform macOS`.
+    static func applyPlatformFlag() {
+        guard let index = CommandLine.arguments.firstIndex(of: "--platform"),
+              CommandLine.arguments.indices.contains(index + 1) else {
+            return
+        }
+        Interpreter.interpretsAsPlatform = CommandLine.arguments[index + 1]
+    }
+
     var body: some Scene {
         WindowGroup("Dynamic SwiftUI") {
             if let directory = Self.projectDirectory {
@@ -98,6 +109,7 @@ func mergedProjectSource(at root: String) -> String {
 /// background processes — without this activation dance no window appears.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DemoApp.applyPlatformFlag()
         DemoApp.applyNetworkFlag()
         if let index = CommandLine.arguments.firstIndex(of: "--render-png"),
            CommandLine.arguments.indices.contains(index + 1) {

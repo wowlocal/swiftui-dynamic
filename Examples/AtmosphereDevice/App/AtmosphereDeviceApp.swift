@@ -12,12 +12,23 @@ struct AtmosphereDeviceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AtmosphereInterpreterView()
+            AtmosphereInterpreterView(projectResourceName: Self.projectResourceName)
         }
+    }
+
+    /// Select another bundled interpreted project without rebuilding the host:
+    /// `--project-resource PlatformBridgeSmoke`.
+    private static var projectResourceName: String {
+        guard let index = ProcessInfo.processInfo.arguments.firstIndex(of: "--project-resource"),
+              ProcessInfo.processInfo.arguments.indices.contains(index + 1) else {
+            return "Atmosphere"
+        }
+        return ProcessInfo.processInfo.arguments[index + 1]
     }
 }
 
 private struct AtmosphereInterpreterView: View {
+    let projectResourceName: String
     @State private var renderedView: AnyView?
     @State private var errorMessage: String?
 
@@ -34,7 +45,7 @@ private struct AtmosphereInterpreterView: View {
                         .padding()
                 }
             } else {
-                ProgressView("Interpreting Atmosphere…")
+                ProgressView("Interpreting \(projectResourceName)…")
             }
         }
         .task {
@@ -52,7 +63,7 @@ private struct AtmosphereInterpreterView: View {
             return
         }
 
-        let bundledProject = resources.appendingPathComponent("Atmosphere", isDirectory: true)
+        let bundledProject = resources.appendingPathComponent(projectResourceName, isDirectory: true)
         let root = FileManager.default.fileExists(atPath: bundledProject.path)
             ? bundledProject
             : resources
@@ -63,7 +74,7 @@ private struct AtmosphereInterpreterView: View {
             return
         }
 
-        print("[AtmosphereDevice] interpreting \(files.count) bundled source files")
+        print("[AtmosphereDevice] interpreting \(projectResourceName) from \(files.count) bundled source files")
         RenderDiagnostics.reset()
         let source = ProjectMaterial.mergedSource(at: root.path, files: files)
         let startedAt = ProcessInfo.processInfo.systemUptime
