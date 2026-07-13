@@ -30,7 +30,7 @@ major version 6.
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active, pre-cancelled, nested, normal-exit, and throwing-exit cancellation-handler paths have runtime-owned scoped registrations, synchronous inner-to-outer cancel-time dispatch, immediate already-cancelled registration, and verified unwind cleanup; same-source Swift 6 parity and deterministic runtime-state tests are green | Remaining suspension reasons and distinct source cancellation versus host session abortion |
+| M3 suspension and clocks | in progress | Async source `Task.sleep` and `Task.yield` use runtime-owned `.sleeping`/`.yielding` states; sleep has injected continuous/manual clocks and cancellable wake-up; active, pre-cancelled, nested, normal-exit, and throwing-exit cancellation-handler paths have runtime-owned scoped registrations, synchronous inner-to-outer cancel-time dispatch, immediate already-cancelled registration, and verified unwind cleanup; ordinary source cancellation remains catchable while host/session abort is non-catchable and source-tagged independently; same-source Swift 6 parity and deterministic runtime-state tests are green | Remaining first-class suspension reasons |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
@@ -100,13 +100,13 @@ It checks only:
 | `synchronousRunBoundsRecursivelyCreatedTasks` | Interpreter-only | `compatibility-only`, bounded renderer behavior |
 | `completedSessionsReleaseSchedulerTracking` | Interpreter internal state | Cleanup regression, not native semantic parity |
 | `runtimeTaskHandleDispatchesCancellableExtensions` | Interpreter-only | Dynamic protocol-dispatch regression |
-| `cancelledEvaluationThrowsCancellationError` | Native host cancellation wrapper | Infrastructure cancellation; must later separate from source cancellation |
+| `cancelledEvaluationThrowsCancellationError` | Native host cancellation wrapper plus runtime-state regression | Public host cancellation remains `CancellationError`, while the internal non-catchable abort records only `.hostTask` and bypasses source `catch` |
 | `asyncHostGatewaySuspendsThroughInterpretedFunction` | Event trace from test host | Host integration regression; no compiled same-source fixture yet |
 | `interpretedTaskBodyCanAwaitAsyncHostGateway` | Test host result | Host integration regression; no compiled same-source fixture yet |
 | `interleavedTasksKeepIndependentLexicalFrames` | `main-actor-task-partial-order` native fact plus value invariant | Both task-specific lexical values survive in task-owned contexts; sibling completion order is deliberately not asserted |
 | `asyncGatewayCanReenterSuspendingInterpretedClosure` | Test host result | Host re-entry regression; no standalone native fixture yet |
 | `asyncControlFlowIsLazyAndCatchesHostErrors` | Test host counters | Semantically useful; needs native fixture extraction |
-| `cancellationInterruptsSuspendedHostGateway` | Native host task cancellation | Host-level cancellation regression; needs source/abort distinction |
+| `cancellationInterruptsSuspendedHostGateway` | Native host task cancellation | Host-level cancellation regression; the source/abort boundary is covered separately because forced session teardown has no native language equivalent |
 | `synchronousEntryRejectsAsyncOnlyGateway` | Host contract expectation | Correct compatibility diagnostic, not compiler-preflight parity |
 
 ## Harness guarantees
@@ -1097,6 +1097,52 @@ live 5/5, and API parity 345 match / 0 diverge / 0 interpreter errors /
 17 unstable / 0 no-twin. It returned RED solely on the already isolated
 parent-level corpus floor described above.
 
-M3 remains in progress. Remaining first-class suspension categories and the
-distinction between source cancellation and host session abortion are not yet
-fully characterized.
+### Source cancellation versus host session abortion
+
+Native question: if an ordinary Swift task catches the `CancellationError`
+raised by its cancelled suspension, may it still complete successfully while
+its handle remains marked cancelled?
+
+The committed same-source `task-cancellation-caught` fixture supplies the
+language oracle. Twenty Apple Swift 6.3.3 strict-concurrency runs all produced
+`success:caught,cancelled`. Source cancellation is therefore cooperative and
+catchable: consuming the thrown error does not clear the cancellation request,
+but it may determine a successful task outcome. Forced interpreter-session
+teardown has no native Swift language equivalent; its non-catchable behavior
+is an explicit host-infrastructure contract rather than a parity claim.
+
+Before the fix, the new host-abort regression correctly bypassed the source
+`catch`, but the retained root task recorded both `.inherited` and `.hostTask`.
+The `do/catch` evaluator first treated every caught native
+`CancellationError` as an ordinary source observation, synthesizing the
+inherited source, and only afterward classified root cancellation as a fatal
+session abort.
+
+Cancellation classification now happens before source observation. A root
+native cancellation records `.hostTask` and throws `InterpreterSessionAbort`;
+the `cancelRemainingTasks` policy observes its existing `.sessionPolicy`
+request and throws the same non-catchable internal abort. Only an ordinary
+task cancellation that survives this classification reaches source `catch`.
+This is one construct-level ordering rule in the suspending `do/catch` path;
+it does not inspect fixture symbols or special-case a gateway.
+
+Deterministic runtime regressions cover all three boundaries:
+
+- `.taskHandle` reaches source `catch`, retains only that request source, and
+  stores a successful outcome;
+- `.sessionPolicy` bypasses source `catch`, retains only the policy source,
+  stores a cancelled outcome, and cleans the active registry;
+- `.hostTask` bypasses source `catch`, retains only the host source, stores a
+  cancelled root outcome, and is converted back to public
+  `CancellationError` only at the host API boundary.
+
+The focused concurrency/runtime/host/parity gate passed all 62 tests in six
+suites, including all native repetitions. The full suite passed all 761 tests
+in 146 suites. `Scripts/gate.sh` reported suite 761/761, corpus 676/680, live
+5/5, and API parity 345 match / 0 diverge / 0 interpreter errors /
+17 unstable / 0 no-twin. It returned RED solely on the already isolated
+parent-level corpus floor described above; the forced sweep introduced no new
+failure.
+
+M3 remains in progress only for the remaining first-class suspension
+categories.

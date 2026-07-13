@@ -34,6 +34,13 @@ private final class YieldProgressGate {
     var released = false
 }
 
+@MainActor
+private final class HostSessionAbortProbeState {
+    var started = false
+    var sourceCatchCount = 0
+    var rootRecord: RuntimeTaskRecord?
+}
+
 @Suite("Async execution")
 struct AsyncExecutionTests {
     private enum ProbeError: Error, CustomStringConvertible {
@@ -293,6 +300,7 @@ struct AsyncExecutionTests {
     @Test func cancelRemainingPolicyCancelsRunningOwnedTasksAndCleansUp() async throws {
         let interpreter = Interpreter()
         var waitStarted = false
+        var sourceCatchCount = 0
         interpreter.globals.define("waitForCancellationPolicy", .hostFunction(HostFunction(
             name: "waitForCancellationPolicy",
             asyncInvoke: { _, _ in
@@ -308,12 +316,25 @@ struct AsyncExecutionTests {
                 return .void
             }
         )))
+        interpreter.globals.define(
+            "recordCancellationPolicySourceCatch",
+            .hostFunction(HostFunction(
+                name: "recordCancellationPolicySourceCatch",
+                invoke: { _, _ in
+                    sourceCatchCount += 1
+                    return .void
+                })))
 
         _ = try await interpreter.runAsync(
             source: """
             let cancellationPolicyHandle = Task {
-                await waitForCancellationPolicy()
-                "unexpected"
+                do {
+                    try await waitForCancellationPolicy()
+                    return "unexpected"
+                } catch is CancellationError {
+                    recordCancellationPolicySourceCatch()
+                    return "caught"
+                }
             }
             await awaitCancellationPolicyStarted()
             "top-finished"
@@ -327,9 +348,10 @@ struct AsyncExecutionTests {
             return
         }
         #expect(waitStarted)
+        #expect(sourceCatchCount == 0)
         #expect(handle.state == .cancelled)
         #expect(handle.isCancelled)
-        #expect(handle.cancellation.sources.contains(.sessionPolicy))
+        #expect(handle.cancellation.sources == [.sessionPolicy])
         #expect(handle.cancellation.isObserved)
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
@@ -895,6 +917,66 @@ struct AsyncExecutionTests {
         await #expect(throws: CancellationError.self) {
             _ = try await evaluation.value
         }
+    }
+
+    @Test func hostSessionAbortBypassesSourceCatchAndUsesOnlyHostSource()
+        async throws {
+        let interpreter = Interpreter()
+        let state = HostSessionAbortProbeState()
+        interpreter.globals.define(
+            "waitForHostSessionAbort",
+            .hostFunction(HostFunction(
+                name: "waitForHostSessionAbort",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let taskID = bound.evaluationContext.runtimeTaskID,
+                          let record = interpreter.concurrencyRuntime
+                            .records[taskID] else {
+                        throw RuntimeError(message:
+                            "host abort requires a runtime root task")
+                    }
+                    state.rootRecord = record
+                    state.started = true
+                    try await Task.sleep(for: .seconds(30))
+                    return .void
+                })))
+        interpreter.globals.define(
+            "recordHostSessionAbortSourceCatch",
+            .hostFunction(HostFunction(
+                name: "recordHostSessionAbortSourceCatch",
+                invoke: { _, _ in
+                    state.sourceCatchCount += 1
+                    return .void
+                })))
+
+        let evaluation = Task { @MainActor in
+            try await interpreter.runAsync(source: """
+            do {
+                try await waitForHostSessionAbort()
+            } catch is CancellationError {
+                recordHostSessionAbortSourceCatch()
+            }
+            "completed"
+            """)
+        }
+        while !state.started { await Task.yield() }
+        evaluation.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await evaluation.value
+        }
+        let record = try #require(state.rootRecord)
+        #expect(state.sourceCatchCount == 0)
+        #expect(record.kind == .root)
+        #expect(record.state == .cancelled)
+        if case .cancelled? = record.outcome {
+            // Expected infrastructure outcome.
+        } else {
+            Issue.record("expected a cancelled root outcome")
+        }
+        #expect(record.cancellation.sources == [.hostTask])
+        #expect(record.cancellation.isObserved)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
     @Test func asyncHostGatewaySuspendsThroughInterpretedFunction() async throws {

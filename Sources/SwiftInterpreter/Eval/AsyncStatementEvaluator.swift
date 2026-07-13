@@ -353,8 +353,13 @@ extension Interpreter {
         } catch is InterpreterSessionAbort {
             throw InterpreterSessionAbort()
         } catch is CancellationError {
-            observeSourceCancellation()
+            // Classify infrastructure teardown before recording a source
+            // observation. A root/host or session-policy abort must bypass
+            // source catch clauses without acquiring a spurious `.inherited`
+            // cancellation source. Ordinary task cancellation remains
+            // cooperative and reaches the catch path below.
             try checkRuntimeCancellation()
+            observeSourceCancellation()
             return try await executeCatchSuspending(
                 doStatement.catchClauses,
                 error: .native(CancellationError()),
