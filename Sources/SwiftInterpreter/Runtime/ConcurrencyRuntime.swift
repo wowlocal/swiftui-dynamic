@@ -38,6 +38,17 @@ public enum RuntimeTaskKind: String, Sendable {
     case swiftUITask
 }
 
+extension RuntimeTaskKind {
+    var isStructuredChild: Bool {
+        switch self {
+        case .asyncLet, .groupChild:
+            true
+        case .root, .unstructured, .detached, .hostCallback, .swiftUITask:
+            false
+        }
+    }
+}
+
 public enum RuntimeTaskState: String, Sendable {
     case pending
     case running
@@ -50,6 +61,7 @@ public enum RuntimeCancellationSource: Hashable, Sendable {
     case taskHandle
     case sessionPolicy
     case hostTask
+    case inherited
     case structuredParent
 }
 
@@ -92,6 +104,8 @@ final class RuntimeTaskRecord {
     var failureDescription: String?
     var cancellation = RuntimeCancellationState()
     var waiters: Set<RuntimeTaskID> = []
+    var spawnedTasks: Set<RuntimeTaskID> = []
+    var structuredChildren: Set<RuntimeTaskID> = []
     var nativeTask: Task<Void, Never>?
     var evaluationContext: EvaluationTaskContext?
 
@@ -130,6 +144,15 @@ final class CooperativeConcurrencyRuntime {
         let record = RuntimeTaskRecord(
             id: id, sessionID: sessionID, kind: kind, parent: parent)
         records[id] = record
+        if let parent, let parentRecord = records[parent] {
+            // Creation/inheritance and structured ownership are deliberately
+            // separate edges. `Task {}` has a creator but is not a structured
+            // child and must not receive cancellation through this relation.
+            parentRecord.spawnedTasks.insert(id)
+            if kind.isStructuredChild {
+                parentRecord.structuredChildren.insert(id)
+            }
+        }
         return record
     }
 
@@ -182,11 +205,18 @@ final class CooperativeConcurrencyRuntime {
         source: RuntimeCancellationSource
     ) {
         guard !record.state.isCompleted else { return }
+        let alreadyRequestedFromSource =
+            record.cancellation.sources.contains(source)
         record.cancellation.request(
             from: source, sequence: takeEventSequence())
         record.nativeTask?.cancel()
         if record.state == .pending {
             completeCancellation(record)
+        }
+        guard !alreadyRequestedFromSource else { return }
+        for childID in record.structuredChildren {
+            guard let child = records[childID] else { continue }
+            requestCancellation(child, source: .structuredParent)
         }
     }
 

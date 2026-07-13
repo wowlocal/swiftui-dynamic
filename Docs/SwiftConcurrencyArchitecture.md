@@ -534,6 +534,7 @@ struct RuntimeTaskRecord {
     var context: EvaluationTaskContext?
     var outcome: RuntimeTaskOutcome?
     var waiters: Set<RuntimeTaskID>
+    var spawnedTasks: Set<RuntimeTaskID>
     var structuredChildren: Set<RuntimeTaskID>
     var cancellation: RuntimeCancellationState
     var taskLocals: TaskLocalMap
@@ -542,6 +543,15 @@ struct RuntimeTaskRecord {
     var executorPreference: RuntimeExecutorID?
 }
 ```
+
+`parent` and `spawnedTasks` describe creation/inheritance lineage. They do not
+imply structured ownership: an unstructured `Task {}` may have a creator while
+remaining outside that creator's cancellation and scope-exit graph. Only
+`structuredChildren`, populated by constructs such as `async let` and task
+groups, is a cancellation-propagation edge. Detached tasks have no parent.
+Both sets contain IDs rather than retaining task records, so an escaped handle
+can preserve lineage for inspection without keeping completed session work
+alive.
 
 Task kinds are semantically distinct:
 

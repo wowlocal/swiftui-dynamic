@@ -185,6 +185,18 @@
     "notes": "The explicit started barrier forces cancellation during suspension. The exact result is success:caught,cancelled; cancellation request state and terminal outcome are asserted separately."
   },
   {
+    "id": "unstructured-cancellation-isolation",
+    "fixture": "Fixtures/unstructured-cancellation-isolation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await unstructuredCancellationIsolationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling an unstructured task does not propagate cancellation to another unstructured Task created inside it.",
+    "notes": "The parent reaches a cancellable suspension only after storing the child handle. The child remains behind a separate gate until after parent cancellation; exact output is cancelled,child."
+  },
+  {
     "id": "actor-isolation-diagnostic",
     "fixture": "Fixtures/actor-isolation-diagnostic.swift",
     "mode": "diagnostic",

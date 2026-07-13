@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome and source cancellation is catchable | Remaining task kinds, cancellation propagation graph, priority/task-local foundations |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; creation lineage is distinct from structured cancellation edges | Remaining structured task creation, priority/task-local foundations, and cancellation paths beyond the covered Task cases |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -57,6 +57,7 @@ major version 6.
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
 | `unstructured-top-level-lifetime` | exact | An unstructured task may continue after its creating function returns; lexical scope does not join it | Native/interpreter parity in 20 repetitions: `returned,task`; interpreter execution uses the explicit drain policy rather than claiming structured ownership |
 | `task-cancellation-caught` | exact | A task may catch `CancellationError` and complete successfully while its handle remains marked cancelled | Native/interpreter parity in 20 repetitions: `success:caught,cancelled`; request state and terminal outcome are asserted independently |
+| `unstructured-cancellation-isolation` | exact | Cancelling an unstructured task does not cancel another unstructured `Task` that it created | Native/interpreter parity in 20 repetitions: `cancelled,child`; runtime records preserve a creation edge but no structured cancellation edge |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
 For `main-actor-task-partial-order`, the initial characterization ran both the
@@ -417,3 +418,34 @@ cleanup regressions remain green.
 Verification for the cancellation request/outcome step: the 42
 concurrency-parity, async-execution, and host-signature tests passed, followed
 by all 718 tests in 141 suites.
+
+### Creation lineage versus structured cancellation
+
+`unstructured-cancellation-isolation` creates one unstructured task from
+inside another. The parent stores the child handle before entering a
+cancellable suspension; an explicit started barrier then permits the probe to
+cancel the parent, and a separate gate releases the child only afterward.
+Twenty Swift 6.3.3 strict-concurrency runs all returned the exact result
+`cancelled,child`. No start or resume order beyond those barriers is asserted.
+
+The interpreter already happened to produce that external result because it
+had no cancellation graph at all. The pre-implementation white-box regression
+therefore exposed the architectural gap directly: the child's `parent` ID was
+present, but the parent recorded no creation edge. Task records now keep two
+independent ID sets:
+
+- `spawnedTasks` records creation/inheritance lineage for every non-detached
+  task with a live creator record;
+- `structuredChildren` is populated only for `asyncLet` and `groupChild`
+  records and is the only edge traversed by parent cancellation.
+
+Unstructured cancellation consequently cannot reach the child merely because
+it was created inside the parent. Detached tasks remain parentless. The sets
+store task IDs rather than retaining child records, and the focused regression
+also proves that the active registry is empty after completion. Ambient native
+driver cancellation is recorded as `inherited`, separately from a genuine
+`structuredParent` propagation source.
+
+Verification for this graph-foundation step on Apple Swift 6.3.3 / macOS 26.5
+SDK: the 43 concurrency-parity, async-execution, and host-signature tests
+passed, followed by all 719 tests in 141 suites.

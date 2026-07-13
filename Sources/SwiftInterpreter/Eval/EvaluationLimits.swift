@@ -42,6 +42,6 @@ extension Interpreter {
         guard Task.isCancelled,
               let taskID = evaluationTaskContext.runtimeTaskID else { return }
         concurrencyRuntime.observeCancellation(
-            taskID, inferredSource: .structuredParent)
+            taskID, inferredSource: .inherited)
     }
 }

@@ -228,7 +228,7 @@ extension Interpreter: EvalContext {
                     return
                 }
                 if Task.isCancelled {
-                    handle.cancel(source: .structuredParent)
+                    handle.cancel(source: .inherited)
                     handle.completeCancellation()
                     return
                 }

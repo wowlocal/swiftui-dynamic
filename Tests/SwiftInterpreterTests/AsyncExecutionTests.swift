@@ -331,6 +331,88 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func unstructuredSpawnEdgeDoesNotBecomeStructuredOwnership() async throws {
+        let interpreter = Interpreter()
+        var registeredChild: RuntimeTaskHandle?
+        var parentGateOpen = false
+        var childGateOpen = false
+        interpreter.globals.define(
+            "registerSpawnGraphChild",
+            .hostFunction(HostFunction(
+                name: "registerSpawnGraphChild"
+            ) { arguments, _ in
+                registeredChild = arguments.positional(0)?.hostPayload
+                    as? RuntimeTaskHandle
+                return .void
+            }))
+        interpreter.globals.define(
+            "awaitSpawnGraphRegistration",
+            .hostFunction(HostFunction(
+                name: "awaitSpawnGraphRegistration",
+                asyncInvoke: { _, _ in
+                    while registeredChild == nil { await Task.yield() }
+                    return .void
+                }
+            )))
+        interpreter.globals.define(
+            "waitForSpawnGraphParentGate",
+            .hostFunction(HostFunction(
+                name: "waitForSpawnGraphParentGate",
+                asyncInvoke: { _, _ in
+                    while !parentGateOpen { await Task.yield() }
+                    return .void
+                }
+            )))
+        interpreter.globals.define(
+            "waitForSpawnGraphChildGate",
+            .hostFunction(HostFunction(
+                name: "waitForSpawnGraphChildGate",
+                asyncInvoke: { _, _ in
+                    while !childGateOpen { await Task.yield() }
+                    return .void
+                }
+            )))
+        interpreter.globals.define(
+            "openSpawnGraphGates",
+            .hostFunction(HostFunction(name: "openSpawnGraphGates") { _, _ in
+                parentGateOpen = true
+                childGateOpen = true
+                return .void
+            }))
+
+        _ = try await interpreter.runAsync(source: """
+        let spawnGraphParent = Task {
+            let child = Task {
+                await waitForSpawnGraphChildGate()
+                return "child"
+            }
+            registerSpawnGraphChild(child)
+            await waitForSpawnGraphParentGate()
+            return "parent"
+        }
+        await awaitSpawnGraphRegistration()
+        spawnGraphParent.cancel()
+        openSpawnGraphGates()
+        await spawnGraphParent.value
+        """)
+
+        guard case .host(let parentPayload)? =
+                interpreter.globals.lookup("spawnGraphParent"),
+              let parent = parentPayload as? RuntimeTaskHandle,
+              let child = registeredChild else {
+            Issue.record("expected parent and child runtime task handles")
+            return
+        }
+        #expect(child.parent == parent.id)
+        #expect(parent.spawnedTaskIDs == Set([child.id]))
+        #expect(parent.structuredChildIDs.isEmpty)
+        #expect(parent.cancellation.sources.contains(.taskHandle))
+        #expect(!child.isCancelled)
+        #expect(child.state == .succeeded)
+        #expect(child.result?.stringValue == "child")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func caughtCancellationKeepsRequestAndSuccessfulOutcome() async throws {
         let interpreter = Interpreter()
         var waitStarted = false

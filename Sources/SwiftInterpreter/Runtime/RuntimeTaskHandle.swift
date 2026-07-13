@@ -65,6 +65,10 @@ public final class RuntimeTaskHandle {
     public var failureDescription: String? { record.failureDescription }
     public var cancellation: RuntimeCancellationState { record.cancellation }
     var waiterCount: Int { record.waiters.count }
+    var spawnedTaskIDs: Set<RuntimeTaskID> { record.spawnedTasks }
+    var structuredChildIDs: Set<RuntimeTaskID> {
+        record.structuredChildren
+    }
 
     public convenience init() {
         let runtime = CooperativeConcurrencyRuntime()
