@@ -600,6 +600,11 @@ enum RuntimeTaskOutcome {
 `task.result` produces the corresponding result value without inventing a
 placeholder for an incomplete task.
 
+The first completed read does not consume an outcome. Later `value` and
+`result` reads reproduce the same stored logical success or failure, including
+its interpreted payload and nominal type. Active-registry cleanup may release
+session ownership while an escaped handle retains this immutable outcome.
+
 ### 6.9 Structured scopes
 
 An explicit structured scope owns `async let` and task-group children:

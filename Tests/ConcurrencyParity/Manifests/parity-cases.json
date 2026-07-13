@@ -161,6 +161,18 @@
     "notes": "The success is held behind an explicit gate; the failure crosses parityYield, is first inspected by case without try or catch, and is then observed through get()."
   },
   {
+    "id": "task-completed-handle-reads",
+    "fixture": "Fixtures/task-completed-handle-reads.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskCompletedHandleReadProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "After a task completes, repeated value and result reads reproduce its stored success or failure; Result.get() continues to rethrow the stored failure.",
+    "notes": "The first value/result read establishes completion and all later reads target the completed handle. Exact output is value,value,success:value,failure,failure,get-caught on Swift 6.3.3."
+  },
+  {
     "id": "task-result-cancellation",
     "fixture": "Fixtures/task-result-cancellation.swift",
     "mode": "runtime",

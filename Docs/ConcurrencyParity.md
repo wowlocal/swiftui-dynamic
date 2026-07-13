@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Remaining structured task creation/cancellation cases |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend and completed reads preserve typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Closing milestone gate and status audit; structured task constructs begin in M4 after M3 |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -55,6 +55,7 @@ major version 6.
 | `task-value-waiter-cancellation` | exact | Cancelling a task while it awaits another unstructured task's value neither ends the value wait nor cancels the target; the waiter receives the value and remains marked cancelled | Native/interpreter parity in 20 repetitions: `target-active,waiter-cancelled,handle-cancelled`; request/observation order and cleanup of both wait-graph edges are verified directly |
 | `task-cancellation-before-start` | exact | An unstructured task cancelled before it can start still enters its operation, observes cancellation, may return a normal value, and remains marked cancelled | Native/interpreter parity in 20 repetitions: `body-ran,body-cancelled,handle-cancelled`; the interpreted record succeeds with its returned value while retaining ordered request/observation metadata |
 | `task-result` | exact | `await task.result` waits and returns `.success`/`.failure` without throwing the failure from the property read; `get()` rethrows it | Native/interpreter parity in 20 repetitions: `success:value,failure,get-caught` |
+| `task-completed-handle-reads` | exact | Once a task has completed, repeated `value` and `result` reads reproduce its stored success or failure, and `Result.get()` continues to rethrow the stored failure | Native/interpreter parity in 20 repetitions: `value,value,success:value,failure,failure,get-caught`; escaped interpreted handles retain typed logical outcomes after active-registry release |
 | `task-result-cancellation` | exact | A throwing task cancelled during a cancellable suspension completes its result as `.failure` | Native/interpreter parity in 20 repetitions; the fixture asserts case shape rather than error text |
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
 | `task-priority-inheritance` | exact | An explicit `.utility` task sees raw priority 17, its unstructured child inherits 17, and a detached task without an explicit priority starts at `.medium`/21 | Native/interpreter parity in 20 repetitions: `17,17,21`; values are captured before any higher-priority handle await can cause escalation |
@@ -425,6 +426,30 @@ assumption specific to the new fixture.
 Verification on Apple Swift 6.3.3 / macOS 26.5 SDK: 51 concurrency-parity,
 task-cancellation, async-execution, and host-signature tests passed in four
 suites, followed by all 728 tests in 142 suites.
+
+### Completed handles retain logical outcomes
+
+`task-completed-handle-reads` creates one successful and one throwing task.
+For each handle, its first `value` or `result` read establishes completion;
+subsequent reads therefore target an already-completed task. The fixture reads
+the successful value twice, then reads its result, reads the failure result
+twice, and calls `get()` on the stored failure.
+
+Twenty Apple Swift 6.3.3 strict-concurrency runs produced
+`value,value,success:value,failure,failure,get-caught` exactly. Completed task
+reads are stable observations of one stored outcome rather than new operation
+executions or consumed one-shot values.
+
+The same-source interpreter case and focused white-box regression were already
+GREEN; no runtime change was needed. The retained success record contains the
+original `value` with logical type `String`. The retained failure record keeps
+the interpreted `TaskCompletedHandleReadError.failed` value and its nominal
+type after both records have left the runtime's active registry. Both handles
+remain readable while scheduler tracking and active records are empty.
+
+Verification on Apple Swift 6.3.3 / macOS 26.5 SDK: 52 concurrency-parity,
+task-completion, task-cancellation, async-execution, and host-signature tests
+passed in five suites, followed by all 729 tests in 143 suites.
 
 ### Cancellation request, observation, and outcome
 
