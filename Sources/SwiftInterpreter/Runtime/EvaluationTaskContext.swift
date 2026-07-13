@@ -40,6 +40,7 @@ final class EvaluationTaskContext {
     var expectedAnnotationStack: [String] = []
     var enclosingReturnAnnotations: [String?] = []
     var viewIdentitySalts: [String] = []
+    var structuredScopeFrames: [RuntimeStructuredScopeFrame] = []
     var deferredExtensionRetry = false
 
     init(
@@ -80,6 +81,7 @@ final class EvaluationTaskContext {
             && expectedAnnotationStack.isEmpty
             && enclosingReturnAnnotations.isEmpty
             && viewIdentitySalts.isEmpty
+            && structuredScopeFrames.isEmpty
             && taskLocals.isEmpty
             && !deferredExtensionRetry
     }
@@ -88,6 +90,9 @@ final class EvaluationTaskContext {
     /// context object can temporarily outlive execution through a native Task
     /// handle or host callback capability, but completed frames must not.
     func removeAllDynamicState() {
+        precondition(
+            structuredScopeFrames.isEmpty,
+            "task context completed with an active structured scope")
         steps = 0
         callDepth = 0
         evaluationDepth = 0
@@ -107,6 +112,7 @@ final class EvaluationTaskContext {
         expectedAnnotationStack.removeAll(keepingCapacity: false)
         enclosingReturnAnnotations.removeAll(keepingCapacity: false)
         viewIdentitySalts.removeAll(keepingCapacity: false)
+        structuredScopeFrames.removeAll(keepingCapacity: false)
         taskLocals.removeAll()
         deferredExtensionRetry = false
     }

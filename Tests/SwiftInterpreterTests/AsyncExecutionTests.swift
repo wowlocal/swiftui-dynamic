@@ -922,6 +922,96 @@ struct AsyncExecutionTests {
         #expect(result.stringValue == "cancellable")
     }
 
+    @Test func asyncLetChildBelongsToLexicalStructuredScope() async throws {
+        let interpreter = Interpreter()
+        var observedKind: RuntimeTaskKind?
+        var observedParentSuspension: RuntimeSuspension?
+        var scopeOwnedChild = false
+        var sessionOwnedChild = true
+        interpreter.globals.define(
+            "inspectAsyncLetChild",
+            .hostFunction(HostFunction(
+                name: "inspectAsyncLetChild",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let parentID = child.parent,
+                          let parent = interpreter.concurrencyRuntime
+                            .records[parentID],
+                          let scope = interpreter.concurrencyRuntime
+                            .structuredScopes.values.first(where: {
+                                $0.ownerTaskID == parentID
+                            }) else {
+                        throw RuntimeError(message:
+                            "async-let child lost structured ownership")
+                    }
+                    observedKind = child.kind
+                    observedParentSuspension = parent.suspension
+                    scopeOwnedChild = scope.childTaskIDs.contains(childID)
+                        && parent.structuredScopes.contains(scope.id)
+                        && parent.structuredChildren.contains(childID)
+                    sessionOwnedChild = interpreter.scheduledTasks.contains {
+                        $0.id == childID
+                    }
+                    await Task.yield()
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        func asyncLetChild() async -> String {
+            await inspectAsyncLetChild()
+            return "value"
+        }
+        func asyncLetOwner() async -> String {
+            async let value = asyncLetChild()
+            return await value
+        }
+        await asyncLetOwner()
+        """)
+
+        #expect(result.stringValue == "value")
+        #expect(observedKind == .asyncLet)
+        if case .awaitingTask = observedParentSuspension {
+            // The binding read, rather than session drain, joined the child.
+        } else {
+            Issue.record("async-let parent did not suspend on its child")
+        }
+        #expect(scopeOwnedChild)
+        #expect(!sessionOwnedChild)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func asyncLetReadWithoutAwaitIsDiagnosedAndCleanedUp() async {
+        let interpreter = Interpreter()
+        do {
+            _ = try await interpreter.runAsync(source: """
+            func asyncLetDiagnosticValue() async -> String {
+                await Task.yield()
+                return "value"
+            }
+            func asyncLetMissingAwait() async -> String {
+                async let value = asyncLetDiagnosticValue()
+                return value
+            }
+            await asyncLetMissingAwait()
+            """)
+            Issue.record("async-let read without await unexpectedly succeeded")
+        } catch let failure as RuntimeError {
+            #expect(failure.message.contains(
+                "async let binding 'value' requires await"))
+        } catch {
+            Issue.record("unexpected async-let diagnostic: \(error)")
+        }
+
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func cancelledEvaluationThrowsCancellationError() async {
         let interpreter = Interpreter()
         let evaluation = Task { @MainActor in

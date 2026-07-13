@@ -413,6 +413,30 @@
     "notes": "MainActor exit barriers place each cancel() strictly after the corresponding handler scope unwinds. Exact output is normal-operation,normal-exit,normal-cancelled,throwing-operation,throwing-exit,throwing-cancelled on Swift 6.3.3; handler event names are deliberately absent."
   },
   {
+    "id": "async-let-value",
+    "fixture": "Fixtures/async-let-value.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetValueProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An async-let initializer starts as a structured child before the parent reads the binding, and awaiting that binding suspends until the child produces its value.",
+    "notes": "The child marks entry and waits behind an explicit gate. The parent cannot open that gate until the child has started, and it reads the binding only after opening it. Exact output is child-start,parent-open,child-end,value; no unconstrained ready-task order is asserted."
+  },
+  {
+    "id": "async-let-scope-exit",
+    "fixture": "Fixtures/async-let-scope-exit.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetScopeExitProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Leaving a lexical scope without reading an async-let binding cancels the child and waits for that child to finish before execution continues after the scope.",
+    "notes": "The child first enters a 30-second cancellable suspension, so natural completion is impossible within the process bound. The parent records scope-exit before returning; exact output child-start,scope-exit,child-cancelled,after-scope proves both implicit cancellation and the scope-exit join."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",
@@ -423,6 +447,18 @@
     "diagnosticLine": 4,
     "nativeFact": "Task.value and Task.result are async property accesses and source that omits await is rejected even inside an async function.",
     "notes": "The fixture diagnoses both properties with the same stable missing-await category. Compiler-backed interpreter preflight remains M7; M2's runtime dispatcher must still never return a placeholder."
+  },
+  {
+    "id": "async-let-missing-await-diagnostic",
+    "fixture": "Fixtures/async-let-missing-await-diagnostic.swift",
+    "mode": "diagnostic",
+    "assertion": "diagnostic",
+    "repetitions": 1,
+    "timeoutSeconds": 15,
+    "diagnosticContains": ["expression is 'async' but is not marked with 'await'", "reference to async let"],
+    "diagnosticLine": 7,
+    "nativeFact": "Reading an async-let binding is an async operation and is rejected when its use is not marked with await.",
+    "notes": "Compiler-backed preflight remains M7. M4 still rejects the direct runtime read instead of exposing its internal task carrier, and lexical cleanup cancels and joins the child."
   },
   {
     "id": "actor-isolation-diagnostic",

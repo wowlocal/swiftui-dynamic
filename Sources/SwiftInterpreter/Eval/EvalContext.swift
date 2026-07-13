@@ -1,3 +1,5 @@
+import SwiftSyntax
+
 /// A host-call capability bound to the source task that entered the gateway.
 /// Hosts may retain it and re-enter from a newly-created native task; every
 /// callback is rebound to the original evaluator context instead of relying
@@ -319,12 +321,47 @@ extension Interpreter: EvalContext {
             priority: priority)
     }
 
-    private func spawnRuntimeTask(
+    func spawnAsyncLetTask(
+        initializer: ExprSyntax,
+        in environment: Environment,
+        annotation: String?
+    ) throws -> RuntimeTaskHandle {
+        guard evaluationTaskContext.isAsyncSession else {
+            throw RuntimeError(message:
+                "async let requires runAsync")
+        }
+        let pending = makePendingRuntimeTask(
+            kind: .asyncLet, explicitPriority: nil)
+        do {
+            try launchRuntimeTask(
+                pending, sessionOwned: false,
+                body: { [weak self] in
+                    guard let self else {
+                        throw RuntimeError(message:
+                            "interpreter was released during async let")
+                    }
+                    return try await self.evaluateAsyncLetInitializerSuspending(
+                        initializer, in: environment, annotation: annotation)
+                })
+        } catch {
+            concurrencyRuntime.release(pending.handle.id)
+            throw error
+        }
+        return pending.handle
+    }
+
+    private struct PendingRuntimeTask {
+        let sessionID: RuntimeSessionID
+        let priority: RuntimeTaskPriority
+        let taskLocals: RuntimeTaskLocalStorage
+        let record: RuntimeTaskRecord
+        let handle: RuntimeTaskHandle
+    }
+
+    private func makePendingRuntimeTask(
         kind: RuntimeTaskKind,
-        closure: ClosureValue,
-        arguments: [RuntimeValue],
-        priority explicitPriority: RuntimeTaskPriority?
-    ) throws -> RuntimeValue {
+        explicitPriority: RuntimeTaskPriority?
+    ) -> PendingRuntimeTask {
         let sessionID = evaluationTaskContext.runtimeSessionID
             ?? concurrencyRuntime.createSession()
         let priority = explicitPriority ?? (kind == .detached
@@ -339,8 +376,24 @@ extension Interpreter: EvalContext {
                 ? nil : evaluationTaskContext.runtimeTaskID,
             priority: priority,
             taskLocals: taskLocals)
-        let handle = RuntimeTaskHandle(
-            runtime: concurrencyRuntime, record: record)
+        return PendingRuntimeTask(
+            sessionID: sessionID,
+            priority: priority,
+            taskLocals: taskLocals,
+            record: record,
+            handle: RuntimeTaskHandle(
+                runtime: concurrencyRuntime, record: record))
+    }
+
+    private func spawnRuntimeTask(
+        kind: RuntimeTaskKind,
+        closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority explicitPriority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        let pending = makePendingRuntimeTask(
+            kind: kind, explicitPriority: explicitPriority)
+        let handle = pending.handle
         let arguments = arguments
 
         // Existing synchronous clients cannot suspend to await child work.
@@ -370,18 +423,42 @@ extension Interpreter: EvalContext {
             return .native(handle)
         }
 
-        guard scheduledTasks.count < scheduledTaskLimit else {
+        do {
+            try launchRuntimeTask(
+                pending, sessionOwned: true,
+                body: { [weak self] in
+                    guard let self else {
+                        throw RuntimeError(message:
+                            "interpreter was released during source task")
+                    }
+                    return try await self.callBackgroundClosureSuspending(
+                        closure, arguments: arguments)
+                })
+        } catch {
             concurrencyRuntime.release(handle.id)
+            throw error
+        }
+        return .native(handle)
+    }
+
+    private func launchRuntimeTask(
+        _ pending: PendingRuntimeTask,
+        sessionOwned: Bool,
+        body: @escaping @MainActor @Sendable () async throws -> RuntimeValue
+    ) throws {
+        guard concurrencyRuntime.activeRecordCount <= scheduledTaskLimit else {
             throw RuntimeError(
                 message: "interpreted task limit exceeded", fatal: true)
         }
 
+        let handle = pending.handle
+        let record = pending.record
         let taskContext = makeEvaluationTaskContext(
             runtimeTaskID: handle.id,
-            runtimeSessionID: sessionID,
+            runtimeSessionID: pending.sessionID,
             isAsyncSession: true,
             priority: record.effectivePriority,
-            taskLocals: taskLocals)
+            taskLocals: pending.taskLocals)
         concurrencyRuntime.bind(taskContext, to: record)
         let operation: @MainActor @Sendable () async -> Void = {
             [weak self, weak handle] in
@@ -399,8 +476,7 @@ extension Interpreter: EvalContext {
                     // before entry. Only an owning session/host abort may
                     // suppress the source body at this boundary.
                     try self.checkRuntimeCancellation()
-                    let value = try await self.callBackgroundClosureSuspending(
-                        closure, arguments: arguments)
+                    let value = try await body()
                     try self.checkRuntimeCancellation()
                     handle.succeed(with: value)
                 } catch is InterpreterSessionAbort {
@@ -413,14 +489,16 @@ extension Interpreter: EvalContext {
             }
         }
         let task: Task<Void, Never>
-        if kind == .detached {
+        if record.kind == .detached {
             task = Task.detached(
-                priority: priority.nativePriority, operation: operation)
+                priority: pending.priority.nativePriority, operation: operation)
         } else {
             task = Task(
-                priority: priority.nativePriority, operation: operation)
+                priority: pending.priority.nativePriority, operation: operation)
         }
         handle.attach(task)
+        guard sessionOwned else { return }
+
         scheduledTasks.append(handle)
         let cleanup: @MainActor @Sendable () async -> Void = {
             [weak self, weak handle] in
@@ -429,7 +507,6 @@ extension Interpreter: EvalContext {
             self.releaseScheduledTask(handle)
         }
         Task.detached(operation: cleanup)
-        return .native(handle)
     }
 
     func releaseScheduledTask(_ handle: RuntimeTaskHandle) {

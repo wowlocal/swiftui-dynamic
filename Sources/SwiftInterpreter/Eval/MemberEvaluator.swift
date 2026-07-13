@@ -113,7 +113,14 @@ extension Interpreter {
     private func resolveIdentifierCore(_ name: String, in env: Environment, node: some SyntaxProtocol) throws -> RuntimeValue {
         // Real Swift scoping: locals first, implicit-self members second,
         // globals LAST (a method named like a global type wins in its body).
-        if let box = env.box(for: name, before: globals) { return try force(box) }
+        if let box = env.box(for: name, before: globals) {
+            let value = try force(box)
+            if value.hostPayload is RuntimeAsyncLetBinding {
+                throw error(node,
+                    "async let binding '\(name)' requires await")
+            }
+            return value
+        }
         // `$count` — projected value of an @State or @Binding property.
         // (`$0`-style closure shorthands were already bound in the environment.)
         if name.hasPrefix("$"), name.count > 1, !name.dropFirst().allSatisfy(\.isNumber) {

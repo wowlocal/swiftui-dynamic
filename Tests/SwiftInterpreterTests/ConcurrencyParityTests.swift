@@ -399,9 +399,11 @@ private enum ConcurrencyParityHarness {
         let value = try await interpreter.runAsync(source: source)
 
         guard interpreter.scheduledTasks.isEmpty,
-              interpreter.concurrencyRuntime.activeRecordCount == 0 else {
+              interpreter.concurrencyRuntime.activeRecordCount == 0,
+              interpreter.concurrencyRuntime.activeStructuredScopeCount == 0
+        else {
             throw RuntimeError(message:
-                "case '\(parityCase.id)' leaked task scheduler/runtime ownership")
+                "case '\(parityCase.id)' leaked task/scope runtime ownership")
         }
 
         if !taskLocalStorageByTask.isEmpty {

@@ -7,6 +7,17 @@ extension Interpreter {
     func executeBlockSuspending(
         _ items: CodeBlockItemListSyntax, in env: Environment
     ) async throws -> StatementResult {
+        let structuredScope = RuntimeStructuredScopeFrame(
+            ownerTaskID: evaluationTaskContext.runtimeTaskID)
+        evaluationTaskContext.structuredScopeFrames.append(structuredScope)
+        defer {
+            precondition(
+                evaluationTaskContext.structuredScopeFrames.last
+                    .map { $0 === structuredScope } == true,
+                "structured scope frames must unwind in lexical order")
+            evaluationTaskContext.structuredScopeFrames.removeLast()
+        }
+
         var last: RuntimeValue = .void
         var deferredBodies: [CodeBlockItemListSyntax] = []
 
@@ -27,16 +38,42 @@ extension Interpreter {
                 let result = try await executeSuspending(item, in: env)
                 guard case .normal(let value) = result else {
                     await runDeferredBodies()
+                    await closeStructuredScope(structuredScope)
                     return result
                 }
                 last = value
             }
         } catch {
             await runDeferredBodies()
+            await closeStructuredScope(structuredScope)
             throw error
         }
         await runDeferredBodies()
+        await closeStructuredScope(structuredScope)
         return .normal(last)
+    }
+
+    private func closeStructuredScope(
+        _ frame: RuntimeStructuredScopeFrame
+    ) async {
+        // Swift cancels unconsumed async-let children together, then awaits
+        // every child before lexical storage can leave scope. Cancelling all
+        // first prevents an earlier long-running child from delaying a later
+        // child's cancellation.
+        for binding in frame.asyncLetBindings {
+            binding.cancelIfUnconsumedAtScopeExit()
+        }
+        for binding in frame.asyncLetBindings {
+            await binding.waitForScopeExit(waiter: frame.ownerTaskID)
+        }
+        if let runtimeScope = frame.runtimeScope {
+            concurrencyRuntime.closeStructuredScope(runtimeScope)
+        }
+        for binding in frame.asyncLetBindings {
+            concurrencyRuntime.release(binding.handle.id)
+        }
+        frame.asyncLetBindings.removeAll(keepingCapacity: false)
+        frame.runtimeScope = nil
     }
 
     func executeSuspending(
@@ -95,6 +132,12 @@ extension Interpreter {
                 if later.initializer != nil { return nil }
             }
             return nil
+        }
+
+        if variable.modifiers.contains(where: { $0.name.text == "async" }) {
+            try executeAsyncLetDeclaration(
+                variable, bindings: bindings, in: env)
+            return
         }
 
         for (index, binding) in bindings.enumerated() {
@@ -172,6 +215,93 @@ extension Interpreter {
             } ?? value
             env.define(name, resolved, declaredTypeName: hint)
         }
+    }
+
+    private func executeAsyncLetDeclaration(
+        _ variable: VariableDeclSyntax,
+        bindings: [PatternBindingSyntax],
+        in env: Environment
+    ) throws {
+        guard variable.bindingSpecifier.text == "let" else {
+            throw error(variable, "async bindings must use let")
+        }
+        guard evaluationTaskContext.isAsyncSession,
+              let ownerTaskID = evaluationTaskContext.runtimeTaskID else {
+            throw error(variable, "async let requires runAsync")
+        }
+        guard let frame = evaluationTaskContext.structuredScopeFrames.last,
+              frame.ownerTaskID == ownerTaskID else {
+            throw error(variable,
+                "async let requires an active structured scope")
+        }
+
+        let runtimeScope: RuntimeStructuredScopeRecord
+        if let existing = frame.runtimeScope {
+            runtimeScope = existing
+        } else {
+            runtimeScope = concurrencyRuntime.createStructuredScope(
+                ownerTaskID: ownerTaskID)
+            frame.runtimeScope = runtimeScope
+        }
+
+        func sharedAnnotation(startingAt index: Int) -> TypeSyntax? {
+            for later in bindings[index...] {
+                if let type = later.typeAnnotation?.type { return type }
+                if later.initializer != nil { return nil }
+            }
+            return nil
+        }
+
+        for (index, binding) in bindings.enumerated() {
+            let name: String
+            let identifier = binding.pattern.as(IdentifierPatternSyntax.self)
+            if let identifier {
+                name = identifier.identifier.text
+            } else if binding.pattern.is(WildcardPatternSyntax.self) {
+                name = "_"
+            } else {
+                throw error(binding,
+                    "unsupported async-let binding pattern")
+            }
+            guard binding.accessorBlock == nil,
+                  let initializer = binding.initializer?.value else {
+                throw error(binding,
+                    "async let '\(name)' needs an initializer")
+            }
+            let annotation = (binding.typeAnnotation?.type
+                ?? sharedAnnotation(startingAt: index))?.trimmedDescription
+            let handle = try spawnAsyncLetTask(
+                initializer: initializer,
+                in: env,
+                annotation: annotation)
+            let asyncBinding = RuntimeAsyncLetBinding(
+                name: name, handle: handle)
+            concurrencyRuntime.addStructuredChild(
+                handle.id, to: runtimeScope)
+            frame.asyncLetBindings.append(asyncBinding)
+            if let identifier {
+                env.define(
+                    identifier.identifier.text,
+                    .native(asyncBinding),
+                    declaredTypeName: annotation)
+            }
+        }
+    }
+
+    func evaluateAsyncLetInitializerSuspending(
+        _ initializer: ExprSyntax,
+        in env: Environment,
+        annotation: String?
+    ) async throws -> RuntimeValue {
+        let value = try await withExpectedAnnotationSuspending(annotation) {
+            // Unlike an ordinary let initializer, async-let initialization
+            // has an implicit suspension boundary even when the source call
+            // is not spelled with `await`.
+            try await evaluateSuspending(
+                initializer, in: env, forceInvocation: true)
+        }
+        guard let annotation else { return value }
+        return try resolveAnnotated(value, typeName: annotation)
     }
 
     private func executeStatementSuspending(

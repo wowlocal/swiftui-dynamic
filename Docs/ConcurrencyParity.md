@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Earliest open milestone; M1–M3 prerequisites are complete |
+| M4 structured concurrency | partial | Identifier-bound `async let` creates a runtime-owned structured child; explicit value reads suspend, unconsumed children cancel and join at lexical scope exit, and missing `await` is diagnosed; same-source Swift 6 exact probes cover the first normal and scope-exit paths | Throwing/cancelled values, early exits, multiple bindings, tuple patterns, task groups, group iteration/cancellation, and complete scope cleanup matrix |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1292,3 +1292,63 @@ The final repository gate passed 767/767 tests in 147 suites. `Scripts/gate.sh`
 also passed corpus 678/680, live 5/5, and API parity 345 match /
 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin. M3 is complete;
 M4 is now the earliest open milestone.
+
+### M4 async-let structured child foundation
+
+The first M4 question is whether an `async let` initializer is an independent
+structured child before its binding is read, and whether reading that binding
+suspends until the child produces its value. The same-source
+`async-let-value.swift` fixture holds the child behind an explicit gate. The
+parent cannot open that gate until the child has marked entry, and it reads the
+binding only after opening it. Twenty bounded Apple Swift 6.3.3 strict-
+concurrency runs produced
+`child-start,parent-open,child-end,value` exactly. Only those barrier-forced
+edges are asserted; initial ready-task scheduling is deliberately unspecified.
+
+The first interpreter run was RED at the child gate with `async host function
+'parityWaitTaskValueGate' requires runAsync and await`: the `async` declaration
+modifier was ignored and the initializer followed the ordinary eager `let`
+path in its parent task.
+
+Scope exit is a separate semantic fact rather than an assumption.
+`async-let-scope-exit.swift` puts an unconsumed child in a 30-second
+cancellable suspension, records the end of the lexical body, and observes code
+after the scope. Twenty native runs produced
+`child-start,scope-exit,child-cancelled,after-scope` exactly. Natural completion
+is impossible inside the five-second process bound, so this proves both
+implicit cancellation and the required join before execution continues after
+the scope. `async-let-missing-await-diagnostic.swift` also establishes the
+Swift 6 diagnostic category and source line for a direct binding read.
+
+The interpreter now creates a lazy `RuntimeStructuredScopeRecord` for a block
+that declares a structured child. The child has kind `.asyncLet`, its own
+`EvaluationTaskContext`, inherited logical priority and task-local storage, and
+a parent/scope edge in `CooperativeConcurrencyRuntime`. It is deliberately not
+inserted into the host session's `scheduledTasks`: lexical scope, not session
+drain policy, owns its lifetime. `RuntimeAsyncLetBinding` hides the internal
+task handle; an explicit awaited identifier uses the existing
+`.awaitingTask(childID)` suspension and a direct non-awaited read fails instead
+of exposing a carrier value.
+
+Every lexical exit first cancels all unconsumed async-let children, then waits
+for all child outcomes, closes the runtime scope, and releases their task
+records. This path runs for normal completion, return, thrown interpreter
+errors, and cancellation unwinding; completed task contexts assert that no
+scope frame remains. The differential harness additionally requires zero
+active scope records after every fixture. White-box coverage observes the
+parent waiting on the child, the child absent from session ownership, and all
+task/scope registries empty after completion.
+
+M4 remains partial. This step claims native parity only for successful explicit
+value access, unconsumed normal scope exit, and the missing-await diagnostic.
+Throwing and cancelled child values, early-return and throwing scope exits,
+multiple bindings, tuple patterns, and task groups require their own native
+fixtures before their behavior is classified.
+
+Closing verification for this step is green: the focused async-let tests pass
+2/2, `AsyncExecutionTests` pass 41/41, `HostSignatureTests` pass 12/12,
+`TaskCompletionRuntimeTests` and `TaskCancellationRuntimeTests` pass 2/2 each,
+and `ConcurrencyParityTests` pass 7/7. The full suite passes 769 tests in 147
+suites. `Scripts/gate.sh` is green with 769/769 suite tests, the unchanged
+678/680 project-corpus ratchet, 5/5 live-data scenarios, and API parity at 345
+match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.

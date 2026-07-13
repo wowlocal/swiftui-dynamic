@@ -28,6 +28,17 @@ public struct RuntimeTaskID: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "task-\(rawValue)" }
 }
 
+public struct RuntimeStructuredScopeID: Hashable, Sendable,
+    CustomStringConvertible {
+    public let rawValue: UInt64
+
+    public init(rawValue: UInt64) {
+        self.rawValue = rawValue
+    }
+
+    public var description: String { "structured-scope-\(rawValue)" }
+}
+
 public struct HostOperationID: Hashable, Sendable, CustomStringConvertible {
     public let rawValue: UInt64
 
@@ -151,6 +162,7 @@ public enum RuntimeCancellationSource: Hashable, Sendable {
     case hostTask
     case inherited
     case structuredParent
+    case structuredScopeExit
 }
 
 public struct RuntimeCancellationState: Sendable {
@@ -229,6 +241,7 @@ final class RuntimeTaskRecord {
     ] = [:]
     var spawnedTasks: Set<RuntimeTaskID> = []
     var structuredChildren: Set<RuntimeTaskID> = []
+    var structuredScopes: Set<RuntimeStructuredScopeID> = []
     var nativeTask: Task<Void, Never>?
     var evaluationContext: EvaluationTaskContext?
 
@@ -250,14 +263,32 @@ final class RuntimeTaskRecord {
     }
 }
 
+/// One lexical structured-concurrency scope owned by a source task. Child
+/// task records remain in the task graph, while this record identifies the
+/// subset whose lifetime must be closed before the lexical block can exit.
+final class RuntimeStructuredScopeRecord {
+    let id: RuntimeStructuredScopeID
+    let ownerTaskID: RuntimeTaskID
+    var childTaskIDs: Set<RuntimeTaskID> = []
+
+    init(id: RuntimeStructuredScopeID, ownerTaskID: RuntimeTaskID) {
+        self.id = id
+        self.ownerTaskID = ownerTaskID
+    }
+}
+
 final class CooperativeConcurrencyRuntime {
     let clock: any RuntimeClock
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
+    private var nextStructuredScopeID: UInt64 = 1
     private var nextHostOperationID: UInt64 = 1
     private var nextCancellationHandlerID: UInt64 = 1
     private var nextEventSequence: UInt64 = 1
     private(set) var records: [RuntimeTaskID: RuntimeTaskRecord] = [:]
+    private(set) var structuredScopes: [
+        RuntimeStructuredScopeID: RuntimeStructuredScopeRecord
+    ] = [:]
     private(set) var hostOperations: [HostOperationID: RuntimeTaskID] = [:]
 
     init(clock: any RuntimeClock = ContinuousRuntimeClock()) {
@@ -293,6 +324,51 @@ final class CooperativeConcurrencyRuntime {
             }
         }
         return record
+    }
+
+    func createStructuredScope(
+        ownerTaskID: RuntimeTaskID
+    ) -> RuntimeStructuredScopeRecord {
+        guard let owner = records[ownerTaskID], !owner.state.isCompleted else {
+            preconditionFailure(
+                "cannot create a structured scope for inactive task \(ownerTaskID)")
+        }
+        let id = RuntimeStructuredScopeID(rawValue: nextStructuredScopeID)
+        nextStructuredScopeID += 1
+        let scope = RuntimeStructuredScopeRecord(
+            id: id, ownerTaskID: ownerTaskID)
+        precondition(
+            structuredScopes.updateValue(scope, forKey: id) == nil,
+            "duplicate structured scope ID \(id)")
+        owner.structuredScopes.insert(id)
+        return scope
+    }
+
+    func addStructuredChild(
+        _ childID: RuntimeTaskID,
+        to scope: RuntimeStructuredScopeRecord
+    ) {
+        guard structuredScopes[scope.id] === scope,
+              let child = records[childID],
+              child.parent == scope.ownerTaskID,
+              child.kind.isStructuredChild else {
+            preconditionFailure(
+                "task \(childID) is not a child of \(scope.id)")
+        }
+        scope.childTaskIDs.insert(childID)
+    }
+
+    func closeStructuredScope(_ scope: RuntimeStructuredScopeRecord) {
+        guard structuredScopes[scope.id] === scope else {
+            preconditionFailure("cannot close inactive scope \(scope.id)")
+        }
+        precondition(
+            scope.childTaskIDs.allSatisfy {
+                records[$0]?.state.isCompleted == true
+            },
+            "cannot close \(scope.id) while a child is active")
+        records[scope.ownerTaskID]?.structuredScopes.remove(scope.id)
+        structuredScopes.removeValue(forKey: scope.id)
     }
 
     func bind(
@@ -459,6 +535,9 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             !hostOperations.values.contains(id),
             "cannot release runtime task \(id) with an active host operation")
+        precondition(
+            records[id]?.structuredScopes.isEmpty != false,
+            "cannot release runtime task \(id) with an active structured scope")
         clock.cancelSleep(task: id)
         records[id]?.cancellationHandlers.removeAll(keepingCapacity: false)
         records.removeValue(forKey: id)
@@ -526,6 +605,7 @@ final class CooperativeConcurrencyRuntime {
 
     var activeRecordCount: Int { records.count }
     var activeHostOperationCount: Int { hostOperations.count }
+    var activeStructuredScopeCount: Int { structuredScopes.count }
 
     private func invokeCancellationHandlers(on record: RuntimeTaskRecord) {
         // The same-source Swift 6.3.3 probe establishes inner-to-outer

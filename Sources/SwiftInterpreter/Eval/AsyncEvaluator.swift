@@ -229,6 +229,16 @@ extension Interpreter {
                 }
             }
 
+        case .declReferenceExpr:
+            if forceInvocation {
+                let reference = expression.cast(DeclReferenceExprSyntax.self)
+                if let binding = try asyncLetBinding(
+                    named: reference.baseName.text, in: env) {
+                    return try await binding.value(
+                        waiter: evaluationTaskContext.runtimeTaskID)
+                }
+            }
+
         case .forceUnwrapExpr:
             if forceInvocation {
                 try tick(expression)
@@ -266,6 +276,13 @@ extension Interpreter {
         }
 
         return try await evaluateLoweredSuspensions(expression, in: env)
+    }
+
+    private func asyncLetBinding(
+        named name: String, in env: Environment
+    ) throws -> RuntimeAsyncLetBinding? {
+        guard let box = env.box(for: name, before: globals) else { return nil }
+        return try force(box).hostPayload as? RuntimeAsyncLetBinding
     }
 
     private func taskValue(
