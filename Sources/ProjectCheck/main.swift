@@ -1,4 +1,5 @@
 import Foundation
+import CheckSupport
 import SwiftInterpreter
 import SwiftUIBridge
 
@@ -10,7 +11,8 @@ import SwiftUIBridge
 // action). Prints per-project results and a failure-class histogram — the
 // histogram is the loop's priority queue.
 //
-// Usage: swift run ProjectCheck [root] [--limit N | --all] [--project substring]
+// Usage: swift run ProjectCheck [root] [--limit N | --all]
+//        [--project substring] [--jobs N]
 
 
 // The metric must be REPRODUCIBLE: Swift's per-process seeded hashing
@@ -30,7 +32,15 @@ if ProcessInfo.processInfo.environment["SWIFT_DETERMINISTIC_HASHING"] == nil {
     exit(process.terminationStatus)
 }
 
-let arguments = CommandLine.arguments.dropFirst()
+let rawArguments = Array(CommandLine.arguments.dropFirst())
+let parallelOptions: ParallelCheckOptions
+do {
+    parallelOptions = try ParallelCheckOptions.parse(rawArguments)
+} catch {
+    FileHandle.standardError.write(Data("ProjectCheck: \(error)\n".utf8))
+    exit(2)
+}
+let arguments = ParallelCheckOptions.strippingParallelOptions(from: rawArguments)
 var root = "/Users/mike/Documents/sample-projects"
 var limit = 25
 var filter: String?
@@ -110,6 +120,7 @@ func sourcesFingerprint() -> String? {
 }
 
 let cacheEligible = limit == .max && filter == nil && !force
+    && parallelOptions.shardCount == 1
     && ProcessInfo.processInfo.environment["INTERP_ABSORB_CENSUS"] == nil
     && ProcessInfo.processInfo.environment["INTERP_APPSHELL_CENSUS"] == nil
 if ProcessInfo.processInfo.environment["INTERP_VERIFY_DEBUG"] != nil {
@@ -196,11 +207,13 @@ for entry in ((try? fm.contentsOfDirectory(atPath: ossRoot)) ?? []).sorted() {
     units.append(Unit(name: name, sources: files, totalBytes: bytes))
 }
 
-// Smallest first: the ladder climbs from simple to challenging.
+// Smallest first: the ladder climbs from simple to challenging. Sharding is
+// applied only after the global limit, so N workers cover exactly the same
+// deterministic unit set as one worker.
 units.sort { $0.totalBytes < $1.totalBytes }
 if units.count > limit { units = Array(units.prefix(limit)) }
 
-print("checking \(units.count) projects (smallest first) from \(root)\n")
+let totalUnitCount = units.count
 
 // MARK: - Run
 
@@ -268,6 +281,47 @@ if ProcessInfo.processInfo.environment["INTERP_APPSHELL_CENSUS"] != nil {
     exit(0)
 }
 
+func recordVerification(passed: Int, total: Int) {
+    guard limit == .max, filter == nil,
+          parallelOptions.shardCount == 1,
+          ProcessInfo.processInfo.environment["INTERP_ABSORB_CENSUS"] == nil,
+          let fingerprint = sourcesFingerprint() else { return }
+    if ProcessInfo.processInfo.environment["INTERP_VERIFY_DEBUG"] != nil {
+        print("verify-cache: writing \(fingerprint)")
+    }
+    let stamp = ISO8601DateFormatter().string(from: Date())
+    try? fm.createDirectory(
+        atPath: repoRoot + "/.claude", withIntermediateDirectories: true)
+    try? "\(fingerprint) \(passed)/\(total) \(stamp)\n"
+        .write(toFile: verifyCachePath, atomically: true, encoding: .utf8)
+}
+
+if parallelOptions.shouldCoordinate, totalUnitCount > 1,
+   ProcessInfo.processInfo.environment["INTERP_ABSORB_CENSUS"] == nil {
+    let jobs = min(parallelOptions.jobs, totalUnitCount)
+    print("checking \(totalUnitCount) projects with \(jobs) process shards from \(root)\n")
+    do {
+        let outputs = try ParallelCheckRunner.runSelf(jobs: jobs)
+        let summary = try ParallelCheckRunner.aggregate(outputs)
+        ParallelCheckRunner.replay(outputs)
+        let passed = try summary.required("passed")
+        let total = try summary.required("total")
+        guard total == totalUnitCount else {
+            throw ParallelCheckError.invalidOption(
+                "project shards covered \(total)/\(totalUnitCount) units")
+        }
+        print("\n═══ \(passed)/\(total) projects pass (\(jobs) parallel shards) ═══")
+        recordVerification(passed: passed, total: total)
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("ProjectCheck: \(error)\n".utf8))
+        exit(1)
+    }
+}
+
+units = parallelOptions.selected(from: units, weightedBy: \.totalBytes)
+print("checking \(units.count) projects (smallest first) from \(root)\n")
+
 var passed = 0
 var histogram: [String: [String]] = [:]
 
@@ -305,18 +359,7 @@ for unit in units {
 }
 
 print("\n═══ \(passed)/\(units.count) projects pass ═══")
-
-if limit == .max, filter == nil,
-   ProcessInfo.processInfo.environment["INTERP_ABSORB_CENSUS"] == nil,
-   let fingerprint = sourcesFingerprint() {
-    if ProcessInfo.processInfo.environment["INTERP_VERIFY_DEBUG"] != nil {
-        print("verify-cache: writing \(fingerprint)")
-    }
-    let stamp = ISO8601DateFormatter().string(from: Date())
-    try? fm.createDirectory(atPath: repoRoot + "/.claude", withIntermediateDirectories: true)
-    try? "\(fingerprint) \(passed)/\(units.count) \(stamp)\n"
-        .write(toFile: verifyCachePath, atomically: true, encoding: .utf8)
-}
+recordVerification(passed: passed, total: units.count)
 
 if !Interpreter.absorbCensus.isEmpty {
     let census = Interpreter.absorbCensus.sorted { $0.value > $1.value }
@@ -331,4 +374,10 @@ if !histogram.isEmpty {
         print(String(format: "%4d  %@", projects.count, message))
         print("      e.g. \(projects.prefix(3).joined(separator: ", "))")
     }
+}
+if parallelOptions.shardCount > 1 {
+    ParallelCheckRunner.emit(ParallelCheckSummary([
+        "passed": passed,
+        "total": units.count,
+    ]))
 }

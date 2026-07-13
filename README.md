@@ -69,6 +69,11 @@ GeometryReaders).
 swift test
 ```
 
+For the full repository gate, including parallel test, corpus, API-parity, and
+live-data evaluation, run `Scripts/gate.sh`. Its process-sharding model,
+resource knobs, and tuning procedure are documented in
+[`Docs/ParallelVerification.md`](Docs/ParallelVerification.md).
+
 ## How it works
 
 ```

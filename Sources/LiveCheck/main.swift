@@ -1,4 +1,5 @@
 import Foundation
+import CheckSupport
 import SwiftInterpreter
 import SwiftUIBridge
 
@@ -9,7 +10,7 @@ import SwiftUIBridge
 // trees. The failure histogram is the priority queue on the road to
 // "a real networked app shows real data".
 //
-// Usage: swift run LiveCheck [--scenario substring]
+// Usage: swift run LiveCheck [--scenario substring] [--jobs N]
 
 
 // The metric must be REPRODUCIBLE: Swift's per-process seeded hashing
@@ -35,7 +36,16 @@ let ossRoot = "/Users/mike/src/tries/2026-07-08-swiftui-dynamic/External/oss"
 let depsRoot = "/Users/mike/src/tries/2026-07-08-swiftui-dynamic/External/deps"
 
 var filter: String?
-var iterator = CommandLine.arguments.dropFirst().makeIterator()
+let rawArguments = Array(CommandLine.arguments.dropFirst())
+let parallelOptions: ParallelCheckOptions
+do {
+    parallelOptions = try ParallelCheckOptions.parse(rawArguments)
+} catch {
+    FileHandle.standardError.write(Data("LiveCheck: \(error)\n".utf8))
+    exit(2)
+}
+var iterator = ParallelCheckOptions.strippingParallelOptions(
+    from: rawArguments).makeIterator()
 while let argument = iterator.next() {
     if argument == "--scenario" { filter = iterator.next() }
 }
@@ -233,11 +243,37 @@ let scenarios: [Scenario] = [
     },
 ]
 
+let filteredScenarios = scenarios.filter { scenario in
+    guard let filter else { return true }
+    return scenario.name.localizedCaseInsensitiveContains(filter)
+}
+if parallelOptions.shouldCoordinate, filteredScenarios.count > 1 {
+    let jobs = min(parallelOptions.jobs, filteredScenarios.count)
+    print("running \(filteredScenarios.count) live-data scenarios with \(jobs) process shards\n")
+    do {
+        let outputs = try ParallelCheckRunner.runSelf(jobs: jobs)
+        let summary = try ParallelCheckRunner.aggregate(outputs)
+        ParallelCheckRunner.replay(outputs)
+        let passed = try summary.required("passed")
+        let ran = try summary.required("total")
+        guard ran == filteredScenarios.count else {
+            throw ParallelCheckError.invalidOption(
+                "live shards covered \(ran)/\(filteredScenarios.count) scenarios")
+        }
+        print("\n═══ \(passed)/\(ran) live-data scenarios pass (\(jobs) parallel shards) ═══")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("LiveCheck: \(error)\n".utf8))
+        exit(1)
+    }
+}
+
+let scenariosToRun = parallelOptions.selected(from: filteredScenarios)
+
 var passed = 0
 var failureClasses: [(scenario: String, message: String)] = []
 var ran = 0
-for scenario in scenarios {
-    if let filter, !scenario.name.localizedCaseInsensitiveContains(filter) { continue }
+for scenario in scenariosToRun {
     ran += 1
     NetworkBridge.policy = .replay(fixturesDirectory: scenario.fixturesDirectory)
     NetworkBridge.requestLog = []
@@ -266,4 +302,10 @@ if !failureClasses.isEmpty {
     for entry in failureClasses {
         print("   \(entry.scenario): \(entry.message.prefix(110))")
     }
+}
+if parallelOptions.shardCount > 1 {
+    ParallelCheckRunner.emit(ParallelCheckSummary([
+        "passed": passed,
+        "total": ran,
+    ]))
 }

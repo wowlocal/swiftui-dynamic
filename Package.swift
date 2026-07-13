@@ -25,6 +25,9 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "CheckSupport"
+        ),
+        .target(
             name: "SwiftInterpreter",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -54,7 +57,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "ProjectCheck",
-            dependencies: ["SwiftUIBridge"],
+            dependencies: ["CheckSupport", "SwiftUIBridge"],
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
@@ -62,7 +65,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "ParityCheck",
-            dependencies: ["SwiftUIBridge"],
+            dependencies: ["CheckSupport", "SwiftUIBridge"],
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
@@ -72,12 +75,12 @@ let package = Package(
         ),
         .executableTarget(
             name: "TestCheck",
-            dependencies: ["SwiftUIBridge"],
+            dependencies: ["CheckSupport", "SwiftUIBridge"],
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
             name: "LiveCheck",
-            dependencies: ["SwiftUIBridge"],
+            dependencies: ["CheckSupport", "SwiftUIBridge"],
             swiftSettings: mainActorByDefault
         ),
         .executableTarget(
@@ -92,6 +95,10 @@ let package = Package(
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],
             swiftSettings: mainActorByDefault
+        ),
+        .testTarget(
+            name: "CheckSupportTests",
+            dependencies: ["CheckSupport"]
         ),
         .testTarget(
             name: "SwiftInterpreterTests",

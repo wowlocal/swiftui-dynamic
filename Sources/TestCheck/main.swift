@@ -1,4 +1,5 @@
 import Foundation
+import CheckSupport
 import SwiftInterpreter
 import SwiftUIBridge
 
@@ -8,7 +9,8 @@ import SwiftUIBridge
 // pipeline can't see — the histogram is a priority queue sharper than
 // ProjectCheck's.
 //
-// Usage: swift run TestCheck [root] [--limit N | --all] [--project substring]
+// Usage: swift run TestCheck [root] [--limit N | --all]
+//        [--project substring] [--jobs N]
 
 
 // The metric must be REPRODUCIBLE: Swift's per-process seeded hashing
@@ -28,7 +30,15 @@ if ProcessInfo.processInfo.environment["SWIFT_DETERMINISTIC_HASHING"] == nil {
     exit(process.terminationStatus)
 }
 
-let arguments = CommandLine.arguments.dropFirst()
+let rawArguments = Array(CommandLine.arguments.dropFirst())
+let parallelOptions: ParallelCheckOptions
+do {
+    parallelOptions = try ParallelCheckOptions.parse(rawArguments)
+} catch {
+    FileHandle.standardError.write(Data("TestCheck: \(error)\n".utf8))
+    exit(2)
+}
+let arguments = ParallelCheckOptions.strippingParallelOptions(from: rawArguments)
 var root = "External/oss"
 var limit = 10
 var filter: String?
@@ -74,21 +84,57 @@ for entry in ((try? fm.contentsOfDirectory(atPath: root)) ?? []).sorted() {
 }
 units.sort { $0.bytes < $1.bytes }
 
-var checked = 0
+// Select before sharding so a parallel run covers exactly the same first N
+// test-bearing projects as the original sequential traversal.
+var testUnits: [Unit] = []
+for unit in units {
+    guard testUnits.count < limit else { break }
+    let containsTests = ProjectMaterial.swiftFiles(under: unit.directory).contains { path in
+        guard let source = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return false
+        }
+        return source.contains("XCTestCase") || source.contains("@Test")
+    }
+    if containsTests { testUnits.append(unit) }
+}
+units = testUnits
+
+if parallelOptions.shouldCoordinate, units.count > 1 {
+    let jobs = min(parallelOptions.jobs, units.count)
+    print("checking \(units.count) interpreted test suites with \(jobs) process shards\n")
+    do {
+        let outputs = try ParallelCheckRunner.runSelf(jobs: jobs)
+        let summary = try ParallelCheckRunner.aggregate(outputs)
+        ParallelCheckRunner.replay(outputs)
+        let selected = try summary.required("selected")
+        let projects = try summary.required("projects")
+        let passed = try summary.required("passed")
+        let failed = try summary.required("failed")
+        let errored = try summary.required("errored")
+        let skipped = try summary.required("skipped")
+        guard selected == units.count else {
+            throw ParallelCheckError.invalidOption(
+                "test shards covered \(selected)/\(units.count) projects")
+        }
+        print("\n═══ \(projects) suites: \(passed) passed, \(failed) failed, \(errored) errored, \(skipped) skipped (\(jobs) parallel shards) ═══")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("TestCheck: \(error)\n".utf8))
+        exit(1)
+    }
+}
+
+units = parallelOptions.selected(from: units, weightedBy: \.bytes)
 var totals = (projects: 0, passed: 0, failed: 0, errored: 0, skipped: 0)
 var failureClasses: [String: (count: Int, example: String)] = [:]
 
 for unit in units {
-    guard checked < limit else { break }
     let source = ProjectMaterial.testMergedSource(at: unit.directory)
     if let dumpDir = ProcessInfo.processInfo.environment["TESTCHECK_DUMP"] {
         // Located errors point into the MERGE — the dump is what they index.
         try? source.write(
             toFile: "\(dumpDir)/\(unit.name).merged.swift", atomically: true, encoding: .utf8)
     }
-    guard source.contains("XCTestCase") || source.contains("@Test") else { continue }
-    checked += 1
-
     do {
         let report = try TestHarness.run(source: source)
         guard !report.results.isEmpty else {
@@ -143,4 +189,14 @@ if !failureClasses.isEmpty {
         print(String(format: "%4d  %@", value.count, key))
         print("      e.g. \(value.example)")
     }
+}
+if parallelOptions.shardCount > 1 {
+    ParallelCheckRunner.emit(ParallelCheckSummary([
+        "selected": units.count,
+        "projects": totals.projects,
+        "passed": totals.passed,
+        "failed": totals.failed,
+        "errored": totals.errored,
+        "skipped": totals.skipped,
+    ]))
 }

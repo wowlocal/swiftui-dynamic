@@ -85,6 +85,39 @@ private enum ConcurrencyParityHarness {
             [ConcurrencyParityCase].self, from: Data(contentsOf: url))
     }
 
+    /// `Scripts/gate.sh` runs this long native/interpreter differential test
+    /// in independent processes. A normal focused `swift test` has no shard
+    /// environment and continues to cover the complete manifest.
+    static func selectRuntimeShard(
+        from cases: [ConcurrencyParityCase]
+    ) throws -> [ConcurrencyParityCase] {
+        let environment = ProcessInfo.processInfo.environment
+        let rawIndex = environment["DYNAMIC_SWIFT_PARITY_SHARD_INDEX"]
+        let rawCount = environment["DYNAMIC_SWIFT_PARITY_SHARD_COUNT"]
+        guard rawIndex != nil || rawCount != nil else { return cases }
+        guard let rawIndex, let rawCount,
+              let index = Int(rawIndex), let count = Int(rawCount),
+              count > 0, index >= 0, index < count else {
+            throw RuntimeError(message:
+                "parity shard environment requires 0 <= index < positive count")
+        }
+        return try selectShard(from: cases, index: index, count: count)
+    }
+
+    static func selectShard(
+        from cases: [ConcurrencyParityCase],
+        index: Int,
+        count: Int
+    ) throws -> [ConcurrencyParityCase] {
+        guard count > 0, index >= 0, index < count else {
+            throw RuntimeError(message:
+                "parity shard requires 0 <= index < positive count")
+        }
+        return cases.enumerated().compactMap { offset, parityCase in
+            offset % count == index ? parityCase : nil
+        }
+    }
+
     static func fingerprint() throws -> ConcurrencyToolchainFingerprint {
         let xcrun = URL(fileURLWithPath: "/usr/bin/xcrun")
         let swiftc = try successful(
@@ -665,9 +698,11 @@ struct ConcurrencyParityTests {
     }
 
     @Test func runtimeFixturesMatchNativeGuarantees() async throws {
-        let cases = try ConcurrencyParityHarness.loadCases()
+        let allCases = try ConcurrencyParityHarness.loadCases()
             .filter { $0.mode == .runtime }
-        #expect(!cases.isEmpty)
+        #expect(!allCases.isEmpty)
+        let cases = try ConcurrencyParityHarness.selectRuntimeShard(
+            from: allCases)
 
         for parityCase in cases {
             let native = try ConcurrencyParityHarness.nativeOutputs(
@@ -706,6 +741,19 @@ struct ConcurrencyParityTests {
                     "\(parityCase.id) did not diagnose line \(line): \(result.standardError)")
             }
         }
+    }
+
+    @Test func runtimeShardPartitionIsCompleteAndDisjoint() throws {
+        let cases = try ConcurrencyParityHarness.loadCases()
+            .filter { $0.mode == .runtime }
+        var selectedIDs: [String] = []
+        for index in 0..<4 {
+            let shard = try ConcurrencyParityHarness.selectShard(
+                from: cases, index: index, count: 4)
+            #expect(Set(selectedIDs).isDisjoint(with: shard.map(\.id)))
+            selectedIDs.append(contentsOf: shard.map(\.id))
+        }
+        #expect(selectedIDs.sorted() == cases.map(\.id).sorted())
     }
 
     @Test func assertionEngineDetectsDivergenceAndSupportsNonExactRules() {
