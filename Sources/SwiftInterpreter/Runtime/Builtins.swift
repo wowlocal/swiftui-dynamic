@@ -6,60 +6,100 @@ import Foundation
 /// and never reach this table. Errors are unlocated `EvalMessage`s; the
 /// evaluator re-throws them with the operator node's source location.
 public enum Builtins {
+    /// A decoded integer operation. The tree evaluator still resolves source
+    /// spellings on demand, while prepared semantic IR stores this compact tag
+    /// and avoids repeating String dispatch in every loop iteration.
+    enum IntBinaryOperation: String {
+        case add = "+"
+        case subtract = "-"
+        case multiply = "*"
+        case divide = "/"
+        case remainder = "%"
+        case wrappingAdd = "&+"
+        case wrappingSubtract = "&-"
+        case wrappingMultiply = "&*"
+        case maskingShiftLeft = "&<<"
+        case maskingShiftRight = "&>>"
+        case bitwiseAnd = "&"
+        case bitwiseOr = "|"
+        case bitwiseXor = "^"
+        case shiftLeft = "<<"
+        case shiftRight = ">>"
+
+        @inline(__always)
+        func apply(_ lhs: Int, _ rhs: Int) throws -> Int {
+            switch self {
+            case .add:
+                let (value, overflow) = lhs.addingReportingOverflow(rhs)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return value
+            case .subtract:
+                let (value, overflow) = lhs.subtractingReportingOverflow(rhs)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return value
+            case .multiply:
+                let (value, overflow) = lhs.multipliedReportingOverflow(by: rhs)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return value
+            case .divide:
+                guard rhs != 0 else { throw EvalMessage(text: "division by zero") }
+                let (value, overflow) = lhs.dividedReportingOverflow(by: rhs)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return value
+            case .remainder:
+                guard rhs != 0 else { throw EvalMessage(text: "division by zero") }
+                let (value, overflow) = lhs.remainderReportingOverflow(dividingBy: rhs)
+                guard !overflow else { throw EvalMessage(text: "integer overflow") }
+                return value
+            case .wrappingAdd: return lhs &+ rhs
+            case .wrappingSubtract: return lhs &- rhs
+            case .wrappingMultiply: return lhs &* rhs
+            case .maskingShiftLeft: return lhs &<< rhs
+            case .maskingShiftRight: return lhs &>> rhs
+            case .bitwiseAnd: return lhs & rhs
+            case .bitwiseOr: return lhs | rhs
+            case .bitwiseXor: return lhs ^ rhs
+            case .shiftLeft: return lhs << rhs
+            case .shiftRight: return lhs >> rhs
+            }
+        }
+    }
+
+    enum IntComparisonOperation: String {
+        case equal = "=="
+        case notEqual = "!="
+        case lessThan = "<"
+        case lessThanOrEqual = "<="
+        case greaterThan = ">"
+        case greaterThanOrEqual = ">="
+
+        @inline(__always)
+        func apply(_ lhs: Int, _ rhs: Int) -> Bool {
+            switch self {
+            case .equal: return lhs == rhs
+            case .notEqual: return lhs != rhs
+            case .lessThan: return lhs < rhs
+            case .lessThanOrEqual: return lhs <= rhs
+            case .greaterThan: return lhs > rhs
+            case .greaterThanOrEqual: return lhs >= rhs
+            }
+        }
+    }
+
     /// Integer operator core shared by the ordinary tree evaluator and the
     /// prepared finite-loop executor. Keeping overflow, division, and shift
     /// semantics here prevents the optimized path from becoming a second
     /// language implementation.
     @inline(__always)
     static func fastIntBinary(_ op: String, _ lhs: Int, _ rhs: Int) throws -> Int? {
-        switch op {
-        case "+":
-            let (value, overflow) = lhs.addingReportingOverflow(rhs)
-            guard !overflow else { throw EvalMessage(text: "integer overflow") }
-            return value
-        case "-":
-            let (value, overflow) = lhs.subtractingReportingOverflow(rhs)
-            guard !overflow else { throw EvalMessage(text: "integer overflow") }
-            return value
-        case "*":
-            let (value, overflow) = lhs.multipliedReportingOverflow(by: rhs)
-            guard !overflow else { throw EvalMessage(text: "integer overflow") }
-            return value
-        case "/":
-            guard rhs != 0 else { throw EvalMessage(text: "division by zero") }
-            let (value, overflow) = lhs.dividedReportingOverflow(by: rhs)
-            guard !overflow else { throw EvalMessage(text: "integer overflow") }
-            return value
-        case "%":
-            guard rhs != 0 else { throw EvalMessage(text: "division by zero") }
-            let (value, overflow) = lhs.remainderReportingOverflow(dividingBy: rhs)
-            guard !overflow else { throw EvalMessage(text: "integer overflow") }
-            return value
-        case "&+": return lhs &+ rhs
-        case "&-": return lhs &- rhs
-        case "&*": return lhs &* rhs
-        case "&<<": return lhs &<< rhs
-        case "&>>": return lhs &>> rhs
-        case "&": return lhs & rhs
-        case "|": return lhs | rhs
-        case "^": return lhs ^ rhs
-        case "<<": return lhs << rhs
-        case ">>": return lhs >> rhs
-        default: return nil
-        }
+        guard let operation = IntBinaryOperation(rawValue: op) else { return nil }
+        return try operation.apply(lhs, rhs)
     }
 
     @inline(__always)
     static func fastIntComparison(_ op: String, _ lhs: Int, _ rhs: Int) -> Bool? {
-        switch op {
-        case "==": return lhs == rhs
-        case "!=": return lhs != rhs
-        case "<": return lhs < rhs
-        case "<=": return lhs <= rhs
-        case ">": return lhs > rhs
-        case ">=": return lhs >= rhs
-        default: return nil
-        }
+        guard let operation = IntComparisonOperation(rawValue: op) else { return nil }
+        return operation.apply(lhs, rhs)
     }
 
     @inline(__always)

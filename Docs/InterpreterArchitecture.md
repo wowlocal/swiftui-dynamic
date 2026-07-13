@@ -206,8 +206,11 @@ loops, `Eval/PreparedFiniteLoop.swift` now uses that proof to lower a closed,
 reusable subset of the body once instead of decoding the same SwiftSyntax tree
 for every element. The prepared representation covers integer bindings,
 arithmetic and comparisons, integer collection reads, and simple conditions.
-It shares the integer operator core with the ordinary evaluator, so overflow,
-division, shifts, and comparisons do not acquire a second set of semantics.
+Operators are decoded into typed tags once, and the repeated path keeps scalar
+integers and integer-collection snapshots in typed slots instead of repeatedly
+copying `RuntimeValue` through `Box`. It shares the integer operator core with
+the ordinary evaluator, so overflow, division, shifts, and comparisons do not
+acquire a second set of semantics.
 Calls such as integer conversion and extrema lower only when their resolved
 `HostFunction` has the retained core-intrinsic identity registered at builtin
 creation; a user declaration or injected gateway that shadows the same source
@@ -219,6 +222,15 @@ plan and leaves the existing tree evaluator in charge. The one explicit
 boundary is a supported condition, whose taken body may execute through the
 ordinary synchronous or suspension-aware evaluator. This permits infrequent
 complex work without charging every untaken iteration for syntax dispatch.
+Declaration-free branches composed from the same closed scalar subset remain
+in typed IR; unsupported branch bodies use the synchronized fallback boundary.
+Before crossing that boundary, dirty scalar slots are materialized into their
+Boxes; all scalar and collection caches are refreshed afterward, including on
+error paths. Each Box carries a monotonic storage generation, so refresh is a
+constant-time proof when fallback did not mutate that binding instead of an
+eager copy of a potentially large collection. Prepared writes to a Box with an
+`onChange` observer are rejected, so notification timing and count remain owned
+by the ordinary evaluator.
 Loops containing a closure, local function, or `defer` are rejected
 because reusing their binding boxes could make per-iteration identity
 observable. `break`, `continue`, returns, cancellation polling, and the
@@ -229,6 +241,11 @@ framework, project, fixture, source-name, or literal-specific behavior. A
 white-box plan counter and native-equivalent regression cases ensure that both
 synchronous and async sessions exercise the prepared path, while capture and
 budget cases exercise its conservative fallback boundaries.
+
+The `SwiftInterpreter` target uses `-O` in both iOS and macOS debug builds. The
+interpreter is an execution engine whose large syntax/IR dispatch functions are
+pathologically expensive and stack-heavy under `-Onone`; the embedding app and
+UI targets remain debuggable with their normal configuration.
 
 The remaining semantic migration is deliberately ordered:
 

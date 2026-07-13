@@ -4,12 +4,12 @@ import PackageDescription
 let mainActorByDefault: [SwiftSetting] = [.defaultIsolation(MainActor.self)]
 
 // `-Onone` gives the evaluator's large syntax-dispatch functions 15–20 KB
-// stack frames. That is enough to exhaust an iOS main thread's ~1 MB stack
-// during valid, moderately nested view evaluation. Keep the surrounding app
-// debuggable while compiling the interpreter itself with production-quality
-// frames and dispatch performance on iOS.
+// stack frames and turns enum/tree dispatch into the dominant cost. That can
+// exhaust an iOS main thread's ~1 MB stack and makes data-heavy interpretation
+// needlessly slow on macOS. Keep the surrounding app debuggable while compiling
+// the execution engine itself with production-quality frames and dispatch.
 let interpreterSettings = mainActorByDefault + [
-    .unsafeFlags(["-O"], .when(platforms: [.iOS], configuration: .debug)),
+    .unsafeFlags(["-O"], .when(platforms: [.iOS, .macOS], configuration: .debug)),
 ]
 
 let package = Package(

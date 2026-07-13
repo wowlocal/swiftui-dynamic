@@ -262,6 +262,46 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(runaway.preparedFiniteLoopPlanCount == 1)
     }
 
+    @Test func preparedLoopRefreshesCollectionsAfterFallbackExecution() throws {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "bytes", .native([3, 4, 5].map(RuntimeValue.native)))
+
+        let tuple = try #require(try interpreter.run(source: """
+        var total = 0
+        for index in 0..<300 {
+            if index == 100 {
+                bytes[0] = 9
+            }
+            total += Int(bytes[0])
+        }
+        (total, Int(bytes[0]))
+        """).tupleValue)
+
+        #expect(tuple.values.compactMap(\.intValue) == [2_100, 9])
+        #expect(interpreter.preparedFiniteLoopPlanCount == 1)
+    }
+
+    @Test func observedIntegerWritesRemainOnTheOrdinaryEvaluatorPath() throws {
+        let interpreter = Interpreter()
+        interpreter.globals.define("observedTotal", .native(0))
+        var notificationCount = 0
+        interpreter.globals.box(for: "observedTotal")?.onChange = {
+            notificationCount += 1
+        }
+
+        let value = try interpreter.run(source: """
+        for value in 0..<300 {
+            observedTotal += value
+        }
+        observedTotal
+        """)
+
+        #expect(value.intValue == 44_850)
+        #expect(notificationCount == 300)
+        #expect(interpreter.preparedFiniteLoopPlanCount == 0)
+    }
+
     @Test func loopsWithCapturesKeepFreshIterationBindings() throws {
         let interpreter = Interpreter()
         let tuple = try #require(try interpreter.run(source: """

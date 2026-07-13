@@ -163,10 +163,15 @@ public final class Box {
         get { materializedValue }
         set {
             assign(newValue)
+            mutationVersion &+= 1
             onChange?()
         }
     }
     public var onChange: (@MainActor () -> Void)?
+    /// Monotonic value-storage generation for semantic caches. Consumers can
+    /// retain a typed projection and cheaply prove it is still current; every
+    /// language-level assignment advances the generation before observers run.
+    private(set) var mutationVersion: UInt64 = 0
     /// Source annotation for this storage location. Kept after the established
     /// fields for incremental ABI stability; mutation dispatch uses it for
     /// generic element context even when a collection is empty.

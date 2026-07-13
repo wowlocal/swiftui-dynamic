@@ -531,24 +531,12 @@ extension Interpreter {
             preparedLoop = nil
         }
 
-        loop: for (iteration, element) in elements.enumerated() {
-            if preparedLoop == nil || iteration & 63 == 0 {
-                try checkRuntimeCancellation()
-            }
-            if let preparedLoop {
-                let result = try await withFiniteIterationSlice {
-                    try await preparedLoop.executeSuspending(
-                        element: element, interpreter: self)
-                }
-                switch result {
-                case .normal, .continueLoop:
-                    continue
-                case .breakLoop:
-                    break loop
-                case .returnValue:
-                    return result
-                }
-            }
+        if let preparedLoop {
+            return try await preparedLoop.executeSuspending(interpreter: self)
+        }
+
+        loop: for element in elements {
+            try checkRuntimeCancellation()
 
             let child = Environment(parent: env)
             if let casePattern {

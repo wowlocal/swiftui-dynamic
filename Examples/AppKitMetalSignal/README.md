@@ -90,13 +90,21 @@ runs. Every differing pixel in this run was inside that label's 48 × 9-pixel
 bounding box; rendering, output bytes, derived metrics, layout, and every other
 visible state match.
 
-The interpreter prepares the repeated integer operations in large, finite
-byte loops once while retaining the ordinary evaluator as an all-or-nothing
-fallback for unsupported syntax and capture-sensitive bodies. On the same
-debug build, the two-dispatch interpreted autorender snapshot now completes in
-`3.83 s` (`3.63 s` user CPU), down from `72.09 s`; the native snapshot takes
-`0.63 s`. Metal itself remains a few milliseconds on both paths. The remaining
-gap is interpreter overhead, but it no longer presents as an application hang.
+The interpreter prepares the repeated integer operations in large, finite byte
+loops once while retaining the ordinary evaluator as an all-or-nothing fallback
+for unsupported syntax and capture-sensitive bodies. Prepared IR now stores
+typed operator tags, scalar slots, and versioned integer-collection snapshots;
+ordinary fallback blocks synchronize through the same Boxes and invalidate a
+snapshot only when its storage was actually assigned. The typed-IR changes by
+themselves reduce the macOS `-Onone` two-dispatch snapshot from `3.83 s` to
+`3.24 s` (`2.83 s` user CPU), versus `72.09 s` before prepared loops. Debug
+builds now compile only the `SwiftInterpreter` execution-engine target with
+`-O`, matching the existing iOS policy; the ordinary `swift run` snapshot then
+completes in `1.80 s` (`1.52 s` user CPU) while the surrounding app stays
+debuggable. A production build completes in `0.92 s` (`0.68 s` user CPU), and
+the native debug snapshot takes `0.63 s`. Metal itself remains a few
+milliseconds on every path; the remaining debug gap is bridge/UI debug overhead
+rather than GPU or native-API latency.
 
 Reproduce both functional snapshots from the repository root with:
 
