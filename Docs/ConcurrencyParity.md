@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier-bound `async let` creates a runtime-owned structured child; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; unconsumed children cancel and join on normal, early-return, and throwing lexical exits; missing `await` is diagnosed; same-source Swift 6 exact probes cover these value and cleanup paths | Multiple bindings, tuple patterns, remaining cancellation/defer cleanup combinations, task groups, and group iteration/cancellation |
+| M4 structured concurrency | partial | Identifier and tuple-pattern `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; unconsumed children cancel and join on normal, early-return, and throwing lexical exits; missing `await` is diagnosed | Multiple declaration bindings, remaining cancellation/defer cleanup combinations, task groups, and group iteration/cancellation |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1341,7 +1341,7 @@ task/scope registries empty after completion.
 
 M4 remains partial. This step claims native parity only for successful explicit
 value access, unconsumed normal scope exit, and the missing-await diagnostic.
-Multiple bindings, tuple patterns, remaining cancellation/defer cleanup
+Multiple declaration bindings, remaining cancellation/defer cleanup
 combinations, and task groups require their own native fixtures before their
 behavior is classified.
 
@@ -1424,3 +1424,37 @@ same-source interpreter case matched all 20 repetitions before an additional
 production change. `executeBlockSuspending`'s general error path already ran
 deferred bodies and structured cleanup before rethrowing, and the parity
 cleanup guard observed zero active task and scope records after every run.
+
+### M4 tuple-pattern async-let projection
+
+`async-let-tuple-pattern.swift` declares
+`async let (left, right) = asyncLetTupleChild(...)`. The one initializer marks
+entry and waits behind the explicit task-value gate; after the parent opens the
+gate it returns `(left, right)`, and the parent awaits each name separately.
+Twenty bounded Apple Swift 6.3.3 strict-concurrency runs produced
+`child-start,parent-open,child-end,left,right` exactly. Only gate- and
+value-dependency edges are asserted.
+
+The initial same-source interpreter run was RED at the declaration with
+`unsupported async-let binding pattern`. The implementation previously made a
+binding carrier own both source lookup and child lifetime, which cannot model
+several names backed by one initializer task.
+
+`RuntimeAsyncLetChild` now owns the handle, explicit-await state, cancellation,
+scope join, and record release exactly once. Each `RuntimeAsyncLetBinding`
+references that child and carries an immutable tuple-index projection path;
+the declaration walker recursively validates identifier, wildcard, and tuple
+patterns before spawning the child. Element annotations are projected from a
+matching tuple type annotation. The committed parity claim is limited to the
+flat two-element fixture; recursive paths are the general mechanism rather
+than a new unprobed semantic claim.
+
+The differential case is GREEN in all 20 repetitions. White-box coverage also
+observes exactly one parent structured-child edge and one scope child for the
+two names, returns `left:right`, and finishes with empty session task, runtime
+task, and structured-scope registries. `AsyncExecutionTests` pass 42/42,
+`HostSignatureTests` pass 12/12, and `ConcurrencyParityTests` pass 8/8.
+The full suite passes 778 tests in 149 suites. A clean `Scripts/gate.sh` run is
+green with 778 tests, the unchanged 678/680 project-corpus ratchet, 5/5
+live-data scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
+errors / 17 unstable / 0 no-twin.

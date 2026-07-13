@@ -425,6 +425,18 @@
     "notes": "The child marks entry and waits behind an explicit gate. The parent cannot open that gate until the child has started, and it reads the binding only after opening it. Exact output is child-start,parent-open,child-end,value; no unconstrained ready-task order is asserted."
   },
   {
+    "id": "async-let-tuple-pattern",
+    "fixture": "Fixtures/async-let-tuple-pattern.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetTuplePatternProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A tuple-pattern async let creates one initializer child whose stored tuple outcome supplies each awaited element binding.",
+    "notes": "The single initializer waits behind an explicit gate and returns (left, right). Exact output is child-start,parent-open,child-end,left,right in 20 Swift 6.3.3 runs; no unconstrained ready-task order is asserted."
+  },
+  {
     "id": "async-let-scope-exit",
     "fixture": "Fixtures/async-let-scope-exit.swift",
     "mode": "runtime",

@@ -985,6 +985,54 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func asyncLetTuplePatternProjectsOneStructuredChild() async throws {
+        let interpreter = Interpreter()
+        var observedChildCount = 0
+        var observedScopeChildCount = 0
+        interpreter.globals.define(
+            "inspectAsyncLetTupleChild",
+            .hostFunction(HostFunction(
+                name: "inspectAsyncLetTupleChild",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime.records[childID],
+                          let parentID = child.parent,
+                          let parent = interpreter.concurrencyRuntime.records[parentID],
+                          let scope = interpreter.concurrencyRuntime
+                            .structuredScopes.values.first(where: {
+                                $0.ownerTaskID == parentID
+                            }) else {
+                        throw RuntimeError(message:
+                            "tuple async-let child lost structured ownership")
+                    }
+                    observedChildCount = parent.structuredChildren.count
+                    observedScopeChildCount = scope.childTaskIDs.count
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        func asyncLetTupleChild() async -> (String, String) {
+            await inspectAsyncLetTupleChild()
+            return ("left", "right")
+        }
+        func asyncLetTupleOwner() async -> String {
+            async let (left, right) = asyncLetTupleChild()
+            let first = await left
+            let second = await right
+            return first + ":" + second
+        }
+        await asyncLetTupleOwner()
+        """)
+
+        #expect(result.stringValue == "left:right")
+        #expect(observedChildCount == 1)
+        #expect(observedScopeChildCount == 1)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func asyncLetReadWithoutAwaitIsDiagnosedAndCleanedUp() async {
         let interpreter = Interpreter()
         do {

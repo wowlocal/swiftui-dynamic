@@ -1,6 +1,12 @@
 import Foundation
 import SwiftSyntax
 
+private struct AsyncLetProjectedBinding {
+    let name: String
+    let tupleProjection: [Int]
+    let annotation: String?
+}
+
 extension Interpreter {
     // MARK: - Suspension-aware statements
 
@@ -60,19 +66,19 @@ extension Interpreter {
         // every child before lexical storage can leave scope. Cancelling all
         // first prevents an earlier long-running child from delaying a later
         // child's cancellation.
-        for binding in frame.asyncLetBindings {
-            binding.cancelIfUnconsumedAtScopeExit()
+        for child in frame.asyncLetChildren {
+            child.cancelIfUnconsumedAtScopeExit()
         }
-        for binding in frame.asyncLetBindings {
-            await binding.waitForScopeExit(waiter: frame.ownerTaskID)
+        for child in frame.asyncLetChildren {
+            await child.waitForScopeExit(waiter: frame.ownerTaskID)
         }
         if let runtimeScope = frame.runtimeScope {
             concurrencyRuntime.closeStructuredScope(runtimeScope)
         }
-        for binding in frame.asyncLetBindings {
-            concurrencyRuntime.release(binding.handle.id)
+        for child in frame.asyncLetChildren {
+            concurrencyRuntime.release(child.handle.id)
         }
-        frame.asyncLetBindings.removeAll(keepingCapacity: false)
+        frame.asyncLetChildren.removeAll(keepingCapacity: false)
         frame.runtimeScope = nil
     }
 
@@ -253,39 +259,70 @@ extension Interpreter {
         }
 
         for (index, binding) in bindings.enumerated() {
-            let name: String
-            let identifier = binding.pattern.as(IdentifierPatternSyntax.self)
-            if let identifier {
-                name = identifier.identifier.text
-            } else if binding.pattern.is(WildcardPatternSyntax.self) {
-                name = "_"
-            } else {
-                throw error(binding,
-                    "unsupported async-let binding pattern")
-            }
             guard binding.accessorBlock == nil,
                   let initializer = binding.initializer?.value else {
                 throw error(binding,
-                    "async let '\(name)' needs an initializer")
+                    "async let '\(binding.pattern.trimmedDescription)' needs an initializer")
             }
-            let annotation = (binding.typeAnnotation?.type
-                ?? sharedAnnotation(startingAt: index))?.trimmedDescription
+            let annotationSyntax = binding.typeAnnotation?.type
+                ?? sharedAnnotation(startingAt: index)
+            let projectedBindings = try asyncLetProjectedBindings(
+                for: binding.pattern,
+                annotation: annotationSyntax,
+                tupleProjection: [])
+            let annotation = annotationSyntax?.trimmedDescription
             let handle = try spawnAsyncLetTask(
                 initializer: initializer,
                 in: env,
                 annotation: annotation)
-            let asyncBinding = RuntimeAsyncLetBinding(
-                name: name, handle: handle)
+            let child = RuntimeAsyncLetChild(handle: handle)
             concurrencyRuntime.addStructuredChild(
                 handle.id, to: runtimeScope)
-            frame.asyncLetBindings.append(asyncBinding)
-            if let identifier {
+            frame.asyncLetChildren.append(child)
+            for projected in projectedBindings {
+                let asyncBinding = RuntimeAsyncLetBinding(
+                    name: projected.name,
+                    child: child,
+                    tupleProjection: projected.tupleProjection)
                 env.define(
-                    identifier.identifier.text,
+                    projected.name,
                     .native(asyncBinding),
-                    declaredTypeName: annotation)
+                    declaredTypeName: projected.annotation)
             }
         }
+    }
+
+    private func asyncLetProjectedBindings(
+        for pattern: PatternSyntax,
+        annotation: TypeSyntax?,
+        tupleProjection: [Int]
+    ) throws -> [AsyncLetProjectedBinding] {
+        if let identifier = pattern.as(IdentifierPatternSyntax.self) {
+            return [AsyncLetProjectedBinding(
+                name: identifier.identifier.text,
+                tupleProjection: tupleProjection,
+                annotation: annotation?.trimmedDescription)]
+        }
+        if pattern.is(WildcardPatternSyntax.self) { return [] }
+        if let tuplePattern = pattern.as(TuplePatternSyntax.self) {
+            let elements = Array(tuplePattern.elements)
+            let annotations: [TypeSyntax?]
+            if let tupleType = annotation?.as(TupleTypeSyntax.self),
+               tupleType.elements.count == elements.count {
+                annotations = tupleType.elements.map { $0.type }
+            } else {
+                annotations = Array(repeating: nil, count: elements.count)
+            }
+            var result: [AsyncLetProjectedBinding] = []
+            for (index, element) in elements.enumerated() {
+                result += try asyncLetProjectedBindings(
+                    for: element.pattern,
+                    annotation: annotations[index],
+                    tupleProjection: tupleProjection + [index])
+            }
+            return result
+        }
+        throw error(pattern, "unsupported async-let binding pattern")
     }
 
     func evaluateAsyncLetInitializerSuspending(
