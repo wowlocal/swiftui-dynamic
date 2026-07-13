@@ -9,7 +9,8 @@ import SwiftSyntax
 /// tests).
 public final class Interpreter {
     public let globals = Environment()
-    let concurrencyRuntime = CooperativeConcurrencyRuntime()
+    let concurrencyRuntime: CooperativeConcurrencyRuntime
+    public let runtimeClock: any RuntimeClock
     public var registry: HostRegistry?
     /// Struct symbols in declaration order (used to pick the root View).
     public internal(set) var structSymbols: [StructSymbol] = []
@@ -445,6 +446,18 @@ public final class Interpreter {
 
     public init(registry: HostRegistry? = nil) {
         self.registry = registry
+        runtimeClock = ContinuousRuntimeClock()
+        concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
+        defineGlobalBuiltins()
+    }
+
+    public init(
+        registry: HostRegistry? = nil,
+        runtimeClock: any RuntimeClock
+    ) {
+        self.registry = registry
+        self.runtimeClock = runtimeClock
+        concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
     }
 

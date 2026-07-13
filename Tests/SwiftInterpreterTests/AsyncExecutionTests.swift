@@ -1118,4 +1118,86 @@ struct AsyncExecutionTests {
             """)
         }
     }
+
+    @Test func taskSleepUsesInjectedClockAndFirstClassSuspension() async throws {
+        let clock = ManualRuntimeClock()
+        let interpreter = Interpreter(runtimeClock: clock)
+        let execution = Task { @MainActor in
+            try await interpreter.runAsync(source: """
+            let sleeper = Task {
+                try await Task.sleep(nanoseconds: 10)
+                return "awake"
+            }
+            await sleeper.value
+            """)
+        }
+
+        var sleepingRecord: RuntimeTaskRecord?
+        for _ in 0..<1_000 {
+            sleepingRecord = interpreter.concurrencyRuntime.records.values.first {
+                $0.kind == .unstructured && $0.suspension != nil
+            }
+            if sleepingRecord != nil { break }
+            await Task.yield()
+        }
+
+        let record = try #require(sleepingRecord)
+        #expect(record.state == .waiting)
+        #expect(record.suspension == .sleeping(
+            until: RuntimeInstant(nanoseconds: 10)))
+        #expect(clock.sleepingTaskCount == 1)
+
+        clock.advance(by: .nanoseconds(10))
+        let result = try await execution.value
+        #expect(result.stringValue == "awake")
+        #expect(record.state == .succeeded)
+        #expect(record.suspension == nil)
+        #expect(record.suspensionHistory == [
+            .sleeping(until: RuntimeInstant(nanoseconds: 10)),
+        ])
+        #expect(clock.sleepingTaskCount == 0)
+    }
+
+    @Test func cancellingTaskSleepRemovesManualClockWaiter() async throws {
+        let clock = ManualRuntimeClock()
+        let interpreter = Interpreter(runtimeClock: clock)
+        let execution = Task { @MainActor in
+            try await interpreter.runAsync(source: """
+            let sleeper = Task {
+                do {
+                    try await Task.sleep(nanoseconds: 10)
+                    return "completed"
+                } catch is CancellationError {
+                    return "cancelled"
+                }
+            }
+            await sleeper.value
+            """)
+        }
+
+        var sleeper: RuntimeTaskHandle?
+        for _ in 0..<1_000 {
+            sleeper = interpreter.scheduledTasks.first {
+                $0.kind == .unstructured && $0.suspension != nil
+            }
+            if sleeper != nil { break }
+            await Task.yield()
+        }
+
+        let handle = try #require(sleeper)
+        #expect(handle.state == .waiting)
+        #expect(handle.suspension == .sleeping(
+            until: RuntimeInstant(nanoseconds: 10)))
+        #expect(clock.sleepingTaskCount == 1)
+
+        handle.cancel()
+        let result = try await execution.value
+        #expect(result.stringValue == "cancelled")
+        #expect(handle.state == .succeeded)
+        #expect(handle.isCancelled)
+        #expect(handle.cancellation.isObserved)
+        #expect(handle.suspension == nil)
+        #expect(clock.now == .zero)
+        #expect(clock.sleepingTaskCount == 0)
+    }
 }

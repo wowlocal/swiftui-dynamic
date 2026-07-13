@@ -329,6 +329,18 @@
     "notes": "The parent reaches a cancellable suspension only after storing the child handle. The child remains behind a separate gate until after parent cancellation; exact output is cancelled,child."
   },
   {
+    "id": "task-sleep-cancellation",
+    "fixture": "Fixtures/task-sleep-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskSleepCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Task.sleep suspends without blocking MainActor, and cancelling the sleeping task resumes it by throwing CancellationError.",
+    "notes": "A separate async helper waits for the explicit started marker before cancellation. The 30-second deadline cannot expire within the five-second process bound; exact output is started,cancelled."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

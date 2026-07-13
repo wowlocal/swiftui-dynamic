@@ -109,9 +109,22 @@ extension RuntimeTaskKind {
 public enum RuntimeTaskState: String, Sendable {
     case pending
     case running
+    case waiting
     case succeeded
     case cancelled
     case failed
+}
+
+public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
+    case yielding
+    case sleeping(until: RuntimeInstant)
+
+    public var description: String {
+        switch self {
+        case .yielding: "yielding"
+        case .sleeping(let deadline): "sleeping(until: \(deadline))"
+        }
+    }
 }
 
 public enum RuntimeCancellationSource: Hashable, Sendable {
@@ -160,6 +173,8 @@ final class RuntimeTaskRecord {
     var effectivePriority: RuntimeTaskPriority
     let taskLocals: RuntimeTaskLocalStorage
     var state: RuntimeTaskState = .pending
+    var suspension: RuntimeSuspension?
+    var suspensionHistory: [RuntimeSuspension] = []
     var outcome: RuntimeTaskOutcome?
     var failureDescription: String?
     var cancellation = RuntimeCancellationState()
@@ -192,10 +207,15 @@ final class RuntimeTaskRecord {
 }
 
 final class CooperativeConcurrencyRuntime {
+    let clock: any RuntimeClock
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
     private var nextEventSequence: UInt64 = 1
     private(set) var records: [RuntimeTaskID: RuntimeTaskRecord] = [:]
+
+    init(clock: any RuntimeClock = ContinuousRuntimeClock()) {
+        self.clock = clock
+    }
 
     func createSession() -> RuntimeSessionID {
         let id = RuntimeSessionID(rawValue: nextSessionID)
@@ -282,6 +302,7 @@ final class CooperativeConcurrencyRuntime {
         record.outcome = .success(
             value, successType: HostRuntimeTypeSystem.typeName(of: value))
         record.state = .succeeded
+        record.suspension = nil
         record.evaluationContext = nil
     }
 
@@ -298,6 +319,7 @@ final class CooperativeConcurrencyRuntime {
                 failureType: String(describing: type(of: error)))
         }
         record.state = .failed
+        record.suspension = nil
         record.evaluationContext = nil
     }
 
@@ -311,6 +333,7 @@ final class CooperativeConcurrencyRuntime {
         record.cancellation.request(
             from: source, sequence: takeEventSequence())
         record.nativeTask?.cancel()
+        clock.cancelSleep(task: record.id)
         guard !alreadyRequestedFromSource else { return }
         for childID in record.structuredChildren {
             guard let child = records[childID] else { continue }
@@ -323,6 +346,7 @@ final class CooperativeConcurrencyRuntime {
         record.cancellation.observe(sequence: takeEventSequence())
         record.outcome = .cancelled
         record.state = .cancelled
+        record.suspension = nil
         record.evaluationContext = nil
     }
 
@@ -346,7 +370,31 @@ final class CooperativeConcurrencyRuntime {
     }
 
     func release(_ id: RuntimeTaskID) {
+        clock.cancelSleep(task: id)
         records.removeValue(forKey: id)
+    }
+
+    func suspend(_ id: RuntimeTaskID, for reason: RuntimeSuspension) {
+        guard let record = records[id] else {
+            preconditionFailure("cannot suspend unknown runtime task \(id)")
+        }
+        guard record.state == .running, record.suspension == nil else {
+            preconditionFailure(
+                "runtime task \(id) cannot suspend from \(record.state)")
+        }
+        record.state = .waiting
+        record.suspension = reason
+        record.suspensionHistory.append(reason)
+    }
+
+    func resume(_ id: RuntimeTaskID, from reason: RuntimeSuspension) {
+        guard let record = records[id], !record.state.isCompleted else { return }
+        guard record.state == .waiting, record.suspension == reason else {
+            preconditionFailure(
+                "runtime task \(id) resumed from an unregistered suspension")
+        }
+        record.suspension = nil
+        record.state = .running
     }
 
     var activeRecordCount: Int { records.count }
@@ -387,7 +435,7 @@ extension RuntimeTaskState {
     var isCompleted: Bool {
         switch self {
         case .succeeded, .cancelled, .failed: true
-        case .pending, .running: false
+        case .pending, .running, .waiting: false
         }
     }
 }

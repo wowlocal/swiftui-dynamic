@@ -186,6 +186,7 @@ private enum ConcurrencyParityHarness {
         var taskValueGateOpen = false
         var taskValueWaiterCount = 0
         var registeredTaskValueSource: RuntimeTaskHandle?
+        var sleepStarted = false
         var taskLocalStorageByTask: [
             RuntimeTaskID: RuntimeTaskLocalStorage
         ] = [:]
@@ -327,6 +328,25 @@ private enum ConcurrencyParityHarness {
                     || registeredTaskValueSource?.waiterCount != 2 {
                     await Task.yield()
                 }
+                return .void
+            }
+        )))
+        interpreter.globals.define("parityMarkSleepStarted", .hostFunction(HostFunction(
+            name: "parityMarkSleepStarted"
+        ) { _, _ in
+            sleepStarted = true
+            return .void
+        }))
+        interpreter.globals.define("parityCancelWhenSleepStarted", .hostFunction(HostFunction(
+            name: "parityCancelWhenSleepStarted",
+            asyncInvoke: { arguments, _ in
+                guard let handle = arguments.positional(0)?.hostPayload
+                        as? RuntimeTaskHandle else {
+                    throw RuntimeError(message:
+                        "sleep cancellation helper requires a task handle")
+                }
+                while !sleepStarted { await Task.yield() }
+                handle.cancel()
                 return .void
             }
         )))

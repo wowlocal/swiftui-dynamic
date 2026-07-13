@@ -30,7 +30,7 @@ major version 6.
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
+| M3 suspension and clocks | in progress | Async source `Task.sleep` uses runtime-owned `.sleeping` state plus injected continuous/manual clocks; cancellation removes the clock waiter and throws `CancellationError`; same-source Swift 6 parity and deterministic virtual-time tests are green | Real `Task.yield`, cancellation handlers, and the remaining suspension reasons |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
@@ -69,6 +69,7 @@ major version 6.
 | `task-handle-deallocation` | exact | Discarding the last source-level handle neither cancels an unstructured task nor ends its operation; active task lifetime is independent of handle lifetime | Native/interpreter parity in 20 repetitions: `completed,active`; every interpreted parity repetition also ends with empty scheduler and runtime registries |
 | `task-cancellation-caught` | exact | A task may catch `CancellationError` and complete successfully while its handle remains marked cancelled | Native/interpreter parity in 20 repetitions: `success:caught,cancelled`; request state and terminal outcome are asserted independently |
 | `unstructured-cancellation-isolation` | exact | Cancelling an unstructured task does not cancel another unstructured `Task` that it created | Native/interpreter parity in 20 repetitions: `cancelled,child`; runtime records preserve a creation edge but no structured cancellation edge |
+| `task-sleep-cancellation` | exact | `Task.sleep` suspends without blocking the executor, and cancelling the sleeping task resumes it by throwing `CancellationError` | Native/interpreter parity in 20 repetitions: `started,cancelled`; an explicit started barrier makes the 30-second deadline unreachable within the five-second process bound |
 | `task-read-missing-await-diagnostic` | diagnostic | `Task.value` and `Task.result` are async property accesses, so omitting `await` is rejected even inside an async function | Real Swift 6 diagnostics require `await`; runtime member dispatch now diagnoses instead of returning `()` for either property |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
@@ -874,3 +875,44 @@ Closing verification on Apple Swift 6.3.3 / macOS 26.5 SDK:
 
 M2 is complete. Structured concurrency is still not claimed; M3 must first
 provide scheduler-owned suspension and clocks.
+
+## Milestone 3 verification record
+
+### Cancellable task sleep and injected clocks
+
+Native question: after a task has announced that it is about to enter a
+30-second `Task.sleep`, can another task run, cancel it, and make the sleep
+throw `CancellationError` without the deadline expiring?
+
+The committed `task-sleep-cancellation` fixture uses an explicit MainActor
+started marker and performs cancellation only after that marker. The native
+runner compiles the fixture with the active Apple compiler in Swift 6 strict-
+concurrency mode. Twenty native runs produced `started,cancelled` exactly. The
+deadline cannot expire within the harness's five-second process bound, so the
+result proves suspension, executor availability, cancellation, and wake-up
+without relying on scheduler order or an arbitrary synchronization delay.
+
+Before the implementation, the same interpreter source produced
+`started,completed` in all twenty repetitions because the SwiftUI bridge
+served `Task.sleep` as a synchronous compatibility no-op. The async evaluator
+now resolves `Task.sleep` in the interpreter core before that bridge boundary.
+It records `.sleeping(until:)`, moves the task from `running` to `waiting`, and
+awaits an injected `RuntimeClock`. `ContinuousRuntimeClock` supplies production
+monotonic time; `ManualRuntimeClock` lets tests advance time without wall-clock
+sleep. Task cancellation removes the registered waiter, resumes it with
+`CancellationError`, records cancellation observation, and clears the active
+suspension on unwind. Synchronous rendering deliberately keeps its documented
+compatibility policy.
+
+Two deterministic unit tests use only manual time. One proves that a sleeping
+task remains pending until the clock advances to its deadline. The other
+cancels the task at time zero and verifies waiter removal, caught cancellation,
+the independent successful task outcome, and cleanup of suspension state.
+The focused concurrency/runtime gate passed 55 tests in six suites, including
+all native differential repetitions. A clean full build of the exact isolated
+change set passed all 742 tests in 146 suites. `Scripts/gate.sh` passed with
+suite 742/742, corpus 678/680, live 5/5, and API parity 345 match / 0 diverge /
+0 interpreter errors / 17 unstable / 0 no-twin.
+
+M3 remains in progress. `Task.yield`, cancellation handlers, and the remaining
+first-class suspension categories are not yet implemented.

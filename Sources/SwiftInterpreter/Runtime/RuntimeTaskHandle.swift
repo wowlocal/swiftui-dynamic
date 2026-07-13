@@ -65,6 +65,10 @@ public final class RuntimeTaskHandle {
         record.effectivePriority
     }
     public var state: State { record.state }
+    public var suspension: RuntimeSuspension? { record.suspension }
+    public var suspensionHistory: [RuntimeSuspension] {
+        record.suspensionHistory
+    }
     public var outcome: RuntimeTaskOutcome? { record.outcome }
     public var failureDescription: String? { record.failureDescription }
     public var cancellation: RuntimeCancellationState { record.cancellation }

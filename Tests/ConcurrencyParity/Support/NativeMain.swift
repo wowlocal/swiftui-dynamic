@@ -120,6 +120,22 @@ func parityAwaitTaskValueWaiters() async {
     }
 }
 
+@MainActor
+var paritySleepStarted = false
+
+@MainActor
+func parityMarkSleepStarted() {
+    paritySleepStarted = true
+}
+
+@MainActor
+func parityCancelWhenSleepStarted(_ task: Task<Void, Never>) async {
+    while !paritySleepStarted {
+        await Task.yield()
+    }
+    task.cancel()
+}
+
 @main
 struct NativeMain {
     static func main() async throws {

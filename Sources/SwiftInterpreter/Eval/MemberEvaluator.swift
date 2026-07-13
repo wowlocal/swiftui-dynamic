@@ -976,6 +976,8 @@ extension Interpreter {
                         try Task.checkCancellation()
                         return .void
                     })
+                case "sleep" where evaluationTaskContext.isAsyncSession:
+                    return .hostFunction(sourceTaskSleepFunction())
                 default:
                     break
                 }
