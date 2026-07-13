@@ -269,6 +269,18 @@
     "notes": "The child waits behind a gate, the creator records returned and exits, and a separate controller opens the gate. The interpreter parity runner uses its explicit drainOwnedTasks host policy."
   },
   {
+    "id": "task-handle-deallocation",
+    "fixture": "Fixtures/task-handle-deallocation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskHandleDeallocationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Discarding the last source-level handle to an unstructured task neither cancels the task nor ends its operation; the task remains alive independently until completion.",
+    "notes": "The Task result is assigned directly to _, so no source handle survives creation. MainActor gates prove that the task starts, remains active after the drop, and finishes only after explicit release. Exact output is completed,active on Swift 6.3.3."
+  },
+  {
     "id": "task-cancellation-caught",
     "fixture": "Fixtures/task-cancellation-caught.swift",
     "mode": "runtime",

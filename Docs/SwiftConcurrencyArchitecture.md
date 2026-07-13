@@ -570,6 +570,13 @@ enum RuntimeTaskKind {
 The source-level task value refers to `RuntimeTaskID`; it does not directly
 expose or own the native Swift task used to drive the runtime.
 
+Dropping the last source-level task value does not request cancellation and
+does not shorten an active task's operation. The runtime/session or structured
+scope retains active execution independently until a terminal outcome. Once
+bookkeeping has released a completed task from the active registry, an escaped
+source handle may still retain access to that task's immutable outcome without
+retaining the interpreter session or native driver.
+
 ### 6.8 Task result and failure model
 
 The task outcome retains logical generic types even though storage is dynamic:

@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Task-handle deallocation and remaining structured task creation/cancellation cases |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Remaining structured task creation/cancellation cases |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -64,6 +64,7 @@ major version 6.
 | `task-local-inheritance` | exact | A scoped task-local binding is inherited by an unstructured `Task`, absent from `Task.detached`, and restored after a nested binding exits | Native/interpreter parity in 20 repetitions: `parent,parent:child:parent,default`; every interpreted task owns distinct storage and completion clears it |
 | `task-local-unwind` | exact | A scoped task-local binding is removed on both a thrown exit and cancellation, so an outer catch observes the inherited parent value | Native/interpreter parity in 20 repetitions: `parent,parent`; both inner values are checked before unwinding and cancellation starts only after an explicit suspension barrier |
 | `unstructured-top-level-lifetime` | exact | An unstructured task may continue after its creating function returns; lexical scope does not join it | Native/interpreter parity in 20 repetitions: `returned,task`; interpreter execution uses the explicit drain policy rather than claiming structured ownership |
+| `task-handle-deallocation` | exact | Discarding the last source-level handle neither cancels an unstructured task nor ends its operation; active task lifetime is independent of handle lifetime | Native/interpreter parity in 20 repetitions: `completed,active`; every interpreted parity repetition also ends with empty scheduler and runtime registries |
 | `task-cancellation-caught` | exact | A task may catch `CancellationError` and complete successfully while its handle remains marked cancelled | Native/interpreter parity in 20 repetitions: `success:caught,cancelled`; request state and terminal outcome are asserted independently |
 | `unstructured-cancellation-isolation` | exact | Cancelling an unstructured task does not cancel another unstructured `Task` that it created | Native/interpreter parity in 20 repetitions: `cancelled,child`; runtime records preserve a creation edge but no structured cancellation edge |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
@@ -397,6 +398,33 @@ already inside host suspension, stored handle state, and empty scheduler/runtime
 tracking after cleanup. In a clean worktree, the 41 concurrency-parity,
 async-execution, and host-signature tests passed, followed by all 714 tests in
 141 suites.
+
+### Source handle lifetime versus active task lifetime
+
+`task-handle-deallocation` assigns the result of `Task { ... }` directly to
+`_`, so no source-level handle survives the creation statement. The operation
+marks entry, waits behind an explicit MainActor gate, then records its own
+cancellation flag and completion. The controller does not release the gate
+until entry is visible, so completion cannot be confused with inline execution
+or an unobserved task that never started.
+
+Twenty Apple Swift 6.3.3 strict-concurrency runs produced `completed,active`
+exactly. Dropping the handle neither requests cancellation nor ends the
+operation. The runtime task remains independently alive until its body
+finishes.
+
+The same-source interpreter case was already GREEN in all twenty repetitions;
+no runtime behavior was changed and no artificial RED was introduced.
+`scheduledTasks` already owns active operations independently of values kept by
+source code, then releases their records at session drain or detached cleanup.
+The parity harness now checks this ownership boundary for every runtime
+fixture: after `runAsync`, both the scheduler list and active runtime registry
+must be empty. This turns leak cleanup into closing evidence rather than an
+assumption specific to the new fixture.
+
+Verification on Apple Swift 6.3.3 / macOS 26.5 SDK: 51 concurrency-parity,
+task-cancellation, async-execution, and host-signature tests passed in four
+suites, followed by all 728 tests in 142 suites.
 
 ### Cancellation request, observation, and outcome
 
