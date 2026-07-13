@@ -490,7 +490,7 @@ func interpretedProtocolResponse(
             print("   ⚡ \(symbol.name).canInit → \(rawVerdict?.stringified ?? "THREW") request.url=\(NetworkBridge.url(from: requestValue)?.absoluteString ?? "nil")")
         }
         guard let verdict = rawVerdict, verdict.boolValue == true else { continue }
-        let instance = Instance(symbol: symbol)
+        let instance = Instance(symbol: symbol, lifecycleOwner: interpreter)
         let recorder = URLProtocolClientRecorder()
         instance.properties["request"] = Box(requestValue)
         instance.properties["client"] = Box(.native(recorder))
