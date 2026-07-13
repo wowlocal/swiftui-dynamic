@@ -437,6 +437,18 @@
     "notes": "The child first enters a 30-second cancellable suspension, so natural completion is impossible within the process bound. The parent records scope-exit before returning; exact output child-start,scope-exit,child-cancelled,after-scope proves both implicit cancellation and the scope-exit join."
   },
   {
+    "id": "async-let-value-failure",
+    "fixture": "Fixtures/async-let-value-failure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetValueFailureProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Awaiting a throwing async-let binding waits for the child outcome and propagates its failure into the parent's do/catch.",
+    "notes": "The child crosses an explicit yield before throwing the fixture's only error. Exact output is caught in 20 Swift 6.3.3 runs; no ready-task ordering is asserted."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",
