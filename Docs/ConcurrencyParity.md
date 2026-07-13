@@ -384,7 +384,6 @@ spawn another async task.
 Focused policy regressions cover early top-level return, a drain session that
 must not wait for another session's blocked task, cancellation of a task
 already inside host suspension, stored handle state, and empty scheduler/runtime
-tracking after cleanup. A temporary executable depending only on
-`SwiftInterpreter` exercised all three public policies successfully while
-unrelated user-regenerated SwiftUI bridge files prevented the package-wide
-runner from linking; final counts are recorded after the clean-worktree gate.
+tracking after cleanup. In a clean worktree, the 41 concurrency-parity,
+async-execution, and host-signature tests passed, followed by all 714 tests in
+141 suites.
