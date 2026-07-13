@@ -50,6 +50,9 @@ public final class TraceRegistry: HostRegistry {
     }
 
     public func cFunction(named name: String) -> HostFunction? {
+        if let generated = GeneratedPlatformBridge.globalFunction(named: name) {
+            return generated
+        }
         switch name {
         case "uname":
             // The host hardware is REAL: fill the interpreted struct with

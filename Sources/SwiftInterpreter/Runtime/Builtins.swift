@@ -540,6 +540,30 @@ public enum Builtins {
            case .implicitMember(let name) = lhs {
             return comparisonResultName(result) == name
         }
+        // Opaque host bridges may retain equality information that disappears
+        // behind `Any`, including the concrete type needed to resolve a
+        // contextual enum member. Ask that semantic contract before applying
+        // the ordinary opaque-object identity rules below.
+        if case .host(let any) = lhs, let equatable = any as? HostRuntimeEquatable,
+           case .implicitMember(let name) = rhs,
+           let equal = equatable.runtimeEquals(implicitMemberNamed: name) {
+            return equal
+        }
+        if case .host(let any) = rhs, let equatable = any as? HostRuntimeEquatable,
+           case .implicitMember(let name) = lhs,
+           let equal = equatable.runtimeEquals(implicitMemberNamed: name) {
+            return equal
+        }
+        if case .host(let left) = lhs, let equatable = left as? HostRuntimeEquatable,
+           case .host(let right) = rhs,
+           let equal = equatable.runtimeEquals(right) {
+            return equal
+        }
+        if case .host(let right) = rhs, let equatable = right as? HostRuntimeEquatable,
+           case .host(let left) = lhs,
+           let equal = equatable.runtimeEquals(left) {
+            return equal
+        }
         // Hosted objects compare by identity; against anything else, false.
         if case .host(let la) = lhs, la is InertCallable {
             if case .host(let ra) = rhs, ra is InertCallable {

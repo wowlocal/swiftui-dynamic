@@ -52,20 +52,14 @@ PNG encoding, `NSImage` construction, and byte-for-byte export round-trip. At
 320 × 200, the four pattern checksums were `832953`, `544489`, `932468`, and
 `884591`. The Swift package's GPU regression test also passes.
 
-The interpreter run was tested only through the public project runner, without
-inspecting interpreter implementation. The complete AppKit/SwiftUI workbench
-renders, including gradients, controls, sliders, symbols, cards, and the idle
-preview. Its idle 1160 × 780 snapshot is byte-for-byte pixel-identical to the
-native snapshot.
-
-Metal execution itself is not functional in that runner. Autorender reaches
-the shared GPU pipeline, but the device name is empty and the shared-buffer
-readback contains 0 bytes instead of the required 576,000. The pipeline's
-general readback-size invariant catches that invalid result and the UI reports
-`Metal returned 0 bytes; expected 576000.` rather than presenting a false
-success. Runtime MSL compilation, command encoding, compute dispatch, and
-buffer readback therefore need real Metal bridge semantics before this example
-can produce its procedural image in the interpreter.
+The interpreter now executes the same Metal path through generated SDK
+bindings. It discovers the real `Apple M4 Max`, compiles the runtime MSL,
+encodes and waits for a command buffer, reads all 576,000 shared-buffer bytes,
+writes AppKit bitmap storage, and encodes the PNG. Native and interpreted runs
+produce the same Aurora checksum (`307310`), mean (`#0F1F36`), luminance range
+(`98%`), and sampled-color count (`795`). A generated-bridge integration test
+also dispatches an independent Metal kernel and verifies ABI struct layout,
+owned pointer reads, writable AppKit memory, and PNG encoding.
 
 One additional black-box API-shape difference surfaced: native Swift accepts
 `Image(nsImage: image).resizable()`, while the runner diagnoses that chain as
@@ -81,15 +75,22 @@ The idle-state comparison isolates the UI renderer from Metal and is exact:
 - absolute-error pixels with 5/255 channel fuzz: `0 / 904,800` (`0.000%`)
 - normalized RMSE: `0`
 
-With `METAL_SIGNAL_AUTORENDER=1`, native shows the computed Aurora field while
-the interpreter shows the caught Metal error state:
+With `METAL_SIGNAL_AUTORENDER=1`, both sides show the same computed Aurora
+field and telemetry. In the final verification run:
 
-- exact absolute-error pixels: `245,594 / 904,800` (`27.143%`)
-- absolute-error pixels with 5/255 channel fuzz: `244,145 / 904,800` (`26.983%`)
-- normalized RMSE: `0.081006`
+- exact absolute-error pixels: `329 / 904,800` (`0.036%`)
+- absolute-error pixels with 5/255 channel fuzz: `275 / 904,800` (`0.030%`)
+- normalized RMSE: `0.00503777`
+- 480 × 300 GPU preview crop: `0 / 144,000` differing pixels (`0.000%`)
 
-The functional diff is concentrated in the GPU preview, output metrics,
-pipeline-state indicators, and status text. The surrounding UI stays aligned.
+The remaining whole-window difference is the deliberately live GPU-duration
+label: native and interpreted dispatch plumbing has different CPU overhead,
+and neither value is deterministic, so the whole-window count varies between
+runs. Every differing pixel in this run was inside that label's 47 × 9-pixel
+bounding box; rendering, output bytes, derived metrics, layout, and every other
+visible state match. Interpreting the two large byte statistics loops is also
+substantially slower than native Swift; this is a performance difference, not
+a Metal or timer-speed difference.
 Reproduce both functional snapshots from the repository root with:
 
 ```bash

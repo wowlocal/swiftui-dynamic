@@ -26,8 +26,8 @@ extension Interpreter {
 
     /// A `for-in` sequence is fully materialized before execution, so the
     /// loop itself has a compiler-like proof of finite progress. Give each
-    /// element body an independent bounded slice and charge the enclosing
-    /// evaluation one step per completed element. This permits legitimate
+    /// element body an independent bounded slice without charging its known-
+    /// finite cardinality to the enclosing infinite-work budget. This permits legitimate
     /// nested finite work (image pixels, matrix transforms) without weakening
     /// the guard for `while true`, recursion, or an infinite loop inside an
     /// element body: each of those still exhausts its own full step budget.
@@ -36,7 +36,7 @@ extension Interpreter {
     ) throws -> T {
         let enclosingSteps = steps
         steps = 0
-        defer { steps = enclosingSteps + 1 }
+        defer { steps = enclosingSteps }
         return try body()
     }
 
@@ -48,7 +48,7 @@ extension Interpreter {
     ) async throws -> T {
         let enclosingSteps = steps
         steps = 0
-        defer { steps = enclosingSteps + 1 }
+        defer { steps = enclosingSteps }
         return try await body()
     }
 

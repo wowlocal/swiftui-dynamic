@@ -361,7 +361,7 @@ extension Interpreter {
                     let genericText = spec.genericArgumentClause.arguments
                         .map { $0.argument.trimmedDescription }
                         .joined(separator: ", ")
-                    return .hostFunction(HostFunction(
+                    let specialized = HostFunction(
                         name: ctor.name,
                         invoke: { args, ctx in
                             var enriched = args.arguments
@@ -376,7 +376,10 @@ extension Interpreter {
                             return try await ctor.invokeSuspending(
                                 CallArguments(arguments: enriched), ctx)
                         }
-                    ))
+                    )
+                    specialized.genericArguments = spec.genericArgumentClause.arguments
+                        .map { $0.argument.trimmedDescription }
+                    return .hostFunction(specialized)
                 }
                 return resolved
             }

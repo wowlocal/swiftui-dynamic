@@ -517,7 +517,6 @@ extension Interpreter {
 
         loop: for element in elements {
             try checkRuntimeCancellation()
-            try tick(forStatement)
             let child = Environment(parent: env)
             if let casePattern {
                 guard try matches(

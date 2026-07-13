@@ -152,6 +152,115 @@ import AppKit
         #expect(tuple.values[3].intValue == 12)
     }
 
+#if canImport(Metal)
+    @Test func generatedMetalBridgeExecutesComputeAndOwnedMemoryCopies() throws {
+        let source = #"""
+        struct Parameters {
+            var count: UInt32
+            var seed: UInt32
+        }
+
+        struct Padded {
+            var word: UInt32
+            var flag: UInt8
+        }
+
+        guard let device = MTLCreateSystemDefaultDevice(),
+              let queue = device.makeCommandQueue() else {
+            fatalError("Metal unavailable")
+        }
+        let shader = """
+        #include <metal_stdlib>
+        using namespace metal;
+        struct Parameters { uint count; uint seed; };
+        kernel void fill_values(
+            device uint *output [[buffer(0)]],
+            constant Parameters &parameters [[buffer(1)]],
+            uint index [[thread_position_in_grid]]) {
+            if (index < parameters.count) {
+                output[index] = parameters.seed + index;
+            }
+        }
+        """
+        let library = try device.makeLibrary(source: shader, options: nil)
+        guard let function = library.makeFunction(name: "fill_values") else {
+            fatalError("kernel missing")
+        }
+        let pipeline = try device.makeComputePipelineState(function: function)
+        let count = 16
+        guard let output = device.makeBuffer(
+            length: count * 4, options: .storageModeShared),
+              let command = queue.makeCommandBuffer(),
+              let encoder = command.makeComputeCommandEncoder() else {
+            fatalError("command setup failed")
+        }
+        var parameters = Parameters(count: UInt32(count), seed: 7)
+        encoder.label = "generated bridge regression"
+        encoder.setComputePipelineState(pipeline)
+        encoder.setBuffer(output, offset: 0, index: 0)
+        encoder.setBytes(
+            &parameters, length: MemoryLayout<Parameters>.stride, index: 1)
+        encoder.dispatchThreads(
+            MTLSize(width: count, height: 1, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 1, depth: 1))
+        encoder.endEncoding()
+        command.commit()
+        command.waitUntilCompleted()
+        let finalStatus = command.status
+
+        let data = Data(bytes: output.contents(), count: count * 4)
+        let bytes = [UInt8](data)
+        var byteSum = 0
+        for byte in bytes { byteSum += Int(byte) }
+
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 1,
+            pixelsHigh: 1,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 4,
+            bitsPerPixel: 32
+        ), let bitmapData = bitmap.bitmapData else {
+            fatalError("bitmap setup failed")
+        }
+        Data([255, 0, 0, 255]).copyBytes(to: bitmapData, count: 4)
+        guard let png = bitmap.representation(using: .png, properties: [:]) else {
+            fatalError("PNG encoding failed")
+        }
+
+        (
+            MemoryLayout<Parameters>.stride,
+            MemoryLayout<Padded>.size,
+            MemoryLayout<Padded>.stride,
+            MemoryLayout<Padded>.alignment,
+            data.count,
+            byteSum,
+            png.count,
+            device.name.isEmpty,
+            finalStatus == .completed,
+            finalStatus == command.status
+        )
+        """#
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        let tuple = try #require(result.tupleValue)
+        #expect(tuple.values[0].intValue == 8)
+        #expect(tuple.values[1].intValue == 5)
+        #expect(tuple.values[2].intValue == 8)
+        #expect(tuple.values[3].intValue == 4)
+        #expect(tuple.values[4].intValue == 64)
+        #expect(tuple.values[5].intValue == 232)
+        #expect((tuple.values[6].intValue ?? 0) > 50)
+        #expect(tuple.values[7].boolValue == false)
+        #expect(tuple.values[8].boolValue == true)
+        #expect(tuple.values[9].boolValue == true)
+    }
+#endif
+
     @Test func appKitGeometryAliasesGenerateAsCoreGraphicsContracts() throws {
         let source = """
         let origin = NSPoint(x: 3, y: 4)

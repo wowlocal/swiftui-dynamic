@@ -10,6 +10,7 @@ struct PlatformCoverageSection: Encodable {
     let emittedMethods: Int
     let emittedStaticProperties: Int
     let emittedStaticMethods: Int
+    let emittedGlobalFunctions: Int
     let emittedEnumValues: Int
     let emittedSignatures: [String]
     let blockers: [String: Int]
@@ -26,9 +27,10 @@ private struct PlatformFrameworkSpec {
     let name: String
     let sdkName: String
     let target: String
-    let availabilityDomain: String
-    let deploymentMajor: Int
-    let deploymentMinor: Int
+    /// Every deployment on which the checked-in bridge must compile. A
+    /// cross-platform framework such as Metal is filtered against both SDK
+    /// availability domains from one metadata sweep.
+    let deployments: [String: (major: Int, minor: Int)]
     let roots: Set<String>
 }
 
@@ -40,7 +42,7 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
     .init(
         name: "AppKit", sdkName: "macosx",
         target: "arm64-apple-macosx15.0",
-        availabilityDomain: "macOS", deploymentMajor: 15, deploymentMinor: 0,
+        deployments: ["macOS": (15, 0)],
         roots: [
             "NSApplication", "NSResponder", "NSWindow", "NSScreen",
             "NSView", "NSControl", "NSViewController", "NSAppearance",
@@ -53,7 +55,7 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
     .init(
         name: "UIKit", sdkName: "iphoneos",
         target: "arm64-apple-ios18.0",
-        availabilityDomain: "iOS", deploymentMajor: 18, deploymentMinor: 0,
+        deployments: ["iOS": (18, 0)],
         roots: [
             "UIApplication", "UIResponder", "UIWindow", "UIWindowScene",
             "UIScreen", "UIView", "UIControl", "UIViewController",
@@ -61,6 +63,19 @@ private let platformFrameworkSpecs: [PlatformFrameworkSpec] = [
             "UIEdgeInsets", "UIOffset", "NSDirectionalEdgeInsets",
             "UIButton", "UIImageView", "UILabel", "UIScrollView",
             "UITableView", "UICollectionView", "UITextField", "UITextView",
+        ]),
+    .init(
+        // Generate the common Metal surface from the more restrictive iOS
+        // SDK; the same emitted calls then compile for both package targets.
+        name: "Metal", sdkName: "iphoneos",
+        target: "arm64-apple-ios18.0",
+        deployments: ["macOS": (15, 0), "iOS": (18, 0)],
+        roots: [
+            "MTLSize", "MTLResourceOptions", "MTLCommandBufferStatus",
+            "MTLCompileOptions", "MTLDevice", "MTLCommandQueue",
+            "MTLLibrary", "MTLFunction", "MTLComputePipelineState",
+            "MTLResource", "MTLBuffer", "MTLCommandBuffer",
+            "MTLCommandEncoder", "MTLComputeCommandEncoder",
         ]),
 ]
 
@@ -103,13 +118,16 @@ private struct SymbolGraph: Decodable {
         let source: String
         let target: String
         let kind: String
+        let targetFallback: String?
     }
 }
 
 private enum PlatformNominalKind: String {
-    case `class`, `struct`, `enum`
+    case `class`, `struct`, `enum`, `protocol`
 
-    var isValueType: Bool { self != .class }
+    var isValueType: Bool { self == .struct || self == .enum }
+
+    var nativePrefix: String { self == .protocol ? "any " : "" }
 }
 
 private struct PlatformNominal {
@@ -118,27 +136,41 @@ private struct PlatformNominal {
     let type: String
     let root: String
     let kind: PlatformNominalKind
+    let isEquatable: Bool
 }
 
 private struct PlatformParameter {
     let label: String?
     let type: String
+    /// Statically compiled SDK spelling. Protocol values retain `any`; the
+    /// host contract deliberately uses the nominal protocol name.
+    let nativeType: String
     /// Runtime overload contract. Usually identical to `type`; nil-only
     /// unsafe pointers use `Never?` so only a nil source value can match.
     let contractType: String
     let hasDefault: Bool
     let isAction: Bool
+    let pointerKind: PlatformPointerKind?
+}
+
+private enum PlatformPointerKind {
+    case raw
+    case mutableRaw
+    case mutableBytes
 }
 
 private struct PlatformCallable {
-    enum Kind { case constructor, method, staticMethod }
+    enum Kind { case constructor, method, staticMethod, globalFunction }
 
     let framework: String
     let kind: Kind
     let receiverType: String
+    let nativeReceiverType: String
     let receiverIsValueType: Bool
     let name: String
     let resultType: String
+    let nativeResultType: String
+    let resultPointerKind: PlatformPointerKind?
     let params: [PlatformParameter]
     let isThrowing: Bool
     let isFailable: Bool
@@ -156,6 +188,8 @@ private struct PlatformCallable {
             return "func \(receiverType).\(name)(\(parameters))\(effects) -> \(resultType)"
         case .staticMethod:
             return "static func \(receiverType).\(name)(\(parameters))\(effects) -> \(resultType)"
+        case .globalFunction:
+            return "func \(name)(\(parameters))\(effects) -> \(resultType)"
         }
     }
 
@@ -174,9 +208,12 @@ private struct PlatformCallable {
 private struct PlatformProperty {
     let framework: String
     let receiverType: String
+    let nativeReceiverType: String
     let receiverIsValueType: Bool
     let name: String
     let resultType: String
+    let nativeResultType: String
+    let pointerKind: PlatformPointerKind?
     let isSettable: Bool
     let isStatic: Bool
 
@@ -206,10 +243,11 @@ private struct ParsedPlatformFramework {
     let spec: PlatformFrameworkSpec
     let graph: SymbolGraph
     let nominals: [String: PlatformNominal]
-    let supertypeByType: [String: String]
+    let supertypesByType: [String: [String]]
     let constructors: [PlatformCallable]
     let methods: [PlatformCallable]
     let staticMethods: [PlatformCallable]
+    let globalFunctions: [PlatformCallable]
     let properties: [PlatformProperty]
     let staticProperties: [PlatformProperty]
     let enumValues: [PlatformEnumValue]
@@ -231,6 +269,7 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
             framework.constructors.map(\.signatureKey)
                 + framework.methods.map(\.signatureKey)
                 + framework.staticMethods.map(\.signatureKey)
+                + framework.globalFunctions.map(\.signatureKey)
                 + framework.properties.map(\.signatureKey)
                 + framework.staticProperties.map(\.signatureKey)
         ).sorted()
@@ -242,6 +281,7 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
             emittedMethods: framework.methods.count,
             emittedStaticProperties: framework.staticProperties.count,
             emittedStaticMethods: framework.staticMethods.count,
+            emittedGlobalFunctions: framework.globalFunctions.count,
             emittedEnumValues: framework.enumValues.count,
             emittedSignatures: signatures,
             blockers: framework.blockers)
@@ -250,6 +290,7 @@ func generatePlatformBridge() throws -> PlatformGenerationResult {
                 + "\(framework.constructors.count) constructors, "
                 + "\(framework.properties.count + framework.staticProperties.count) properties, "
                 + "\(framework.methods.count + framework.staticMethods.count) methods, "
+                + "\(framework.globalFunctions.count) global functions, "
                 + "\(framework.enumValues.count) contextual values")
     }
     return PlatformGenerationResult(
@@ -268,39 +309,52 @@ private func parsePlatformFramework(
         "swift.class": .class,
         "swift.struct": .struct,
         "swift.enum": .enum,
+        "swift.protocol": .protocol,
     ]
+    let equatableNominals = Set(graph.relationships.lazy.filter {
+        $0.kind == "conformsTo"
+            && ($0.target == "s:SQ" || $0.targetFallback == "Swift.Equatable")
+    }.map(\.source))
     var allNominals: [String: PlatformNominal] = [:]
     for symbol in graph.symbols {
         guard let kind = nominalKindBySymbolKind[symbol.kind.identifier],
               !symbol.pathComponents.isEmpty,
               platformSymbolIsAvailable(symbol, for: spec),
-              !symbol.declaration.contains("<") else { continue }
+              (!symbol.declaration.contains("<") || kind == .protocol) else { continue }
         let type = symbol.pathComponents.joined(separator: ".")
         allNominals[symbol.identifier.precise] = PlatformNominal(
             framework: spec.name,
             precise: symbol.identifier.precise,
             type: type,
             root: symbol.pathComponents[0],
-            kind: kind)
+            kind: kind,
+            isEquatable: equatableNominals.contains(symbol.identifier.precise))
     }
 
     let selected = allNominals.filter { spec.roots.contains($0.value.root) }
     let selectedTypes = Set(selected.values.map(\.type))
     var parentByMember: [String: String] = [:]
-    for relationship in graph.relationships where relationship.kind == "memberOf" {
+    for relationship in graph.relationships
+        where relationship.kind == "memberOf" || relationship.kind == "requirementOf"
+    {
         parentByMember[relationship.source] = relationship.target
     }
-    var supertypeByType: [String: String] = [:]
-    for relationship in graph.relationships where relationship.kind == "inheritsFrom" {
+    var supertypesByType: [String: [String]] = [:]
+    for relationship in graph.relationships
+        where relationship.kind == "inheritsFrom" || relationship.kind == "conformsTo"
+    {
         guard let child = selected[relationship.source],
               let parent = allNominals[relationship.target] else { continue }
-        supertypeByType[child.type] = parent.type
+        if !supertypesByType[child.type, default: []].contains(parent.type) {
+            supertypesByType[child.type, default: []].append(parent.type)
+        }
     }
 
     var blockers: [String: Int] = [:]
     var constructors: [PlatformCallable] = []
     var methods: [PlatformCallable] = []
     var staticMethods: [PlatformCallable] = []
+    var globalFunctions: [PlatformCallable] = []
     var properties: [PlatformProperty] = []
     var staticProperties: [PlatformProperty] = []
     var enumValues: [PlatformEnumValue] = []
@@ -308,6 +362,58 @@ private func parsePlatformFramework(
     var callableSeen = Set<String>()
     var propertySeen = Set<String>()
     var enumSeen = Set<String>()
+
+    // Clang-imported frameworks expose module functions alongside their
+    // nominals. Select a global when its signature reaches one of the chosen
+    // types; this keeps policy type-level while avoiding an API-name list.
+    for symbol in graph.symbols where symbol.kind.identifier == "swift.func" {
+        guard platformSymbolIsAvailable(symbol, for: spec),
+              let function = parsePlatformDecl(symbol.declaration)?
+                .as(FunctionDeclSyntax.self),
+              function.genericParameterClause == nil,
+              function.genericWhereClause == nil,
+              !function.signature.parameterClause.parameters.contains(where: {
+                  $0.ellipsis != nil
+              }) else { continue }
+        let effects = function.signature.effectSpecifiers?.trimmedDescription ?? ""
+        guard !effects.contains("async") else { continue }
+        let name = platformIdentifier(function.name.text)
+        guard name.first?.isLetter == true, !name.hasPrefix("_") else { continue }
+        let nativeResultType = function.signature.returnClause.map {
+            platformNativeType($0.type.trimmedDescription)
+        } ?? "Void"
+        let resultPointerKind = platformPointerKind(nativeResultType)
+        let resultType = resultPointerKind == nil
+            ? platformContractType(nativeResultType)
+            : platformPointerContractType(nativeResultType)
+        guard platformTypeIsSupported(
+            resultType, framework: spec.name, selectedTypes: selectedTypes)
+                || resultPointerKind != nil,
+              let analyzed = analyzePlatformParameters(
+                function.signature.parameterClause.parameters,
+                framework: spec.name, selectedTypes: selectedTypes,
+                allowNilOnlyPointers: false, blockers: &blockers),
+              platformTypeReferencesSelected(nativeResultType, selectedTypes: selectedTypes)
+                || analyzed.contains(where: {
+                    platformTypeReferencesSelected(
+                        $0.nativeType, selectedTypes: selectedTypes)
+                }) else { continue }
+        for selection in platformParameterSelections(analyzed) {
+            let callable = PlatformCallable(
+                framework: spec.name, kind: .globalFunction,
+                receiverType: "", nativeReceiverType: "",
+                receiverIsValueType: false,
+                name: name, resultType: resultType,
+                nativeResultType: nativeResultType,
+                resultPointerKind: resultPointerKind,
+                params: selection,
+                isThrowing: effects.contains("throws") || effects.contains("rethrows"),
+                isFailable: false)
+            if callableSeen.insert(callable.signatureKey).inserted {
+                globalFunctions.append(callable)
+            }
+        }
+    }
 
     for symbol in graph.symbols {
         guard platformSymbolIsAvailable(symbol, for: spec),
@@ -357,9 +463,12 @@ private func parsePlatformFramework(
                 let callable = PlatformCallable(
                     framework: spec.name, kind: .constructor,
                     receiverType: nominal.type,
+                    nativeReceiverType: nominal.type,
                     receiverIsValueType: nominal.kind.isValueType,
                     name: nominal.type,
                     resultType: nominal.type,
+                    nativeResultType: nominal.type,
+                    resultPointerKind: nil,
                     params: selection,
                     isThrowing: effects.contains("throws") || effects.contains("rethrows"),
                     isFailable: initDecl.optionalMark != nil)
@@ -398,12 +507,19 @@ private func parsePlatformFramework(
                 blockers["variadic", default: 0] += 1
                 continue
             }
+            let nativeResultType = function.signature.returnClause.map {
+                platformNativeType($0.type.trimmedDescription)
+            } ?? "Void"
+            let resultPointerKind = platformPointerKind(nativeResultType)
             let resultType = function.signature.returnClause.map {
-                platformContractType(normalize($0.type.trimmedDescription))
+                let native = platformNativeType($0.type.trimmedDescription)
+                return platformPointerKind(native) == nil
+                    ? platformContractType(native)
+                    : platformPointerContractType(native)
             } ?? "Void"
             guard platformTypeIsSupported(
                 resultType, framework: spec.name,
-                selectedTypes: selectedTypes) else {
+                selectedTypes: selectedTypes) || resultPointerKind != nil else {
                 blockers["return \(resultType)", default: 0] += 1
                 continue
             }
@@ -419,8 +535,11 @@ private func parsePlatformFramework(
                 let callable = PlatformCallable(
                     framework: spec.name, kind: kind,
                     receiverType: nominal.type,
+                    nativeReceiverType: nominal.kind.nativePrefix + nominal.type,
                     receiverIsValueType: nominal.kind.isValueType,
                     name: name, resultType: resultType,
+                    nativeResultType: nativeResultType,
+                    resultPointerKind: resultPointerKind,
                     params: selection,
                     isThrowing: effects.contains("throws") || effects.contains("rethrows"),
                     isFailable: false)
@@ -444,10 +563,14 @@ private func parsePlatformFramework(
             }
             let name = platformIdentifier(pattern.identifier.text)
             guard !name.hasPrefix("_") else { continue }
-            let resultType = platformContractType(normalize(rawType))
+            let nativeResultType = platformNativeType(rawType)
+            let pointerKind = platformPointerKind(nativeResultType)
+            let resultType = pointerKind == nil
+                ? platformContractType(nativeResultType)
+                : platformPointerContractType(nativeResultType)
             guard platformTypeIsSupported(
                 resultType, framework: spec.name,
-                selectedTypes: selectedTypes) else {
+                selectedTypes: selectedTypes) || pointerKind != nil else {
                 blockers["property \(resultType)", default: 0] += 1
                 continue
             }
@@ -456,8 +579,10 @@ private func parsePlatformFramework(
             let property = PlatformProperty(
                 framework: spec.name,
                 receiverType: nominal.type,
+                nativeReceiverType: nominal.kind.nativePrefix + nominal.type,
                 receiverIsValueType: nominal.kind.isValueType,
                 name: name, resultType: resultType,
+                nativeResultType: nativeResultType, pointerKind: pointerKind,
                 isSettable: isSettable, isStatic: isStatic)
             if propertySeen.insert(property.signatureKey).inserted {
                 if isStatic { staticProperties.append(property) }
@@ -489,10 +614,11 @@ private func parsePlatformFramework(
 
     return ParsedPlatformFramework(
         spec: spec, graph: graph, nominals: selected,
-        supertypeByType: supertypeByType,
+        supertypesByType: supertypesByType.mapValues { $0.sorted() },
         constructors: constructors,
         methods: methods,
         staticMethods: staticMethods,
+        globalFunctions: globalFunctions,
         properties: properties,
         staticProperties: staticProperties,
         enumValues: enumValues,
@@ -577,13 +703,13 @@ private func platformSymbolIsAvailable(
             return false
         }
         if availability.isUnconditionallyUnavailable == true,
-           availability.domain == spec.availabilityDomain || availability.domain == "*" {
+           spec.deployments[availability.domain] != nil || availability.domain == "*" {
             return false
         }
-        guard availability.domain == spec.availabilityDomain else { continue }
+        guard let deployment = spec.deployments[availability.domain] else { continue }
         if let introduced = availability.introduced {
             let version = (introduced.major, introduced.minor ?? 0)
-            if version > (spec.deploymentMajor, spec.deploymentMinor) {
+            if version > (deployment.major, deployment.minor) {
                 return false
             }
         }
@@ -591,13 +717,13 @@ private func platformSymbolIsAvailable(
         // metadata for source compatibility, but should not grow a new bridge.
         if let deprecated = availability.deprecated {
             let version = (deprecated.major, deprecated.minor ?? 0)
-            if version <= (spec.deploymentMajor, spec.deploymentMinor) {
+            if version <= (deployment.major, deployment.minor) {
                 return false
             }
         }
         if let obsoleted = availability.obsoleted {
             let version = (obsoleted.major, obsoleted.minor ?? 0)
-            if version <= (spec.deploymentMajor, spec.deploymentMinor) {
+            if version <= (deployment.major, deployment.minor) {
                 return false
             }
         }
@@ -633,22 +759,26 @@ private func analyzePlatformParameters(
             }
             type = attributed.baseType
         }
-        var normalized = platformContractType(normalize(type.trimmedDescription))
+        let nativeType = platformNativeType(type.trimmedDescription)
+        var normalized = platformContractType(nativeType)
         if normalized == "@escaping () -> Void" { normalized = "() -> Void" }
         if normalized == "() -> Void" { isAction = true }
         let nilOnly = platformTypeSupportsNilOnly(normalized)
+        let pointerKind = platformPointerKind(nativeType)
+        let readablePointer = pointerKind == .raw && !nilOnly
         guard isAction || platformTypeIsSupported(
             normalized, framework: framework,
             selectedTypes: selectedTypes)
-            || (allowNilOnlyPointers && nilOnly) else {
+            || readablePointer || (allowNilOnlyPointers && nilOnly) else {
             blockers["parameter \(normalized)", default: 0] += 1
             return nil
         }
         result.append(PlatformParameter(
-            label: label, type: normalized,
-            contractType: nilOnly ? "Never?" : normalized,
+            label: label, type: normalized, nativeType: nativeType,
+            contractType: nilOnly ? "Never?"
+                : (pointerKind != nil ? platformPointerContractType(nativeType) : normalized),
             hasDefault: parameter.defaultValue != nil,
-            isAction: isAction))
+            isAction: isAction, pointerKind: pointerKind))
     }
     return result
 }
@@ -684,7 +814,7 @@ private func platformParameterSelections(
 }
 
 private let platformDirectTypes: Set<String> = [
-    "Void", "()", "Any", "Bool", "String", "Substring", "Character",
+    "Void", "()", "Any", "Error", "Bool", "String", "Substring", "Character",
     "Int", "Int8", "Int16", "Int32", "Int64",
     "UInt", "UInt8", "UInt16", "UInt32", "UInt64",
     "Double", "Float", "CGFloat", "TimeInterval",
@@ -710,6 +840,9 @@ private func platformContractType(_ type: String) -> String {
     while result.hasPrefix("@escaping ") {
         result = String(result.dropFirst("@escaping ".count))
     }
+    while result.hasPrefix("@Sendable ") {
+        result = String(result.dropFirst("@Sendable ".count))
+    }
     // Clang overlays still expose a handful of Objective-C compatibility
     // spellings. Canonicalize only true Swift typealiases; emitted calls keep
     // compiling because each pair has the same SDK type identity.
@@ -722,6 +855,12 @@ private func platformContractType(_ type: String) -> String {
     if result.hasPrefix("Optional<"), result.hasSuffix(">") {
         return platformContractType(
             String(result.dropFirst("Optional<".count).dropLast())) + "?"
+    }
+    if result.hasPrefix("("), result.hasSuffix(")") {
+        return platformContractType(String(result.dropFirst().dropLast()))
+    }
+    if result.hasPrefix("any ") {
+        return platformContractType(String(result.dropFirst("any ".count)))
     }
     if let (key, value) = platformDictionaryComponents(result) {
         return "[\(platformContractType(key)): \(platformContractType(value))]"
@@ -736,13 +875,48 @@ private func platformContractType(_ type: String) -> String {
     return platformContractAliases[result] ?? memberContractType(for: result)
 }
 
+/// Preserve the compiler-facing existential and pointer spelling while still
+/// applying true imported typealiases. Host signatures use
+/// `platformContractType`; emitted SDK calls use this form.
+private func platformNativeType(_ type: String) -> String {
+    var result = normalize(type).trimmingCharacters(in: .whitespacesAndNewlines)
+    if result == "()" { return "Void" }
+    if result.hasSuffix("!") {
+        return platformNativeType(String(result.dropLast())) + "?"
+    }
+    for (alias, canonical) in platformContractAliases {
+        result = result.replacingOccurrences(of: alias, with: canonical)
+    }
+    return result
+}
+
+private func platformPointerKind(_ rawType: String) -> PlatformPointerKind? {
+    var type = rawType.trimmingCharacters(in: .whitespacesAndNewlines)
+    if type.hasSuffix("?") { type.removeLast() }
+    if type.hasPrefix("Optional<"), type.hasSuffix(">") {
+        type = String(type.dropFirst("Optional<".count).dropLast())
+    }
+    switch type {
+    case "UnsafeRawPointer": return .raw
+    case "UnsafeMutableRawPointer": return .mutableRaw
+    case "UnsafeMutablePointer<UInt8>": return .mutableBytes
+    default: return nil
+    }
+}
+
+private func platformPointerContractType(_ rawType: String) -> String {
+    let type = rawType.trimmingCharacters(in: .whitespacesAndNewlines)
+    return (type.hasSuffix("?")
+        || (type.hasPrefix("Optional<") && type.hasSuffix(">"))) ? "Any?" : "Any"
+}
+
 private func platformTypeIsSupported(
     _ rawType: String,
     framework: String,
     selectedTypes: Set<String>
 ) -> Bool {
     let type = rawType.trimmingCharacters(in: .whitespacesAndNewlines)
-    if type.hasPrefix("any ") || type.hasPrefix("some ")
+    if type.hasPrefix("some ")
         || type == "Self" || type.contains("->") {
         return false
     }
@@ -773,6 +947,22 @@ private func platformTypeIsSupported(
             framework: framework, selectedTypes: selectedTypes)
     }
     return platformDirectTypes.contains(type) || selectedTypes.contains(type)
+}
+
+private func platformTypeReferencesSelected(
+    _ rawType: String, selectedTypes: Set<String>
+) -> Bool {
+    var type = platformContractType(rawType)
+    if type.hasSuffix("?") { type.removeLast() }
+    if let (key, value) = platformDictionaryComponents(type) {
+        return platformTypeReferencesSelected(key, selectedTypes: selectedTypes)
+            || platformTypeReferencesSelected(value, selectedTypes: selectedTypes)
+    }
+    if type.hasPrefix("["), type.hasSuffix("]") {
+        return platformTypeReferencesSelected(
+            String(type.dropFirst().dropLast()), selectedTypes: selectedTypes)
+    }
+    return selectedTypes.contains(type)
 }
 
 /// Unsafe pointer constructor parameters are mechanically bridgeable when
@@ -848,7 +1038,7 @@ private func emitPlatformBridge(
     _ frameworks: [ParsedPlatformFramework]
 ) -> String {
     var output = """
-    // GENERATED by BridgeGen from AppKit/UIKit SDK symbol graphs.
+    // GENERATED by BridgeGen from AppKit/UIKit/Metal SDK symbol graphs.
     // Do not edit. Regenerate: swift run BridgeGen --emit
     import Foundation
     import SwiftInterpreter
@@ -857,6 +1047,9 @@ private func emitPlatformBridge(
     #elseif canImport(UIKit)
     import UIKit
     #endif
+    #if canImport(Metal)
+    import Metal
+    #endif
 
     extension GeneratedPlatformBridge {
 
@@ -864,6 +1057,7 @@ private func emitPlatformBridge(
     let constructorGroups = frameworks.map { ($0.spec.name, $0.constructors) }
     let methodGroups = frameworks.map { ($0.spec.name, $0.methods) }
     let staticMethodGroups = frameworks.map { ($0.spec.name, $0.staticMethods) }
+    let globalFunctionGroups = frameworks.map { ($0.spec.name, $0.globalFunctions) }
     let propertyGroups = frameworks.map { ($0.spec.name, $0.properties) }
     let staticPropertyGroups = frameworks.map { ($0.spec.name, $0.staticProperties) }
     let enumGroups = frameworks.map { ($0.spec.name, $0.enumValues) }
@@ -885,6 +1079,11 @@ private func emitPlatformBridge(
         groups: staticMethodGroups,
         entry: emitPlatformStaticMethod)
     output += emitBuilder(
+        name: "GlobalFunctions",
+        tableType: "[String: [GeneratedPlatformGlobalFunctionEntry]]",
+        groups: globalFunctionGroups,
+        entry: emitPlatformGlobalFunction)
+    output += emitBuilder(
         name: "Properties",
         tableType: "[GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry]",
         groups: propertyGroups,
@@ -905,6 +1104,21 @@ private func emitPlatformBridge(
         groups: knownMemberGroups,
         entry: emitPlatformKnownMember)
 
+    output += "\n    static func buildEqualityAdapters() -> [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] {\n"
+    output += "        var t: [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter] = [:]\n"
+    for framework in frameworks {
+        let equatable = framework.nominals.values
+            .filter(\.isEquatable)
+            .sorted(by: { $0.type < $1.type })
+        guard !equatable.isEmpty else { continue }
+        output += "#if canImport(\(framework.spec.name))\n"
+        for nominal in equatable {
+            output += "        registerEqualityAdapter(&t, framework: \(swiftLiteral(framework.spec.name)), type: \(swiftLiteral(nominal.type)), \(nominal.type).self)\n"
+        }
+        output += "#endif\n"
+    }
+    output += "        return t\n    }\n"
+
     output += "\n    static func buildNominalKinds() -> [GeneratedPlatformTypeKey: Bool] {\n"
     output += "        var t: [GeneratedPlatformTypeKey: Bool] = [:]\n"
     for framework in frameworks {
@@ -914,11 +1128,12 @@ private func emitPlatformBridge(
     }
     output += "        return t\n    }\n"
 
-    output += "\n    static func buildSupertypes() -> [GeneratedPlatformTypeKey: String] {\n"
-    output += "        var t: [GeneratedPlatformTypeKey: String] = [:]\n"
+    output += "\n    static func buildSupertypes() -> [GeneratedPlatformTypeKey: [String]] {\n"
+    output += "        var t: [GeneratedPlatformTypeKey: [String]] = [:]\n"
     for framework in frameworks {
-        for (type, parent) in framework.supertypeByType.sorted(by: { $0.key < $1.key }) {
-            output += "        t[GeneratedPlatformTypeKey(framework: \(swiftLiteral(framework.spec.name)), type: \(swiftLiteral(type)))] = \(swiftLiteral(parent))\n"
+        for (type, parents) in framework.supertypesByType.sorted(by: { $0.key < $1.key }) {
+            let list = parents.map(swiftLiteral).joined(separator: ", ")
+            output += "        t[GeneratedPlatformTypeKey(framework: \(swiftLiteral(framework.spec.name)), type: \(swiftLiteral(type)))] = [\(list)]\n"
         }
     }
     output += "        return t\n    }\n"
@@ -972,7 +1187,11 @@ private func emitPlatformConstructor(_ value: PlatformCallable) -> String {
     var body = platformInvocationBody(
         call: call, resultType: value.resultType,
         framework: value.framework,
-        isThrowing: value.isThrowing)
+        isThrowing: value.isThrowing,
+        resultPointerKind: value.resultPointerKind,
+        pointerOwner: nil)
+    body = wrapPlatformPointerArguments(
+        body, params: value.params, framework: value.framework)
     body = indent(body, by: 12)
     return """
             registerConstructor(
@@ -994,7 +1213,11 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
     var invocation = platformInvocationBody(
         call: call, resultType: value.resultType,
         framework: value.framework,
-        isThrowing: value.isThrowing)
+        isThrowing: value.isThrowing,
+        resultPointerKind: value.resultPointerKind,
+        pointerOwner: "base")
+    invocation = wrapPlatformPointerArguments(
+        invocation, params: value.params, framework: value.framework)
     invocation = indent(invocation, by: 12)
     return """
             registerMethod(
@@ -1002,10 +1225,36 @@ private func emitPlatformMethod(_ value: PlatformCallable) -> String {
                 declaration: \(swiftLiteral(value.hostDeclaration)),
                 resultType: \(swiftLiteral(value.resultType))) { base, v, ctx in
     #if canImport(\(value.framework))
-                guard let receiver = base.payload as? \(value.receiverType) else {
+                guard let receiver = base.payload as? \(value.nativeReceiverType) else {
                     throw RuntimeError(message: "generated \(value.framework) receiver mismatch", fatal: true)
                 }
     \(invocation)
+    #else
+                preconditionFailure("\(value.framework) gateway invoked off-platform")
+    #endif
+            }
+    """
+}
+
+private func emitPlatformGlobalFunction(_ value: PlatformCallable) -> String {
+    let arguments = platformCallArguments(value.params)
+    let call = "`\(value.name)`(\(arguments))"
+    var body = platformInvocationBody(
+        call: call, resultType: value.resultType,
+        framework: value.framework,
+        isThrowing: value.isThrowing,
+        resultPointerKind: value.resultPointerKind,
+        pointerOwner: nil)
+    body = wrapPlatformPointerArguments(
+        body, params: value.params, framework: value.framework)
+    body = indent(body, by: 12)
+    return """
+            registerGlobalFunction(
+                &t, framework: \(swiftLiteral(value.framework)),
+                declaration: \(swiftLiteral(value.hostDeclaration)),
+                resultType: \(swiftLiteral(value.resultType))) { v, ctx in
+    #if canImport(\(value.framework))
+    \(body)
     #else
                 preconditionFailure("\(value.framework) gateway invoked off-platform")
     #endif
@@ -1019,7 +1268,11 @@ private func emitPlatformStaticMethod(_ value: PlatformCallable) -> String {
     var body = platformInvocationBody(
         call: call, resultType: value.resultType,
         framework: value.framework,
-        isThrowing: value.isThrowing)
+        isThrowing: value.isThrowing,
+        resultPointerKind: value.resultPointerKind,
+        pointerOwner: nil)
+    body = wrapPlatformPointerArguments(
+        body, params: value.params, framework: value.framework)
     body = indent(body, by: 12)
     return """
             registerStaticMethod(
@@ -1042,11 +1295,11 @@ private func emitPlatformProperty(_ value: PlatformProperty) -> String {
         setter = """
                 }, set: { base, newValue, ctx in
     #if canImport(\(value.framework))
-                    guard \(binding) receiver = base as? \(value.receiverType) else {
+                    guard \(binding) receiver = base as? \(value.nativeReceiverType) else {
                         throw RuntimeError(message: "generated \(value.framework) property receiver mismatch", fatal: true)
                     }
                     receiver.`\(value.name)` = try generatedPlatformArgument(
-                        newValue, as: \(value.resultType).self,
+                        newValue, as: \(platformNativeMetatype(value.nativeResultType)),
                         framework: \(swiftLiteral(value.framework)),
                         typeName: \(swiftLiteral(value.resultType)), context: ctx)
                     base = receiver
@@ -1064,13 +1317,10 @@ private func emitPlatformProperty(_ value: PlatformProperty) -> String {
                 declaration: \(swiftLiteral(value.declaration)),
                 resultType: \(swiftLiteral(value.resultType)), get: { base in
     #if canImport(\(value.framework))
-                    guard let receiver = base as? \(value.receiverType) else {
+                    guard let receiver = base as? \(value.nativeReceiverType) else {
                         throw RuntimeError(message: "generated \(value.framework) property receiver mismatch", fatal: true)
                     }
-                    return generatedPlatformResult(
-                        receiver.`\(value.name)`,
-                        framework: \(swiftLiteral(value.framework)),
-                        declaredType: \(swiftLiteral(value.resultType)))
+                    return \(platformPropertyResultExpression(value))
     #else
                     preconditionFailure("\(value.framework) getter invoked off-platform")
     #endif
@@ -1123,10 +1373,12 @@ private func emitPlatformKnownMember(_ value: PlatformKnownMember) -> String {
 private func platformCallArguments(_ params: [PlatformParameter]) -> String {
     params.enumerated().map { index, parameter in
         let expression: String
-        if parameter.isAction {
+        if parameter.pointerKind == .raw && parameter.contractType == "Any" {
+            expression = "p\(index)"
+        } else if parameter.isAction {
             expression = "generatedAction(try GeneratedDispatch.coerce(.action, v[\(index)], ctx))"
         } else {
-            expression = "try generatedPlatformArgument(v[\(index)], as: \(parameter.type).self, framework: \(swiftLiteral("__FRAMEWORK__")), typeName: \(swiftLiteral(parameter.type)), context: ctx)"
+            expression = "try generatedPlatformArgument(v[\(index)], as: \(platformNativeMetatype(parameter.nativeType)), framework: \(swiftLiteral("__FRAMEWORK__")), typeName: \(swiftLiteral(parameter.type)), context: ctx)"
         }
         return (parameter.label.map { "\($0): " } ?? "") + expression
     }.joined(separator: ", ")
@@ -1136,7 +1388,9 @@ private func platformInvocationBody(
     call: String,
     resultType: String,
     framework: String,
-    isThrowing: Bool
+    isThrowing: Bool,
+    resultPointerKind: PlatformPointerKind?,
+    pointerOwner: String?
 ) -> String {
     let fixedCall = call.replacingOccurrences(
         of: swiftLiteral("__FRAMEWORK__"), with: swiftLiteral(framework))
@@ -1144,7 +1398,39 @@ private func platformInvocationBody(
     if resultType == "Void" || resultType == "()" {
         return "\(prefix)\(fixedCall)\nreturn .void"
     }
+    if resultPointerKind != nil {
+        return "return generatedPlatformPointerResult(\(prefix)\(fixedCall), owner: \(pointerOwner ?? "nil"), declaredType: \(swiftLiteral(resultType)))"
+    }
     return "return generatedPlatformResult(\(prefix)\(fixedCall), framework: \(swiftLiteral(framework)), declaredType: \(swiftLiteral(resultType)))"
+}
+
+private func wrapPlatformPointerArguments(
+    _ body: String, params: [PlatformParameter], framework: String
+) -> String {
+    var result = body
+    for (index, parameter) in params.enumerated().reversed()
+        where parameter.pointerKind == .raw && parameter.contractType == "Any"
+    {
+        result = """
+        return try generatedPlatformWithUnsafeRawPointer(
+            v[\(index)], context: ctx
+        ) { p\(index) in
+        \(indent(result, by: 4))
+        }
+        """
+    }
+    return result
+}
+
+private func platformPropertyResultExpression(_ value: PlatformProperty) -> String {
+    if value.pointerKind != nil {
+        return "generatedPlatformPointerResult(receiver.`\(value.name)`, owner: base, declaredType: \(swiftLiteral(value.resultType)))"
+    }
+    return "generatedPlatformResult(receiver.`\(value.name)`, framework: \(swiftLiteral(value.framework)), declaredType: \(swiftLiteral(value.resultType)))"
+}
+
+private func platformNativeMetatype(_ type: String) -> String {
+    type.hasPrefix("any ") ? "(\(type)).self" : "\(type).self"
 }
 
 private func swiftLiteral(_ value: String) -> String {

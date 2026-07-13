@@ -406,6 +406,11 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             // `Data(bytes: &sysinfo.machine, count: n)` — bag members carry
             // real strings; byte arrays carry ints.
             if let bytesValue = args.labeled("bytes") {
+                if case .host(let host) = bytesValue,
+                   let memory = host as? HostRawMemory,
+                   let count = args.labeled("count")?.intValue {
+                    return .native(try memory.readBytes(count: max(0, count)))
+                }
                 if let text = bytesValue.stringValue {
                     var data = Data(text.utf8)
                     if let count = args.labeled("count")?.intValue, count > data.count {

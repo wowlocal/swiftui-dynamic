@@ -1,3 +1,4 @@
+import Foundation
 import SwiftSyntax
 
 /// `_openExistential` exposes an erased payload's dynamic type when an API has
@@ -166,7 +167,15 @@ extension RuntimeValue {
     public var arrayValue: [RuntimeValue]? {
         switch self {
         case .array(let array): return array
-        case .host(let any): return any as? [RuntimeValue]
+        case .host(let any):
+            if let array = any as? [RuntimeValue] { return array }
+            // Foundation.Data is a concrete RandomAccessCollection<UInt8>;
+            // expose its elements to generic Sequence/Array construction
+            // without requiring a Data-specific constructor overload.
+            if let data = any as? Data {
+                return data.map { .native(Int($0)) }
+            }
+            return nil
         default: return nil
         }
     }
@@ -189,6 +198,9 @@ extension RuntimeValue {
         case .host(let any):
             if let array = any as? [RuntimeValue] { return array }
             if let set = any as? RuntimeSetValue { return set.elements }
+            if let data = any as? Data {
+                return data.map { .native(Int($0)) }
+            }
             return nil
         default: return nil
         }
@@ -441,9 +453,11 @@ public struct KeyPathComparatorBox {
 /// it is a located error.
 public struct HostTypeMarker {
     public let name: String
+    public let genericArguments: [String]
 
-    public init(name: String) {
+    public init(name: String, genericArguments: [String] = []) {
         self.name = name
+        self.genericArguments = genericArguments
     }
 }
 

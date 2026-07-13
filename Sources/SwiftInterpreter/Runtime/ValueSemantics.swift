@@ -6,6 +6,22 @@ public protocol HostValueSemantic {
     func copiedHostValue() -> Any
 }
 
+/// Opt-in equality for opaque values owned by a host bridge.
+///
+/// The interpreter cannot safely infer `Equatable` conformance after a value
+/// has crossed an `Any` boundary. Bridges that preserve that type information
+/// can expose concrete equality here, including resolution of a contextual
+/// enum spelling such as `.completed`. Returning nil leaves the comparison to
+/// the interpreter's ordinary identity and value rules.
+public protocol HostRuntimeEquatable {
+    func runtimeEquals(_ other: Any) -> Bool?
+    func runtimeEquals(implicitMemberNamed name: String) -> Bool?
+}
+
+public extension HostRuntimeEquatable {
+    func runtimeEquals(implicitMemberNamed name: String) -> Bool? { nil }
+}
+
 /// Central ownership rules for values crossing a Swift storage boundary.
 ///
 /// `Instance` is an implementation detail shared by interpreted structs and

@@ -296,6 +296,19 @@ extension Interpreter {
                 return .hostFunction(HostFunction(name: name) { _, _ in
                     .native(data.base64EncodedString())
                 })
+            case "copyBytes":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard case .host(let target)? =
+                            args.labeled("to") ?? args.positional(0),
+                          let memory = target as? HostRawMemory else {
+                        throw RuntimeError(message:
+                            "Data.copyBytes(to:) needs writable host memory")
+                    }
+                    let requested = args.labeled("count")?.intValue
+                        ?? args.positional(1)?.intValue ?? data.count
+                    try memory.writeBytes(data, count: max(0, min(requested, data.count)))
+                    return .void
+                })
             default: return nil
             }
         }

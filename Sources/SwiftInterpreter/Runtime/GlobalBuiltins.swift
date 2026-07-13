@@ -144,6 +144,43 @@ extension Interpreter {
         define("max") { args, _ in
             try Self.extremum(args, op: ">")
         }
+        define("stride") { args, _ in
+            guard let from = args.labeled("from"),
+                  let by = args.labeled("by") else {
+                throw RuntimeError(message: "stride(from:to/through:by:) needs bounds")
+            }
+            let to = args.labeled("to")
+            let through = args.labeled("through")
+            guard (to == nil) != (through == nil) else {
+                throw RuntimeError(message: "stride needs exactly one of to: or through:")
+            }
+
+            if let start = from.intValue, let step = by.intValue,
+               let end = (to ?? through)?.intValue {
+                guard step != 0 else {
+                    throw RuntimeError(message: "stride by: must not be zero")
+                }
+                if to != nil {
+                    return .native(Swift.stride(
+                        from: start, to: end, by: step).map(RuntimeValue.native))
+                }
+                return .native(Swift.stride(
+                    from: start, through: end, by: step).map(RuntimeValue.native))
+            }
+
+            guard let start = from.doubleValue,
+                  let step = by.doubleValue,
+                  let end = (to ?? through)?.doubleValue,
+                  step.isFinite, step != 0 else {
+                throw RuntimeError(message: "stride bounds must be finite numeric values")
+            }
+            if to != nil {
+                return .native(Swift.stride(
+                    from: start, to: end, by: step).map(RuntimeValue.native))
+            }
+            return .native(Swift.stride(
+                from: start, through: end, by: step).map(RuntimeValue.native))
+        }
         define("String") { args, _ in
             if let format = args.labeled("format")?.stringValue {
                 // `String(format: "%.1f", per)` — real formatting. Each

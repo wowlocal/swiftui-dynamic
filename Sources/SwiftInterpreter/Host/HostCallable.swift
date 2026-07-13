@@ -5,6 +5,10 @@
 /// points without exposing their storage layout.
 public final class HostFunction {
     public let name: String
+    /// Source generic specialization carried by constructor-shaped host
+    /// values. Invocation still receives the established hidden argument;
+    /// member access (notably `MemoryLayout<T>.stride`) can inspect it too.
+    public internal(set) var genericArguments: [String] = []
     public let invoke: @MainActor (CallArguments, EvalContext) throws -> RuntimeValue
     private let suspendingInvoke: @MainActor
         (CallArguments, EvalContext) async throws -> RuntimeValue

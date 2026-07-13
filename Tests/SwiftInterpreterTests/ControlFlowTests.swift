@@ -150,6 +150,28 @@ private func eval(_ source: String) throws -> RuntimeValue {
         }
     }
 
+    @Test func largeMaterializedLoopDoesNotImitateInfiniteWork() throws {
+        let source = """
+        var count = 0
+        for _ in 0..<120_000 { count += 1 }
+        count
+        """
+        #expect(try eval(source).intValue == 120_000)
+    }
+
+    @Test func strideSequencesUseNativeBoundsAndDirection() throws {
+        let source = """
+        var forward: [Int] = []
+        for value in stride(from: 0, to: 10, by: 3) { forward.append(value) }
+        var backward: [Int] = []
+        for value in stride(from: 5, through: -1, by: -2) { backward.append(value) }
+        (forward, backward)
+        """
+        let tuple = try #require(try eval(source).tupleValue)
+        #expect(tuple.values[0].arrayValue?.compactMap(\.intValue) == [0, 3, 6, 9])
+        #expect(tuple.values[1].arrayValue?.compactMap(\.intValue) == [5, 3, 1, -1])
+    }
+
     @Test func runawayRecursionIsAFatalLocatedError() throws {
         // WHICH guard trips (call-depth counter vs native stack probe)
         // depends on per-frame stack cost; the INVARIANT is a fatal,

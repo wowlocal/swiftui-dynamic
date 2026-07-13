@@ -161,6 +161,13 @@ extension Interpreter {
                 break
             }
         }
+        // SDK symbol graphs include imported module functions whose names are
+        // conventionally uppercase (MTLCreateSystemDefaultDevice, UIGraphics…)
+        // even though they are values, not types. Give an explicitly
+        // registered host global priority over the unknown-type absorber.
+        if let function = registry?.cFunction(named: name) {
+            return .hostFunction(function)
+        }
         if let ctor = registry?.constructor(named: aliasHeads[name] ?? name) {
             return .hostFunction(ctor)
         }
@@ -1000,7 +1007,9 @@ extension Interpreter {
                 }
             }
             if let value = try readHostMember(
-                name, on: HostTypeMarker(name: function.name)) {
+                name, on: HostTypeMarker(
+                    name: function.name,
+                    genericArguments: function.genericArguments)) {
                 return value
             }
             if let symbol = hostExtensionSymbols[function.name],

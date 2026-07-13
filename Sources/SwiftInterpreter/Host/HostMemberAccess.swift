@@ -4,6 +4,17 @@ extension Interpreter {
     func readHostMember(
         _ name: String, on value: Any
     ) throws -> RuntimeValue? {
+        if let marker = value as? HostTypeMarker,
+           marker.name == "MemoryLayout",
+           let typeName = marker.genericArguments.first {
+            let layout = try runtimeABILayout(typeName: typeName)
+            switch name {
+            case "size": return .native(layout.size)
+            case "stride": return .native(layout.stride)
+            case "alignment": return .native(layout.alignment)
+            default: break
+            }
+        }
         if let property = registry?.hostProperty(named: name, on: value) {
             return try property.read(from: .native(value), in: self)
         }

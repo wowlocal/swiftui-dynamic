@@ -65,7 +65,7 @@ let modulePrefixes = [
     "UniformTypeIdentifiers.", "DeveloperToolsSupport.",
     "CoreFoundation.", "CoreGraphics.",
     "Observation.", "SwiftUICore.", "Foundation.", "CoreData.", "SwiftUI.",
-    "AppKit.", "UIKit.", "QuartzCore.", "ObjectiveC.",
+    "AppKit.", "UIKit.", "Metal.", "QuartzCore.", "ObjectiveC.",
     "Combine.", "Swift.", "os.",
 ]
 

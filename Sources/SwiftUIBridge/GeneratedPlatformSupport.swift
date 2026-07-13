@@ -2,11 +2,52 @@ import CoreGraphics
 import Foundation
 import SwiftInterpreter
 
-/// A platform value whose API contract came from BridgeGen's AppKit/UIKit
+/// Owned representation of an SDK pointer result. The originating framework
+/// value is retained for the pointer's lifetime, and all access is expressed
+/// as bounded byte copies through the interpreter's shared raw-memory
+/// protocol.
+private final class GeneratedPlatformRawMemory: HostRawMemory,
+    CustomStringConvertible
+{
+    private let pointer: UnsafeRawPointer
+    private let mutablePointer: UnsafeMutableRawPointer?
+    private let owner: Any?
+
+    init(pointer: UnsafeRawPointer, mutablePointer: UnsafeMutableRawPointer?, owner: Any?) {
+        self.pointer = pointer
+        self.mutablePointer = mutablePointer
+        self.owner = owner
+    }
+
+    var description: String { "<retained SDK memory>" }
+
+    func readBytes(count: Int) throws -> Data {
+        guard count >= 0 else {
+            throw RuntimeError(message: "raw-memory read count cannot be negative")
+        }
+        return Data(bytes: pointer, count: count)
+    }
+
+    func writeBytes(_ data: Data, count: Int) throws {
+        guard let mutablePointer else {
+            throw RuntimeError(message: "raw-memory region is read-only")
+        }
+        guard count >= 0, count <= data.count else {
+            throw RuntimeError(message:
+                "raw-memory write count \(count) exceeds \(data.count) source bytes")
+        }
+        data.withUnsafeBytes { bytes in
+            guard count > 0, let source = bytes.baseAddress else { return }
+            mutablePointer.copyMemory(from: source, byteCount: count)
+        }
+    }
+}
+
+/// A platform value whose API contract came from BridgeGen's platform SDK
 /// symbol-graph sweep. On the framework's native platform `payload` is the
 /// real SDK value. On the opposite platform it is nil and the same generated
 /// contract supplies deterministic, typed inert behavior.
-final class GeneratedPlatformValue: InertCallable, HostValueSemantic,
+final class GeneratedPlatformValue: InertCallable, HostValueSemantic, HostRuntimeEquatable,
     CustomStringConvertible
 {
     let framework: String
@@ -41,6 +82,40 @@ final class GeneratedPlatformValue: InertCallable, HostValueSemantic,
             isValueType: true,
             payload: payload,
             config: config.mapValues { $0.copiedForValueSemantics() })
+    }
+
+    func runtimeEquals(_ other: Any) -> Bool? {
+        guard let other = other as? GeneratedPlatformValue else { return nil }
+        guard framework == other.framework, typeName == other.typeName else {
+            return false
+        }
+        guard let otherPayload = other.payload else { return nil }
+        return payloadEquals(otherPayload)
+    }
+
+    func runtimeEquals(implicitMemberNamed name: String) -> Bool? {
+        guard let member = GeneratedPlatformBridge.enumPayload(
+            framework: framework, type: typeName, member: name)
+        else { return nil }
+        return payloadEquals(member)
+    }
+
+    private func payloadEquals(_ other: Any) -> Bool? {
+        guard let payload else { return nil }
+        if let equal = GeneratedPlatformBridge.payloadsEqual(
+            framework: framework, type: typeName,
+            payload, other)
+        {
+            return equal
+        }
+        if let left = payload as? AnyHashable,
+           let right = other as? AnyHashable {
+            return left == right
+        }
+        if !isValueType {
+            return (payload as AnyObject) === (other as AnyObject)
+        }
+        return nil
     }
 }
 
@@ -104,6 +179,26 @@ struct GeneratedPlatformStaticMethodEntry {
     }
 }
 
+struct GeneratedPlatformGlobalFunctionEntry {
+    typealias Invoke = @MainActor
+        ([RuntimeValue], EvalContext) throws -> RuntimeValue
+
+    let signature: HostSignature
+    let framework: String
+    let resultType: String
+    let invoke: Invoke
+
+    func function() throws -> HostFunction {
+        try HostFunction(signature: signature) { arguments, context in
+            guard GeneratedPlatformBridge.frameworkIsNative(framework) else {
+                return GeneratedPlatformBridge.fallbackResult(
+                    framework: framework, type: resultType)
+            }
+            return try invoke(arguments.arguments.map(\.value), context)
+        }
+    }
+}
+
 struct GeneratedPlatformPropertyEntry {
     typealias Get = @MainActor (Any) throws -> RuntimeValue
     typealias Set = @MainActor
@@ -132,7 +227,11 @@ struct GeneratedPlatformEnumEntry {
     let get: @MainActor () -> Any
 }
 
-/// Runtime half of the generated AppKit/UIKit bridge. The generated file only
+struct GeneratedPlatformEqualityAdapter {
+    let equals: @MainActor (Any, Any) -> Bool?
+}
+
+/// Runtime half of the generated platform bridge. The generated file only
 /// contains metadata-derived registrations and statically compiled SDK calls;
 /// selection, opposite-platform fallback, and value ownership live here once.
 enum GeneratedPlatformBridge {
@@ -140,8 +239,10 @@ enum GeneratedPlatformBridge {
     private static let methods = buildMethods()
     private static let properties = buildProperties()
     private static let staticMethods = buildStaticMethods()
+    private static let globalFunctions = buildGlobalFunctions()
     private static let staticProperties = buildStaticProperties()
     private static let enumValues = buildEnumValues()
+    private static let equalityAdapters = buildEqualityAdapters()
     private static let knownMembers = buildKnownMembers()
     private static let nominalKinds = buildNominalKinds()
     private static let supertypes = buildSupertypes()
@@ -171,6 +272,12 @@ enum GeneratedPlatformBridge {
 #else
             false
 #endif
+        case "Metal":
+#if canImport(Metal)
+            true
+#else
+            false
+#endif
         default:
             false
         }
@@ -178,12 +285,30 @@ enum GeneratedPlatformBridge {
 
     private static var frameworkPreference: [String] {
 #if canImport(AppKit)
-        ["AppKit", "UIKit"]
+        ["AppKit", "Metal", "UIKit"]
 #elseif canImport(UIKit)
-        ["UIKit", "AppKit"]
+        ["UIKit", "Metal", "AppKit"]
 #else
-        ["UIKit", "AppKit"]
+        ["Metal", "UIKit", "AppKit"]
 #endif
+    }
+
+    static func globalFunction(named name: String) -> HostFunction? {
+        guard let entries = globalFunctions[name], !entries.isEmpty else {
+            return nil
+        }
+        let ordered = frameworkPreference.flatMap { framework in
+            entries.filter { $0.framework == framework }
+        }
+        guard !ordered.isEmpty else { return nil }
+        do {
+            let functions = try ordered.map { try $0.function() }
+            return functions.count == 1
+                ? functions[0] : try HostFunction(overloads: functions)
+        } catch {
+            preconditionFailure(
+                "invalid generated global function set '\(name)': \(error)")
+        }
     }
 
     static func nativeConstructor(named name: String) -> HostFunction? {
@@ -356,6 +481,14 @@ enum GeneratedPlatformBridge {
         return value.get()
     }
 
+    static func payloadsEqual(
+        framework: String, type: String,
+        _ lhs: Any, _ rhs: Any
+    ) -> Bool? {
+        equalityAdapters[GeneratedPlatformTypeKey(
+            framework: framework, type: type)]?.equals(lhs, rhs)
+    }
+
     static func isValueType(framework: String, type: String) -> Bool {
         nominalKinds[GeneratedPlatformTypeKey(framework: framework, type: type)] ?? true
     }
@@ -366,12 +499,14 @@ enum GeneratedPlatformBridge {
 
     static func typeCandidates(framework: String, type: String) -> [String] {
         var result: [String] = []
-        var current: String? = type
+        var queue: [String] = [type]
         var seen = Set<String>()
-        while let value = current, seen.insert(value).inserted {
+        while !queue.isEmpty {
+            let value = queue.removeFirst()
+            guard seen.insert(value).inserted else { continue }
             result.append(value)
-            current = supertypes[GeneratedPlatformTypeKey(
-                framework: framework, type: value)]
+            queue.append(contentsOf: supertypes[GeneratedPlatformTypeKey(
+                framework: framework, type: value)] ?? [])
         }
         return result
     }
@@ -516,6 +651,25 @@ enum GeneratedPlatformBridge {
         }
     }
 
+    static func registerGlobalFunction(
+        _ table: inout [String: [GeneratedPlatformGlobalFunctionEntry]],
+        framework: String,
+        declaration: String,
+        resultType: String,
+        invoke: @escaping GeneratedPlatformGlobalFunctionEntry.Invoke
+    ) {
+        do {
+            let signature = try HostSignature(parsing: declaration)
+            table[signature.callableName, default: []].append(
+                GeneratedPlatformGlobalFunctionEntry(
+                    signature: signature, framework: framework,
+                    resultType: resultType, invoke: invoke))
+        } catch {
+            preconditionFailure(
+                "BridgeGen emitted an invalid platform global '\(declaration)': \(error)")
+        }
+    }
+
     static func registerProperty(
         _ table: inout [GeneratedPlatformMemberKey: GeneratedPlatformPropertyEntry],
         framework: String,
@@ -602,6 +756,19 @@ enum GeneratedPlatformBridge {
         table[key, default: []].append(GeneratedPlatformEnumEntry(
             framework: framework, type: type, name: name, get: get))
     }
+
+    static func registerEqualityAdapter<T: Equatable>(
+        _ table: inout [GeneratedPlatformTypeKey: GeneratedPlatformEqualityAdapter],
+        framework: String,
+        type: String,
+        _: T.Type
+    ) {
+        table[GeneratedPlatformTypeKey(framework: framework, type: type)] =
+            GeneratedPlatformEqualityAdapter { lhs, rhs in
+                guard let lhs = lhs as? T, let rhs = rhs as? T else { return nil }
+                return lhs == rhs
+            }
+    }
 }
 
 // MARK: - Generated argument/result conversions
@@ -683,6 +850,87 @@ extension Dictionary: GeneratedPlatformRuntimeConvertible {
         }
         return result
     }
+}
+
+func generatedPlatformWithUnsafeRawPointer(
+    _ value: RuntimeValue,
+    context _: EvalContext,
+    body: (UnsafeRawPointer) throws -> RuntimeValue
+) throws -> RuntimeValue {
+    let data = try RuntimeABIMemory.data(from: value)
+    return try data.withUnsafeBytes { bytes in
+        guard let pointer = bytes.baseAddress else {
+            throw RuntimeError(message: "cannot pass an empty value as an unsafe pointer")
+        }
+        return try body(pointer)
+    }
+}
+
+func generatedPlatformPointerResult(
+    _ pointer: UnsafeMutableRawPointer,
+    owner: Any?,
+    declaredType _: String
+) -> RuntimeValue {
+    .native(GeneratedPlatformRawMemory(
+        pointer: UnsafeRawPointer(pointer), mutablePointer: pointer, owner: owner))
+}
+
+func generatedPlatformPointerResult(
+    _ pointer: UnsafeRawPointer,
+    owner: Any?,
+    declaredType _: String
+) -> RuntimeValue {
+    .native(GeneratedPlatformRawMemory(
+        pointer: pointer, mutablePointer: nil, owner: owner))
+}
+
+func generatedPlatformPointerResult(
+    _ pointer: UnsafeMutableRawPointer?,
+    owner: Any?,
+    declaredType: String
+) -> RuntimeValue {
+    let wrappedType = optionalWrappedType(declaredType) ?? "Any"
+    guard let pointer else { return .none(wrappedTypeName: wrappedType) }
+    return .some(
+        generatedPlatformPointerResult(
+            pointer, owner: owner, declaredType: wrappedType),
+        wrappedTypeName: wrappedType)
+}
+
+func generatedPlatformPointerResult(
+    _ pointer: UnsafeRawPointer?,
+    owner: Any?,
+    declaredType: String
+) -> RuntimeValue {
+    let wrappedType = optionalWrappedType(declaredType) ?? "Any"
+    guard let pointer else { return .none(wrappedTypeName: wrappedType) }
+    return .some(
+        generatedPlatformPointerResult(
+            pointer, owner: owner, declaredType: wrappedType),
+        wrappedTypeName: wrappedType)
+}
+
+func generatedPlatformPointerResult(
+    _ pointer: UnsafeMutablePointer<UInt8>,
+    owner: Any?,
+    declaredType _: String
+) -> RuntimeValue {
+    let raw = UnsafeMutableRawPointer(pointer)
+    return .native(GeneratedPlatformRawMemory(
+        pointer: UnsafeRawPointer(raw), mutablePointer: raw, owner: owner))
+}
+
+func generatedPlatformPointerResult(
+    _ pointer: UnsafeMutablePointer<UInt8>?,
+    owner: Any?,
+    declaredType: String
+) -> RuntimeValue {
+    let wrappedType = optionalWrappedType(declaredType) ?? "Any"
+    guard let pointer else { return .none(wrappedTypeName: wrappedType) }
+    return .some(
+        generatedPlatformPointerResult(
+            pointer, owner: owner, declaredType: wrappedType),
+        wrappedTypeName: wrappedType)
 }
 
 func generatedPlatformArgument<T>(
