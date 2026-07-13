@@ -209,7 +209,14 @@ extension Interpreter {
     func runtimeABILayout(typeName rawName: String) throws -> RuntimeABILayout {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         if let scalar = RuntimeABIMemory.scalarLayout(name) { return scalar }
-        guard case .type(let symbol)? = typeValue(named: name), !symbol.isClass else {
+        guard case .type(let symbol)? = typeValue(named: name) else {
+            if let layout = registry?.hostABILayout(ofTypeNamed: name) {
+                return layout
+            }
+            throw RuntimeError(message:
+                "cannot derive a stable native ABI layout for type '\(rawName)'")
+        }
+        guard !symbol.isClass else {
             throw RuntimeError(message:
                 "cannot derive a stable native ABI layout for type '\(rawName)'")
         }

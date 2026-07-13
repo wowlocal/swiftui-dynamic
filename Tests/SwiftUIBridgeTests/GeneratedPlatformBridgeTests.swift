@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import Testing
 import SwiftInterpreter
 @testable import SwiftUIBridge
@@ -7,6 +8,37 @@ import AppKit
 #endif
 
 @Suite(.serialized) struct GeneratedPlatformBridgeTests {
+    @Test func darwinSocketMemoryLayoutsMatchNativeSwift() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/PlatformParity/Fixtures/darwin-socket-memory-layout.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\ndarwinSocketMemoryLayouts()\n"
+        let expected = [
+            MemoryLayout<sockaddr>.size,
+            MemoryLayout<sockaddr>.stride,
+            MemoryLayout<sockaddr>.alignment,
+            MemoryLayout<sockaddr_in>.size,
+            MemoryLayout<sockaddr_in>.stride,
+            MemoryLayout<sockaddr_in>.alignment,
+            MemoryLayout<sockaddr_in6>.size,
+            MemoryLayout<sockaddr_in6>.stride,
+            MemoryLayout<sockaddr_in6>.alignment,
+            MemoryLayout<sockaddr_storage>.size,
+            MemoryLayout<sockaddr_storage>.stride,
+            MemoryLayout<sockaddr_storage>.alignment,
+            MemoryLayout<sockaddr_un>.size,
+            MemoryLayout<sockaddr_un>.stride,
+            MemoryLayout<sockaddr_un>.alignment,
+        ].map(String.init).joined(separator: ",")
+
+        let result = try Interpreter(registry: ViewRegistry()).run(source: source)
+        #expect(result.stringValue == expected)
+    }
+
     @Test func nativePlatformConstructorMethodAndProperties() throws {
 #if canImport(AppKit)
         let source = """

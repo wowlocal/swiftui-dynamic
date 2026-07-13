@@ -264,6 +264,10 @@ public protocol HostRegistry: AnyObject {
     /// a recorded node → its constructor name) so user extensions of host
     /// types dispatch on stubs. Nil when unknown.
     func hostTypeName(of value: Any) -> String?
+    /// Native ABI metadata for imported C/SDK value types. The interpreter
+    /// derives source-struct layouts itself, but only the compiled host bridge
+    /// can answer this without guessing for types it imports.
+    func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout?
     /// PROTOCOL names a native value conforms to (a cancellation handle →
     /// ["Cancellable"]) so user protocol extensions (`extension Cancellable
     /// { func store(in:) }`) dispatch on host values. Empty when none.
@@ -283,6 +287,7 @@ public protocol HostRegistry: AnyObject {
 extension HostRegistry {
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
+    public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }
     public func hostProtocolCandidates(of value: Any) -> [String] { [] }
     public func hostMutatedCopy(
         settingMember name: String, on value: Any, to newValue: RuntimeValue
