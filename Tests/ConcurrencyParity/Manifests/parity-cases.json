@@ -437,6 +437,20 @@
     "notes": "The single initializer waits behind an explicit gate and returns (left, right). Exact output is child-start,parent-open,child-end,left,right in 20 Swift 6.3.3 runs; no unconstrained ready-task order is asserted."
   },
   {
+    "id": "async-let-multiple-bindings",
+    "fixture": "Fixtures/async-let-multiple-bindings.swift",
+    "mode": "runtime",
+    "assertion": "partial-order",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetMultipleBindingsProbe()",
+    "interpreterProjection": "string",
+    "requiredEvents": ["first-start", "second-start", "parent-open", "first-end", "second-end", "first-value:one", "second-value:two"],
+    "precedes": [["first-start", "parent-open"], ["second-start", "parent-open"], ["parent-open", "first-end"], ["parent-open", "second-end"], ["first-end", "first-value:one"], ["second-end", "second-value:two"], ["first-value:one", "second-value:two"]],
+    "nativeFact": "Every initializer in one multi-binding async-let declaration starts as a distinct child before either binding is read; each awaited name receives its own child result.",
+    "notes": "Both children increment a MainActor start count before waiting on one shared gate, so parent-open cannot occur until both are active. Swift 6.3.3 happened to produce one total order in 20 runs, but only the barrier, result-dependency, and parent program-order edges are asserted."
+  },
+  {
     "id": "async-let-scope-exit",
     "fixture": "Fixtures/async-let-scope-exit.swift",
     "mode": "runtime",

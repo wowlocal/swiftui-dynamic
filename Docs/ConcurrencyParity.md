@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier and tuple-pattern `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; unconsumed children cancel and join on normal, early-return, and throwing lexical exits; missing `await` is diagnosed | Multiple declaration bindings, remaining cancellation/defer cleanup combinations, task groups, and group iteration/cancellation |
+| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; unconsumed children cancel and join on normal, early-return, and throwing lexical exits; missing `await` is diagnosed | Remaining cancellation/defer cleanup combinations, task groups, and group iteration/cancellation |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1341,9 +1341,8 @@ task/scope registries empty after completion.
 
 M4 remains partial. This step claims native parity only for successful explicit
 value access, unconsumed normal scope exit, and the missing-await diagnostic.
-Multiple declaration bindings, remaining cancellation/defer cleanup
-combinations, and task groups require their own native fixtures before their
-behavior is classified.
+Remaining cancellation/defer cleanup combinations and task groups require
+their own native fixtures before their behavior is classified.
 
 Closing verification for this step is green: the focused async-let tests pass
 2/2, `AsyncExecutionTests` pass 41/41, `HostSignatureTests` pass 12/12,
@@ -1458,3 +1457,25 @@ The full suite passes 778 tests in 149 suites. A clean `Scripts/gate.sh` run is
 green with 778 tests, the unchanged 678/680 project-corpus ratchet, 5/5
 live-data scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
 errors / 17 unstable / 0 no-twin.
+
+### M4 multiple async-let declaration bindings
+
+`async-let-multiple-bindings.swift` declares two bindings in one `async let`
+statement. Each child records a distinct start event, increments a shared
+MainActor count, and then waits behind the same explicit gate. The parent
+cannot record `parent-open` until both starts have happened, which proves the
+second initializer can begin while the first remains suspended. It then awaits
+the two named values in source order.
+
+Apple Swift 6.3.3 produced one total trace in 20 bounded runs, but FIFO start
+or completion is not claimed. The permanent partial-order assertion requires
+both starts before `parent-open`, the open before both ends, each end before its
+own projected value, and `first-value:one` before `second-value:two` from parent
+program order. Other event pairs remain deliberately unconstrained.
+
+The same-source interpreter case was already GREEN before an additional
+production change and satisfied those invariants in all 20 repetitions. The
+declaration loop already creates and scope-registers one `RuntimeAsyncLetChild`
+per `PatternBindingSyntax`; the repeated fixture also left task and structured
+scope registries empty. This proof closes the multi-binding surface without
+introducing a scheduler-order special case.
