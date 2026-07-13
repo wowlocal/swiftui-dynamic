@@ -118,7 +118,7 @@ public final class ViewRegistry: HostRegistry {
 
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .host(let any) = value {
-            if any is AnyView || any is ImageBox || any is ShapeBox || any is LinearGradient
+            if any is AnyView || any is TextBox || any is ImageBox || any is ShapeBox || any is LinearGradient
                 || any is PathDrawStub || any is ForEachFan {
                 return true
             }
@@ -179,6 +179,7 @@ public final class ViewRegistry: HostRegistry {
                 // degrade (Lottie precedent), live-render edition.
                 return AnyView(EmptyView())
             }
+            if let box = any as? TextBox { return AnyView(box.text) }
             if let box = any as? ImageBox { return AnyView(box.image) }
             if let box = any as? ShapeBox { return AnyView(box.shape) }
             if let stub = any as? PathDrawStub { return AnyView(stub.path) }

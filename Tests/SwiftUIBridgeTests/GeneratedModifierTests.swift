@@ -9,9 +9,9 @@ import SwiftInterpreter
 /// SDK's swiftinterface and the ArgumentMatcher dispatched it.
 @Suite struct GeneratedModifierTests {
     @Test func generatedTableIsSubstantial() {
-        #expect(GeneratedModifiers.table.count >= 100)
+        #expect(GeneratedModifiers.table.count >= 130)
         let variants = GeneratedModifiers.table.values.map(\.count).reduce(0, +)
-        #expect(variants >= 180)
+        #expect(variants >= 420)
         for set in GeneratedModifiers.table.values {
             for (arity, overloads) in set.byArity {
                 #expect(overloads.allSatisfy { $0.params.count == arity })
@@ -36,6 +36,13 @@ import SwiftInterpreter
                         .contrast(1.2)
                         .flipsForRightToLeftLayoutDirection(false)
                         .drawingGroup()
+                    Text("sdk enums")
+                        .blendMode(.multiply)
+                        .controlSize(.regular)
+                        .fontDesign(.serif)
+                        .preferredColorScheme(.dark)
+                        .textCase(.uppercase)
+                        .truncationMode(.tail)
                 }
             }
         }
@@ -79,11 +86,67 @@ import SwiftInterpreter
     }
 
     @Test func generatedConstructorsAreSubstantial() {
-        #expect(GeneratedConstructors.table.count >= 12)
+        #expect(GeneratedConstructors.table.count >= 25)
+        let variants = GeneratedConstructors.table.values.map(\.count).reduce(0, +)
+        #expect(variants >= 110)
         for set in GeneratedConstructors.table.values {
             for (arity, overloads) in set.byArity {
                 #expect(overloads.allSatisfy { $0.params.count == arity })
             }
+        }
+    }
+
+    @Test func sdkBuilderAndFoundationShapesAreGenerated() {
+        let form = GeneratedConstructors.table["Form"]?.byArity[1] ?? []
+        #expect(form.contains { $0.params.map(\.tag) == [.builder] })
+
+        let verticalStack = GeneratedConstructors.table["VStack"]?.byArity[2] ?? []
+        #expect(verticalStack.contains {
+            $0.params.map(\.label) == ["spacing", "content"]
+                && $0.params.map(\.tag) == [.cgFloat, .builder]
+        })
+
+        let split = GeneratedConstructors.table["NavigationSplitView"]?.byArity[2] ?? []
+        #expect(split.contains { $0.params.map(\.tag) == [.builder, .builder] })
+
+        let unavailable = GeneratedConstructors.table["ContentUnavailableView"]?.byArity[3] ?? []
+        #expect(unavailable.contains {
+            $0.params.map(\.label) == [nil, "systemImage", "description"]
+                && $0.params.map(\.tag) == [.string, .string, .text]
+        })
+
+        let asyncImage = GeneratedConstructors.table["AsyncImage"]?.byArity[1] ?? []
+        #expect(asyncImage.contains { $0.params.map(\.tag) == [.url] })
+
+        let link = GeneratedConstructors.table["Link"]?.byArity[2] ?? []
+        #expect(link.contains { $0.params.map(\.tag) == [.url, .builder] })
+
+        let alert = GeneratedModifiers.table["alert"]?.byArity[3] ?? []
+        #expect(alert.contains {
+            $0.params.map(\.tag) == [.string, .bindingBool, .builder]
+        })
+
+        let navigationDocument = GeneratedModifiers.table["navigationDocument"]?.byArity[1] ?? []
+        #expect(navigationDocument.contains { $0.params.map(\.tag) == [.url] })
+
+        let blendMode = GeneratedModifiers.table["blendMode"]?.byArity[1] ?? []
+        #expect(blendMode.contains {
+            $0.params.map(\.tag) == [.sdkEnum("BlendMode")]
+        })
+    }
+
+    @Test func generatedSDKEnumsCoerceImplicitMembers() throws {
+        let blend = try GeneratedSDKEnumCoercions.coerce(
+            "BlendMode", .implicitMember("multiply")) as? BlendMode
+        #expect(blend == .multiply)
+
+        let design = try GeneratedSDKEnumCoercions.coerce(
+            "Font.Design", .implicitMember("default")) as? Font.Design
+        #expect(design == .default)
+
+        #expect(throws: RuntimeError.self) {
+            _ = try GeneratedSDKEnumCoercions.coerce(
+                "BlendMode", .implicitMember("notARealCase"))
         }
     }
 
@@ -92,8 +155,19 @@ import SwiftInterpreter
         let source = """
         struct ContentView: View {
             var body: some View {
-                VStack {
+                VStack(spacing: 11) {
+                    HStack(spacing: 7) {
+                        Text("Defaults before builders")
+                        Text("work")
+                    }
                     ContentUnavailableView("No results", systemImage: "magnifyingglass")
+                    ContentUnavailableView {
+                        Label("Generated builder", systemImage: "wand.and.stars")
+                    } description: {
+                        Text("Builder attributes came from the SDK interface")
+                    }
+                    Link("Generated URL", destination: URL(string: "https://example.com")!)
+                    Button("Generated asset", image: "bridgegen-missing-asset") {}
                     RenameButton()
                     EmptyView()
                     AngularGradient(gradient: Gradient(colors: [.red, .blue]), center: .center)
@@ -110,6 +184,35 @@ import SwiftInterpreter
             let hosting = NSHostingView(rootView: view.frame(width: 300, height: 400))
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 300, height: 400),
+                styleMask: .borderless, backing: .buffered, defer: false
+            )
+            window.contentView = hosting
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+            for (viewName, error) in RenderDiagnostics.errors {
+                Issue.record("\(viewName): \(error)")
+            }
+        }
+    }
+
+    @Test func taskObservatoryExampleDispatchesThroughRealRendering() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let projectRoot = repositoryRoot
+            .appendingPathComponent("Examples/TaskObservatory")
+            .path
+        let source = ProjectMaterial.mergedSource(at: projectRoot)
+
+        RenderDiagnostics.reset()
+        switch InterpreterHost().render(source: source) {
+        case .failure(let error):
+            Issue.record("TaskObservatory render failed: \(error)")
+        case .success(let view):
+            let hosting = NSHostingView(rootView: view.frame(width: 980, height: 720))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 980, height: 720),
                 styleMask: .borderless, backing: .buffered, defer: false
             )
             window.contentView = hosting

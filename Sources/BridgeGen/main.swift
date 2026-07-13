@@ -10,6 +10,14 @@ import SwiftSyntax
 
 let emitMode = CommandLine.arguments.contains("--emit")
 
+func argumentValue(after flag: String) -> String? {
+    guard let index = CommandLine.arguments.firstIndex(of: flag),
+          CommandLine.arguments.indices.contains(index + 1) else { return nil }
+    return CommandLine.arguments[index + 1]
+}
+
+let jsonReportPath = argumentValue(after: "--report-json")
+
 // MARK: - Locate & parse interfaces
 
 func run(_ tool: String, _ arguments: [String]) -> String {
@@ -25,11 +33,15 @@ func run(_ tool: String, _ arguments: [String]) -> String {
 }
 
 let sdk = run("/usr/bin/xcrun", ["--show-sdk-path", "--sdk", "macosx"])
+let hostArchitecture = run("/usr/bin/uname", ["-m"])
 
 func interfacePath(framework: String) -> String? {
     let moduleDir = "\(sdk)/System/Library/Frameworks/\(framework).framework/Modules/\(framework).swiftmodule"
-    let candidates = (try? FileManager.default.contentsOfDirectory(atPath: moduleDir)) ?? []
-    guard let name = candidates.first(where: { $0.hasSuffix("-apple-macos.swiftinterface") }) else {
+    let candidates = ((try? FileManager.default.contentsOfDirectory(atPath: moduleDir)) ?? [])
+        .filter { $0.hasSuffix("-apple-macos.swiftinterface") }
+        .sorted()
+    let architecturePrefix = hostArchitecture == "arm64" ? "arm64" : hostArchitecture
+    guard let name = candidates.first(where: { $0.hasPrefix(architecturePrefix) }) ?? candidates.first else {
         return nil
     }
     return "\(moduleDir)/\(name)"
@@ -50,7 +62,8 @@ let interfaceFiles = ["SwiftUICore", "SwiftUI"].compactMap { framework -> Source
 // Longest first: "CoreFoundation." must strip before "Foundation." matches
 // inside it (ditto SwiftUICore/SwiftUI).
 let modulePrefixes = [
-    "UniformTypeIdentifiers.", "CoreFoundation.", "CoreGraphics.",
+    "UniformTypeIdentifiers.", "DeveloperToolsSupport.",
+    "CoreFoundation.", "CoreGraphics.",
     "Observation.", "SwiftUICore.", "Foundation.", "CoreData.", "SwiftUI.",
     "Combine.", "Swift.", "os.",
 ]
@@ -70,11 +83,19 @@ struct TypeMapping {
     let cast: String
 }
 
+/// Public, deployment-compatible SDK enums and their payload-free cases.
+/// Populated from the same interfaces before the modifier/init sweep.
+var sdkEnumCases: [String: [String]] = [:]
+
 func directMapping(for normalized: String) -> TypeMapping? {
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
     case "LocalizedStringKey": return .init(tag: "string", cast: "LocalizedStringKey(%@ as! String)")
-    case "Text": return .init(tag: "string", cast: "Text(%@ as! String)")
+    case "LocalizedStringResource":
+        return .init(tag: "string", cast: "LocalizedStringResource(stringLiteral: %@ as! String)")
+    case "ImageResource":
+        return .init(tag: "string", cast: "ImageResource(name: %@ as! String, bundle: .main)")
+    case "Text": return .init(tag: "text", cast: "%@ as! Text")
     case "Bool": return .init(tag: "bool", cast: "%@ as! Bool")
     case "Int": return .init(tag: "int", cast: "%@ as! Int")
     case "Double": return .init(tag: "double", cast: "%@ as! Double")
@@ -104,7 +125,12 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Binding<String>": return .init(tag: "bindingString", cast: "%@ as! Binding<String>")
     case "Binding<Double>": return .init(tag: "bindingDouble", cast: "%@ as! Binding<Double>")
     case "AnyShapeStyle": return .init(tag: "shapeStyle", cast: "%@ as! AnyShapeStyle")
-    default: return nil
+    case "URL": return .init(tag: "url", cast: "%@ as! URL")
+    case "Date": return .init(tag: "date", cast: "%@ as! Date")
+    case "Data": return .init(tag: "data", cast: "%@ as! Data")
+    default:
+        guard sdkEnumCases[normalized] != nil else { return nil }
+        return .init(tag: "sdkEnum(\"\(normalized)\")", cast: "%@ as! \(normalized)")
     }
 }
 
@@ -186,6 +212,47 @@ struct AnalyzedParam {
     }
 }
 
+/// Every Swift call shape obtainable by omitting mapped or unmapped defaulted
+/// parameters. Defaults are not restricted to a trailing suffix: declarations
+/// such as `VStack(alignment:spacing:content:)` allow `alignment` to be omitted
+/// while `spacing` and the required builder remain present.
+func parameterSelections(_ analyzed: [AnalyzedParam]) -> [[AnalyzedParam]] {
+    var selections: [[AnalyzedParam]] = []
+
+    func visit(
+        _ index: Int,
+        _ selected: [AnalyzedParam],
+        omittedUnlabeledDefault: Bool
+    ) {
+        guard index < analyzed.count else {
+            selections.append(selected)
+            return
+        }
+
+        let parameter = analyzed[index]
+        if parameter.hasDefault {
+            visit(
+                index + 1,
+                selected,
+                omittedUnlabeledDefault: omittedUnlabeledDefault || parameter.label == nil)
+        }
+        // Swift cannot skip an unlabeled default and then bind a later
+        // unlabeled argument positionally. (A source trailing closure can
+        // sometimes do so, but generated calls deliberately use explicit
+        // argument lists.) Labeled parameters after the omission are safe.
+        if parameter.mapping != nil,
+           !(omittedUnlabeledDefault && parameter.label == nil) {
+            visit(
+                index + 1,
+                selected + [parameter],
+                omittedUnlabeledDefault: omittedUnlabeledDefault)
+        }
+    }
+
+    visit(0, [], omittedUnlabeledDefault: false)
+    return selections
+}
+
 func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> AnalyzedParam {
     let labelText = param.firstName.text
     let label: String? = labelText == "_" ? nil : labelText
@@ -194,12 +261,22 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
     var type = param.type
     var isBuilder = false
     var isAutoclosure = false
-    if let attributed = type.as(AttributedTypeSyntax.self) {
-        for attribute in attributed.attributes {
+
+    // Result-builder and closure attributes are represented on the parameter
+    // by current SwiftSyntax, while older interfaces/parsers may attach them
+    // to AttributedTypeSyntax. Read both locations so generation follows the
+    // SDK declaration rather than a parser-layout accident.
+    func inspectAttributes(_ attributes: AttributeListSyntax) {
+        for attribute in attributes {
             let name = attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription ?? ""
-            if name.hasSuffix("ViewBuilder") { isBuilder = true }
-            if name == "autoclosure" { isAutoclosure = true }
+            let normalizedName = normalize(name)
+            if normalizedName.hasSuffix("ViewBuilder") { isBuilder = true }
+            if normalizedName == "autoclosure" { isAutoclosure = true }
         }
+    }
+    inspectAttributes(param.attributes)
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        inspectAttributes(attributed.attributes)
         type = attributed.baseType
     }
     var normalized = normalize(type.trimmedDescription)
@@ -209,6 +286,17 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "@autoclosure", usesGeneric: nil)
     }
     if isBuilder {
+        // Builders with framework-supplied inputs (GeometryProxy,
+        // AsyncImagePhase, collection elements, accessibility content, …)
+        // need a semantic adapter that can manufacture the input value.
+        // A generated zero-argument closure would compile incorrectly or
+        // silently discard data, so only the ordinary `() -> View` shape is
+        // mechanical.
+        guard normalized.hasPrefix("() ->") else {
+            return .init(
+                label: label, mapping: nil, hasDefault: hasDefault,
+                blocker: "@ViewBuilder input closure", usesGeneric: nil)
+        }
         return .init(
             label: label,
             mapping: .init(tag: "builder", cast: "{ %@ as! AnyView }"),
@@ -222,9 +310,9 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             hasDefault: hasDefault, blocker: nil, usesGeneric: nil
         )
     }
-    if let mapping = directMapping(for: normalized) {
-        return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
-    }
+    // A generic parameter can legally shadow a concrete SDK type (`Data` is
+    // common in collection initializers). Resolve declared generics first so
+    // it is never mistaken for Foundation.Data or another direct mapping.
     if let facts = generics[normalized] {
         switch facts {
         case .concrete(let concrete):
@@ -239,6 +327,9 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             return .init(label: label, mapping: nil, hasDefault: hasDefault,
                          blocker: "<\(set.sorted().joined(separator: "&"))>", usesGeneric: normalized)
         }
+    }
+    if let mapping = directMapping(for: normalized) {
+        return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
     }
     return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: normalized, usesGeneric: nil)
 }
@@ -281,6 +372,99 @@ func needsAvailabilityGuard(_ attributes: AttributeListSyntax) -> Bool {
     return false
 }
 
+// MARK: - Automatically coercible SDK enums
+
+func isPublicSDKDecl(_ modifiers: DeclModifierListSyntax) -> Bool {
+    modifiers.contains { $0.name.text == "public" }
+}
+
+func collectSDKEnums(in members: MemberBlockItemListSyntax, path: [String], guarded: Bool) {
+    for member in members {
+        collectSDKEnums(in: member.decl, path: path, guarded: guarded)
+    }
+}
+
+func collectSDKEnums(in decl: DeclSyntax, path: [String], guarded inheritedGuarded: Bool) {
+    if let enumDecl = decl.as(EnumDeclSyntax.self) {
+        guard isPublicSDKDecl(enumDecl.modifiers), isUsable(enumDecl.attributes),
+              !enumDecl.name.text.hasPrefix("_") else { return }
+        let path = path + [enumDecl.name.text]
+        let guarded = inheritedGuarded || needsAvailabilityGuard(enumDecl.attributes)
+        if !guarded {
+            var cases: [String] = []
+            for member in enumDecl.memberBlock.members {
+                guard let caseDecl = member.decl.as(EnumCaseDeclSyntax.self),
+                      isUsable(caseDecl.attributes),
+                      !needsAvailabilityGuard(caseDecl.attributes) else { continue }
+                for element in caseDecl.elements where element.parameterClause == nil {
+                    cases.append(element.name.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")))
+                }
+            }
+            if !cases.isEmpty {
+                sdkEnumCases[path.joined(separator: ".")] = Array(Set(cases)).sorted()
+            }
+        }
+        collectSDKEnums(in: enumDecl.memberBlock.members, path: path, guarded: guarded)
+        return
+    }
+
+    if let structDecl = decl.as(StructDeclSyntax.self) {
+        guard isPublicSDKDecl(structDecl.modifiers), isUsable(structDecl.attributes),
+              !structDecl.name.text.hasPrefix("_") else { return }
+        collectSDKEnums(
+            in: structDecl.memberBlock.members,
+            path: path + [structDecl.name.text],
+            guarded: inheritedGuarded || needsAvailabilityGuard(structDecl.attributes))
+        return
+    }
+
+    if let classDecl = decl.as(ClassDeclSyntax.self) {
+        guard isPublicSDKDecl(classDecl.modifiers), isUsable(classDecl.attributes),
+              !classDecl.name.text.hasPrefix("_") else { return }
+        collectSDKEnums(
+            in: classDecl.memberBlock.members,
+            path: path + [classDecl.name.text],
+            guarded: inheritedGuarded || needsAvailabilityGuard(classDecl.attributes))
+        return
+    }
+
+    if let actorDecl = decl.as(ActorDeclSyntax.self) {
+        guard isPublicSDKDecl(actorDecl.modifiers), isUsable(actorDecl.attributes),
+              !actorDecl.name.text.hasPrefix("_") else { return }
+        collectSDKEnums(
+            in: actorDecl.memberBlock.members,
+            path: path + [actorDecl.name.text],
+            guarded: inheritedGuarded || needsAvailabilityGuard(actorDecl.attributes))
+        return
+    }
+
+    if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
+        guard isPublicSDKDecl(protocolDecl.modifiers), isUsable(protocolDecl.attributes),
+              !protocolDecl.name.text.hasPrefix("_") else { return }
+        collectSDKEnums(
+            in: protocolDecl.memberBlock.members,
+            path: path + [protocolDecl.name.text],
+            guarded: inheritedGuarded || needsAvailabilityGuard(protocolDecl.attributes))
+        return
+    }
+
+    if let extensionDecl = decl.as(ExtensionDeclSyntax.self), isUsable(extensionDecl.attributes) {
+        let extendedPath = normalize(extensionDecl.extendedType.trimmedDescription)
+            .split(separator: ".").map(String.init)
+        collectSDKEnums(
+            in: extensionDecl.memberBlock.members,
+            path: extendedPath,
+            guarded: inheritedGuarded || needsAvailabilityGuard(extensionDecl.attributes))
+    }
+}
+
+for file in interfaceFiles {
+    for statement in file.statements {
+        guard case .decl(let decl) = statement.item else { continue }
+        collectSDKEnums(in: decl, path: [], guarded: false)
+    }
+}
+
 // MARK: - Sweep
 
 struct EmittableParam {
@@ -319,7 +503,7 @@ var modifierGeneratable = 0
 var modifierGuarded = 0
 var modifierNames = Set<String>()
 var generatableNames = Set<String>()
-var blockers: [String: Int] = [:]
+var modifierBlockers: [String: Int] = [:]
 
 func acceptableModifierReturn(_ type: String) -> Bool {
     let normalized = normalize(type)
@@ -335,7 +519,7 @@ func processModifier(_ function: FunctionDeclSyntax, guarded: Bool) {
     let generics = genericConstraints(of: function)
     let parameters = function.signature.parameterClause.parameters
     if parameters.contains(where: { $0.ellipsis != nil }) {
-        blockers["variadic", default: 0] += 1
+        modifierBlockers["variadic", default: 0] += 1
         return
     }
     let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
@@ -344,12 +528,12 @@ func processModifier(_ function: FunctionDeclSyntax, guarded: Bool) {
     // independently per-argument — skip those signatures.
     let genericUses = analyzed.compactMap(\.usesGeneric)
     if Set(genericUses).count != genericUses.count {
-        blockers["<shared generic>", default: 0] += 1
+        modifierBlockers["<shared generic>", default: 0] += 1
         return
     }
 
     if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
-        blockers[firstBlocked.blocker ?? "?", default: 0] += 1
+        modifierBlockers[firstBlocked.blocker ?? "?", default: 0] += 1
         return
     }
     if guarded || needsAvailabilityGuard(function.attributes) {
@@ -360,25 +544,16 @@ func processModifier(_ function: FunctionDeclSyntax, guarded: Bool) {
     generatableNames.insert(name)
     guard !denyNames.contains(name) else { return }
 
-    // Emit suffix-default variants: the full mappable prefix, then shorter
-    // prefixes as trailing defaulted params drop off (Swift call shapes).
-    let maxLen = analyzed.prefix(while: { $0.mapping != nil }).count
-    var cut = maxLen
-    while true {
-        if cut == maxLen || analyzed[cut...].allSatisfy(\.hasDefault) {
-            if analyzed[cut...].allSatisfy(\.hasDefault) {
-                let slice = analyzed[..<cut]
-                let variant = Variant(
-                    name: name,
-                    params: slice.map { .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast) }
-                )
-                if seenKeys.insert(variant.key).inserted {
-                    variants.append(variant)
-                }
+    for selection in parameterSelections(analyzed) {
+        let variant = Variant(
+            name: name,
+            params: selection.map {
+                .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast)
             }
+        )
+        if seenKeys.insert(variant.key).inserted {
+            variants.append(variant)
         }
-        guard cut > 0, analyzed[cut - 1].hasDefault else { break }
-        cut -= 1
     }
 }
 
@@ -391,6 +566,7 @@ var initGeneratable = 0
 var initGuarded = 0
 var viewStructs = Set<String>()
 var generatableStructs = Set<String>()
+var initBlockers: [String: Int] = [:]
 
 /// Struct names never emitted (compile problems or hand-only semantics).
 let denyStructs: Set<String> = []
@@ -415,17 +591,17 @@ func processInit(_ structName: String, _ initDecl: InitializerDeclSyntax, generi
 
     let parameters = initDecl.signature.parameterClause.parameters
     if parameters.contains(where: { $0.ellipsis != nil }) {
-        blockers["variadic", default: 0] += 1
+        initBlockers["variadic", default: 0] += 1
         return
     }
     let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
     let genericUses = analyzed.compactMap(\.usesGeneric)
     if Set(genericUses).count != genericUses.count {
-        blockers["<shared generic>", default: 0] += 1
+        initBlockers["<shared generic>", default: 0] += 1
         return
     }
     if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
-        blockers[firstBlocked.blocker ?? "?", default: 0] += 1
+        initBlockers[firstBlocked.blocker ?? "?", default: 0] += 1
         return
     }
     if guarded || needsAvailabilityGuard(initDecl.attributes) {
@@ -436,21 +612,16 @@ func processInit(_ structName: String, _ initDecl: InitializerDeclSyntax, generi
     generatableStructs.insert(structName)
     guard !denyStructs.contains(structName) else { return }
 
-    let maxLen = analyzed.prefix(while: { $0.mapping != nil }).count
-    var cut = maxLen
-    while true {
-        if analyzed[cut...].allSatisfy(\.hasDefault) {
-            let slice = analyzed[..<cut]
-            let variant = Variant(
-                name: structName,
-                params: slice.map { .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast) }
-            )
-            if initSeenKeys.insert(variant.key).inserted {
-                initVariants.append(variant)
+    for selection in parameterSelections(analyzed) {
+        let variant = Variant(
+            name: structName,
+            params: selection.map {
+                .init(label: $0.label, tag: $0.mapping!.tag, cast: $0.mapping!.cast)
             }
+        )
+        if initSeenKeys.insert(variant.key).inserted {
+            initVariants.append(variant)
         }
-        guard cut > 0, analyzed[cut - 1].hasDefault else { break }
-        cut -= 1
     }
 }
 
@@ -700,27 +871,20 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
     if guarded || needsAvailabilityGuard(function.attributes) { return }
     guard !denyMembers.contains(typeName + "." + name) else { return }
 
-    let maxLen = analyzed.prefix(while: { $0.mapping != nil }).count
-    var cut = maxLen
-    while true {
-        if analyzed[cut...].allSatisfy(\.hasDefault) {
-            let slice = analyzed[..<cut]
-            let variant = MemberVariant(
-                type: typeName, name: name,
-                returnType: memberContractType(for: normalize(returnType)),
-                params: slice.map {
-                    .init(
-                        label: $0.label, tag: $0.mapping!.tag,
-                        cast: $0.mapping!.cast,
-                        contractType: $0.contractType!)
-                }
-            )
-            if memberMethodSeen.insert(variant.key).inserted {
-                memberMethodVariants.append(variant)
+    for selection in parameterSelections(analyzed) {
+        let variant = MemberVariant(
+            type: typeName, name: name,
+            returnType: memberContractType(for: normalize(returnType)),
+            params: selection.map {
+                .init(
+                    label: $0.label, tag: $0.mapping!.tag,
+                    cast: $0.mapping!.cast,
+                    contractType: $0.contractType!)
             }
+        )
+        if memberMethodSeen.insert(variant.key).inserted {
+            memberMethodVariants.append(variant)
         }
-        guard cut > 0, analyzed[cut - 1].hasDefault else { break }
-        cut -= 1
     }
 }
 
@@ -808,6 +972,8 @@ if let foundationFile {
 
 // MARK: - Report
 
+let parameterBlockers = modifierBlockers.merging(initBlockers, uniquingKeysWith: +)
+
 print("""
 
 ═══ View-extension modifiers ═══
@@ -825,7 +991,7 @@ emitted variants:       \(initVariants.count)
 
 ═══ Top blocking types ═══
 """)
-for (type, count) in blockers.sorted(by: { $0.value > $1.value }).prefix(25) {
+for (type, count) in parameterBlockers.sorted(by: { $0.value > $1.value }).prefix(25) {
     print(String(format: "%5d  %@", count, type))
 }
 
@@ -848,6 +1014,85 @@ for (type, count) in memberSettablePropertyTypes.sorted(by: {
     print(String(format: "%5d  %@", count, type))
 }
 
+func sdkEnumType(from tag: String) -> String? {
+    let prefix = "sdkEnum(\""
+    let suffix = "\")"
+    guard tag.hasPrefix(prefix), tag.hasSuffix(suffix) else { return nil }
+    return String(tag.dropFirst(prefix.count).dropLast(suffix.count))
+}
+
+let emittedSDKEnumTypes = Set(
+    (variants + initVariants)
+        .flatMap(\.params)
+        .compactMap { sdkEnumType(from: $0.tag) })
+
+// A stable, machine-readable surface inventory lets CI distinguish an SDK
+// expansion from an accidental generator regression. It also makes the
+// automatic/manual boundary inspectable without scraping the human report.
+struct CoverageSection: Encodable {
+    let scannedOverloads: Int
+    let generatableOverloads: Int
+    let emittedVariants: Int
+    let emittedSignatures: [String]
+    let blockers: [String: Int]
+}
+
+struct FoundationCoverageSection: Encodable {
+    let scannedProperties: Int
+    let emittedProperties: Int
+    let scannedMethods: Int
+    let emittedMethodVariants: Int
+    let emittedPropertySignatures: [String]
+    let emittedMethodSignatures: [String]
+    let blockers: [String: Int]
+}
+
+struct BridgeCoverageReport: Encodable {
+    let schemaVersion: Int
+    let sdkPath: String
+    let deploymentTarget: Int
+    let modifiers: CoverageSection
+    let constructors: CoverageSection
+    let foundationMembers: FoundationCoverageSection
+    let generatedSDKEnums: [String: [String]]
+}
+
+if let jsonReportPath {
+    let report = BridgeCoverageReport(
+        schemaVersion: 1,
+        sdkPath: sdk,
+        deploymentTarget: deploymentTarget,
+        modifiers: CoverageSection(
+            scannedOverloads: modifierTotal,
+            generatableOverloads: modifierGeneratable,
+            emittedVariants: variants.count,
+            emittedSignatures: variants.map(\.key).sorted(),
+            blockers: modifierBlockers),
+        constructors: CoverageSection(
+            scannedOverloads: initTotal,
+            generatableOverloads: initGeneratable,
+            emittedVariants: initVariants.count,
+            emittedSignatures: initVariants.map(\.key).sorted(),
+            blockers: initBlockers),
+        foundationMembers: FoundationCoverageSection(
+            scannedProperties: memberPropertyTotal,
+            emittedProperties: memberProperties.count,
+            scannedMethods: memberMethodTotal,
+            emittedMethodVariants: memberMethodVariants.count,
+            emittedPropertySignatures: memberProperties
+                .map { "\($0.type).\($0.name) -> \($0.returnType)" }.sorted(),
+            emittedMethodSignatures: memberMethodVariants.map(\.key).sorted(),
+            blockers: memberBlockers),
+        generatedSDKEnums: Dictionary(uniqueKeysWithValues: emittedSDKEnumTypes.sorted().compactMap { type in
+            sdkEnumCases[type].map { (type, $0) }
+        }))
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(report)
+    try data.write(to: URL(fileURLWithPath: jsonReportPath), options: .atomic)
+    print("\nwrote \(jsonReportPath) (coverage schema v1)")
+}
+
 // MARK: - Emit
 
 guard emitMode else { exit(0) }
@@ -858,14 +1103,19 @@ func entryCode(_ variant: Variant) -> String {
         .joined(separator: ", ")
     let argList = variant.params.enumerated()
         .map { index, param in
-            (param.label.map { "\($0): " } ?? "") + param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
+            let value = param.tag == "builder"
+                ? "{ b\(index) }"
+                : param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
+            return (param.label.map { "\($0): " } ?? "") + value
         }
         .joined(separator: ", ")
-    return """
-        register(&t, "\(variant.name)", [\(specs)]) { view, v in
-            AnyView(view.\(variant.name)(\(argList)))
-        }
-    """
+    var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]) { view, v in"]
+    for (index, param) in variant.params.enumerated() where param.tag == "builder" {
+        lines.append("        let b\(index) = try generatedBuilder(v[\(index)])")
+    }
+    lines.append("        return AnyView(view.\(variant.name)(\(argList)))")
+    lines.append("    }")
+    return lines.joined(separator: "\n")
 }
 
 let sorted = variants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
@@ -912,14 +1162,19 @@ func initEntryCode(_ variant: Variant) -> String {
         .joined(separator: ", ")
     let argList = variant.params.enumerated()
         .map { index, param in
-            (param.label.map { "\($0): " } ?? "") + param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
+            let value = param.tag == "builder"
+                ? "{ b\(index) }"
+                : param.cast.replacingOccurrences(of: "%@", with: "v[\(index)]")
+            return (param.label.map { "\($0): " } ?? "") + value
         }
         .joined(separator: ", ")
-    return """
-        register(&t, "\(variant.name)", [\(specs)]) { v in
-            AnyView(\(variant.name)(\(argList)))
-        }
-    """
+    var lines = ["    register(&t, \"\(variant.name)\", [\(specs)]) { v in"]
+    for (index, param) in variant.params.enumerated() where param.tag == "builder" {
+        lines.append("        let b\(index) = try generatedBuilder(v[\(index)])")
+    }
+    lines.append("        return AnyView(\(variant.name)(\(argList)))")
+    lines.append("    }")
+    return lines.joined(separator: "\n")
 }
 
 let sortedInits = initVariants.sorted { ($0.name, $0.params.count) < ($1.name, $1.params.count) }
@@ -956,6 +1211,50 @@ viewsOutput += "}\n"
 let viewsPath = "Sources/SwiftUIBridge/Generated/GeneratedViews.swift"
 try viewsOutput.write(toFile: viewsPath, atomically: true, encoding: .utf8)
 print("wrote \(viewsPath) (\(sortedInits.count) variants)")
+
+// MARK: - Emit SDK enum coercions
+
+var enumsOutput = """
+// GENERATED by BridgeGen from public, payload-free SwiftUI SDK enum cases.
+// Do not edit. Regenerate: swift run BridgeGen --emit
+// \(emittedSDKEnumTypes.count) enum types.
+import SwiftUI
+import SwiftInterpreter
+
+enum GeneratedSDKEnumCoercions {
+    static func coerce(_ typeName: String, _ value: RuntimeValue) throws -> Any {
+        switch typeName {
+
+"""
+
+for type in emittedSDKEnumTypes.sorted() {
+    guard let cases = sdkEnumCases[type], !cases.isEmpty else { continue }
+    enumsOutput += "        case \"\(type)\":\n"
+    enumsOutput += "            if case .host(let any) = value, let typed = any as? \(type) { return typed }\n"
+    enumsOutput += "            guard case .implicitMember(let member) = value else {\n"
+    enumsOutput += "                throw RuntimeError(message: \"expected a \(type) implicit member\")\n"
+    enumsOutput += "            }\n"
+    enumsOutput += "            switch member {\n"
+    for caseName in cases {
+        // Backticks are valid around every identifier and cover SDK cases
+        // whose spelling is also a Swift keyword.
+        enumsOutput += "            case \"\(caseName)\": return \(type).`\(caseName)`\n"
+    }
+    enumsOutput += "            default:\n"
+    enumsOutput += "                throw RuntimeError(message: \"unknown \(type) member '.\\(member)'\")\n"
+    enumsOutput += "            }\n"
+}
+enumsOutput += """
+        default:
+            throw RuntimeError(message: "unknown generated SDK enum '\\(typeName)'")
+        }
+    }
+}
+"""
+
+let enumsPath = "Sources/SwiftUIBridge/Generated/GeneratedSDKEnums.swift"
+try enumsOutput.write(toFile: enumsPath, atomically: true, encoding: .utf8)
+print("wrote \(enumsPath) (\(emittedSDKEnumTypes.count) enum types)")
 
 // MARK: - Emit members
 

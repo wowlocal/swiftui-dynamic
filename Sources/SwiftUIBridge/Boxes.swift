@@ -35,6 +35,17 @@ final class AttributedRangeProxy {
     }
 }
 
+/// `Text` remains type-preserving until a consumer requires view erasure.
+/// This lets generated SDK bridges pass interpreted `Text(...)` values to
+/// concrete `Text` parameters such as ContentUnavailableView's description.
+final class TextBox {
+    let text: Text
+
+    init(_ text: Text) {
+        self.text = text
+    }
+}
+
 /// `Image` flows through the interpreter as an ImageBox rather than AnyView so
 /// Image-typed modifiers (`.resizable()`) can still apply before the value is
 /// erased. Converting to AnyView happens lazily in `ViewRegistry.anyView`.

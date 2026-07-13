@@ -6,8 +6,8 @@ import SwiftInterpreter
 /// methods/properties carry parsed HostFunction/HostProperty contracts and use
 /// ParamTag only after a method overload has been selected. Hand-written
 /// gateways are consulted first and always win.
-enum ParamTag: String {
-    case string, bool, int, double, cgFloat
+enum ParamTag: Hashable {
+    case string, text, bool, int, double, cgFloat
     case color, font, fontWeight, angle, animation
     case alignment, horizontalAlignment, verticalAlignment, textAlignment
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
@@ -21,6 +21,9 @@ enum ParamTag: String {
     case decimal, characterSet, indexSet, dateComponents, dateInterval
     case indexPath, intArray, intRange
     case calendarComponent, calendarComponentSet
+    /// A concrete, payload-free enum collected from the SDK interface. The
+    /// associated value is its normalized Swift type name.
+    case sdkEnum(String)
 }
 
 struct ParamSpec {
@@ -40,6 +43,15 @@ struct ParamSpec {
 /// Only ever invoked on the main actor.
 struct ActionValue: @unchecked Sendable {
     let run: @MainActor () -> Void
+}
+
+/// Keeps generated result-builder arguments lazy while overload labels and
+/// scalar argument types are matched. Eagerly evaluating a builder during
+/// matching swallowed errors from nested views and replaced them with a
+/// misleading "no matching initializer" error on the outer container.
+struct BuilderValue {
+    let value: RuntimeValue
+    let context: EvalContext
 }
 
 struct GeneratedOverload {
@@ -88,6 +100,10 @@ enum GeneratedDispatch {
         case .string:
             guard let s = value.stringValue else { throw RuntimeError(message: "expected a String") }
             return s
+        case .text:
+            if case .host(let any) = value, let box = any as? TextBox { return box.text }
+            if let string = value.stringValue { return Text(string) }
+            throw RuntimeError(message: "expected Text or a String")
         case .bool:
             guard let b = value.boolValue else { throw RuntimeError(message: "expected a Bool") }
             return b
@@ -157,9 +173,8 @@ enum GeneratedDispatch {
         case .gridItems:
             return try Coerce.gridItems(value)
         case .builder:
-            guard let closure = value.closureValue else { throw RuntimeError(message: "expected a view closure") }
-            let views = try ctx.callBuilderClosure(closure, arguments: []).map(ViewRegistry.anyView)
-            return views.count == 1 ? views[0] : AnyView(VStack { ViewRegistry.indexed(views) })
+            guard value.closureValue != nil else { throw RuntimeError(message: "expected a view closure") }
+            return BuilderValue(value: value, context: ctx)
         case .action:
             guard let closure = value.closureValue else { throw RuntimeError(message: "expected a closure") }
             return ActionValue(run: { _ = try? ctx.callClosure(closure, arguments: []) })
@@ -227,6 +242,8 @@ enum GeneratedDispatch {
                 throw RuntimeError(message: "expected a set of calendar components")
             }
             return Set(try array.map(Coerce.calendarComponent))
+        case .sdkEnum(let typeName):
+            return try GeneratedSDKEnumCoercions.coerce(typeName, value)
         }
     }
 
@@ -745,6 +762,18 @@ enum GeneratedConstructors {
 nonisolated func generatedAction(_ value: Any) -> () -> Void {
     let action = value as! ActionValue
     return { MainActor.assumeIsolated { action.run() } }
+}
+
+/// Evaluates a generated zero-input `@ViewBuilder` only after its overload has
+/// been selected, preserving any nested render error and its source location.
+func generatedBuilder(_ value: Any) throws -> AnyView {
+    guard let builder = value as? BuilderValue,
+          let closure = builder.value.closureValue else {
+        throw RuntimeError(message: "expected a view closure")
+    }
+    let views = try builder.context.callBuilderClosure(closure, arguments: [])
+        .map(ViewRegistry.anyView)
+    return views.count == 1 ? views[0] : AnyView(VStack { ViewRegistry.indexed(views) })
 }
 
 // MARK: - Coercions added for generated surface

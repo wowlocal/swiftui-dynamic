@@ -165,10 +165,10 @@ properties before generated modifiers consume them.
 Hand-writing gateways doesn't scale to SwiftUI's real surface, so
 `swift run BridgeGen --emit` parses the SDK's **actual swiftinterface files**
 (SwiftUICore + SwiftUI — the modern SDK splits them) and generates
-`Generated/GeneratedModifiers.swift` (**214 overload variants across ~127
-modifier names**) and `Generated/GeneratedViews.swift` (**44 initializer
-variants across 15 View structs** — Button, Toggle, TextField, Label,
-ContentUnavailableView, gradients…). Struct inits mostly live in *extensions*
+`Generated/GeneratedModifiers.swift` (**428 overload variants across 151
+modifier names**) and `Generated/GeneratedViews.swift` (**113 initializer
+variants across 32 View structs** — containers, navigation, Button, Toggle,
+TextField, Label, ContentUnavailableView, gradients…). Struct inits mostly live in *extensions*
 with same-type constraints (`extension GroupBox where Label == Text`), so the
 generator threads struct-level generics plus extension where-clauses (both
 conformance sets and concrete substitutions) into parameter analysis. Every
@@ -178,8 +178,22 @@ goes through the ArgumentMatcher (`GeneratedSupport.swift`): per-overload
 parameter specs (label + coercible type tag), label/coercibility filtering,
 most-specific-first ranking. Hand-written gateways are consulted first and
 always win. The report mode (no `--emit`) prints the blocking-type histogram —
-the priority list for new coercions. Defaulted parameters are handled by
-emitting suffix variants (full call, then trailing defaults dropped).
+the priority list for new coercions. Defaulted parameters are expanded into
+every valid labeled omission shape, including defaults before required
+parameters (`VStack(spacing:) { ... }`); an omitted unlabeled default never
+permits a later unlabeled positional argument.
+`@ViewBuilder` attributes are read from both SwiftSyntax representations;
+zero-input builders generate automatically, while builders that require a
+framework-supplied value remain explicit semantic adapters. Generated builder
+arguments stay lazy until overload selection, so a nested render failure keeps
+its real source location instead of becoming a misleading outer-container
+error. Concrete `Text` parameters preserve their SDK type while still accepting
+string values. Public,
+payload-free SDK enums are swept too: `GeneratedSDKEnums.swift` currently
+coerces 14 types directly from their SDK-declared cases instead of maintaining
+handwritten switches. CI can request a
+stable inventory of emitted signatures and blocker counts with
+`swift run BridgeGen --report-json .build/bridgegen-coverage.json`.
 
 The same generator sweeps the SDK's **Foundation swiftinterface** for the
 member surface of value types (`URL`, `Data`, `Date`, `Calendar`, `UUID`,

@@ -17,17 +17,17 @@ extension ViewRegistry {
                 throw RuntimeError(message: "Text needs a string argument")
             }
             if case .host(let any) = value, let box = any as? AttributedStringBox {
-                return .native(AnyView(Text(box.attributed)))
+                return .native(TextBox(Text(box.attributed)))
             }
             // Unknowables read "" (fresh-string doctrine) — marker dumps
             // must never reach rendered Text.
             if case .host(let any) = value,
                any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {
-                return .native(AnyView(Text("")))
+                return .native(TextBox(Text("")))
             }
-            if case .hostFunction = value { return .native(AnyView(Text(""))) }
-            if case .implicitMember = value { return .native(AnyView(Text(""))) }
-            return .native(AnyView(Text(value.stringValue ?? value.stringified)))
+            if case .hostFunction = value { return .native(TextBox(Text(""))) }
+            if case .implicitMember = value { return .native(TextBox(Text(""))) }
+            return .native(TextBox(Text(value.stringValue ?? value.stringified)))
         }
 
         constructors["Image"] = HostFunction(name: "Image") { args, _ in
