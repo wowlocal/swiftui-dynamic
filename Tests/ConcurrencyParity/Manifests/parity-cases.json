@@ -137,6 +137,18 @@
     "notes": "MainActor isolation guarantees the waiter has entered target.value before the controller can cancel it. The target remains behind a separate gate until after cancellation. Exact output is target-active,waiter-cancelled,handle-cancelled on Swift 6.3.3."
   },
   {
+    "id": "task-cancellation-before-start",
+    "fixture": "Fixtures/task-cancellation-before-start.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskCancellationBeforeStartProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An unstructured task cancelled before it can start still enters its operation, observes cancellation, may return a normal value, and remains marked cancelled.",
+    "notes": "MainActor isolation prevents the inherited task from starting before the creator cancels it and suspends on value. Exact output is body-ran,body-cancelled,handle-cancelled on Swift 6.3.3."
+  },
+  {
     "id": "task-result",
     "fixture": "Fixtures/task-result.swift",
     "mode": "runtime",

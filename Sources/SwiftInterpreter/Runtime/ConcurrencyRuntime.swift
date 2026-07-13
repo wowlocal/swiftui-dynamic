@@ -267,7 +267,7 @@ final class CooperativeConcurrencyRuntime {
         _ nativeTask: Task<Void, Never>, to record: RuntimeTaskRecord
     ) {
         record.nativeTask = nativeTask
-        if record.state == .cancelled { nativeTask.cancel() }
+        if record.cancellation.isRequested { nativeTask.cancel() }
     }
 
     @discardableResult
@@ -311,9 +311,6 @@ final class CooperativeConcurrencyRuntime {
         record.cancellation.request(
             from: source, sequence: takeEventSequence())
         record.nativeTask?.cancel()
-        if record.state == .pending {
-            completeCancellation(record)
-        }
         guard !alreadyRequestedFromSource else { return }
         for childID in record.structuredChildren {
             guard let child = records[childID] else { continue }

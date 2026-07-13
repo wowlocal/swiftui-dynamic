@@ -5,6 +5,44 @@ import Testing
 @Suite("Task cancellation runtime")
 struct TaskCancellationRuntimeTests {
     @Test
+    func cancellationBeforeStartStillRunsTheTaskBody() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("task-cancellation-before-start.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nstartTaskCancellationBeforeStartProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+        guard case .instance(let recorder) = value else {
+            Issue.record("expected before-start cancellation recorder")
+            return
+        }
+        let taskValue = try #require(
+            recorder.box(for: "task")?.value.unwrappedOptionalOrSelf)
+        let task = try #require(taskValue.hostPayload as? RuntimeTaskHandle)
+
+        #expect(recorder.box(for: "bodyStarted")?.value.boolValue == true)
+        #expect(recorder.box(for: "bodyState")?.value.stringValue
+            == "body-cancelled")
+        #expect(recorder.box(for: "handleWasCancelled")?.value.boolValue
+            == true)
+        #expect(task.state == .succeeded)
+        #expect(task.result?.stringValue == "body-cancelled")
+        #expect(task.isCancelled)
+        #expect(task.cancellation.sources == [.taskHandle])
+        let requestSequence = try #require(
+            task.cancellation.requestSequence)
+        let observationSequence = try #require(
+            task.cancellation.observationSequence)
+        #expect(requestSequence < observationSequence)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func cancellingAValueWaiterDoesNotCancelItsTarget() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

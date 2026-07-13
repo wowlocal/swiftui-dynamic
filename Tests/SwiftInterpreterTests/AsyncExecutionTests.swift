@@ -138,19 +138,29 @@ struct AsyncExecutionTests {
 
     @Test func cancellationBeforeStartMatchesNativeTask() async throws {
         var nativeRan = false
+        var nativeWasCancelled = false
         let nativeTask = Task { @MainActor in
-            await Task.yield()
-            if !Task.isCancelled { nativeRan = true }
+            nativeRan = true
+            nativeWasCancelled = Task.isCancelled
+            return "body-value"
         }
         nativeTask.cancel()
-        await nativeTask.value
+        let nativeValue = await nativeTask.value
 
         let interpreter = Interpreter()
         let state = try await interpreter.runAsync(source: """
-        class State { var ran = false }
+        class State {
+            var ran = false
+            var wasCancelled = false
+        }
         let state = State()
-        let handle = Task { state.ran = true }
+        let handle = Task {
+            state.ran = true
+            state.wasCancelled = Task.isCancelled
+            return "body-value"
+        }
         handle.cancel()
+        let value = await handle.value
         state
         """)
 
@@ -159,13 +169,16 @@ struct AsyncExecutionTests {
             return
         }
         #expect(instance.box(for: "ran")?.value.boolValue == nativeRan)
+        #expect(instance.box(for: "wasCancelled")?.value.boolValue
+            == nativeWasCancelled)
         guard case .host(let any)? = interpreter.globals.lookup("handle"),
               let handle = any as? RuntimeTaskHandle else {
             Issue.record("Task should return a runtime task handle")
             return
         }
-        #expect(handle.state == .cancelled)
-        #expect(handle.isCancelled)
+        #expect(handle.state == .succeeded)
+        #expect(handle.result?.stringValue == nativeValue)
+        #expect(handle.isCancelled == nativeTask.isCancelled)
         #expect(handle.isCompleted)
     }
 

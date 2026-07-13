@@ -29,7 +29,7 @@ major version 6.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation during another task's value wait, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Standalone cancellation-before-start, task-handle deallocation, and remaining structured task creation/cancellation cases |
+| M2 task runtime | in progress | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, and source `@TaskLocal` declaration/projection are natively covered | Task-handle deallocation and remaining structured task creation/cancellation cases |
 | M3 suspension and clocks | not started | Bridge `Task.sleep`/`yield` remain compatibility behavior | Runtime clock and first-class suspension |
 | M4 structured concurrency | unsupported | No `async let` or task-group evaluator | Requires M1–M3 |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
@@ -53,6 +53,7 @@ major version 6.
 | `task-value-failure` | exact | A throwing task preserves its source failure across suspension and `try await task.value` throws it to the caller | Native/interpreter parity in 20 repetitions; catchability is asserted without coupling to error text |
 | `task-value-multiple-waiters` | predicate / event multiset | Multiple tasks may concurrently await the same task and every waiter receives its one completed success value | Native/interpreter parity in 20 repetitions; both interpreted waiters are simultaneously registered on one task record and relative resume order is not asserted |
 | `task-value-waiter-cancellation` | exact | Cancelling a task while it awaits another unstructured task's value neither ends the value wait nor cancels the target; the waiter receives the value and remains marked cancelled | Native/interpreter parity in 20 repetitions: `target-active,waiter-cancelled,handle-cancelled`; request/observation order and cleanup of both wait-graph edges are verified directly |
+| `task-cancellation-before-start` | exact | An unstructured task cancelled before it can start still enters its operation, observes cancellation, may return a normal value, and remains marked cancelled | Native/interpreter parity in 20 repetitions: `body-ran,body-cancelled,handle-cancelled`; the interpreted record succeeds with its returned value while retaining ordered request/observation metadata |
 | `task-result` | exact | `await task.result` waits and returns `.success`/`.failure` without throwing the failure from the property read; `get()` rethrows it | Native/interpreter parity in 20 repetitions: `success:value,failure,get-caught` |
 | `task-result-cancellation` | exact | A throwing task cancelled during a cancellable suspension completes its result as `.failure` | Native/interpreter parity in 20 repetitions; the fixture asserts case shape rather than error text |
 | `task-detached-value` | exact | A detached operation may suspend and its handle value awaits and returns the result | Native/interpreter parity in 20 repetitions; the interpreted record is detached, parentless, and physically crosses the native TaskLocal boundary |
@@ -83,7 +84,7 @@ It checks only:
 |---|---|---|
 | `asyncMutatingStructMethodCopiesOutLikeNativeSwift` | Embedded native implementation | Useful differential test, but native source is not yet a standalone fixture |
 | `runAsyncMatchesNativeTaskOrdering` | Embedded native task | Over-asserts one complete trace; should migrate to a partial-order fixture |
-| `cancellationBeforeStartMatchesNativeTask` | Embedded native task | Differential, but needs standalone repeated fixture and explicit cancellation invariant |
+| `cancellationBeforeStartMatchesNativeTask` | Embedded native task plus committed `task-cancellation-before-start` fixture | Kept as a focused regression; the standalone fixture now supplies the repeated same-source baseline and explicit operation-entry invariant |
 | `runAsyncWaitsForDescendantTasks` | Interpreter-only expectation | Tests session drain compatibility, not native structured-task semantics |
 | `synchronousRunRetainsInlineTaskCompatibility` | Interpreter-only | `compatibility-only`, intentionally not native concurrency |
 | `synchronousRunBoundsRecursivelyCreatedTasks` | Interpreter-only | `compatibility-only`, bounded renderer behavior |
@@ -700,3 +701,40 @@ registry.
 Verification on Apple Swift 6.3.3 / macOS 26.5 SDK: 50 concurrency-parity,
 task-cancellation, async-execution, and host-signature tests passed in four
 suites, followed by all 727 tests in 142 suites.
+
+### Cancellation before task entry
+
+`task-cancellation-before-start` creates an ordinary unstructured task on
+MainActor and cancels its handle before the creator reaches any suspension.
+Actor serialization therefore proves that the request precedes operation
+entry rather than merely winning a scheduler race. The body records entry,
+reads `Task.isCancelled`, and returns a normal string; its caller then awaits
+the value and reads the handle flag.
+
+Twenty Apple Swift 6.3.3 strict-concurrency runs produced
+`body-ran,body-cancelled,handle-cancelled` exactly. Cancellation requested
+before entry does not suppress the operation. The body starts in a cancelled
+context, may cooperate by reading the flag, and may still return successfully;
+the completed handle remains marked cancelled.
+
+The first same-source interpreter run reached the intended RED by throwing
+`CancellationError` instead of producing a string. A pending record had been
+immediately changed to terminal `.cancelled`, and the native driver discarded
+the source closure at entry. The focused regression made all consequences
+visible: the body had not run, no value existed, and the record was cancelled
+rather than succeeded.
+
+Cancellation request now remains separate from lifecycle state and outcome.
+It records the source and cancels the native driver; attachment also forwards
+an already-recorded request. The driver transitions the record from pending to
+running and enters source even when its cancellation flag is set. A pre-entry
+safe-point still suppresses the body for non-catchable session/host abort, but
+ordinary source cancellation remains cooperative. The existing running,
+caught-cancellation, cancellation-policy, and cleanup regressions stay green.
+
+The white-box case verifies body entry, a true cancellation observation,
+request-before-observation order, a successful `body-cancelled` outcome, a
+retained cancellation flag with only the `.taskHandle` source, and an empty
+active registry. Verification: 51 concurrency-parity, task-cancellation,
+async-execution, and host-signature tests passed in four suites, followed by
+all 728 tests in 142 suites.

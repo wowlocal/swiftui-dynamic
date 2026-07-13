@@ -721,6 +721,15 @@ the first observation sequence without forcing an error or terminal cancelled
 outcome. Reading another task handle's `isCancelled` does not observe the
 current task's cancellation.
 
+A source cancellation request made before an unstructured task enters its
+operation does not suppress operation entry. The task begins with its
+cancellation flag set, may explicitly observe it, and may still return a
+successful value while its handle remains marked cancelled. Pending, running,
+terminal outcome, cancellation request, and cancellation observation are
+therefore independent runtime dimensions. A separate session/host abort may
+prevent entry because it is infrastructure teardown rather than source task
+cancellation.
+
 The committed Swift 6 probe for an ordinary unstructured task establishes one
 additional value-wait rule: cancelling the waiter while it is suspended on
 `await target.value` does not by itself interrupt that wait or cancel the

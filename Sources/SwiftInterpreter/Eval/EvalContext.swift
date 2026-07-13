@@ -341,12 +341,11 @@ extension Interpreter: EvalContext {
                     handle.completeCancellation()
                     return
                 }
-                if Task.isCancelled {
-                    handle.cancel(source: .inherited)
-                    handle.completeCancellation()
-                    return
-                }
                 do {
+                    // Source cancellation is cooperative even when requested
+                    // before entry. Only an owning session/host abort may
+                    // suppress the source body at this boundary.
+                    try self.checkRuntimeCancellation()
                     let value = try await self.callBackgroundClosureSuspending(
                         closure, arguments: arguments)
                     try self.checkRuntimeCancellation()
