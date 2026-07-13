@@ -960,8 +960,13 @@ extension Interpreter {
                                 message: "Task.detached needs an operation closure")
                         }
                         return try context.spawnDetachedTask(
-                            body, arguments: [])
+                            body,
+                            arguments: [],
+                            priority: RuntimeTaskPriority.sourceValue(
+                                args.labeled("priority")))
                     })
+                case "currentPriority":
+                    return .native(evaluationTaskContext.priority)
                 case "isCancelled":
                     return .native(Task.isCancelled)
                 case "checkCancellation":

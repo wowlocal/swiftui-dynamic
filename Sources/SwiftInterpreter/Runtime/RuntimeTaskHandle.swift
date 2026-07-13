@@ -60,6 +60,10 @@ public final class RuntimeTaskHandle {
     public var sessionID: RuntimeSessionID { record.sessionID }
     public var kind: RuntimeTaskKind { record.kind }
     public var parent: RuntimeTaskID? { record.parent }
+    public var basePriority: RuntimeTaskPriority { record.basePriority }
+    public var effectivePriority: RuntimeTaskPriority {
+        record.effectivePriority
+    }
     public var state: State { record.state }
     public var outcome: RuntimeTaskOutcome? { record.outcome }
     public var failureDescription: String? { record.failureDescription }
@@ -75,7 +79,8 @@ public final class RuntimeTaskHandle {
         let record = runtime.createTask(
             sessionID: runtime.createSession(),
             kind: .unstructured,
-            parent: nil)
+            parent: nil,
+            priority: .medium)
         self.init(runtime: runtime, record: record)
     }
 

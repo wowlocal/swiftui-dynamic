@@ -740,6 +740,14 @@ scheduling. It records:
 - optional escalation caused by awaiting a task, if native probes establish a
   relevant observable rule.
 
+`basePriority` is immutable creation state; `effectivePriority` may change as
+the result of a separately verified escalation rule. An ordinary unstructured
+task inherits the creator context's effective value unless an explicit
+priority is supplied. Detached defaults and explicit-priority behavior are
+characterized independently. The native task used to drive cooperative
+execution receives the logical value, but querying that native driver is not
+the source of truth for an interpreted task after creation.
+
 Tests assert priority values and inheritance. They do not assert that a
 higher-priority task always executes first unless Swift guarantees it.
 

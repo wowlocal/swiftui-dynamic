@@ -94,7 +94,11 @@ extension Interpreter {
         }
         define("Task") { args, context in
             if let body = args.firstUnlabeledClosure ?? args.closure(labeled: "operation") {
-                return try context.spawnBackgroundTask(body, arguments: [])
+                return try context.spawnBackgroundTask(
+                    body,
+                    arguments: [],
+                    priority: RuntimeTaskPriority.sourceValue(
+                        args.labeled("priority")))
             }
             if let hostValue = try context.invokeHostConstructor(named: "Task", arguments: args) {
                 return hostValue

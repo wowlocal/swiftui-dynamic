@@ -19,12 +19,14 @@ extension Interpreter {
     ) async throws -> RuntimeValue {
         let sessionID = concurrencyRuntime.createSession()
         let root = concurrencyRuntime.createTask(
-            sessionID: sessionID, kind: .root, parent: nil)
+            sessionID: sessionID, kind: .root, parent: nil,
+            priority: RuntimeTaskPriority(Task.currentPriority))
         _ = concurrencyRuntime.begin(root)
         let context = makeEvaluationTaskContext(
             runtimeTaskID: root.id,
             runtimeSessionID: sessionID,
-            isAsyncSession: true)
+            isAsyncSession: true,
+            priority: root.effectivePriority)
         concurrencyRuntime.bind(context, to: root)
         defer { concurrencyRuntime.release(root.id) }
         return try await EvaluationTaskContext.$current.withValue(context) {

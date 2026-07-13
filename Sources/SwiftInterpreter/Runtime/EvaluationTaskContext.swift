@@ -15,6 +15,7 @@ final class EvaluationTaskContext {
     let runtimeTaskID: RuntimeTaskID?
     let runtimeSessionID: RuntimeSessionID?
     let isAsyncSession: Bool
+    var priority: RuntimeTaskPriority
     weak var interpreter: Interpreter?
 
     var steps = 0
@@ -45,12 +46,14 @@ final class EvaluationTaskContext {
         runtimeTaskID: RuntimeTaskID? = nil,
         runtimeSessionID: RuntimeSessionID? = nil,
         isAsyncSession: Bool = false,
+        priority: RuntimeTaskPriority = .medium,
         interpreter: Interpreter
     ) {
         self.id = id
         self.runtimeTaskID = runtimeTaskID
         self.runtimeSessionID = runtimeSessionID
         self.isAsyncSession = isAsyncSession
+        self.priority = priority
         self.interpreter = interpreter
     }
 

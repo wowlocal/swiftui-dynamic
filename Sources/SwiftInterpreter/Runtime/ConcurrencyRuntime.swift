@@ -28,6 +28,56 @@ public struct RuntimeTaskID: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "task-\(rawValue)" }
 }
 
+/// Logical source-task priority. The native value drives today's cooperative
+/// task, while keeping it on the runtime record/context gives later schedulers
+/// and priority escalation one stable source of truth.
+public struct RuntimeTaskPriority: Hashable, Sendable, CustomStringConvertible {
+    public let rawValue: UInt8
+
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+
+    init(_ native: TaskPriority) {
+        rawValue = native.rawValue
+    }
+
+    public static let high = Self(TaskPriority.high)
+    public static let medium = Self(TaskPriority.medium)
+    public static let low = Self(TaskPriority.low)
+    public static let background = Self(TaskPriority.background)
+
+    var nativePriority: TaskPriority { TaskPriority(rawValue: rawValue) }
+
+    public var description: String { "TaskPriority(rawValue: \(rawValue))" }
+
+    static func sourceValue(_ value: RuntimeValue?) throws -> Self? {
+        guard let value, !value.isNil else { return nil }
+        if case .host(let payload) = value,
+           let priority = payload as? RuntimeTaskPriority {
+            return priority
+        }
+        let name: String?
+        switch value {
+        case .implicitMember(let member):
+            name = member
+        case .host(let call as ImplicitMemberCall):
+            name = call.name
+        default:
+            name = nil
+        }
+        switch name {
+        case "high", "userInitiated": return .high
+        case "medium": return .medium
+        case "low", "utility": return .low
+        case "background": return .background
+        default:
+            throw RuntimeError(message:
+                "Task priority must be high, medium, low, utility, or background")
+        }
+    }
+}
+
 public enum RuntimeTaskKind: String, Sendable {
     case root
     case unstructured
@@ -99,6 +149,8 @@ final class RuntimeTaskRecord {
     let sessionID: RuntimeSessionID
     let kind: RuntimeTaskKind
     let parent: RuntimeTaskID?
+    let basePriority: RuntimeTaskPriority
+    var effectivePriority: RuntimeTaskPriority
     var state: RuntimeTaskState = .pending
     var outcome: RuntimeTaskOutcome?
     var failureDescription: String?
@@ -113,12 +165,15 @@ final class RuntimeTaskRecord {
         id: RuntimeTaskID,
         sessionID: RuntimeSessionID,
         kind: RuntimeTaskKind,
-        parent: RuntimeTaskID?
+        parent: RuntimeTaskID?,
+        priority: RuntimeTaskPriority
     ) {
         self.id = id
         self.sessionID = sessionID
         self.kind = kind
         self.parent = parent
+        basePriority = priority
+        effectivePriority = priority
     }
 }
 
@@ -137,12 +192,14 @@ final class CooperativeConcurrencyRuntime {
     func createTask(
         sessionID: RuntimeSessionID,
         kind: RuntimeTaskKind,
-        parent: RuntimeTaskID?
+        parent: RuntimeTaskID?,
+        priority: RuntimeTaskPriority
     ) -> RuntimeTaskRecord {
         let id = RuntimeTaskID(rawValue: nextTaskID)
         nextTaskID += 1
         let record = RuntimeTaskRecord(
-            id: id, sessionID: sessionID, kind: kind, parent: parent)
+            id: id, sessionID: sessionID, kind: kind, parent: parent,
+            priority: priority)
         records[id] = record
         if let parent, let parentRecord = records[parent] {
             // Creation/inheritance and structured ownership are deliberately

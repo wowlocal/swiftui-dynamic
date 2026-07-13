@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SwiftInterpreter
 
@@ -507,6 +508,49 @@ struct AsyncExecutionTests {
         #expect(handle.result?.stringValue == "detached")
         #expect(observedRuntimeTaskID == handle.id)
         #expect(observedNativeTaskLocal == "default")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func runtimeRecordsExplicitInheritedAndDetachedPriorities() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("task-priority-inheritance.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nstartTaskPriorityInheritanceProbe()\n"
+        let interpreter = Interpreter()
+        let value = try await interpreter.runAsync(source: source)
+        guard case .instance(let recorder) = value else {
+            Issue.record("expected a task-priority recorder instance")
+            return
+        }
+
+        func handle(_ property: String) throws -> RuntimeTaskHandle {
+            let value = try #require(
+                recorder.box(for: property)?.value.unwrappedOptionalOrSelf)
+            return try #require(value.hostPayload as? RuntimeTaskHandle)
+        }
+
+        let parent = try handle("parentTask")
+        let child = try handle("childTask")
+        let detached = try handle("detachedTask")
+        #expect(parent.basePriority.rawValue == TaskPriority.utility.rawValue)
+        #expect(parent.effectivePriority == parent.basePriority)
+        #expect(child.parent == parent.id)
+        #expect(child.basePriority == parent.effectivePriority)
+        #expect(detached.parent == nil)
+        #expect(detached.basePriority.rawValue == TaskPriority.medium.rawValue)
+        #expect(parent.state == .succeeded, "\(parent.failureDescription ?? "")")
+        #expect(child.state == .succeeded, "\(child.failureDescription ?? "")")
+        #expect(detached.state == .succeeded, "\(detached.failureDescription ?? "")")
+        #expect(recorder.box(for: "parent")?.value.intValue
+            == Int(TaskPriority.utility.rawValue))
+        #expect(recorder.box(for: "child")?.value.intValue
+            == Int(TaskPriority.utility.rawValue))
+        #expect(recorder.box(for: "detached")?.value.intValue
+            == Int(TaskPriority.medium.rawValue))
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 

@@ -158,7 +158,19 @@
     "interpreterEntry": "await taskDetachedValueProbe()",
     "interpreterProjection": "string",
     "nativeFact": "A Task.detached operation may suspend and its handle value awaits completion and returns the operation result.",
-    "notes": "This first detached-source fixture proves construction, suspension, and value flow. Task-local, priority, and executor inheritance require separate probes."
+    "notes": "This first detached-source fixture proves construction, suspension, and value flow. Task-local and executor inheritance require separate probes; priority is covered independently."
+  },
+  {
+    "id": "task-priority-inheritance",
+    "fixture": "Fixtures/task-priority-inheritance.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskPriorityInheritanceProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An explicit utility priority is visible in its task and inherited by an unstructured Task created inside it; a detached task without an explicit priority starts at medium priority.",
+    "notes": "No handle is awaited by higher-priority code before the three raw values are captured, so priority escalation cannot contaminate the inheritance observation. Exact output is 17,17,21 on the active Swift 6.3.3 toolchain."
   },
   {
     "id": "unstructured-top-level-lifetime",

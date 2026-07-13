@@ -189,6 +189,14 @@ extension Interpreter {
     /// This is the compatibility path for opaque framework values. Swift-shaped
     /// values enter through the RuntimeValue overload above.
     func nativeMember(_ name: String, on any: Any) throws -> RuntimeValue? {
+        if let priority = any as? RuntimeTaskPriority {
+            switch name {
+            case "rawValue":
+                return .native(Int(priority.rawValue))
+            default:
+                return nil
+            }
+        }
         if let handle = any as? RuntimeTaskHandle {
             switch name {
             case "cancel":

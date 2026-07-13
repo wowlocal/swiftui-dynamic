@@ -91,10 +91,22 @@ public protocol EvalContext: AnyObject {
     /// a real Swift task; synchronous compatibility sessions execute it
     /// deterministically before returning.
     func spawnBackgroundTask(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
+    /// Priority-aware task creation. Existing embedders inherit the default
+    /// implementation below; the interpreter records this in its task runtime.
+    func spawnBackgroundTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue
     /// Create a source `Task.detached`. The interpreter overrides this to
     /// remove parent/task-local inheritance; older embedders retain a
     /// source-compatible fallback to ordinary background work.
     func spawnDetachedTask(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
+    func spawnDetachedTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue
     /// Let a core builtin with a colliding Swift name defer non-builtin call
     /// shapes to the injected host type (`Task(context:)` for a generated
     /// Core Data entity versus concurrency `Task {}`).
@@ -125,6 +137,22 @@ extension EvalContext {
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
         try spawnBackgroundTask(closure, arguments: arguments)
+    }
+
+    public func spawnBackgroundTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try spawnBackgroundTask(closure, arguments: arguments)
+    }
+
+    public func spawnDetachedTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try spawnDetachedTask(closure, arguments: arguments)
     }
 
     public func hostTypeName(of value: RuntimeValue) -> String {

@@ -128,7 +128,8 @@ public final class Interpreter {
     func makeEvaluationTaskContext(
         runtimeTaskID: RuntimeTaskID? = nil,
         runtimeSessionID: RuntimeSessionID? = nil,
-        isAsyncSession: Bool = false
+        isAsyncSession: Bool = false,
+        priority: RuntimeTaskPriority = .medium
     ) -> EvaluationTaskContext {
         let id = nextEvaluationTaskContextID
         nextEvaluationTaskContextID += 1
@@ -137,6 +138,7 @@ public final class Interpreter {
             runtimeTaskID: runtimeTaskID,
             runtimeSessionID: runtimeSessionID,
             isAsyncSession: isAsyncSession,
+            priority: priority,
             interpreter: self)
     }
 

@@ -51,11 +51,33 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func spawnBackgroundTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.spawnBackgroundTask(
+                closure, arguments: arguments, priority: priority)
+        }
+    }
+
     func spawnDetachedTask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
         try bound {
             try interpreter.spawnDetachedTask(closure, arguments: arguments)
+        }
+    }
+
+    func spawnDetachedTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.spawnDetachedTask(
+                closure, arguments: arguments, priority: priority)
         }
     }
 
@@ -152,28 +174,54 @@ extension Interpreter: EvalContext {
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
         try spawnRuntimeTask(
-            kind: .unstructured, closure: closure, arguments: arguments)
+            kind: .unstructured, closure: closure, arguments: arguments,
+            priority: nil)
+    }
+
+    public func spawnBackgroundTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try spawnRuntimeTask(
+            kind: .unstructured, closure: closure, arguments: arguments,
+            priority: priority)
     }
 
     public func spawnDetachedTask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
         try spawnRuntimeTask(
-            kind: .detached, closure: closure, arguments: arguments)
+            kind: .detached, closure: closure, arguments: arguments,
+            priority: nil)
+    }
+
+    public func spawnDetachedTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try spawnRuntimeTask(
+            kind: .detached, closure: closure, arguments: arguments,
+            priority: priority)
     }
 
     private func spawnRuntimeTask(
         kind: RuntimeTaskKind,
         closure: ClosureValue,
-        arguments: [RuntimeValue]
+        arguments: [RuntimeValue],
+        priority explicitPriority: RuntimeTaskPriority?
     ) throws -> RuntimeValue {
         let sessionID = evaluationTaskContext.runtimeSessionID
             ?? concurrencyRuntime.createSession()
+        let priority = explicitPriority ?? (kind == .detached
+            ? .medium : evaluationTaskContext.priority)
         let record = concurrencyRuntime.createTask(
             sessionID: sessionID,
             kind: kind,
             parent: kind == .detached
-                ? nil : evaluationTaskContext.runtimeTaskID)
+                ? nil : evaluationTaskContext.runtimeTaskID,
+            priority: priority)
         let handle = RuntimeTaskHandle(
             runtime: concurrencyRuntime, record: record)
         let arguments = arguments
@@ -214,7 +262,8 @@ extension Interpreter: EvalContext {
         let taskContext = makeEvaluationTaskContext(
             runtimeTaskID: handle.id,
             runtimeSessionID: sessionID,
-            isAsyncSession: true)
+            isAsyncSession: true,
+            priority: record.effectivePriority)
         concurrencyRuntime.bind(taskContext, to: record)
         let operation: @MainActor @Sendable () async -> Void = {
             [weak self, weak handle] in
@@ -248,9 +297,11 @@ extension Interpreter: EvalContext {
         }
         let task: Task<Void, Never>
         if kind == .detached {
-            task = Task.detached(operation: operation)
+            task = Task.detached(
+                priority: priority.nativePriority, operation: operation)
         } else {
-            task = Task(operation: operation)
+            task = Task(
+                priority: priority.nativePriority, operation: operation)
         }
         handle.attach(task)
         scheduledTasks.append(handle)
