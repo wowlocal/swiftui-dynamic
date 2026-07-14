@@ -1664,6 +1664,99 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupBodyThrowCancelsAndJoinsChild() async throws {
+        let interpreter = Interpreter()
+        var observedChild: RuntimeTaskRecord?
+        var observedGroup: RuntimeTaskGroupRecord?
+        var observedOwner: RuntimeTaskRecord?
+        interpreter.globals.define(
+            "inspectThrowingBodyChildCancellation",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingBodyChildCancellation",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let groupID = child.taskGroupID,
+                          let group = interpreter.concurrencyRuntime
+                            .taskGroups[groupID],
+                          let owner = interpreter.concurrencyRuntime
+                            .records[group.ownerTaskID] else {
+                        throw RuntimeError(message:
+                            "throwing body cleanup lost runtime ownership")
+                    }
+                    observedChild = child
+                    observedGroup = group
+                    observedOwner = owner
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        enum ThrowingBodyError: Error {
+            case failed
+        }
+        @MainActor
+        var throwingBodyEvents: [String] = []
+        @MainActor
+        var throwingBodyChildStarted = false
+        @MainActor
+        func throwingBodyChild() async -> String {
+            throwingBodyChildStarted = true
+            throwingBodyEvents.append("child-start")
+            do {
+                try await Task.sleep(for: .seconds(30))
+                return "missed"
+            } catch {
+                await inspectThrowingBodyChildCancellation()
+                throwingBodyEvents.append("child-cancelled")
+                return "cancelled"
+            }
+        }
+        @MainActor
+        func throwingBodyOwner() async -> String {
+            do {
+                _ = try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    group.addTask {
+                        await throwingBodyChild()
+                    }
+                    while !throwingBodyChildStarted {
+                        await Task.yield()
+                    }
+                    throwingBodyEvents.append("body-throw")
+                    throw ThrowingBodyError.failed
+                }
+                throwingBodyEvents.append("missed")
+            } catch ThrowingBodyError.failed {
+                throwingBodyEvents.append("caught-body")
+            } catch {
+                throwingBodyEvents.append("wrong-error")
+            }
+            return throwingBodyEvents.joined(separator: ",")
+        }
+        await throwingBodyOwner()
+        """)
+
+        #expect(result.stringValue
+            == "child-start,body-throw,child-cancelled,caught-body")
+        #expect(observedGroup?.kind == .throwing)
+        #expect(observedGroup?.completedChildTaskIDs.count == 1)
+        #expect(observedGroup?.consumedChildTaskIDs.isEmpty == true)
+        #expect(observedGroup?.pendingCompletedChildCount == 1)
+        #expect(observedChild?.kind == .groupChild)
+        #expect(observedChild?.state == .succeeded)
+        #expect(observedChild?.cancellation.sources == [.structuredScopeExit])
+        #expect(observedChild?.cancellation.isObserved == true)
+        #expect(observedOwner?.cancellation.isRequested == false)
+        #expect(observedOwner?.cancellation.isObserved == false)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupNextUsesCompletionQueueAndGroupSuspension() async throws {
         let interpreter = Interpreter()
         var observedParentSuspension: RuntimeSuspension?
