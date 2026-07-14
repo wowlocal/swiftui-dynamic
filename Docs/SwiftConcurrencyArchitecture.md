@@ -1039,6 +1039,29 @@ lifetime:
 - UI-observable model mutation respects source global-actor requirements;
 - a synchronous `body` never blocks waiting for async work.
 
+Synchronous framework callbacks and asynchronous view-lifecycle work are two
+different runtime entries. A callback such as `Button(action:)` must execute
+the source action inline so state mutations are visible before the host call
+returns. It nevertheless owns a fresh logical `hostCallback` task and session;
+therefore any source `Task` created by the action is scheduled by the canonical
+runtime and may suspend independently. Scheduling the whole action onto a new
+host task would be observably wrong. Calling it through the legacy synchronous
+compatibility evaluator is also wrong because that collapses nested tasks and
+suspensions inline.
+
+All retained synchronous framework closures use one host-callback adapter. It
+creates the logical entry, binds task-local/runtime context, executes the
+closure synchronously, releases the entry after its own dynamic state is
+clean, and reports an uncaught callback error through bridge diagnostics.
+Buttons, generated actions, gestures, bindings, lifecycle event modifiers,
+and Objective-C completions share this path. Queued GCD deliveries retain
+their own deterministic/wall-clock bridge policy and require a separate
+follow-up before they can adopt the same runtime entry without changing test
+or delivery semantics.
+Async `.task`, `.task(id:)`, and `.refreshable` closures instead require the
+separate `swiftUITask` lifecycle contract above; they must not be implemented
+by extending the synchronous adapter.
+
 The current synchronous rendering compatibility path remains separate. A view
 task must use the canonical concurrency runtime even when it was created by a
 synchronous render pass.

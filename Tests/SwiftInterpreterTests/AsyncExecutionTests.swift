@@ -2587,4 +2587,83 @@ struct AsyncExecutionTests {
         #expect(result.stringValue == "done")
         #expect(events == ["gateway", "body", "after"])
     }
+
+    @Test func synchronousHostCallbackEntersConcurrencyRuntime() async throws {
+        let interpreter = Interpreter()
+        var observedCallbackKind: RuntimeTaskKind?
+        interpreter.globals.define(
+            "observeCallbackRuntime",
+            .hostFunction(HostFunction(
+                name: "observeCallbackRuntime"
+            ) { _, _ in
+                guard let taskID = interpreter.evaluationTaskContext.runtimeTaskID else {
+                    return .void
+                }
+                observedCallbackKind = interpreter.concurrencyRuntime
+                    .records[taskID]?.kind
+                return .void
+            }))
+        let action = try interpreter.run(source: """
+        @MainActor
+        final class CallbackModel {
+            var phase = "idle"
+
+            func start() {
+                observeCallbackRuntime()
+                phase = "started"
+                Task.detached {
+                    let total = await withTaskGroup(of: Int.self) { group in
+                        group.addTask { 1 }
+                        group.addTask { 2 }
+                        let first = await group.next() ?? 0
+                        let second = await group.next() ?? 0
+                        return first + second
+                    }
+                    await self.finish(total)
+                }
+            }
+
+            func finish(_ total: Int) {
+                phase = "done-\\(total)"
+            }
+        }
+
+        let callbackModel = CallbackModel()
+
+        func makeCallback() -> () -> Void {
+            {
+                callbackModel.start()
+            }
+        }
+
+        makeCallback()
+        """)
+        let closure = try #require(action.closureValue)
+        guard case .instance(let model)? = interpreter.globals.lookup(
+            "callbackModel") else {
+            Issue.record("callback model missing")
+            return
+        }
+
+        _ = try interpreter.callHostCallback(closure, arguments: [])
+
+        // A native synchronous action mutates state before returning. Work it
+        // creates may continue independently through the concurrency runtime.
+        #expect(observedCallbackKind == .hostCallback)
+        #expect(model.box(for: "phase")?.value.stringValue == "started")
+        for _ in 0..<1_000
+        where model.box(for: "phase")?.value.stringValue != "done-3" {
+            await Task.yield()
+        }
+        #expect(model.box(for: "phase")?.value.stringValue == "done-3")
+        for _ in 0..<1_000
+        where !interpreter.scheduledTasks.isEmpty
+            || interpreter.concurrencyRuntime.activeRecordCount != 0 {
+            await Task.yield()
+        }
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
 }

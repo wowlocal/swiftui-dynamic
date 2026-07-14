@@ -431,6 +431,36 @@ private enum ConcurrencyParityHarness {
         )))
         let value = try await interpreter.runAsync(source: source)
 
+        var externalProjectionOutput: String?
+        if projection.hasPrefix("host-callback-global-string:") {
+            let fields = projection.dropFirst(
+                "host-callback-global-string:".count
+            ).split(separator: ":", maxSplits: 1).map(String.init)
+            guard fields.count == 2,
+                  let closure = value.closureValue else {
+                throw RuntimeError(message:
+                    "case '\(parityCase.id)' did not return a host callback closure")
+            }
+            func projectedString() throws -> String {
+                guard case .instance(let instance)? = interpreter.globals.lookup(
+                    fields[0]),
+                      let string = instance.box(for: fields[1])?.value.stringValue else {
+                    throw RuntimeError(message:
+                        "case '\(parityCase.id)' did not expose String '\(fields[0]).\(fields[1])'")
+                }
+                return string
+            }
+
+            _ = try interpreter.callHostCallback(closure, arguments: [])
+            let immediate = try projectedString()
+            for _ in 0..<10_000
+            where !interpreter.scheduledTasks.isEmpty
+                || interpreter.concurrencyRuntime.activeRecordCount != 0 {
+                await Task.yield()
+            }
+            externalProjectionOutput = immediate + "," + (try projectedString())
+        }
+
         guard interpreter.scheduledTasks.isEmpty,
               interpreter.concurrencyRuntime.activeRecordCount == 0,
               interpreter.concurrencyRuntime.activeStructuredScopeCount == 0,
@@ -451,6 +481,10 @@ private enum ConcurrencyParityHarness {
                 throw RuntimeError(message:
                     "case '\(parityCase.id)' violated task-local ownership or cleanup")
             }
+        }
+
+        if let externalProjectionOutput {
+            return externalProjectionOutput
         }
 
         if projection == "string" {

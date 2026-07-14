@@ -209,7 +209,8 @@ public enum LiveCheckSupport {
                 guard !current.isEmpty else { break }
                 // N interactions cycle through the available actions — a
                 // single Add button tapped twice inserts twice.
-                _ = try? interpreter.callClosure(current[position % current.count], arguments: [])
+                _ = try? interpreter.callHostCallback(
+                    current[position % current.count], arguments: [])
             }
             var finalStrings: [String] = []
             var discardLifecycle: [ClosureValue] = []

@@ -117,7 +117,8 @@ public enum HeadlessVerifier {
                 _ = try deepRender(interpreter, tree, actions: &current)
                 guard position < current.count else { break }
                 do {
-                    _ = try interpreter.callClosure(current[position], arguments: [])
+                    _ = try interpreter.callHostCallback(
+                        current[position], arguments: [])
                 } catch let designed as RuntimeError
                     where designed.message.hasPrefix("fatalError:")
                         || designed.message.hasPrefix("preconditionFailure:") {

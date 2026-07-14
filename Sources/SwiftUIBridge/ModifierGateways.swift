@@ -266,19 +266,27 @@ extension ViewRegistry {
 
         register("onAppear") { view, args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return view }
-            return AnyView(view.onAppear { _ = try? ctx.callClosure(closure, arguments: []) })
+            let callback = InterpretedHostCallback(
+                closure: closure, context: ctx, diagnosticContext: "onAppear")
+            return AnyView(view.onAppear { callback.call() })
         }
         register("onDisappear") { view, args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return view }
-            return AnyView(view.onDisappear { _ = try? ctx.callClosure(closure, arguments: []) })
+            let callback = InterpretedHostCallback(
+                closure: closure, context: ctx, diagnosticContext: "onDisappear")
+            return AnyView(view.onDisappear { callback.call() })
         }
         register("onTapGesture") { view, args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return view }
-            return AnyView(view.onTapGesture { _ = try? ctx.callClosure(closure, arguments: []) })
+            let callback = InterpretedHostCallback(
+                closure: closure, context: ctx, diagnosticContext: "onTapGesture")
+            return AnyView(view.onTapGesture { callback.call() })
         }
         register("onSubmit") { view, args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return view }
-            return AnyView(view.onSubmit { _ = try? ctx.callClosure(closure, arguments: []) })
+            let callback = InterpretedHostCallback(
+                closure: closure, context: ctx, diagnosticContext: "onSubmit")
+            return AnyView(view.onSubmit { callback.call() })
         }
         register("onChange") { view, args, ctx in
             guard let value = args.labeled("of") else {
@@ -294,7 +302,11 @@ extension ViewRegistry {
                 case 1: arguments = [value]
                 default: arguments = [.native(oldValue), .native(newValue)]
                 }
-                _ = try? ctx.callClosure(closure, arguments: arguments)
+                InterpretedHostCallback(
+                    closure: closure,
+                    context: ctx,
+                    diagnosticContext: "onChange"
+                ).call(arguments: arguments)
             })
         }
         register("onPreferenceChange") { view, _, _ in
@@ -306,7 +318,11 @@ extension ViewRegistry {
         register("onOpenURL") { view, args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.onOpenURL { url in
-                _ = try? ctx.callClosure(closure, arguments: [.native(url)])
+                InterpretedHostCallback(
+                    closure: closure,
+                    context: ctx,
+                    diagnosticContext: "onOpenURL"
+                ).call(arguments: [.native(url)])
             })
         }
         // Metal flattening with an explicit color mode (2048's board).
@@ -363,7 +379,11 @@ extension ViewRegistry {
             }
             guard let closure = args.firstUnlabeledClosure else { return view }
             return AnyView(view.onReceive(box.publisher) { date in
-                _ = try? ctx.callClosure(closure, arguments: [.native(date)])
+                InterpretedHostCallback(
+                    closure: closure,
+                    context: ctx,
+                    diagnosticContext: "onReceive"
+                ).call(arguments: [.native(date)])
             })
         }
 

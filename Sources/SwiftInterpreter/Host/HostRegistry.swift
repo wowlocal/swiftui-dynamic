@@ -82,6 +82,13 @@ public struct HostModifier {
 /// mode (container content).
 public protocol EvalContext: AnyObject {
     func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
+    /// Enter interpreted code from a synchronous external host callback such
+    /// as a SwiftUI action. Interpreter-backed contexts override this entry to
+    /// give source tasks a canonical concurrency-runtime session while keeping
+    /// the callback itself synchronous.
+    func callHostCallback(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue
     /// Suspension-aware callback for async gateways that need to invoke an
     /// interpreted completion/body without collapsing it back to sync.
     func callClosureAsync(
@@ -145,6 +152,15 @@ public protocol EvalContext: AnyObject {
 }
 
 extension EvalContext {
+    /// Compatibility fallback for non-interpreter embedders. The interpreter
+    /// supplies the task-aware implementation; legacy contexts preserve their
+    /// established synchronous callback behavior.
+    public func callHostCallback(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        try callClosure(closure, arguments: arguments)
+    }
+
     /// Source-compatible fallback for embedders that only implement the
     /// original synchronous callback surface. Interpreter supplies the real
     /// suspension-aware implementation.

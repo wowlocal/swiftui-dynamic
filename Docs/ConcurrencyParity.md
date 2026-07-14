@@ -35,7 +35,7 @@ major version 6.
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
-| M8 SwiftUI lifecycle | partial | Existing `.task` compatibility is not view-lifetime parity | Canonical runtime and identity cancellation |
+| M8 SwiftUI lifecycle | partial | Retained synchronous host actions now enter a fresh runtime-owned `.hostCallback` task/session while preserving inline state mutation; `Button`, generated actions, gestures, bindings, synchronous event modifiers, Objective-C completions, and headless/live action drivers share the runtime entry; uncaught action errors are observable; a same-source Swift 6 differential fixture proves nested `Task.detached` plus `withTaskGroup` execution in 20 repetitions | Give async `.task`/`.task(id:)`/`.refreshable` work `.swiftUITask` identity, view-lifetime cancellation, and teardown cleanup; reconcile queued GCD delivery policy with runtime entry semantics |
 | M9 physical parallelism | intentionally deferred | Core remains main-actor isolated | Requires stable ownership/isolation foundation |
 
 ## Committed native facts
@@ -44,6 +44,7 @@ major version 6.
 |---|---|---|---|
 | `async-function-exact` | exact | Awaiting the fixture function returns `ready` | Expected native parity |
 | `host-gateway-suspension` | exact | Awaiting the controlled async wrapper suspends until its explicit gate opens, so a ready MainActor controller records progress before the wrapper returns | Native/interpreter parity in 20 repetitions: `before,host-enter,controller,host-exit,value`; the interpreted caller is `.waiting/.awaitingHost(operationID)` at the forced barrier and the operation registry is empty after completion |
+| `host-callback-task-runtime` | exact | A synchronous MainActor callback exposes its inline mutation before returning, while an unstructured task it creates continues through Swift concurrency and may own structured group children | Native/interpreter parity in 20 repetitions: `started,done-3`; the interpreter fires the retained closure only after its initial evaluation has returned, enters `.hostCallback`, and finishes with empty task/group/scope registries |
 | `main-actor-task-partial-order` | partial order | A newly created MainActor task does not execute inline; `sync` precedes both task events | Expected native parity through async-session drain policy; relative child order is not asserted |
 | `task-owned-evaluator-context` | predicate / event multiset | 100 sibling MainActor tasks preserve their own local index and lexical nested type across a forced yield; completion order is unspecified | Native parity in 20 native and 20 interpreter repetitions; each source task also has a distinct, explicitly cleaned evaluator context |
 | `task-context-cancellation` | exact invariant | A task cancelled only after entering a cancellable suspension completes as cancelled; an interleaved sibling resolves its extension-scoped nested type and returns `beta` | Native/interpreter parity in 20 repetitions; no start-order assumption because the cancellation uses an explicit started barrier |
@@ -2278,3 +2279,54 @@ in 746 seconds with the same shared-worktree 793-test suite, the unchanged
 match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.
 Throwing-group exceptional exit, group iteration, and the remaining exceptional
 cleanup combinations remain open.
+
+## M8 incremental verification record
+
+### Synchronous host callbacks enter the concurrency runtime
+
+The TaskObservatory mismatch came from the real interactive boundary rather
+than from `async let`, cancellation handlers, or task groups themselves.
+`Button` retained an interpreted closure during rendering and later invoked it
+through the legacy synchronous evaluator. With no async session, nested source
+tasks took the inline compatibility path: the async-let slices ran
+sequentially, and the cancellation-handler and task-group workers failed before
+they could finish. `try?` then hid those failures from both the view and tests.
+
+`host-callback-task-runtime.swift` isolates the boundary. Its callback changes
+state to `started`, creates a detached task whose operation reduces two
+structured group children, and eventually publishes `done-3`. The native
+runner invokes the callback synchronously. The interpreter runner first ends
+the initial evaluation, then invokes the retained closure through the external
+host-callback entry. Twenty bounded Apple Swift 6 strict-concurrency runs and
+twenty interpreter runs all returned `started,done-3` exactly, with empty task,
+group, and structured-scope ownership afterward.
+
+The runtime now creates a fresh `.hostCallback` record/session for each
+synchronous external event, binds an async-capable evaluation context, executes
+the callback itself inline, and lets any source tasks it creates continue on
+the canonical scheduler. The SwiftUI bridge funnels buttons, generated
+actions, gestures, bindings, synchronous event modifiers, and Objective-C
+completions through one adapter. Callback errors are
+recorded in `RenderDiagnostics` instead of disappearing through `try?`.
+HeadlessVerifier and LiveCheck use the same entry, so interactive regressions no
+longer pass by exercising a different direct-closure path.
+
+Focused coverage proves the `.hostCallback` record kind, immediate mutation,
+nested detached/group completion, ownership cleanup, and diagnostic delivery.
+A diagnostic run against the unchanged `Examples/TaskObservatory` source also
+entered its `Run` and `Cancel` closures externally and reached
+`Completed,Cancelled,Completed`, two `Received orbit-10` observers, and
+`TaskGroup reduced 4 values into orbit-10`.
+
+The full shared-worktree run passes 795 tests in 151 suites. One test and its
+suite come from the preserved user-owned untracked `TaskObservatoryTests.swift`,
+so the tracked repository step accounts for 794 tests in 150 suites.
+`Scripts/gate.sh` is green in 697 seconds: the same 795-test shared-worktree
+suite passes across four process shards, the corpus remains 678/680, live data
+is 5/5, and API parity is 345 match / 0 diverge / 0 interpreter errors / 17
+unstable / 0 no-twin across 362 probes.
+
+This does not claim physical worker-pool parity: the evaluator remains
+main-actor isolated, so the interpreted demo may still label lanes `Main
+thread`. It also does not complete M8; async `.task` lifetime, identity changes,
+view removal cancellation, and `.refreshable` remain separate work.

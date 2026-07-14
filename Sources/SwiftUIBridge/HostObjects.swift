@@ -635,7 +635,13 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
             let initial = try get.map { resolved(try ctx.callClosure($0, arguments: [])) } ?? RuntimeValue.void
             let box = Box(initial)
             if let set {
-                box.onChange = { _ = try? ctx.callClosure(set, arguments: [resolved(box.value)]) }
+                let callback = InterpretedHostCallback(
+                    closure: set,
+                    context: ctx,
+                    diagnosticContext: "Binding.set")
+                box.onChange = {
+                    callback.call(arguments: [resolved(box.value)])
+                }
             }
             return .native(BindingStub(box: box))
         }

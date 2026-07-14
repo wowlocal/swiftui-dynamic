@@ -226,7 +226,11 @@ enum ObjCTrampoline {
                     let mapped = raw.map { any -> RuntimeValue in
                         any.map { marshalToRuntime($0) } ?? .none()
                     }
-                    _ = try? ctx.callClosure(closure, arguments: mapped)
+                    InterpretedHostCallback(
+                        closure: closure,
+                        context: ctx,
+                        diagnosticContext: "Objective-C completion"
+                    ).call(arguments: mapped)
                 }
             }
             if Thread.isMainThread {

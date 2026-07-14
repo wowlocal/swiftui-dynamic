@@ -43,12 +43,20 @@ public final class GestureBox {
             let drag = DragGesture(minimumDistance: minimumDistance, coordinateSpace: .local)
                 .onChanged { value in
                     for closure in changed {
-                        _ = try? ctx.callClosure(closure, arguments: [.native(value)])
+                        InterpretedHostCallback(
+                            closure: closure,
+                            context: ctx,
+                            diagnosticContext: "DragGesture.onChanged"
+                        ).call(arguments: [.native(value)])
                     }
                 }
                 .onEnded { value in
                     for closure in ended {
-                        _ = try? ctx.callClosure(closure, arguments: [.native(value)])
+                        InterpretedHostCallback(
+                            closure: closure,
+                            context: ctx,
+                            diagnosticContext: "DragGesture.onEnded"
+                        ).call(arguments: [.native(value)])
                     }
                 }
             return AnyView(view.gesture(drag))
@@ -56,7 +64,11 @@ public final class GestureBox {
             let ended = onEnded
             return AnyView(view.onTapGesture {
                 for closure in ended {
-                    _ = try? ctx.callClosure(closure, arguments: [])
+                    InterpretedHostCallback(
+                        closure: closure,
+                        context: ctx,
+                        diagnosticContext: "TapGesture.onEnded"
+                    ).call()
                 }
             })
         }

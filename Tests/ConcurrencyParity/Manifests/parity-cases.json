@@ -795,6 +795,18 @@
     "notes": "The group is cancelled before either child is added. One child records completion and calls Task.checkCancellation(); the other records completion and succeeds while ignoring cancellation. All 20 Swift 6.3.3 runs returned cancellation:owner-active:drained."
   },
   {
+    "id": "host-callback-task-runtime",
+    "fixture": "Fixtures/host-callback-task-runtime.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "parityInterpreterHostCallback()",
+    "interpreterProjection": "host-callback-global-string:parityHostCallbackProbe:phase",
+    "nativeFact": "A synchronous MainActor callback publishes its inline mutation before returning, while an unstructured task created by that callback continues through Swift concurrency and may use structured task groups.",
+    "notes": "The interpreter entry deliberately returns before the callback fires, matching a retained SwiftUI Button action. Exact output started,done-3 proves both synchronous callback semantics and independently scheduled concurrency-runtime work; no physical worker-thread identity is asserted."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

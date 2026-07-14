@@ -89,6 +89,15 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func callHostCallback(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        // A framework event is a new runtime entry, not re-entry into the
+        // source task that happened to construct the host value. In
+        // particular, a SwiftUI action may fire long after rendering ended.
+        try interpreter.callHostCallback(closure, arguments: arguments)
+    }
+
     func callClosureAsync(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
@@ -241,6 +250,53 @@ extension Interpreter: EvalContext {
         steps = 0 // fresh entry, e.g. a Button action invoked from the UI
         let args = CallArguments(arguments: arguments.map { .init(label: nil, value: $0) })
         return try callWithArguments(closure, args: args, node: nil)
+    }
+
+    /// Run a synchronous external host callback with a real logical task and
+    /// session. The source callback itself remains inline, matching APIs such
+    /// as `Button(action:)`; any source `Task` it creates sees an async session
+    /// and is scheduled independently through the canonical runtime.
+    public func callHostCallback(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) throws -> RuntimeValue {
+        let sessionID = concurrencyRuntime.createSession()
+        let taskLocals = RuntimeTaskLocalStorage()
+        let record = concurrencyRuntime.createTask(
+            sessionID: sessionID,
+            kind: .hostCallback,
+            parent: nil,
+            priority: RuntimeTaskPriority(Task.currentPriority),
+            taskLocals: taskLocals)
+        precondition(
+            concurrencyRuntime.begin(record),
+            "a fresh host callback task must begin exactly once")
+        let context = makeEvaluationTaskContext(
+            runtimeTaskID: record.id,
+            runtimeSessionID: sessionID,
+            isAsyncSession: true,
+            priority: record.effectivePriority,
+            taskLocals: taskLocals)
+        concurrencyRuntime.bind(context, to: record)
+        defer {
+            context.removeAllDynamicState()
+            concurrencyRuntime.release(record.id)
+        }
+
+        return try EvaluationTaskContext.$current.withValue(context) {
+            do {
+                let value = try callClosure(closure, arguments: arguments)
+                concurrencyRuntime.succeed(record, with: value)
+                return value
+            } catch is CancellationError {
+                concurrencyRuntime.requestCancellation(
+                    record, source: .hostTask)
+                concurrencyRuntime.completeCancellation(record)
+                throw CancellationError()
+            } catch {
+                concurrencyRuntime.fail(record, with: error)
+                throw error
+            }
+        }
     }
 
     public func callClosureAsync(

@@ -179,7 +179,11 @@ enum GeneratedDispatch {
             return BuilderValue(value: value, context: ctx)
         case .action:
             guard let closure = value.closureValue else { throw RuntimeError(message: "expected a closure") }
-            return ActionValue(run: { _ = try? ctx.callClosure(closure, arguments: []) })
+            let callback = InterpretedHostCallback(
+                closure: closure,
+                context: ctx,
+                diagnosticContext: "generated action")
+            return ActionValue(run: { callback.call() })
         case .equatable:
             return value.stringified
         case .date:

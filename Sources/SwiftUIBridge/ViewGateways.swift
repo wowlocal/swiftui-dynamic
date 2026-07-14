@@ -525,7 +525,11 @@ extension ViewRegistry {
                 default: throw RuntimeError(message: "unknown button role '.\(roleName)'")
                 }
             }
-            let action = { _ = try? ctx.callClosure(actionClosure, arguments: []) }
+            let callback = InterpretedHostCallback(
+                closure: actionClosure,
+                context: ctx,
+                diagnosticContext: "Button action")
+            let action = { callback.call() }
             return .native(AnyView(Button(role: role, action: action) { label }))
         }
 
