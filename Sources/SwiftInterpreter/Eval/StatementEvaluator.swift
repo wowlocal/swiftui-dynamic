@@ -62,6 +62,9 @@ extension Interpreter {
                 return try executeSwitch(switchExpr, in: env)
             }
             if let macro = expr.as(MacroExpansionExprSyntax.self) {
+                if macro.macroName.text == "function" {
+                    return .normal(try evaluate(expr, in: env))
+                }
                 // Registered macros (#expect/#require) execute for effect;
                 // statement-position #Preview {} stays inert.
                 _ = try invokeRegisteredMacro(

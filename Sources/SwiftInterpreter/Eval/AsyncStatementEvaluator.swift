@@ -128,6 +128,9 @@ extension Interpreter {
                 return try await executeSwitchSuspending(switchExpression, in: env)
             }
             if let macro = expression.as(MacroExpansionExprSyntax.self) {
+                if macro.macroName.text == "function" {
+                    return .normal(try evaluate(expression, in: env))
+                }
                 _ = try invokeRegisteredMacro(
                     named: macro.macroName.text,
                     arguments: macro.arguments,

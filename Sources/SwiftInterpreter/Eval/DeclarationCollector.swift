@@ -1079,6 +1079,11 @@ extension Interpreter {
         closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
         closure.debugName = node.name.text
+        let parameterLabels = node.signature.parameterClause.parameters
+            .map { $0.firstName.text + ":" }
+            .joined()
+        closure.sourceFunctionName =
+            "\(node.name.text)(\(parameterLabels))"
         closure.executorPreference = functionExecutorPreference(
             node, lexicalOwner: lexicalOwner)
         return closure

@@ -264,6 +264,10 @@ extension Interpreter {
             // Registered macros (#expect/#require) execute; the rest stay
             // inert markers (`#selector(...)`, `#Predicate {...}`).
             let macro = expr.cast(MacroExpansionExprSyntax.self)
+            if macro.macroName.text == "function",
+               let functionName = env.lookup("#function") {
+                return functionName
+            }
             if let result = try invokeRegisteredMacro(
                 named: macro.macroName.text, arguments: macro.arguments,
                 trailingClosure: macro.trailingClosure,

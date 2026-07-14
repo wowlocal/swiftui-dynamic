@@ -585,6 +585,11 @@ extension Interpreter {
         // `[weak self]` shadow. Globals are a session root and are consulted
         // through a weak parent to avoid globals -> closure -> globals cycles.
         let captured = Environment(parent: globals, retainingParent: false)
+        // Compiler magic is lexically expanded. Preserve the enclosing
+        // declaration value when a closure escapes its invocation frame.
+        if let functionName = env.lookup("#function") {
+            captured.define("#function", functionName)
+        }
         var explicitNames: Set<String> = []
         if let captureList = closure.signature?.capture?.items, !captureList.isEmpty {
             for capture in captureList {
@@ -694,6 +699,9 @@ extension Interpreter {
         }
         let env = Environment(parent: closure.captured)
         let writeBacks = try bindParameters(of: closure, to: args, into: env, node: node)
+        if let functionName = closure.sourceFunctionName {
+            env.define("#function", .native(functionName))
+        }
         if !closure.genericParameters.isEmpty {
             bindGenericReturnParameter(closure, into: env)
             bindGenericsFromClosureArguments(closure, args: args, into: env)

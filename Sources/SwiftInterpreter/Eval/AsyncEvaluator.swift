@@ -715,6 +715,9 @@ extension Interpreter {
 
         let env = Environment(parent: closure.captured)
         let writeBacks = try bindParameters(of: closure, to: args, into: env, node: node)
+        if let functionName = closure.sourceFunctionName {
+            env.define("#function", .native(functionName))
+        }
         if !closure.genericParameters.isEmpty {
             bindGenericReturnParameter(closure, into: env)
             bindGenericsFromClosureArguments(closure, args: args, into: env)

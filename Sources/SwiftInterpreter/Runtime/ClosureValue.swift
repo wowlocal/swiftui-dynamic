@@ -86,6 +86,9 @@ public final class ClosureValue {
     public var genericParameters: [String] = []
     /// The declared function name, for diagnostics tracing only.
     public var debugName: String?
+    /// Native spelling of `#function` for a source function declaration,
+    /// including its external argument labels.
+    public var sourceFunctionName: String?
     /// A declaration-level source executor hop. `nil` inherits the caller's
     /// current source executor; task creation supplies its own initial value.
     public var executorPreference: RuntimeExecutorKind?
