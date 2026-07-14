@@ -656,7 +656,7 @@
     "interpreterEntry": "await taskGroupThrowingIterationProbe()",
     "interpreterProjection": "string",
     "nativeFact": "for try await iteration over a ThrowingTaskGroup yields every successful child result exactly once and consumes the group, so a later next() returns nil.",
-    "notes": "Three successful children return 1, 2, and 3; exact output is 3:6:empty in all 20 Swift 6.3.3 runs. Count and a commutative sum avoid asserting completion order; failure has its own committed case, while cancellation and early-exit behavior remain separate cases."
+    "notes": "Three successful children return 1, 2, and 3; exact output is 3:6:empty in all 20 Swift 6.3.3 runs. Count and a commutative sum avoid asserting completion order; failure and cancellation have committed cases, while early-exit behavior remains separate."
   },
   {
     "id": "task-group-throwing-iteration-failure",
@@ -669,6 +669,18 @@
     "interpreterProjection": "string",
     "nativeFact": "A failed child read by for try await rethrows its source error, then exceptional throwing-group exit cancels and joins an outstanding sibling before the outer catch runs.",
     "notes": "The failing child waits until its sibling is inside a 30-second cancellable sleep. Exact output is sibling-start,child-failed,sibling-cancelled,caught-child in all 20 Swift 6.3.3 runs; the barrier, error propagation, and structured join establish every edge."
+  },
+  {
+    "id": "task-group-throwing-iteration-cancellation",
+    "fixture": "Fixtures/task-group-throwing-iteration-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await throwingTaskGroupIterationCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A cancelled child consumed by for try await throws CancellationError without cancelling the owner, and throwing-group scope exit joins every sibling before the outer catch runs.",
+    "notes": "An explicit started barrier places one sibling inside a cancellable sleep before cancelAll and the cancelled child are introduced. Exact output is cancellation:owner-active:joined in all 20 Swift 6.3.3 runs; completion order between the two children is deliberately not asserted."
   },
   {
     "id": "task-group-wait-for-all-consumes-results",

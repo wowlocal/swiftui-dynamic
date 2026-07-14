@@ -1886,6 +1886,135 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupIterationProjectsCancellation() async throws {
+        let interpreter = Interpreter()
+        var observedCancelledChild: RuntimeTaskRecord?
+        var observedSibling: RuntimeTaskRecord?
+        var observedGroup: RuntimeTaskGroupRecord?
+        var observedOwner: RuntimeTaskRecord?
+
+        func observeCurrentChild(
+            assigning child: inout RuntimeTaskRecord?
+        ) throws {
+            guard let childID = interpreter.evaluationTaskContext.runtimeTaskID,
+                  let current = interpreter.concurrencyRuntime.records[childID],
+                  let groupID = current.taskGroupID,
+                  let group = interpreter.concurrencyRuntime.taskGroups[groupID],
+                  let owner = interpreter.concurrencyRuntime
+                    .records[group.ownerTaskID] else {
+                throw RuntimeError(message:
+                    "throwing iteration cancellation lost runtime ownership")
+            }
+            child = current
+            observedGroup = group
+            observedOwner = owner
+        }
+
+        interpreter.globals.define(
+            "inspectThrowingIterationCancelledChild",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingIterationCancelledChild"
+            ) { _, _ in
+                try observeCurrentChild(assigning: &observedCancelledChild)
+                return .void
+            }))
+        interpreter.globals.define(
+            "inspectThrowingIterationCancelledSibling",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingIterationCancelledSibling"
+            ) { _, _ in
+                try observeCurrentChild(assigning: &observedSibling)
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        var throwingIterationCancellationCompletions = 0
+        @MainActor
+        var throwingIterationCancellationSiblingStarted = false
+        @MainActor
+        func throwingIterationCancellationSibling() async -> String {
+            throwingIterationCancellationSiblingStarted = true
+            do {
+                try await Task.sleep(for: .seconds(30))
+                return "missed"
+            } catch {
+                inspectThrowingIterationCancelledSibling()
+                throwingIterationCancellationCompletions += 1
+                return "sibling"
+            }
+        }
+        @MainActor
+        func throwingIterationCancelledChild() async throws -> String {
+            inspectThrowingIterationCancelledChild()
+            throwingIterationCancellationCompletions += 1
+            try Task.checkCancellation()
+            return "missed"
+        }
+        @MainActor
+        func throwingIterationCancellationOwner() async -> String {
+            do {
+                _ = try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    group.addTask {
+                        await throwingIterationCancellationSibling()
+                    }
+                    while !throwingIterationCancellationSiblingStarted {
+                        await Task.yield()
+                    }
+                    group.cancelAll()
+                    group.addTask {
+                        try await throwingIterationCancelledChild()
+                    }
+                    for try await _ in group {}
+                    return "missed"
+                }
+                return "missed"
+            } catch {
+                let kind = type(of: error) == CancellationError.self
+                    ? "cancellation"
+                    : "wrong-error"
+                let owner = Task.isCancelled
+                    ? "owner-cancelled"
+                    : "owner-active"
+                let joined = throwingIterationCancellationCompletions == 2
+                    ? "joined"
+                    : "not-joined"
+                return kind + ":" + owner + ":" + joined
+            }
+        }
+        await throwingIterationCancellationOwner()
+        """)
+
+        let consumedCount = observedGroup?.consumedChildTaskIDs.count ?? 0
+        #expect(result.stringValue == "cancellation:owner-active:joined")
+        #expect(observedGroup?.kind == .throwing)
+        #expect(observedGroup?.hasCancelAllRequest == true)
+        #expect(observedGroup?.completedChildTaskIDs.count == 2)
+        #expect((1...2).contains(consumedCount))
+        #expect(observedGroup?.pendingCompletedChildCount == 2 - consumedCount)
+        #expect(observedCancelledChild?.kind == .groupChild)
+        #expect(observedCancelledChild?.state == .cancelled)
+        #expect(observedCancelledChild?.cancellation.sources
+            .contains(.taskGroupCancelAll) == true)
+        #expect(observedCancelledChild?.cancellation.isObserved == true)
+        #expect(observedCancelledChild.map {
+            observedGroup?.consumedChildTaskIDs.contains($0.id) == true
+        } == true)
+        #expect(observedSibling?.kind == .groupChild)
+        #expect(observedSibling?.state == .succeeded)
+        #expect(observedSibling?.cancellation.sources
+            .contains(.taskGroupCancelAll) == true)
+        #expect(observedSibling?.cancellation.isObserved == true)
+        #expect(observedOwner?.cancellation.isRequested == false)
+        #expect(observedOwner?.cancellation.isObserved == false)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupNextUsesCompletionQueueAndGroupSuspension() async throws {
         let interpreter = Interpreter()
         var observedParentSuspension: RuntimeSuspension?
