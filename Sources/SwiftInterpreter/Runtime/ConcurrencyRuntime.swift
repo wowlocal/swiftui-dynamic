@@ -511,6 +511,22 @@ final class CooperativeConcurrencyRuntime {
         return outcome
     }
 
+    func drainTaskGroupOutcomes(_ group: RuntimeTaskGroupRecord) {
+        guard taskGroups[group.id] === group else {
+            preconditionFailure(
+                "cannot drain outcomes from inactive \(group.id)")
+        }
+        precondition(
+            group.childTaskIDs.allSatisfy {
+                records[$0]?.state.isCompleted == true
+            },
+            "cannot drain \(group.id) while a child is active")
+        while group.takeCompletion() != nil {}
+        precondition(
+            group.consumedChildTaskIDs.count == group.childTaskIDs.count,
+            "draining \(group.id) did not consume every result")
+    }
+
     func beginWaitingForTaskGroup(
         _ waiterID: RuntimeTaskID,
         on group: RuntimeTaskGroupRecord

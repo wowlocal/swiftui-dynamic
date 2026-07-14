@@ -1252,26 +1252,19 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
-    @Test func taskGroupNextAfterWaitForAllIsExplicitlyUnsupported() async {
+    @Test func taskGroupWaitForAllConsumesPendingResults() async throws {
         let interpreter = Interpreter()
-        do {
-            _ = try await interpreter.runAsync(source: """
-            await withTaskGroup(of: String.self) { group in
-                group.addTask {
-                    return "value"
-                }
-                await group.waitForAll()
-                return await group.next() ?? "empty"
+        let result = try await interpreter.runAsync(source: """
+        await withTaskGroup(of: String.self) { group in
+            group.addTask {
+                return "value"
             }
-            """)
-            Issue.record("next after waitForAll unexpectedly succeeded")
-        } catch let failure as RuntimeError {
-            #expect(failure.message.contains(
-                "TaskGroup.next after waitForAll is not supported yet"))
-        } catch {
-            Issue.record("unexpected next-after-wait diagnostic: \(error)")
+            await group.waitForAll()
+            return await group.next() ?? "empty"
         }
+        """)
 
+        #expect(result.stringValue == "empty")
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)

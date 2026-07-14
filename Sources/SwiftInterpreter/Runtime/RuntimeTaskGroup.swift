@@ -6,7 +6,6 @@ final class RuntimeTaskGroup {
     private(set) var childHandles: [RuntimeTaskHandle] = []
     private(set) var isClosed = false
     private(set) var isCancellationRequested = false
-    private(set) var hasExplicitWaitForAll = false
 
     init(record: RuntimeTaskGroupRecord) {
         self.record = record
@@ -33,11 +32,6 @@ final class RuntimeTaskGroup {
     func requestCancellation() {
         precondition(!isClosed, "cannot cancel a closed task group")
         isCancellationRequested = true
-    }
-
-    func markExplicitWaitForAll() {
-        precondition(!isClosed, "cannot wait on a closed task group")
-        hasExplicitWaitForAll = true
     }
 
     func close() {

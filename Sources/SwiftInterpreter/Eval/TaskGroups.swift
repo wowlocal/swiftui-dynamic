@@ -96,7 +96,7 @@ extension Interpreter {
                     }
                     let outcomes = try await waitForSourceTaskGroup(group)
                     try throwNonthrowingGroupFailure(outcomes)
-                    group.markExplicitWaitForAll()
+                    concurrencyRuntime.drainTaskGroupOutcomes(group.record)
                     return .void
                 }))
 
@@ -152,10 +152,6 @@ extension Interpreter {
     ) async throws -> RuntimeValue {
         let ownerTaskID = evaluationTaskContext.runtimeTaskID
         try group.requireActive(ownerTaskID: ownerTaskID)
-        guard !group.hasExplicitWaitForAll else {
-            throw RuntimeError(message:
-                "TaskGroup.next after waitForAll is not supported yet")
-        }
         guard let ownerTaskID else {
             throw RuntimeError(message:
                 "task-group next requires a runtime task")

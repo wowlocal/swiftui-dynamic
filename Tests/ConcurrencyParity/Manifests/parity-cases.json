@@ -611,6 +611,18 @@
     "notes": "The first-added child is held in a confirmed cancellable suspension before the second child is added. Exact output is fast:slow:empty in 20 Swift 6.3.3 runs; the first next consumes the later-added fast result, cancelAll releases slow for the second next, and a third next observes no remaining result."
   },
   {
+    "id": "task-group-wait-for-all-consumes-results",
+    "fixture": "Fixtures/task-group-wait-for-all-consumes-results.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupWaitForAllConsumesResultsProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "TaskGroup.waitForAll consumes every remaining child result, including after next has already consumed an earlier completion, so a subsequent next returns nil.",
+    "notes": "A slow first-added child is suspended while next consumes a later-added fast child. cancelAll releases slow, waitForAll drains that remaining result, and the final next produces empty. Exact output is fast:empty in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",
