@@ -563,6 +563,18 @@
     "notes": "A MainActor flag is set immediately before the parent reaches the incomplete value wait, while the child is held in a cancellable 30-second suspension. Exact output is child-start,parent-await,child-cancelled,parent-caught,parent-finished in 20 Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-wait-for-all",
+    "fixture": "Fixtures/task-group-wait-for-all.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupWaitForAllProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "withTaskGroup creates structured group children, and waitForAll does not return until every added child has completed.",
+    "notes": "The child marks entry and waits behind an explicit gate. Exact output is child-start,parent-open,child-end,group-finished,after-scope in 20 Swift 6.3.3 runs; every edge is forced by the gate, waitForAll, or parent program order."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

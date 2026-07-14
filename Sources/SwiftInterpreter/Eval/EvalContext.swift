@@ -350,6 +350,41 @@ extension Interpreter: EvalContext {
         return pending.handle
     }
 
+    func spawnTaskGroupChild(
+        operation: ClosureValue,
+        in group: RuntimeTaskGroup,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeTaskHandle {
+        guard evaluationTaskContext.isAsyncSession else {
+            throw RuntimeError(message:
+                "task groups require runAsync")
+        }
+        try group.requireActive(
+            ownerTaskID: evaluationTaskContext.runtimeTaskID)
+
+        let pending = makePendingRuntimeTask(
+            kind: .groupChild, explicitPriority: priority)
+        do {
+            try launchRuntimeTask(
+                pending, sessionOwned: false,
+                body: { [weak self] in
+                    guard let self else {
+                        throw RuntimeError(message:
+                            "interpreter was released during task-group child")
+                    }
+                    return try await self.callBackgroundClosureSuspending(
+                        operation, arguments: [])
+                })
+            concurrencyRuntime.addGroupChild(
+                pending.handle.id, to: group.record)
+            group.append(pending.handle)
+        } catch {
+            concurrencyRuntime.release(pending.handle.id)
+            throw error
+        }
+        return pending.handle
+    }
+
     private struct PendingRuntimeTask {
         let sessionID: RuntimeSessionID
         let priority: RuntimeTaskPriority

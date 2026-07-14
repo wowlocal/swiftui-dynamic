@@ -1060,6 +1060,89 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func taskGroupWaitForAllUsesStructuredGroupSuspension() async throws {
+        let interpreter = Interpreter()
+        var observedKind: RuntimeTaskKind?
+        var observedParentSuspension: RuntimeSuspension?
+        var observedGroupID: RuntimeTaskGroupID?
+        var scopeOwnedChild = false
+        var sessionOwnedChild = true
+        interpreter.globals.define(
+            "inspectTaskGroupChild",
+            .hostFunction(HostFunction(
+                name: "inspectTaskGroupChild",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let parentID = child.parent,
+                          let parent = interpreter.concurrencyRuntime
+                            .records[parentID],
+                          let group = interpreter.concurrencyRuntime
+                            .taskGroups.values.first(where: {
+                                $0.childTaskIDs.contains(childID)
+                            }) else {
+                        throw RuntimeError(message:
+                            "task-group child lost structured ownership")
+                    }
+
+                    for _ in 0..<1_000 {
+                        if case .waitingForGroup(let groupID)? =
+                            parent.suspension,
+                           groupID == group.id {
+                            observedParentSuspension = parent.suspension
+                            observedGroupID = groupID
+                            break
+                        }
+                        await Task.yield()
+                    }
+                    observedKind = child.kind
+                    let scope = group.structuredScope
+                    scopeOwnedChild = scope.kind == .taskGroup
+                        && scope.childTaskIDs.contains(childID)
+                        && parent.structuredScopes.contains(scope.id)
+                        && parent.structuredChildren.contains(childID)
+                    sessionOwnedChild = interpreter.scheduledTasks.contains {
+                        $0.id == childID
+                    }
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        func inspectedTaskGroupChild() async -> String {
+            await inspectTaskGroupChild()
+            return "value"
+        }
+        func inspectedTaskGroupOwner() async -> String {
+            await withTaskGroup(of: String.self) { group in
+                group.addTask {
+                    await inspectedTaskGroupChild()
+                }
+                await group.waitForAll()
+            }
+            return "done"
+        }
+        await inspectedTaskGroupOwner()
+        """)
+
+        #expect(result.stringValue == "done")
+        #expect(observedKind == .groupChild)
+        #expect(observedGroupID != nil)
+        if case .waitingForGroup = observedParentSuspension {
+            // The source owner waits on the logical group, not host/session
+            // draining or one exposed task handle.
+        } else {
+            Issue.record("task-group owner did not suspend on its group")
+        }
+        #expect(scopeOwnedChild)
+        #expect(!sessionOwnedChild)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func cancelledEvaluationThrowsCancellationError() async {
         let interpreter = Interpreter()
         let evaluation = Task { @MainActor in

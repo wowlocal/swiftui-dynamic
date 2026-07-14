@@ -433,10 +433,11 @@ private enum ConcurrencyParityHarness {
 
         guard interpreter.scheduledTasks.isEmpty,
               interpreter.concurrencyRuntime.activeRecordCount == 0,
-              interpreter.concurrencyRuntime.activeStructuredScopeCount == 0
+              interpreter.concurrencyRuntime.activeStructuredScopeCount == 0,
+              interpreter.concurrencyRuntime.activeTaskGroupCount == 0
         else {
             throw RuntimeError(message:
-                "case '\(parityCase.id)' leaked task/scope runtime ownership")
+                "case '\(parityCase.id)' leaked task/scope/group runtime ownership")
         }
 
         if !taskLocalStorageByTask.isEmpty {

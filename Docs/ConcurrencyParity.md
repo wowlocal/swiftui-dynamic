@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; missing `await` is diagnosed | Remaining exceptional defer/cleanup combinations, task groups, and group iteration/cancellation |
+| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; nonthrowing `withTaskGroup`, `addTask`, and explicit `waitForAll` have a runtime-owned group/scope foundation; missing `await` is diagnosed | Remaining exceptional defer/cleanup combinations, implicit group scope-exit waiting, multiple-result order, `next`/`cancelAll`, throwing groups, and group iteration |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1553,3 +1553,50 @@ path waits for the child's terminal outcome before the parent task completes.
 The parity cleanup guard again observed zero active task and structured-scope
 records. This step expands the proved cancellation surface without adding a
 fixture-specific runtime path.
+
+### M4 nonthrowing task-group foundation
+
+`task-group-wait-for-all.swift` asks whether `withTaskGroup` creates an
+independent structured child and whether an explicit `waitForAll` keeps the
+owner suspended until that child completes. The child records entry and waits
+behind the shared task-value gate. Only after observing entry does the owner
+record `parent-open`, open the gate, and call `waitForAll`.
+
+Twenty bounded Apple Swift 6.3.3 strict-concurrency runs produced
+`child-start,parent-open,child-end,group-finished,after-scope` exactly. Every
+edge follows from the explicit gate, the `waitForAll` dependency, or parent
+program order; no unconstrained scheduling choice is asserted.
+
+The initial same-source interpreter case was RED at the outer call with
+`unresolved identifier 'withTaskGroup'`. Treating this as an ordinary native
+gateway would not be sufficient: the trailing closure contains interpreted
+AST, and its `group` parameter must mutate the source task's structured
+ownership graph.
+
+The interpreter now creates a runtime-owned `RuntimeTaskGroupID`, a
+task-group-kind `RuntimeStructuredScopeRecord`, and a source-facing
+`RuntimeTaskGroup` capability for the dynamic extent of the body closure.
+`addTask` creates a `.groupChild` with its own `EvaluationTaskContext`, inherited
+priority and task locals, and parent/group/scope edges. It is not session-owned.
+`waitForAll` records one logical `.waitingForGroup(groupID)` suspension, donates
+the owner's effective priority to incomplete children through runtime wait
+edges, waits for every registered child, and then removes those edges. Closing
+the group verifies terminal children, closes the structured scope, and releases
+the child records and group capability.
+
+Only explicit `waitForAll` is classified by this step. If a body exits while
+an added child is still active without the verified wait, the runtime cancels
+and joins it for leak-free teardown and emits a clear unsupported diagnostic;
+it does not silently claim Swift's implicit group scope-exit rule. `next`,
+`cancelAll`, result ordering, throwing groups, and iteration likewise remain
+explicitly unsupported until their own native probes.
+
+The exact differential case is GREEN in all 20 repetitions. White-box coverage
+observes `.groupChild`, the matching task-group and structured-scope records,
+the owner's `.waitingForGroup` state, absence from session-owned tasks, and zero
+task/group/scope records after completion. `AsyncExecutionTests` pass 43/43,
+`HostSignatureTests` pass 12/12, and `ConcurrencyParityTests` pass 8/8. The
+full suite passes 779 tests in 149 suites. `Scripts/gate.sh` is green with 779
+tests, the unchanged 678/680 project-corpus ratchet, 5/5 live-data scenarios,
+and API parity at 345 match / 0 diverge / 0 interpreter errors / 17 unstable /
+0 no-twin.
