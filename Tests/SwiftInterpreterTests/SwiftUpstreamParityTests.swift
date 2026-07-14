@@ -8,12 +8,45 @@ private struct SwiftUpstreamManifest: Decodable {
         let id: String
         let fixture: String
         let upstreamPath: String
+        let assertion: Assertion?
+        let compilerArguments: [String]?
+        let timeoutSeconds: TimeInterval?
+    }
+
+    enum Assertion: String, Decodable {
+        case exact
+        case fileCheck = "file-check"
     }
 
     let repository: String
     let revision: String
     let commit: String
     let cases: [Case]
+}
+
+private struct SwiftUpstreamInventory: Decodable {
+    struct Summary: Decodable {
+        let total: Int
+        let direct: Int
+        let diagnostic: Int
+        let needsAdapter: Int
+        let unsupported: Int
+    }
+
+    struct Entry: Decodable {
+        let upstreamPath: String
+        let classification: String
+        let reason: String
+        let selectedCaseID: String?
+    }
+
+    let repository: String
+    let revision: String
+    let commit: String
+    let scope: String
+    let classificationVersion: Int
+    let summary: Summary
+    let tests: [Entry]
 }
 
 private struct SwiftUpstreamProcessResult {
@@ -45,6 +78,19 @@ private enum SwiftUpstreamParityHarness {
             SwiftUpstreamManifest.self, from: Data(contentsOf: url))
     }
 
+    static func loadInventory() throws -> SwiftUpstreamInventory {
+        let url = corpusRoot.appendingPathComponent("inventory.json")
+        return try JSONDecoder().decode(
+            SwiftUpstreamInventory.self, from: Data(contentsOf: url))
+    }
+
+    static func source(
+        for parityCase: SwiftUpstreamManifest.Case
+    ) throws -> String {
+        let fixture = corpusRoot.appendingPathComponent(parityCase.fixture)
+        return try String(contentsOf: fixture, encoding: .utf8)
+    }
+
     static func nativeOutput(
         for parityCase: SwiftUpstreamManifest.Case
     ) throws -> String {
@@ -62,14 +108,14 @@ private enum SwiftUpstreamParityHarness {
         try FileManager.default.createDirectory(
             at: moduleCache, withIntermediateDirectories: true)
         let executable = temporaryDirectory.appendingPathComponent("fixture")
+        let compilationArguments = (parityCase.compilerArguments ?? []) + [
+            "-module-cache-path", moduleCache.path,
+            fixture.path,
+            "-o", executable.path,
+        ]
         let compilation = run(
             URL(fileURLWithPath: "/usr/bin/xcrun"),
-            [
-                "swiftc",
-                "-module-cache-path", moduleCache.path,
-                fixture.path,
-                "-o", executable.path,
-            ],
+            ["swiftc"] + compilationArguments,
             timeout: 30)
         guard !compilation.timedOut else {
             throw SwiftUpstreamParityError(
@@ -81,7 +127,8 @@ private enum SwiftUpstreamParityHarness {
                     + compilation.standardError)
         }
 
-        let execution = run(executable, [], timeout: 5)
+        let execution = run(
+            executable, [], timeout: parityCase.timeoutSeconds ?? 5)
         guard !execution.timedOut else {
             throw SwiftUpstreamParityError(
                 description: "native execution timed out")
@@ -97,9 +144,15 @@ private enum SwiftUpstreamParityHarness {
     @MainActor
     static func interpretedOutput(
         for parityCase: SwiftUpstreamManifest.Case
-    ) throws -> String {
-        let fixture = corpusRoot.appendingPathComponent(parityCase.fixture)
-        let source = try String(contentsOf: fixture, encoding: .utf8)
+    ) async throws -> String {
+        var source = try source(for: parityCase)
+        if let mainType = mainTypeName(in: source) {
+            // Native swiftc invokes @main after loading the declarations. The
+            // tree-walking interpreter receives the same fixture plus this
+            // generic harness entry; no upstream source is rewritten and no
+            // fixture/type name is encoded in runtime behavior.
+            source += "\nawait \(mainType).main()\n"
+        }
         var output = ""
         let interpreter = Interpreter()
 
@@ -120,8 +173,21 @@ private enum SwiftUpstreamParityHarness {
                 output += values.joined(separator: separator) + terminator
                 return .void
             }))
-        _ = try interpreter.run(source: source)
+        _ = try await interpreter.runAsync(source: source)
         return output
+    }
+
+    static func mainTypeName(in source: String) -> String? {
+        let expression = try? NSRegularExpression(pattern:
+            #"(?m)^[\t ]*@main[\t ]*(?:\n[\t ]*)?(?:(?:public|internal|private|fileprivate|final)[\t ]+)*(?:struct|class|enum)[\t ]+([A-Za-z_][A-Za-z0-9_]*)"#)
+        let sourceRange = NSRange(location: 0, length: source.utf16.count)
+        guard let match = expression?.firstMatch(
+            in: source, options: [], range: sourceRange),
+              match.numberOfRanges == 2,
+              let range = Range(match.range(at: 1), in: source) else {
+            return nil
+        }
+        return String(source[range])
     }
 
     private static func run(
@@ -201,31 +267,112 @@ private enum SwiftUpstreamParityHarness {
 
 @Suite("Official Swift interpreter-test parity", .serialized)
 struct SwiftUpstreamParityTests {
-    @Test func importedExecutableTestsMatchNativeSwift() throws {
+    @Test func importedExecutableTestsMatchNativeSwift() async throws {
         let manifest = try SwiftUpstreamParityHarness.loadManifest()
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
-        #expect(manifest.revision == "swift-6.2.3-RELEASE")
-        #expect(manifest.commit == "484e622d1c0afcae5b12a31c090a74ad0901e44f")
-        #expect(manifest.cases.count == 10)
+        #expect(manifest.revision == "swift-6.3.3-RELEASE")
+        #expect(manifest.commit == "064859e41d68596f486c5d724401cb370f260409")
+        #expect(manifest.cases.count == 13)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
+        #expect(Set(manifest.cases.map(\.upstreamPath)).count
+            == manifest.cases.count)
 
         for parityCase in manifest.cases {
             do {
+                let source = try SwiftUpstreamParityHarness.source(
+                    for: parityCase)
                 let native = try SwiftUpstreamParityHarness.nativeOutput(
                     for: parityCase)
-                let interpreted = try SwiftUpstreamParityHarness
+                let interpreted = try await SwiftUpstreamParityHarness
                     .interpretedOutput(for: parityCase)
-                if interpreted != native {
-                    let details = "\(parityCase.id) "
-                        + "(\(parityCase.upstreamPath)) differed: "
-                        + "native=\(String(reflecting: native)), "
-                        + "interpreted=\(String(reflecting: interpreted))"
-                    Issue.record(Comment(rawValue: details))
+                switch parityCase.assertion ?? .exact {
+                case .exact:
+                    if interpreted != native {
+                        let details = "\(parityCase.id) "
+                            + "(\(parityCase.upstreamPath)) differed: "
+                            + "native=\(String(reflecting: native)), "
+                            + "interpreted=\(String(reflecting: interpreted))"
+                        Issue.record(Comment(rawValue: details))
+                    }
+                case .fileCheck:
+                    for (runtime, output) in [
+                        ("native", native),
+                        ("interpreter", interpreted),
+                    ] {
+                        let problems = try SwiftUpstreamFileCheck.violations(
+                            source: source, output: output)
+                        for problem in problems {
+                            Issue.record(Comment(rawValue:
+                                "\(parityCase.id) "
+                                    + "(\(parityCase.upstreamPath)) "
+                                    + "\(runtime): \(problem); output="
+                                    + String(reflecting: output)))
+                        }
+                    }
                 }
             } catch {
                 Issue.record(
                     "\(parityCase.id) (\(parityCase.upstreamPath)): \(error)")
             }
         }
+    }
+
+    @Test func concurrencyRuntimeInventoryClassifiesEveryPinnedSource() throws {
+        let manifest = try SwiftUpstreamParityHarness.loadManifest()
+        let inventory = try SwiftUpstreamParityHarness.loadInventory()
+        #expect(inventory.repository == manifest.repository)
+        #expect(inventory.revision == manifest.revision)
+        #expect(inventory.commit == manifest.commit)
+        #expect(inventory.scope == "test/Concurrency/Runtime")
+        #expect(inventory.classificationVersion == 1)
+        #expect(inventory.tests.count == 134)
+        #expect(inventory.summary.total == inventory.tests.count)
+        #expect(inventory.summary.total == inventory.summary.direct
+            + inventory.summary.diagnostic
+            + inventory.summary.needsAdapter
+            + inventory.summary.unsupported)
+        #expect(Set(inventory.tests.map(\.upstreamPath)).count
+            == inventory.tests.count)
+        #expect(inventory.tests.allSatisfy { !$0.reason.isEmpty })
+        #expect(inventory.tests.allSatisfy {
+            ["direct", "diagnostic", "needs-adapter", "unsupported"]
+                .contains($0.classification)
+        })
+
+        let concurrencyCases = manifest.cases.filter {
+            $0.upstreamPath.hasPrefix("test/Concurrency/Runtime/")
+        }
+        let selectedByPath = Dictionary(uniqueKeysWithValues:
+            concurrencyCases.map { ($0.upstreamPath, $0.id) })
+        let directByPath = Dictionary(uniqueKeysWithValues:
+            inventory.tests.compactMap { entry -> (String, String)? in
+                guard entry.classification == "direct",
+                      let selectedCaseID = entry.selectedCaseID else {
+                    return nil
+                }
+                return (entry.upstreamPath, selectedCaseID)
+            })
+        #expect(directByPath == selectedByPath)
+        #expect(inventory.summary.direct == concurrencyCases.count)
+        #expect(concurrencyCases.allSatisfy { parityCase in
+            parityCase.assertion == .fileCheck
+                && parityCase.compilerArguments == [
+                    "-swift-version", "6",
+                    "-strict-concurrency=complete",
+                    "-parse-as-library",
+                ]
+        })
+    }
+
+    @Test func asyncMainDetectionIsGeneric() {
+        #expect(SwiftUpstreamParityHarness.mainTypeName(in: """
+            @available(macOS 15, *)
+            @main
+            public struct ProbeRunner {
+                static func main() async {}
+            }
+            """) == "ProbeRunner")
+        #expect(SwiftUpstreamParityHarness.mainTypeName(
+            in: "// @main struct CommentOnly {}") == nil)
     }
 }

@@ -2,8 +2,8 @@
 set -eu
 
 repository=https://github.com/swiftlang/swift.git
-revision=swift-6.2.3-RELEASE
-expected_commit=484e622d1c0afcae5b12a31c090a74ad0901e44f
+revision=swift-6.3.3-RELEASE
+expected_commit=064859e41d68596f486c5d724401cb370f260409
 
 script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repository_root=$(CDPATH= cd -- "$script_directory/.." && pwd)
@@ -24,7 +24,9 @@ git -c advice.detachedHead=false clone \
     --branch "$revision" \
     "$repository" \
     "$checkout"
-git -C "$checkout" sparse-checkout set test/Interpreter
+git -C "$checkout" sparse-checkout set \
+    test/Interpreter \
+    test/Concurrency/Runtime
 
 actual_commit=$(git -C "$checkout" rev-parse HEAD)
 if [ "$actual_commit" != "$expected_commit" ]; then
@@ -32,21 +34,8 @@ if [ "$actual_commit" != "$expected_commit" ]; then
     exit 1
 fi
 
-mkdir -p "$destination/Fixtures"
-for fixture in \
-    hello_toplevel.swift \
-    hello_func.swift \
-    ternary_expr.swift \
-    array_of_optional.swift \
-    break_continue.swift \
-    protocols.swift \
-    capture_inout.swift \
-    RosettaCode.swift \
-    generic_struct.swift \
-    wildcard_dispatch_on_catch.swift
-do
-    cp "$checkout/test/Interpreter/$fixture" "$destination/Fixtures/$fixture"
-done
-cp "$checkout/LICENSE.txt" "$destination/LICENSE.txt"
+xcrun swift "$script_directory/SwiftUpstreamInventory.swift" \
+    "$checkout" \
+    "$destination"
 
-echo "synced Swift upstream tests from $revision ($actual_commit)"
+echo "synced and inventoried Swift upstream tests from $revision ($actual_commit)"

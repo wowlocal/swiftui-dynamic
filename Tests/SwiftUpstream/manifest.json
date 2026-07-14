@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/swiftlang/swift.git",
-  "revision": "swift-6.2.3-RELEASE",
-  "commit": "484e622d1c0afcae5b12a31c090a74ad0901e44f",
+  "revision": "swift-6.3.3-RELEASE",
+  "commit": "064859e41d68596f486c5d724401cb370f260409",
   "cases": [
     {
       "id": "hello-toplevel",
@@ -52,6 +52,45 @@
       "id": "wildcard-dispatch-on-catch",
       "fixture": "Fixtures/wildcard_dispatch_on_catch.swift",
       "upstreamPath": "test/Interpreter/wildcard_dispatch_on_catch.swift"
+    },
+    {
+      "id": "concurrency-async-let-throws",
+      "fixture": "Fixtures/Concurrency/Runtime/async_let_throws.swift",
+      "upstreamPath": "test/Concurrency/Runtime/async_let_throws.swift",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
+    },
+    {
+      "id": "concurrency-task-handle-cancellation",
+      "fixture": "Fixtures/Concurrency/Runtime/async_task_handle_cancellation.swift",
+      "upstreamPath": "test/Concurrency/Runtime/async_task_handle_cancellation.swift",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
+    },
+    {
+      "id": "concurrency-task-group-next-pending",
+      "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_next_on_pending.swift",
+      "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_next_on_pending.swift",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
     }
   ]
 }

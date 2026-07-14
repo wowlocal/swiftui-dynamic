@@ -1,0 +1,689 @@
+{
+  "classificationVersion" : 1,
+  "commit" : "064859e41d68596f486c5d724401cb370f260409",
+  "repository" : "https://github.com/swiftlang/swift.git",
+  "revision" : "swift-6.3.3-RELEASE",
+  "scope" : "test/Concurrency/Runtime",
+  "summary" : {
+    "diagnostic" : 4,
+    "direct" : 3,
+    "needsAdapter" : 120,
+    "total" : 134,
+    "unsupported" : 7
+  },
+  "tests" : [
+    {
+      "classification" : "unsupported",
+      "reason" : "Auxiliary input, not a standalone executable test.",
+      "upstreamPath" : "test/Concurrency/Runtime/Inputs/MysteryInit.swift"
+    },
+    {
+      "classification" : "unsupported",
+      "reason" : "Auxiliary input, not a standalone executable test.",
+      "upstreamPath" : "test/Concurrency/Runtime/Inputs/reasync.swift"
+    },
+    {
+      "classification" : "unsupported",
+      "reason" : "Auxiliary input, not a standalone executable test.",
+      "upstreamPath" : "test/Concurrency/Runtime/Inputs/resilient_class.swift"
+    },
+    {
+      "classification" : "unsupported",
+      "reason" : "Auxiliary input, not a standalone executable test.",
+      "upstreamPath" : "test/Concurrency/Runtime/Inputs/resilient_protocol.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor.swift"
+    },
+    {
+      "classification" : "unsupported",
+      "reason" : "Expected crash or nonzero-exit test requires an isolated crash oracle.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor_checkIsolated_bincompat_crash_swift_6_mode.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor_checkIsolated_bincompat_nocrash_legacy_mode.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor_checkIsolated_dispatch_dispatchMain_swift_6_mode.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor_checkIsolated_dispatch_swift6_mode.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor_checkIsolated_main_customExecutorOnMain_swift6_mode.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor_checkIsolated_swift6_mode.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor_isIsolatingCurrentContext_swift62_mode.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assert_precondition_executor_not_implemented_isIsolatingCurrentContext_swift62_mode.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_assume_executor.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_counters.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_counters_freestanding.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_deinit_escaping_self.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Foundation.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_detach.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: ObjectiveC.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_dynamic_subclass.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_init.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_init_abi.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_isIsolatingCurrentContext.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_keypaths.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Swift, Darwin, Glibc, WinSDK.",
+      "upstreamPath" : "test/Concurrency/Runtime/actor_recursive_deinit.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_initializer.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_let_fibonacci.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_let_throw_completion_order.swift"
+    },
+    {
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-async-let-throws",
+      "upstreamPath" : "test/Concurrency/Runtime/async_let_throws.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_parameter_pack.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_properties_actor.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_sequence.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_stream.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_async_let_child_cancel.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_cancellation_early.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_cancellation_taskGroup.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_cancellation_while_running.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_detach.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_and_serial_executor_both_executor.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_and_serial_executor_nonisolated_async_func_legacy.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_and_serial_executor_nonisolated_async_func_swift6.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_default_actor_funcs.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_nonisolated_async_func.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_nsobject.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_structured_concurrency.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_unstructured_task_ownership.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_executor_withExecutor.swift"
+    },
+    {
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-task-handle-cancellation",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_handle_cancellation.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_async_let.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Uses FileCheck regular expressions or variables not accepted by the literal matcher.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_basic.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_copy_to_async.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch, Darwin, Glibc, Android.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_copy_to_sync.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_groups.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_in_task_group_may_need_to_copy.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_isolated_deinit.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_isolated_deinit_freestanding.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_prevent_illegal_use_but_specific_case_is_ok.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_synchronous_bind.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_locals_wrapper.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_naming.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_priority_current.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_sleep.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_sleep_cancel.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Uses FileCheck regular expressions or variables not accepted by the literal matcher.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_withUnsafeCurrentTask.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_task_yield.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_addUnlessCancelled.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_asynciterator_semantics.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_cancelAll_only_specific_group.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_cancel_parent_affects_group.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_cancel_then_completions.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_cancel_then_spawn.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_cancellation_race.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_discarding.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_discarding_dontLeak.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_discarding_dontLeak_class_error.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_discarding_neverConsumingTasks.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_dontLeakTasks.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_is_asyncsequence.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_is_empty.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_next_not_invoked_cancelAll.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_next_not_invoked_without_cancelAll.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_next_on_completed.swift"
+    },
+    {
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-task-group-next-pending",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_next_on_pending.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_throw_recover.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_throw_rethrow.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/basic_future.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Darwin, Glibc, Android, WASILibc, WinSDK.",
+      "upstreamPath" : "test/Concurrency/Runtime/cancellation_handler.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/cancellation_handler_concurrent.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Synchronization.",
+      "upstreamPath" : "test/Concurrency/Runtime/cancellation_handler_only_once.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/checked_continuation.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/class_resilience.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/clock.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/continuation_validation.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_complex_equality.swift"
+    },
+    {
+      "classification" : "unsupported",
+      "reason" : "Expected crash or nonzero-exit test requires an isolated crash oracle.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_complex_equality_crash.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_complex_equality_subclass.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_default.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_globalActor.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_moveOnly_job.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_priority.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_protocol.swift"
+    },
+    {
+      "classification" : "diagnostic",
+      "reason" : "No executable %target-run command; this is a compiler, ABI, or diagnostic test.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_sdk_with_consuming_param_but_impl_owned.swift"
+    },
+    {
+      "classification" : "diagnostic",
+      "reason" : "No executable %target-run command; this is a compiler, ABI, or diagnostic test.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_sdk_with_owned_param_but_impl_consuming.swift"
+    },
+    {
+      "classification" : "diagnostic",
+      "reason" : "No executable %target-run command; this is a compiler, ABI, or diagnostic test.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_tryDiagnoseExecutorConformance_with_sdk_missing_job_type.swift"
+    },
+    {
+      "classification" : "diagnostic",
+      "reason" : "No executable %target-run command; this is a compiler, ABI, or diagnostic test.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_executors_tryDiagnoseExecutorConformance_with_sdk_typealias_struct_job_types.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_main_executor.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/custom_task_executor_fast_path.swift"
+    },
+    {
+      "classification" : "unsupported",
+      "reason" : "Expected crash or nonzero-exit test requires an isolated crash oracle.",
+      "upstreamPath" : "test/Concurrency/Runtime/data_race_detection_crash.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/data_race_detection_legacy_warning.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/effectful_properties.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/exclusivity.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/exclusivity_custom_executors.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/executor_deinit1.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/executor_deinit2.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Darwin, Glibc, Android.",
+      "upstreamPath" : "test/Concurrency/Runtime/executor_deinit3.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/future_fibonacci.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/isolated_conformance.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/isolated_deinit_main_sync.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/isolated_macro_in_nonisolated_nonsending_func.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Requires imported runtime API review: Dispatch.",
+      "upstreamPath" : "test/Concurrency/Runtime/mainactor.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/nonisolated_inherits_isolation.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/nonisolated_nonsending_hop_to_executor_throws.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/objc_async.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/protocol_resilience.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/reasync.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/sleep_executor.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/startImmediately.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "RUN command builds auxiliary inputs or modules before executing the test.",
+      "upstreamPath" : "test/Concurrency/Runtime/startImmediately_order.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/startOnMainActor.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Has no active CHECK oracle; deterministic exact output has not been established.",
+      "upstreamPath" : "test/Concurrency/Runtime/task_creation.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/task_destruction.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "upstreamPath" : "test/Concurrency/Runtime/taskgroup_cancelAll_cancellationHandler.swift"
+    },
+    {
+      "classification" : "needs-adapter",
+      "reason" : "Depends on the Swift repository's StdlibUnittest support module.",
+      "upstreamPath" : "test/Concurrency/Runtime/unspecified_is_main_actor.swift"
+    }
+  ]
+}
