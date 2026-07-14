@@ -230,6 +230,20 @@ extension Interpreter {
         }
     }
 
+    /// Consume one source-facing async-sequence element from an active group.
+    /// Keeping iteration on the same path as `group.next()` preserves the
+    /// completion queue's ordering, ownership checks, and exactly-once result
+    /// consumption.
+    func nextSourceTaskGroupIterationValue(
+        _ group: RuntimeTaskGroup
+    ) async throws -> RuntimeValue? {
+        let next = try await nextSourceTaskGroupValue(group)
+        guard case .optional(let optional) = next else {
+            preconditionFailure("task-group next must return an Optional")
+        }
+        return optional.wrapped
+    }
+
     private func waitForSourceTaskGroupChildren(
         _ group: RuntimeTaskGroup,
         ownerTaskID: RuntimeTaskID

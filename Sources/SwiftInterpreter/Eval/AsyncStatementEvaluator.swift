@@ -679,6 +679,27 @@ extension Interpreter {
         }
 
         let sequence = try await evaluateSuspending(forStatement.sequence, in: env)
+        if case .host(let any) = sequence,
+           let group = any as? RuntimeTaskGroup {
+            guard forStatement.awaitKeyword != nil else {
+                throw error(
+                    forStatement,
+                    "task-group iteration requires 'await'")
+            }
+            guard group.kind == .nonthrowing else {
+                throw error(
+                    forStatement,
+                    "throwing task-group iteration is not supported yet")
+            }
+            return try await executeTaskGroupForSuspending(
+                forStatement,
+                group: group,
+                name: name,
+                tupleNames: tupleNames,
+                casePattern: casePattern,
+                in: env)
+        }
+
         let elements: [RuntimeValue]
         if let range = sequence.rangeValue {
             guard let values = range.integerValues() else {
@@ -727,29 +748,13 @@ extension Interpreter {
 
         loop: for element in elements {
             try checkRuntimeCancellation()
-
-            let child = Environment(parent: env)
-            if let casePattern {
-                guard try matches(
-                    casePattern, subject: element,
-                    bindingInto: child, env: env) else { continue }
-            }
-            if let name { child.define(name, element) }
-            if let tupleNames {
-                guard let tuple = element.tupleValue,
-                      tuple.values.count == tupleNames.count else {
-                    throw error(
-                        forStatement.pattern,
-                        "for-in tuple pattern doesn't match the element shape")
-                }
-                for (elementName, value) in zip(tupleNames, tuple.values) {
-                    if let elementName { child.define(elementName, value) }
-                }
-            }
-            let result = try await withFiniteIterationSlice {
-                try await executeBlockSuspending(
-                    forStatement.body.statements, in: child)
-            }
+            guard let result = try await executeForElementSuspending(
+                element,
+                forStatement: forStatement,
+                name: name,
+                tupleNames: tupleNames,
+                casePattern: casePattern,
+                in: env) else { continue }
             switch result {
             case .normal, .continueLoop:
                 continue
@@ -760,6 +765,69 @@ extension Interpreter {
             }
         }
         return .normal(.void)
+    }
+
+    private func executeTaskGroupForSuspending(
+        _ forStatement: ForStmtSyntax,
+        group: RuntimeTaskGroup,
+        name: String?,
+        tupleNames: [String?]?,
+        casePattern: PatternSyntax?,
+        in env: Environment
+    ) async throws -> StatementResult {
+        while let element = try await nextSourceTaskGroupIterationValue(group) {
+            try checkRuntimeCancellation()
+            guard let result = try await executeForElementSuspending(
+                element,
+                forStatement: forStatement,
+                name: name,
+                tupleNames: tupleNames,
+                casePattern: casePattern,
+                in: env) else { continue }
+            switch result {
+            case .normal, .continueLoop:
+                continue
+            case .breakLoop:
+                return .normal(.void)
+            case .returnValue:
+                return result
+            }
+        }
+        return .normal(.void)
+    }
+
+    /// Bind and execute one element for both finite synchronous sequences and
+    /// streaming async sequences. `nil` means a `case` pattern did not match.
+    private func executeForElementSuspending(
+        _ element: RuntimeValue,
+        forStatement: ForStmtSyntax,
+        name: String?,
+        tupleNames: [String?]?,
+        casePattern: PatternSyntax?,
+        in env: Environment
+    ) async throws -> StatementResult? {
+        let child = Environment(parent: env)
+        if let casePattern {
+            guard try matches(
+                casePattern, subject: element,
+                bindingInto: child, env: env) else { return nil }
+        }
+        if let name { child.define(name, element) }
+        if let tupleNames {
+            guard let tuple = element.tupleValue,
+                  tuple.values.count == tupleNames.count else {
+                throw error(
+                    forStatement.pattern,
+                    "for-in tuple pattern doesn't match the element shape")
+            }
+            for (elementName, value) in zip(tupleNames, tuple.values) {
+                if let elementName { child.define(elementName, value) }
+            }
+        }
+        return try await withFiniteIterationSlice {
+            try await executeBlockSuspending(
+                forStatement.body.statements, in: child)
+        }
     }
 
     private func executeWhileSuspending(

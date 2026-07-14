@@ -611,6 +611,18 @@
     "notes": "The first-added child is held in a confirmed cancellable suspension before the second child is added. Exact output is fast:slow:empty in 20 Swift 6.3.3 runs; the first next consumes the later-added fast result, cancelAll releases slow for the second next, and a third next observes no remaining result."
   },
   {
+    "id": "task-group-iteration",
+    "fixture": "Fixtures/task-group-iteration.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupIterationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "for await iteration over a nonthrowing TaskGroup yields every child result exactly once and consumes the group, so next() returns nil afterward.",
+    "notes": "Three children return 1, 2, and 3; exact output is 3:6:empty in all 20 Swift 6.3.3 runs. Count and a commutative sum avoid asserting completion order."
+  },
+  {
     "id": "task-group-wait-for-all-consumes-results",
     "fixture": "Fixtures/task-group-wait-for-all-consumes-results.swift",
     "mode": "runtime",

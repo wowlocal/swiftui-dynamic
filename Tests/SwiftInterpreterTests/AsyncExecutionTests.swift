@@ -1748,6 +1748,53 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func taskGroupForAwaitStreamsAndConsumesEveryResult() async throws {
+        let interpreter = Interpreter()
+        var observedSingleConsumedResult = false
+        interpreter.globals.define(
+            "inspectTaskGroupIteration",
+            .hostFunction(HostFunction(
+                name: "inspectTaskGroupIteration"
+            ) { _, _ in
+                guard let group = interpreter.concurrencyRuntime
+                    .taskGroups.values.first else {
+                    throw RuntimeError(message:
+                        "task-group iteration lost its active group")
+                }
+                observedSingleConsumedResult =
+                    group.consumedChildTaskIDs.count == 1
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        await withTaskGroup(of: Int.self) { group in
+            group.addTask { 1 }
+            group.addTask { 2 }
+            group.addTask { 3 }
+
+            var count = 0
+            var total = 0
+            for await value in group {
+                if count == 0 {
+                    inspectTaskGroupIteration()
+                }
+                count += 1
+                total += value
+            }
+
+            let tail = await group.next() ?? 0
+            return "\\(count):\\(total):\\(tail)"
+        }
+        """)
+
+        #expect(result.stringValue == "3:6:0")
+        #expect(observedSingleConsumedResult)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupWaitForAllConsumesPendingResults() async throws {
         let interpreter = Interpreter()
         let result = try await interpreter.runAsync(source: """
