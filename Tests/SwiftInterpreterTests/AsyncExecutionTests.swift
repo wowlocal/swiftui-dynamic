@@ -1265,6 +1265,31 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func emptyThrowingTaskGroupWaitCompletesAndCleansUp() async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        func emptyThrowingWaitOwner() async -> String {
+            do {
+                return try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    try await group.waitForAll()
+                    return "empty"
+                }
+            } catch {
+                return "error"
+            }
+        }
+        await emptyThrowingWaitOwner()
+        """)
+
+        #expect(result.stringValue == "empty")
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func throwingTaskGroupWaitKeepsScopeFailureSeparate() async throws {
         let interpreter = Interpreter()
         let result = try await interpreter.runAsync(source: """

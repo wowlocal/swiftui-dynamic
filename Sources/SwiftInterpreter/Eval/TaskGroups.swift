@@ -295,7 +295,7 @@ extension Interpreter {
                     + "is not supported yet")
 
             case .waitForAll:
-                guard outcomes.count == 1 else {
+                guard outcomes.count <= 1 else {
                     throw RuntimeError(message:
                         "throwing task-group waitForAll with multiple child "
                         + "outcomes is not supported yet")
