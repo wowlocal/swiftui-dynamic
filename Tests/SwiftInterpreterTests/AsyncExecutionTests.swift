@@ -1265,6 +1265,73 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func singleFailureAmongThrowingGroupOutcomesRethrows() async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        enum SingleThrowingWaitFailure: Error {
+            case failed
+        }
+        func singleFailureThrowingWaitOwner() async -> String {
+            do {
+                _ = try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    group.addTask { "first" }
+                    group.addTask { "second" }
+                    group.addTask {
+                        throw SingleThrowingWaitFailure.failed
+                    }
+                    try await group.waitForAll()
+                    return "missed"
+                }
+                return "missed"
+            } catch {
+                switch error {
+                case SingleThrowingWaitFailure.failed:
+                    return "caught-child"
+                default:
+                    return "wrong-error"
+                }
+            }
+        }
+        await singleFailureThrowingWaitOwner()
+        """)
+
+        #expect(result.stringValue == "caught-child")
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            func cancelledThrowingWaitOwner() async throws -> String {
+                try await withThrowingTaskGroup(of: String.self) { group in
+                    group.cancelAll()
+                    group.addTask {
+                        try Task.checkCancellation()
+                        return "missed"
+                    }
+                    try await group.waitForAll()
+                    return "missed"
+                }
+            }
+            try await cancelledThrowingWaitOwner()
+            """)
+            Issue.record("unprobed throwing wait cancellation unexpectedly succeeded")
+        } catch let failure as RuntimeError {
+            #expect(failure.message.contains(
+                "waitForAll cancellation projection is not supported"))
+        } catch {
+            Issue.record("unexpected throwing wait cancellation error: \(error)")
+        }
+
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func multipleSuccessfulThrowingGroupWaitCleansUp() async throws {
         let interpreter = Interpreter()
         let result = try await interpreter.runAsync(source: """

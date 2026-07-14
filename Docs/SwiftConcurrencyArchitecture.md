@@ -658,11 +658,11 @@ retains an immutable kind because successful result delivery is shared while
 failure and cancellation projection are language-contract-specific. A throwing
 group must not reuse a nonthrowing failure diagnostic or silently swallow an
 outcome. A failed child consumed by throwing `next` rethrows its stored source
-value. Explicit throwing `waitForAll` returns normally when every child outcome
-is successful, including an empty group; when the sole child outcome is a
-failure, it rethrows that child's stored source error. Failure selection among
-multiple outcomes, cancellation projection, and exceptional-exit rules remain
-explicitly unsupported until established by dedicated native probes.
+value. When no child is cancelled, explicit throwing `waitForAll` returns
+normally if every outcome succeeds and rethrows the stored source error when
+exactly one outcome fails, independent of successful sibling count. Selection
+among multiple failures, cancellation projection, and exceptional-exit rules
+remain explicitly unsupported until established by dedicated native probes.
 
 ### 6.10 Executor model
 
