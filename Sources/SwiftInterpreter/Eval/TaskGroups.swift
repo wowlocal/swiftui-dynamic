@@ -304,10 +304,11 @@ extension Interpreter {
         case .throwing:
             switch consumer {
             case .scopeExit:
-                guard !failures.isEmpty else { return }
-                throw RuntimeError(message:
-                    "throwing task-group scope-exit failure propagation "
-                    + "is not supported yet")
+                // A normal `withThrowingTaskGroup` body return only joins and
+                // destroys outstanding children. Child errors are observable
+                // through `next`/`waitForAll`; implicit cleanup does not
+                // consume or rethrow them.
+                return
 
             case .waitForAll:
                 guard let firstError = outcomes.first(where: { outcome in

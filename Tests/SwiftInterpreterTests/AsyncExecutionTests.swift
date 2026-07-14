@@ -1572,7 +1572,7 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
-    @Test func throwingTaskGroupWaitKeepsScopeFailureSeparate() async throws {
+    @Test func throwingTaskGroupExplicitWaitAndImplicitExitDiffer() async throws {
         let interpreter = Interpreter()
         let result = try await interpreter.runAsync(source: """
         enum ThrowingWaitChildError: Error {
@@ -1621,29 +1621,43 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
 
-        do {
-            _ = try await interpreter.runAsync(source: """
+        let implicitResult = try await interpreter.runAsync(source: """
             enum UnconsumedThrowingGroupError: Error {
                 case failed
             }
-            func unconsumedThrowingGroupOwner() async throws -> String {
-                try await withThrowingTaskGroup(of: String.self) { group in
+            @MainActor
+            var unconsumedThrowingGroupCompletions = 0
+            @MainActor
+            func recordUnconsumedThrowingGroupCompletion() {
+                unconsumedThrowingGroupCompletions += 1
+            }
+            func unconsumedThrowingGroupOwner() async -> String {
+                let value = await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
                     group.addTask {
+                        await recordUnconsumedThrowingGroupCompletion()
+                        return "first"
+                    }
+                    group.addTask {
+                        await recordUnconsumedThrowingGroupCompletion()
                         throw UnconsumedThrowingGroupError.failed
+                    }
+                    group.addTask {
+                        await recordUnconsumedThrowingGroupCompletion()
+                        return "third"
                     }
                     return "body"
                 }
+                if unconsumedThrowingGroupCompletions == 3 {
+                    return value + ":joined"
+                }
+                return value + ":not-joined"
             }
-            try await unconsumedThrowingGroupOwner()
+            await unconsumedThrowingGroupOwner()
             """)
-            Issue.record("unprobed throwing scope failure unexpectedly succeeded")
-        } catch let failure as RuntimeError {
-            #expect(failure.message.contains(
-                "task-group scope-exit failure propagation is not supported"))
-        } catch {
-            Issue.record("unexpected throwing scope diagnostic: \(error)")
-        }
 
+        #expect(implicitResult.stringValue == "body:joined")
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)

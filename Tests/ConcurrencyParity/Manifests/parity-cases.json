@@ -719,6 +719,18 @@
     "notes": "The group is cancelled before its sole child is added; that child immediately calls Task.checkCancellation(). All 20 Swift 6.3.3 runs returned cancellation:owner-active."
   },
   {
+    "id": "task-group-throwing-implicit-failure",
+    "fixture": "Fixtures/task-group-throwing-implicit-failure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingImplicitFailureProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Normal return from a withThrowingTaskGroup body implicitly joins an unconsumed failing child but discards that child failure and preserves the body's return value.",
+    "notes": "The child starts behind an explicit gate, the body opens it immediately before returning, and child-failed must precede scope-return. Exact output is child-start,body-return,child-failed,scope-return-body-value in all 20 Swift 6.3.3 runs. Because the body itself is nonthrowing, the rethrows call needs no try; no child-error or scheduler-order choice is asserted."
+  },
+  {
     "id": "task-group-throwing-wait-for-all-failure",
     "fixture": "Fixtures/task-group-throwing-wait-for-all-failure.swift",
     "mode": "runtime",

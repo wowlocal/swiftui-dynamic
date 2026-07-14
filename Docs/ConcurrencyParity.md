@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; nonthrowing `withTaskGroup`, successful `withThrowingTaskGroup` child consumption, source-error and cancellation projection through throwing `next`, and throwing `waitForAll` success plus completion-ordered source-error/cancellation projection with full remaining-outcome draining, `addTask`, `addTaskUnlessCancelled`, explicit nonthrowing `waitForAll` with remaining-result draining, `cancelAll`, combined owner/`cancelAll` `isCancelled` state, completion-ordered `next` consumption, drained-group `nil`, cancellation inheritance for late ordinary children, cancelled-state initialization when a group is created by an already-cancelled owner, and non-cancelling implicit wait on normal group scope exit have runtime-owned group/scope support; missing `await` is diagnosed | Throwing-group exceptional exit, group iteration, and remaining exceptional defer/cleanup combinations |
+| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; nonthrowing `withTaskGroup`, successful `withThrowingTaskGroup` child consumption, source-error and cancellation projection through throwing `next`, and throwing `waitForAll` success plus completion-ordered source-error/cancellation projection with full remaining-outcome draining, `addTask`, `addTaskUnlessCancelled`, explicit nonthrowing `waitForAll` with remaining-result draining, `cancelAll`, combined owner/`cancelAll` `isCancelled` state, completion-ordered `next` consumption, drained-group `nil`, cancellation inheritance for late ordinary children, cancelled-state initialization when a group is created by an already-cancelled owner, non-cancelling implicit wait on normal group scope exit, and normal throwing-group exit that joins children while discarding unconsumed child errors have runtime-owned group/scope support; missing `await` is diagnosed | Body-throwing task-group exceptional exit, group iteration, and remaining exceptional defer/cleanup combinations |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -77,6 +77,7 @@ major version 6.
 | `task-cancellation-handler-pre-cancelled` | exact | Registering a handler in an already-cancelled task invokes it immediately, in that task's cancelled dynamic context, before the operation begins | Native/interpreter parity in 20 repetitions: `1,true,true,operation-cancelled`; MainActor prevents operation entry before the two pre-start cancellation requests |
 | `task-cancellation-handler-nested` | exact | Simultaneously active nested handlers run once from inner to outer before the cancelled operation resumes | Native/interpreter parity in 20 repetitions: `inner,outer,operation`; a MainActor started barrier fixes the cancel-time happens-before edges without asserting independent task scheduling |
 | `task-cancellation-handler-scope-exit` | exact | A handler is inactive after its operation returns or throws, so later cancellation does not invoke it | Native/interpreter parity in 20 repetitions; MainActor exit barriers place cancellation strictly after each unwind, and the runtime regression observes zero registrations at both exit points |
+| `task-group-throwing-implicit-failure` | exact | A normal `withThrowingTaskGroup` body return joins an unconsumed failing child, discards that child error, and preserves the body value | Native/interpreter parity in 20 repetitions: `child-start,body-return,child-failed,scope-return-body-value`; the gate proves the join, while `rethrows` makes the child error unobservable without `next`/`waitForAll` |
 | `task-read-missing-await-diagnostic` | diagnostic | `Task.value` and `Task.result` are async property accesses, so omitting `await` is rejected even inside an async function | Real Swift 6 diagnostics require `await`; runtime member dispatch now diagnoses instead of returning `()` for either property |
 | `actor-isolation-diagnostic` | diagnostic | A nonisolated synchronous function cannot read actor-isolated mutable state | Native fact recorded; interpreter preflight belongs to M7 |
 
@@ -2279,6 +2280,47 @@ in 746 seconds with the same shared-worktree 793-test suite, the unchanged
 match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.
 Throwing-group exceptional exit, group iteration, and the remaining exceptional
 cleanup combinations remain open.
+
+### M4 throwing task-group normal exit discards an unconsumed failure
+
+`task-group-throwing-implicit-failure.swift` adds one throwing child behind an
+explicit MainActor gate. The child records entry, the group body records its
+normal return and opens the gate, and the child records failure immediately
+before throwing. The caller then records the value returned by the group.
+
+Twenty bounded Apple Swift 6.3.3 strict-concurrency runs produced
+`child-start,body-return,child-failed,scope-return-body-value` exactly. The gate
+and lexical program order establish every asserted edge. The compiler also
+accepts the `withThrowingTaskGroup` call without `try`: because the body itself
+does not throw, `rethrows` proves that an unconsumed child error cannot escape
+the call. Child completion order relative to any independent work is not
+asserted.
+
+The initial same-source interpreter case was RED in all 20 repetitions with
+`throwing task-group scope-exit failure propagation is not supported yet`.
+Normal cleanup incorrectly treated the joined child outcome as though it had
+been consumed through a throwing group API.
+
+The throwing-group `.scopeExit` outcome policy now only joins and destroys the
+group. It does not project child failures; `next` and `waitForAll` retain their
+separate completion-ordered source-error and cancellation projection. Cleanup
+when the body itself throws is unchanged and remains a separate parity
+question.
+White-box coverage uses three children (success, failure, success), observes
+all three completions before the body value leaves the scope, and verifies
+empty scheduler, task, group, and structured-scope registries afterward.
+
+The exact differential case is GREEN in all 20 repetitions. The combined
+targeted run passes 76/76 tests across `AsyncExecutionTests` (56),
+`HostSignatureTests` (12), and `ConcurrencyParityTests` (8), with 67 runtime
+fixtures. The full shared-worktree run passes 795 tests in 151 suites; one test
+and suite come from the preserved user-owned untracked
+`TaskObservatoryTests.swift`, so the tracked repository accounts for 794 tests
+in 150 suites. `Scripts/gate.sh` is green in 708 seconds with the same 795-test
+shared-worktree suite, the unchanged 678/680 project-corpus ratchet, 5/5
+live-data scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
+errors / 17 unstable / 0 no-twin. Body-throwing group exit, group iteration,
+and the remaining exceptional defer/cleanup combinations remain open.
 
 ## M8 incremental verification record
 
