@@ -623,6 +623,18 @@
     "notes": "A slow first-added child is suspended while next consumes a later-added fast child. cancelAll releases slow, waitForAll drains that remaining result, and the final next produces empty. Exact output is fast:empty in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-add-after-cancel-all",
+    "fixture": "Fixtures/task-group-add-after-cancel-all.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupAddAfterCancelAllProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "TaskGroup.addTask remains allowed after cancelAll, but the newly created child starts with cancellation already requested.",
+    "notes": "The group is cancelled before addTask. The child checks Task.isCancelled as its first source operation and returns cancelled exactly in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

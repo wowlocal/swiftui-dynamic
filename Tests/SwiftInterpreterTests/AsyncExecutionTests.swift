@@ -1143,25 +1143,22 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
-    @Test func taskGroupAddAfterCancelAllIsExplicitlyUnsupported() async {
+    @Test func taskGroupChildAddedAfterCancelAllStartsCancelled() async throws {
         let interpreter = Interpreter()
-        do {
-            _ = try await interpreter.runAsync(source: """
-            await withTaskGroup(of: String.self) { group in
-                group.cancelAll()
-                group.addTask {
-                    return "late"
+        let result = try await interpreter.runAsync(source: """
+        await withTaskGroup(of: String.self) { group in
+            group.cancelAll()
+            group.addTask {
+                if Task.isCancelled {
+                    return "cancelled"
                 }
+                return "active"
             }
-            """)
-            Issue.record("addTask after cancelAll unexpectedly succeeded")
-        } catch let failure as RuntimeError {
-            #expect(failure.message.contains(
-                "TaskGroup.addTask after cancelAll is not supported yet"))
-        } catch {
-            Issue.record("unexpected add-after-cancel diagnostic: \(error)")
+            return await group.next() ?? "empty"
         }
+        """)
 
+        #expect(result.stringValue == "cancelled")
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)

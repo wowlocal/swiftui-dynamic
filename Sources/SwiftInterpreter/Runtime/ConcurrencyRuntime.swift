@@ -310,6 +310,7 @@ final class RuntimeTaskGroupRecord {
     let id: RuntimeTaskGroupID
     let ownerTaskID: RuntimeTaskID
     let structuredScope: RuntimeStructuredScopeRecord
+    var hasCancelAllRequest = false
     var childTaskIDs: [RuntimeTaskID] = []
     var completedChildTaskIDs: [RuntimeTaskID] = []
     private var completedChildTaskIDSet: Set<RuntimeTaskID> = []

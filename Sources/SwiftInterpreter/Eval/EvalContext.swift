@@ -361,13 +361,12 @@ extension Interpreter: EvalContext {
         }
         try group.requireActive(
             ownerTaskID: evaluationTaskContext.runtimeTaskID)
-        guard !group.isCancellationRequested else {
-            throw RuntimeError(message:
-                "TaskGroup.addTask after cancelAll is not supported yet")
-        }
 
         let pending = makePendingRuntimeTask(
             kind: .groupChild, explicitPriority: priority)
+        if group.hasCancelAllRequest {
+            pending.handle.cancel(source: .taskGroupCancelAll)
+        }
         do {
             try launchRuntimeTask(
                 pending, sessionOwned: false,
