@@ -985,6 +985,146 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingAsyncLetScopePreservesLexicalCleanupOrder()
+    async throws {
+        let interpreter = Interpreter()
+        var observedChildren: [RuntimeTaskRecord] = []
+        var observedScopes: [RuntimeStructuredScopeRecord] = []
+        var observedOwners: [RuntimeTaskRecord] = []
+        interpreter.globals.define(
+            "inspectThrowingAsyncLetDeferChild",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingAsyncLetDeferChild",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let ownerID = child.parent,
+                          let owner = interpreter.concurrencyRuntime
+                            .records[ownerID],
+                          let scope = interpreter.concurrencyRuntime
+                            .structuredScopes.values.first(where: {
+                                $0.childTaskIDs.contains(childID)
+                            }) else {
+                        throw RuntimeError(message:
+                            "throwing async-let defer lost runtime ownership")
+                    }
+                    observedChildren.append(child)
+                    observedScopes.append(scope)
+                    observedOwners.append(owner)
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        enum ThrowingAsyncLetDeferError: Error {
+            case failed
+        }
+        @MainActor
+        final class ThrowingAsyncLetDeferRecorder {
+            var events: [String] = []
+            var childStarted = false
+        }
+        @MainActor
+        func throwingAsyncLetDeferChild(
+            _ recorder: ThrowingAsyncLetDeferRecorder
+        ) async -> String {
+            recorder.events.append("child-start")
+            recorder.childStarted = true
+            do {
+                try await Task.sleep(for: .seconds(30))
+                recorder.events.append("child-finished")
+            } catch is CancellationError {
+                await inspectThrowingAsyncLetDeferChild()
+                recorder.events.append("child-cancelled")
+            } catch {
+                recorder.events.append("wrong-child-error")
+            }
+            return "unused"
+        }
+        @MainActor
+        func throwWithDeferBeforeAsyncLet(
+            _ recorder: ThrowingAsyncLetDeferRecorder
+        ) async throws {
+            defer {
+                recorder.events.append("defer")
+            }
+            async let unused = throwingAsyncLetDeferChild(recorder)
+            while !recorder.childStarted {
+                await Task.yield()
+            }
+            recorder.events.append("scope-throw")
+            throw ThrowingAsyncLetDeferError.failed
+        }
+        @MainActor
+        func throwWithDeferAfterAsyncLet(
+            _ recorder: ThrowingAsyncLetDeferRecorder
+        ) async throws {
+            async let unused = throwingAsyncLetDeferChild(recorder)
+            defer {
+                recorder.events.append("defer")
+            }
+            while !recorder.childStarted {
+                await Task.yield()
+            }
+            recorder.events.append("scope-throw")
+            throw ThrowingAsyncLetDeferError.failed
+        }
+        @MainActor
+        func throwingDeferBeforeAsyncLetProbe() async -> String {
+            let recorder = ThrowingAsyncLetDeferRecorder()
+            do {
+                try await throwWithDeferBeforeAsyncLet(recorder)
+                recorder.events.append("missed")
+            } catch ThrowingAsyncLetDeferError.failed {
+                recorder.events.append("caught")
+            } catch {
+                recorder.events.append("wrong-error")
+            }
+            return recorder.events.joined(separator: ",")
+        }
+        @MainActor
+        func throwingDeferAfterAsyncLetProbe() async -> String {
+            let recorder = ThrowingAsyncLetDeferRecorder()
+            do {
+                try await throwWithDeferAfterAsyncLet(recorder)
+                recorder.events.append("missed")
+            } catch ThrowingAsyncLetDeferError.failed {
+                recorder.events.append("caught")
+            } catch {
+                recorder.events.append("wrong-error")
+            }
+            return recorder.events.joined(separator: ",")
+        }
+        let before = await throwingDeferBeforeAsyncLetProbe()
+        let after = await throwingDeferAfterAsyncLetProbe()
+        before + "|" + after
+        """)
+
+        #expect(result.stringValue == "child-start,scope-throw,"
+            + "child-cancelled,defer,caught|child-start,scope-throw,"
+            + "defer,child-cancelled,caught")
+        #expect(observedChildren.count == 2)
+        #expect(observedChildren.allSatisfy { child in
+            child.kind == .asyncLet
+                && child.state == .succeeded
+                && child.cancellation.sources == [.structuredScopeExit]
+                && child.cancellation.isObserved
+        })
+        #expect(observedScopes.count == 2)
+        #expect(observedScopes.allSatisfy { scope in
+            scope.kind == .asyncLet && scope.childTaskIDs.count == 1
+        })
+        #expect(observedOwners.count == 2)
+        #expect(observedOwners.allSatisfy { owner in
+            !owner.cancellation.isRequested
+                && !owner.cancellation.isObserved
+        })
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func asyncLetTuplePatternProjectsOneStructuredChild() async throws {
         let interpreter = Interpreter()
         var observedChildCount = 0

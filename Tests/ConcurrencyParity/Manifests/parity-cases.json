@@ -563,6 +563,18 @@
     "notes": "The child is already inside a 30-second cancellable suspension at scope exit. Exact output is child-start,scope-exit,defer,child-cancelled,after-scope in 20 Swift 6.3.3 runs, proving the reverse relative order without constraining unrelated scheduling."
   },
   {
+    "id": "async-let-throwing-defer-order",
+    "fixture": "Fixtures/async-let-throwing-defer-order.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetThrowingDeferOrderProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A throwing scope unwinds defer and async-let cleanup in reverse lexical registration order, while joining the cancelled child before propagating the owner error.",
+    "notes": "Both registration orders are exercised after the child enters a 30-second cancellable suspension. Exact output is child-start,scope-throw,child-cancelled,defer,caught|child-start,scope-throw,defer,child-cancelled,caught in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "async-let-value-failure",
     "fixture": "Fixtures/async-let-value-failure.swift",
     "mode": "runtime",
