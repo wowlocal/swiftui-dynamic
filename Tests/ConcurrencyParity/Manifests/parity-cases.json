@@ -635,6 +635,18 @@
     "notes": "Three children return 1, 2, and 3; exact output is 3:6:empty in all 20 Swift 6.3.3 runs. Count and a commutative sum avoid asserting completion order."
   },
   {
+    "id": "task-group-throwing-iteration",
+    "fixture": "Fixtures/task-group-throwing-iteration.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingIterationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "for try await iteration over a ThrowingTaskGroup yields every successful child result exactly once and consumes the group, so a later next() returns nil.",
+    "notes": "Three successful children return 1, 2, and 3; exact output is 3:6:empty in all 20 Swift 6.3.3 runs. Count and a commutative sum avoid asserting completion order; failure and early-exit behavior remain separate cases."
+  },
+  {
     "id": "task-group-wait-for-all-consumes-results",
     "fixture": "Fixtures/task-group-wait-for-all-consumes-results.swift",
     "mode": "runtime",

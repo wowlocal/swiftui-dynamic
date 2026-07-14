@@ -686,11 +686,6 @@ extension Interpreter {
                     forStatement,
                     "task-group iteration requires 'await'")
             }
-            guard group.kind == .nonthrowing else {
-                throw error(
-                    forStatement,
-                    "throwing task-group iteration is not supported yet")
-            }
             return try await executeTaskGroupForSuspending(
                 forStatement,
                 group: group,

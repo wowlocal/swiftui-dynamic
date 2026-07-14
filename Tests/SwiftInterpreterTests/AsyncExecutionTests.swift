@@ -1795,6 +1795,74 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupForAwaitUsesSharedCompletionQueue() async throws {
+        let interpreter = Interpreter()
+        var observedConsumptionCounts: [Int] = []
+        var observedDrainedGroup = false
+        interpreter.globals.define(
+            "inspectThrowingTaskGroupIteration",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingTaskGroupIteration"
+            ) { _, _ in
+                guard let group = interpreter.concurrencyRuntime
+                    .taskGroups.values.first,
+                      group.kind == .throwing else {
+                    throw RuntimeError(message:
+                        "throwing task-group iteration lost its active group")
+                }
+                observedConsumptionCounts.append(
+                    group.consumedChildTaskIDs.count)
+                return .void
+            }))
+        interpreter.globals.define(
+            "inspectThrowingTaskGroupIterationDone",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingTaskGroupIterationDone"
+            ) { _, _ in
+                guard let group = interpreter.concurrencyRuntime
+                    .taskGroups.values.first else {
+                    throw RuntimeError(message:
+                        "throwing task-group iteration lost its drained group")
+                }
+                observedDrainedGroup = group.childTaskIDs.count == 3
+                    && group.completedChildTaskIDs.count == 3
+                    && group.consumedChildTaskIDs.count == 3
+                    && group.pendingCompletedChildCount == 0
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        do {
+            return try await withThrowingTaskGroup(of: Int.self) { group in
+                group.addTask { 1 }
+                group.addTask { 2 }
+                group.addTask { 3 }
+
+                var count = 0
+                var total = 0
+                for try await value in group {
+                    count += 1
+                    total += value
+                    inspectThrowingTaskGroupIteration()
+                }
+                let tail = try await group.next() ?? 0
+                inspectThrowingTaskGroupIterationDone()
+                return String(count) + ":" + String(total) + ":" + String(tail)
+            }
+        } catch {
+            return "error"
+        }
+        """)
+
+        #expect(result.stringValue == "3:6:0")
+        #expect(observedConsumptionCounts == [1, 2, 3])
+        #expect(observedDrainedGroup)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupWaitForAllConsumesPendingResults() async throws {
         let interpreter = Interpreter()
         let result = try await interpreter.runAsync(source: """
