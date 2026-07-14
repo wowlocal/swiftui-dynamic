@@ -503,6 +503,18 @@
     "notes": "The child and parent are both inside 30-second cancellable suspensions before cancel-issued. Across 100 Swift 6.3.3 runs, child and parent cancellation observation had two relative orders, so only propagation, per-task program order, and the final structured join are asserted."
   },
   {
+    "id": "async-let-created-after-owner-cancellation",
+    "fixture": "Fixtures/async-let-created-after-owner-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetCreatedAfterOwnerCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An async-let child created after its owner is already cancelled starts with the owner's structured cancellation request.",
+    "notes": "The MainActor owner publishes entry, then yields until its handle is cancelled before declaring the child. Exact output is owner-cancelled:child-cancelled in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "async-let-scope-exit",
     "fixture": "Fixtures/async-let-scope-exit.swift",
     "mode": "runtime",

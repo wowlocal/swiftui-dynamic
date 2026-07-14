@@ -5,6 +5,66 @@ import Testing
 @Suite("Task cancellation runtime")
 struct TaskCancellationRuntimeTests {
     @Test
+    func structuredChildCreatedByCancelledOwnerInheritsCancellation() {
+        let runtime = CooperativeConcurrencyRuntime()
+        let session = runtime.createSession()
+        let owner = runtime.createTask(
+            sessionID: session,
+            kind: .unstructured,
+            parent: nil,
+            priority: .medium,
+            executorPreference: .mainActor,
+            taskLocals: RuntimeTaskLocalStorage())
+        runtime.requestCancellation(owner, source: .taskHandle)
+
+        let child = runtime.createTask(
+            sessionID: session,
+            kind: .asyncLet,
+            parent: owner.id,
+            priority: .medium,
+            executorPreference: .mainActor,
+            taskLocals: RuntimeTaskLocalStorage())
+        let unstructured = runtime.createTask(
+            sessionID: session,
+            kind: .unstructured,
+            parent: owner.id,
+            priority: .medium,
+            executorPreference: .mainActor,
+            taskLocals: RuntimeTaskLocalStorage())
+
+        #expect(owner.structuredChildren == [child.id])
+        #expect(child.cancellation.sources == [.structuredParent])
+        #expect(child.cancellation.requestSequence != nil)
+        #expect(unstructured.cancellation.sources.isEmpty)
+    }
+
+    @Test
+    func optionalTryCatchesCancellationFromSuspendingOperation() async throws {
+        let interpreter = Interpreter()
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        var optionalTrySleepStarted = false
+
+        let worker = Task {
+            optionalTrySleepStarted = true
+            try? await Task.sleep(for: .seconds(30))
+            if Task.isCancelled {
+                return "continued-cancelled"
+            }
+            return "continued-active"
+        }
+        while !optionalTrySleepStarted {
+            await Task.yield()
+        }
+        worker.cancel()
+        await worker.value
+        """)
+
+        #expect(value.stringValue == "continued-cancelled")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func cancellationBeforeStartStillRunsTheTaskBody() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

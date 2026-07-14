@@ -156,8 +156,10 @@ extension Interpreter {
                     return try await evaluateSuspending(
                         attempt.expression, in: env,
                         forceInvocation: forceInvocation).liftedToOptional()
-                } catch is CancellationError {
-                    throw CancellationError()
+                } catch is InterpreterSessionAbort {
+                    // Host/session teardown is evaluator control flow, not a
+                    // source Error value. It must remain uncatchable by try?.
+                    throw InterpreterSessionAbort()
                 } catch let runtime as RuntimeError where runtime.fatal {
                     throw runtime
                 } catch {

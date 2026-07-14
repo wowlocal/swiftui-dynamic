@@ -2877,6 +2877,46 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func hostSessionAbortBypassesOptionalTry() async throws {
+        let interpreter = Interpreter()
+        let state = HostSessionAbortProbeState()
+        interpreter.globals.define(
+            "waitForHostSessionAbort",
+            .hostFunction(HostFunction(
+                name: "waitForHostSessionAbort",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let taskID = bound.evaluationContext.runtimeTaskID,
+                          let record = interpreter.concurrencyRuntime
+                            .records[taskID] else {
+                        throw RuntimeError(message:
+                            "host abort requires a runtime root task")
+                    }
+                    state.rootRecord = record
+                    state.started = true
+                    try await Task.sleep(for: .seconds(30))
+                    return .void
+                })))
+
+        let evaluation = Task { @MainActor in
+            try await interpreter.runAsync(source: """
+            try? await waitForHostSessionAbort()
+            "completed"
+            """)
+        }
+        while !state.started { await Task.yield() }
+        evaluation.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await evaluation.value
+        }
+        let record = try #require(state.rootRecord)
+        #expect(record.state == .cancelled)
+        #expect(record.cancellation.sources == [.hostTask])
+        #expect(record.cancellation.isObserved)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func asyncHostGatewaySuspendsThroughInterpretedFunction() async throws {
         let interpreter = Interpreter()
         var events: [String] = []

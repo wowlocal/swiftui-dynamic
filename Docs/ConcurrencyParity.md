@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order on normal, early-return, throwing, and owner-cancellation exits; nonthrowing `withTaskGroup`, successful `withThrowingTaskGroup` child consumption, source-error and cancellation projection through throwing `next`, and throwing `waitForAll` success plus completion-ordered source-error/cancellation projection with full remaining-outcome draining, `addTask`, `addTaskUnlessCancelled`, explicit nonthrowing `waitForAll` with remaining-result draining, `cancelAll`, combined owner/`cancelAll` `isCancelled` state, completion-ordered `next` consumption, drained-group `nil`, cancellation inheritance for late ordinary children, cancelled-state initialization when a group is created by an already-cancelled owner, non-cancelling implicit wait on normal group scope exit, normal throwing-group exit that joins children while discarding unconsumed child errors, exceptional body-error exit that cancels and joins children before rethrowing the body error, streaming nonthrowing `for await`, and successful, source-failing, cancelled, plus early-exit throwing `for try await` group iteration have runtime-owned group/scope support; missing `await` is diagnosed | Task-group defer/cleanup compositions remain |
+| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates both to existing unread children and children created after the request, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order on normal, early-return, throwing, and owner-cancellation exits; nonthrowing `withTaskGroup`, successful `withThrowingTaskGroup` child consumption, source-error and cancellation projection through throwing `next`, and throwing `waitForAll` success plus completion-ordered source-error/cancellation projection with full remaining-outcome draining, `addTask`, `addTaskUnlessCancelled`, explicit nonthrowing `waitForAll` with remaining-result draining, `cancelAll`, combined owner/`cancelAll` `isCancelled` state, completion-ordered `next` consumption, drained-group `nil`, cancellation inheritance for late ordinary children, cancelled-state initialization when a group is created by an already-cancelled owner, non-cancelling implicit wait on normal group scope exit, normal throwing-group exit that joins children while discarding unconsumed child errors, exceptional body-error exit that cancels and joins children before rethrowing the body error, streaming nonthrowing `for await`, and successful, source-failing, cancelled, plus early-exit throwing `for try await` group iteration have runtime-owned group/scope support; missing `await` is diagnosed | Task-group defer/cleanup compositions remain |
 | M5 actors and executors | partial | Runtime tasks and task-owned evaluator contexts carry logical source-executor identity; `@concurrent nonisolated` methods hop to the cooperative default executor, `@MainActor` methods hop back, dynamic calls restore their caller executor, detached tasks start outside MainActor, and the SwiftUI `Thread.isMainThread` bridge projects this source identity instead of leaking the evaluator's physical hosting actor | Actor storage/IDs, executor queues and serialization, arbitrary actor/global-actor isolation, reentrancy, isolated parameters, closure isolation metadata, and physical worker execution |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -82,6 +82,7 @@ major version 6.
 | `async-let-throwing-defer-order` | exact | A throwing scope unwinds `defer` and unread async-let cleanup in reverse lexical registration order, joining the cancelled child before propagating the owner error | Native/interpreter parity in 20 repetitions for both registration orders: `child-start,scope-throw,child-cancelled,defer,caught\|child-start,scope-throw,defer,child-cancelled,caught` |
 | `async-let-early-return-defer-order` | exact | An early return unwinds `defer` and unread async-let cleanup in reverse lexical registration order, joining the cancelled child before the caller receives the returned value | Native/interpreter parity in 20 repetitions for both registration orders: `child-start,early-return,child-cancelled,defer,returned\|child-start,early-return,defer,child-cancelled,returned` |
 | `async-let-cancellation-defer-order` | exact | Cancelling an owner preserves reverse lexical registration order between `defer` and unread async-let cleanup, joins the child before returning the owner value, and leaves cancellation observable on both tasks | Native/interpreter parity in 20 repetitions for both registration orders: `scope-exit,child-complete,defer,returned:cancelled\|scope-exit,defer,child-complete,returned:cancelled` |
+| `async-let-created-after-owner-cancellation` | exact | An async-let child created after its owner is already cancelled starts with the owner's structured cancellation request | Native/interpreter parity in 20 repetitions: `owner-cancelled:child-cancelled`; an ordinary unstructured child created at the same runtime boundary remains uncancelled |
 | `task-group-throwing-implicit-failure` | exact | A normal `withThrowingTaskGroup` body return joins an unconsumed failing child, discards that child error, and preserves the body value | Native/interpreter parity in 20 repetitions: `child-start,body-return,child-failed,scope-return-body-value`; the gate proves the join, while `rethrows` makes the child error unobservable without `next`/`waitForAll` |
 | `task-group-throwing-body-throw` | exact | If a `withThrowingTaskGroup` body throws, exceptional scope exit cancels and joins each outstanding child before rethrowing the body's source error | Native/interpreter parity in 20 repetitions: `child-start,body-throw,child-cancelled,caught-body`; a started barrier and structured join establish every edge without selecting ready-task order |
 | `task-group-iteration` | exact | `for await` over a nonthrowing `TaskGroup` yields every child result exactly once and consumes the group | Native/interpreter parity in 20 repetitions: `3:6:empty`; count and commutative sum avoid asserting completion order, and the trailing `next()` proves the completion queue is drained |
@@ -2816,3 +2817,62 @@ tests in 150 suites. `Scripts/gate.sh` is green in 727 seconds with the same
 797-test suite, the unchanged 678/680 project-corpus ratchet, 5/5 live-data
 scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
 unstable / 0 no-twin across 362 probes.
+
+## Official Swift upstream intake
+
+### Pinned Swift 6.3.3 concurrency runtime corpus
+
+The upstream harness now pins `swiftlang/swift` at
+`swift-6.3.3-RELEASE` / `064859e41d68596f486c5d724401cb370f260409`.
+Its reproducible sparse-checkout script inventories all 134 Swift sources in
+`test/Concurrency/Runtime`, assigns every file an explicit `direct`,
+`diagnostic`, `needs-adapter`, or `unsupported` reason, and copies only
+manifest-selected fixtures byte-for-byte. The current inventory is 4 direct,
+4 diagnostic, 119 needs-adapter, and 7 unsupported.
+
+Native Swift compiles every selected concurrency fixture in Swift 6 strict
+concurrency mode. The interpreter receives the same source plus only a generic
+detected-`@main` entry. A local literal FileCheck subset validates both native
+and interpreted output; unsupported regex and variable syntax is rejected
+rather than weakened. The first direct tranche covers throwing `async let`,
+pre-start cancellation with a late async-let child, task-handle cancellation,
+and task-group pending `next()`.
+
+The previously selected interpreter tests remain exact-output cases. Normal
+test runs are fully offline; `Scripts/sync-swift-upstream-tests.sh` is the only
+networked refresh path and verifies the resolved upstream commit before
+regenerating the corpus and inventory.
+
+### Upstream-discovered pre-cancelled async-let semantics
+
+`async_task_cancellation_early.swift` initially found two general gaps. First,
+`#function` was an inert host marker. Function declarations now retain native
+magic-identifier spelling with external labels, invocation frames expose it,
+and escaping closures capture the lexical value. Sync, suspending, method, and
+closure paths have focused coverage.
+
+Second, the runtime propagated structured cancellation only when the request
+edge fired. A child added after that event therefore started active. Task
+creation now treats cancellation as parent state: every newly created
+`asyncLet` or task-group child immediately receives `.structuredParent` when
+its owner is already cancelled; unstructured creation remains isolated.
+
+The upstream test also exposed that the async evaluator rethrew
+`CancellationError` from `try?`. Native Swift catches that source error and
+continues. The evaluator now does the same while still rethrowing the private
+`InterpreterSessionAbort` control signal, so host/session teardown cannot be
+swallowed by source `try?`.
+
+The minimal same-source fixture
+`async-let-created-after-owner-cancellation.swift` uses a MainActor barrier to
+place cancellation before the declaration. Apple Swift 6.3.3 and the
+interpreter both produce `owner-cancelled:child-cancelled` in all 20 bounded
+runs. All 79 runtime fixtures and all 14 selected official upstream fixtures
+are green.
+
+The closing `Scripts/gate.sh` run is GREEN in 741 seconds: 817 shared-worktree
+tests pass across four parity shards, the project corpus remains at its
+documented 678/680 floor, all 5 live-data scenarios pass, and API parity is
+345 match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin across
+362 probes. One test belongs to the preserved user-owned untracked
+`TaskObservatoryTests.swift`, so the tracked repository accounts for 816 tests.

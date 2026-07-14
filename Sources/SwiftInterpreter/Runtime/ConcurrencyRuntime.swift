@@ -430,6 +430,14 @@ final class CooperativeConcurrencyRuntime {
             parentRecord.spawnedTasks.insert(id)
             if kind.isStructuredChild {
                 parentRecord.structuredChildren.insert(id)
+                // Structured cancellation is a state relationship, not only
+                // an edge-triggered notification. A child created after its
+                // owner was cancelled must start cancelled as native Swift
+                // does; later native-task attachment forwards this request.
+                if parentRecord.cancellation.isRequested {
+                    requestCancellation(
+                        record, source: .structuredParent)
+                }
             }
         }
         return record

@@ -6,8 +6,8 @@
   "scope" : "test/Concurrency/Runtime",
   "summary" : {
     "diagnostic" : 4,
-    "direct" : 3,
-    "needsAdapter" : 120,
+    "direct" : 4,
+    "needsAdapter" : 119,
     "total" : 134,
     "unsupported" : 7
   },
@@ -184,8 +184,9 @@
       "upstreamPath" : "test/Concurrency/Runtime/async_task_async_let_child_cancel.swift"
     },
     {
-      "classification" : "needs-adapter",
-      "reason" : "Requires imported runtime API review: Dispatch.",
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-task-cancellation-early",
       "upstreamPath" : "test/Concurrency/Runtime/async_task_cancellation_early.swift"
     },
     {
