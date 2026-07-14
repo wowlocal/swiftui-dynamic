@@ -683,6 +683,18 @@
     "notes": "The owner publishes readiness and waits until Task.isCancelled before entering withTaskGroup. Exact output is cancelled:skipped:child-cancelled in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-throwing-success",
+    "fixture": "Fixtures/task-group-throwing-success.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await taskGroupThrowingSuccessProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A successful withThrowingTaskGroup child is consumable through try await group.next().",
+    "notes": "The owner adds one immediately successful child and awaits its result. Exact output is value in all 20 Swift 6.3.3 runs; child failure and first-error behavior are not asserted."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

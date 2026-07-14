@@ -1,43 +1,48 @@
 import Foundation
 
 extension Interpreter {
-    func sourceTaskGroupFunction() -> HostFunction {
-        HostFunction(
-            name: "withTaskGroup",
+    func sourceTaskGroupFunction(
+        kind: RuntimeTaskGroupKind
+    ) -> HostFunction {
+        let name = kind.sourceFunctionName
+        return HostFunction(
+            name: name,
             tracksHostOperation: false,
             asyncInvoke: { [weak self] arguments, _ in
                 guard let self else {
                     throw RuntimeError(message:
                         "interpreter was released during task-group scope")
                 }
-                return try await withSourceTaskGroup(arguments)
+                return try await withSourceTaskGroup(arguments, kind: kind)
             })
     }
 
     private func withSourceTaskGroup(
-        _ arguments: CallArguments
+        _ arguments: CallArguments,
+        kind: RuntimeTaskGroupKind
     ) async throws -> RuntimeValue {
+        let name = kind.sourceFunctionName
         guard evaluationTaskContext.isAsyncSession,
               let ownerTaskID = evaluationTaskContext.runtimeTaskID else {
             throw RuntimeError(message:
-                "withTaskGroup requires an async runtime task")
+                "\(name) requires an async runtime task")
         }
         guard arguments.labeled("of") != nil else {
             throw RuntimeError(message:
-                "withTaskGroup needs a child result type")
+                "\(name) needs a child result type")
         }
         guard arguments.labeled("isolation") == nil else {
             throw RuntimeError(message:
-                "withTaskGroup(isolation:) is not supported yet")
+                "\(name)(isolation:) is not supported yet")
         }
         guard let body = arguments.closure(labeled: "body")
                 ?? arguments.firstUnlabeledClosure else {
             throw RuntimeError(message:
-                "withTaskGroup needs a body closure")
+                "\(name) needs a body closure")
         }
 
         let record = concurrencyRuntime.createTaskGroup(
-            ownerTaskID: ownerTaskID)
+            ownerTaskID: ownerTaskID, kind: kind)
         let group = RuntimeTaskGroup(record: record)
         do {
             let result = try await callWithArgumentsSuspending(
@@ -49,7 +54,7 @@ extension Interpreter {
 
             let outcomes = await closeSourceTaskGroup(
                 group, cancelRemaining: false)
-            try throwNonthrowingGroupFailure(outcomes)
+            try validateSourceTaskGroupOutcomes(outcomes, in: group)
             return result
         } catch {
             if !group.isClosed {
@@ -81,7 +86,8 @@ extension Interpreter {
                 guard let operation = arguments.closure(labeled: "operation")
                         ?? arguments.firstUnlabeledClosure else {
                     throw RuntimeError(message:
-                        "TaskGroup.\(name) needs an operation closure")
+                        "\(group.kind.sourceTypeName).\(name) needs an "
+                        + "operation closure")
                 }
                 let priority = try RuntimeTaskPriority.sourceValue(
                     arguments.labeled("priority"))
@@ -112,7 +118,7 @@ extension Interpreter {
                             "task group was released before waitForAll")
                     }
                     let outcomes = try await waitForSourceTaskGroup(group)
-                    try throwNonthrowingGroupFailure(outcomes)
+                    try validateSourceTaskGroupOutcomes(outcomes, in: group)
                     concurrencyRuntime.drainTaskGroupOutcomes(group.record)
                     return .void
                 }))
@@ -146,7 +152,7 @@ extension Interpreter {
 
         default:
             throw RuntimeError(message:
-                "TaskGroup.\(name) is not supported yet")
+                "\(group.kind.sourceTypeName).\(name) is not supported yet")
         }
     }
 
@@ -182,11 +188,23 @@ extension Interpreter {
         case .success(let value, let type):
             return .some(value, wrappedTypeName: type)
         case .failure(let value, _):
-            throw RuntimeError(message:
-                "nonthrowing task-group child failed: \(value.stringified)")
+            switch group.kind {
+            case .nonthrowing:
+                throw RuntimeError(message:
+                    "nonthrowing task-group child failed: \(value.stringified)")
+            case .throwing:
+                throw RuntimeError(message:
+                    "throwing task-group child failure propagation is not supported yet")
+            }
         case .cancelled:
-            throw RuntimeError(message:
-                "nonthrowing task-group child was cancelled without a value")
+            switch group.kind {
+            case .nonthrowing:
+                throw RuntimeError(message:
+                    "nonthrowing task-group child was cancelled without a value")
+            case .throwing:
+                throw RuntimeError(message:
+                    "throwing task-group child cancellation propagation is not supported yet")
+            }
         }
     }
 
@@ -246,13 +264,20 @@ extension Interpreter {
         }
     }
 
-    private func throwNonthrowingGroupFailure(
-        _ outcomes: [RuntimeTaskOutcome]
+    private func validateSourceTaskGroupOutcomes(
+        _ outcomes: [RuntimeTaskOutcome],
+        in group: RuntimeTaskGroup
     ) throws {
         for outcome in outcomes {
             guard case .failure(let value, _) = outcome else { continue }
-            throw RuntimeError(message:
-                "nonthrowing task-group child failed: \(value.stringified)")
+            switch group.kind {
+            case .nonthrowing:
+                throw RuntimeError(message:
+                    "nonthrowing task-group child failed: \(value.stringified)")
+            case .throwing:
+                throw RuntimeError(message:
+                    "throwing task-group child failure propagation is not supported yet")
+            }
         }
     }
 }

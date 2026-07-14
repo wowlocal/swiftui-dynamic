@@ -304,12 +304,13 @@ final class RuntimeStructuredScopeRecord {
     }
 }
 
-/// Runtime identity and structured ownership for one nonthrowing source task
-/// group. Source-facing mutation stays on `RuntimeTaskGroup`; the scheduler
-/// record keeps only task IDs and the shared lexical scope edge.
+/// Runtime identity and structured ownership for one source task group.
+/// Source-facing mutation stays on `RuntimeTaskGroup`; the scheduler record
+/// keeps only task IDs and the shared lexical scope edge.
 final class RuntimeTaskGroupRecord {
     let id: RuntimeTaskGroupID
     let ownerTaskID: RuntimeTaskID
+    let kind: RuntimeTaskGroupKind
     let structuredScope: RuntimeStructuredScopeRecord
     var hasCancelAllRequest = false
     var hasOwnerCancellationRequest = false
@@ -350,11 +351,13 @@ final class RuntimeTaskGroupRecord {
     init(
         id: RuntimeTaskGroupID,
         ownerTaskID: RuntimeTaskID,
+        kind: RuntimeTaskGroupKind,
         structuredScope: RuntimeStructuredScopeRecord,
         hasOwnerCancellationRequest: Bool
     ) {
         self.id = id
         self.ownerTaskID = ownerTaskID
+        self.kind = kind
         self.structuredScope = structuredScope
         self.hasOwnerCancellationRequest = hasOwnerCancellationRequest
     }
@@ -433,7 +436,8 @@ final class CooperativeConcurrencyRuntime {
     }
 
     func createTaskGroup(
-        ownerTaskID: RuntimeTaskID
+        ownerTaskID: RuntimeTaskID,
+        kind: RuntimeTaskGroupKind
     ) -> RuntimeTaskGroupRecord {
         let scope = createStructuredScope(
             ownerTaskID: ownerTaskID, kind: .taskGroup)
@@ -446,6 +450,7 @@ final class CooperativeConcurrencyRuntime {
         let group = RuntimeTaskGroupRecord(
             id: id,
             ownerTaskID: ownerTaskID,
+            kind: kind,
             structuredScope: scope,
             hasOwnerCancellationRequest: owner.cancellation.isRequested)
         precondition(

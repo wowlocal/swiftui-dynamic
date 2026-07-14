@@ -1,4 +1,23 @@
-/// Source-facing capability for one active nonthrowing task-group scope.
+enum RuntimeTaskGroupKind: Sendable {
+    case nonthrowing
+    case throwing
+
+    var sourceFunctionName: String {
+        switch self {
+        case .nonthrowing: "withTaskGroup"
+        case .throwing: "withThrowingTaskGroup"
+        }
+    }
+
+    var sourceTypeName: String {
+        switch self {
+        case .nonthrowing: "TaskGroup"
+        case .throwing: "ThrowingTaskGroup"
+        }
+    }
+}
+
+/// Source-facing capability for one active task-group scope.
 /// Swift prevents this value from escaping through `inout`; runtime checks
 /// retain the same lifetime boundary for dynamically invoked source.
 final class RuntimeTaskGroup {
@@ -12,6 +31,7 @@ final class RuntimeTaskGroup {
 
     var id: RuntimeTaskGroupID { record.id }
     var ownerTaskID: RuntimeTaskID { record.ownerTaskID }
+    var kind: RuntimeTaskGroupKind { record.kind }
     var hasCancelAllRequest: Bool {
         record.hasCancelAllRequest
     }

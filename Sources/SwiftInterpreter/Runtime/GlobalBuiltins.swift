@@ -125,7 +125,10 @@ extension Interpreter {
             .hostFunction(sourceTaskCancellationHandlerFunction()))
         globals.define(
             "withTaskGroup",
-            .hostFunction(sourceTaskGroupFunction()))
+            .hostFunction(sourceTaskGroupFunction(kind: .nonthrowing)))
+        globals.define(
+            "withThrowingTaskGroup",
+            .hostFunction(sourceTaskGroupFunction(kind: .throwing)))
         for (name, function) in Self.typedMathBuiltins {
             globals.define(name, .hostFunction(function))
         }

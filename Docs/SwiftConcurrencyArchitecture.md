@@ -652,6 +652,14 @@ creation snapshots an already-requested owner cancellation before exposing the
 source capability, while later owner cancellation updates every active owned
 group through the runtime identity graph.
 
+Nonthrowing and throwing task groups share one scheduler, completion log,
+structured scope, cancellation graph, and cleanup path. Their runtime record
+retains an immutable kind because successful result delivery is shared while
+failure and cancellation projection are language-contract-specific. A throwing
+group must not reuse a nonthrowing failure diagnostic or silently swallow an
+outcome; each error, first-error, and exceptional-exit rule remains explicitly
+unsupported until established by a dedicated native probe.
+
 ### 6.10 Executor model
 
 ```swift

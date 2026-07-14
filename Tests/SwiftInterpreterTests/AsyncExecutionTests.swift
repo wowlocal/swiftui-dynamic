@@ -1184,6 +1184,51 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupKeepsDistinctRuntimeKind() async throws {
+        let interpreter = Interpreter()
+        var observedKind: RuntimeTaskGroupKind?
+        interpreter.globals.define(
+            "inspectThrowingTaskGroupChild",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingTaskGroupChild",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let groupID = child.taskGroupID,
+                          let group = interpreter.concurrencyRuntime
+                            .taskGroups[groupID] else {
+                        throw RuntimeError(message:
+                            "throwing task-group child lost runtime ownership")
+                    }
+                    observedKind = group.kind
+                    return .native("value")
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        func inspectedThrowingTaskGroupChild() async -> String {
+            await inspectThrowingTaskGroupChild()
+        }
+        func inspectedThrowingTaskGroupOwner() async throws -> String {
+            try await withThrowingTaskGroup(of: String.self) { group in
+                group.addTask {
+                    await inspectedThrowingTaskGroupChild()
+                }
+                return try await group.next() ?? "empty"
+            }
+        }
+        try await inspectedThrowingTaskGroupOwner()
+        """)
+
+        #expect(result.stringValue == "value")
+        #expect(observedKind == .throwing)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupNextUsesCompletionQueueAndGroupSuspension() async throws {
         let interpreter = Interpreter()
         var observedParentSuspension: RuntimeSuspension?
