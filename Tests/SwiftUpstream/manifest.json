@@ -42,6 +42,16 @@
       "id": "rosetta-code",
       "fixture": "Fixtures/RosettaCode.swift",
       "upstreamPath": "test/Interpreter/RosettaCode.swift"
+    },
+    {
+      "id": "generic-struct",
+      "fixture": "Fixtures/generic_struct.swift",
+      "upstreamPath": "test/Interpreter/generic_struct.swift"
+    },
+    {
+      "id": "wildcard-dispatch-on-catch",
+      "fixture": "Fixtures/wildcard_dispatch_on_catch.swift",
+      "upstreamPath": "test/Interpreter/wildcard_dispatch_on_catch.swift"
     }
   ]
 }

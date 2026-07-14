@@ -254,17 +254,17 @@ extension RuntimeValue {
         case .bool(let b): return b ? "true" : "false"
         case .string(let string): return string
         case .array(let array):
-            return "[" + array.map(\.stringified).joined(separator: ", ") + "]"
+            return "[" + array.map(\.debugStringified).joined(separator: ", ") + "]"
         case .set(let set): return set.description
         case .optional(let optional):
             guard let wrapped = optional.wrapped else { return "nil" }
-            return "Optional(\(wrapped.stringified))"
+            return "Optional(\(wrapped.debugStringified))"
         case .dictionary(let dictionary): return dictionary.description
         case .tuple(let tuple): return tuple.description
         case .range(let range): return range.description
         case .host(let any):
             if let arr = any as? [RuntimeValue] {
-                return "[" + arr.map(\.stringified).joined(separator: ", ") + "]"
+                return "[" + arr.map(\.debugStringified).joined(separator: ", ") + "]"
             }
             if let set = any as? RuntimeSetValue { return set.description }
             if let dict = any as? DictValue { return dict.description }
@@ -278,6 +278,18 @@ extension RuntimeValue {
         case .enumCase(let value): return value.description
         case .implicitMember(let name): return ".\(name)"
         }
+    }
+
+    /// The `String(reflecting:)` form used when a value appears as an ELEMENT
+    /// of a container. Swift renders container members with reflecting
+    /// semantics, so a String element shows quoted and escaped (`["a"]`, not
+    /// `[a]`; `Optional("a")`, not `Optional(a)`; `Foo(name: "a")`, not
+    /// `Foo(name: a)`). Only String differs from `stringified`; every other
+    /// value nests through `stringified`, whose container cases route their
+    /// own elements back through here, so quoting stays recursive.
+    public var debugStringified: String {
+        if let string = stringValue { return String(reflecting: string) }
+        return stringified
     }
 }
 

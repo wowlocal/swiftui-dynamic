@@ -308,6 +308,9 @@ extension Interpreter {
         if let whileStmt = stmt.as(WhileStmtSyntax.self) {
             return try executeWhile(whileStmt, in: env)
         }
+        if let repeatStmt = stmt.as(RepeatStmtSyntax.self) {
+            return try executeRepeat(repeatStmt, in: env)
+        }
         if stmt.is(BreakStmtSyntax.self) { return .breakLoop }
         if stmt.is(ContinueStmtSyntax.self) { return .continueLoop }
         throw error(stmt, "unsupported statement (\(stmt.kind))")
@@ -590,6 +593,26 @@ extension Interpreter {
             case .breakLoop: return .normal(.void)
             case .returnValue: return result
             }
+        }
+        return .normal(.void)
+    }
+
+    /// `repeat { body } while cond` — the body runs once BEFORE the condition
+    /// is first evaluated. The trailing condition is a plain expression (no
+    /// optional binding), evaluated in the enclosing scope: variables declared
+    /// inside the body are not visible to it. `continue` falls through to the
+    /// condition check, exactly as native `repeat`/`while` does.
+    private func executeRepeat(_ repeatStmt: RepeatStmtSyntax, in env: Environment) throws -> StatementResult {
+        while true {
+            try tick(repeatStmt)
+            let child = Environment(parent: env)
+            let result = try executeBlock(repeatStmt.body.statements, in: child)
+            switch result {
+            case .normal, .continueLoop: break
+            case .breakLoop: return .normal(.void)
+            case .returnValue: return result
+            }
+            guard try evaluate(repeatStmt.condition, in: env).boolValue == true else { break }
         }
         return .normal(.void)
     }

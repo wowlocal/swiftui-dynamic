@@ -70,6 +70,6 @@ public final class EnumCaseValue: CustomStringConvertible {
 
     public var description: String {
         if associated.isEmpty { return "\(symbol.name).\(name)" }
-        return "\(symbol.name).\(name)(" + associated.map(\.stringified).joined(separator: ", ") + ")"
+        return "\(symbol.name).\(name)(" + associated.map(\.debugStringified).joined(separator: ", ") + ")"
     }
 }

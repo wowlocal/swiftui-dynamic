@@ -1344,10 +1344,15 @@ extension Interpreter {
                 }
                 return .native(ChainedImplicitCall(base: baseValue, member: name, arguments: CallArguments()))
             }
-            if name == "description" || name == "debugDescription" {
+            if name == "description" {
                 // CustomStringConvertible: every stdlib value prints
                 // (`store.count.description` — Int, Double, Bool, …).
                 return .native(baseValue.stringValue ?? baseValue.stringified)
+            }
+            if name == "debugDescription" {
+                // CustomDebugStringConvertible: the reflecting form quotes
+                // Strings and any String elements nested in the value.
+                return .native(baseValue.debugStringified)
             }
             if name == "map" || name == "flatMap" {
                 // Optional.map on a non-nil value — optionals ARE the value

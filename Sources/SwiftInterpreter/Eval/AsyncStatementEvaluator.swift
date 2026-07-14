@@ -402,6 +402,9 @@ extension Interpreter {
         if let whileStatement = statement.as(WhileStmtSyntax.self) {
             return try await executeWhileSuspending(whileStatement, in: env)
         }
+        if let repeatStatement = statement.as(RepeatStmtSyntax.self) {
+            return try await executeRepeatSuspending(repeatStatement, in: env)
+        }
         if statement.is(BreakStmtSyntax.self) { return .breakLoop }
         if statement.is(ContinueStmtSyntax.self) { return .continueLoop }
         throw error(statement, "unsupported statement (\(statement.kind))")
@@ -779,6 +782,32 @@ extension Interpreter {
             case .returnValue:
                 return result
             }
+        }
+        return .normal(.void)
+    }
+
+    /// Async twin of `executeRepeat`: `repeat { body } while cond` with the
+    /// body run once before the trailing plain-expression condition, which is
+    /// evaluated in the enclosing scope.
+    private func executeRepeatSuspending(
+        _ repeatStatement: RepeatStmtSyntax, in env: Environment
+    ) async throws -> StatementResult {
+        while true {
+            try checkRuntimeCancellation()
+            try tick(repeatStatement)
+            let child = Environment(parent: env)
+            let result = try await executeBlockSuspending(
+                repeatStatement.body.statements, in: child)
+            switch result {
+            case .normal, .continueLoop:
+                break
+            case .breakLoop:
+                return .normal(.void)
+            case .returnValue:
+                return result
+            }
+            guard try await evaluateSuspending(
+                repeatStatement.condition, in: env).boolValue == true else { break }
         }
         return .normal(.void)
     }

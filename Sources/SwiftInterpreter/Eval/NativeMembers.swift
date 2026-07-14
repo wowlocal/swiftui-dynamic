@@ -1034,8 +1034,12 @@ extension Interpreter {
             // Scalars as single-char strings (our character model): count,
             // iteration, and allSatisfy work through array machinery.
             return .native(string.unicodeScalars.map { RuntimeValue.native(String($0)) })
-        case "description", "debugDescription", "localizedDescription":
+        case "description", "localizedDescription":
             return .native(string)
+        case "debugDescription":
+            // CustomDebugStringConvertible: a String reflects to its quoted,
+            // escaped literal form (`"a\'b"`), matching `String(reflecting:)`.
+            return .native(String(reflecting: string))
         case "localized", "localizedCapitalized", "localizedLowercase", "localizedUppercase":
             // Localization without tables: the key localizes to itself
             // (call form tolerated — Localize_Swift's `.localized()`).

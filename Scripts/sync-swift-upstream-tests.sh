@@ -41,7 +41,9 @@ for fixture in \
     break_continue.swift \
     protocols.swift \
     capture_inout.swift \
-    RosettaCode.swift
+    RosettaCode.swift \
+    generic_struct.swift \
+    wildcard_dispatch_on_catch.swift
 do
     cp "$checkout/test/Interpreter/$fixture" "$destination/Fixtures/$fixture"
 done

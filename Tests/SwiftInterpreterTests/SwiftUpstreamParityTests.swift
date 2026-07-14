@@ -206,7 +206,7 @@ struct SwiftUpstreamParityTests {
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
         #expect(manifest.revision == "swift-6.2.3-RELEASE")
         #expect(manifest.commit == "484e622d1c0afcae5b12a31c090a74ad0901e44f")
-        #expect(manifest.cases.count == 8)
+        #expect(manifest.cases.count == 10)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
 
         for parityCase in manifest.cases {

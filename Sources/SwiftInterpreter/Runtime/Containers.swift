@@ -17,7 +17,7 @@ public struct TupleValue: CustomStringConvertible {
 
     public var description: String {
         let parts = zip(labels, values).map { label, value in
-            (label.map { "\($0): " } ?? "") + value.stringified
+            (label.map { "\($0): " } ?? "") + value.debugStringified
         }
         return "(" + parts.joined(separator: ", ") + ")"
     }
@@ -99,7 +99,7 @@ public struct DictValue: CustomStringConvertible {
 
     public var description: String {
         if keys.isEmpty { return "[:]" }
-        let parts = zip(keys, values).map { "\($0.stringified): \($1.stringified)" }
+        let parts = zip(keys, values).map { "\($0.debugStringified): \($1.debugStringified)" }
         return "[" + parts.joined(separator: ", ") + "]"
     }
 }

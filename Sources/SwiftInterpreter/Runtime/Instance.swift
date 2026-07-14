@@ -76,7 +76,7 @@ public final class Instance: CustomStringConvertible {
         defer { Self.descriptionDepth -= 1 }
         guard Self.descriptionDepth <= 3 else { return "\(symbol.name)(…)" }
         let props = symbol.storedProperties
-            .compactMap { prop in box(for: prop.name).map { "\(prop.name): \($0.value.stringified)" } }
+            .compactMap { prop in box(for: prop.name).map { "\(prop.name): \($0.value.debugStringified)" } }
             .joined(separator: ", ")
         return "\(symbol.name)(\(props))"
     }
