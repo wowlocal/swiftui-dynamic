@@ -38,6 +38,18 @@
     "notes": "The relative order of 'first' and 'second' is deliberately not asserted."
   },
   {
+    "id": "concurrent-executor-hop",
+    "fixture": "Fixtures/concurrent-executor-hop.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await concurrentExecutorHopProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A @concurrent nonisolated async method leaves MainActor for its entry and post-yield continuation, an awaited MainActor method runs on the main executor, and the caller resumes on MainActor afterward.",
+    "notes": "Exact output is main|worker:worker:main|worker:worker:main|main in all 20 Swift 6.3.3 runs. The second work call starts in Task.detached; no relative scheduling order is asserted."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",

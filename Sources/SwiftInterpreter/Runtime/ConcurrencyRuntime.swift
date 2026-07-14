@@ -131,6 +131,17 @@ public enum RuntimeTaskKind: String, Sendable {
     case swiftUITask
 }
 
+/// Logical source executor. During the cooperative phase every interpreter
+/// instruction is still physically hosted by the native MainActor, but source
+/// executor identity remains distinct and follows Swift's hop rules.
+public enum RuntimeExecutorKind: String, Hashable, Sendable {
+    case cooperativeDefault
+    case mainActor
+    case detached
+
+    public var isMainActor: Bool { self == .mainActor }
+}
+
 extension RuntimeTaskKind {
     var isStructuredChild: Bool {
         switch self {
@@ -233,6 +244,10 @@ final class RuntimeTaskRecord {
     let parent: RuntimeTaskID?
     let basePriority: RuntimeTaskPriority
     var effectivePriority: RuntimeTaskPriority
+    /// Executor selected when the task is created. Function-level hops live
+    /// on the task-owned evaluation context and restore this preference when
+    /// their dynamic scope exits.
+    let executorPreference: RuntimeExecutorKind
     let taskLocals: RuntimeTaskLocalStorage
     var state: RuntimeTaskState = .pending
     var suspension: RuntimeSuspension?
@@ -267,6 +282,7 @@ final class RuntimeTaskRecord {
         kind: RuntimeTaskKind,
         parent: RuntimeTaskID?,
         priority: RuntimeTaskPriority,
+        executorPreference: RuntimeExecutorKind,
         taskLocals: RuntimeTaskLocalStorage
     ) {
         self.id = id
@@ -275,6 +291,7 @@ final class RuntimeTaskRecord {
         self.parent = parent
         basePriority = priority
         effectivePriority = priority
+        self.executorPreference = executorPreference
         self.taskLocals = taskLocals
     }
 }
@@ -396,13 +413,15 @@ final class CooperativeConcurrencyRuntime {
         kind: RuntimeTaskKind,
         parent: RuntimeTaskID?,
         priority: RuntimeTaskPriority,
+        executorPreference: RuntimeExecutorKind,
         taskLocals: RuntimeTaskLocalStorage
     ) -> RuntimeTaskRecord {
         let id = RuntimeTaskID(rawValue: nextTaskID)
         nextTaskID += 1
         let record = RuntimeTaskRecord(
             id: id, sessionID: sessionID, kind: kind, parent: parent,
-            priority: priority, taskLocals: taskLocals)
+            priority: priority, executorPreference: executorPreference,
+            taskLocals: taskLocals)
         records[id] = record
         if let parent, let parentRecord = records[parent] {
             // Creation/inheritance and structured ownership are deliberately

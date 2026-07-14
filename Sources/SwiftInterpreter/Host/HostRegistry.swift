@@ -81,6 +81,10 @@ public struct HostModifier {
 /// closure (Button actions, ForEach content) or evaluate one in ViewBuilder
 /// mode (container content).
 public protocol EvalContext: AnyObject {
+    /// Logical executor currently running interpreted source. Cooperative
+    /// builds may physically host every instruction on MainActor while still
+    /// preserving source-level executor hops through this identity.
+    var sourceExecutor: RuntimeExecutorKind { get }
     func callClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     /// Enter interpreted code from a synchronous external host callback such
     /// as a SwiftUI action. Interpreter-backed contexts override this entry to
@@ -152,6 +156,8 @@ public protocol EvalContext: AnyObject {
 }
 
 extension EvalContext {
+    public var sourceExecutor: RuntimeExecutorKind { .mainActor }
+
     /// Compatibility fallback for non-interpreter embedders. The interpreter
     /// supplies the task-aware implementation; legacy contexts preserve their
     /// established synchronous callback behavior.

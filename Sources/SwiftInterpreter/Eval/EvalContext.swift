@@ -15,6 +15,9 @@ final class TaskBoundEvalContext: EvalContext {
     }
 
     var evaluationTaskContextID: UInt64 { evaluationContext.id }
+    var sourceExecutor: RuntimeExecutorKind {
+        evaluationContext.currentExecutor
+    }
 
     private func bound<T>(_ operation: () throws -> T) rethrows -> T {
         try EvaluationTaskContext.$current.withValue(
@@ -217,6 +220,10 @@ final class TaskBoundEvalContext: EvalContext {
 // MARK: - EvalContext (what gateways can call back into)
 
 extension Interpreter: EvalContext {
+    public var sourceExecutor: RuntimeExecutorKind {
+        evaluationTaskContext.currentExecutor
+    }
+
     public func hostTypeName(of value: RuntimeValue) -> String {
         if case .host(let any) = value {
             if let marker = any as? HostTypeMarker { return marker.name + ".Type" }
@@ -266,6 +273,7 @@ extension Interpreter: EvalContext {
             kind: .hostCallback,
             parent: nil,
             priority: RuntimeTaskPriority(Task.currentPriority),
+            executorPreference: .mainActor,
             taskLocals: taskLocals)
         precondition(
             concurrencyRuntime.begin(record),
@@ -275,6 +283,7 @@ extension Interpreter: EvalContext {
             runtimeSessionID: sessionID,
             isAsyncSession: true,
             priority: record.effectivePriority,
+            executor: record.executorPreference,
             taskLocals: taskLocals)
         concurrencyRuntime.bind(context, to: record)
         defer {
@@ -463,12 +472,15 @@ extension Interpreter: EvalContext {
         let taskLocals = kind == .detached
             ? RuntimeTaskLocalStorage()
             : evaluationTaskContext.taskLocals.inheritedCopy()
+        let executorPreference: RuntimeExecutorKind = kind == .detached
+            ? .detached : evaluationTaskContext.currentExecutor
         let record = concurrencyRuntime.createTask(
             sessionID: sessionID,
             kind: kind,
             parent: kind == .detached
                 ? nil : evaluationTaskContext.runtimeTaskID,
             priority: priority,
+            executorPreference: executorPreference,
             taskLocals: taskLocals)
         return PendingRuntimeTask(
             sessionID: sessionID,
@@ -552,6 +564,7 @@ extension Interpreter: EvalContext {
             runtimeSessionID: pending.sessionID,
             isAsyncSession: true,
             priority: record.effectivePriority,
+            executor: record.executorPreference,
             taskLocals: pending.taskLocals)
         concurrencyRuntime.bind(taskContext, to: record)
         let operation: @MainActor @Sendable () async -> Void = {

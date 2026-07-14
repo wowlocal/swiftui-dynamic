@@ -175,6 +175,14 @@ executor phases. It must not be confused with source-level `@MainActor`
 semantics: a source actor and the native actor hosting the interpreter are
 different abstraction layers.
 
+Source-visible host APIs must observe the logical source executor when the
+physical hosting actor is only an interpreter implementation detail. For
+example, a toolchain-characterized `Thread.isMainThread` read in supported
+`@concurrent`/`@MainActor` code projects logical MainActor membership during the
+cooperative phase; returning the evaluator's physical thread would collapse
+the two abstraction layers. This projection does not claim physical
+parallelism.
+
 Eventually the targets should separate:
 
 - `SwiftInterpreterCore`: executor-neutral runtime and evaluator;
@@ -685,6 +693,14 @@ enum RuntimeExecutorKind {
 An executor owns a queue of runnable task IDs. In the first implementation all
 queues may be drained on the native main actor, but their logical ownership and
 serialization remain distinct.
+
+The incremental foundation may establish identity before queues: every runtime
+task records its initial executor preference, every task-owned evaluation
+context carries the current executor, and a declaration-level hop installs its
+callee executor for the dynamic call extent before restoring the caller. Host
+bridges read that explicit context. This identity-only phase is partial M5: it
+is sufficient to prevent the physical hosting actor from leaking into source
+observations, but it is not actor serialization or executor scheduling.
 
 Executor rules include:
 

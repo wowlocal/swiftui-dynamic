@@ -98,6 +98,7 @@ public final class RuntimeTaskHandle {
             kind: .unstructured,
             parent: nil,
             priority: .medium,
+            executorPreference: .cooperativeDefault,
             taskLocals: RuntimeTaskLocalStorage())
         self.init(runtime: runtime, record: record)
     }

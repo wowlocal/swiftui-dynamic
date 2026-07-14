@@ -155,6 +155,7 @@ public final class Interpreter {
         runtimeSessionID: RuntimeSessionID? = nil,
         isAsyncSession: Bool = false,
         priority: RuntimeTaskPriority = .medium,
+        executor: RuntimeExecutorKind = .mainActor,
         taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage()
     ) -> EvaluationTaskContext {
         let id = nextEvaluationTaskContextID
@@ -165,6 +166,7 @@ public final class Interpreter {
             runtimeSessionID: runtimeSessionID,
             isAsyncSession: isAsyncSession,
             priority: priority,
+            executor: executor,
             taskLocals: taskLocals,
             interpreter: self)
     }

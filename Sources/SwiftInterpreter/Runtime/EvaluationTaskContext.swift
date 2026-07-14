@@ -18,6 +18,8 @@ final class EvaluationTaskContext {
     var priority: RuntimeTaskPriority
     let taskLocals: RuntimeTaskLocalStorage
     weak var interpreter: Interpreter?
+    let initialExecutor: RuntimeExecutorKind
+    var currentExecutor: RuntimeExecutorKind
 
     var steps = 0
     var callDepth = 0
@@ -49,6 +51,7 @@ final class EvaluationTaskContext {
         runtimeSessionID: RuntimeSessionID? = nil,
         isAsyncSession: Bool = false,
         priority: RuntimeTaskPriority = .medium,
+        executor: RuntimeExecutorKind = .mainActor,
         taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage(),
         interpreter: Interpreter
     ) {
@@ -57,6 +60,8 @@ final class EvaluationTaskContext {
         self.runtimeSessionID = runtimeSessionID
         self.isAsyncSession = isAsyncSession
         self.priority = priority
+        initialExecutor = executor
+        currentExecutor = executor
         self.taskLocals = taskLocals
         self.interpreter = interpreter
     }
@@ -83,6 +88,7 @@ final class EvaluationTaskContext {
             && viewIdentitySalts.isEmpty
             && structuredScopeFrames.isEmpty
             && taskLocals.isEmpty
+            && currentExecutor == initialExecutor
             && !deferredExtensionRetry
     }
 
@@ -114,6 +120,7 @@ final class EvaluationTaskContext {
         viewIdentitySalts.removeAll(keepingCapacity: false)
         structuredScopeFrames.removeAll(keepingCapacity: false)
         taskLocals.removeAll()
+        currentExecutor = initialExecutor
         deferredExtensionRetry = false
     }
 }

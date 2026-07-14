@@ -662,6 +662,11 @@ extension Interpreter {
     func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {
         callDepth += 1
         defer { callDepth -= 1 }
+        let previousExecutor = evaluationTaskContext.currentExecutor
+        if let executor = closure.executorPreference {
+            evaluationTaskContext.currentExecutor = executor
+        }
+        defer { evaluationTaskContext.currentExecutor = previousExecutor }
         var insertedFrame: ExtensionFrame?
         if let frame = closure.extensionFrame, activeExtensionFrames.insert(frame).inserted {
             insertedFrame = frame

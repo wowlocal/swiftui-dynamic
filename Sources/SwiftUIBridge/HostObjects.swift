@@ -1153,7 +1153,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if let marker = value as? HostTypeMarker, marker.name == "Thread" {
         switch name {
-        case "isMainThread": return .native(true) // single-threaded interpreter
+        case "isMainThread": return .native(Thread.isMainThread)
         case "current", "main": return .native(UIKitStub())
         default: break
         }

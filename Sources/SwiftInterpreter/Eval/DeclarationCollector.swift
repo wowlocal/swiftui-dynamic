@@ -1075,10 +1075,42 @@ extension Interpreter {
             returnTypeName: metadata.returnTypeName
         )
         closure.functionDeclID = node.id
-        closure.lexicalOwner = declLexicalOwners[node.id]
+        let lexicalOwner = declLexicalOwners[node.id]
+        closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
         closure.debugName = node.name.text
+        closure.executorPreference = functionExecutorPreference(
+            node, lexicalOwner: lexicalOwner)
         return closure
+    }
+
+    /// Runtime executor metadata for the function forms established by the
+    /// current parity board. `@concurrent` always selects the cooperative
+    /// default executor. A `nonisolated` declaration suppresses its lexical
+    /// owner's global actor; synchronous nonisolated calls then run inline on
+    /// their caller's executor. Other actor kinds remain explicit M5 work.
+    private func functionExecutorPreference(
+        _ node: FunctionDeclSyntax,
+        lexicalOwner: AnyObject?
+    ) -> RuntimeExecutorKind? {
+        let attributes = node.attributes.compactMap {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+                .split(separator: ".").last.map(String.init)
+        }
+        if attributes.contains("concurrent") {
+            return .cooperativeDefault
+        }
+        if node.modifiers.contains(where: { $0.name.text == "nonisolated" }) {
+            return nil
+        }
+        if attributes.contains("MainActor") {
+            return .mainActor
+        }
+        if let owner = lexicalOwner as? StructSymbol,
+           owner.attributeNames.contains("MainActor") {
+            return .mainActor
+        }
+        return nil
     }
 
     // MARK: - Helpers

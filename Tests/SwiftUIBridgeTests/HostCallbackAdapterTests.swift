@@ -83,4 +83,65 @@ struct HostCallbackAdapterTests {
         #expect(RenderDiagnostics.errors.first?.error.message.contains(
             "missingCallbackFunction") == true)
     }
+
+    @Test func callbackPreservesConcurrentAndMainActorExecutorHops() async throws {
+        RenderDiagnostics.reset()
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let action = try interpreter.run(source: """
+        @MainActor
+        final class CallbackExecutorState {
+            var lanes = "idle"
+
+            func start() {
+                Task.detached {
+                    await self.work()
+                }
+            }
+
+            @concurrent nonisolated
+            func work() async {
+                let entered = lane()
+                await Task.yield()
+                let resumed = lane()
+                await self.finish(entered + ":" + resumed)
+            }
+
+            nonisolated func lane() -> String {
+                Thread.isMainThread ? "main" : "worker"
+            }
+
+            func finish(_ workerLanes: String) {
+                lanes = workerLanes + ":" + lane()
+            }
+        }
+
+        let callbackExecutorState = CallbackExecutorState()
+
+        func makeAction() -> () -> Void {
+            { callbackExecutorState.start() }
+        }
+
+        makeAction()
+        """)
+        let closure = try #require(action.closureValue)
+        guard case .instance(let state)? = interpreter.globals.lookup(
+            "callbackExecutorState") else {
+            Issue.record("callback executor state missing")
+            return
+        }
+        let callback = InterpretedHostCallback(
+            closure: closure,
+            context: interpreter,
+            diagnosticContext: "Button action")
+
+        callback.call()
+
+        for _ in 0..<1_000
+        where state.box(for: "lanes")?.value.stringValue == "idle" {
+            await Task.yield()
+        }
+        #expect(state.box(for: "lanes")?.value.stringValue
+            == "worker:worker:main")
+        #expect(RenderDiagnostics.errors.isEmpty)
+    }
 }

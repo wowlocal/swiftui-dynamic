@@ -32,7 +32,7 @@ major version 6.
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
 | M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; nonthrowing `withTaskGroup`, successful `withThrowingTaskGroup` child consumption, source-error and cancellation projection through throwing `next`, and throwing `waitForAll` success plus completion-ordered source-error/cancellation projection with full remaining-outcome draining, `addTask`, `addTaskUnlessCancelled`, explicit nonthrowing `waitForAll` with remaining-result draining, `cancelAll`, combined owner/`cancelAll` `isCancelled` state, completion-ordered `next` consumption, drained-group `nil`, cancellation inheritance for late ordinary children, cancelled-state initialization when a group is created by an already-cancelled owner, non-cancelling implicit wait on normal group scope exit, normal throwing-group exit that joins children while discarding unconsumed child errors, and streaming nonthrowing `for await` group iteration have runtime-owned group/scope support; missing `await` is diagnosed | Body-throwing task-group exceptional exit, throwing and early-exit group iteration, and remaining exceptional defer/cleanup combinations |
-| M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
+| M5 actors and executors | partial | Runtime tasks and task-owned evaluator contexts carry logical source-executor identity; `@concurrent nonisolated` methods hop to the cooperative default executor, `@MainActor` methods hop back, dynamic calls restore their caller executor, detached tasks start outside MainActor, and the SwiftUI `Thread.isMainThread` bridge projects this source identity instead of leaking the evaluator's physical hosting actor | Actor storage/IDs, executor queues and serialization, arbitrary actor/global-actor isolation, reentrancy, isolated parameters, closure isolation metadata, and physical worker execution |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host actions now enter a fresh runtime-owned `.hostCallback` task/session while preserving inline state mutation; `Button`, generated actions, gestures, bindings, synchronous event modifiers, Objective-C completions, and headless/live action drivers share the runtime entry; uncaught action errors are observable; a same-source Swift 6 differential fixture proves nested `Task.detached` plus `withTaskGroup` execution in 20 repetitions | Give async `.task`/`.task(id:)`/`.refreshable` work `.swiftUITask` identity, view-lifetime cancellation, and teardown cleanup; reconcile queued GCD delivery policy with runtime entry semantics |
@@ -46,6 +46,7 @@ major version 6.
 | `host-gateway-suspension` | exact | Awaiting the controlled async wrapper suspends until its explicit gate opens, so a ready MainActor controller records progress before the wrapper returns | Native/interpreter parity in 20 repetitions: `before,host-enter,controller,host-exit,value`; the interpreted caller is `.waiting/.awaitingHost(operationID)` at the forced barrier and the operation registry is empty after completion |
 | `host-callback-task-runtime` | exact | A synchronous MainActor callback exposes its inline mutation before returning, while an unstructured task it creates continues through Swift concurrency and may own structured group children | Native/interpreter parity in 20 repetitions: `started,done-3`; the interpreter fires the retained closure only after its initial evaluation has returned, enters `.hostCallback`, and finishes with empty task/group/scope registries |
 | `main-actor-task-partial-order` | partial order | A newly created MainActor task does not execute inline; `sync` precedes both task events | Expected native parity through async-session drain policy; relative child order is not asserted |
+| `concurrent-executor-hop` | exact | A `@concurrent nonisolated` async method leaves MainActor for entry and post-yield continuation, an awaited MainActor method runs on the main executor, and both direct and detached callers return to their prior executor afterward | Native/interpreter parity in 20 repetitions: `main\|worker:worker:main\|worker:worker:main\|main`; the interpreter models logical executor identity cooperatively and does not claim physical parallel execution |
 | `task-owned-evaluator-context` | predicate / event multiset | 100 sibling MainActor tasks preserve their own local index and lexical nested type across a forced yield; completion order is unspecified | Native parity in 20 native and 20 interpreter repetitions; each source task also has a distinct, explicitly cleaned evaluator context |
 | `task-context-cancellation` | exact invariant | A task cancelled only after entering a cancellable suspension completes as cancelled; an interleaved sibling resolves its extension-scoped nested type and returns `beta` | Native/interpreter parity in 20 repetitions; no start-order assumption because the cancellation uses an explicit started barrier |
 | `detached-host-context-reentry` | exact | `Task.detached` does not inherit a TaskLocal value; explicit capture/rebind preserves it inside an async callback | Native/interpreter parity in 20 repetitions; the interpreter host checks exact `EvaluationTaskContext` ID equality after detached re-entry |
@@ -2411,7 +2412,69 @@ suite passes across four process shards, the corpus remains 678/680, live data
 is 5/5, and API parity is 345 match / 0 diverge / 0 interpreter errors / 17
 unstable / 0 no-twin across 362 probes.
 
-This does not claim physical worker-pool parity: the evaluator remains
-main-actor isolated, so the interpreted demo may still label lanes `Main
-thread`. It also does not complete M8; async `.task` lifetime, identity changes,
-view removal cancellation, and `.refreshable` remain separate work.
+This does not complete M8; async `.task` lifetime, identity changes, view
+removal cancellation, and `.refreshable` remain separate work. Source executor
+identity and the TaskObservatory lane projection are covered by the M5 step
+below; physical worker-pool execution remains intentionally deferred to M9.
+
+## M5 incremental verification record
+
+### Logical executor identity and `@concurrent` hops
+
+The remaining TaskObservatory mismatch was executor identity, not the already
+repaired callback entry or structured-task lifecycle. The interpreter executes
+its mutable evaluator physically on native MainActor, so forwarding
+`Thread.isMainThread` to the host thread made every interpreted worker report
+`Main thread` even when Swift runs the corresponding `@concurrent nonisolated`
+method on its cooperative global executor.
+
+`concurrent-executor-hop.swift` isolates that rule. A MainActor-isolated caller
+records its lane, directly awaits a `@concurrent nonisolated` method, repeats
+the call through `Task.detached`, and records its lane again. The concurrent
+method records entry and post-`Task.yield` lanes and awaits a MainActor method
+between them. Twenty bounded Apple Swift 6.3.3 strict-concurrency runs produced
+`main|worker:worker:main|worker:worker:main|main` exactly. The same-source
+interpreter case was RED in all 20 repetitions as
+`main|main:main:main|main:main:main|main`.
+
+Runtime task records now own an initial logical executor preference, and each
+task-owned `EvaluationTaskContext` owns its mutable current executor. Task
+creation either inherits that identity or selects detached identity. Function
+declarations retain the executor metadata already present in their syntax:
+`@concurrent` selects the cooperative default executor, direct or lexical
+`@MainActor` isolation selects MainActor, and synchronous `nonisolated` helpers
+inherit their caller. Both synchronous and suspending invocation install the
+callee preference for its dynamic extent and restore the caller preference on
+every exit.
+
+The SwiftUI `Thread.isMainThread` bridge projects the current source executor
+instead of the physical thread hosting the evaluator. This is a deliberate
+abstraction boundary: exposing the native hosting MainActor would make source
+semantics depend on an implementation detail and would prevent the later
+cooperative executor from being testable. A focused real-host-callback
+regression observes `worker:worker:main` across
+`Task.detached -> @concurrent -> @MainActor`.
+
+A read-only diagnostic against the unchanged `Examples/TaskObservatory` source
+reached `Completed,Cancelled,Completed`; all Atlas, Beacon, and Comet work was
+reported as `Worker pool`, while Root, cancellation-handler dispatch, and
+shared-result waiters were reported as `Main thread`. Independent ready-task
+order is deliberately not compared to one native trace; causal dependencies,
+terminal results, and executor lanes are compared.
+
+The exact differential case is GREEN in all 20 repetitions. This step does not
+yet implement actor mailboxes, executor serialization, arbitrary global
+actors, isolated parameters, closure isolation annotations, or physical
+parallel execution. Those remain explicit M5/M9 work rather than being
+inferred from logical lane parity.
+
+The combined targeted run passes 81/81 tests across `AsyncExecutionTests`
+(57), `HostSignatureTests` (12), `ConcurrencyParityTests` (8),
+`HostCallbackAdapterTests` (3), and the preserved user-owned
+`TaskObservatoryTests` (1), with 69 runtime fixtures. The full shared-worktree
+gate passes 797 tests in 151 suites; one test and suite come from that untracked
+TaskObservatory integration test, so the tracked repository accounts for 796
+tests in 150 suites. `Scripts/gate.sh` is green in 727 seconds with the same
+797-test suite, the unchanged 678/680 project-corpus ratchet, 5/5 live-data
+scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
+unstable / 0 no-twin across 362 probes.

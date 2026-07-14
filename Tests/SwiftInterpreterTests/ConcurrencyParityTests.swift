@@ -237,6 +237,13 @@ private enum ConcurrencyParityHarness {
             }
         )))
         interpreter.globals.define(
+            "parityCurrentExecutorLane",
+            .hostFunction(HostFunction(
+                name: "parityCurrentExecutorLane"
+            ) { _, context in
+                .native(context.sourceExecutor.isMainActor ? "main" : "worker")
+            }))
+        interpreter.globals.define(
             "parityRecordHostGatewayEvent",
             .hostFunction(HostFunction(
                 name: "parityRecordHostGatewayEvent"

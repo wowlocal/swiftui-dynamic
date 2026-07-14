@@ -15,6 +15,14 @@ extension Interpreter {
             default: break
             }
         }
+        if let marker = value as? HostTypeMarker,
+           marker.name == "Thread", name == "isMainThread" {
+            // The native MainActor is an implementation host for today's
+            // cooperative evaluator, not the source program's executor.
+            // Project the logical lane so @concurrent/MainActor hops remain
+            // observable without pretending the mutable heap is parallel-safe.
+            return .native(evaluationTaskContext.currentExecutor.isMainActor)
+        }
         if let property = registry?.hostProperty(named: name, on: value) {
             return try property.read(from: .native(value), in: self)
         }

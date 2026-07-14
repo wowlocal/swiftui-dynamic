@@ -22,6 +22,7 @@ extension Interpreter {
         let root = concurrencyRuntime.createTask(
             sessionID: sessionID, kind: .root, parent: nil,
             priority: RuntimeTaskPriority(Task.currentPriority),
+            executorPreference: .mainActor,
             taskLocals: taskLocals)
         _ = concurrencyRuntime.begin(root)
         let context = makeEvaluationTaskContext(
@@ -29,6 +30,7 @@ extension Interpreter {
             runtimeSessionID: sessionID,
             isAsyncSession: true,
             priority: root.effectivePriority,
+            executor: root.executorPreference,
             taskLocals: taskLocals)
         concurrencyRuntime.bind(context, to: root)
         defer { concurrencyRuntime.release(root.id) }

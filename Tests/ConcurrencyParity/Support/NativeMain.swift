@@ -1,3 +1,9 @@
+import Foundation
+
+nonisolated func parityCurrentExecutorLane() -> String {
+    Thread.isMainThread ? "main" : "worker"
+}
+
 @MainActor
 func parityYield(_ value: String) async -> String {
     await Task.yield()
