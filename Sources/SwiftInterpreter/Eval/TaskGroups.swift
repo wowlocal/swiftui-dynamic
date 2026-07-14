@@ -96,7 +96,20 @@ extension Interpreter {
                     }
                     let outcomes = try await waitForSourceTaskGroup(group)
                     try throwNonthrowingGroupFailure(outcomes)
+                    group.markExplicitWaitForAll()
                     return .void
+                }))
+
+        case "next":
+            return .hostFunction(HostFunction(
+                name: name,
+                tracksHostOperation: false,
+                asyncInvoke: { [weak self, weak group] _, _ in
+                    guard let self, let group else {
+                        throw RuntimeError(message:
+                            "task group was released before next")
+                    }
+                    return try await nextSourceTaskGroupValue(group)
                 }))
 
         case "cancelAll":
@@ -132,6 +145,36 @@ extension Interpreter {
 
         return await waitForSourceTaskGroupChildren(
             group, ownerTaskID: ownerTaskID)
+    }
+
+    private func nextSourceTaskGroupValue(
+        _ group: RuntimeTaskGroup
+    ) async throws -> RuntimeValue {
+        let ownerTaskID = evaluationTaskContext.runtimeTaskID
+        try group.requireActive(ownerTaskID: ownerTaskID)
+        guard !group.hasExplicitWaitForAll else {
+            throw RuntimeError(message:
+                "TaskGroup.next after waitForAll is not supported yet")
+        }
+        guard let ownerTaskID else {
+            throw RuntimeError(message:
+                "task-group next requires a runtime task")
+        }
+        guard let outcome = await concurrencyRuntime.nextTaskGroupOutcome(
+            ownerTaskID, on: group.record) else {
+            return .none()
+        }
+
+        switch outcome {
+        case .success(let value, let type):
+            return .some(value, wrappedTypeName: type)
+        case .failure(let value, _):
+            throw RuntimeError(message:
+                "nonthrowing task-group child failed: \(value.stringified)")
+        case .cancelled:
+            throw RuntimeError(message:
+                "nonthrowing task-group child was cancelled without a value")
+        }
     }
 
     private func waitForSourceTaskGroupChildren(

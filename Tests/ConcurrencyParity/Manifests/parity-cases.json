@@ -599,6 +599,18 @@
     "notes": "The child has entered a 30-second cancellable suspension before cancel-all. Exact output is child-start,cancel-all,child-cancelled,child-finished,group-finished,after-scope in 20 Swift 6.3.3 runs, separating the cancellation request from completion and join."
   },
   {
+    "id": "task-group-next-completion-order",
+    "fixture": "Fixtures/task-group-next-completion-order.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupNextCompletionOrderProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "TaskGroup.next returns child results in completion order rather than task insertion order, consumes each result once, and returns nil after the group is drained.",
+    "notes": "The first-added child is held in a confirmed cancellable suspension before the second child is added. Exact output is fast:slow:empty in 20 Swift 6.3.3 runs; the first next consumes the later-added fast result, cancelAll releases slow for the second next, and a third next observes no remaining result."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

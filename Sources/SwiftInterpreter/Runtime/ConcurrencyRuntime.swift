@@ -256,6 +256,7 @@ final class RuntimeTaskRecord {
     var spawnedTasks: Set<RuntimeTaskID> = []
     var structuredChildren: Set<RuntimeTaskID> = []
     var structuredScopes: Set<RuntimeStructuredScopeID> = []
+    var taskGroupID: RuntimeTaskGroupID?
     var nativeTask: Task<Void, Never>?
     var evaluationContext: EvaluationTaskContext?
 
@@ -310,6 +311,34 @@ final class RuntimeTaskGroupRecord {
     let ownerTaskID: RuntimeTaskID
     let structuredScope: RuntimeStructuredScopeRecord
     var childTaskIDs: [RuntimeTaskID] = []
+    var completedChildTaskIDs: [RuntimeTaskID] = []
+    private var completedChildTaskIDSet: Set<RuntimeTaskID> = []
+    var consumedChildTaskIDs: Set<RuntimeTaskID> = []
+    private var nextCompletedChildIndex = 0
+    fileprivate var nextWaiter: CheckedContinuation<RuntimeTaskID, Never>?
+
+    var pendingCompletedChildCount: Int {
+        completedChildTaskIDs.count - nextCompletedChildIndex
+    }
+
+    func publishCompletion(_ childID: RuntimeTaskID) {
+        precondition(
+            completedChildTaskIDSet.insert(childID).inserted,
+            "task-group child \(childID) completed more than once")
+        completedChildTaskIDs.append(childID)
+    }
+
+    func takeCompletion() -> RuntimeTaskID? {
+        guard nextCompletedChildIndex < completedChildTaskIDs.count else {
+            return nil
+        }
+        let childID = completedChildTaskIDs[nextCompletedChildIndex]
+        nextCompletedChildIndex += 1
+        precondition(
+            consumedChildTaskIDs.insert(childID).inserted,
+            "task-group child \(childID) was consumed more than once")
+        return childID
+    }
 
     init(
         id: RuntimeTaskGroupID,
@@ -427,14 +456,59 @@ final class CooperativeConcurrencyRuntime {
         _ childID: RuntimeTaskID,
         to group: RuntimeTaskGroupRecord
     ) {
-        guard taskGroups[group.id] === group else {
+        guard taskGroups[group.id] === group,
+              let child = records[childID] else {
             preconditionFailure("cannot add a child to inactive \(group.id)")
         }
-        addStructuredChild(childID, to: group.structuredScope)
         precondition(
-            !group.childTaskIDs.contains(childID),
+            !group.structuredScope.childTaskIDs.contains(childID),
             "duplicate child \(childID) in \(group.id)")
+        precondition(
+            child.taskGroupID == nil,
+            "task \(childID) already belongs to a task group")
+        addStructuredChild(childID, to: group.structuredScope)
+        child.taskGroupID = group.id
         group.childTaskIDs.append(childID)
+        if child.state.isCompleted {
+            publishTaskGroupCompletion(child)
+        }
+    }
+
+    func nextTaskGroupOutcome(
+        _ waiterID: RuntimeTaskID,
+        on group: RuntimeTaskGroupRecord
+    ) async -> RuntimeTaskOutcome? {
+        guard taskGroups[group.id] === group,
+              group.ownerTaskID == waiterID else {
+            preconditionFailure(
+                "task \(waiterID) cannot consume inactive \(group.id)")
+        }
+        if let outcome = takeCompletedTaskGroupOutcome(from: group) {
+            return outcome
+        }
+        if group.consumedChildTaskIDs.count == group.childTaskIDs.count {
+            return nil
+        }
+
+        let suspension = beginWaitingForTaskGroup(waiterID, on: group)
+        precondition(
+            suspension != nil,
+            "task group has an undelivered result but no active child")
+        defer {
+            endWaitingForTaskGroup(
+                waiterID, on: group, from: suspension)
+        }
+        let childID = await withCheckedContinuation { continuation in
+            precondition(
+                group.nextWaiter == nil,
+                "task group cannot have multiple next waiters")
+            group.nextWaiter = continuation
+        }
+        guard let outcome = records[childID]?.outcome else {
+            preconditionFailure(
+                "completed task-group child \(childID) has no outcome")
+        }
+        return outcome
     }
 
     func beginWaitingForTaskGroup(
@@ -483,6 +557,12 @@ final class CooperativeConcurrencyRuntime {
                 records[$0]?.state.isCompleted == true
             },
             "cannot close \(group.id) while a child is active")
+        precondition(
+            group.nextWaiter == nil,
+            "cannot close \(group.id) with an active next waiter")
+        precondition(
+            group.completedChildTaskIDs.count == group.childTaskIDs.count,
+            "cannot close \(group.id) before every outcome is published")
         closeStructuredScope(group.structuredScope)
         taskGroups.removeValue(forKey: group.id)
     }
@@ -556,6 +636,7 @@ final class CooperativeConcurrencyRuntime {
         record.state = .succeeded
         record.suspension = nil
         record.evaluationContext = nil
+        publishTaskGroupCompletion(record)
     }
 
     func fail(_ record: RuntimeTaskRecord, with error: Error) {
@@ -573,6 +654,7 @@ final class CooperativeConcurrencyRuntime {
         record.state = .failed
         record.suspension = nil
         record.evaluationContext = nil
+        publishTaskGroupCompletion(record)
     }
 
     func requestCancellation(
@@ -639,6 +721,7 @@ final class CooperativeConcurrencyRuntime {
         record.state = .cancelled
         record.suspension = nil
         record.evaluationContext = nil
+        publishTaskGroupCompletion(record)
     }
 
     func observeCancellation(
@@ -745,6 +828,33 @@ final class CooperativeConcurrencyRuntime {
         for registration in record.cancellationHandlers.reversed() {
             invokeCancellationHandler(registration, on: record)
         }
+    }
+
+    private func publishTaskGroupCompletion(_ child: RuntimeTaskRecord) {
+        guard let groupID = child.taskGroupID,
+              let group = taskGroups[groupID] else { return }
+        precondition(
+            group.structuredScope.childTaskIDs.contains(child.id),
+            "completed child \(child.id) is absent from \(group.id)")
+        group.publishCompletion(child.id)
+        guard let waiter = group.nextWaiter else { return }
+        group.nextWaiter = nil
+        guard let childID = group.takeCompletion() else {
+            preconditionFailure(
+                "task-group waiter resumed without a completed child")
+        }
+        waiter.resume(returning: childID)
+    }
+
+    private func takeCompletedTaskGroupOutcome(
+        from group: RuntimeTaskGroupRecord
+    ) -> RuntimeTaskOutcome? {
+        guard let childID = group.takeCompletion() else { return nil }
+        guard let outcome = records[childID]?.outcome else {
+            preconditionFailure(
+                "completed task-group child \(childID) has no outcome")
+        }
+        return outcome
     }
 
     private func invokeCancellationHandler(

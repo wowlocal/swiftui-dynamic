@@ -1168,6 +1168,116 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func taskGroupNextUsesCompletionQueueAndGroupSuspension() async throws {
+        let interpreter = Interpreter()
+        var observedParentSuspension: RuntimeSuspension?
+        var observedGroupID: RuntimeTaskGroupID?
+        var observedConsumedResult = false
+        interpreter.globals.define(
+            "inspectTaskGroupNextChild",
+            .hostFunction(HostFunction(
+                name: "inspectTaskGroupNextChild",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let parentID = child.parent,
+                          let parent = interpreter.concurrencyRuntime
+                            .records[parentID],
+                          let group = interpreter.concurrencyRuntime
+                            .taskGroups.values.first(where: {
+                                $0.childTaskIDs.contains(childID)
+                            }) else {
+                        throw RuntimeError(message:
+                            "task-group next child lost runtime ownership")
+                    }
+
+                    for _ in 0..<1_000 {
+                        if case .waitingForGroup(let groupID)? =
+                            parent.suspension,
+                           groupID == group.id {
+                            observedParentSuspension = parent.suspension
+                            observedGroupID = group.id
+                            return .native("value")
+                        }
+                        await Task.yield()
+                    }
+                    throw RuntimeError(message:
+                        "task-group next owner did not suspend")
+                })))
+        interpreter.globals.define(
+            "inspectTaskGroupNextConsumption",
+            .hostFunction(HostFunction(
+                name: "inspectTaskGroupNextConsumption"
+            ) { _, _ in
+                guard let observedGroupID,
+                      let group = interpreter.concurrencyRuntime
+                        .taskGroups[observedGroupID] else {
+                    throw RuntimeError(message:
+                        "task-group next owner lost its active group")
+                }
+                observedConsumedResult = group.pendingCompletedChildCount == 0
+                    && group.consumedChildTaskIDs.count == 1
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        func inspectedTaskGroupNextChild() async -> String {
+            await inspectTaskGroupNextChild()
+        }
+        func inspectedTaskGroupNextOwner() async -> String {
+            await withTaskGroup(of: String.self) { group in
+                group.addTask {
+                    await inspectedTaskGroupNextChild()
+                }
+                let value = await group.next() ?? "missing"
+                inspectTaskGroupNextConsumption()
+                return value
+            }
+        }
+        await inspectedTaskGroupNextOwner()
+        """)
+
+        #expect(result.stringValue == "value")
+        if case .waitingForGroup = observedParentSuspension {
+            // `next()` waits on the logical structured group.
+        } else {
+            Issue.record("task-group next did not record group suspension")
+        }
+        #expect(observedConsumedResult)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func taskGroupNextAfterWaitForAllIsExplicitlyUnsupported() async {
+        let interpreter = Interpreter()
+        do {
+            _ = try await interpreter.runAsync(source: """
+            await withTaskGroup(of: String.self) { group in
+                group.addTask {
+                    return "value"
+                }
+                await group.waitForAll()
+                return await group.next() ?? "empty"
+            }
+            """)
+            Issue.record("next after waitForAll unexpectedly succeeded")
+        } catch let failure as RuntimeError {
+            #expect(failure.message.contains(
+                "TaskGroup.next after waitForAll is not supported yet"))
+        } catch {
+            Issue.record("unexpected next-after-wait diagnostic: \(error)")
+        }
+
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func cancelledEvaluationThrowsCancellationError() async {
         let interpreter = Interpreter()
         let evaluation = Task { @MainActor in
