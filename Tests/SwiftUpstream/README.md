@@ -29,10 +29,13 @@ a test reaches it only after native Swift 6 compilation and deterministic
 interpreter review. The inventory makes unsupported cases visible without
 pretending that an unexecuted upstream test passes.
 
-The current concurrency allowlist contains five unchanged runtime fixtures.
+The current concurrency allowlist contains six unchanged runtime fixtures.
 `async_taskgroup_is_empty.swift` is the first fixture whose admission is backed
 by dispatch generated from the active SDK's `_Concurrency.swiftinterface`; it
 also exercises the SDK's deprecated `TaskGroup.async` compatibility spelling.
+`async_taskgroup_addUnlessCancelled.swift` adds the first direct discarding-group
+oracle and checks its already-cancelled conditional-add behavior against the
+ordinary task-group contract.
 
 The corpus is checked in so normal test runs do not need network access. To
 refresh it reproducibly, run:

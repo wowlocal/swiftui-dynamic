@@ -1,11 +1,15 @@
-enum RuntimeTaskGroupKind: Sendable {
+enum RuntimeTaskGroupKind: CaseIterable, Equatable, Sendable {
     case nonthrowing
     case throwing
+    case discarding
+    case throwingDiscarding
 
     var sourceFunctionName: String {
         switch self {
         case .nonthrowing: "withTaskGroup"
         case .throwing: "withThrowingTaskGroup"
+        case .discarding: "withDiscardingTaskGroup"
+        case .throwingDiscarding: "withThrowingDiscardingTaskGroup"
         }
     }
 
@@ -13,8 +17,26 @@ enum RuntimeTaskGroupKind: Sendable {
         switch self {
         case .nonthrowing: "TaskGroup"
         case .throwing: "ThrowingTaskGroup"
+        case .discarding: "DiscardingTaskGroup"
+        case .throwingDiscarding: "ThrowingDiscardingTaskGroup"
         }
     }
+
+    var isThrowing: Bool {
+        switch self {
+        case .nonthrowing, .discarding: false
+        case .throwing, .throwingDiscarding: true
+        }
+    }
+
+    var discardsResults: Bool {
+        switch self {
+        case .nonthrowing, .throwing: false
+        case .discarding, .throwingDiscarding: true
+        }
+    }
+
+    var requiresChildResultType: Bool { !discardsResults }
 }
 
 /// Source-facing capability for one active task-group scope.
@@ -38,6 +60,9 @@ final class RuntimeTaskGroup {
     var hasOwnerCancellationRequest: Bool {
         record.hasOwnerCancellationRequest
     }
+    var hasChildFailureCancellationRequest: Bool {
+        record.hasChildFailureCancellationRequest
+    }
     var isCancellationRequested: Bool {
         record.isCancellationRequested
     }
@@ -49,6 +74,9 @@ final class RuntimeTaskGroup {
         }
         if hasCancelAllRequest {
             sources.append(.taskGroupCancelAll)
+        }
+        if hasChildFailureCancellationRequest {
+            sources.append(.taskGroupChildFailure)
         }
         return sources
     }

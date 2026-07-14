@@ -8,6 +8,7 @@ private enum GenerationError: Error, CustomStringConvertible {
     case interfaceNotFound(String)
     case unreadableInterface(String)
     case missingIntrinsics([String])
+    case missingFunctions([String])
     case missingGeneratedOutput(String)
     case staleGeneratedOutput(String)
 
@@ -24,6 +25,9 @@ private enum GenerationError: Error, CustomStringConvertible {
         case .missingIntrinsics(let names):
             "active _Concurrency.swiftinterface is missing required task-group "
                 + "members: \(names.joined(separator: ", "))"
+        case .missingFunctions(let names):
+            "active _Concurrency.swiftinterface is missing required task-group "
+                + "functions: \(names.joined(separator: ", "))"
         case .missingGeneratedOutput(let path):
             "generated output is missing at \(path)"
         case .staleGeneratedOutput(let path):
@@ -38,10 +42,29 @@ private let outputFlag = "--output"
 private let interfaceFlag = "--interface"
 private let defaultOutput =
     "Sources/SwiftInterpreter/Generated/GeneratedConcurrencySurface.swift"
-private let taskGroupTypes: Set<String> = ["TaskGroup", "ThrowingTaskGroup"]
+private let taskGroupTypes = [
+    "DiscardingTaskGroup", "TaskGroup", "ThrowingDiscardingTaskGroup",
+    "ThrowingTaskGroup",
+]
 private let supportedIntrinsics: Set<String> = [
     "addTask", "addTaskUnlessCancelled", "waitForAll", "next",
     "cancelAll", "isCancelled", "isEmpty",
+]
+private let requiredIntrinsicsByType: [String: Set<String>] = [
+    "DiscardingTaskGroup": [
+        "addTask", "addTaskUnlessCancelled", "cancelAll", "isCancelled",
+        "isEmpty",
+    ],
+    "TaskGroup": supportedIntrinsics,
+    "ThrowingDiscardingTaskGroup": [
+        "addTask", "addTaskUnlessCancelled", "cancelAll", "isCancelled",
+        "isEmpty",
+    ],
+    "ThrowingTaskGroup": supportedIntrinsics,
+]
+private let requiredTaskGroupFunctions: Set<String> = [
+    "withDiscardingTaskGroup", "withTaskGroup",
+    "withThrowingDiscardingTaskGroup", "withThrowingTaskGroup",
 ]
 
 private func argument(after flag: String) throws -> String? {
@@ -163,42 +186,85 @@ private func generatedSource(
     interfaceSource: String
 ) throws -> String {
     let syntax = Parser.parse(source: interfaceSource)
-    var knownNames: Set<String> = []
-    var dispatch: [String: String] = [:]
+    let taskGroupTypeSet = Set(taskGroupTypes)
+    var knownNames = Dictionary(uniqueKeysWithValues:
+        taskGroupTypes.map { ($0, Set<String>()) })
+    var dispatch = Dictionary(uniqueKeysWithValues:
+        taskGroupTypes.map { ($0, [String: String]()) })
+    var knownFunctions: Set<String> = []
 
     for statement in syntax.statements {
         guard case .decl(let declaration) = statement.item else { continue }
+        if let function = declaration.as(FunctionDeclSyntax.self),
+           isPublic(function.modifiers) {
+            knownFunctions.insert(function.name.text)
+            continue
+        }
+        let typeName: String?
+        let members: MemberBlockItemListSyntax?
         if let structure = declaration.as(StructDeclSyntax.self),
-           taskGroupTypes.contains(structure.name.text) {
-            inspect(
-                structure.memberBlock.members,
-                knownNames: &knownNames,
-                dispatch: &dispatch)
+           taskGroupTypeSet.contains(structure.name.text) {
+            typeName = structure.name.text
+            members = structure.memberBlock.members
         } else if let extensionDeclaration = declaration.as(
             ExtensionDeclSyntax.self
-        ), taskGroupTypes.contains(normalizedTypeName(
-            extensionDeclaration.extendedType.trimmedDescription
-        )) {
-            inspect(
-                extensionDeclaration.memberBlock.members,
-                knownNames: &knownNames,
-                dispatch: &dispatch)
+        ) {
+            let extendedType = normalizedTypeName(
+                extensionDeclaration.extendedType.trimmedDescription)
+            typeName = taskGroupTypeSet.contains(extendedType)
+                ? extendedType : nil
+            members = typeName == nil
+                ? nil : extensionDeclaration.memberBlock.members
+        } else {
+            typeName = nil
+            members = nil
         }
+        guard let typeName, let members else { continue }
+        var typeKnownNames = knownNames[typeName, default: []]
+        var typeDispatch = dispatch[typeName, default: [:]]
+        inspect(
+            members,
+            knownNames: &typeKnownNames,
+            dispatch: &typeDispatch)
+        knownNames[typeName] = typeKnownNames
+        dispatch[typeName] = typeDispatch
     }
 
-    let missing = supportedIntrinsics.subtracting(dispatch.values).sorted()
-    guard missing.isEmpty else {
-        throw GenerationError.missingIntrinsics(missing)
+    var missingMembers: [String] = []
+    for typeName in taskGroupTypes {
+        let implemented = Set(dispatch[typeName, default: [:]].values)
+        let required = requiredIntrinsicsByType[typeName, default: []]
+        missingMembers.append(contentsOf: required.subtracting(implemented)
+            .sorted().map { "\(typeName).\($0)" })
     }
+    guard missingMembers.isEmpty else {
+        throw GenerationError.missingIntrinsics(missingMembers)
+    }
+    let missingFunctions = requiredTaskGroupFunctions
+        .subtracting(knownFunctions).sorted()
+    guard missingFunctions.isEmpty else {
+        throw GenerationError.missingFunctions(missingFunctions)
+    }
+
+    let dispatchBlocks = taskGroupTypes.map { typeName in
+        let entries = dispatch[typeName, default: [:]]
+        let lines = entries.keys.sorted().map { sourceName in
+            "            \"\(escaped(sourceName))\": .\(entries[sourceName]!),"
+        }.joined(separator: "\n")
+        return "        \"\(typeName)\": [\n\(lines)\n        ],"
+    }.joined(separator: "\n")
+    let knownBlocks = taskGroupTypes.map { typeName in
+        let lines = knownNames[typeName, default: []].sorted().map {
+            "            \"\(escaped($0))\","
+        }.joined(separator: "\n")
+        return "        \"\(typeName)\": [\n\(lines)\n        ],"
+    }.joined(separator: "\n")
+    let functionLines = requiredTaskGroupFunctions.sorted().map {
+        "        \"\(escaped($0))\","
+    }.joined(separator: "\n")
     let compilerVersion = interfaceSource.split(separator: "\n").first {
         $0.hasPrefix("// swift-compiler-version:")
     }.map(String.init) ?? "// swift-compiler-version: unknown"
-    let dispatchLines = dispatch.keys.sorted().map { sourceName in
-        "        \"\(escaped(sourceName))\": .\(dispatch[sourceName]!),"
-    }.joined(separator: "\n")
-    let knownLines = knownNames.sorted().map {
-        "        \"\(escaped($0))\","
-    }.joined(separator: "\n")
 
     return """
     // GENERATED by ConcurrencySurfaceGen from the active _Concurrency.swiftinterface.
@@ -217,13 +283,29 @@ private func generatedSource(
     }
 
     enum GeneratedConcurrencySurface {
-        static let taskGroupDispatch: [String: RuntimeTaskGroupIntrinsic] = [
-    \(dispatchLines)
+        static let taskGroupDispatch: [
+            String: [String: RuntimeTaskGroupIntrinsic]
+        ] = [
+    \(dispatchBlocks)
         ]
 
-        static let knownTaskGroupMembers: Set<String> = [
-    \(knownLines)
+        static let knownTaskGroupMembers: [String: Set<String>] = [
+    \(knownBlocks)
         ]
+
+        static let taskGroupFunctions: Set<String> = [
+    \(functionLines)
+        ]
+
+        static func intrinsic(
+            typeName: String, memberName: String
+        ) -> RuntimeTaskGroupIntrinsic? {
+            taskGroupDispatch[typeName]?[memberName]
+        }
+
+        static func knowsMember(typeName: String, memberName: String) -> Bool {
+            knownTaskGroupMembers[typeName]?.contains(memberName) == true
+        }
     }
     """ + "\n"
 }

@@ -188,6 +188,7 @@ public enum RuntimeCancellationSource: Hashable, Sendable {
     case structuredParent
     case structuredScopeExit
     case taskGroupCancelAll
+    case taskGroupChildFailure
 }
 
 public struct RuntimeCancellationState: Sendable {
@@ -331,6 +332,9 @@ final class RuntimeTaskGroupRecord {
     let structuredScope: RuntimeStructuredScopeRecord
     var hasCancelAllRequest = false
     var hasOwnerCancellationRequest = false
+    var hasChildFailureCancellationRequest = false
+    var hasDiscardingBodyFailureExit = false
+    var firstDiscardingFailure: RuntimeTaskOutcome?
     var childTaskIDs: [RuntimeTaskID] = []
     var completedChildTaskIDs: [RuntimeTaskID] = []
     private var completedChildTaskIDSet: Set<RuntimeTaskID> = []
@@ -344,6 +348,7 @@ final class RuntimeTaskGroupRecord {
 
     var isCancellationRequested: Bool {
         hasCancelAllRequest || hasOwnerCancellationRequest
+            || hasChildFailureCancellationRequest
     }
 
     /// Swift keeps a completed child in the group until its outcome is
@@ -928,6 +933,46 @@ final class CooperativeConcurrencyRuntime {
             group.structuredScope.childTaskIDs.contains(child.id),
             "completed child \(child.id) is absent from \(group.id)")
         group.publishCompletion(child.id)
+        if group.kind.discardsResults {
+            precondition(
+                group.nextWaiter == nil,
+                "discarding task group cannot have a result waiter")
+            guard let consumedID = group.takeCompletion(),
+                  consumedID == child.id,
+                  let outcome = child.outcome else {
+                preconditionFailure(
+                    "discarding task-group completion was not consumable")
+            }
+
+            let isFailure: Bool
+            switch outcome {
+            case .success:
+                isFailure = false
+            case .failure, .cancelled:
+                isFailure = true
+            }
+            if isFailure,
+               !group.hasDiscardingBodyFailureExit,
+               group.firstDiscardingFailure == nil {
+                group.firstDiscardingFailure = outcome
+                if group.kind.isThrowing {
+                    group.hasChildFailureCancellationRequest = true
+                    for siblingID in group.childTaskIDs
+                    where siblingID != child.id {
+                        guard let sibling = records[siblingID],
+                              !sibling.state.isCompleted else { continue }
+                        requestCancellation(
+                            sibling, source: .taskGroupChildFailure)
+                    }
+                }
+            }
+
+            // A discarding group keeps only the first error required for
+            // projection. Successful values and later errors must not remain
+            // retained by their child records until the lexical scope exits.
+            child.outcome = nil
+            return
+        }
         guard let waiter = group.nextWaiter else { return }
         group.nextWaiter = nil
         guard let childID = group.takeCompletion() else {

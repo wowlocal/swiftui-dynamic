@@ -1,6 +1,6 @@
 import Foundation
 
-private enum SourceTaskGroupOutcomeConsumer {
+private enum SourceTaskGroupOutcomeConsumer: Equatable {
     case scopeExit
     case waitForAll
 }
@@ -32,7 +32,8 @@ extension Interpreter {
             throw RuntimeError(message:
                 "\(name) requires an async runtime task")
         }
-        guard arguments.labeled("of") != nil else {
+        guard !kind.requiresChildResultType
+                || arguments.labeled("of") != nil else {
             throw RuntimeError(message:
                 "\(name) needs a child result type")
         }
@@ -64,6 +65,9 @@ extension Interpreter {
             return result
         } catch {
             if !group.isClosed {
+                if kind.discardsResults {
+                    group.record.hasDiscardingBodyFailureExit = true
+                }
                 _ = await closeSourceTaskGroup(
                     group, cancelRemaining: true)
             }
@@ -75,10 +79,12 @@ extension Interpreter {
         _ name: String,
         on group: RuntimeTaskGroup
     ) throws -> RuntimeValue {
-        guard let intrinsic = GeneratedConcurrencySurface
-                .taskGroupDispatch[name] else {
-            let qualifier = GeneratedConcurrencySurface.knownTaskGroupMembers
-                .contains(name)
+        let typeName = group.kind.sourceTypeName
+        guard let intrinsic = GeneratedConcurrencySurface.intrinsic(
+            typeName: typeName, memberName: name
+        ) else {
+            let qualifier = GeneratedConcurrencySurface.knowsMember(
+                typeName: typeName, memberName: name)
                 ? " is declared by the active _Concurrency.swiftinterface but"
                 : ""
             throw RuntimeError(message:
@@ -130,6 +136,10 @@ extension Interpreter {
             })
 
         case .waitForAll:
+            guard !group.kind.discardsResults else {
+                throw RuntimeError(message:
+                    "\(group.kind.sourceTypeName).waitForAll is not public")
+            }
             return .hostFunction(HostFunction(
                 name: name,
                 tracksHostOperation: false,
@@ -146,6 +156,10 @@ extension Interpreter {
                 }))
 
         case .next:
+            guard !group.kind.discardsResults else {
+                throw RuntimeError(message:
+                    "\(group.kind.sourceTypeName).next is not public")
+            }
             return .hostFunction(HostFunction(
                 name: name,
                 tracksHostOperation: false,
@@ -224,20 +238,18 @@ extension Interpreter {
         case .success(let value, let type):
             return .some(value, wrappedTypeName: type)
         case .failure(let value, _):
-            switch group.kind {
-            case .nonthrowing:
+            if group.kind.isThrowing {
+                throw InterpretedThrow(value: value)
+            } else {
                 throw RuntimeError(message:
                     "nonthrowing task-group child failed: \(value.stringified)")
-            case .throwing:
-                throw InterpretedThrow(value: value)
             }
         case .cancelled:
-            switch group.kind {
-            case .nonthrowing:
+            if group.kind.isThrowing {
+                throw CancellationError()
+            } else {
                 throw RuntimeError(message:
                     "nonthrowing task-group child was cancelled without a value")
-            case .throwing:
-                throw CancellationError()
             }
         }
     }
@@ -317,12 +329,12 @@ extension Interpreter {
         in group: RuntimeTaskGroup,
         consumedBy consumer: SourceTaskGroupOutcomeConsumer
     ) throws {
-        let failures = outcomes.compactMap { outcome -> RuntimeValue? in
-            guard case .failure(let value, _) = outcome else { return nil }
-            return value
-        }
         switch group.kind {
         case .nonthrowing:
+            let failures = outcomes.compactMap { outcome -> RuntimeValue? in
+                guard case .failure(let value, _) = outcome else { return nil }
+                return value
+            }
             guard let failure = failures.first else { return }
             throw RuntimeError(message:
                 "nonthrowing task-group child failed: \(failure.stringified)")
@@ -352,6 +364,41 @@ extension Interpreter {
                     preconditionFailure(
                         "throwing wait selected a successful outcome as an error")
                 }
+            }
+
+        case .discarding:
+            guard let failure = group.record.firstDiscardingFailure else {
+                return
+            }
+            switch failure {
+            case .failure(let value, _):
+                throw RuntimeError(message:
+                    "nonthrowing discarding task-group child failed: "
+                        + value.stringified)
+            case .cancelled:
+                throw RuntimeError(message:
+                    "nonthrowing discarding task-group child was cancelled "
+                        + "without a value")
+            case .success:
+                preconditionFailure(
+                    "discarding group retained a successful outcome as failure")
+            }
+
+        case .throwingDiscarding:
+            precondition(
+                consumer == .scopeExit,
+                "throwing discarding group has no public waitForAll")
+            guard let failure = group.record.firstDiscardingFailure else {
+                return
+            }
+            switch failure {
+            case .failure(let value, _):
+                throw InterpretedThrow(value: value)
+            case .cancelled:
+                throw CancellationError()
+            case .success:
+                preconditionFailure(
+                    "throwing discarding group retained success as failure")
             }
         }
     }

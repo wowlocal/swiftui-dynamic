@@ -429,6 +429,7 @@ extension Interpreter: EvalContext {
 
         let pending = makePendingRuntimeTask(
             kind: .groupChild, explicitPriority: priority)
+        let discardsResult = group.kind.discardsResults
         for source in group.newChildCancellationSources {
             pending.handle.cancel(source: source)
         }
@@ -440,8 +441,9 @@ extension Interpreter: EvalContext {
                         throw RuntimeError(message:
                             "interpreter was released during task-group child")
                     }
-                    return try await self.callBackgroundClosureSuspending(
+                    let result = try await self.callBackgroundClosureSuspending(
                         operation, arguments: [])
+                    return discardsResult ? .void : result
                 })
             concurrencyRuntime.addGroupChild(
                 pending.handle.id, to: group.record)

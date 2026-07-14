@@ -2830,8 +2830,8 @@ The upstream harness now pins `swiftlang/swift` at
 Its reproducible sparse-checkout script inventories all 134 Swift sources in
 `test/Concurrency/Runtime`, assigns every file an explicit `direct`,
 `diagnostic`, `needs-adapter`, or `unsupported` reason, and copies only
-manifest-selected fixtures byte-for-byte. The current inventory is 5 direct,
-4 diagnostic, 118 needs-adapter, and 7 unsupported.
+manifest-selected fixtures byte-for-byte. The current inventory is 6 direct,
+4 diagnostic, 117 needs-adapter, and 7 unsupported.
 
 Native Swift compiles every selected concurrency fixture in Swift 6 strict
 concurrency mode. The interpreter receives the same source plus only a generic
@@ -2840,7 +2840,9 @@ and interpreted output; unsupported regex and variable syntax is rejected
 rather than weakened. The first direct tranche covers throwing `async let`,
 pre-start cancellation with a late async-let child, task-handle cancellation,
 task-group pending `next()`, and task-group `isEmpty` while a child is pending
-and after its completion has been consumed.
+and after its completion has been consumed. The next direct fixture covers
+`addTaskUnlessCancelled` for both ordinary and discarding groups whose owner is
+already cancelled.
 
 The previously selected interpreter tests remain exact-output cases. Normal
 test runs are fully offline; `Scripts/sync-swift-upstream-tests.sh` is the only
@@ -3026,3 +3028,32 @@ members discovered in the active interface remain explicit diagnostics rather
 than silent fallbacks. `swift run ConcurrencySurfaceGen --check` verifies that
 the checked-in artifact is current without rewriting it. Discarding task
 groups and their distinct semantics remain open M4 work.
+
+### M4 discarding task-group runtime kinds
+
+The unchanged swiftlang fixture
+`test/Concurrency/Runtime/async_taskgroup_addUnlessCancelled.swift` is the
+sixth direct concurrency case from the pinned release. Its two halves run the
+same already-cancelled owner scenario through `withTaskGroup` and
+`withDiscardingTaskGroup`; native Swift and the interpreter both report
+`Task added = false` twice, so the discarding group shares the combined owner
+cancellation state without allocating a child.
+
+Discarding groups are distinct runtime kinds rather than aliases for ordinary
+groups. They omit the child-result-type requirement, automatically consume a
+completion, clear its child-record outcome, and make `isEmpty` true once no
+unconsumed child remains. Throwing discarding groups retain only their first
+failed or cancelled outcome, mark the group cancelled, propagate a distinct
+`.taskGroupChildFailure` reason to siblings and later children, join all work,
+and then project that first error. A body error still owns exceptional exit:
+the group cancels and joins children before the original body error is rethrown.
+
+The generated interface artifact now inventories `TaskGroup`,
+`ThrowingTaskGroup`, `DiscardingTaskGroup`, and
+`ThrowingDiscardingTaskGroup` independently. This prevents result-consuming
+members such as `next` and `waitForAll` from leaking onto discarding groups
+while preserving their generated `addTask`, `addTaskUnlessCancelled`,
+`cancelAll`, `isCancelled`, and `isEmpty` dispatch. Focused state tests cover
+successful auto-consumption and throwing child-error projection with empty
+task, group, structured-scope, and scheduler registries after exit. Separate
+bounded fan-out and memory-plateau acceptance remains open.

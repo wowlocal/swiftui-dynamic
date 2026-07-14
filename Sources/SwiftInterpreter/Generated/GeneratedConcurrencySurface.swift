@@ -14,37 +14,123 @@ enum RuntimeTaskGroupIntrinsic: String, Sendable {
 }
 
 enum GeneratedConcurrencySurface {
-    static let taskGroupDispatch: [String: RuntimeTaskGroupIntrinsic] = [
-        "add": .addTaskUnlessCancelled,
-        "addTask": .addTask,
-        "addTaskUnlessCancelled": .addTaskUnlessCancelled,
-        "async": .addTask,
-        "asyncUnlessCancelled": .addTaskUnlessCancelled,
-        "cancelAll": .cancelAll,
-        "isCancelled": .isCancelled,
-        "isEmpty": .isEmpty,
-        "next": .next,
-        "spawn": .addTask,
-        "spawnUnlessCancelled": .addTaskUnlessCancelled,
-        "waitForAll": .waitForAll,
+    static let taskGroupDispatch: [
+        String: [String: RuntimeTaskGroupIntrinsic]
+    ] = [
+        "DiscardingTaskGroup": [
+            "addTask": .addTask,
+            "addTaskUnlessCancelled": .addTaskUnlessCancelled,
+            "cancelAll": .cancelAll,
+            "isCancelled": .isCancelled,
+            "isEmpty": .isEmpty,
+        ],
+        "TaskGroup": [
+            "add": .addTaskUnlessCancelled,
+            "addTask": .addTask,
+            "addTaskUnlessCancelled": .addTaskUnlessCancelled,
+            "async": .addTask,
+            "asyncUnlessCancelled": .addTaskUnlessCancelled,
+            "cancelAll": .cancelAll,
+            "isCancelled": .isCancelled,
+            "isEmpty": .isEmpty,
+            "next": .next,
+            "spawn": .addTask,
+            "spawnUnlessCancelled": .addTaskUnlessCancelled,
+            "waitForAll": .waitForAll,
+        ],
+        "ThrowingDiscardingTaskGroup": [
+            "addTask": .addTask,
+            "addTaskUnlessCancelled": .addTaskUnlessCancelled,
+            "cancelAll": .cancelAll,
+            "isCancelled": .isCancelled,
+            "isEmpty": .isEmpty,
+        ],
+        "ThrowingTaskGroup": [
+            "add": .addTaskUnlessCancelled,
+            "addTask": .addTask,
+            "addTaskUnlessCancelled": .addTaskUnlessCancelled,
+            "async": .addTask,
+            "asyncUnlessCancelled": .addTaskUnlessCancelled,
+            "cancelAll": .cancelAll,
+            "isCancelled": .isCancelled,
+            "isEmpty": .isEmpty,
+            "next": .next,
+            "spawn": .addTask,
+            "spawnUnlessCancelled": .addTaskUnlessCancelled,
+            "waitForAll": .waitForAll,
+        ],
     ]
 
-    static let knownTaskGroupMembers: Set<String> = [
-        "add",
-        "addImmediateTask",
-        "addImmediateTaskUnlessCancelled",
-        "addTask",
-        "addTaskUnlessCancelled",
-        "async",
-        "asyncUnlessCancelled",
-        "cancelAll",
-        "isCancelled",
-        "isEmpty",
-        "makeAsyncIterator",
-        "next",
-        "nextResult",
-        "spawn",
-        "spawnUnlessCancelled",
-        "waitForAll",
+    static let knownTaskGroupMembers: [String: Set<String>] = [
+        "DiscardingTaskGroup": [
+            "addImmediateTask",
+            "addImmediateTaskUnlessCancelled",
+            "addTask",
+            "addTaskUnlessCancelled",
+            "cancelAll",
+            "isCancelled",
+            "isEmpty",
+        ],
+        "TaskGroup": [
+            "add",
+            "addImmediateTask",
+            "addImmediateTaskUnlessCancelled",
+            "addTask",
+            "addTaskUnlessCancelled",
+            "async",
+            "asyncUnlessCancelled",
+            "cancelAll",
+            "isCancelled",
+            "isEmpty",
+            "makeAsyncIterator",
+            "next",
+            "spawn",
+            "spawnUnlessCancelled",
+            "waitForAll",
+        ],
+        "ThrowingDiscardingTaskGroup": [
+            "addImmediateTask",
+            "addImmediateTaskUnlessCancelled",
+            "addTask",
+            "addTaskUnlessCancelled",
+            "cancelAll",
+            "isCancelled",
+            "isEmpty",
+        ],
+        "ThrowingTaskGroup": [
+            "add",
+            "addImmediateTask",
+            "addImmediateTaskUnlessCancelled",
+            "addTask",
+            "addTaskUnlessCancelled",
+            "async",
+            "asyncUnlessCancelled",
+            "cancelAll",
+            "isCancelled",
+            "isEmpty",
+            "makeAsyncIterator",
+            "next",
+            "nextResult",
+            "spawn",
+            "spawnUnlessCancelled",
+            "waitForAll",
+        ],
     ]
+
+    static let taskGroupFunctions: Set<String> = [
+        "withDiscardingTaskGroup",
+        "withTaskGroup",
+        "withThrowingDiscardingTaskGroup",
+        "withThrowingTaskGroup",
+    ]
+
+    static func intrinsic(
+        typeName: String, memberName: String
+    ) -> RuntimeTaskGroupIntrinsic? {
+        taskGroupDispatch[typeName]?[memberName]
+    }
+
+    static func knowsMember(typeName: String, memberName: String) -> Bool {
+        knownTaskGroupMembers[typeName]?.contains(memberName) == true
+    }
 }
