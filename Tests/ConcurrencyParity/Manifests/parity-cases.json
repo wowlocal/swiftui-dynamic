@@ -1023,6 +1023,18 @@
     "notes": "The fixture diagnoses both properties with the same stable missing-await category. Compiler-backed interpreter preflight remains M7; M2's runtime dispatcher must still never return a placeholder."
   },
   {
+    "id": "task-cancellation-after-completion",
+    "fixture": "Fixtures/task-cancellation-after-completion.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 1,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskCancellationAfterCompletionProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Calling cancel() after a task has completed marks its handle cancelled without changing the stored successful value.",
+    "notes": "The first awaited value establishes terminal completion before cancel() in program order. Exact output is active,cancelled,value,value; no ready-task scheduler order is asserted."
+  },
+  {
     "id": "async-let-missing-await-diagnostic",
     "fixture": "Fixtures/async-let-missing-await-diagnostic.swift",
     "mode": "diagnostic",

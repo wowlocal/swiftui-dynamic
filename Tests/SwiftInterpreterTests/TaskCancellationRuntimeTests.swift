@@ -5,6 +5,58 @@ import Testing
 @Suite("Task cancellation runtime")
 struct TaskCancellationRuntimeTests {
     @Test
+    func cancellationAfterCompletionPreservesSuccessfulOutcome() async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("task-cancellation-after-completion.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait taskCancellationAfterCompletionProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "active,cancelled,value,value")
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    func terminalCancellationChangesOnlyCancellationState() throws {
+        let runtime = CooperativeConcurrencyRuntime()
+        let session = runtime.createSession()
+        let record = runtime.createTask(
+            sessionID: session,
+            kind: .unstructured,
+            parent: nil,
+            priority: .medium,
+            executorPreference: .cooperativeDefault,
+            taskLocals: RuntimeTaskLocalStorage())
+        let handle = RuntimeTaskHandle(runtime: runtime, record: record)
+        #expect(handle.begin())
+        handle.succeed(with: .native("value"))
+        runtime.release(handle.id)
+
+        handle.cancel()
+
+        #expect(handle.state == .succeeded)
+        #expect(handle.isCompleted)
+        #expect(handle.isCancelled)
+        #expect(handle.cancellation.sources == [.taskHandle])
+        #expect(handle.cancellation.requestSequence != nil)
+        #expect(!handle.cancellation.isObserved)
+        guard case .success(let value, let type)? = handle.outcome else {
+            Issue.record("late cancellation changed the successful outcome")
+            return
+        }
+        #expect(value.stringValue == "value")
+        #expect(type == "String")
+        #expect(runtime.activeRecordCount == 0)
+    }
+
+    @Test
     func structuredChildCreatedByCancelledOwnerInheritsCancellation() {
         let runtime = CooperativeConcurrencyRuntime()
         let session = runtime.createSession()

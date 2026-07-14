@@ -747,12 +747,16 @@ final class CooperativeConcurrencyRuntime {
         _ record: RuntimeTaskRecord,
         source: RuntimeCancellationSource
     ) {
-        guard !record.state.isCompleted else { return }
         let wasAlreadyRequested = record.cancellation.isRequested
         let alreadyRequestedFromSource =
             record.cancellation.sources.contains(source)
         record.cancellation.request(
             from: source, sequence: takeEventSequence())
+        // Cancellation is orthogonal to completion in Swift. A handle may be
+        // cancelled after its task reaches a terminal state; that updates the
+        // handle's cancellation bit without changing the immutable outcome or
+        // re-running cancellation side effects for completed work.
+        guard !record.state.isCompleted else { return }
         for groupID in record.ownedTaskGroups {
             guard let group = taskGroups[groupID] else {
                 preconditionFailure(

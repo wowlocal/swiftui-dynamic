@@ -3057,3 +3057,27 @@ while preserving their generated `addTask`, `addTaskUnlessCancelled`,
 successful auto-consumption and throwing child-error projection with empty
 task, group, structured-scope, and scheduler registries after exit. Separate
 bounded fan-out and memory-plateau acceptance remains open.
+
+### M2 post-completion task-handle cancellation
+
+`task-cancellation-after-completion.swift` asks one terminal-state question.
+Its first `await task.value` establishes that the unstructured task has
+completed before the handle receives `cancel()`. Apple Swift 6.3.3 in Swift 6
+strict-concurrency mode produces exactly
+`active,cancelled,value,value`: late cancellation changes the handle flag, but
+neither the successful outcome nor later value reads.
+
+This was a recorded gap closure. Before the runtime change, the same source
+produced `active,active,value,value` through the interpreter because
+`requestCancellation` returned before recording a request on every completed
+task. The runtime now records cancellation before its terminal-state guard and
+then skips all active-work side effects. A focused record test additionally
+releases the completed task from the active registry before cancelling its
+retained handle; the state remains `succeeded`, the typed `String` outcome
+remains `value`, cancellation is requested but unobserved, and the registry
+remains empty.
+
+The promoted exact differential and both focused cancellation tests are GREEN.
+M2 remains provisional only for the stronger lifetime requirement: an escaped
+completed handle must be proven not to retain its interpreter session or native
+driver.
