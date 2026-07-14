@@ -2830,8 +2830,8 @@ The upstream harness now pins `swiftlang/swift` at
 Its reproducible sparse-checkout script inventories all 134 Swift sources in
 `test/Concurrency/Runtime`, assigns every file an explicit `direct`,
 `diagnostic`, `needs-adapter`, or `unsupported` reason, and copies only
-manifest-selected fixtures byte-for-byte. The current inventory is 4 direct,
-4 diagnostic, 119 needs-adapter, and 7 unsupported.
+manifest-selected fixtures byte-for-byte. The current inventory is 5 direct,
+4 diagnostic, 118 needs-adapter, and 7 unsupported.
 
 Native Swift compiles every selected concurrency fixture in Swift 6 strict
 concurrency mode. The interpreter receives the same source plus only a generic
@@ -2839,7 +2839,8 @@ detected-`@main` entry. A local literal FileCheck subset validates both native
 and interpreted output; unsupported regex and variable syntax is rejected
 rather than weakened. The first direct tranche covers throwing `async let`,
 pre-start cancellation with a late async-let child, task-handle cancellation,
-and task-group pending `next()`.
+task-group pending `next()`, and task-group `isEmpty` while a child is pending
+and after its completion has been consumed.
 
 The previously selected interpreter tests remain exact-output cases. Normal
 test runs are fully offline; `Scripts/sync-swift-upstream-tests.sh` is the only
@@ -2999,3 +3000,29 @@ records distinct outer-owner, group-child, and grandchild task records; proves
 the parent, group, and structured-scope ownership edges at both levels; proves
 one completed and consumed child in each group; and finishes with empty task,
 group, and structured-scope registries.
+
+### M4 upstream task-group `isEmpty` and generated dispatch
+
+The unchanged swiftlang fixture
+`test/Concurrency/Runtime/async_taskgroup_is_empty.swift` is now a direct case
+from the pinned `swift-6.3.3-RELEASE` commit. Native Swift and the interpreter
+compile and run the same file. Its FileCheck oracle proves that a newly created
+group is empty, a pending child makes it nonempty, consuming that child through
+`next()` makes it empty again, and the enclosing operation returns `42`.
+
+The first interpreter run was deliberately RED with
+`TaskGroup.isEmpty is not supported yet`. The runtime now defines emptiness in
+terms of unconsumed child outcomes, so a completed result remains part of the
+group until `next()` or iteration consumes it. Focused state coverage verifies
+the child is completed and consumed and that task, group, structured-scope,
+and scheduler registries are empty after scope exit.
+
+`ConcurrencySurfaceGen` parses the active SDK's
+`_Concurrency.swiftinterface` with SwiftSyntax and emits the task-group member
+inventory plus source-name-to-runtime-intrinsic dispatch. This replaces the
+handwritten alias switch and picks up the SDK's deprecated `add`, `spawn`, and
+`async` spellings, including their `UnlessCancelled` variants. Unsupported
+members discovered in the active interface remain explicit diagnostics rather
+than silent fallbacks. `swift run ConcurrencySurfaceGen --check` verifies that
+the checked-in artifact is current without rewriting it. Discarding task
+groups and their distinct semantics remain open M4 work.

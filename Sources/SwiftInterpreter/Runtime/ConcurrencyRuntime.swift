@@ -346,6 +346,13 @@ final class RuntimeTaskGroupRecord {
         hasCancelAllRequest || hasOwnerCancellationRequest
     }
 
+    /// Swift keeps a completed child in the group until its outcome is
+    /// consumed. This is the same remaining-work definition used by
+    /// `TaskGroup.isEmpty` and by the SDK's throwing `waitForAll` loop.
+    var isEmpty: Bool {
+        consumedChildTaskIDs.count == childTaskIDs.count
+    }
+
     func publishCompletion(_ childID: RuntimeTaskID) {
         precondition(
             completedChildTaskIDSet.insert(childID).inserted,

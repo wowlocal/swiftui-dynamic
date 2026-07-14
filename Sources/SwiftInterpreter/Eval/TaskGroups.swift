@@ -75,14 +75,29 @@ extension Interpreter {
         _ name: String,
         on group: RuntimeTaskGroup
     ) throws -> RuntimeValue {
-        switch name {
-        case "isCancelled":
+        guard let intrinsic = GeneratedConcurrencySurface
+                .taskGroupDispatch[name] else {
+            let qualifier = GeneratedConcurrencySurface.knownTaskGroupMembers
+                .contains(name)
+                ? " is declared by the active _Concurrency.swiftinterface but"
+                : ""
+            throw RuntimeError(message:
+                "\(group.kind.sourceTypeName).\(name)\(qualifier) is not supported yet")
+        }
+
+        switch intrinsic {
+        case .isCancelled:
             try group.requireActive(
                 ownerTaskID: evaluationTaskContext.runtimeTaskID)
             return .native(group.isCancellationRequested)
 
-        case "addTask", "addTaskUnlessCancelled":
-            let skipsCancelledGroup = name == "addTaskUnlessCancelled"
+        case .isEmpty:
+            try group.requireActive(
+                ownerTaskID: evaluationTaskContext.runtimeTaskID)
+            return .native(group.record.isEmpty)
+
+        case .addTask, .addTaskUnlessCancelled:
+            let skipsCancelledGroup = intrinsic == .addTaskUnlessCancelled
             return .hostFunction(HostFunction(name: name) {
                 [weak self, weak group] arguments, _ in
                 guard let self, let group else {
@@ -114,7 +129,7 @@ extension Interpreter {
                 return .void
             })
 
-        case "waitForAll":
+        case .waitForAll:
             return .hostFunction(HostFunction(
                 name: name,
                 tracksHostOperation: false,
@@ -130,7 +145,7 @@ extension Interpreter {
                     return .void
                 }))
 
-        case "next":
+        case .next:
             return .hostFunction(HostFunction(
                 name: name,
                 tracksHostOperation: false,
@@ -142,7 +157,7 @@ extension Interpreter {
                     return try await nextSourceTaskGroupValue(group)
                 }))
 
-        case "cancelAll":
+        case .cancelAll:
             return .hostFunction(HostFunction(name: name) {
                 [weak self, weak group] _, _ in
                 guard let self, let group else {
@@ -157,9 +172,6 @@ extension Interpreter {
                 return .void
             })
 
-        default:
-            throw RuntimeError(message:
-                "\(group.kind.sourceTypeName).\(name) is not supported yet")
         }
     }
 

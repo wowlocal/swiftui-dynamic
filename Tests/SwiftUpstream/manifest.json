@@ -104,6 +104,19 @@
         "-parse-as-library"
       ],
       "timeoutSeconds": 5
+    },
+    {
+      "id": "concurrency-task-group-is-empty",
+      "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_is_empty.swift",
+      "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_is_empty.swift",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
     }
   ]
 }

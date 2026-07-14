@@ -67,6 +67,16 @@ extension Interpreter {
             }
             return .nanoseconds(Int64(nanoseconds))
         }
+        // `_Concurrency` still exposes the deprecated
+        // `Task.sleep(_ duration: UInt64)` overload. Keep overload shape in
+        // argument dispatch rather than special-casing an upstream fixture.
+        if let value = arguments.positional(0) {
+            guard let nanoseconds = value.intValue, nanoseconds >= 0 else {
+                throw RuntimeError(message:
+                    "Task.sleep(_:) requires a nonnegative integer")
+            }
+            return .nanoseconds(Int64(nanoseconds))
+        }
         if let value = arguments.labeled("for"),
            let duration = sourceDuration(from: value) {
             return duration

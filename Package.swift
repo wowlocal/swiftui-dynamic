@@ -96,6 +96,14 @@ let package = Package(
             ],
             swiftSettings: mainActorByDefault
         ),
+        .executableTarget(
+            name: "ConcurrencySurfaceGen",
+            dependencies: [
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftParser", package: "swift-syntax"),
+            ],
+            swiftSettings: mainActorByDefault
+        ),
         .testTarget(
             name: "CheckSupportTests",
             dependencies: ["CheckSupport"]

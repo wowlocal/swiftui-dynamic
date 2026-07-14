@@ -6,8 +6,8 @@
   "scope" : "test/Concurrency/Runtime",
   "summary" : {
     "diagnostic" : 4,
-    "direct" : 4,
-    "needsAdapter" : 119,
+    "direct" : 5,
+    "needsAdapter" : 118,
     "total" : 134,
     "unsupported" : 7
   },
@@ -406,8 +406,9 @@
       "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_is_asyncsequence.swift"
     },
     {
-      "classification" : "needs-adapter",
-      "reason" : "Requires imported runtime API review: Dispatch.",
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-task-group-is-empty",
       "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_is_empty.swift"
     },
     {
