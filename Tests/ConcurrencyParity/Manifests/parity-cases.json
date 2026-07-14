@@ -695,6 +695,18 @@
     "notes": "The owner adds one immediately successful child and awaits its result. Exact output is value in all 20 Swift 6.3.3 runs; child failure and first-error behavior are not asserted."
   },
   {
+    "id": "task-group-throwing-next-failure",
+    "fixture": "Fixtures/task-group-throwing-next-failure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingNextFailureProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "try await ThrowingTaskGroup.next() rethrows the source error stored by its failed child.",
+    "notes": "One child throws a nominal enum case and the owner immediately awaits next; a generic catch switches over the delivered error and returns caught-child in all 20 Swift 6.3.3 runs. Multiple-failure selection is not asserted."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

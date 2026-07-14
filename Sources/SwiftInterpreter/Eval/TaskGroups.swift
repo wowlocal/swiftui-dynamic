@@ -193,8 +193,7 @@ extension Interpreter {
                 throw RuntimeError(message:
                     "nonthrowing task-group child failed: \(value.stringified)")
             case .throwing:
-                throw RuntimeError(message:
-                    "throwing task-group child failure propagation is not supported yet")
+                throw InterpretedThrow(value: value)
             }
         case .cancelled:
             switch group.kind {

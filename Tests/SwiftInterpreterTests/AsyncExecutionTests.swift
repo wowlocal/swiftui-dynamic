@@ -1229,6 +1229,42 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupNextRethrowsSourceFailure() async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        enum ThrowingGroupChildError: Error {
+            case failed
+        }
+        func throwingGroupFailureOwner() async -> String {
+            do {
+                return try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    group.addTask {
+                        throw ThrowingGroupChildError.failed
+                    }
+                    _ = try await group.next()
+                    return "missed"
+                }
+            } catch {
+                switch error {
+                case ThrowingGroupChildError.failed:
+                    return "caught-child"
+                default:
+                    return "wrong-error"
+                }
+            }
+        }
+        await throwingGroupFailureOwner()
+        """)
+
+        #expect(result.stringValue == "caught-child")
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupNextUsesCompletionQueueAndGroupSuspension() async throws {
         let interpreter = Interpreter()
         var observedParentSuspension: RuntimeSuspension?
