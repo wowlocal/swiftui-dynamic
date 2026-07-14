@@ -451,6 +451,20 @@
     "notes": "Both children increment a MainActor start count before waiting on one shared gate, so parent-open cannot occur until both are active. Swift 6.3.3 happened to produce one total order in 20 runs, but only the barrier, result-dependency, and parent program-order edges are asserted."
   },
   {
+    "id": "async-let-separate-declaration-cleanup-order",
+    "fixture": "Fixtures/async-let-separate-declaration-cleanup-order.swift",
+    "mode": "runtime",
+    "assertion": "partial-order",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetSeparateDeclarationCleanupOrderProbe()",
+    "interpreterProjection": "string",
+    "requiredEvents": ["first-start", "second-start", "scope-exit", "second-cancelled", "first-cancelled", "after-scope"],
+    "precedes": [["first-start", "scope-exit"], ["second-start", "scope-exit"], ["scope-exit", "second-cancelled"], ["second-cancelled", "first-cancelled"], ["first-cancelled", "after-scope"]],
+    "nativeFact": "Separate async-let declarations unwind in reverse registration order: the later child's cancellation and join complete before teardown of the earlier child begins.",
+    "notes": "Both children enter 30-second cancellable suspensions before scope-exit. Swift 6.3.3 produced one total trace in 20 runs, but the fixture asserts only entry before exit, later-declaration cleanup before earlier-declaration cleanup, and full cleanup before after-scope."
+  },
+  {
     "id": "async-let-scope-exit",
     "fixture": "Fixtures/async-let-scope-exit.swift",
     "mode": "runtime",
@@ -485,6 +499,30 @@
     "interpreterProjection": "string",
     "nativeFact": "Throwing out of a scope cancels and joins an unconsumed async-let child before the owner error reaches the caller's catch.",
     "notes": "The nonthrowing child catches cancellation inside a 30-second suspension, so it cannot replace the owner's error. Exact output is child-start,scope-throw,child-cancelled,caught,after-catch in 20 Swift 6.3.3 runs."
+  },
+  {
+    "id": "async-let-defer-before-declaration",
+    "fixture": "Fixtures/async-let-defer-before-declaration.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetDeferBeforeDeclarationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Lexical cleanups unwind in reverse registration order: when defer is registered before an async-let child, child cancellation and join complete before that defer executes.",
+    "notes": "The child is already inside a 30-second cancellable suspension at scope exit. Exact output is child-start,scope-exit,child-cancelled,defer,after-scope in 20 Swift 6.3.3 runs, proving the relative cleanup order rather than a scheduler accident."
+  },
+  {
+    "id": "async-let-defer-after-declaration",
+    "fixture": "Fixtures/async-let-defer-after-declaration.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetDeferAfterDeclarationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Lexical cleanups unwind in reverse registration order: when defer is registered after an async-let child, that defer executes before child cancellation and join.",
+    "notes": "The child is already inside a 30-second cancellable suspension at scope exit. Exact output is child-start,scope-exit,defer,child-cancelled,after-scope in 20 Swift 6.3.3 runs, proving the reverse relative order without constraining unrelated scheduling."
   },
   {
     "id": "async-let-value-failure",

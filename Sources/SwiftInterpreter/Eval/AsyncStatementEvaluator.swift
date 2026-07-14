@@ -27,58 +27,76 @@ extension Interpreter {
         var last: RuntimeValue = .void
         var deferredBodies: [CodeBlockItemListSyntax] = []
 
-        func runDeferredBodies() async {
-            for body in deferredBodies.reversed() {
-                _ = try? await executeBlockSuspending(body, in: env)
-            }
-        }
-
         do {
             for item in items {
                 try checkRuntimeCancellation()
                 if case .stmt(let statement) = item.item,
                    let deferStatement = statement.as(DeferStmtSyntax.self) {
+                    let slot = deferredBodies.count
                     deferredBodies.append(deferStatement.body.statements)
+                    structuredScope.cleanups.append(.deferredBody(slot))
                     continue
                 }
                 let result = try await executeSuspending(item, in: env)
                 guard case .normal(let value) = result else {
-                    await runDeferredBodies()
-                    await closeStructuredScope(structuredScope)
+                    await closeStructuredScope(
+                        structuredScope,
+                        deferredBodies: deferredBodies,
+                        in: env)
                     return result
                 }
                 last = value
             }
         } catch {
-            await runDeferredBodies()
-            await closeStructuredScope(structuredScope)
+            await closeStructuredScope(
+                structuredScope,
+                deferredBodies: deferredBodies,
+                in: env)
             throw error
         }
-        await runDeferredBodies()
-        await closeStructuredScope(structuredScope)
+        await closeStructuredScope(
+            structuredScope,
+            deferredBodies: deferredBodies,
+            in: env)
         return .normal(last)
     }
 
     private func closeStructuredScope(
-        _ frame: RuntimeStructuredScopeFrame
+        _ frame: RuntimeStructuredScopeFrame,
+        deferredBodies: [CodeBlockItemListSyntax],
+        in env: Environment
     ) async {
-        // Swift cancels unconsumed async-let children together, then awaits
-        // every child before lexical storage can leave scope. Cancelling all
-        // first prevents an earlier long-running child from delaying a later
-        // child's cancellation.
-        for child in frame.asyncLetChildren {
-            child.cancelIfUnconsumedAtScopeExit()
-        }
-        for child in frame.asyncLetChildren {
-            await child.waitForScopeExit(waiter: frame.ownerTaskID)
+        for cleanup in frame.cleanups.reversed() {
+            switch cleanup {
+            case .deferredBody(let slot):
+                precondition(
+                    deferredBodies.indices.contains(slot),
+                    "deferred cleanup refers to an unknown body")
+                _ = try? await executeBlockSuspending(
+                    deferredBodies[slot], in: env)
+            case .asyncLet(let group):
+                // Bindings from one declaration form one cleanup. Cancel all
+                // first so joining an earlier child cannot delay a sibling's
+                // cancellation, then join the entire group before unwinding
+                // the next outer lexical cleanup.
+                for child in group.children {
+                    child.cancelIfUnconsumedAtScopeExit()
+                }
+                for child in group.children {
+                    await child.waitForScopeExit(waiter: frame.ownerTaskID)
+                }
+            }
         }
         if let runtimeScope = frame.runtimeScope {
             concurrencyRuntime.closeStructuredScope(runtimeScope)
         }
-        for child in frame.asyncLetChildren {
-            concurrencyRuntime.release(child.handle.id)
+        for cleanup in frame.cleanups {
+            guard case .asyncLet(let group) = cleanup else { continue }
+            for child in group.children {
+                concurrencyRuntime.release(child.handle.id)
+            }
         }
-        frame.asyncLetChildren.removeAll(keepingCapacity: false)
+        frame.cleanups.removeAll(keepingCapacity: false)
         frame.runtimeScope = nil
     }
 
@@ -258,6 +276,8 @@ extension Interpreter {
             return nil
         }
 
+        let cleanupGroup = RuntimeAsyncLetCleanupGroup()
+        frame.cleanups.append(.asyncLet(cleanupGroup))
         for (index, binding) in bindings.enumerated() {
             guard binding.accessorBlock == nil,
                   let initializer = binding.initializer?.value else {
@@ -278,7 +298,7 @@ extension Interpreter {
             let child = RuntimeAsyncLetChild(handle: handle)
             concurrencyRuntime.addStructuredChild(
                 handle.id, to: runtimeScope)
-            frame.asyncLetChildren.append(child)
+            cleanupGroup.children.append(child)
             for projected in projectedBindings {
                 let asyncBinding = RuntimeAsyncLetBinding(
                     name: projected.name,

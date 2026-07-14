@@ -5,11 +5,26 @@ import Foundation
 final class RuntimeStructuredScopeFrame {
     let ownerTaskID: RuntimeTaskID?
     var runtimeScope: RuntimeStructuredScopeRecord?
-    var asyncLetChildren: [RuntimeAsyncLetChild] = []
+    var cleanups: [RuntimeLexicalCleanupRegistration] = []
 
     init(ownerTaskID: RuntimeTaskID?) {
         self.ownerTaskID = ownerTaskID
     }
+}
+
+/// Cleanup registrations preserve source order so `defer` and structured
+/// child teardown unwind together in LIFO order. The evaluator owns deferred
+/// syntax bodies by integer slot; the runtime frame owns async-let groups.
+enum RuntimeLexicalCleanupRegistration {
+    case deferredBody(Int)
+    case asyncLet(RuntimeAsyncLetCleanupGroup)
+}
+
+/// One `async let` declaration registers one cleanup even when it declares
+/// several independent bindings. All children in that declaration are
+/// cancelled first and then joined before the next outer cleanup runs.
+final class RuntimeAsyncLetCleanupGroup {
+    var children: [RuntimeAsyncLetChild] = []
 }
 
 /// One structured initializer child. A tuple pattern creates several source

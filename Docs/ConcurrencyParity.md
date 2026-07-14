@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; unconsumed children cancel and join on normal, early-return, and throwing lexical exits; missing `await` is diagnosed | Remaining cancellation/defer cleanup combinations, task groups, and group iteration/cancellation |
+| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; unconsumed children cancel and join on normal, early-return, and throwing lexical exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; missing `await` is diagnosed | Remaining parent-cancellation and exceptional defer/cleanup combinations, task groups, and group iteration/cancellation |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1479,3 +1479,51 @@ declaration loop already creates and scope-registers one `RuntimeAsyncLetChild`
 per `PatternBindingSyntax`; the repeated fixture also left task and structured
 scope registries empty. This proof closes the multi-binding surface without
 introducing a scheduler-order special case.
+
+### M4 lexical cleanup registration order
+
+The same-source fixtures
+`async-let-defer-before-declaration.swift` and
+`async-let-defer-after-declaration.swift` ask whether `defer` and async-let
+teardown participate in one lexical cleanup order or whether either construct
+always wins. Both children mark entry and then remain inside the shared
+30-second cancellable suspension until scope exit, so their cancellation event
+cannot be confused with natural completion.
+
+With `defer` registered first, 20 bounded Apple Swift 6.3.3 strict-concurrency
+runs produced
+`child-start,scope-exit,child-cancelled,defer,after-scope` exactly. With
+`async let` registered first, all 20 runs produced
+`child-start,scope-exit,defer,child-cancelled,after-scope` exactly. The reversed
+pair proves LIFO registration order in both directions; no unrelated ready-task
+ordering is asserted.
+
+`async-let-separate-declaration-cleanup-order.swift` checks the same rule
+between two async-let declarations. Both children have entered cancellable
+suspensions before scope exit. All 20 native runs completed the later
+declaration's cancellation before the earlier declaration's cancellation.
+The permanent partial-order assertion deliberately leaves their start order
+unconstrained.
+
+The first same-source interpreter run was RED. It produced
+`child-start,scope-exit,defer,child-cancelled,after-scope` even for the
+defer-before-declaration fixture because the async evaluator stored all defer
+bodies and all structured children in separate arrays, then always ran the
+complete defer array first.
+
+`RuntimeStructuredScopeFrame` now owns one ordered lexical cleanup stack.
+Encountering a `defer` registers its deferred-body slot; encountering one
+`async let` declaration registers a cleanup group containing all initializer
+children from that declaration. Unwinding traverses registrations in reverse.
+For one async-let group it cancels every unconsumed sibling first, joins every
+sibling, and only then advances to the next outer cleanup. Runtime scope closure
+and task-record release happen after the complete stack unwinds. This is a
+construct-level ordering mechanism rather than a fixture or event-name branch.
+
+All three same-source cases are GREEN for all 20 repetitions. The parity cleanup
+guard observes zero active task and structured-scope records after every run.
+`AsyncExecutionTests` pass 42/42, `HostSignatureTests` pass 12/12, and
+`ConcurrencyParityTests` pass 8/8. The full suite passes 778 tests in 149
+suites. `Scripts/gate.sh` is green with 778 tests, the unchanged 678/680
+project-corpus ratchet, 5/5 live-data scenarios, and API parity at 345 match /
+0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.
