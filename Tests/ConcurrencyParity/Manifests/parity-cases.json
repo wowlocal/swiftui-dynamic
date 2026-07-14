@@ -707,6 +707,18 @@
     "notes": "One child throws a nominal enum case and the owner immediately awaits next; a generic catch switches over the delivered error and returns caught-child in all 20 Swift 6.3.3 runs. Multiple-failure selection is not asserted."
   },
   {
+    "id": "task-group-throwing-wait-for-all-failure",
+    "fixture": "Fixtures/task-group-throwing-wait-for-all-failure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingWaitForAllFailureProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "try await ThrowingTaskGroup.waitForAll() completes after successful children and rethrows the source error from a single failed child.",
+    "notes": "Sequential groups first await one successful child, then one child that throws a nominal enum case. Exact output is success:caught-child in all 20 Swift 6.3.3 runs. Multiple-failure selection and implicit scope exit are not asserted."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

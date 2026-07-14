@@ -1265,6 +1265,84 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupWaitKeepsScopeFailureSeparate() async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        enum ThrowingWaitChildError: Error {
+            case failed
+        }
+        func throwingWaitOwner() async -> String {
+            do {
+                let success = try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    group.addTask {
+                        return "value"
+                    }
+                    try await group.waitForAll()
+                    return "success"
+                }
+                do {
+                    _ = try await withThrowingTaskGroup(
+                        of: String.self
+                    ) { group in
+                        group.addTask {
+                            throw ThrowingWaitChildError.failed
+                        }
+                        try await group.waitForAll()
+                        return "missed"
+                    }
+                    return success + ":missed"
+                } catch {
+                    switch error {
+                    case ThrowingWaitChildError.failed:
+                        return success + ":caught-child"
+                    default:
+                        return success + ":wrong-error"
+                    }
+                }
+            } catch {
+                return "wrong-success"
+            }
+        }
+        await throwingWaitOwner()
+        """)
+
+        #expect(result.stringValue == "success:caught-child")
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+            enum UnconsumedThrowingGroupError: Error {
+                case failed
+            }
+            func unconsumedThrowingGroupOwner() async throws -> String {
+                try await withThrowingTaskGroup(of: String.self) { group in
+                    group.addTask {
+                        throw UnconsumedThrowingGroupError.failed
+                    }
+                    return "body"
+                }
+            }
+            try await unconsumedThrowingGroupOwner()
+            """)
+            Issue.record("unprobed throwing scope failure unexpectedly succeeded")
+        } catch let failure as RuntimeError {
+            #expect(failure.message.contains(
+                "task-group scope-exit failure propagation is not supported"))
+        } catch {
+            Issue.record("unexpected throwing scope diagnostic: \(error)")
+        }
+
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupNextUsesCompletionQueueAndGroupSuspension() async throws {
         let interpreter = Interpreter()
         var observedParentSuspension: RuntimeSuspension?

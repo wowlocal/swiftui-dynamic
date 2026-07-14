@@ -1,5 +1,10 @@
 import Foundation
 
+private enum SourceTaskGroupOutcomeConsumer {
+    case scopeExit
+    case waitForAll
+}
+
 extension Interpreter {
     func sourceTaskGroupFunction(
         kind: RuntimeTaskGroupKind
@@ -54,7 +59,8 @@ extension Interpreter {
 
             let outcomes = await closeSourceTaskGroup(
                 group, cancelRemaining: false)
-            try validateSourceTaskGroupOutcomes(outcomes, in: group)
+            try validateSourceTaskGroupOutcomes(
+                outcomes, in: group, consumedBy: .scopeExit)
             return result
         } catch {
             if !group.isClosed {
@@ -118,7 +124,8 @@ extension Interpreter {
                             "task group was released before waitForAll")
                     }
                     let outcomes = try await waitForSourceTaskGroup(group)
-                    try validateSourceTaskGroupOutcomes(outcomes, in: group)
+                    try validateSourceTaskGroupOutcomes(
+                        outcomes, in: group, consumedBy: .waitForAll)
                     concurrencyRuntime.drainTaskGroupOutcomes(group.record)
                     return .void
                 }))
@@ -265,17 +272,36 @@ extension Interpreter {
 
     private func validateSourceTaskGroupOutcomes(
         _ outcomes: [RuntimeTaskOutcome],
-        in group: RuntimeTaskGroup
+        in group: RuntimeTaskGroup,
+        consumedBy consumer: SourceTaskGroupOutcomeConsumer
     ) throws {
-        for outcome in outcomes {
-            guard case .failure(let value, _) = outcome else { continue }
-            switch group.kind {
-            case .nonthrowing:
+        let failures = outcomes.compactMap { outcome -> RuntimeValue? in
+            guard case .failure(let value, _) = outcome else { return nil }
+            return value
+        }
+
+        switch group.kind {
+        case .nonthrowing:
+            guard let failure = failures.first else { return }
+            throw RuntimeError(message:
+                "nonthrowing task-group child failed: \(failure.stringified)")
+
+        case .throwing:
+            switch consumer {
+            case .scopeExit:
+                guard !failures.isEmpty else { return }
                 throw RuntimeError(message:
-                    "nonthrowing task-group child failed: \(value.stringified)")
-            case .throwing:
-                throw RuntimeError(message:
-                    "throwing task-group child failure propagation is not supported yet")
+                    "throwing task-group scope-exit failure propagation "
+                    + "is not supported yet")
+
+            case .waitForAll:
+                guard outcomes.count == 1 else {
+                    throw RuntimeError(message:
+                        "throwing task-group waitForAll with multiple child "
+                        + "outcomes is not supported yet")
+                }
+                guard let failure = failures.first else { return }
+                throw InterpretedThrow(value: failure)
             }
         }
     }
