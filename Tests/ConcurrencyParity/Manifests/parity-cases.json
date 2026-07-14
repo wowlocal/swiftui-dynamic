@@ -635,6 +635,18 @@
     "notes": "The group is cancelled before addTask. The child checks Task.isCancelled as its first source operation and returns cancelled exactly in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-is-cancelled",
+    "fixture": "Fixtures/task-group-is-cancelled.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupIsCancelledProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "TaskGroup.isCancelled is false before cancelAll and true immediately after cancelAll returns.",
+    "notes": "The same group is read on both sides of cancelAll with no child work. Exact output is active:cancelled in all 20 Swift 6.3.3 runs, so no scheduler order is involved."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

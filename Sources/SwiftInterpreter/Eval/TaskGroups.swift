@@ -65,6 +65,11 @@ extension Interpreter {
         on group: RuntimeTaskGroup
     ) throws -> RuntimeValue {
         switch name {
+        case "isCancelled":
+            try group.requireActive(
+                ownerTaskID: evaluationTaskContext.runtimeTaskID)
+            return .native(group.hasCancelAllRequest)
+
         case "addTask":
             return .hostFunction(HostFunction(name: name) {
                 [weak self, weak group] arguments, _ in

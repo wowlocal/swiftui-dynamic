@@ -1146,19 +1146,28 @@ struct AsyncExecutionTests {
     @Test func taskGroupChildAddedAfterCancelAllStartsCancelled() async throws {
         let interpreter = Interpreter()
         let result = try await interpreter.runAsync(source: """
+        func taskGroupCancellationLabel(_ isCancelled: Bool) -> String {
+            if isCancelled {
+                return "cancelled"
+            }
+            return "active"
+        }
         await withTaskGroup(of: String.self) { group in
+            let before = taskGroupCancellationLabel(group.isCancelled)
             group.cancelAll()
+            let after = taskGroupCancellationLabel(group.isCancelled)
             group.addTask {
                 if Task.isCancelled {
                     return "cancelled"
                 }
                 return "active"
             }
-            return await group.next() ?? "empty"
+            let child = await group.next() ?? "empty"
+            return before + ":" + after + ":" + child
         }
         """)
 
-        #expect(result.stringValue == "cancelled")
+        #expect(result.stringValue == "active:cancelled:cancelled")
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
