@@ -12,6 +12,18 @@
     "notes": "Smoke test for the same-fixture native/interpreter pipeline."
   },
   {
+    "id": "async-try-await-conditional",
+    "fixture": "Fixtures/async-try-await-conditional.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncTryAwaitConditionalProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A throwing async call remains awaited when its optional result is compared with nil as the condition of a ternary expression.",
+    "notes": "The async function yields once and then returns nil. Exact output is nil in all 20 Swift 6.3.3 runs; there is no scheduler-order assertion."
+  },
+  {
     "id": "host-gateway-suspension",
     "fixture": "Fixtures/host-gateway-suspension.swift",
     "mode": "runtime",

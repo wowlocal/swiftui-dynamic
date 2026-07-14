@@ -171,7 +171,10 @@ extension Interpreter {
             try tick(expression)
             let ternary = expression.cast(TernaryExprSyntax.self)
             let condition = try expectBool(
-                await evaluateSuspending(ternary.condition, in: env),
+                await evaluateSuspending(
+                    ternary.condition,
+                    in: env,
+                    forceInvocation: forceInvocation),
                 node: ternary.condition)
             return try await evaluateSuspending(
                 condition ? ternary.thenExpression : ternary.elseExpression,

@@ -43,6 +43,7 @@ major version 6.
 | Case | Assertion | Native fact | Interpreter status |
 |---|---|---|---|
 | `async-function-exact` | exact | Awaiting the fixture function returns `ready` | Expected native parity |
+| `async-try-await-conditional` | exact | A throwing async call remains awaited when its optional result is compared with `nil` as the condition of a ternary expression | Native/interpreter parity in 20 repetitions: `nil`; the fixture yields once inside the call but makes no scheduler-order claim |
 | `host-gateway-suspension` | exact | Awaiting the controlled async wrapper suspends until its explicit gate opens, so a ready MainActor controller records progress before the wrapper returns | Native/interpreter parity in 20 repetitions: `before,host-enter,controller,host-exit,value`; the interpreted caller is `.waiting/.awaitingHost(operationID)` at the forced barrier and the operation registry is empty after completion |
 | `host-callback-task-runtime` | exact | A synchronous MainActor callback exposes its inline mutation before returning, while an unstructured task it creates continues through Swift concurrency and may own structured group children | Native/interpreter parity in 20 repetitions: `started,done-3`; the interpreter fires the retained closure only after its initial evaluation has returned, enters `.hostCallback`, and finishes with empty task/group/scope registries |
 | `main-actor-task-partial-order` | partial order | A newly created MainActor task does not execute inline; `sync` precedes both task events | Expected native parity through async-session drain policy; relative child order is not asserted |
@@ -2404,6 +2405,41 @@ and API parity at 345 match / 0 diverge / 0 interpreter errors / 17 unstable /
 0 no-twin. Throwing iteration failure/cancellation projection, early loop
 exit, body-throwing group exit, and remaining exceptional cleanup combinations
 stay open for their own native probes.
+
+### M3 suspension-expression correction: leading `try await` and ternary
+
+`async-try-await-conditional.swift` calls a throwing async function that
+yields once and returns `nil`, compares the result with `nil`, and uses that
+comparison as a ternary condition. Twenty bounded Apple Swift 6.3.3
+strict-concurrency runs produced `nil` exactly. This establishes that the call
+remains under the leading `try await`; it does not establish any scheduler
+ordering.
+
+The initial same-source interpreter case was RED in all 20 repetitions as
+`error`. A diagnostic run showed that the inner `Task.yield` had reached the
+synchronous gateway path. SwiftSyntax represents the leading `try await` over
+an operator sequence which folding turns into a ternary expression. The
+suspending evaluator propagated forced async invocation through `try` and
+infix operands, but the ternary evaluator discarded it while evaluating its
+condition. The nested async function was therefore invoked synchronously.
+
+The ternary evaluator now carries the invocation mode into its condition as
+well as the one selected result branch. It still evaluates exactly one branch,
+so this repairs suspension propagation without weakening ternary laziness.
+Focused coverage exercises both a successful optional result and a thrown host
+error, observes one invocation of each, proves that the untaken async branch is
+never invoked, and finishes with empty scheduler and runtime registries.
+
+The exact differential case is GREEN in all 20 repetitions. The combined
+targeted run passes 79/79 tests across `AsyncExecutionTests` (59),
+`HostSignatureTests` (12), and `ConcurrencyParityTests` (8), with 71 runtime
+fixtures. The full shared-worktree run passes 799 tests in 151 suites; one test
+and suite come from the preserved user-owned untracked
+`TaskObservatoryTests.swift`, so the tracked repository accounts for 798 tests
+in 150 suites. `Scripts/gate.sh` is green in 675 seconds with the same 799-test
+shared-worktree suite, the unchanged 678/680 project-corpus ratchet, 5/5
+live-data scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
+errors / 17 unstable / 0 no-twin.
 
 ## M8 incremental verification record
 

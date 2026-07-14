@@ -2197,6 +2197,71 @@ struct AsyncExecutionTests {
         #expect(calls == 0)
     }
 
+    @Test func leadingTryAwaitPropagatesThroughLazyTernary() async throws {
+        let interpreter = Interpreter()
+        var optionalCalls = 0
+        var failureCalls = 0
+        var untakenCalls = 0
+        interpreter.globals.define(
+            "conditionalOptional",
+            .hostFunction(HostFunction(
+                name: "conditionalOptional",
+                asyncInvoke: { _, _ in
+                    optionalCalls += 1
+                    await Task.yield()
+                    return .none(wrappedTypeName: "String")
+                })))
+        interpreter.globals.define(
+            "conditionalFailure",
+            .hostFunction(HostFunction(
+                name: "conditionalFailure",
+                asyncInvoke: { _, _ in
+                    failureCalls += 1
+                    await Task.yield()
+                    throw ProbeError.failed
+                })))
+        interpreter.globals.define(
+            "conditionalUntaken",
+            .hostFunction(HostFunction(
+                name: "conditionalUntaken",
+                asyncInvoke: { _, _ in
+                    untakenCalls += 1
+                    await Task.yield()
+                    return .native("wrong")
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        func optionalConditional() async -> String {
+            do {
+                return try await conditionalOptional() == nil
+                    ? "nil"
+                    : await conditionalUntaken()
+            } catch {
+                return "error"
+            }
+        }
+        func throwingConditional() async -> String {
+            do {
+                return try await conditionalFailure() == nil
+                    ? "missed"
+                    : "also-missed"
+            } catch {
+                return "caught"
+            }
+        }
+        let optional = await optionalConditional()
+        let failure = await throwingConditional()
+        optional + ":" + failure
+        """)
+
+        #expect(result.stringValue == "nil:caught")
+        #expect(optionalCalls == 1)
+        #expect(failureCalls == 1)
+        #expect(untakenCalls == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func cancellationInterruptsSuspendedHostGateway() async {
         let interpreter = Interpreter()
         var started = false
