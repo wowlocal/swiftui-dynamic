@@ -659,6 +659,18 @@
     "notes": "The child starts behind an explicit gate; the body records body-return and opens the gate immediately before returning without waitForAll. Exact output is child-start,body-return,child-end,after-scope in 20 Swift 6.3.3 runs, proving normal completion and the implicit join."
   },
   {
+    "id": "task-group-defer-cancel-cleanup-order",
+    "fixture": "Fixtures/task-group-defer-cancel-cleanup-order.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupDeferCancelCleanupOrderProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A defer registered inside a withTaskGroup body runs before the group's implicit join; cancelAll from that defer requests cancellation of an already-started child, and the outer scope resumes only after the child completes.",
+    "notes": "A MainActor flag proves the child entered its cancellable suspension before the body returns. Exact output is child-start,body-return,defer-cancel,child-cancelled,after-scope in all 20 Swift 6.3.3 runs; every edge follows from program order, defer execution, cancelAll, or structured join."
+  },
+  {
     "id": "task-group-cancel-all",
     "fixture": "Fixtures/task-group-cancel-all.swift",
     "mode": "runtime",
