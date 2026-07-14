@@ -99,6 +99,21 @@ extension Interpreter {
                     return .void
                 }))
 
+        case "cancelAll":
+            return .hostFunction(HostFunction(name: name) {
+                [weak self, weak group] _, _ in
+                guard let self, let group else {
+                    throw RuntimeError(message:
+                        "task group was released before cancelAll")
+                }
+                try group.requireActive(
+                    ownerTaskID: evaluationTaskContext.runtimeTaskID)
+                group.requestCancellation()
+                cancelSourceTaskGroupChildren(
+                    group, source: .taskGroupCancelAll)
+                return .void
+            })
+
         default:
             throw RuntimeError(message:
                 "TaskGroup.\(name) is not supported yet")
@@ -147,9 +162,8 @@ extension Interpreter {
     ) async -> [RuntimeTaskOutcome] {
         guard !group.isClosed else { return [] }
         if cancelRemaining {
-            for child in group.childHandles where !child.isCompleted {
-                child.cancel(source: .structuredScopeExit)
-            }
+            cancelSourceTaskGroupChildren(
+                group, source: .structuredScopeExit)
         }
 
         guard let ownerTaskID = evaluationTaskContext.runtimeTaskID else {
@@ -165,6 +179,15 @@ extension Interpreter {
         }
         group.close()
         return outcomes
+    }
+
+    private func cancelSourceTaskGroupChildren(
+        _ group: RuntimeTaskGroup,
+        source: RuntimeCancellationSource
+    ) {
+        for child in group.childHandles where !child.isCompleted {
+            child.cancel(source: source)
+        }
     }
 
     private func throwNonthrowingGroupFailure(

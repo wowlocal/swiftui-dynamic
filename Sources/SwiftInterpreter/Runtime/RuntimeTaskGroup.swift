@@ -5,6 +5,7 @@ final class RuntimeTaskGroup {
     let record: RuntimeTaskGroupRecord
     private(set) var childHandles: [RuntimeTaskHandle] = []
     private(set) var isClosed = false
+    private(set) var isCancellationRequested = false
 
     init(record: RuntimeTaskGroupRecord) {
         self.record = record
@@ -26,6 +27,11 @@ final class RuntimeTaskGroup {
     func append(_ handle: RuntimeTaskHandle) {
         precondition(!isClosed, "cannot add a child to a closed task group")
         childHandles.append(handle)
+    }
+
+    func requestCancellation() {
+        precondition(!isClosed, "cannot cancel a closed task group")
+        isCancellationRequested = true
     }
 
     func close() {

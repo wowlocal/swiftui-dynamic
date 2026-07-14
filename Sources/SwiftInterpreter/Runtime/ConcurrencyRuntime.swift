@@ -176,6 +176,7 @@ public enum RuntimeCancellationSource: Hashable, Sendable {
     case inherited
     case structuredParent
     case structuredScopeExit
+    case taskGroupCancelAll
 }
 
 public struct RuntimeCancellationState: Sendable {
