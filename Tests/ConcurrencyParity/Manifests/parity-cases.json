@@ -656,7 +656,7 @@
     "interpreterEntry": "await taskGroupThrowingIterationProbe()",
     "interpreterProjection": "string",
     "nativeFact": "for try await iteration over a ThrowingTaskGroup yields every successful child result exactly once and consumes the group, so a later next() returns nil.",
-    "notes": "Three successful children return 1, 2, and 3; exact output is 3:6:empty in all 20 Swift 6.3.3 runs. Count and a commutative sum avoid asserting completion order; failure and cancellation have committed cases, while early-exit behavior remains separate."
+    "notes": "Three successful children return 1, 2, and 3; exact output is 3:6:empty in all 20 Swift 6.3.3 runs. Count and a commutative sum avoid asserting completion order; failure, cancellation, and early exit have dedicated committed cases."
   },
   {
     "id": "task-group-throwing-iteration-failure",
@@ -681,6 +681,18 @@
     "interpreterProjection": "string",
     "nativeFact": "A cancelled child consumed by for try await throws CancellationError without cancelling the owner, and throwing-group scope exit joins every sibling before the outer catch runs.",
     "notes": "An explicit started barrier places one sibling inside a cancellable sleep before cancelAll and the cancelled child are introduced. Exact output is cancellation:owner-active:joined in all 20 Swift 6.3.3 runs; completion order between the two children is deliberately not asserted."
+  },
+  {
+    "id": "task-group-throwing-iteration-early-exit",
+    "fixture": "Fixtures/task-group-throwing-iteration-early-exit.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await throwingTaskGroupIterationEarlyExitProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Breaking out of for try await does not cancel the remaining throwing-group child; normal group scope exit joins it and leaves the owner task active.",
+    "notes": "A started barrier makes the first yielded value deterministic while a sibling waits on an explicit release. Exact output is first:active:owner-active:joined in all 20 Swift 6.3.3 runs."
   },
   {
     "id": "task-group-wait-for-all-consumes-results",

@@ -2015,6 +2015,141 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupIterationBreakJoinsWithoutCancellation()
+    async throws {
+        let interpreter = Interpreter()
+        var observedFirst: RuntimeTaskRecord?
+        var observedSibling: RuntimeTaskRecord?
+        var observedGroup: RuntimeTaskGroupRecord?
+        var observedOwner: RuntimeTaskRecord?
+
+        func observeCurrentChild(
+            assigning child: inout RuntimeTaskRecord?
+        ) throws {
+            guard let childID = interpreter.evaluationTaskContext.runtimeTaskID,
+                  let current = interpreter.concurrencyRuntime.records[childID],
+                  let groupID = current.taskGroupID,
+                  let group = interpreter.concurrencyRuntime.taskGroups[groupID],
+                  let owner = interpreter.concurrencyRuntime
+                    .records[group.ownerTaskID] else {
+                throw RuntimeError(message:
+                    "throwing iteration early exit lost runtime ownership")
+            }
+            child = current
+            observedGroup = group
+            observedOwner = owner
+        }
+
+        interpreter.globals.define(
+            "inspectThrowingIterationEarlyExitFirst",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingIterationEarlyExitFirst"
+            ) { _, _ in
+                try observeCurrentChild(assigning: &observedFirst)
+                return .void
+            }))
+        interpreter.globals.define(
+            "inspectThrowingIterationEarlyExitSibling",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingIterationEarlyExitSibling"
+            ) { _, _ in
+                try observeCurrentChild(assigning: &observedSibling)
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        var throwingIterationEarlyExitSiblingStarted = false
+        @MainActor
+        var throwingIterationEarlyExitReleaseSibling = false
+        @MainActor
+        var throwingIterationEarlyExitSiblingState = "missing"
+        @MainActor
+        var throwingIterationEarlyExitCompletions = 0
+        @MainActor
+        func throwingIterationEarlyExitSibling() async -> String {
+            throwingIterationEarlyExitSiblingStarted = true
+            while !throwingIterationEarlyExitReleaseSibling {
+                await Task.yield()
+            }
+            inspectThrowingIterationEarlyExitSibling()
+            throwingIterationEarlyExitSiblingState = Task.isCancelled
+                ? "cancelled"
+                : "active"
+            throwingIterationEarlyExitCompletions += 1
+            return "sibling"
+        }
+        @MainActor
+        func throwingIterationEarlyExitFirst() async -> String {
+            while !throwingIterationEarlyExitSiblingStarted {
+                await Task.yield()
+            }
+            inspectThrowingIterationEarlyExitFirst()
+            throwingIterationEarlyExitCompletions += 1
+            return "first"
+        }
+        @MainActor
+        func throwingIterationEarlyExitOwner() async -> String {
+            do {
+                let first = try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    group.addTask {
+                        await throwingIterationEarlyExitSibling()
+                    }
+                    group.addTask {
+                        await throwingIterationEarlyExitFirst()
+                    }
+                    var observed = "none"
+                    for try await value in group {
+                        observed = value
+                        throwingIterationEarlyExitReleaseSibling = true
+                        break
+                    }
+                    return observed
+                }
+                let owner = Task.isCancelled
+                    ? "owner-cancelled"
+                    : "owner-active"
+                let joined = throwingIterationEarlyExitCompletions == 2
+                    ? "joined"
+                    : "not-joined"
+                return first + ":" + throwingIterationEarlyExitSiblingState
+                    + ":" + owner + ":" + joined
+            } catch {
+                throwingIterationEarlyExitReleaseSibling = true
+                return "error"
+            }
+        }
+        await throwingIterationEarlyExitOwner()
+        """)
+
+        #expect(result.stringValue == "first:active:owner-active:joined")
+        #expect(observedGroup?.kind == .throwing)
+        #expect(observedGroup?.hasCancelAllRequest == false)
+        #expect(observedGroup?.completedChildTaskIDs.count == 2)
+        #expect(observedGroup?.consumedChildTaskIDs.count == 1)
+        #expect(observedGroup?.pendingCompletedChildCount == 1)
+        #expect(observedFirst?.kind == .groupChild)
+        #expect(observedFirst?.state == .succeeded)
+        #expect(observedFirst?.cancellation.isRequested == false)
+        #expect(observedFirst.map {
+            observedGroup?.consumedChildTaskIDs.contains($0.id) == true
+        } == true)
+        #expect(observedSibling?.kind == .groupChild)
+        #expect(observedSibling?.state == .succeeded)
+        #expect(observedSibling?.cancellation.isRequested == false)
+        #expect(observedSibling.map {
+            observedGroup?.consumedChildTaskIDs.contains($0.id) == false
+        } == true)
+        #expect(observedOwner?.cancellation.isRequested == false)
+        #expect(observedOwner?.cancellation.isObserved == false)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupNextUsesCompletionQueueAndGroupSuspension() async throws {
         let interpreter = Interpreter()
         var observedParentSuspension: RuntimeSuspension?
