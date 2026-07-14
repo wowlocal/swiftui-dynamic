@@ -3077,7 +3077,30 @@ retained handle; the state remains `succeeded`, the typed `String` outcome
 remains `value`, cancellation is requested but unobserved, and the registry
 remains empty.
 
-The promoted exact differential and both focused cancellation tests are GREEN.
-M2 remains provisional only for the stronger lifetime requirement: an escaped
-completed handle must be proven not to retain its interpreter session or native
-driver.
+The promoted exact differential and both focused cancellation tests were
+GREEN. At that iteration, M2 remained provisional only for the stronger
+lifetime requirement: an escaped completed handle still needed proof that it
+did not retain its interpreter session or native driver.
+
+### M2 completed-handle session and driver release
+
+The focused ownership regression first failed with both the runtime and task
+record still alive after their completed source handle escaped. The handle
+strongly owned the complete mutable record, which in turn retained the native
+Swift task driver; removing the record from the active registry did not break
+that graph.
+
+`release` now atomically replaces the active runtime/record edge with a compact
+value-only snapshot. It preserves task identity, the typed immutable outcome,
+diagnostic metadata, and the cancellation state needed for repeated
+`value`/`result` reads and late `cancel()`. It also removes both sides of any
+remaining waiter dependency, drops the native driver, and severs the handle's
+runtime reference. A weak-reference regression proves that the driver, record,
+and complete runtime/session graph deallocate while the escaped handle still
+returns `value` and remains cancellable.
+
+The same-source native board remains GREEN for 20 repeated completed-handle
+reads, 20 dropped-live-handle runs, and the post-completion cancellation case.
+The focused task, cancellation, structured-runtime, and methodology run passes
+89/89 tests. The machine-readable repository gate receipt is the final
+source-bound evidence for this M2 completion claim.

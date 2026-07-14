@@ -234,10 +234,20 @@ private final class RuntimeCancellationHandlerRegistration {
     }
 }
 
+/// Native execution resource retained only while a runtime task is active.
+/// Keeping this as a reference object makes ownership independently testable:
+/// a completed source handle must not retain either this driver or its task.
+final class RuntimeNativeTaskDriver {
+    let task: Task<Void, Never>
+
+    init(task: Task<Void, Never>) {
+        self.task = task
+    }
+}
+
 /// Mutable lifecycle record owned by the cooperative concurrency runtime.
-/// The source-level handle retains this record after session bookkeeping has
-/// released it, so completed task values remain readable without leaking them
-/// from the runtime's active registry.
+/// A source-level handle refers to this record only while execution is active;
+/// `release(_:)` replaces that edge with a compact completion snapshot.
 final class RuntimeTaskRecord {
     let id: RuntimeTaskID
     let sessionID: RuntimeSessionID
@@ -274,7 +284,8 @@ final class RuntimeTaskRecord {
     var structuredScopes: Set<RuntimeStructuredScopeID> = []
     var ownedTaskGroups: Set<RuntimeTaskGroupID> = []
     var taskGroupID: RuntimeTaskGroupID?
-    var nativeTask: Task<Void, Never>?
+    weak var sourceHandle: RuntimeTaskHandle?
+    var nativeDriver: RuntimeNativeTaskDriver?
     var evaluationContext: EvaluationTaskContext?
 
     init(
@@ -704,7 +715,10 @@ final class CooperativeConcurrencyRuntime {
     func attach(
         _ nativeTask: Task<Void, Never>, to record: RuntimeTaskRecord
     ) {
-        record.nativeTask = nativeTask
+        precondition(
+            record.nativeDriver == nil,
+            "cannot attach more than one native driver to \(record.id)")
+        record.nativeDriver = RuntimeNativeTaskDriver(task: nativeTask)
         if record.cancellation.isRequested { nativeTask.cancel() }
     }
 
@@ -764,7 +778,7 @@ final class CooperativeConcurrencyRuntime {
             }
             group.hasOwnerCancellationRequest = true
         }
-        record.nativeTask?.cancel()
+        record.nativeDriver?.task.cancel()
         clock.cancelSleep(task: record.id)
         if !wasAlreadyRequested {
             invokeCancellationHandlers(on: record)
@@ -850,8 +864,24 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             records[id]?.ownedTaskGroups.isEmpty != false,
             "cannot release runtime task \(id) with an active task group")
+        guard let record = records[id] else { return }
         clock.cancelSleep(task: id)
-        records[id]?.cancellationHandlers.removeAll(keepingCapacity: false)
+        record.cancellationHandlers.removeAll(keepingCapacity: false)
+        for waiterID in record.waiters {
+            records[waiterID]?.waitingOnTasks.remove(id)
+        }
+        record.waiters.removeAll(keepingCapacity: false)
+        for awaitedID in record.waitingOnTasks {
+            records[awaitedID]?.waiters.remove(id)
+        }
+        record.waitingOnTasks.removeAll(keepingCapacity: false)
+        if let handle = record.sourceHandle {
+            handle.detachFromRuntime(
+                record,
+                nextCancellationSequence: takeEventSequence())
+        }
+        record.nativeDriver = nil
+        record.sourceHandle = nil
         records.removeValue(forKey: id)
     }
 

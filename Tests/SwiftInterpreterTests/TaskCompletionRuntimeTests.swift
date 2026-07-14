@@ -5,6 +5,40 @@ import Testing
 @Suite("Task completion runtime")
 struct TaskCompletionRuntimeTests {
     @Test
+    func escapedCompletedHandleReleasesRuntimeOwnership() {
+        weak var weakRuntime: CooperativeConcurrencyRuntime?
+        weak var weakRecord: RuntimeTaskRecord?
+        weak var weakDriver: RuntimeNativeTaskDriver?
+        var escapedHandle: RuntimeTaskHandle?
+
+        do {
+            let runtime = CooperativeConcurrencyRuntime()
+            weakRuntime = runtime
+            let record = runtime.createTask(
+                sessionID: runtime.createSession(),
+                kind: .unstructured,
+                parent: nil,
+                priority: .medium,
+                executorPreference: .cooperativeDefault,
+                taskLocals: RuntimeTaskLocalStorage())
+            weakRecord = record
+            let handle = RuntimeTaskHandle(runtime: runtime, record: record)
+            handle.attach(Task {})
+            weakDriver = record.nativeDriver
+            #expect(handle.begin())
+            handle.succeed(with: .native("value"))
+            runtime.release(handle.id)
+            escapedHandle = handle
+        }
+
+        #expect(escapedHandle?.state == .succeeded)
+        #expect(escapedHandle?.result?.stringValue == "value")
+        #expect(weakDriver == nil)
+        #expect(weakRecord == nil)
+        #expect(weakRuntime == nil)
+    }
+
+    @Test
     func taskValueWaitRecordsFirstClassAwaitingTaskSuspension() async throws {
         let interpreter = Interpreter()
         var targetGateOpen = false
