@@ -1250,6 +1250,178 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func cancelledAsyncLetScopePreservesLexicalCleanupOrder()
+    async throws {
+        let interpreter = Interpreter()
+        var observedChildren: [RuntimeTaskRecord] = []
+        var observedScopes: [RuntimeStructuredScopeRecord] = []
+        var observedOwners: [RuntimeTaskRecord] = []
+        interpreter.globals.define(
+            "inspectCancellationAsyncLetDeferChild",
+            .hostFunction(HostFunction(
+                name: "inspectCancellationAsyncLetDeferChild",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let ownerID = child.parent,
+                          let owner = interpreter.concurrencyRuntime
+                            .records[ownerID],
+                          let scope = interpreter.concurrencyRuntime
+                            .structuredScopes.values.first(where: {
+                                $0.childTaskIDs.contains(childID)
+                            }) else {
+                        throw RuntimeError(message:
+                            "cancelled async-let defer lost ownership")
+                    }
+                    observedChildren.append(child)
+                    observedScopes.append(scope)
+                    observedOwners.append(owner)
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        final class CancellationAsyncLetDeferRecorder {
+            var events: [String] = []
+            var childStarted = false
+            var ownerWaiting = false
+            var scopeExitReached = false
+            var releaseChild = false
+            var childCaughtCancellation = false
+            var ownerCaughtCancellation = false
+            var ownerWasCancelled = false
+        }
+        @MainActor
+        func cancellationAsyncLetDeferChild(
+            _ recorder: CancellationAsyncLetDeferRecorder
+        ) async -> String {
+            recorder.childStarted = true
+            do {
+                try await Task.sleep(for: .seconds(30))
+            } catch is CancellationError {
+                recorder.childCaughtCancellation = true
+                await inspectCancellationAsyncLetDeferChild()
+                while !recorder.releaseChild {
+                    await Task.yield()
+                }
+                recorder.events.append("child-complete")
+            } catch {
+                recorder.events.append("wrong-child-error")
+            }
+            return "unused"
+        }
+        @MainActor
+        func cancelWithDeferBeforeAsyncLet(
+            _ recorder: CancellationAsyncLetDeferRecorder
+        ) async -> String {
+            defer {
+                recorder.events.append("defer")
+            }
+            async let unused = cancellationAsyncLetDeferChild(recorder)
+            while !recorder.childStarted {
+                await Task.yield()
+            }
+            recorder.ownerWaiting = true
+            do {
+                try await Task.sleep(for: .seconds(30))
+            } catch is CancellationError {
+                recorder.ownerCaughtCancellation = true
+            } catch {
+                recorder.events.append("wrong-owner-error")
+            }
+            recorder.ownerWasCancelled = Task.isCancelled
+            recorder.scopeExitReached = true
+            recorder.events.append("scope-exit")
+            return "returned"
+        }
+        @MainActor
+        func cancelWithDeferAfterAsyncLet(
+            _ recorder: CancellationAsyncLetDeferRecorder
+        ) async -> String {
+            async let unused = cancellationAsyncLetDeferChild(recorder)
+            defer {
+                recorder.events.append("defer")
+            }
+            while !recorder.childStarted {
+                await Task.yield()
+            }
+            recorder.ownerWaiting = true
+            do {
+                try await Task.sleep(for: .seconds(30))
+            } catch is CancellationError {
+                recorder.ownerCaughtCancellation = true
+            } catch {
+                recorder.events.append("wrong-owner-error")
+            }
+            recorder.ownerWasCancelled = Task.isCancelled
+            recorder.scopeExitReached = true
+            recorder.events.append("scope-exit")
+            return "returned"
+        }
+        @MainActor
+        func runCancellationDeferOrderVariant(
+            deferBefore: Bool
+        ) async -> String {
+            let recorder = CancellationAsyncLetDeferRecorder()
+            let owner = Task {
+                if deferBefore {
+                    return await cancelWithDeferBeforeAsyncLet(recorder)
+                }
+                return await cancelWithDeferAfterAsyncLet(recorder)
+            }
+            while !recorder.ownerWaiting {
+                await Task.yield()
+            }
+            owner.cancel()
+            while !recorder.scopeExitReached {
+                await Task.yield()
+            }
+            recorder.releaseChild = true
+            let value = await owner.value
+            recorder.events.append(value)
+            let cancellation = recorder.childCaughtCancellation
+                && recorder.ownerCaughtCancellation
+                && recorder.ownerWasCancelled
+                && owner.isCancelled
+                ? "cancelled"
+                : "wrong-cancellation"
+            return recorder.events.joined(separator: ",")
+                + ":" + cancellation
+        }
+        let before = await runCancellationDeferOrderVariant(deferBefore: true)
+        let after = await runCancellationDeferOrderVariant(deferBefore: false)
+        before + "|" + after
+        """)
+
+        #expect(result.stringValue == "scope-exit,child-complete,"
+            + "defer,returned:cancelled|scope-exit,defer,"
+            + "child-complete,returned:cancelled")
+        #expect(observedChildren.count == 2)
+        #expect(observedChildren.allSatisfy { child in
+            child.kind == .asyncLet
+                && child.state == .succeeded
+                && child.cancellation.sources
+                    == [.structuredParent, .structuredScopeExit]
+                && child.cancellation.isObserved
+        })
+        #expect(observedScopes.count == 2)
+        #expect(observedScopes.allSatisfy { scope in
+            scope.kind == .asyncLet && scope.childTaskIDs.count == 1
+        })
+        #expect(observedOwners.count == 2)
+        #expect(observedOwners.allSatisfy { owner in
+            owner.kind == .unstructured
+                && owner.state == .succeeded
+                && owner.cancellation.sources == [.taskHandle]
+                && owner.cancellation.isObserved
+        })
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func asyncLetTuplePatternProjectsOneStructuredChild() async throws {
         let interpreter = Interpreter()
         var observedChildCount = 0

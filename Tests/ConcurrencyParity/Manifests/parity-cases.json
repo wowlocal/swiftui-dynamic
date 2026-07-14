@@ -587,6 +587,18 @@
     "notes": "Both registration orders are exercised after the child enters a 30-second cancellable suspension. Exact output is child-start,early-return,child-cancelled,defer,returned|child-start,early-return,defer,child-cancelled,returned in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "async-let-cancellation-defer-order",
+    "fixture": "Fixtures/async-let-cancellation-defer-order.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetCancellationDeferOrderProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling an owner preserves reverse lexical registration order between defer and unread async-let cleanup, joins the child before returning the owner task value, and leaves cancellation observable on both owner and child.",
+    "notes": "A MainActor controller releases the cancelled child only after scope unwind begins, so the asserted cleanup order cannot come from cancellation wake-up order. Exact output is scope-exit,child-complete,defer,returned:cancelled|scope-exit,defer,child-complete,returned:cancelled in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "async-let-value-failure",
     "fixture": "Fixtures/async-let-value-failure.swift",
     "mode": "runtime",
