@@ -35,18 +35,18 @@ struct ContentView: View {
                 Text("Task Observatory")
                     .font(.title)
                     .bold()
-                Text("Detached workers, suspension, cancellation, and shared task results")
+                Text("async let, task groups, priorities, cancellation, and shared task results")
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
             VStack(alignment: .trailing, spacing: 5) {
-                Text("PARALLELISM PROBE")
+                Text("STRUCTURED CONCURRENCY")
                     .font(.caption)
                     .bold()
                     .foregroundStyle(.purple)
-                Text("Watch Main thread vs Worker pool")
+                Text("Task.sleep(for:) suspends without blocking")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -61,20 +61,18 @@ struct ContentView: View {
             Label("Shared Task.value", systemImage: "arrow.triangle.branch")
                 .font(.headline)
 
-            Text("Comet produces one result. Two independent tasks suspend on the same handle and resume with that value.")
+            Text("A high-priority and a utility waiter suspend on Comet's background handle. Both resume with its one group result.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             ObserverRow(name: "Waiter 1", status: store.observerOne)
             ObserverRow(name: "Waiter 2", status: store.observerTwo)
 
-            Spacer()
-
             VStack(alignment: .leading, spacing: 6) {
-                Label("What to retest", systemImage: "checklist")
+                Label("Group reduction", systemImage: "checklist")
                     .font(.subheadline)
                     .bold()
-                Text("Worker-pool lanes, overlapping progress, cancellation isolation, and both waiters receiving one result.")
+                Text(store.groupStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -171,6 +169,16 @@ struct WorkerCard: View {
             ProgressView(value: worker.progress)
                 .tint(worker.color)
 
+            HStack(spacing: 6) {
+                Text(worker.primitive)
+                    .bold()
+                    .foregroundStyle(worker.color)
+                Spacer()
+                Text("priority: " + worker.priority)
+                    .foregroundStyle(.secondary)
+            }
+            .font(.system(size: 10))
+
             Text(worker.detail)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -181,7 +189,7 @@ struct WorkerCard: View {
                 .foregroundStyle(worker.lane == "Worker pool" ? .green : .secondary)
         }
         .padding(15)
-        .frame(maxWidth: .infinity, minHeight: 138)
+        .frame(maxWidth: .infinity, minHeight: 158)
         .background(Color.primary.opacity(0.055))
         .overlay(
             RoundedRectangle(cornerRadius: 16)

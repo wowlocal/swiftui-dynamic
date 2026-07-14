@@ -5,6 +5,8 @@ struct WorkerSnapshot: Identifiable {
     let name: String
     let symbol: String
     let color: Color
+    let primitive: String
+    let priority: String
     var phase: String
     var detail: String
     var lane: String

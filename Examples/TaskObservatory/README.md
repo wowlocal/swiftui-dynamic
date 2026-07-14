@@ -1,15 +1,29 @@
 # Task Observatory
 
-A forward-looking SwiftUI demo for the interpreter's Task architecture. It
-launches three detached workers, records suspension and resumption events,
-cancels one task, and has two independent waiters consume the same
-`Task.value`.
+A SwiftUI demo for the interpreter's Swift Concurrency architecture. One run
+combines structured and unstructured tasks instead of treating every unit of
+work as an independent detached task:
 
-The execution-lane probe intentionally distinguishes `Main thread` from
-`Worker pool`. With the current cooperative runtime it documents today's
-behavior; after physical parallelism is implemented, the same UI can be used
-to retest worker-pool execution and overlapping progress without redesigning
-the example.
+- **Atlas** starts two `async let` bindings and joins their results.
+- **Beacon** wraps a heartbeat loop in `withTaskCancellationHandler`, checks
+  cancellation explicitly, and demonstrates cancellation interrupting sleep.
+- **Comet** dynamically fans four child operations out through
+  `withTaskGroup`, consumes them in completion order with `group.next()`, and
+  reduces their values to one shared result.
+- A high-priority task and a utility task both await the same background
+  Comet handle through `Task.value`.
+
+Every simulated delay uses `try await Task.sleep(for:)`. Sleep suspends the
+task and releases the cooperative executor; it does not block a thread. The
+workers also exercise explicit task priorities, `Task.checkCancellation()`,
+`Task.isCancelled`, `Task.yield()`, `@MainActor` UI handoffs, and `@concurrent`
+nonisolated worker methods.
+
+The execution-lane probe distinguishes `Main thread` from `Worker pool`.
+Swift concurrency does not promise one thread per task, and the interpreter's
+current runtime is cooperative. The lane is therefore an observation, not a
+scheduling assertion; the same dashboard can be reused when physical
+parallelism is introduced.
 
 Run it from the repository root:
 
@@ -26,8 +40,10 @@ swift run DynamicSwiftUIDemo --project Examples/TaskObservatory \
 
 Retest checklist:
 
-- Atlas, Beacon, and Comet make independent progress.
-- Event rows report worker-pool execution where expected.
-- Cancelling Beacon does not cancel Atlas or Comet.
-- Both waiters resume with Comet's single `orbit-42` result.
+- Atlas's two child sleeps overlap and both bindings are joined.
+- Comet receives four group results and reduces them to `orbit-10`.
+- Cancelling Beacon fires `onCancel`, interrupts `Task.sleep`, and does not
+  cancel Atlas or Comet.
+- Both waiters resume with Comet's single `orbit-10` result.
+- Event rows report the observed execution lane at each suspension boundary.
 - Restarting cancels the previous generation without leaking old events.
