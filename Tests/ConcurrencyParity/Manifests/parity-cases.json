@@ -575,6 +575,18 @@
     "notes": "Both registration orders are exercised after the child enters a 30-second cancellable suspension. Exact output is child-start,scope-throw,child-cancelled,defer,caught|child-start,scope-throw,defer,child-cancelled,caught in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "async-let-early-return-defer-order",
+    "fixture": "Fixtures/async-let-early-return-defer-order.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetEarlyReturnDeferOrderProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An early return unwinds defer and async-let cleanup in reverse lexical registration order, joining the cancelled child before the caller receives the returned value.",
+    "notes": "Both registration orders are exercised after the child enters a 30-second cancellable suspension. Exact output is child-start,early-return,child-cancelled,defer,returned|child-start,early-return,defer,child-cancelled,returned in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "async-let-value-failure",
     "fixture": "Fixtures/async-let-value-failure.swift",
     "mode": "runtime",

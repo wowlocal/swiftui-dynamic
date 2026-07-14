@@ -1125,6 +1125,131 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func earlyReturnAsyncLetScopePreservesLexicalCleanupOrder()
+    async throws {
+        let interpreter = Interpreter()
+        var observedChildren: [RuntimeTaskRecord] = []
+        var observedScopes: [RuntimeStructuredScopeRecord] = []
+        var observedOwners: [RuntimeTaskRecord] = []
+        interpreter.globals.define(
+            "inspectEarlyReturnAsyncLetDeferChild",
+            .hostFunction(HostFunction(
+                name: "inspectEarlyReturnAsyncLetDeferChild",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let ownerID = child.parent,
+                          let owner = interpreter.concurrencyRuntime
+                            .records[ownerID],
+                          let scope = interpreter.concurrencyRuntime
+                            .structuredScopes.values.first(where: {
+                                $0.childTaskIDs.contains(childID)
+                            }) else {
+                        throw RuntimeError(message:
+                            "early-return async-let defer lost ownership")
+                    }
+                    observedChildren.append(child)
+                    observedScopes.append(scope)
+                    observedOwners.append(owner)
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        final class EarlyReturnAsyncLetDeferRecorder {
+            var events: [String] = []
+            var childStarted = false
+        }
+        @MainActor
+        func earlyReturnAsyncLetDeferChild(
+            _ recorder: EarlyReturnAsyncLetDeferRecorder
+        ) async -> String {
+            recorder.events.append("child-start")
+            recorder.childStarted = true
+            do {
+                try await Task.sleep(for: .seconds(30))
+                recorder.events.append("child-finished")
+            } catch is CancellationError {
+                await inspectEarlyReturnAsyncLetDeferChild()
+                recorder.events.append("child-cancelled")
+            } catch {
+                recorder.events.append("wrong-child-error")
+            }
+            return "unused"
+        }
+        @MainActor
+        func returnWithDeferBeforeAsyncLet(
+            _ recorder: EarlyReturnAsyncLetDeferRecorder
+        ) async -> String {
+            defer {
+                recorder.events.append("defer")
+            }
+            async let unused = earlyReturnAsyncLetDeferChild(recorder)
+            while !recorder.childStarted {
+                await Task.yield()
+            }
+            recorder.events.append("early-return")
+            return "returned"
+        }
+        @MainActor
+        func returnWithDeferAfterAsyncLet(
+            _ recorder: EarlyReturnAsyncLetDeferRecorder
+        ) async -> String {
+            async let unused = earlyReturnAsyncLetDeferChild(recorder)
+            defer {
+                recorder.events.append("defer")
+            }
+            while !recorder.childStarted {
+                await Task.yield()
+            }
+            recorder.events.append("early-return")
+            return "returned"
+        }
+        @MainActor
+        func earlyReturnDeferBeforeAsyncLetProbe() async -> String {
+            let recorder = EarlyReturnAsyncLetDeferRecorder()
+            let value = await returnWithDeferBeforeAsyncLet(recorder)
+            recorder.events.append(value)
+            return recorder.events.joined(separator: ",")
+        }
+        @MainActor
+        func earlyReturnDeferAfterAsyncLetProbe() async -> String {
+            let recorder = EarlyReturnAsyncLetDeferRecorder()
+            let value = await returnWithDeferAfterAsyncLet(recorder)
+            recorder.events.append(value)
+            return recorder.events.joined(separator: ",")
+        }
+        let before = await earlyReturnDeferBeforeAsyncLetProbe()
+        let after = await earlyReturnDeferAfterAsyncLetProbe()
+        before + "|" + after
+        """)
+
+        #expect(result.stringValue == "child-start,early-return,"
+            + "child-cancelled,defer,returned|child-start,early-return,"
+            + "defer,child-cancelled,returned")
+        #expect(observedChildren.count == 2)
+        #expect(observedChildren.allSatisfy { child in
+            child.kind == .asyncLet
+                && child.state == .succeeded
+                && child.cancellation.sources == [.structuredScopeExit]
+                && child.cancellation.isObserved
+        })
+        #expect(observedScopes.count == 2)
+        #expect(observedScopes.allSatisfy { scope in
+            scope.kind == .asyncLet && scope.childTaskIDs.count == 1
+        })
+        #expect(observedOwners.count == 2)
+        #expect(observedOwners.allSatisfy { owner in
+            !owner.cancellation.isRequested
+                && !owner.cancellation.isObserved
+        })
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func asyncLetTuplePatternProjectsOneStructuredChild() async throws {
         let interpreter = Interpreter()
         var observedChildCount = 0
