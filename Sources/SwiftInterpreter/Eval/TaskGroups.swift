@@ -296,11 +296,6 @@ extension Interpreter {
             guard case .failure(let value, _) = outcome else { return nil }
             return value
         }
-        let hasCancellation = outcomes.contains { outcome in
-            if case .cancelled = outcome { return true }
-            return false
-        }
-
         switch group.kind {
         case .nonthrowing:
             guard let failure = failures.first else { return }
@@ -316,13 +311,21 @@ extension Interpreter {
                     + "is not supported yet")
 
             case .waitForAll:
-                guard !hasCancellation else {
-                    throw RuntimeError(message:
-                        "throwing task-group waitForAll cancellation projection "
-                        + "is not supported yet")
+                guard let firstError = outcomes.first(where: { outcome in
+                    switch outcome {
+                    case .success: false
+                    case .failure, .cancelled: true
+                    }
+                }) else { return }
+                switch firstError {
+                case .failure(let value, _):
+                    throw InterpretedThrow(value: value)
+                case .cancelled:
+                    throw CancellationError()
+                case .success:
+                    preconditionFailure(
+                        "throwing wait selected a successful outcome as an error")
                 }
-                guard let failure = failures.first else { return }
-                throw InterpretedThrow(value: failure)
             }
         }
     }

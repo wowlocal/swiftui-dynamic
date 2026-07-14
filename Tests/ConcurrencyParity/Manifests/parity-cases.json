@@ -771,6 +771,18 @@
     "notes": "One child waits on a gate and one can fail immediately; both record completion before throwing. All 20 Swift 6.3.3 runs returned caught-second:drained. The allowed set accepts either nominal source error but requires drained, so scheduler order is not asserted; the Swift 6 SDK swiftinterface supplies the first-observed-error algorithm."
   },
   {
+    "id": "task-group-throwing-wait-for-all-cancellation",
+    "fixture": "Fixtures/task-group-throwing-wait-for-all-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingWaitForAllCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A cancelled throwing-group child that observes cancellation contributes CancellationError to waitForAll without cancelling the owner; waitForAll drains every remaining child before rethrowing.",
+    "notes": "The group is cancelled before either child is added. One child records completion and calls Task.checkCancellation(); the other records completion and succeeds while ignoring cancellation. All 20 Swift 6.3.3 runs returned cancellation:owner-active:drained."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

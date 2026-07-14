@@ -1377,30 +1377,79 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
 
-        do {
-            _ = try await interpreter.runAsync(source: """
-            func cancelledThrowingWaitOwner() async throws -> String {
-                try await withThrowingTaskGroup(of: String.self) { group in
+    @Test func throwingWaitCancellationRethrowsWithoutCancellingOwner() async throws {
+        let interpreter = Interpreter()
+        var observedGroup: RuntimeTaskGroupRecord?
+        var observedOwner: RuntimeTaskRecord?
+        interpreter.globals.define(
+            "observeThrowingWaitCancellation",
+            .hostFunction(HostFunction(
+                name: "observeThrowingWaitCancellation"
+            ) { _, _ in
+                guard let group = interpreter.concurrencyRuntime
+                        .taskGroups.values.first,
+                      let owner = interpreter.concurrencyRuntime
+                        .records[group.ownerTaskID] else {
+                    throw RuntimeError(message:
+                        "throwing wait cancellation lost runtime ownership")
+                }
+                observedGroup = group
+                observedOwner = owner
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        var throwingWaitCancellationCompletions = 0
+        @MainActor
+        func recordThrowingWaitCancellationCompletion() {
+            throwingWaitCancellationCompletions += 1
+            observeThrowingWaitCancellation()
+        }
+        @MainActor
+        func cancelledThrowingWaitOwner() async -> String {
+            do {
+                _ = try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
                     group.cancelAll()
                     group.addTask {
+                        await recordThrowingWaitCancellationCompletion()
                         try Task.checkCancellation()
                         return "missed"
+                    }
+                    group.addTask {
+                        await recordThrowingWaitCancellationCompletion()
+                        return "success"
                     }
                     try await group.waitForAll()
                     return "missed"
                 }
+                return "missed"
+            } catch {
+                let errorKind = type(of: error) == CancellationError.self
+                    ? "cancellation"
+                    : "wrong-error"
+                let ownerState = Task.isCancelled
+                    ? "owner-cancelled"
+                    : "owner-active"
+                let drained = throwingWaitCancellationCompletions == 2
+                    ? "drained"
+                    : "not-drained"
+                return errorKind + ":" + ownerState + ":" + drained
             }
-            try await cancelledThrowingWaitOwner()
-            """)
-            Issue.record("unprobed throwing wait cancellation unexpectedly succeeded")
-        } catch let failure as RuntimeError {
-            #expect(failure.message.contains(
-                "waitForAll cancellation projection is not supported"))
-        } catch {
-            Issue.record("unexpected throwing wait cancellation error: \(error)")
         }
+        await cancelledThrowingWaitOwner()
+        """)
 
+        #expect(result.stringValue == "cancellation:owner-active:drained")
+        #expect(observedGroup?.completedChildTaskIDs.count == 2)
+        #expect(observedGroup?.consumedChildTaskIDs.count == 2)
+        #expect(observedGroup?.pendingCompletedChildCount == 0)
+        #expect(observedOwner?.cancellation.isRequested == false)
+        #expect(observedOwner?.cancellation.isObserved == false)
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
