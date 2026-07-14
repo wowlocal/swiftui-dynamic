@@ -1152,10 +1152,20 @@ struct AsyncExecutionTests {
             }
             return "active"
         }
+        func taskGroupAddDecisionLabel(_ added: Bool) -> String {
+            if added {
+                return "added"
+            }
+            return "skipped"
+        }
         await withTaskGroup(of: String.self) { group in
             let before = taskGroupCancellationLabel(group.isCancelled)
             group.cancelAll()
             let after = taskGroupCancellationLabel(group.isCancelled)
+            let conditional = taskGroupAddDecisionLabel(
+                group.addTaskUnlessCancelled {
+                    return "wrong-conditional"
+                })
             group.addTask {
                 if Task.isCancelled {
                     return "cancelled"
@@ -1163,11 +1173,11 @@ struct AsyncExecutionTests {
                 return "active"
             }
             let child = await group.next() ?? "empty"
-            return before + ":" + after + ":" + child
+            return before + ":" + after + ":" + conditional + ":" + child
         }
         """)
 
-        #expect(result.stringValue == "active:cancelled:cancelled")
+        #expect(result.stringValue == "active:cancelled:skipped:cancelled")
         #expect(interpreter.scheduledTasks.isEmpty)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)

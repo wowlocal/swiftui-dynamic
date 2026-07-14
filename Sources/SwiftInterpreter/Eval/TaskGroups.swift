@@ -70,23 +70,35 @@ extension Interpreter {
                 ownerTaskID: evaluationTaskContext.runtimeTaskID)
             return .native(group.hasCancelAllRequest)
 
-        case "addTask":
+        case "addTask", "addTaskUnlessCancelled":
+            let skipsCancelledGroup = name == "addTaskUnlessCancelled"
             return .hostFunction(HostFunction(name: name) {
                 [weak self, weak group] arguments, _ in
                 guard let self, let group else {
                     throw RuntimeError(message:
-                        "task group was released before addTask")
+                        "task group was released before \(name)")
                 }
                 guard let operation = arguments.closure(labeled: "operation")
                         ?? arguments.firstUnlabeledClosure else {
                     throw RuntimeError(message:
-                        "TaskGroup.addTask needs an operation closure")
+                        "TaskGroup.\(name) needs an operation closure")
+                }
+                let priority = try RuntimeTaskPriority.sourceValue(
+                    arguments.labeled("priority"))
+                if skipsCancelledGroup {
+                    try group.requireActive(
+                        ownerTaskID: evaluationTaskContext.runtimeTaskID)
+                    if group.hasCancelAllRequest {
+                        return .native(false)
+                    }
                 }
                 _ = try spawnTaskGroupChild(
                     operation: operation,
                     in: group,
-                    priority: RuntimeTaskPriority.sourceValue(
-                        arguments.labeled("priority")))
+                    priority: priority)
+                if skipsCancelledGroup {
+                    return .native(true)
+                }
                 return .void
             })
 

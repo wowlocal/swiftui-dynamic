@@ -647,6 +647,18 @@
     "notes": "The same group is read on both sides of cancelAll with no child work. Exact output is active:cancelled in all 20 Swift 6.3.3 runs, so no scheduler order is involved."
   },
   {
+    "id": "task-group-add-unless-cancelled",
+    "fixture": "Fixtures/task-group-add-unless-cancelled.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupAddUnlessCancelledProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "TaskGroup.addTaskUnlessCancelled returns true and adds work while active, then returns false without adding work after cancelAll.",
+    "notes": "The first call yields added:first. After cancelAll, the second call yields skipped and a following next sees empty. Exact output is added:first:skipped:empty in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",
