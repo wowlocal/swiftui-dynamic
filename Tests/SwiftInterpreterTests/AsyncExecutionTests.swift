@@ -1757,6 +1757,135 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupIterationFailureCancelsSibling() async throws {
+        let interpreter = Interpreter()
+        var observedFailure: RuntimeTaskRecord?
+        var observedSibling: RuntimeTaskRecord?
+        var observedGroup: RuntimeTaskGroupRecord?
+        var observedOwner: RuntimeTaskRecord?
+        interpreter.globals.define(
+            "inspectThrowingIterationFailure",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingIterationFailure",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID] else {
+                        throw RuntimeError(message:
+                            "throwing iteration failure lost its runtime task")
+                    }
+                    observedFailure = child
+                    return .void
+                })))
+        interpreter.globals.define(
+            "inspectThrowingIterationSiblingCancellation",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingIterationSiblingCancellation",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let childID = bound.evaluationContext.runtimeTaskID,
+                          let child = interpreter.concurrencyRuntime
+                            .records[childID],
+                          let groupID = child.taskGroupID,
+                          let group = interpreter.concurrencyRuntime
+                            .taskGroups[groupID],
+                          let owner = interpreter.concurrencyRuntime
+                            .records[group.ownerTaskID] else {
+                        throw RuntimeError(message:
+                            "throwing iteration cleanup lost runtime ownership")
+                    }
+                    observedSibling = child
+                    observedGroup = group
+                    observedOwner = owner
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        enum ThrowingIterationError: Error {
+            case failed
+        }
+        @MainActor
+        var throwingIterationEvents: [String] = []
+        @MainActor
+        var throwingIterationSiblingStarted = false
+        @MainActor
+        func throwingIterationSibling() async -> Int {
+            throwingIterationSiblingStarted = true
+            throwingIterationEvents.append("sibling-start")
+            do {
+                try await Task.sleep(for: .seconds(30))
+                return 1
+            } catch {
+                await inspectThrowingIterationSiblingCancellation()
+                throwingIterationEvents.append("sibling-cancelled")
+                return 2
+            }
+        }
+        @MainActor
+        func throwingIterationFailure() async throws -> Int {
+            while !throwingIterationSiblingStarted {
+                await Task.yield()
+            }
+            await inspectThrowingIterationFailure()
+            throwingIterationEvents.append("child-failed")
+            throw ThrowingIterationError.failed
+        }
+        @MainActor
+        func throwingIterationOwner() async -> String {
+            do {
+                _ = try await withThrowingTaskGroup(
+                    of: Int.self
+                ) { group in
+                    group.addTask {
+                        await throwingIterationSibling()
+                    }
+                    group.addTask {
+                        try await throwingIterationFailure()
+                    }
+                    for try await _ in group {
+                        throwingIterationEvents.append("unexpected-value")
+                    }
+                    return "missed"
+                }
+                throwingIterationEvents.append("missed")
+            } catch ThrowingIterationError.failed {
+                throwingIterationEvents.append("caught-child")
+            } catch {
+                throwingIterationEvents.append("wrong-error")
+            }
+            return throwingIterationEvents.joined(separator: ",")
+        }
+        await throwingIterationOwner()
+        """)
+
+        #expect(result.stringValue
+            == "sibling-start,child-failed,sibling-cancelled,caught-child")
+        #expect(observedGroup?.kind == .throwing)
+        #expect(observedGroup?.completedChildTaskIDs.count == 2)
+        #expect(observedGroup?.consumedChildTaskIDs.count == 1)
+        #expect(observedGroup?.pendingCompletedChildCount == 1)
+        #expect(observedFailure?.kind == .groupChild)
+        #expect(observedFailure?.state == .failed)
+        #expect(observedFailure?.cancellation.isRequested == false)
+        #expect(observedFailure.map {
+            observedGroup?.consumedChildTaskIDs.contains($0.id) == true
+        } == true)
+        #expect(observedSibling?.kind == .groupChild)
+        #expect(observedSibling?.state == .succeeded)
+        #expect(observedSibling?.cancellation.sources == [.structuredScopeExit])
+        #expect(observedSibling?.cancellation.isObserved == true)
+        #expect(observedSibling.map {
+            observedGroup?.consumedChildTaskIDs.contains($0.id) == false
+        } == true)
+        #expect(observedOwner?.cancellation.isRequested == false)
+        #expect(observedOwner?.cancellation.isObserved == false)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupNextUsesCompletionQueueAndGroupSuspension() async throws {
         let interpreter = Interpreter()
         var observedParentSuspension: RuntimeSuspension?
