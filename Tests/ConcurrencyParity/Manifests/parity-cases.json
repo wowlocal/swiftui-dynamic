@@ -731,6 +731,18 @@
     "notes": "The body explicitly awaits an empty throwing group and returns empty in all 20 Swift 6.3.3 runs. There is no child or scheduler ordering claim."
   },
   {
+    "id": "task-group-throwing-wait-for-all-multiple-success",
+    "fixture": "Fixtures/task-group-throwing-wait-for-all-multiple-success.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingWaitForAllMultipleSuccessProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "try await ThrowingTaskGroup.waitForAll() returns normally after multiple successful children.",
+    "notes": "Two children return values that are not observed individually; explicit waitForAll returns all-success in all 20 Swift 6.3.3 runs. Child completion order and failure selection are not asserted."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

@@ -295,12 +295,12 @@ extension Interpreter {
                     + "is not supported yet")
 
             case .waitForAll:
-                guard outcomes.count <= 1 else {
-                    throw RuntimeError(message:
-                        "throwing task-group waitForAll with multiple child "
-                        + "outcomes is not supported yet")
-                }
                 guard let failure = failures.first else { return }
+                guard outcomes.count == 1 else {
+                    throw RuntimeError(message:
+                        "throwing task-group waitForAll failure selection with "
+                        + "multiple child outcomes is not supported yet")
+                }
                 throw InterpretedThrow(value: failure)
             }
         }
