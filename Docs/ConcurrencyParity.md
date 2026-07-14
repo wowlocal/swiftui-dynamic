@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; nonthrowing `withTaskGroup`, `addTask`, `addTaskUnlessCancelled` around `cancelAll`, explicit `waitForAll` with remaining-result draining, `cancelAll`, `isCancelled` around `cancelAll`, completion-ordered `next` consumption, drained-group `nil`, cancelled-state inheritance for children added after `cancelAll`, and non-cancelling implicit wait on normal group scope exit have runtime-owned group/scope support; missing `await` is diagnosed | Remaining exceptional defer/cleanup combinations, parent-cancelled group state/late addition, throwing groups, and group iteration |
+| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; nonthrowing `withTaskGroup`, `addTask`, `addTaskUnlessCancelled`, explicit `waitForAll` with remaining-result draining, `cancelAll`, combined owner/`cancelAll` `isCancelled` state, completion-ordered `next` consumption, drained-group `nil`, cancellation inheritance for late ordinary children, and non-cancelling implicit wait on normal group scope exit have runtime-owned group/scope support; missing `await` is diagnosed | Remaining exceptional defer/cleanup combinations, group creation after prior owner cancellation, throwing groups, and group iteration |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1806,9 +1806,10 @@ cancellation flag and no polling of native task state.
 The exact differential case is GREEN in all 20 repetitions. Direct runtime
 coverage observes `active:cancelled` on the group, then confirms that a child
 added afterward sees `Task.isCancelled`, followed by zero task/group/scope
-records. This step does not claim how `isCancelled` changes when only the owner
-task is cancelled; parent-cancellation state and late addition in that state
-remain separate, and at this point `addTaskUnlessCancelled` was also unprobed.
+records. This step did not claim how `isCancelled` changes when only the owner
+task was cancelled; parent-cancellation state and late addition in that state
+remained separate until the later active-owner-cancellation probe. At this
+point `addTaskUnlessCancelled` was also unprobed.
 `AsyncExecutionTests` pass 46/46, `HostSignatureTests` pass 12/12, and
 `ConcurrencyParityTests` pass 8/8.
 The full suite passes 782 tests in 149 suites. `Scripts/gate.sh` is green with
@@ -1840,10 +1841,55 @@ without allocating a task record, otherwise it creates the same structured
 
 The exact differential case is GREEN in all 20 repetitions. Direct runtime
 coverage observes the skipped post-cancellation closure alongside ordinary
-`addTask` cancellation inheritance and zero task/group/scope records. This
-step still does not classify the method under owner-only cancellation.
+`addTask` cancellation inheritance and zero task/group/scope records. At this
+step the method under owner-only cancellation remained unclassified; the later
+active-owner-cancellation probe closes that case.
 `AsyncExecutionTests` pass 46/46, `HostSignatureTests` pass 12/12, and
 `ConcurrencyParityTests` pass 8/8. The full suite passes 782 tests in 149
 suites. `Scripts/gate.sh` is green with 782 tests, the unchanged 678/680
 project-corpus ratchet, 5/5 live-data scenarios, and API parity at 345 match /
 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.
+
+### M4 owner cancellation of an active task group
+
+`task-group-owner-cancellation.swift` creates an unstructured owner task and
+publishes readiness only after that task has entered `withTaskGroup`. The outer
+controller cancels the owner's handle. Inside the group, the owner waits until
+its own `Task.isCancelled` read becomes true, then reads `group.isCancelled`,
+calls `addTaskUnlessCancelled`, adds one ordinary late child, and consumes that
+child with `next`.
+
+Twenty bounded Apple Swift 6.3.3 strict-concurrency runs produced
+`cancelled:cancelled:skipped:child-cancelled` exactly. Readiness proves the
+group already exists before cancellation. The owner's observation loop ensures
+all following operations occur after cancellation rather than asserting when
+the scheduler delivers it. The result therefore proves that cancelling the
+owner makes the active group cancelled, conditional addition skips without
+running its closure, and an ordinary child added afterward starts cancelled.
+
+The initial same-source interpreter case was RED in all 20 repetitions with
+`cancelled:active:added:wrong-conditional`. Owner cancellation already reached
+existing structured children, but the task record had no identity edge to its
+active group, so the group capability retained only its independent
+`hasCancelAllRequest` state.
+
+Each runtime task now owns the IDs of its active task groups. Cancellation marks
+those group records with a distinct `hasOwnerCancellationRequest` before
+cancellation handlers run, while `cancelAll` remains a separate fact.
+`isCancelled` and `addTaskUnlessCancelled` read the combined runtime-owned
+state. A late ordinary child receives `.structuredParent` before its native
+driver is attached; if both owner cancellation and `cancelAll` apply, it
+retains both sources. Group close removes the owner edge, and task release now
+rejects a leaked active group. No native mirror `TaskGroup`, polling loop, or
+fixture-specific dispatch was introduced.
+
+The exact differential case is GREEN in all 20 repetitions, including the
+fresh interpreter cleanup guard for task/group/scope records. The combined
+targeted run passes 66/66 tests across `AsyncExecutionTests` (46),
+`HostSignatureTests` (12), and `ConcurrencyParityTests` (8). The full suite
+passes 782 tests in 149 suites. `Scripts/gate.sh` is green with 782 tests, the
+unchanged 678/680 project-corpus ratchet, 5/5 live-data scenarios, and API
+parity at 345 match / 0 diverge / 0 interpreter errors / 17 unstable / 0
+no-twin. Group creation after an already-cancelled owner remains unclassified,
+as do throwing groups, group iteration, and the remaining exceptional cleanup
+combinations.

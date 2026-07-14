@@ -256,6 +256,7 @@ final class RuntimeTaskRecord {
     var spawnedTasks: Set<RuntimeTaskID> = []
     var structuredChildren: Set<RuntimeTaskID> = []
     var structuredScopes: Set<RuntimeStructuredScopeID> = []
+    var ownedTaskGroups: Set<RuntimeTaskGroupID> = []
     var taskGroupID: RuntimeTaskGroupID?
     var nativeTask: Task<Void, Never>?
     var evaluationContext: EvaluationTaskContext?
@@ -311,6 +312,7 @@ final class RuntimeTaskGroupRecord {
     let ownerTaskID: RuntimeTaskID
     let structuredScope: RuntimeStructuredScopeRecord
     var hasCancelAllRequest = false
+    var hasOwnerCancellationRequest = false
     var childTaskIDs: [RuntimeTaskID] = []
     var completedChildTaskIDs: [RuntimeTaskID] = []
     private var completedChildTaskIDSet: Set<RuntimeTaskID> = []
@@ -320,6 +322,10 @@ final class RuntimeTaskGroupRecord {
 
     var pendingCompletedChildCount: Int {
         completedChildTaskIDs.count - nextCompletedChildIndex
+    }
+
+    var isCancellationRequested: Bool {
+        hasCancelAllRequest || hasOwnerCancellationRequest
     }
 
     func publishCompletion(_ childID: RuntimeTaskID) {
@@ -436,6 +442,13 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             taskGroups.updateValue(group, forKey: id) == nil,
             "duplicate task group ID \(id)")
+        guard let owner = records[ownerTaskID] else {
+            preconditionFailure(
+                "task group \(id) lost owner task \(ownerTaskID)")
+        }
+        precondition(
+            owner.ownedTaskGroups.insert(id).inserted,
+            "duplicate owner edge for task group \(id)")
         return group
     }
 
@@ -580,6 +593,13 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             group.completedChildTaskIDs.count == group.childTaskIDs.count,
             "cannot close \(group.id) before every outcome is published")
+        guard let owner = records[group.ownerTaskID] else {
+            preconditionFailure(
+                "task group \(group.id) lost owner task \(group.ownerTaskID)")
+        }
+        precondition(
+            owner.ownedTaskGroups.remove(group.id) != nil,
+            "task group \(group.id) is absent from its owner")
         closeStructuredScope(group.structuredScope)
         taskGroups.removeValue(forKey: group.id)
     }
@@ -684,6 +704,13 @@ final class CooperativeConcurrencyRuntime {
             record.cancellation.sources.contains(source)
         record.cancellation.request(
             from: source, sequence: takeEventSequence())
+        for groupID in record.ownedTaskGroups {
+            guard let group = taskGroups[groupID] else {
+                preconditionFailure(
+                    "task \(record.id) owns inactive task group \(groupID)")
+            }
+            group.hasOwnerCancellationRequest = true
+        }
         record.nativeTask?.cancel()
         clock.cancelSleep(task: record.id)
         if !wasAlreadyRequested {
@@ -767,6 +794,9 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             records[id]?.structuredScopes.isEmpty != false,
             "cannot release runtime task \(id) with an active structured scope")
+        precondition(
+            records[id]?.ownedTaskGroups.isEmpty != false,
+            "cannot release runtime task \(id) with an active task group")
         clock.cancelSleep(task: id)
         records[id]?.cancellationHandlers.removeAll(keepingCapacity: false)
         records.removeValue(forKey: id)

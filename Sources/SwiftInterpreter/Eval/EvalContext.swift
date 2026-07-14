@@ -364,8 +364,8 @@ extension Interpreter: EvalContext {
 
         let pending = makePendingRuntimeTask(
             kind: .groupChild, explicitPriority: priority)
-        if group.hasCancelAllRequest {
-            pending.handle.cancel(source: .taskGroupCancelAll)
+        for source in group.newChildCancellationSources {
+            pending.handle.cancel(source: source)
         }
         do {
             try launchRuntimeTask(

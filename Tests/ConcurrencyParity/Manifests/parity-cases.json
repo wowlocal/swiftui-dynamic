@@ -659,6 +659,18 @@
     "notes": "The first call yields added:first. After cancelAll, the second call yields skipped and a following next sees empty. Exact output is added:first:skipped:empty in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-owner-cancellation",
+    "fixture": "Fixtures/task-group-owner-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupOwnerCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling a task that owns an active TaskGroup makes both the owner and group cancelled, causes addTaskUnlessCancelled to skip, and makes a later ordinary addTask child start cancelled.",
+    "notes": "The owner publishes readiness inside the group, an outer task cancels its handle, and the owner proceeds only after Task.isCancelled becomes true. Exact output is cancelled:cancelled:skipped:child-cancelled in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

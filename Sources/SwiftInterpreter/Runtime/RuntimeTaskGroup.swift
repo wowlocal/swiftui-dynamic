@@ -15,6 +15,23 @@ final class RuntimeTaskGroup {
     var hasCancelAllRequest: Bool {
         record.hasCancelAllRequest
     }
+    var hasOwnerCancellationRequest: Bool {
+        record.hasOwnerCancellationRequest
+    }
+    var isCancellationRequested: Bool {
+        record.isCancellationRequested
+    }
+
+    var newChildCancellationSources: [RuntimeCancellationSource] {
+        var sources: [RuntimeCancellationSource] = []
+        if hasOwnerCancellationRequest {
+            sources.append(.structuredParent)
+        }
+        if hasCancelAllRequest {
+            sources.append(.taskGroupCancelAll)
+        }
+        return sources
+    }
 
     func requireActive(ownerTaskID: RuntimeTaskID?) throws {
         guard !isClosed else {
@@ -31,7 +48,7 @@ final class RuntimeTaskGroup {
         childHandles.append(handle)
     }
 
-    func requestCancellation() {
+    func requestCancelAll() {
         precondition(!isClosed, "cannot cancel a closed task group")
         record.hasCancelAllRequest = true
     }

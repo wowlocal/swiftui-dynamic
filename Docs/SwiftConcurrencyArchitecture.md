@@ -637,6 +637,20 @@ These rules are not shared blindly between `async let` and task groups. Each is
 verified with compiled probes for normal return, early return, throw, parent
 cancellation, and child cancellation.
 
+Task-group cancellation retains its reasons rather than collapsing them into
+one anonymous Boolean. An explicit `cancelAll` request and cancellation of the
+owning task both make an active group cancelled, but they remain distinct
+runtime facts and produce distinct cancellation sources on children. Existing
+children receive structured-parent propagation from the task graph. A child
+added later through ordinary `addTask` starts with every already-active group
+cancellation reason, while `addTaskUnlessCancelled` checks the combined state
+before allocating a child record.
+
+The committed active-owner-cancellation probe establishes that combined state,
+conditional-add decision, and late-child inheritance. Creation of a group only
+after its owner was already cancelled remains a separate semantic question and
+must be established by its own native probe before parity is claimed.
+
 ### 6.10 Executor model
 
 ```swift

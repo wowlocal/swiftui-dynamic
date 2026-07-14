@@ -68,7 +68,7 @@ extension Interpreter {
         case "isCancelled":
             try group.requireActive(
                 ownerTaskID: evaluationTaskContext.runtimeTaskID)
-            return .native(group.hasCancelAllRequest)
+            return .native(group.isCancellationRequested)
 
         case "addTask", "addTaskUnlessCancelled":
             let skipsCancelledGroup = name == "addTaskUnlessCancelled"
@@ -88,7 +88,7 @@ extension Interpreter {
                 if skipsCancelledGroup {
                     try group.requireActive(
                         ownerTaskID: evaluationTaskContext.runtimeTaskID)
-                    if group.hasCancelAllRequest {
+                    if group.isCancellationRequested {
                         return .native(false)
                     }
                 }
@@ -138,7 +138,7 @@ extension Interpreter {
                 }
                 try group.requireActive(
                     ownerTaskID: evaluationTaskContext.runtimeTaskID)
-                group.requestCancellation()
+                group.requestCancelAll()
                 cancelSourceTaskGroupChildren(
                     group, source: .taskGroupCancelAll)
                 return .void
