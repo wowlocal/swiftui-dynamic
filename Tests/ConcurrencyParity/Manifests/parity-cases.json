@@ -465,6 +465,20 @@
     "notes": "Both children enter 30-second cancellable suspensions before scope-exit. Swift 6.3.3 produced one total trace in 20 runs, but the fixture asserts only entry before exit, later-declaration cleanup before earlier-declaration cleanup, and full cleanup before after-scope."
   },
   {
+    "id": "async-let-parent-cancellation-scope-exit",
+    "fixture": "Fixtures/async-let-parent-cancellation-scope-exit.swift",
+    "mode": "runtime",
+    "assertion": "partial-order",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncLetParentCancellationScopeExitProbe()",
+    "interpreterProjection": "string",
+    "requiredEvents": ["child-start", "parent-wait", "cancel-issued", "child-cancel-requested", "child-observed-cancellation", "child-finished", "parent-observed-cancellation", "owner-exit", "parent-finished"],
+    "precedes": [["child-start", "parent-wait"], ["parent-wait", "cancel-issued"], ["cancel-issued", "child-cancel-requested"], ["child-cancel-requested", "parent-observed-cancellation"], ["child-cancel-requested", "child-observed-cancellation"], ["child-observed-cancellation", "child-finished"], ["child-finished", "parent-finished"], ["parent-observed-cancellation", "owner-exit"], ["owner-exit", "parent-finished"]],
+    "nativeFact": "Cancelling an owner propagates the request to its unread async-let child; after source catches cancellation, leaving the owner scope still joins that child before the parent task value completes.",
+    "notes": "The child and parent are both inside 30-second cancellable suspensions before cancel-issued. Across 100 Swift 6.3.3 runs, child and parent cancellation observation had two relative orders, so only propagation, per-task program order, and the final structured join are asserted."
+  },
+  {
     "id": "async-let-scope-exit",
     "fixture": "Fixtures/async-let-scope-exit.swift",
     "mode": "runtime",

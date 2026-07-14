@@ -31,7 +31,7 @@ major version 6.
 | M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
 | M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
 | M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; unconsumed children cancel and join on normal, early-return, and throwing lexical exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; missing `await` is diagnosed | Remaining parent-cancellation and exceptional defer/cleanup combinations, task groups, and group iteration/cancellation |
+| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates to unread children, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order; missing `await` is diagnosed | Remaining exceptional defer/cleanup combinations, task groups, and group iteration/cancellation |
 | M5 actors and executors | compatibility-only | Actors currently have class-like reference semantics | Actor storage, executors, hops, reentrancy |
 | M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
 | M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
@@ -1527,3 +1527,29 @@ guard observes zero active task and structured-scope records after every run.
 suites. `Scripts/gate.sh` is green with 778 tests, the unchanged 678/680
 project-corpus ratchet, 5/5 live-data scenarios, and API parity at 345 match /
 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.
+
+### M4 parent cancellation with an unread async-let child
+
+`async-let-parent-cancellation-scope-exit.swift` asks whether cancelling an
+owner propagates to an async-let child even when source never reads the
+binding, and whether the owner's eventual scope exit still joins that child.
+The child and parent both enter separate 30-second cancellable suspensions
+before the outer task records `cancel-issued` and requests cancellation.
+
+One hundred bounded Apple Swift 6.3.3 strict-concurrency runs produced two
+total traces. In 98 runs the parent observed cancellation and reached
+`owner-exit` before the child observed cancellation; in two runs the child
+finished first. The permanent partial-order assertion therefore does not order
+those observations. It asserts only the forced facts: the child is running
+before the parent waits, cancellation is issued before the child's handler and
+both observations, the child follows its own handler/observation/completion
+order, and both the child completion and owner exit precede `parent-finished`.
+
+The same-source interpreter case was already GREEN before any production
+change and satisfied those invariants in all 20 manifest repetitions. The
+existing structured-child edge propagates the request independently of a
+binding read; after source catches cancellation, the general lexical cleanup
+path waits for the child's terminal outcome before the parent task completes.
+The parity cleanup guard again observed zero active task and structured-scope
+records. This step expands the proved cancellation surface without adding a
+fixture-specific runtime path.
