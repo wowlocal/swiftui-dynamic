@@ -695,6 +695,18 @@
     "notes": "MainActor flags prove owner and child entry before cancellation; the child cannot record completion until the body defer releases it. Exact output is child-start,scope-exit,defer,child-cancelled,returned:cancelled in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-child-nested-group",
+    "fixture": "Fixtures/task-group-child-nested-group.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupChildNestedGroupProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A task-group child may create and own a nested task group; the inner grandchild completes and is joined before the child publishes its result, which the outer group then joins before returning.",
+    "notes": "One child exists at each level. A shared gate places the inner grandchild before inner-open, and both awaited next() calls force the remaining edges. Exact output is grandchild-start,inner-open,grandchild-end,inner-finished,outer-finished:value in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-group-cancel-all",
     "fixture": "Fixtures/task-group-cancel-all.swift",
     "mode": "runtime",

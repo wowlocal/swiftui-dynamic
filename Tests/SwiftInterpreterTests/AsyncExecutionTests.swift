@@ -1580,6 +1580,96 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func taskGroupChildOwnsNestedGroupAndGrandchild() async throws {
+        let interpreter = Interpreter()
+        var observedOuterOwner: RuntimeTaskRecord?
+        var observedOuterChild: RuntimeTaskRecord?
+        var observedGrandchild: RuntimeTaskRecord?
+        var observedOuterGroup: RuntimeTaskGroupRecord?
+        var observedInnerGroup: RuntimeTaskGroupRecord?
+        interpreter.globals.define(
+            "inspectNestedTaskGroupGrandchild",
+            .hostFunction(HostFunction(
+                name: "inspectNestedTaskGroupGrandchild"
+            ) { _, _ in
+                guard let grandchildID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      let grandchild = interpreter.concurrencyRuntime
+                        .records[grandchildID],
+                      let innerGroupID = grandchild.taskGroupID,
+                      let innerGroup = interpreter.concurrencyRuntime
+                        .taskGroups[innerGroupID],
+                      let outerChild = interpreter.concurrencyRuntime
+                        .records[innerGroup.ownerTaskID],
+                      let outerGroupID = outerChild.taskGroupID,
+                      let outerGroup = interpreter.concurrencyRuntime
+                        .taskGroups[outerGroupID],
+                      let outerOwner = interpreter.concurrencyRuntime
+                        .records[outerGroup.ownerTaskID] else {
+                    throw RuntimeError(message:
+                        "nested task-group child lost runtime ownership")
+                }
+                observedOuterOwner = outerOwner
+                observedOuterChild = outerChild
+                observedGrandchild = grandchild
+                observedOuterGroup = outerGroup
+                observedInnerGroup = innerGroup
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        func nestedTaskGroupGrandchild() async -> String {
+            inspectNestedTaskGroupGrandchild()
+            await Task.yield()
+            return "value"
+        }
+        func nestedTaskGroupOwner() async -> String {
+            await withTaskGroup(of: String.self) { outerGroup in
+                outerGroup.addTask {
+                    await withTaskGroup(of: String.self) { innerGroup in
+                        innerGroup.addTask {
+                            await nestedTaskGroupGrandchild()
+                        }
+                        return await innerGroup.next() ?? "inner-missing"
+                    }
+                }
+                return await outerGroup.next() ?? "outer-missing"
+            }
+        }
+        await nestedTaskGroupOwner()
+        """)
+
+        let outerOwner = try #require(observedOuterOwner)
+        let outerChild = try #require(observedOuterChild)
+        let grandchild = try #require(observedGrandchild)
+        let outerGroup = try #require(observedOuterGroup)
+        let innerGroup = try #require(observedInnerGroup)
+        #expect(result.stringValue == "value")
+        #expect(outerGroup.kind == .nonthrowing)
+        #expect(innerGroup.kind == .nonthrowing)
+        #expect(outerGroup.ownerTaskID == outerOwner.id)
+        #expect(outerGroup.childTaskIDs == [outerChild.id])
+        #expect(outerGroup.structuredScope.ownerTaskID == outerOwner.id)
+        #expect(innerGroup.ownerTaskID == outerChild.id)
+        #expect(innerGroup.childTaskIDs == [grandchild.id])
+        #expect(innerGroup.structuredScope.ownerTaskID == outerChild.id)
+        #expect(outerChild.kind == .groupChild)
+        #expect(outerChild.parent == outerOwner.id)
+        #expect(outerChild.structuredChildren == [grandchild.id])
+        #expect(grandchild.kind == .groupChild)
+        #expect(grandchild.parent == outerChild.id)
+        #expect(outerGroup.completedChildTaskIDs == [outerChild.id])
+        #expect(outerGroup.consumedChildTaskIDs == [outerChild.id])
+        #expect(innerGroup.completedChildTaskIDs == [grandchild.id])
+        #expect(innerGroup.consumedChildTaskIDs == [grandchild.id])
+        #expect(outerGroup.pendingCompletedChildCount == 0)
+        #expect(innerGroup.pendingCompletedChildCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func taskGroupChildAddedAfterCancelAllStartsCancelled() async throws {
         let interpreter = Interpreter()
         let result = try await interpreter.runAsync(source: """

@@ -2977,8 +2977,25 @@ The M4 completion audit maps every async-let lifecycle item and the task-group
 completion-order, `next`, `waitForAll`, `cancelAll`, iteration, throwing,
 cancellation, and scope-exit paths to committed native fixtures above. It also
 confirmed zero active runtime registries in a fresh focused test process and
-in the four gate shards. The audit did not promote M4 to complete: the required
-semantic-matrix case where a group child creates its own nested structured work
-has no differential fixture, and the escaped-group runtime guards have no
-focused coverage. Native compiler enforcement of group escape remains an M7
-preflight deliverable rather than being claimed as M4 runtime support.
+in the four gate shards. The audit did not promote M4 to complete: nested
+composition, remaining generated task-group surface, structured stress/leak
+plateaus, and escaped-capability legality remain explicit acceptance rows.
+Native compiler enforcement of group escape remains an M7 preflight deliverable
+rather than being claimed as M4 runtime support.
+
+### M4 child-owned nested task group
+
+`task-group-child-nested-group.swift` places a task group inside one child of
+an outer task group. The inner child records entry, waits on a MainActor gate,
+then publishes `value`; explicit `next()` calls at both levels force the inner
+grandchild join before the outer child result and the outer child join before
+the function result. Twenty bounded Apple Swift 6.3.3 strict-concurrency runs
+produced exactly
+`grandchild-start,inner-open,grandchild-end,inner-finished,outer-finished:value`.
+
+The same-source interpreter case was already GREEN in all 20 repetitions, so
+this characterization required no production change. Focused runtime evidence
+records distinct outer-owner, group-child, and grandchild task records; proves
+the parent, group, and structured-scope ownership edges at both levels; proves
+one completed and consumed child in each group; and finishes with empty task,
+group, and structured-scope registries.
