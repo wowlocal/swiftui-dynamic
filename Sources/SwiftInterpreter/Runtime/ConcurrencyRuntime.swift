@@ -350,11 +350,13 @@ final class RuntimeTaskGroupRecord {
     init(
         id: RuntimeTaskGroupID,
         ownerTaskID: RuntimeTaskID,
-        structuredScope: RuntimeStructuredScopeRecord
+        structuredScope: RuntimeStructuredScopeRecord,
+        hasOwnerCancellationRequest: Bool
     ) {
         self.id = id
         self.ownerTaskID = ownerTaskID
         self.structuredScope = structuredScope
+        self.hasOwnerCancellationRequest = hasOwnerCancellationRequest
     }
 }
 
@@ -437,15 +439,18 @@ final class CooperativeConcurrencyRuntime {
             ownerTaskID: ownerTaskID, kind: .taskGroup)
         let id = RuntimeTaskGroupID(rawValue: nextTaskGroupID)
         nextTaskGroupID += 1
-        let group = RuntimeTaskGroupRecord(
-            id: id, ownerTaskID: ownerTaskID, structuredScope: scope)
-        precondition(
-            taskGroups.updateValue(group, forKey: id) == nil,
-            "duplicate task group ID \(id)")
         guard let owner = records[ownerTaskID] else {
             preconditionFailure(
                 "task group \(id) lost owner task \(ownerTaskID)")
         }
+        let group = RuntimeTaskGroupRecord(
+            id: id,
+            ownerTaskID: ownerTaskID,
+            structuredScope: scope,
+            hasOwnerCancellationRequest: owner.cancellation.isRequested)
+        precondition(
+            taskGroups.updateValue(group, forKey: id) == nil,
+            "duplicate task group ID \(id)")
         precondition(
             owner.ownedTaskGroups.insert(id).inserted,
             "duplicate owner edge for task group \(id)")

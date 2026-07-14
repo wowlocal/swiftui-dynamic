@@ -646,10 +646,11 @@ added later through ordinary `addTask` starts with every already-active group
 cancellation reason, while `addTaskUnlessCancelled` checks the combined state
 before allocating a child record.
 
-The committed active-owner-cancellation probe establishes that combined state,
-conditional-add decision, and late-child inheritance. Creation of a group only
-after its owner was already cancelled remains a separate semantic question and
-must be established by its own native probe before parity is claimed.
+The committed active-owner and pre-cancelled-owner probes establish that
+combined state, conditional-add decision, and late-child inheritance. Group
+creation snapshots an already-requested owner cancellation before exposing the
+source capability, while later owner cancellation updates every active owned
+group through the runtime identity graph.
 
 ### 6.10 Executor model
 
