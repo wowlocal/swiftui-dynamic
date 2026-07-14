@@ -123,10 +123,10 @@ extension Interpreter {
                         throw RuntimeError(message:
                             "task group was released before waitForAll")
                     }
-                    let outcomes = try await waitForSourceTaskGroup(group)
+                    let outcomes = try await waitForAndConsumeSourceTaskGroup(
+                        group)
                     try validateSourceTaskGroupOutcomes(
                         outcomes, in: group, consumedBy: .waitForAll)
-                    concurrencyRuntime.drainTaskGroupOutcomes(group.record)
                     return .void
                 }))
 
@@ -175,6 +175,23 @@ extension Interpreter {
 
         return await waitForSourceTaskGroupChildren(
             group, ownerTaskID: ownerTaskID)
+    }
+
+    private func waitForAndConsumeSourceTaskGroup(
+        _ group: RuntimeTaskGroup
+    ) async throws -> [RuntimeTaskOutcome] {
+        _ = try await waitForSourceTaskGroup(group)
+        guard let ownerTaskID = evaluationTaskContext.runtimeTaskID else {
+            throw RuntimeError(message:
+                "task-group outcome consumption requires a runtime task")
+        }
+
+        var outcomes: [RuntimeTaskOutcome] = []
+        while let outcome = await concurrencyRuntime.nextTaskGroupOutcome(
+            ownerTaskID, on: group.record) {
+            outcomes.append(outcome)
+        }
+        return outcomes
     }
 
     private func nextSourceTaskGroupValue(
@@ -305,11 +322,6 @@ extension Interpreter {
                         + "is not supported yet")
                 }
                 guard let failure = failures.first else { return }
-                guard failures.count == 1 else {
-                    throw RuntimeError(message:
-                        "throwing task-group waitForAll failure selection with "
-                        + "multiple failed child outcomes is not supported yet")
-                }
                 throw InterpretedThrow(value: failure)
             }
         }

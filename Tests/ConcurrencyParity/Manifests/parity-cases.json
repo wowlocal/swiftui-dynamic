@@ -755,6 +755,22 @@
     "notes": "One child succeeds and one throws a nominal enum case; a generic catch switches over the delivered error and returns caught-child in all 20 Swift 6.3.3 runs. There is only one failure identity, so first-error and completion-order selection are not asserted."
   },
   {
+    "id": "task-group-throwing-wait-for-all-multiple-failures",
+    "fixture": "Fixtures/task-group-throwing-wait-for-all-multiple-failures.swift",
+    "mode": "runtime",
+    "assertion": "allowed-set",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingWaitForAllMultipleFailuresProbe()",
+    "interpreterProjection": "string",
+    "allowedOutputs": [
+      "caught-first:drained",
+      "caught-second:drained"
+    ],
+    "nativeFact": "try await ThrowingTaskGroup.waitForAll() retains the first error observed through completion-ordered next(), drains all remaining children, then rethrows that source error.",
+    "notes": "One child waits on a gate and one can fail immediately; both record completion before throwing. All 20 Swift 6.3.3 runs returned caught-second:drained. The allowed set accepts either nominal source error but requires drained, so scheduler order is not asserted; the Swift 6 SDK swiftinterface supplies the first-observed-error algorithm."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",

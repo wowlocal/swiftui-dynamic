@@ -1265,6 +1265,81 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func multipleThrowingWaitFailuresUseCompletionOrder() async throws {
+        let interpreter = Interpreter()
+        var firstFailureGateOpen = false
+        var firstFailureGateStarted = false
+        var observedGroup: RuntimeTaskGroupRecord?
+        interpreter.globals.define(
+            "waitForOrderedFirstFailure",
+            .hostFunction(HostFunction(
+                name: "waitForOrderedFirstFailure",
+                asyncInvoke: { _, _ in
+                    firstFailureGateStarted = true
+                    while !firstFailureGateOpen { await Task.yield() }
+                    return .void
+                })))
+
+        let evaluation = Task { @MainActor in
+            try await interpreter.runAsync(source: """
+            enum OrderedThrowingWaitFailure: Error {
+                case first
+                case second
+            }
+            func orderedThrowingWaitOwner() async -> String {
+                do {
+                    _ = try await withThrowingTaskGroup(
+                        of: String.self
+                    ) { group in
+                        group.addTask {
+                            await waitForOrderedFirstFailure()
+                            throw OrderedThrowingWaitFailure.first
+                        }
+                        group.addTask {
+                            throw OrderedThrowingWaitFailure.second
+                        }
+                        try await group.waitForAll()
+                        return "missed"
+                    }
+                    return "missed"
+                } catch {
+                    switch error {
+                    case OrderedThrowingWaitFailure.first:
+                        return "caught-first"
+                    case OrderedThrowingWaitFailure.second:
+                        return "caught-second"
+                    default:
+                        return "wrong-error"
+                    }
+                }
+            }
+            await orderedThrowingWaitOwner()
+            """)
+        }
+
+        for _ in 0..<10_000 {
+            if firstFailureGateStarted,
+               let group = interpreter.concurrencyRuntime.taskGroups.values.first,
+               group.completedChildTaskIDs.count == 1 {
+                observedGroup = group
+                break
+            }
+            await Task.yield()
+        }
+        #expect(observedGroup != nil)
+        firstFailureGateOpen = true
+
+        let result = try await evaluation.value
+        #expect(result.stringValue == "caught-second")
+        #expect(observedGroup?.completedChildTaskIDs.count == 2)
+        #expect(observedGroup?.consumedChildTaskIDs.count == 2)
+        #expect(observedGroup?.pendingCompletedChildCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func singleFailureAmongThrowingGroupOutcomesRethrows() async throws {
         let interpreter = Interpreter()
         let result = try await interpreter.runAsync(source: """
