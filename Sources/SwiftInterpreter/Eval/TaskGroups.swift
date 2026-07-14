@@ -47,17 +47,6 @@ extension Interpreter {
                 ]),
                 node: nil)
 
-            let hasUnverifiedImplicitWait =
-                group.explicitlyWaitedChildCount < group.childHandles.count
-                && group.childHandles.contains { !$0.isCompleted }
-            if hasUnverifiedImplicitWait {
-                _ = await closeSourceTaskGroup(
-                    group, cancelRemaining: true)
-                throw RuntimeError(message:
-                    "withTaskGroup scope-exit waiting is not supported yet; "
-                    + "call await group.waitForAll()")
-            }
-
             let outcomes = await closeSourceTaskGroup(
                 group, cancelRemaining: false)
             try throwNonthrowingGroupFailure(outcomes)
@@ -106,7 +95,6 @@ extension Interpreter {
                             "task group was released before waitForAll")
                     }
                     let outcomes = try await waitForSourceTaskGroup(group)
-                    group.markExplicitWaitForAll()
                     try throwNonthrowingGroupFailure(outcomes)
                     return .void
                 }))

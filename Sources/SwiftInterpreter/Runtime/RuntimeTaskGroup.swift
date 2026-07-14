@@ -4,7 +4,6 @@
 final class RuntimeTaskGroup {
     let record: RuntimeTaskGroupRecord
     private(set) var childHandles: [RuntimeTaskHandle] = []
-    private(set) var explicitlyWaitedChildCount = 0
     private(set) var isClosed = false
 
     init(record: RuntimeTaskGroupRecord) {
@@ -27,10 +26,6 @@ final class RuntimeTaskGroup {
     func append(_ handle: RuntimeTaskHandle) {
         precondition(!isClosed, "cannot add a child to a closed task group")
         childHandles.append(handle)
-    }
-
-    func markExplicitWaitForAll() {
-        explicitlyWaitedChildCount = childHandles.count
     }
 
     func close() {

@@ -575,6 +575,18 @@
     "notes": "The child marks entry and waits behind an explicit gate. Exact output is child-start,parent-open,child-end,group-finished,after-scope in 20 Swift 6.3.3 runs; every edge is forced by the gate, waitForAll, or parent program order."
   },
   {
+    "id": "task-group-implicit-scope-exit",
+    "fixture": "Fixtures/task-group-implicit-scope-exit.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupImplicitScopeExitProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Returning normally from a withTaskGroup body implicitly waits for outstanding children without cancelling them before the outer scope continues.",
+    "notes": "The child starts behind an explicit gate; the body records body-return and opens the gate immediately before returning without waitForAll. Exact output is child-start,body-return,child-end,after-scope in 20 Swift 6.3.3 runs, proving normal completion and the implicit join."
+  },
+  {
     "id": "task-read-missing-await-diagnostic",
     "fixture": "Fixtures/task-read-missing-await-diagnostic.swift",
     "mode": "diagnostic",
