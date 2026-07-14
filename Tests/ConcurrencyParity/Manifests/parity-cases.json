@@ -707,6 +707,18 @@
     "notes": "One child throws a nominal enum case and the owner immediately awaits next; a generic catch switches over the delivered error and returns caught-child in all 20 Swift 6.3.3 runs. Multiple-failure selection is not asserted."
   },
   {
+    "id": "task-group-throwing-next-cancellation",
+    "fixture": "Fixtures/task-group-throwing-next-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingNextCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A cancelled throwing-group child that observes cancellation makes try await next() throw CancellationError without marking the owner task cancelled.",
+    "notes": "The group is cancelled before its sole child is added; that child immediately calls Task.checkCancellation(). All 20 Swift 6.3.3 runs returned cancellation:owner-active."
+  },
+  {
     "id": "task-group-throwing-wait-for-all-failure",
     "fixture": "Fixtures/task-group-throwing-wait-for-all-failure.swift",
     "mode": "runtime",

@@ -225,8 +225,7 @@ extension Interpreter {
                 throw RuntimeError(message:
                     "nonthrowing task-group child was cancelled without a value")
             case .throwing:
-                throw RuntimeError(message:
-                    "throwing task-group child cancellation propagation is not supported yet")
+                throw CancellationError()
             }
         }
     }

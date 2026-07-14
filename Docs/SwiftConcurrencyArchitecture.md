@@ -658,15 +658,16 @@ retains an immutable kind because successful result delivery is shared while
 failure and cancellation projection are language-contract-specific. A throwing
 group must not reuse a nonthrowing failure diagnostic or silently swallow an
 outcome. A failed child consumed by throwing `next` rethrows its stored source
-value. Explicit throwing `waitForAll` consumes the same completion-ordered
-queue as `next`. It retains the first failed or cancelled outcome, continues
-draining every remaining outcome, returns normally if no error occurred, and
-otherwise projects that first error only after the drain completes. A failed
-outcome rethrows its stored source value; a cancelled outcome throws
-`CancellationError` without marking the owning task cancelled. Outcomes already
-consumed by an earlier `next` are not reconsidered. Throwing `next` cancellation
-projection and exceptional-exit rules remain explicitly unsupported until
-established by dedicated native probes.
+value; a cancelled child makes `next` throw `CancellationError` without marking
+the owning task cancelled. Explicit throwing `waitForAll` consumes the same
+completion-ordered queue as `next`. It retains the first failed or cancelled
+outcome, continues draining every remaining outcome, returns normally if no
+error occurred, and otherwise projects that first error only after the drain
+completes. A failed outcome rethrows its stored source value; a cancelled
+outcome throws `CancellationError` without marking the owning task cancelled.
+Outcomes already consumed by an earlier `next` are not reconsidered.
+Exceptional-exit rules remain explicitly unsupported until established by
+dedicated native probes.
 
 ### 6.10 Executor model
 

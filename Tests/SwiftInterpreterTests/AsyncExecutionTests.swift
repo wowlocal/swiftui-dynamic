@@ -1265,6 +1265,69 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupNextProjectsChildCancellation() async throws {
+        let interpreter = Interpreter()
+        var observedGroup: RuntimeTaskGroupRecord?
+        var observedOwner: RuntimeTaskRecord?
+        interpreter.globals.define(
+            "observeThrowingNextCancellation",
+            .hostFunction(HostFunction(
+                name: "observeThrowingNextCancellation"
+            ) { _, _ in
+                guard let group = interpreter.concurrencyRuntime
+                        .taskGroups.values.first,
+                      let owner = interpreter.concurrencyRuntime
+                        .records[group.ownerTaskID] else {
+                    throw RuntimeError(message:
+                        "throwing next cancellation lost runtime ownership")
+                }
+                observedGroup = group
+                observedOwner = owner
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        func throwingNextCancellationOwner() async -> String {
+            do {
+                _ = try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    group.cancelAll()
+                    group.addTask {
+                        observeThrowingNextCancellation()
+                        try Task.checkCancellation()
+                        return "missed"
+                    }
+                    _ = try await group.next()
+                    return "missed"
+                }
+                return "missed"
+            } catch {
+                let errorKind = type(of: error) == CancellationError.self
+                    ? "cancellation"
+                    : "wrong-error"
+                let ownerState = Task.isCancelled
+                    ? "owner-cancelled"
+                    : "owner-active"
+                return errorKind + ":" + ownerState
+            }
+        }
+        await throwingNextCancellationOwner()
+        """)
+
+        #expect(result.stringValue == "cancellation:owner-active")
+        #expect(observedGroup?.completedChildTaskIDs.count == 1)
+        #expect(observedGroup?.consumedChildTaskIDs.count == 1)
+        #expect(observedGroup?.pendingCompletedChildCount == 0)
+        #expect(observedOwner?.cancellation.isRequested == false)
+        #expect(observedOwner?.cancellation.isObserved == false)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func multipleThrowingWaitFailuresUseCompletionOrder() async throws {
         let interpreter = Interpreter()
         var firstFailureGateOpen = false
