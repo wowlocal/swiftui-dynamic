@@ -1711,6 +1711,108 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func throwingTaskGroupBodyDeferRunsBeforeExceptionalCleanup()
+    async throws {
+        let interpreter = Interpreter()
+        var observedChild: RuntimeTaskRecord?
+        var observedGroup: RuntimeTaskGroupRecord?
+        var observedOwner: RuntimeTaskRecord?
+        interpreter.globals.define(
+            "inspectThrowingTaskGroupDeferCleanup",
+            .hostFunction(HostFunction(
+                name: "inspectThrowingTaskGroupDeferCleanup"
+            ) { _, _ in
+                guard let childID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      let child = interpreter.concurrencyRuntime
+                        .records[childID],
+                      let groupID = child.taskGroupID,
+                      let group = interpreter.concurrencyRuntime
+                        .taskGroups[groupID],
+                      let owner = interpreter.concurrencyRuntime
+                        .records[group.ownerTaskID] else {
+                    throw RuntimeError(message:
+                        "throwing task-group defer cleanup lost runtime ownership")
+                }
+                observedChild = child
+                observedGroup = group
+                observedOwner = owner
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        enum ThrowingDeferCleanupError: Error {
+            case failed
+        }
+        @MainActor
+        var throwingDeferEvents: [String] = []
+        @MainActor
+        var throwingDeferChildStarted = false
+        @MainActor
+        func throwingDeferChild() async -> String {
+            throwingDeferChildStarted = true
+            throwingDeferEvents.append("child-start")
+            do {
+                try await Task.sleep(for: .seconds(30))
+                throwingDeferEvents.append("child-finished")
+                return "finished"
+            } catch {
+                inspectThrowingTaskGroupDeferCleanup()
+                let state = Task.isCancelled
+                    ? "child-cancelled"
+                    : "child-error"
+                throwingDeferEvents.append(state)
+                return state
+            }
+        }
+        @MainActor
+        func throwingDeferOwner() async -> String {
+            do {
+                _ = try await withThrowingTaskGroup(
+                    of: String.self
+                ) { group in
+                    group.addTask {
+                        await throwingDeferChild()
+                    }
+                    while !throwingDeferChildStarted {
+                        await Task.yield()
+                    }
+                    defer {
+                        throwingDeferEvents.append("defer")
+                    }
+                    throwingDeferEvents.append("body-throw")
+                    throw ThrowingDeferCleanupError.failed
+                }
+                throwingDeferEvents.append("missed")
+            } catch ThrowingDeferCleanupError.failed {
+                throwingDeferEvents.append("caught-body")
+            } catch {
+                throwingDeferEvents.append("wrong-error")
+            }
+            return throwingDeferEvents.joined(separator: ",")
+        }
+        await throwingDeferOwner()
+        """)
+
+        #expect(result.stringValue
+            == "child-start,body-throw,defer,child-cancelled,caught-body")
+        #expect(observedGroup?.kind == .throwing)
+        #expect(observedGroup?.hasCancelAllRequest == false)
+        #expect(observedGroup?.completedChildTaskIDs.count == 1)
+        #expect(observedGroup?.consumedChildTaskIDs.isEmpty == true)
+        #expect(observedGroup?.pendingCompletedChildCount == 1)
+        #expect(observedChild?.kind == .groupChild)
+        #expect(observedChild?.state == .succeeded)
+        #expect(observedChild?.cancellation.sources == [.structuredScopeExit])
+        #expect(observedChild?.cancellation.isObserved == true)
+        #expect(observedOwner?.cancellation.isRequested == false)
+        #expect(observedOwner?.cancellation.isObserved == false)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
     @Test func throwingTaskGroupKeepsDistinctRuntimeKind() async throws {
         let interpreter = Interpreter()
         var observedKind: RuntimeTaskGroupKind?

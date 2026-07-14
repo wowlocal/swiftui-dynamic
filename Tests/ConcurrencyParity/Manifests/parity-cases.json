@@ -671,6 +671,18 @@
     "notes": "A MainActor flag proves the child entered its cancellable suspension before the body returns. Exact output is child-start,body-return,defer-cancel,child-cancelled,after-scope in all 20 Swift 6.3.3 runs; every edge follows from program order, defer execution, cancelAll, or structured join."
   },
   {
+    "id": "task-group-throwing-defer-cleanup-order",
+    "fixture": "Fixtures/task-group-throwing-defer-cleanup-order.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupThrowingDeferCleanupOrderProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "When a withThrowingTaskGroup body throws, its defer runs before exceptional group cleanup cancels and joins an outstanding child; the outer catch runs only after both cleanup phases and receives the original body error.",
+    "notes": "A MainActor flag proves the child entered its cancellable suspension before body-throw. Exact output is child-start,body-throw,defer,child-cancelled,caught-body in all 20 Swift 6.3.3 runs; the test does not assert any unrelated ready-task order."
+  },
+  {
     "id": "task-group-cancel-all",
     "fixture": "Fixtures/task-group-cancel-all.swift",
     "mode": "runtime",
