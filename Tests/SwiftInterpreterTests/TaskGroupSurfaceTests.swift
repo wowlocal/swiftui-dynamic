@@ -21,6 +21,8 @@ struct TaskGroupSurfaceTests {
         #expect(dispatch["isEmpty"] == .isEmpty)
         #expect(dispatch["waitForAll"] == .waitForAll)
         #expect(throwing["waitForAll"] == .waitForAll)
+        #expect(dispatch["nextResult"] == nil)
+        #expect(throwing["nextResult"] == .nextResult)
         let ordinaryWaitDeclarations = try! #require(
             GeneratedConcurrencySurface.taskGroupMemberDeclarations[
                 "TaskGroup"]?["waitForAll"])
@@ -41,7 +43,6 @@ struct TaskGroupSurfaceTests {
         #expect(throwingWait.parameters.first?.label == "isolation")
         #expect(GeneratedConcurrencySurface.knownTaskGroupMembers[
             "ThrowingTaskGroup"]?.contains("nextResult") == true)
-        #expect(dispatch["nextResult"] == nil)
         #expect(discarding["addTask"] == .addTask)
         #expect(discarding["isEmpty"] == .isEmpty)
         #expect(discarding["next"] == nil)

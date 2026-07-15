@@ -6,8 +6,8 @@
   "scope" : "test/Concurrency/Runtime",
   "summary" : {
     "diagnostic" : 4,
-    "direct" : 9,
-    "needsAdapter" : 114,
+    "direct" : 10,
+    "needsAdapter" : 113,
     "total" : 134,
     "unsupported" : 7
   },
@@ -436,8 +436,9 @@
       "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_next_on_pending.swift"
     },
     {
-      "classification" : "needs-adapter",
-      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-throwing-task-group-next-result",
       "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_throw_recover.swift"
     },
     {

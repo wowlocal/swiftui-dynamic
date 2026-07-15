@@ -195,7 +195,7 @@ public enum ConcurrencySurfaceGenerator {
 
     private static let supportedIntrinsics: Set<String> = [
         "addTask", "addTaskUnlessCancelled", "waitForAll", "next",
-        "cancelAll", "isCancelled", "isEmpty",
+        "nextResult", "cancelAll", "isCancelled", "isEmpty",
     ]
     private static let supportedTaskStaticIntrinsics: Set<String> = [
         "checkCancellation", "currentPriority", "detached", "isCancelled",
@@ -214,7 +214,7 @@ public enum ConcurrencySurfaceGenerator {
             "addTask", "addTaskUnlessCancelled", "cancelAll", "isCancelled",
             "isEmpty",
         ],
-        "TaskGroup": supportedIntrinsics,
+        "TaskGroup": supportedIntrinsics.subtracting(["nextResult"]),
         "ThrowingDiscardingTaskGroup": [
             "addTask", "addTaskUnlessCancelled", "cancelAll", "isCancelled",
             "isEmpty",
@@ -505,6 +505,7 @@ public enum ConcurrencySurfaceGenerator {
             case addTaskUnlessCancelled
             case waitForAll
             case next
+            case nextResult
             case cancelAll
             case isCancelled
             case isEmpty

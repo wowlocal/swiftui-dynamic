@@ -65,6 +65,9 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(taskMembers["isEmpty"]?.first?.returnType == "Bool")
         #expect(inventory.taskGroupDispatch["TaskGroup"]?["async"]
             == "addTask")
+        #expect(inventory.taskGroupDispatch["TaskGroup"]?["nextResult"] == nil)
+        #expect(inventory.taskGroupDispatch["ThrowingTaskGroup"]?["nextResult"]
+            == "nextResult")
 
         #expect(inventory.taskStaticDispatch == [
             "checkCancellation": "checkCancellation",
@@ -154,6 +157,7 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(!capabilities.scope.adapterRouteIsSupportEvidence)
         #expect(!capabilities.scope.excluded.isEmpty)
         #expect(capabilities.summary.declarationCount == 150)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 84)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 47,
             "task-static-member": 21,
@@ -197,7 +201,7 @@ struct ConcurrencySurfaceGeneratorTests {
         })
         #expect(capabilities.declarations.contains {
             $0.container == "ThrowingTaskGroup" && $0.name == "nextResult"
-                && $0.adapterIntrinsic == nil
+                && $0.adapterIntrinsic == "nextResult"
         })
         #expect(!generatedCapabilities.contains("implementationStatus"))
         #expect(!generatedCapabilities.contains("verificationStatus"))
@@ -384,6 +388,7 @@ struct ConcurrencySurfaceGeneratorTests {
         ) -> Bool { true }
         public mutating func waitForAll() async throws {}
         public mutating func next() async throws -> Child? { nil }
+        public mutating func nextResult() async -> Result<Child, Failure>? { nil }
         public func cancelAll() {}
         public var isCancelled: Bool { false }
         public var isEmpty: Bool { true }
@@ -460,6 +465,7 @@ private struct CapabilityScope: Decodable {
 private struct CapabilitySummary: Decodable {
     let declarationCount: Int
     let declarationsByDomain: [String: Int]
+    let adapterRoutedDeclarationCount: Int
 }
 
 private struct CapabilityDeclaration: Decodable, Equatable {

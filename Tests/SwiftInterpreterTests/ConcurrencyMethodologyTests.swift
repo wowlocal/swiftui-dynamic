@@ -1056,6 +1056,39 @@ struct ConcurrencyMethodologyTests {
         })
     }
 
+    @Test func taskGroupNextResultHasExplicitReviewedDisposition() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let nextResultRows = inventory.declarations.filter {
+            $0.domain == "task-group-member" && $0.name == "nextResult"
+        }
+        let nextResultIDs = Set(nextResultRows.map(\.id))
+        let nextResultClaims = status.interfaceOverrides.filter {
+            nextResultIDs.contains($0.id)
+        }
+
+        #expect(nextResultRows.count == 1,
+            "the active SDK task-group nextResult denominator changed")
+        #expect(Set(nextResultRows.compactMap(\.container)) == [
+            "ThrowingTaskGroup",
+        ])
+        #expect(Set(nextResultClaims.map(\.id)) == nextResultIDs,
+            "the task-group nextResult declaration needs an authored disposition")
+        #expect(nextResultClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
     @Test func coveredRequirementCannotDependOnOpenWork() {
         let statuses: [String: AcceptanceRequirementStatus] = [
             "M0/foundation": .open,

@@ -210,6 +210,20 @@
       "timeoutSeconds": 5
     },
     {
+      "id": "concurrency-throwing-task-group-next-result",
+      "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_throw_recover.swift",
+      "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_throw_recover.swift",
+      "sha256": "dd9e32b8b29c5f12066d257a8d20410eecf14fca38d95fa8500bbda407739893",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
+    },
+    {
       "id": "concurrency-discarding-task-group-add-unless-cancelled",
       "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_addUnlessCancelled.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_addUnlessCancelled.swift",

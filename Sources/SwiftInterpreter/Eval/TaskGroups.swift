@@ -171,6 +171,22 @@ extension Interpreter {
                     return try await nextSourceTaskGroupValue(group)
                 }))
 
+        case .nextResult:
+            guard group.kind == .throwing else {
+                throw RuntimeError(message:
+                    "\(group.kind.sourceTypeName).nextResult is not public")
+            }
+            return .hostFunction(HostFunction(
+                name: name,
+                tracksHostOperation: false,
+                asyncInvoke: { [weak self, weak group] _, _ in
+                    guard let self, let group else {
+                        throw RuntimeError(message:
+                            "task group was released before nextResult")
+                    }
+                    return try await nextSourceTaskGroupResult(group)
+                }))
+
         case .cancelAll:
             return .hostFunction(HostFunction(name: name) {
                 [weak self, weak group] _, _ in
@@ -252,6 +268,26 @@ extension Interpreter {
                     "nonthrowing task-group child was cancelled without a value")
             }
         }
+    }
+
+    /// Consume one completion without projecting a throwing-group failure as
+    /// control flow. `nextResult` is nonthrowing even when the child failed or
+    /// observed cancellation; the exact stored source payload is retained in
+    /// the same Result carrier used by `Task.result`.
+    private func nextSourceTaskGroupResult(
+        _ group: RuntimeTaskGroup
+    ) async throws -> RuntimeValue {
+        let ownerTaskID = evaluationTaskContext.runtimeTaskID
+        try group.requireActive(ownerTaskID: ownerTaskID)
+        guard let ownerTaskID else {
+            throw RuntimeError(message:
+                "task-group nextResult requires a runtime task")
+        }
+        guard let outcome = await concurrencyRuntime.nextTaskGroupOutcome(
+            ownerTaskID, on: group.record) else {
+            return .none()
+        }
+        return .some(.native(RuntimeResultValue(taskOutcome: outcome)))
     }
 
     /// Consume one source-facing async-sequence element from an active group.

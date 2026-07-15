@@ -4122,6 +4122,7 @@
       "returnType" : "ChildTaskResult?"
     },
     {
+      "adapterIntrinsic" : "nextResult",
       "attributes" : [
         "@_alwaysEmitIntoClient"
       ],
@@ -8464,7 +8465,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 83,
+    "adapterRoutedDeclarationCount" : 84,
     "declarationCount" : 150,
     "declarationsByDomain" : {
       "task-group-member" : 71,

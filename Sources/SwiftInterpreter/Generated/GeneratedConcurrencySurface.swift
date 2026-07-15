@@ -32,6 +32,7 @@ enum RuntimeTaskGroupIntrinsic: String, Sendable {
     case addTaskUnlessCancelled
     case waitForAll
     case next
+    case nextResult
     case cancelAll
     case isCancelled
     case isEmpty
@@ -452,6 +453,7 @@ enum GeneratedConcurrencySurface {
             "isCancelled": .isCancelled,
             "isEmpty": .isEmpty,
             "next": .next,
+            "nextResult": .nextResult,
             "spawn": .addTask,
             "spawnUnlessCancelled": .addTaskUnlessCancelled,
             "waitForAll": .waitForAll,
