@@ -3577,3 +3577,40 @@ The source-bound closing repository gate is GREEN over 870 tests, exact 88/88
 runtime parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet,
 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
 errors / 17 unstable / 0 no-twin.
+
+### M7 explicit compiler policy at the project facade
+
+The generated registry surface was usable through the low-level interpreter
+factory, but the public `InterpreterHost` project/render facade exposed only an
+unconfigured initializer. The captured RED was a compile-time API gap: a real
+project caller could not select required native checking without bypassing the
+same facade used for rendering.
+
+`InterpreterHost` now accepts an explicit `CompilerPreflightMode`. Its default
+remains `disabled`, preserving editor recovery, platform-substituted corpus
+source, and existing call sites. Selecting `required` or `diagnosticsOnly`
+constructs the interpreter through
+`Interpreter.withActiveCompilerPreflight(registry:mode:)`; compiler declarations
+and runtime gateways therefore come from the same fresh `ViewRegistry`. No
+sample or demo source was changed, and the default does not add compiler work
+to interactive renders.
+
+The native project oracle is the three unchanged files in
+`Examples/TaskObservatory`. Apple Swift 6.3.3 accepted them together under
+Swift 6 complete strict concurrency. The public required-mode facade then
+typechecked the equivalent merged project against the generated bridge module
+and rendered it successfully. A negative control sent a MainActor-isolated
+global call from a synchronous nonisolated function through that same facade;
+it was rejected with the native isolation diagnostic, proving that the mode is
+not ignored.
+
+The focused bridge/compiler/upstream/generated board is GREEN at 64 tests. M7
+remains partial for target-aware multi-file project input and any declarations
+that are genuinely synthesized by the interpreter rather than supplied by an
+SDK module; the explicit policy avoids pretending that a macOS compiler can
+authoritatively check every merged iOS corpus project.
+
+The source-bound closing repository gate is GREEN over 872 tests, exact 88/88
+runtime parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet,
+5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
+errors / 17 unstable / 0 no-twin.

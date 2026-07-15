@@ -1,9 +1,17 @@
+import Foundation
 import SwiftInterpreter
 import SwiftUIBridge
 import Testing
 
 @Suite("Generated SwiftUI compiler-preflight surface", .serialized)
 struct GeneratedCompilerPreflightSurfaceTests {
+    private func repositoryRoot() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
     @Test
     func viewRegistryExportsRealSwiftUIEffectsAndIsolation() throws {
         let registry = ViewRegistry()
@@ -52,5 +60,40 @@ struct GeneratedCompilerPreflightSurfaceTests {
         #expect(registry.isViewValue(rendered))
         #expect(interpreter.lastCompilerPreflightResult?.succeeded == true)
         #expect(interpreter.compilerPreflight?.hostModule == module)
+    }
+
+    @Test
+    func publicProjectFacadeCanRequireNativeCompilerChecking() {
+        let projectRoot = repositoryRoot()
+            .appendingPathComponent("Examples/TaskObservatory")
+            .path
+        let source = ProjectMaterial.mergedSource(at: projectRoot)
+        let outcome = InterpreterHost(compilerPreflightMode: .required)
+            .render(source: source, lazyTopLevelGlobals: true)
+
+        if case .failure(let error) = outcome {
+            Issue.record("compiler-checked project render failed: \(error)")
+        }
+    }
+
+    @Test
+    func requiredProjectFacadeRejectsNativeIsolationDiagnostic() {
+        let outcome = InterpreterHost(compilerPreflightMode: .required)
+            .render(source: """
+            @MainActor func update() {}
+            func invalidCall() {
+                update()
+            }
+            struct ContentView: View {
+                var body: some View { Text("Invalid") }
+            }
+            """)
+
+        guard case .failure(let error) = outcome else {
+            Issue.record("required compiler checking accepted invalid source")
+            return
+        }
+        #expect(error.message.contains("main actor-isolated global function"))
+        #expect(error.message.contains("synchronous nonisolated context"))
     }
 }

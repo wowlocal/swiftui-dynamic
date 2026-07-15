@@ -5,15 +5,29 @@ import SwiftInterpreter
 /// error) out. Each render gets a fresh interpreter and registry so edits
 /// can't leave stale declarations behind.
 public struct InterpreterHost {
-    public init() {}
+    private let compilerPreflightMode: CompilerPreflightMode
+
+    /// Compiler checking is explicit because editor and merged-corpus callers
+    /// intentionally execute recoverable or platform-substituted source.
+    public init(compilerPreflightMode: CompilerPreflightMode = .disabled) {
+        self.compilerPreflightMode = compilerPreflightMode
+    }
 
     public func render(source: String, lazyTopLevelGlobals: Bool = false) -> Result<AnyView, RuntimeError> {
         // Reset deterministic probe state. Interactive wall-clock delivery
         // is selected by this host's ViewRegistry, never mutable global state.
         HeadlessVerifier.resetBridgeEnvironment()
         let registry = ViewRegistry()
-        let interpreter = Interpreter(registry: registry)
         do {
+            let interpreter: Interpreter
+            switch compilerPreflightMode {
+            case .disabled:
+                interpreter = Interpreter(registry: registry)
+            case .diagnosticsOnly, .required:
+                interpreter = try Interpreter.withActiveCompilerPreflight(
+                    registry: registry,
+                    mode: compilerPreflightMode)
+            }
             let last = try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
 
             // A trailing view expression (e.g. `ContentView()`) is an explicit root.
