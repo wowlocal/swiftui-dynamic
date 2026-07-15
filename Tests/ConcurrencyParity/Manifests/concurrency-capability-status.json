@@ -1002,6 +1002,67 @@
         "remaining-generated-task-group-surface"
       ],
       "notes": "Swift resolves direct group.next() source to the modern defaulted-isolation overload. Default, nonisolated explicit-nil, and explicit MainActor.shared calls have native parity for empty, success, source failure, recovery, cancellation, drain, and resumption; arbitrary source-defined actor executors remain a known divergence."
+    },
+    {
+      "id": "swift-concurrency-api-v1:819e9c8834d274987e0e886208e00d77d7bb4efbff48b99390738c8e8c8300d3",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the canonical TaskGroup.addTask(priority:operation:) row in the four-kind same-source probe. Its supported nonisolated subset has exact parity for unconditional child creation, cancellation observation, value consumption, and drain; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ca39861eb01c8c80b5bdf6c98e3df3adfbaec2acc6d0600ce8429593b236b553",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties",
+        "task-group-throwing-next-failure"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the canonical ThrowingTaskGroup.addTask(priority:operation:) row. Same-source parity covers successful cancellation/drain and exact child-error projection for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:1d1d4cf91cb6db1d90ab2dcdd1056dd420892083c5b9014287ca726d02fc3587",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/discardingGroupConsumesSuccessfulChildOutcome"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the canonical DiscardingTaskGroup.addTask(priority:operation:) row. Same-source and focused evidence cover unconditional child creation, cancellation, automatic outcome consumption, and cleanup for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:9983701f51f4e8a596edf053c610f547f41eef5e395526a40f3be72577263453",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/throwingDiscardingGroupProjectsFirstChildFailure"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the canonical ThrowingDiscardingTaskGroup.addTask(priority:operation:) row. Same-source and focused evidence cover unconditional child creation, cancellation, automatic consumption, first-child failure projection, and cleanup for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
     }
   ],
   "semanticCapabilities": [
