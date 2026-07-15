@@ -1310,6 +1310,50 @@ struct ConcurrencyMethodologyTests {
         }, "canonical addTask must not overclaim arbitrary-actor support")
     }
 
+    @Test func taskGroupCanonicalAddTaskUnlessCancelledHasExplicitDispositions()
+            throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let rows = inventory.declarations.filter {
+            $0.domain == "task-group-member"
+                && $0.name == "addTaskUnlessCancelled"
+                && !$0.declaration.contains("name:")
+                && !$0.declaration.contains("executorPreference")
+        }
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 4,
+            "the active SDK canonical addTaskUnlessCancelled denominator changed")
+        #expect(Set(rows.compactMap(\.container)) == [
+            "DiscardingTaskGroup",
+            "TaskGroup",
+            "ThrowingDiscardingTaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(rows.allSatisfy {
+            $0.declaration.contains("@isolated(any)")
+                && $0.declaration.hasSuffix("-> Swift.Bool")
+        }, "canonical conditional-add contract changed")
+        #expect(Set(claims.map(\.id)) == ids,
+            "every canonical conditional-add row needs an authored disposition")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.gapEvidenceIDs == ["remaining-generated-task-group-surface"]
+        }, "conditional add must not overclaim arbitrary-actor support")
+    }
+
     @Test func taskGroupMakeAsyncIteratorHasExplicitReviewedDispositions() throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)

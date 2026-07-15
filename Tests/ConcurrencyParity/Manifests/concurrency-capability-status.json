@@ -1063,6 +1063,64 @@
         "remaining-generated-task-group-surface"
       ],
       "notes": "Strict Swift 6 SIL selects the canonical ThrowingDiscardingTaskGroup.addTask(priority:operation:) row. Same-source and focused evidence cover unconditional child creation, cancellation, automatic consumption, first-child failure projection, and cleanup for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:2eedb2ea0091da3cca9b65c091a0b20f42f1a99b33256b155908f56f3a24e0c8",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-add-unless-cancelled"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the canonical TaskGroup.addTaskUnlessCancelled(priority:operation:) row. The supported nonisolated subset has exact parity for active acceptance/value delivery and post-cancel rejection/empty drain; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:1ac9c1b99d5b90992af11a82a0d2164a22e2befcd8cc9a7de8e2d8079768989f",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-add-unless-cancelled"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the canonical ThrowingTaskGroup.addTaskUnlessCancelled(priority:operation:) row. The supported nonisolated subset has exact parity for active success, exact child-error projection, post-cancel rejection, and empty drain; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:422790113f9ee36e589d3e2c1731af0dcfbc0585efa33a856e8ce0b50cd4d100",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-add-unless-cancelled"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the canonical DiscardingTaskGroup.addTaskUnlessCancelled(priority:operation:) row. The supported nonisolated subset has exact parity for active acceptance, automatic drain, post-cancel rejection, and terminal emptiness; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:6bfd6760b8d7d7c7d1032213f03fa3b8ad5160cd690db2d8c87ff08db65c4a3f",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/throwingDiscardingGroupProjectsFirstChildFailure"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the canonical ThrowingDiscardingTaskGroup.addTaskUnlessCancelled(priority:operation:) row. Same-source and focused evidence cover active acceptance, automatic drain, post-cancel rejection, terminal emptiness, and child-error projection for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
     }
   ],
   "semanticCapabilities": [

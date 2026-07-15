@@ -895,8 +895,8 @@
     "timeoutSeconds": 5,
     "interpreterEntry": "await taskGroupAddUnlessCancelledProbe()",
     "interpreterProjection": "string",
-    "nativeFact": "TaskGroup.addTaskUnlessCancelled returns true and adds work while active, then returns false without adding work after cancelAll.",
-    "notes": "The first call yields added:first. After cancelAll, the second call yields skipped and a following next sees empty. Exact output is added:first:skipped:empty in all 20 Swift 6.3.3 runs."
+    "nativeFact": "The canonical addTaskUnlessCancelled overload returns true and adds work while active, then returns false without adding work after cancelAll on TaskGroup, ThrowingTaskGroup, DiscardingTaskGroup, and ThrowingDiscardingTaskGroup.",
+    "notes": "Every group kind passes .high without asserting effective priority, accepts and drains active work, then rejects work after cancelAll and remains empty. The throwing result group also projects an exact child error. All 20 strict Swift 6.3.3 native and interpreted runs produce the same four-part exact output."
   },
   {
     "id": "task-group-owner-cancellation",
