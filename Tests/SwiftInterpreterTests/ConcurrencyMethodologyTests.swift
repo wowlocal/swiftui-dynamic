@@ -986,6 +986,42 @@ struct ConcurrencyMethodologyTests {
         })
     }
 
+    @Test func taskGroupCancelAllHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let cancelRows = inventory.declarations.filter {
+            $0.domain == "task-group-member" && $0.name == "cancelAll"
+        }
+        let cancelIDs = Set(cancelRows.map(\.id))
+        let cancelClaims = status.interfaceOverrides.filter {
+            cancelIDs.contains($0.id)
+        }
+
+        #expect(cancelRows.count == 4,
+            "the active SDK task-group cancelAll denominator changed")
+        #expect(Set(cancelRows.compactMap(\.container)) == [
+            "DiscardingTaskGroup",
+            "TaskGroup",
+            "ThrowingDiscardingTaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(Set(cancelClaims.map(\.id)) == cancelIDs,
+            "every task-group cancelAll declaration needs an authored disposition")
+        #expect(cancelClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
     @Test func coveredRequirementCannotDependOnOpenWork() {
         let statuses: [String: AcceptanceRequirementStatus] = [
             "M0/foundation": .open,

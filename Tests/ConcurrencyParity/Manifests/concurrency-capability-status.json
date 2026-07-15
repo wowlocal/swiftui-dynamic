@@ -607,6 +607,57 @@
       "testNames": [],
       "gapEvidenceIDs": [],
       "notes": "ThrowingTaskGroup.isEmpty tracks the outstanding child until try await next consumes its successful outcome in the same-source four-kind probe."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c4de3a90e5de27d0ec100b93dc40c5dbea2b98478a83f562c13a74dc3461f730",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "DiscardingTaskGroup.cancelAll() requests cancellation of its outstanding child; the four-kind same-source probe observes cancellation, waits for automatic consumption, and exits empty."
+    },
+    {
+      "id": "swift-concurrency-api-v1:8d4a94f7b1777c50baae0573e16011727c56b701b989c6c968733e7095fea165",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-cancel-all",
+        "task-group-state-properties"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "TaskGroup.cancelAll() cancels outstanding children without cancelling the owner and scope exit still joins them; repository and unchanged swiftlang same-source probes cover both rules."
+    },
+    {
+      "id": "swift-concurrency-api-v1:7be61a6bb13bdc43463ac2bbb7645a457355aacb9d0217752ba9bbae62f230fe",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "ThrowingDiscardingTaskGroup.cancelAll() requests cancellation without manufacturing a body error; the caught child cancellation is automatically consumed before empty scope exit."
+    },
+    {
+      "id": "swift-concurrency-api-v1:f081a1940817e2a4af771f89ff1e48ac0971c6f025ffbb01d80ab780c26dfc32",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "ThrowingTaskGroup.cancelAll() requests child cancellation while preserving a successful caught child outcome that remains consumable through try await next()."
     }
   ],
   "semanticCapabilities": [
