@@ -1123,6 +1123,118 @@
       "notes": "Strict Swift 6 SIL selects the canonical ThrowingDiscardingTaskGroup.addTaskUnlessCancelled(priority:operation:) row. Same-source and focused evidence cover active acceptance, automatic drain, post-cancel rejection, terminal emptiness, and child-error projection for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
     },
     {
+      "id": "swift-concurrency-api-v1:558910412cb86fe47eea0477ee3bd41b1515c3eff22d063364bf8ea13cacdd26",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects DiscardingTaskGroup.addTask(name:priority:operation:), and the native child observes the supplied value through Task.name. The interpreter creates and drains the child but currently discards name; arbitrary @isolated(any) operation executors also remain unsupported."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d557f6cfe6f6891ce7876922cd60a24a67d10734ce74318513b901f4259b4edf",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-add-unless-cancelled"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects DiscardingTaskGroup.addTaskUnlessCancelled(name:priority:operation:), and an accepted native child observes the supplied value through Task.name. The interpreter preserves acceptance and rejection but discards name; arbitrary @isolated(any) operation executors also remain unsupported."
+    },
+    {
+      "id": "swift-concurrency-api-v1:9ce91b5748316e8133ac3b3ab3211eb39db0381ff418a5992afc2131e5cfc38b",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects TaskGroup.addTask(name:priority:operation:), and the native child observes the supplied value through Task.name. The interpreter creates and delivers the child value but currently discards name; arbitrary @isolated(any) operation executors also remain unsupported."
+    },
+    {
+      "id": "swift-concurrency-api-v1:19a3e83758613dcfaf82886bbe96ad145c1e77e25fe56088f52097e7d3f0f55a",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-add-unless-cancelled"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects TaskGroup.addTaskUnlessCancelled(name:priority:operation:), and an accepted native child observes the supplied value through Task.name. The interpreter preserves acceptance, rejection, and value delivery but discards name; arbitrary @isolated(any) operation executors also remain unsupported."
+    },
+    {
+      "id": "swift-concurrency-api-v1:39335ad7cdc5456bf956a909f6d4753d6c9c2f73f441cde23b9714224b9d19c0",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects ThrowingDiscardingTaskGroup.addTask(name:priority:operation:), and the native child observes the supplied value through Task.name. The interpreter creates and drains the throwing child but currently discards name; arbitrary @isolated(any) operation executors also remain unsupported."
+    },
+    {
+      "id": "swift-concurrency-api-v1:99f6042156f095d27a85b6bca81c6cebd0e3fc2ff9e617300d34c74ab0702094",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-add-unless-cancelled"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects ThrowingDiscardingTaskGroup.addTaskUnlessCancelled(name:priority:operation:), and an accepted native child observes the supplied value through Task.name. The interpreter preserves acceptance and rejection but discards name; arbitrary @isolated(any) operation executors also remain unsupported."
+    },
+    {
+      "id": "swift-concurrency-api-v1:8778e74635c17809bb6d7167a72eb1cb9e772ca4f681121ae124db75f19703b8",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects ThrowingTaskGroup.addTask(name:priority:operation:), and the native child observes the supplied value through Task.name. The interpreter creates and delivers the throwing child outcome but currently discards name; arbitrary @isolated(any) operation executors also remain unsupported."
+    },
+    {
+      "id": "swift-concurrency-api-v1:a9b1cd504aa107509c9ad91ae7d841568f0407987b4cd2fde78ec7ec2d732125",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-add-unless-cancelled"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects ThrowingTaskGroup.addTaskUnlessCancelled(name:priority:operation:), and an accepted native child observes the supplied value through Task.name. The interpreter preserves acceptance, rejection, and throwing outcome delivery but discards name; arbitrary @isolated(any) operation executors also remain unsupported."
+    },
+    {
       "id": "swift-concurrency-api-v1:2f5e5db9a15a7dbf19cc194fcf854732abdb0093eb76bfae1f396edd05f11bb3",
       "implementationStatus": "known-divergence",
       "verificationStatus": "none",

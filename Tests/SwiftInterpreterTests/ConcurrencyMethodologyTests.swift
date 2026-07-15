@@ -1550,6 +1550,61 @@ struct ConcurrencyMethodologyTests {
         }, "conditional add must not overclaim arbitrary-actor support")
     }
 
+    @Test func taskGroupNamedAddOverloadsHaveExplicitReviewedDispositions()
+            throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let expectedNames: Set<String> = [
+            "addTask", "addTaskUnlessCancelled",
+        ]
+        let rows = inventory.declarations.filter {
+            $0.domain == "task-group-member"
+                && expectedNames.contains($0.name)
+                && $0.declaration.contains("name: Swift.String?")
+                && !$0.declaration.contains("executorPreference")
+        }
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 8,
+            "the active SDK named add-overload denominator changed")
+        #expect(Set(rows.compactMap(\.container)) == [
+            "DiscardingTaskGroup",
+            "TaskGroup",
+            "ThrowingDiscardingTaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(Set(rows.map(\.name)) == expectedNames)
+        for container in Set(rows.compactMap(\.container)) {
+            #expect(rows.count { $0.container == container } == 2,
+                "\(container) should expose one named row per operation")
+        }
+        #expect(rows.allSatisfy {
+            $0.declaration.contains("priority:")
+                && $0.declaration.contains("@isolated(any)")
+        }, "named add-operation shape changed")
+        #expect(Set(claims.map(\.id)) == ids,
+            "every named add overload needs an authored disposition")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef == "M4/remaining-task-group-surface"
+                && $0.gapEvidenceIDs
+                    == ["remaining-generated-task-group-surface"]
+                && $0.notes.contains("Task.name")
+        }, "named rows must retain both name and actor-executor gaps")
+    }
+
     @Test func taskGroupMakeAsyncIteratorHasExplicitReviewedDispositions() throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)
