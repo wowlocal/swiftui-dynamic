@@ -3345,3 +3345,36 @@ The source-bound repository receipt for this slice is GREEN and covers 852
 tests, exact 87/87 runtime cases and 1,702 repetitions, the 678/680 pinned
 corpus ratchet, 5/5 live scenarios, and API parity at 345 match / 0 diverge /
 0 interpreter errors / 17 unstable / 0 no-twin.
+
+### M4 seeded structured cancellation storm
+
+`task-group-cancellation-storm.swift` is a same-source stress fixture for
+high-fanout group cancellation. Thirty-two children all enter a 30-second
+cancellable sleep before the owner calls `cancelAll()` four times. Every child
+catches `CancellationError` and reports its own cancellation state; group
+iteration consumes all results with a commutative count and sum.
+
+Apple Swift 6.3.3 produced `32:32:cancelled:owner-active` in all 20 bounded
+strict-concurrency runs. The interpreter produced the identical terminal value
+in 20 fresh processes (native observation digest `b83e814b…`). The assertion
+therefore proves cancellation observation, idempotent repeated requests, full
+group draining, and owner isolation without claiming sibling completion order.
+
+`StructuredCancellationStressTests` extends that endpoint through 64
+deterministic seeds. Non-overlapping seed bits select fanout 8 through 15,
+cancellation before any child is added or after every child starts, and one
+through four duplicate `cancelAll()` requests. The complete board drains
+exactly 736 cancelled children while reusing one interpreter across sessions;
+after every seed, task, group, scope, host-operation, and scheduler registries
+are empty. Failures carry an exact replay command. A focused replay of
+`0x57acce110000002d` ran exactly one configuration and emitted `replay:true`.
+
+This is another characterization slice: native and interpreted semantics plus
+runtime cleanup were already correct, so no production behavior changed. The
+`M4/structured-stress-and-leak-plateau` acceptance row now remains open only
+for a retained RSS plateau under repeated structured workloads.
+
+The source-bound repository receipt for this slice is GREEN and covers 854
+tests, exact 88/88 runtime cases and 1,722 repetitions, the 678/680 pinned
+corpus ratchet, 5/5 live scenarios, and API parity at 345 match / 0 diverge /
+0 interpreter errors / 17 unstable / 0 no-twin.

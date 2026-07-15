@@ -731,6 +731,18 @@
     "notes": "Depth/fanout shapes (0,4), (1,4), and (3,3) produce 1, 5, and 40 nodes. The deepest shape creates 39 structured children across 13 nested groups per execution; summation consumes every result and makes no child-completion-order claim. Exact terminal output is 1,5,40 in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-cancellation-storm",
+    "fixture": "Fixtures/task-group-cancellation-storm.swift",
+    "mode": "runtime",
+    "assertion": "stress",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupCancellationStormProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Repeated TaskGroup.cancelAll requests cancel every already-started child, group scope exit drains all child outcomes, and group cancellation does not cancel the owner task.",
+    "notes": "All 32 children enter a 30-second cancellable sleep before four cancelAll requests. A commutative completion count and cancellation-observation sum avoid sibling-order claims. Exact terminal output is 32:32:cancelled:owner-active in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-executor-composition",
     "fixture": "Fixtures/task-executor-composition.swift",
     "mode": "runtime",
