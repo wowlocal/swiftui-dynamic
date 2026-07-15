@@ -28,6 +28,13 @@ let package = Package(
             name: "CheckSupport"
         ),
         .target(
+            name: "ConcurrencySurfaceGenCore",
+            dependencies: [
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftParser", package: "swift-syntax"),
+            ]
+        ),
+        .target(
             name: "SwiftInterpreter",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -98,15 +105,16 @@ let package = Package(
         ),
         .executableTarget(
             name: "ConcurrencySurfaceGen",
-            dependencies: [
-                .product(name: "SwiftSyntax", package: "swift-syntax"),
-                .product(name: "SwiftParser", package: "swift-syntax"),
-            ],
+            dependencies: ["ConcurrencySurfaceGenCore"],
             swiftSettings: mainActorByDefault
         ),
         .testTarget(
             name: "CheckSupportTests",
             dependencies: ["CheckSupport"]
+        ),
+        .testTarget(
+            name: "ConcurrencySurfaceGenTests",
+            dependencies: ["ConcurrencySurfaceGenCore"]
         ),
         .testTarget(
             name: "SwiftInterpreterTests",

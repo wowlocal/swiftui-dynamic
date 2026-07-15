@@ -3415,3 +3415,33 @@ The source-bound repository receipt for this slice is GREEN and covers 857
 tests, exact 88/88 runtime cases and 1,722 repetitions, the 678/680 pinned
 corpus ratchet, 5/5 live scenarios, and API parity at 345 match / 0 diverge /
 0 interpreter errors / 17 unstable / 0 no-twin.
+
+### M7 active-SDK signature and effect inventory
+
+`ConcurrencySurfaceGenCore` makes the `_Concurrency.swiftinterface` parser a
+testable package component instead of executable-only code. The checked-in
+surface now retains all 75 declarations found for the four task-group types
+and their four scope functions in the active macOS SDK: overload identity,
+complete declaration text, parameter labels and defaults, `async`,
+`throws`/`rethrows`, typed errors, `isolated` parameters, `@isolated(any)` and
+`@Sendable` function types, `@_inheritActorContext`, declaration modifiers,
+and known global-actor attributes. Existing generated intrinsic dispatch is
+unchanged.
+
+One focused test parses a synthetic interface containing the effect and
+isolation edge cases plus a legacy alias. A second regenerates the surface
+from the active SDK in memory and requires byte-for-byte equality with the
+checked-in file while asserting the real `withTaskGroup`,
+`withThrowingTaskGroup`, `next`, `nextResult`, and `addTask` effects. An SDK or
+toolchain update therefore fails `swift test` until the generated surface and
+its semantic disposition are reviewed.
+
+This slice changes metadata generation, not interpreted runtime behavior. M7
+is now partial: complete `_Concurrency`/SDK host stubs, compiler invocation,
+cache identity, and surfaced preflight diagnostics remain open.
+
+The source-bound repository receipt for this slice is GREEN in 852 seconds and
+covers 859 tests, exact 88/88 runtime cases and 1,722 repetitions, the 678/680
+pinned swiftlang corpus ratchet, 5/5 live scenarios, and API parity at 345
+match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin. The
+start/end commit and worktree fingerprints match and `driftDetected` is false.
