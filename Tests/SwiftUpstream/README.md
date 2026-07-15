@@ -51,15 +51,18 @@ closure, and mutable `inout` capture errors. The harness requires error
 severity plus the upstream filename, line, and message fragment rather than
 accepting an unrelated compiler failure.
 
-The exact upstream support input
-`test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift` is also SHA-pinned.
-Production preflight compiles it as a separate host declaration module, imports
-that module into a minimal client, and requires Swift 6 to preserve its
-serialized `MainActor` isolation diagnostic at the original client line. This
-is the first auxiliary-module oracle; it tests the same boundary that generated
-bridge manifests will use rather than copying an expected diagnostic string.
-The small client under `Clients/` is repository-owned oracle plumbing, not an
-upstream test or an independently claimed concurrency-parity case.
+The exact upstream support inputs
+`test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift` and
+`test/Concurrency/Inputs/GlobalVariables.swift` are also SHA-pinned.
+Production preflight compiles them as separate host declaration modules,
+imports each module into a minimal client, and requires Swift 6 to preserve the
+serialized `MainActor` isolation diagnostic for a global function and a static
+property. The `GlobalVariables` module retains its upstream Swift 5 compiler
+mode while its client remains checked in Swift 6. These auxiliary-module
+oracles test the same boundary that generated
+bridge manifests use rather than copying expected diagnostic strings. The
+small clients under `Clients/` are repository-owned oracle plumbing, not
+upstream tests or independently claimed concurrency-parity cases.
 
 The corpus is checked in so normal test runs do not need network access. To
 refresh it reproducibly, run:

@@ -267,7 +267,8 @@ struct CompilerPreflightTests {
         throws {
         let base = CompilerPreflightHostModule(
             moduleName: "ComposedHostSurface",
-            source: "@_exported import Foundation\n")
+            source: "@_exported import Foundation\n",
+            compilerArguments: ["-D", "COMPOSED_HOST"])
         let integer = try HostSignature(
             parsing: "func syntheticIdentity(_ value: Int) -> Int")
         let string = try HostSignature(
@@ -284,6 +285,7 @@ struct CompilerPreflightTests {
 
         #expect(first == reordered)
         #expect(first.moduleName == base.moduleName)
+        #expect(first.compilerArguments == base.compilerArguments)
         #expect(first.source.hasPrefix(base.source))
         #expect(first.source.components(separatedBy:
             "public func syntheticIdentity(_ value: Int) -> Int"
@@ -292,12 +294,45 @@ struct CompilerPreflightTests {
             "public func syntheticIdentity(_ value: String) async throws -> String"))
 
         let member = try HostSignature(
-            parsing: "func String.syntheticMember() -> Int")
-        #expect(throws: CompilerPreflightError.self) {
-            _ = try CompilerPreflightHostModule.composing(
+            parsing: "@MainActor func String.syntheticMember() -> Int")
+        let memberCompositionResult = try CompilerPreflightHostModule.composing(
+            base: base,
+            syntheticSignatures: [member])
+        let memberComposition = try #require(memberCompositionResult)
+        #expect(memberComposition.source.contains("extension String"))
+        #expect(memberComposition.source.contains(
+            "@MainActor public func syntheticMember() -> Int"))
+
+        let property = try HostSignature(parsing:
+            "@MainActor static var String.syntheticValue: Int { get set }")
+        let propertyCompositionResult = try CompilerPreflightHostModule.composing(
+            base: base,
+            syntheticSignatures: [property])
+        let propertyComposition = try #require(propertyCompositionResult)
+        #expect(propertyComposition.source.contains(
+            "@MainActor static public var syntheticValue: Int"))
+        #expect(propertyComposition.source.contains("get {"))
+        #expect(propertyComposition.source.contains("set {"))
+
+        let initializer = try HostSignature(
+            parsing: "@MainActor init String(syntheticValue: Int)")
+        let initializerCompositionResult = try CompilerPreflightHostModule
+            .composing(
                 base: base,
-                syntheticSignatures: [member])
+                syntheticSignatures: [initializer])
+        let initializerComposition = try #require(initializerCompositionResult)
+        #expect(initializerComposition.source.contains(
+            "@MainActor public init(syntheticValue: Int)"))
+        let initializerPreflight = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: initializerComposition)
+        let legalInitializer = try initializerPreflight.preflight(source: """
+        @MainActor
+        func makeSyntheticString() {
+            _ = String(syntheticValue: 1)
         }
+        """, fileName: "SyntheticMemberInitializer.swift")
+        #expect(legalInitializer.succeeded,
+            Comment(rawValue: legalInitializer.standardError))
 
         let privateFunction = try HostSignature(
             parsing: "private func hiddenSyntheticValue() -> Int")
@@ -305,6 +340,13 @@ struct CompilerPreflightTests {
             _ = try CompilerPreflightHostModule.composing(
                 base: base,
                 syntheticSignatures: [privateFunction])
+        }
+        let privateMember = try HostSignature(
+            parsing: "private func String.hiddenSyntheticValue() -> Int")
+        #expect(throws: CompilerPreflightError.self) {
+            _ = try CompilerPreflightHostModule.composing(
+                base: base,
+                syntheticSignatures: [privateMember])
         }
     }
 
@@ -341,6 +383,89 @@ struct CompilerPreflightTests {
         """)
         #expect(value.intValue == 42)
         #expect(registry.invocationCount == 1)
+    }
+
+    @Test
+    func typedSyntheticStaticPropertyPreservesPinnedIsolation() throws {
+        let base = CompilerPreflightHostModule(
+            moduleName: "GlobalVariables",
+            source: "public enum Globals {}\n")
+        let property = try HostSignature(parsing:
+            "@MainActor static var Globals.actorInteger: Int { get set }")
+        let moduleResult = try CompilerPreflightHostModule.composing(
+            base: base,
+            syntheticSignatures: [property])
+        let module = try #require(moduleResult)
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: module)
+        let clientName =
+            "host-module-mainactor-static-property-diagnostic.swift"
+        let client = try Self.upstreamClient(clientName)
+        let result = try preflight.preflight(
+            source: client,
+            fileName: clientName)
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.file == clientName
+                && $0.line == 4
+                && $0.message.contains(
+                    "main actor-isolated static property 'actorInteger'")
+                && $0.message.contains("nonisolated context")
+        }, Comment(rawValue: result.standardError))
+    }
+
+    @Test
+    func typedSyntheticMembersPassPreflightAndExecuteThroughRegistry() throws {
+        let registry = try SyntheticStringMemberHostRegistry()
+        let interpreter = try Interpreter.withActiveCompilerPreflight(
+            registry: registry)
+        let value = try interpreter.run(source: """
+        @MainActor
+        func readSyntheticMembers() -> Int {
+            "swift".syntheticLength() + "host".syntheticCount
+        }
+        readSyntheticMembers()
+        """)
+
+        #expect(value.intValue == 9)
+        #expect(registry.methodInvocationCount == 1)
+        #expect(registry.propertyInvocationCount == 1)
+        let source = try #require(interpreter.compilerPreflight?.hostModule?.source)
+        #expect(source.contains(
+            "@MainActor public func syntheticLength() -> Int"))
+        #expect(source.contains(
+            "@MainActor public var syntheticCount: Int"))
+    }
+
+    @Test
+    func hostModuleCompilerArgumentsDoNotLeakIntoSwift6Client() throws {
+        let module = CompilerPreflightHostModule(
+            moduleName: "LegacyHostSurface",
+            source: """
+            #if swift(>=6)
+            #error("host declaration module must use its Swift 5 mode")
+            #endif
+            public func legacyHostValue() -> Int { 42 }
+            """,
+            compilerArguments: ["-swift-version", "5"])
+        let defaultModeModule = CompilerPreflightHostModule(
+            moduleName: module.moduleName,
+            source: module.source)
+        #expect(module.manifestSHA256 != defaultModeModule.manifestSHA256)
+
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: module)
+        let result = try preflight.preflight(source: """
+        import LegacyHostSurface
+        #if swift(<6)
+        #error("client preflight must remain in Swift 6 mode")
+        #endif
+        let value = legacyHostValue()
+        """, fileName: "Swift6HostClient.swift")
+
+        #expect(result.succeeded, Comment(rawValue: result.standardError))
+        #expect(preflight.configuration.additionalCompilerArguments.isEmpty)
     }
 
     @Test
@@ -628,6 +753,71 @@ private final class SyntheticMainActorHostRegistry: HostRegistry {
         name == "mainActorFunction" ? mainActorFunction : nil
     }
 
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+}
+
+private final class SyntheticStringMemberHostRegistry: HostRegistry {
+    private let methodSignature: HostSignature
+    private let countProperty: HostProperty
+    private let methodCounter = PreflightInvocationCounter()
+    private let propertyCounter = PreflightInvocationCounter()
+    var methodInvocationCount: Int { methodCounter.value }
+    var propertyInvocationCount: Int { propertyCounter.value }
+
+    var compilerPreflightSyntheticSignatures: [HostSignature] {
+        [methodSignature, countProperty.signature]
+    }
+
+    init() throws {
+        methodSignature = try HostSignature(parsing:
+            "@MainActor func String.syntheticLength() -> Int")
+        let propertyCounter = propertyCounter
+        countProperty = try HostProperty(
+            declaration: "@MainActor var String.syntheticCount: Int { get }",
+            get: { receiver, _ in
+                propertyCounter.value += 1
+                guard let string = receiver.stringValue else {
+                    throw RuntimeError(message: "expected String receiver")
+                }
+                return .native(string.count)
+            })
+    }
+
+    func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
+        syntheticMethod(name, on: value)
+    }
+
+    func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
+        syntheticMethod(name, on: value)
+    }
+
+    private func syntheticMethod(
+        _ name: String, on value: Any
+    ) -> RuntimeValue? {
+        let methodCounter = methodCounter
+        guard name == "syntheticLength", let string = value as? String,
+              let function = try? HostFunction(
+                signature: methodSignature,
+                invoke: { _, _ in
+                    methodCounter.value += 1
+                    return .native(string.count)
+                }) else { return nil }
+        return .hostFunction(function)
+    }
+
+    func hostProperty(named name: String, on value: Any) -> HostProperty? {
+        name == "syntheticCount" && value is String ? countProperty : nil
+    }
+
+    func cFunction(named name: String) -> HostFunction? { nil }
     func absorbedCValue(named name: String) -> RuntimeValue? { nil }
     func storeBlob(_ value: RuntimeValue, at path: String) {}
     func constructor(named name: String) -> HostFunction? { nil }

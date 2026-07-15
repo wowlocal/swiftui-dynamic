@@ -327,7 +327,7 @@ struct SwiftUpstreamParityTests {
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
         #expect(manifest.cases.allSatisfy { $0.sha256?.count == 64 })
-        #expect(manifest.supportFiles.count == 1)
+        #expect(manifest.supportFiles.count == 2)
         #expect(Set(manifest.supportFiles.map(\.id)).count
             == manifest.supportFiles.count)
         #expect(Set(manifest.supportFiles.map(\.upstreamPath)).count
@@ -462,6 +462,44 @@ struct SwiftUpstreamParityTests {
                 && $0.message.contains("main actor-isolated global function")
                 && $0.message.contains("nonisolated context")
         })
+    }
+
+    @Test
+    func importedSupportModulePreservesStaticPropertyMainActorIsolation()
+        throws {
+        let manifest = try SwiftUpstreamParityHarness.loadManifest()
+        let support = try #require(manifest.supportFiles.first {
+            $0.id == "global-actor-isolated-static-property-module"
+        })
+        let module = CompilerPreflightHostModule(
+            moduleName: support.moduleName,
+            source: try SwiftUpstreamParityHarness.supportSource(for: support),
+            compilerArguments: [
+                "-swift-version", "5",
+                "-strict-concurrency=minimal",
+            ])
+        #expect(module.sourceSHA256 == support.sha256)
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: module)
+        #expect(preflight.configuration.additionalCompilerArguments.isEmpty)
+        let clientName =
+            "host-module-mainactor-static-property-diagnostic.swift"
+        let client = try String(
+            contentsOf: SwiftUpstreamParityHarness.packageRoot
+                .appendingPathComponent("Tests/SwiftUpstream/Clients/\(clientName)"),
+            encoding: .utf8)
+        let result = try preflight.preflight(
+            source: client,
+            fileName: clientName)
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.file == clientName
+                && $0.line == 4
+                && $0.message.contains(
+                    "main actor-isolated static property 'actorInteger'")
+                && $0.message.contains("nonisolated context")
+        }, Comment(rawValue: result.standardError))
     }
 
     @Test func concurrencyRuntimeInventoryClassifiesEveryPinnedSource() throws {

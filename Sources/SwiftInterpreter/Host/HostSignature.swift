@@ -65,7 +65,15 @@ public struct HostSignature: Sendable, CustomStringConvertible {
     public let isThrowing: Bool
     public let isFailable: Bool
     public let isSettable: Bool
-    let functionIntroducerUTF8Offset: Int?
+    /// Native declaration spelling used by compiler preflight. Top-level
+    /// functions retain their source spelling; qualified host DSL members
+    /// (`func String.member`) retain a Swift-valid member spelling with the
+    /// receiver qualifier removed (`func member`).
+    let compilerPreflightDeclaration: String?
+    /// UTF-8 offset of `func`, `init`, `var`, or `let` in
+    /// `compilerPreflightDeclaration`, used to export otherwise access-neutral
+    /// runtime contracts without reprinting their syntax.
+    let compilerPreflightAccessInsertionUTF8Offset: Int?
 
     public var description: String { declaration }
 
@@ -99,7 +107,8 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         isSettable: Bool,
         attributes: [String] = [],
         modifiers: [String] = [],
-        functionIntroducerUTF8Offset: Int? = nil
+        compilerPreflightDeclaration: String? = nil,
+        compilerPreflightAccessInsertionUTF8Offset: Int? = nil
     ) {
         self.declaration = declaration
         self.kind = kind
@@ -114,7 +123,9 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         self.isThrowing = isThrowing
         self.isFailable = isFailable
         self.isSettable = isSettable
-        self.functionIntroducerUTF8Offset = functionIntroducerUTF8Offset
+        self.compilerPreflightDeclaration = compilerPreflightDeclaration
+        self.compilerPreflightAccessInsertionUTF8Offset =
+            compilerPreflightAccessInsertionUTF8Offset
     }
 
     public static func parse(_ rawDeclaration: String) throws -> HostSignature {
@@ -122,6 +133,12 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         guard !declaration.isEmpty else {
             throw HostSignatureError.invalidDeclaration(
                 declaration: rawDeclaration, reason: "declaration is empty")
+        }
+
+        if let qualifiedMember = try parseQualifiedMemberIfPresent(
+            declaration
+        ) {
+            return qualifiedMember
         }
 
         if let nativeTopLevel = try parseNativeTopLevelFunctionIfPresent(
@@ -214,6 +231,307 @@ private extension HostSignature {
         let isThrowing: Bool
     }
 
+    enum QualifiedMemberIntroducer: String {
+        case function = "func "
+        case initializer = "init "
+        case failableInitializer = "init? "
+        case implicitlyUnwrappedInitializer = "init! "
+        case variable = "var "
+        case constant = "let "
+    }
+
+    struct QualifiedMemberIntroducerMatch {
+        let kind: QualifiedMemberIntroducer
+        let range: Range<String.Index>
+    }
+
+    /// Parses the established receiver-qualified host DSL through a
+    /// Swift-valid synthetic member declaration. This keeps runtime lookup
+    /// (`func String.member`) compact while retaining the exact attributes,
+    /// modifiers, effects, and defaults that the compiler must see in an
+    /// `extension String { func member ... }` declaration.
+    static func parseQualifiedMemberIfPresent(
+        _ declaration: String
+    ) throws -> HostSignature? {
+        guard let match = firstQualifiedMemberIntroducer(in: declaration)
+        else { return nil }
+
+        let leading = String(declaration[..<match.range.lowerBound])
+        let suffix = String(declaration[match.range.upperBound...])
+        switch match.kind {
+        case .function:
+            guard let parameterStart = firstTopLevelIndex(of: "(", in: suffix)
+            else { return nil }
+            let qualifiedAndGenerics = String(suffix[..<parameterStart])
+            guard let dot = lastTopLevelIndex(of: ".", in: qualifiedAndGenerics)
+            else { return nil }
+            let receiver = String(qualifiedAndGenerics[..<dot])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let memberAndGenerics = String(qualifiedAndGenerics[
+                qualifiedAndGenerics.index(after: dot)...])
+            guard !receiver.isEmpty,
+                  !memberAndGenerics.trimmingCharacters(
+                    in: .whitespacesAndNewlines).isEmpty else {
+                throw HostSignatureError.invalidDeclaration(
+                    declaration: declaration,
+                    reason: "incomplete qualified function name")
+            }
+
+            let nativeMember = normalizedCompilerDeclaration(
+                leading + "func " + memberAndGenerics
+                    + String(suffix[parameterStart...]))
+            let tree = Parser.parse(source:
+                "extension \(receiver) {\n\(nativeMember) {}\n}")
+            try rejectParseErrors(in: tree, original: declaration)
+            guard let extensionDeclaration = tree.statements.first?.item.as(
+                    ExtensionDeclSyntax.self),
+                  extensionDeclaration.memberBlock.members.count == 1,
+                  let function = extensionDeclaration.memberBlock.members.first?
+                    .decl.as(FunctionDeclSyntax.self) else {
+                throw HostSignatureError.invalidDeclaration(
+                    declaration: declaration,
+                    reason: "expected one receiver-qualified function")
+            }
+
+            let genericStart = firstTopLevelIndex(
+                of: "<", in: memberAndGenerics)
+            let genericClause = genericStart.map {
+                String(memberAndGenerics[$0...])
+            } ?? ""
+            let parsed = try parseSyntheticFunction(
+                "func __host\(genericClause)\(suffix[parameterStart...]) {}",
+                original: declaration)
+            let modifiers = function.modifiers.map(\.trimmedDescription)
+            let isStatic = modifiers.contains("static")
+                || modifiers.contains("class")
+            return HostSignature(
+                declaration: declaration,
+                kind: isStatic ? .staticMethod : .method,
+                receiverType: receiver,
+                name: function.name.text,
+                parameters: parsed.parameters,
+                genericParameters: parsed.generics,
+                returnType: parsed.returnType,
+                isAsync: parsed.isAsync,
+                isThrowing: parsed.isThrowing,
+                isFailable: false,
+                isSettable: false,
+                attributes: function.attributes.map(\.trimmedDescription),
+                modifiers: modifiers,
+                compilerPreflightDeclaration: nativeMember,
+                compilerPreflightAccessInsertionUTF8Offset:
+                    introducerUTF8Offset(
+                        .function, in: nativeMember, original: declaration))
+
+        case .variable, .constant:
+            guard let colon = firstTopLevelIndex(of: ":", in: suffix) else {
+                return nil
+            }
+            let qualifiedName = String(suffix[..<colon])
+            guard let dot = lastTopLevelIndex(of: ".", in: qualifiedName)
+            else { return nil }
+            let receiver = String(qualifiedName[..<dot])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let memberName = String(qualifiedName[
+                qualifiedName.index(after: dot)...])
+            guard !receiver.isEmpty,
+                  !memberName.trimmingCharacters(
+                    in: .whitespacesAndNewlines).isEmpty else {
+                throw HostSignatureError.invalidDeclaration(
+                    declaration: declaration,
+                    reason: "incomplete qualified property name")
+            }
+
+            let nativeMember = normalizedCompilerDeclaration(
+                leading + match.kind.rawValue + memberName
+                    + String(suffix[colon...]))
+            let tree = Parser.parse(source:
+                "protocol __HostProperty {\n\(nativeMember)\n}")
+            try rejectParseErrors(in: tree, original: declaration)
+            guard let protocolDeclaration = tree.statements.first?.item.as(
+                    ProtocolDeclSyntax.self),
+                  protocolDeclaration.memberBlock.members.count == 1,
+                  let variable = protocolDeclaration.memberBlock.members.first?
+                    .decl.as(VariableDeclSyntax.self) else {
+                throw HostSignatureError.invalidDeclaration(
+                    declaration: declaration,
+                    reason: "expected one receiver-qualified property")
+            }
+            let modifiers = variable.modifiers.map(\.trimmedDescription)
+            let isStatic = modifiers.contains("static")
+                || modifiers.contains("class")
+            let isVariable = match.kind == .variable
+            let prefix = (isStatic ? "static " : "")
+                + (isVariable ? "var " : "let ")
+            let parsed = try parseProperty(
+                prefix + suffix,
+                prefix: prefix,
+                isStatic: isStatic,
+                isVariable: isVariable)
+            return HostSignature(
+                declaration: declaration,
+                kind: parsed.kind,
+                receiverType: parsed.receiverType,
+                name: parsed.name,
+                parameters: parsed.parameters,
+                genericParameters: parsed.genericParameters,
+                returnType: parsed.returnType,
+                isAsync: parsed.isAsync,
+                isThrowing: parsed.isThrowing,
+                isFailable: parsed.isFailable,
+                isSettable: parsed.isSettable,
+                attributes: variable.attributes.map(\.trimmedDescription),
+                modifiers: modifiers,
+                compilerPreflightDeclaration: nativeMember,
+                compilerPreflightAccessInsertionUTF8Offset:
+                    introducerUTF8Offset(
+                        match.kind, in: nativeMember,
+                        original: declaration))
+
+        case .initializer, .failableInitializer,
+             .implicitlyUnwrappedInitializer:
+            guard let parameterStart = firstTopLevelIndex(of: "(", in: suffix)
+            else { return nil }
+            var receiver = String(suffix[..<parameterStart])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            var optionalMark: Character?
+            if match.kind == .failableInitializer {
+                optionalMark = "?"
+            } else if match.kind == .implicitlyUnwrappedInitializer {
+                optionalMark = "!"
+            }
+            if receiver.last == "?" || receiver.last == "!" {
+                optionalMark = receiver.removeLast()
+                receiver = receiver.trimmingCharacters(
+                    in: .whitespacesAndNewlines)
+            }
+            guard !receiver.isEmpty else {
+                throw HostSignatureError.invalidDeclaration(
+                    declaration: declaration,
+                    reason: "missing initialized type")
+            }
+
+            let nativeIntroducer: QualifiedMemberIntroducer
+            switch optionalMark {
+            case "?": nativeIntroducer = .failableInitializer
+            case "!": nativeIntroducer = .implicitlyUnwrappedInitializer
+            default: nativeIntroducer = .initializer
+            }
+            let nativeMember = normalizedCompilerDeclaration(
+                leading + "init" + (optionalMark.map(String.init) ?? "")
+                    + String(suffix[parameterStart...]))
+            let tree = Parser.parse(source:
+                "extension \(receiver) {\n\(nativeMember) { fatalError() }\n}")
+            try rejectParseErrors(in: tree, original: declaration)
+            guard let extensionDeclaration = tree.statements.first?.item.as(
+                    ExtensionDeclSyntax.self),
+                  extensionDeclaration.memberBlock.members.count == 1,
+                  let initializer = extensionDeclaration.memberBlock.members
+                    .first?.decl.as(InitializerDeclSyntax.self) else {
+                throw HostSignatureError.invalidDeclaration(
+                    declaration: declaration,
+                    reason: "expected one receiver-qualified initializer")
+            }
+            let legacyPrefix = optionalMark == nil ? "init " : "init? "
+            let parsed = try parseInitializer(
+                legacyPrefix + receiver + suffix[parameterStart...],
+                prefix: legacyPrefix,
+                prefixIsFailable: optionalMark != nil)
+            return HostSignature(
+                declaration: declaration,
+                kind: parsed.kind,
+                receiverType: parsed.receiverType,
+                name: parsed.name,
+                parameters: parsed.parameters,
+                genericParameters: parsed.genericParameters,
+                returnType: parsed.returnType,
+                isAsync: parsed.isAsync,
+                isThrowing: parsed.isThrowing,
+                isFailable: parsed.isFailable,
+                isSettable: parsed.isSettable,
+                attributes: initializer.attributes.map(\.trimmedDescription),
+                modifiers: initializer.modifiers.map(\.trimmedDescription),
+                compilerPreflightDeclaration: nativeMember,
+                compilerPreflightAccessInsertionUTF8Offset:
+                    introducerUTF8Offset(
+                        nativeIntroducer, in: nativeMember,
+                        original: declaration))
+        }
+    }
+
+    static func firstQualifiedMemberIntroducer(
+        in declaration: String
+    ) -> QualifiedMemberIntroducerMatch? {
+        let candidates: [QualifiedMemberIntroducer] = [
+            .function, .failableInitializer,
+            .implicitlyUnwrappedInitializer, .initializer,
+            .variable, .constant,
+        ]
+        return candidates.compactMap { kind in
+            topLevelKeywordRange(of: kind.rawValue, in: declaration).map {
+                QualifiedMemberIntroducerMatch(kind: kind, range: $0)
+            }
+        }.min { lhs, rhs in
+            lhs.range.lowerBound < rhs.range.lowerBound
+        }
+    }
+
+    static func topLevelKeywordRange(
+        of keyword: String, in text: String
+    ) -> Range<String.Index>? {
+        var search = text.startIndex
+        while search < text.endIndex,
+              let range = text.range(
+                of: keyword, range: search..<text.endIndex) {
+            let prefix = String(text[..<range.lowerBound])
+            let atBoundary = range.lowerBound == text.startIndex
+                || text[text.index(before: range.lowerBound)].isWhitespace
+            if atBoundary, nestingDepth(of: prefix) == (0, 0, 0) {
+                return range
+            }
+            search = range.upperBound
+        }
+        return nil
+    }
+
+    static func normalizedCompilerDeclaration(_ declaration: String) -> String {
+        declaration.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func introducerUTF8Offset(
+        _ introducer: QualifiedMemberIntroducer,
+        in declaration: String,
+        original: String
+    ) -> Int {
+        let token = introducer.rawValue.trimmingCharacters(in: .whitespaces)
+        var search = declaration.startIndex
+        var found: Range<String.Index>?
+        while search < declaration.endIndex,
+              let range = declaration.range(
+                of: token, range: search..<declaration.endIndex) {
+            let prefix = String(declaration[..<range.lowerBound])
+            let beforeIsBoundary = range.lowerBound == declaration.startIndex
+                || declaration[declaration.index(before: range.lowerBound)]
+                    .isWhitespace
+            let afterIsBoundary = range.upperBound == declaration.endIndex
+                || declaration[range.upperBound].isWhitespace
+                || declaration[range.upperBound] == "?"
+                || declaration[range.upperBound] == "!"
+                || declaration[range.upperBound] == "("
+            if beforeIsBoundary, afterIsBoundary,
+               nestingDepth(of: prefix) == (0, 0, 0) {
+                found = range
+                break
+            }
+            search = range.upperBound
+        }
+        guard let range = found else {
+            preconditionFailure(
+                "validated host declaration lost its introducer: \(original)")
+        }
+        return declaration[..<range.lowerBound].utf8.count
+    }
+
     static func parseNativeTopLevelFunctionIfPresent(
         _ declaration: String
     ) throws -> HostSignature? {
@@ -266,7 +584,8 @@ private extension HostSignature {
             isSettable: false,
             attributes: function.attributes.map(\.trimmedDescription),
             modifiers: function.modifiers.map(\.trimmedDescription),
-            functionIntroducerUTF8Offset:
+            compilerPreflightDeclaration: declaration,
+            compilerPreflightAccessInsertionUTF8Offset:
                 function.funcKeyword.positionAfterSkippingLeadingTrivia
                     .utf8Offset)
     }

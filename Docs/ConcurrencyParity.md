@@ -59,7 +59,7 @@ evidence that remains covered.
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity or focused runtime evidence. | Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup and Sendable diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level declarations. | Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, extend synthetic declarations to members, initializers, properties, enclosing types, and source-level global-actor attributes, and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup and Sendable diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level plus receiver-qualified method, initializer, and synchronous property declarations. | Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, add synthetic enclosing-type declarations and attributes plus async/throwing property accessors, and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
@@ -3922,3 +3922,48 @@ source-bound closing gate is GREEN over 888 tests, exact 88/88 runtime parity
 cases and 1,722 repetitions, the 678/680 pinned corpus ratchet, 5/5 live
 scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
 unstable / 0 no-twin.
+
+### M7 synthetic receiver-qualified host declarations
+
+This gap-closure slice asks whether an interpreter-synthetic member carries the
+same source isolation into compiled preflight as a native serialized member.
+The oracle adds the unchanged swiftlang support input
+`test/Concurrency/Inputs/GlobalVariables.swift` from release
+`swift-6.3.3-RELEASE`, commit `064859e4…`, SHA-256 `cb2556b3…`. Its upstream
+RUN line builds the support module in Swift 5; an unchanged Swift 6 client then
+receives the line-4 error that main-actor-isolated static property
+`actorInteger` cannot be referenced from a nonisolated context. The repository
+client is bounded plumbing, while the declaration under test remains
+byte-identical to swiftlang.
+
+`CompilerPreflightHostModule` now owns module-only compiler arguments and
+includes them in its manifest digest. The upstream support module therefore
+uses its real Swift 5/minimal-concurrency serialization mode while the client
+stays in Swift 6 complete strict-concurrency mode. A negative-control test uses
+opposing `#if swift(...)` assertions in module and client, proving that the
+module language mode does not leak into user-source preflight.
+
+Before the production change, `HostSignature` rejected
+`@MainActor func String.syntheticMember() -> Int` with `expected parameter
+clause in function signature` and rejected `@MainActor static var
+Globals.actorInteger: Int { get set }` with `expected '=' in variable`. The
+focused tests captured both failures before implementation.
+
+Receiver-qualified host contracts now pass through SwiftSyntax as valid member
+declarations, preserving attributes, modifiers, parameters, defaults, generic
+constraints, async/throwing function effects, property mutability, and return
+types while removing only the runtime DSL's `Receiver.` qualifier. Production
+preflight deterministically emits public extension stubs for instance/static
+methods, initializers, and synchronous get/get-set properties. Explicitly
+non-public members and async/throwing property accessors fail configuration.
+The pinned invalid client receives the native static-property isolation
+diagnostic; a legal `@MainActor` program compiles and invokes the same typed
+method/property registry contracts, returning `9` with one call to each
+gateway.
+
+This does not synthesize a nominal type or claim runtime actor enforcement.
+M7 remains partial for per-overload Task API dispositions, synthetic enclosing
+type declarations and attributes, async/throwing property accessors, and
+target-aware build manifests. The focused compiler/host-contract/upstream and
+generated board is GREEN at 40 tests, and `ConcurrencySurfaceGen --check` is
+GREEN. A source-bound closing gate follows this ledger update.

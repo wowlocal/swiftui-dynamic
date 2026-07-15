@@ -21,19 +21,30 @@ public struct CompilerPreflightHostModule: Sendable, Equatable {
 
     public let moduleName: String
     public let source: String
+    /// Arguments used only while compiling this declaration module. They are
+    /// intentionally separate from user-source preflight arguments so a
+    /// compatibility module can be serialized in its native language mode
+    /// while clients remain checked under Swift 6 strict concurrency.
+    public let compilerArguments: [String]
     public let sourceSHA256: String
     public let manifestSHA256: String
 
-    public init(moduleName: String, source: String) {
+    public init(
+        moduleName: String,
+        source: String,
+        compilerArguments: [String] = []
+    ) {
         self.moduleName = moduleName
         self.source = source
+        self.compilerArguments = compilerArguments
         self.sourceSHA256 = SHA256.hash(data: Data(source.utf8)).map {
             String(format: "%02x", $0)
         }.joined()
         self.manifestSHA256 = compilerPreflightDigest([
-            "compiler-preflight-host-module-v1",
+            "compiler-preflight-host-module-v2",
             moduleName,
             sourceSHA256,
+            compilerArguments.joined(separator: "\u{0}"),
         ])
     }
 
@@ -62,19 +73,84 @@ public struct CompilerPreflightHostModule: Sendable, Equatable {
         }
         return CompilerPreflightHostModule(
             moduleName: base?.moduleName ?? defaultSyntheticModuleName,
-            source: source)
+            source: source,
+            compilerArguments: base?.compilerArguments ?? [])
     }
 }
 
 private extension HostSignature {
     func compilerPreflightStub() throws -> String {
-        guard kind == .function, receiverType == nil else {
+        guard var nativeDeclaration = compilerPreflightDeclaration,
+              let accessOffset =
+                compilerPreflightAccessInsertionUTF8Offset else {
             throw CompilerPreflightError.invalidConfiguration(
-                "synthetic compiler declaration '\(declaration)' is not a "
-                    + "top-level function")
+                "synthetic compiler declaration '\(declaration)' cannot be "
+                    + "serialized as native Swift")
         }
-        let declaration = declaration.trimmingCharacters(
+        nativeDeclaration = nativeDeclaration.trimmingCharacters(
             in: .whitespacesAndNewlines)
+
+        if kind == .property || kind == .staticProperty {
+            guard !isAsync, !isThrowing else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "synthetic compiler property '\(declaration)' has an "
+                        + "async or throwing accessor that is not yet "
+                        + "serializable")
+            }
+            nativeDeclaration = replacingReadOnlyLetWithComputedVar(
+                in: nativeDeclaration, at: accessOffset)
+        }
+        let exportedDeclaration = try exportedCompilerDeclaration(
+            nativeDeclaration, accessOffset: accessOffset)
+
+        switch kind {
+        case .function:
+            guard receiverType == nil else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "synthetic compiler function '\(declaration)' has an "
+                        + "unexpected receiver")
+            }
+            return callableStub(for: exportedDeclaration)
+
+        case .method, .staticMethod, .initializer:
+            guard let receiverType else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "synthetic compiler member '\(declaration)' has no "
+                        + "receiver type")
+            }
+            return extensionStub(
+                receiverType: receiverType,
+                member: callableStub(for: exportedDeclaration))
+
+        case .property, .staticProperty:
+            guard let receiverType else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "synthetic compiler property '\(declaration)' has no "
+                        + "receiver type")
+            }
+            let head: String
+            if let accessorStart = firstTopLevelIndex(
+                of: "{", in: exportedDeclaration) {
+                head = String(exportedDeclaration[..<accessorStart])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                head = exportedDeclaration
+            }
+            let failure =
+                "fatalError(\"compiler-preflight declaration only\")"
+            var accessors = "get {\n    \(failure)\n}"
+            if isSettable {
+                accessors += "\nset {\n    \(failure)\n}"
+            }
+            return extensionStub(
+                receiverType: receiverType,
+                member: "\(head) {\n\(indented(accessors))\n}")
+        }
+    }
+
+    func exportedCompilerDeclaration(
+        _ nativeDeclaration: String, accessOffset: Int
+    ) throws -> String {
         let accessModifiers = Set([
             "private", "fileprivate", "internal", "package", "public", "open",
         ])
@@ -86,22 +162,49 @@ private extension HostSignature {
                 "synthetic compiler declaration '\(declaration)' has "
                     + "non-public access '\(declaredAccess)'")
         }
-        let exportedDeclaration: String
         if declaredAccess == "public" {
-            exportedDeclaration = declaration
-        } else {
-            guard let offset = functionIntroducerUTF8Offset else {
-                throw CompilerPreflightError.invalidConfiguration(
-                    "synthetic compiler declaration '\(declaration)' cannot be "
-                        + "exported from a host module")
-            }
-            var bytes = Array(declaration.utf8)
-            bytes.insert(contentsOf: Array("public ".utf8), at: offset)
-            exportedDeclaration = String(decoding: bytes, as: UTF8.self)
+            return nativeDeclaration
         }
-        return "\(exportedDeclaration) {\n"
+        var bytes = Array(nativeDeclaration.utf8)
+        guard accessOffset <= bytes.count else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "synthetic compiler declaration '\(declaration)' has an "
+                    + "invalid export insertion point")
+        }
+        bytes.insert(contentsOf: Array("public ".utf8), at: accessOffset)
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    func replacingReadOnlyLetWithComputedVar(
+        in nativeDeclaration: String, at accessOffset: Int
+    ) -> String {
+        var bytes = Array(nativeDeclaration.utf8)
+        let letBytes = Array("let".utf8)
+        guard accessOffset + letBytes.count <= bytes.count,
+              Array(bytes[accessOffset..<(accessOffset + letBytes.count)])
+                == letBytes else {
+            return nativeDeclaration
+        }
+        bytes.replaceSubrange(
+            accessOffset..<(accessOffset + letBytes.count),
+            with: Array("var".utf8))
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    func callableStub(for exportedDeclaration: String) -> String {
+        "\(exportedDeclaration) {\n"
             + "    fatalError(\"compiler-preflight declaration only\")\n"
             + "}"
+    }
+
+    func extensionStub(receiverType: String, member: String) -> String {
+        "extension \(receiverType) {\n\(indented(member))\n}"
+    }
+
+    func indented(_ source: String) -> String {
+        source.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { "    " + $0 }
+            .joined(separator: "\n")
     }
 }
 
@@ -360,7 +463,8 @@ final class CompilerPreflightHostModuleBuild {
                 "-module-name", module.moduleName,
                 "-emit-module",
                 "-emit-module-path", moduleURL.path,
-            ] + configuration.additionalCompilerArguments + [sourceURL.path]
+            ] + configuration.additionalCompilerArguments
+                + module.compilerArguments + [sourceURL.path]
             compilationCount += 1
             let output = try executeProcess(
                 executable: configuration.swiftCompilerPath,

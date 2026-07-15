@@ -96,6 +96,31 @@ struct HostSignatureTests {
         #expect(signature.isThrowing)
     }
 
+    @Test func parserRetainsQualifiedMemberAttributesAndModifiers() throws {
+        let method = try HostSignature.parse(
+            "@MainActor nonisolated func String.syntheticValue() async -> Int")
+        #expect(method.kind == .method)
+        #expect(method.receiverType == "String")
+        #expect(method.name == "syntheticValue")
+        #expect(method.attributes == ["@MainActor"])
+        #expect(method.modifiers == ["nonisolated"])
+        #expect(method.isAsync)
+
+        let property = try HostSignature.parse(
+            "@MainActor static var String.syntheticCount: Int { get set }")
+        #expect(property.kind == .staticProperty)
+        #expect(property.receiverType == "String")
+        #expect(property.attributes == ["@MainActor"])
+        #expect(property.modifiers == ["static"])
+        #expect(property.isSettable)
+
+        let initializer = try HostSignature.parse(
+            "@MainActor init String(syntheticValue: Int)")
+        #expect(initializer.kind == .initializer)
+        #expect(initializer.receiverType == "String")
+        #expect(initializer.attributes == ["@MainActor"])
+    }
+
     @Test func parserRejectsRecoveredSyntaxAndUnsupportedShapes() {
         #expect(throws: HostSignatureError.self) {
             _ = try HostSignature.parse("func broken(_ value: ) -> Int")
