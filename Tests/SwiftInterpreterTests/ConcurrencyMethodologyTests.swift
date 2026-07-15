@@ -1012,6 +1012,54 @@ struct ConcurrencyMethodologyTests {
             == ["generated-concurrency-signatures-and-preflight"])
     }
 
+    @Test func topLevelTaskGroupScopesHaveExplicitReviewedDispositions()
+            throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let expectedNames: Set<String> = [
+            "withDiscardingTaskGroup",
+            "withTaskGroup",
+            "withThrowingDiscardingTaskGroup",
+            "withThrowingTaskGroup",
+        ]
+        let rows = inventory.declarations.filter {
+            $0.domain == "top-level-function"
+                && expectedNames.contains($0.name)
+        }
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 4,
+            "the active SDK task-group scope denominator changed")
+        #expect(Set(rows.map(\.name)) == expectedNames)
+        #expect(rows.allSatisfy {
+            $0.adapterIntrinsic == $0.name
+                && $0.declaration.contains("isolation: isolated")
+                && $0.declaration.contains("body:")
+                && $0.declaration.contains(") async")
+        })
+        #expect(Set(claims.map(\.id)) == ids,
+            "every public task-group scope function needs a disposition")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef == "M4/remaining-task-group-surface"
+                && $0.evidenceCaseIDs.contains("task-group-state-properties")
+                && $0.gapEvidenceIDs
+                    == ["remaining-generated-task-group-surface"]
+        }, "scope rows must not overclaim arbitrary actor isolation")
+    }
+
     @Test func compilerABITopLevelFunctionsHaveExplicitExclusions() throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)

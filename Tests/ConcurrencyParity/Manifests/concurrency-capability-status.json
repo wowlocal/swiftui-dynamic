@@ -1123,6 +1123,69 @@
       "notes": "Strict Swift 6 SIL selects the canonical ThrowingDiscardingTaskGroup.addTaskUnlessCancelled(priority:operation:) row. Same-source and focused evidence cover active acceptance, automatic drain, post-cancel rejection, terminal emptiness, and child-error projection for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
     },
     {
+      "id": "swift-concurrency-api-v1:2f5e5db9a15a7dbf19cc194fcf854732abdb0093eb76bfae1f396edd05f11bb3",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/discardingGroupConsumesSuccessfulChildOutcome"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the public withDiscardingTaskGroup(returning:isolation:body:) row. The default-isolation subset has same-source parity for child creation, cancellation, automatic outcome consumption, body return, and cleanup; an explicit arbitrary actor isolation is diagnosed until M5 executor ownership exists."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d61f72640fa2c68e72b71aa0488e8d4518adf1e05617ee375ebe36abefca63da",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the public withTaskGroup(of:returning:isolation:body:) row. The default-isolation subset has same-source parity for structured child creation, cancellation state, value consumption, implicit joining, and cleanup; an explicit arbitrary actor isolation is diagnosed until M5 executor ownership exists."
+    },
+    {
+      "id": "swift-concurrency-api-v1:f854fbee97b57efc08b01d1af0377bddc71f46225dc69746c53e891f645de365",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/throwingDiscardingGroupProjectsFirstChildFailure",
+        "TaskGroupSurfaceTests/throwingDiscardingBodyFailureWinsAfterChildJoin"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the public withThrowingDiscardingTaskGroup(returning:isolation:body:) row. The default-isolation subset has same-source and focused evidence for automatic consumption, child and body failure projection, cancellation, join, and cleanup; an explicit arbitrary actor isolation is diagnosed until M5 executor ownership exists."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c55ae100a15c871bd7d6cf8501f11d54e6fad80d0c749362334ee458e814647e",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties",
+        "task-group-throwing-next-failure",
+        "task-group-throwing-body-throw"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Strict Swift 6 SIL selects the public withThrowingTaskGroup(of:returning:isolation:body:) row. The default-isolation subset has same-source parity for success, child and body failure, cancellation, result drain, implicit join, and cleanup; an explicit arbitrary actor isolation is diagnosed until M5 executor ownership exists."
+    },
+    {
       "id": "swift-concurrency-api-v1:cfc1899fdead0ef6bd626825dd9c8d6a15c2cedda031ed38d6f5e1fade7c9d34",
       "implementationStatus": "runtime-supported",
       "verificationStatus": "native-parity",
