@@ -3378,3 +3378,40 @@ The source-bound repository receipt for this slice is GREEN and covers 854
 tests, exact 88/88 runtime cases and 1,722 repetitions, the 678/680 pinned
 corpus ratchet, 5/5 live scenarios, and API parity at 345 match / 0 diverge /
 0 interpreter errors / 17 unstable / 0 no-twin.
+
+### M4 retained-memory plateau
+
+`StructuredMemoryPlateauTests` turns the bounded-tree semantic anchor into a
+retention probe. A dedicated child process reuses one interpreter for 128
+warm-up sessions and twelve measured batches of 64 sessions. Each session
+executes the previously native-anchored `1,5,40` task-group tree, representing
+46 structured nodes, and immediately requires empty task, group, scope,
+host-operation, and scheduler registries. One probe therefore executes 896
+sessions and 41,216 structured nodes without process-resetting the interpreter.
+
+After allocator pressure relief, the child records Darwin resident size,
+physical footprint, and malloc bytes in use before and after every measured
+batch. Plateau checks use first/last window medians, late-window spread, and
+least-squares positive slope with explicit noise ceilings. Three independent
+focused child processes all reported zero median RSS/footprint drift, 448 bytes
+of heap drift, and slopes below 3 KiB per batch. The ordinary limits remain
+16 MiB total and 1 MiB/batch for RSS/footprint, and 8 MiB total plus 512
+KiB/batch for live heap so the test tolerates allocator and CI variation while
+still amplifying session-retention defects across 768 measured sessions.
+
+The analyzer's negative control feeds it a linearly growing synthetic process:
+2 MiB of RSS/footprint and 1 MiB of heap per batch. It must reject both the
+total drift and positive slope, while bounded 192 KiB jitter must pass. The
+parent also proves that the measurement ran in a different PID, that a receipt
+was written, and that the child stayed within its hard 60-second deadline.
+
+This is a characterization slice with no production behavior change. Together
+with native bounded-tree and cancellation-storm parity, per-session registry
+checks, and the complete weak graph-release proof, it closes
+`M4/structured-stress-and-leak-plateau`. M4 remains partial only for the
+generated task-group surface and the M7-backed escaped-capability diagnostic.
+
+The source-bound repository receipt for this slice is GREEN and covers 857
+tests, exact 88/88 runtime cases and 1,722 repetitions, the 678/680 pinned
+corpus ratchet, 5/5 live scenarios, and API parity at 345 match / 0 diverge /
+0 interpreter errors / 17 unstable / 0 no-twin.
