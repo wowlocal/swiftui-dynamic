@@ -1121,6 +1121,278 @@
         "remaining-generated-task-group-surface"
       ],
       "notes": "Strict Swift 6 SIL selects the canonical ThrowingDiscardingTaskGroup.addTaskUnlessCancelled(priority:operation:) row. Same-source and focused evidence cover active acceptance, automatic drain, post-cancel rejection, terminal emptiness, and child-error projection for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ae7ac0cdc015b5f5ea24df9083ccee6beda64febf71851ba4dff3642c91ea612",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_abiEnableAwaitContinuation is a deliberate compiler ABI marker whose active-interface body traps with 'never use this function'; it has no adapter route and is excluded from source-level runtime support accounting."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d0005a853143eca6ad91ef1ad45aa197f336a7544aa2e5fa85fe829bc1cadc15",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_asyncLetStart is a @_silgen_name compiler/runtime lowering hook over Builtin storage, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:fa569a4257843965b00c9f6eaeaba33cfa23d0c6f222ee3b6ce790fe0f29dba4",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_asyncLet_finish is a @_silgen_name compiler/runtime lowering hook over Builtin storage, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:3988fa6c1b391b6c90ab2f0328df760a03f5f34c74397279cc4a14bd79a66395",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_asyncLet_get is a @_silgen_name compiler/runtime lowering hook over Builtin storage, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:790463e48556316860c9e12373814f1dfb0f18246ecb48ef1d4192d2e2a34cae",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_asyncLet_get_throwing is a @_silgen_name compiler/runtime lowering hook over Builtin storage, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:bb5ac129e02bd91bc1f831e352a59e18d2e81f2365850285fd89758d2e745365",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_checkExpectedExecutor is a transparent compiler/runtime hook over Builtin source-location and executor values, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d61bec39af1da5b8a85a3f973172c1bf668efe42061aa55cb160e1ae63e8dfa3",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_defaultActorDestroy is a @_silgen_name actor-runtime lifecycle hook emitted by the compiler, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:95d39c1dd3a56fa5190847a101b6630c7683a2ef4dd5319300ab6b054b392a57",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_defaultActorInitialize is a @_silgen_name actor-runtime lifecycle hook emitted by the compiler, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:6ec23c60ee0f39519d6228feb03589eda9b48ab5b11bfeac627061ceb56c2fb3",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_deinitOnExecutorMainActorBackDeploy is a @_silgen_name back-deployment/runtime hook over Builtin executor flags, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:449e7aa9091e725cd3aa4cb5ee9aa8c8bd744f5e3138fa6b57299cfc3c68932e",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_getCurrentAsyncTask is a @_silgen_name runtime hook returning a Builtin task object, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c6534750996d7c10bae369bc3326df98bf5c58b8e9afbfc4d9ad0c09907c0ea9",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_nonDefaultDistributedActorInitialize is a @_silgen_name distributed-actor runtime lifecycle hook emitted by the compiler, outside the source-level interpreter scope; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:be4a18efe3c63fcfac9505546b61e166f4a11d2f5f9cfa3410cabd93ef07481f",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_taskCancel is a @_silgen_name runtime lowering hook over a Builtin task object, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:08910be9c9688c2b10e2edcfb5ab8ad38c03efb41b18948913a2b9e627765339",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_taskFutureGet is a @_silgen_name future-wait lowering hook over a Builtin task object, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:713a8ac9084ace7592176c771c8487768e490834425f7fb05baee66e43b9502a",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_taskFutureGetThrowing is a @_silgen_name future-wait lowering hook over a Builtin task object, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ddb9f592b478044965fda17e7ff3156ef22e27c6f2063f5ea7ab411a5a6f3fef",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "_taskGroupWaitNext is a @_silgen_name task-group lowering hook over Builtin storage, not a source-level interpreter API; it has no adapter route and is explicitly excluded."
+    },
+    {
+      "id": "swift-concurrency-api-v1:8a90282b0e2fc956ba15debf8e5e2b27e51c9fcdcaa386555ea2dd44ebad19cc",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor checked-continuation symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:53ce59be08be99127ebe72fe2954ae73ab07edee2b286daf8030f50057e17787",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor checked-throwing-continuation symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:bb7579c72b73c8dcad105de413ffa8fbf5e1e65249c048297e3c5fed7bc3a0b1",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor discarding-group symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:78fa49208bf6d0965b512a3a2ed81d203057a80c3da6a74285842cb05a811534",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor cancellation-handler symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:8619189ab2282a660a25224b1c32cf3576d7de8ca75da14611d2e931b77873d5",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This deprecated @_unsafeInheritExecutor cancellation-handler symbol is a legacy ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:1ae7bd5cde536a626f65aab0632647ed696adf66522d52bc42b639ec961c850a",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor task-executor-preference symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c17841d7a50cbd49f506ada44d303128aa3cdeea3fbbe64641cb0ea5c995f9dc",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor task-group symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:b6543e08eeb1740e3f524edf466dc4880881c936f6ea7eb0d010c9dad42e1cfa",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor throwing-discarding-group symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:05029193ba47181a904e413c13eeef800c0132c6db0bc67cd5f4bd1bb8b26cab",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor throwing-task-group symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:f408a13f7e8c0b13a716326fea989cd2ba56c2eefb213242776c3a50f3e8ab11",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor unsafe-continuation symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:eb7d5306879d6fc555b7189620041c890004bdef07c803daa0218e00a7ec9715",
+      "implementationStatus": "excluded-compiler-abi",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "This @_unsafeInheritExecutor unsafe-throwing-continuation symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
+    },
+    {
+      "id": "swift-concurrency-api-v1:75560cb6e0a7a099f0a8150723dc13a0cc65e7c2e76faec35eb7fa38cd1d6805",
+      "implementationStatus": "deferred",
+      "verificationStatus": "none",
+      "requirementRef": "M9/parallel-runtime-and-sanitizers",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Real Swift 6 preflight proves _swift_createJobForTestingOnly is source-callable and returns ExecutorJob, so it is not hidden as compiler ABI. Creating and scheduling executor jobs belongs to the intentionally deferred M9 parallel executor runtime."
     }
   ],
   "semanticCapabilities": [

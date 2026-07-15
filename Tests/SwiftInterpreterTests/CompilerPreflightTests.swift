@@ -90,6 +90,20 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func publicConcurrencyTestingJobHookTypechecksButRemainsDeferred() throws {
+        let result = try Self.activePreflight().preflight(source: """
+        import _Concurrency
+
+        @available(macOS 26.4, *)
+        func makeTestingJob() -> ExecutorJob {
+            _swift_createJobForTestingOnly {}
+        }
+        """)
+
+        #expect(result.succeeded, Comment(rawValue: result.standardError))
+    }
+
+    @Test
     func multiFilePreflightPreservesFileScopedPrivateDeclarations() throws {
         let engine = try Self.activePreflight()
         let sources = try [

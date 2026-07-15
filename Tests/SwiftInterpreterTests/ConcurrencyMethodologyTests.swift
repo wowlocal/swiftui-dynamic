@@ -214,6 +214,7 @@ private struct CapabilityInventoryDeclaration: Decodable {
     let container: String?
     let name: String
     let declaration: String
+    let adapterIntrinsic: String?
 }
 
 private struct CapabilityStatusDocument: Decodable {
@@ -949,6 +950,93 @@ struct ConcurrencyMethodologyTests {
         #expect(taskStaticClaims.allSatisfy {
             $0.implementationStatus != .unreviewed
         })
+    }
+
+    @Test func compilerABITopLevelFunctionsHaveExplicitExclusions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let abiIDs: Set<String> = [
+            "swift-concurrency-api-v1:ae7ac0cdc015b5f5ea24df9083ccee6beda64febf71851ba4dff3642c91ea612",
+            "swift-concurrency-api-v1:d0005a853143eca6ad91ef1ad45aa197f336a7544aa2e5fa85fe829bc1cadc15",
+            "swift-concurrency-api-v1:fa569a4257843965b00c9f6eaeaba33cfa23d0c6f222ee3b6ce790fe0f29dba4",
+            "swift-concurrency-api-v1:3988fa6c1b391b6c90ab2f0328df760a03f5f34c74397279cc4a14bd79a66395",
+            "swift-concurrency-api-v1:790463e48556316860c9e12373814f1dfb0f18246ecb48ef1d4192d2e2a34cae",
+            "swift-concurrency-api-v1:bb5ac129e02bd91bc1f831e352a59e18d2e81f2365850285fd89758d2e745365",
+            "swift-concurrency-api-v1:d61bec39af1da5b8a85a3f973172c1bf668efe42061aa55cb160e1ae63e8dfa3",
+            "swift-concurrency-api-v1:95d39c1dd3a56fa5190847a101b6630c7683a2ef4dd5319300ab6b054b392a57",
+            "swift-concurrency-api-v1:6ec23c60ee0f39519d6228feb03589eda9b48ab5b11bfeac627061ceb56c2fb3",
+            "swift-concurrency-api-v1:449e7aa9091e725cd3aa4cb5ee9aa8c8bd744f5e3138fa6b57299cfc3c68932e",
+            "swift-concurrency-api-v1:c6534750996d7c10bae369bc3326df98bf5c58b8e9afbfc4d9ad0c09907c0ea9",
+            "swift-concurrency-api-v1:be4a18efe3c63fcfac9505546b61e166f4a11d2f5f9cfa3410cabd93ef07481f",
+            "swift-concurrency-api-v1:08910be9c9688c2b10e2edcfb5ab8ad38c03efb41b18948913a2b9e627765339",
+            "swift-concurrency-api-v1:713a8ac9084ace7592176c771c8487768e490834425f7fb05baee66e43b9502a",
+            "swift-concurrency-api-v1:ddb9f592b478044965fda17e7ff3156ef22e27c6f2063f5ea7ab411a5a6f3fef",
+            "swift-concurrency-api-v1:8a90282b0e2fc956ba15debf8e5e2b27e51c9fcdcaa386555ea2dd44ebad19cc",
+            "swift-concurrency-api-v1:53ce59be08be99127ebe72fe2954ae73ab07edee2b286daf8030f50057e17787",
+            "swift-concurrency-api-v1:bb7579c72b73c8dcad105de413ffa8fbf5e1e65249c048297e3c5fed7bc3a0b1",
+            "swift-concurrency-api-v1:78fa49208bf6d0965b512a3a2ed81d203057a80c3da6a74285842cb05a811534",
+            "swift-concurrency-api-v1:8619189ab2282a660a25224b1c32cf3576d7de8ca75da14611d2e931b77873d5",
+            "swift-concurrency-api-v1:1ae7bd5cde536a626f65aab0632647ed696adf66522d52bc42b639ec961c850a",
+            "swift-concurrency-api-v1:c17841d7a50cbd49f506ada44d303128aa3cdeea3fbbe64641cb0ea5c995f9dc",
+            "swift-concurrency-api-v1:b6543e08eeb1740e3f524edf466dc4880881c936f6ea7eb0d010c9dad42e1cfa",
+            "swift-concurrency-api-v1:05029193ba47181a904e413c13eeef800c0132c6db0bc67cd5f4bd1bb8b26cab",
+            "swift-concurrency-api-v1:f408a13f7e8c0b13a716326fea989cd2ba56c2eefb213242776c3a50f3e8ab11",
+            "swift-concurrency-api-v1:eb7d5306879d6fc555b7189620041c890004bdef07c803daa0218e00a7ec9715",
+        ]
+        let testingHookID =
+            "swift-concurrency-api-v1:75560cb6e0a7a099f0a8150723dc13a0cc65e7c2e76faec35eb7fa38cd1d6805"
+        let underscoreRows = inventory.declarations.filter {
+            $0.domain == "top-level-function" && $0.name.hasPrefix("_")
+        }
+        let expectedIDs = abiIDs.union([testingHookID])
+
+        #expect(underscoreRows.count == 27,
+            "the active SDK underscore-prefixed top-level denominator changed")
+        #expect(Set(underscoreRows.map(\.id)) == expectedIDs)
+        #expect(underscoreRows.allSatisfy { $0.adapterIntrinsic == nil },
+            "compiler/testing hooks must not acquire a runtime adapter silently")
+
+        let abiRows = underscoreRows.filter { abiIDs.contains($0.id) }
+        #expect(abiRows.count == 26)
+        #expect(abiRows.allSatisfy {
+            $0.name == "_abiEnableAwaitContinuation"
+                || $0.declaration.contains("Builtin.")
+                || $0.declaration.contains("@_silgen_name")
+                || $0.declaration.contains("@_unsafeInheritExecutor")
+        }, "ABI exclusions need compiler/runtime-only declaration evidence")
+        let abiClaims = status.interfaceOverrides.filter {
+            abiIDs.contains($0.id)
+        }
+        #expect(Set(abiClaims.map(\.id)) == abiIDs)
+        #expect(abiClaims.allSatisfy {
+            $0.implementationStatus == .excludedCompilerABI
+                && $0.verificationStatus == .none
+                && $0.requirementRef == "M7/generated-signatures-and-preflight"
+        })
+
+        let hookRow = try #require(underscoreRows.first {
+            $0.id == testingHookID
+        })
+        #expect(hookRow.name == "_swift_createJobForTestingOnly")
+        #expect(hookRow.declaration.contains("-> _Concurrency.ExecutorJob"))
+        let hookClaim = try #require(status.interfaceOverrides.first {
+            $0.id == testingHookID
+        })
+        #expect(hookClaim.implementationStatus == .deferred)
+        #expect(hookClaim.verificationStatus == .none)
+        #expect(hookClaim.requirementRef == "M9/parallel-runtime-and-sanitizers")
+        #expect(!abiIDs.contains(hookClaim.id),
+            "the public testing hook must not be hidden as compiler ABI")
     }
 
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {

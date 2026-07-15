@@ -59,9 +59,9 @@ evidence that remains covered.
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, all four canonical `addTask(priority:operation:)` and all four canonical `addTaskUnlessCancelled(priority:operation:)` declarations for their evidenced nonisolated subsets, all four ordinary/throwing group `next()` declarations, both deprecated `spawn()`, both deprecated `async()`, both deprecated conditional `add()` aliases, both deprecated `asyncUnlessCancelled()` aliases, and both deprecated `spawnUnlessCancelled()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition. | Close the generated task-group API tail by assigning every remaining overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, and authored implementation/verification dispositions for all 32 Task instance/static rows plus forty-five task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows. | Review the remaining 79 generated top-level and task-group overload rows and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 32 Task instance/static rows plus forty-five task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. | Review the remaining 52 generated source-facing top-level and task-group overload rows and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
-| M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
+| M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made, and the source-callable _swift_createJobForTestingOnly hook is explicitly deferred with the executor-job runtime. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
 ## Committed native facts
 
@@ -4583,3 +4583,33 @@ interpreter supports the observed nonisolated subset but cannot enqueue on an
 arbitrary source-defined actor executor. Generated accounting is now 77/156
 reviewed: 41 runtime-supported, 18 diagnosed-unsupported, 18 known
 divergences, and 79 unreviewed rows.
+
+### M7 compiler ABI exclusions and the public job-testing hook
+
+The active SDK contributes exactly 27 unreviewed underscore-prefixed top-level
+rows, but the prefix is not itself a disposition rule. The initial
+characterization test pins all 27 capability IDs, requires the absence of a
+runtime adapter, and was RED because none had authored status.
+
+Twenty-six rows are compiler/runtime ABI rather than source-level interpreter
+APIs. Fifteen are lowering and lifecycle entry points: async-let storage,
+future wait, cancellation, task-group wait, actor initialization/destruction,
+executor checking, and related `Builtin` or `@_silgen_name` hooks. The active
+interface body of `_abiEnableAwaitContinuation` deliberately traps with
+`never use this function`. The other eleven are
+`@_unsafeInheritExecutor` legacy/back-deployment symbol twins of public
+nonunderscored continuation, cancellation-handler, task-executor-preference,
+and task-group APIs. These 26 exact IDs are now
+`excluded-compiler-abi`; no prefix-based generator rule can silently classify
+a future SDK declaration.
+
+The twenty-seventh row is intentionally different. Real Swift 6 complete-
+concurrency preflight accepts a direct
+`_swift_createJobForTestingOnly {}` call and gives it the public
+`ExecutorJob` result. It is therefore `deferred` under M9's executor-job and
+physical-parallelism work, not hidden as compiler ABI. The checked-in preflight
+test preserves that distinction against future SDK drift.
+
+Generated accounting is now 104/156 reviewed: 41 runtime-supported, 18
+diagnosed-unsupported, 18 known divergences, 26 excluded compiler ABI, one
+deferred, and 52 unreviewed source-facing rows.
