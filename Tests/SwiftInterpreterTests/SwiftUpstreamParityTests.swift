@@ -322,7 +322,7 @@ struct SwiftUpstreamParityTests {
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
         #expect(manifest.revision == "swift-6.3.3-RELEASE")
         #expect(manifest.commit == "064859e41d68596f486c5d724401cb370f260409")
-        #expect(manifest.cases.count == 19)
+        #expect(manifest.cases.count == 20)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
@@ -403,26 +403,33 @@ struct SwiftUpstreamParityTests {
         let diagnosticCases = manifest.cases.filter {
             $0.assertion == .diagnostic
         }
-        #expect(diagnosticCases.count == 1)
+        #expect(diagnosticCases.count == 2)
         let preflight = try SwiftCompilerPreflight.activeMacOS(
             gatewayManifestSHA256:
                 SwiftCompilerPreflight.emptyGatewayManifestSHA256)
 
         for parityCase in diagnosticCases {
             let source = try SwiftUpstreamParityHarness.source(for: parityCase)
+            let fileName = URL(fileURLWithPath: parityCase.fixture)
+                .lastPathComponent
             let result = try preflight.preflight(
                 source: source,
-                fileName: URL(fileURLWithPath: parityCase.fixture)
-                    .lastPathComponent)
+                fileName: fileName)
             #expect(!result.succeeded,
                 "\(parityCase.id) unexpectedly passed native preflight")
             for fragment in parityCase.diagnosticContains ?? [] {
                 #expect(result.diagnostics.contains {
-                    $0.message.contains(fragment)
+                    $0.severity == .error
+                        && $0.file == fileName
+                        && $0.message.contains(fragment)
                 }, "\(parityCase.id) did not contain '\(fragment)'")
             }
             for line in parityCase.diagnosticLines ?? [] {
-                #expect(result.diagnostics.contains { $0.line == line },
+                #expect(result.diagnostics.contains {
+                    $0.severity == .error
+                        && $0.file == fileName
+                        && $0.line == line
+                },
                     "\(parityCase.id) did not diagnose line \(line)")
             }
         }

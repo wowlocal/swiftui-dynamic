@@ -3650,3 +3650,31 @@ source-bound closing gate is GREEN over 875 tests, exact 88/88 runtime parity
 cases and 1,722 repetitions, the 678/680 pinned swiftlang corpus ratchet, 5/5
 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors
 / 17 unstable / 0 no-twin.
+
+### M7 pinned swiftlang Sendable-capture diagnostics
+
+The compiler corpus now includes the unchanged upstream
+`test/Concurrency/sendable_checking_captures_swift6.swift` from
+`swiftlang/swift` release `swift-6.3.3-RELEASE`, commit `064859e4…`. Its
+SHA-256 is `da9906cb…`; the checked-in fixture is byte-identical to the pinned
+checkout, and the networked sync command reproduced the complete selected
+corpus without additional drift.
+
+Apple Swift 6.3.3 with complete strict concurrency rejects the source for a
+non-Sendable value captured by an `@Sendable` local function, the same value
+captured by `@Sendable` closures, and a non-Sendable mutable `inout` capture.
+Production `SwiftCompilerPreflight` checks the unchanged file through the same
+path used by `Interpreter`, requiring error severity plus the upstream logical
+filename, lines 11, 14, 22, and 41, and the upstream message fragments. An
+unrelated compiler failure or warning therefore cannot satisfy this oracle.
+
+The captured RED was the upstream manifest containing only one diagnostic
+case. After admission it contains 20 SHA-pinned cases: 18 executable native
+versus interpreter comparisons and two production-preflight diagnostics. The
+focused upstream/compiler board is GREEN at 15 tests. M7 remains partial for
+target-aware build manifests and truly interpreter-synthetic declarations.
+
+The source-bound closing gate is GREEN over 875 tests, exact 88/88 runtime
+parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet, 5/5 live
+scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
+unstable / 0 no-twin.

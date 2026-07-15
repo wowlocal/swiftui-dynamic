@@ -197,6 +197,21 @@
       ],
       "diagnosticLines": [18, 25],
       "timeoutSeconds": 5
+    },
+    {
+      "id": "concurrency-sendable-capture-diagnostic",
+      "fixture": "Fixtures/Concurrency/sendable_checking_captures_swift6.swift",
+      "upstreamPath": "test/Concurrency/sendable_checking_captures_swift6.swift",
+      "sha256": "da9906cb0f6b0e6ce22d1c30c82b936847a8551e044e0e22aa9fd04e0eac6c83",
+      "assertion": "diagnostic",
+      "diagnosticContains": [
+        "capture of 'ns' with non-Sendable type 'NonSendable' in a '@Sendable' local function",
+        "capture of 'ns' with non-Sendable type 'NonSendable' in a '@Sendable' closure",
+        "capture of 'test' with non-Sendable type 'Test' in a '@Sendable' closure",
+        "mutable capture of 'inout' parameter 'test' is not allowed in concurrently-executing code"
+      ],
+      "diagnosticLines": [11, 14, 22, 41],
+      "timeoutSeconds": 5
     }
   ]
 }

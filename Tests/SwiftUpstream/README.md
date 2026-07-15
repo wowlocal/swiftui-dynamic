@@ -45,6 +45,12 @@ The pinned compiler corpus also includes
 compiler preflight typechecks it in Swift 6 strict-concurrency mode and checks
 the upstream `inout TaskGroup` capture diagnostics.
 
+The unchanged `test/Concurrency/sendable_checking_captures_swift6.swift`
+extends that production boundary to Swift 6 `@Sendable` local-function,
+closure, and mutable `inout` capture errors. The harness requires error
+severity plus the upstream filename, line, and message fragment rather than
+accepting an unrelated compiler failure.
+
 The exact upstream support input
 `test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift` is also SHA-pinned.
 Production preflight compiles it as a separate host declaration module, imports
