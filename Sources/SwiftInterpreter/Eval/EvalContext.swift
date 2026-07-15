@@ -403,7 +403,7 @@ extension Interpreter: EvalContext {
     ) throws -> RuntimeValue {
         guard evaluationTaskContext.isAsyncSession else {
             throw RuntimeError(message:
-                "named Task creation requires runAsync")
+                "Task creation requires runAsync")
         }
         return try spawnRuntimeTask(
             kind: .unstructured, closure: closure, arguments: arguments,
@@ -436,7 +436,7 @@ extension Interpreter: EvalContext {
     ) throws -> RuntimeValue {
         guard evaluationTaskContext.isAsyncSession else {
             throw RuntimeError(message:
-                "named Task creation requires runAsync")
+                "Task creation requires runAsync")
         }
         return try spawnRuntimeTask(
             kind: .detached, closure: closure, arguments: arguments,

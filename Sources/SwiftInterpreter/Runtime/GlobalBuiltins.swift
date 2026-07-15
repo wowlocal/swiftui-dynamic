@@ -136,7 +136,9 @@ extension Interpreter {
                     "generated concurrency function lost its intrinsic")
             }
             let function: HostFunction
-            if intrinsic == .withTaskCancellationHandler {
+            if intrinsic == .unstructuredTask {
+                function = sourceUnstructuredTaskFunction(name: sourceName)
+            } else if intrinsic == .withTaskCancellationHandler {
                 function = sourceTaskCancellationHandlerFunction(
                     name: sourceName)
             } else if let kind = RuntimeTaskGroupKind(
@@ -615,6 +617,31 @@ extension Interpreter {
                 return .native(Date(timeInterval: interval, since: since))
             }
             return .native(Date())
+        }
+    }
+
+    /// Adapts interface-owned top-level spellings such as deprecated `async`
+    /// to the same canonical runtime task record used by `Task.init`. The
+    /// source spelling is generated metadata; task ownership, inheritance,
+    /// priority, suspension, and outcome delivery remain one runtime path.
+    private func sourceUnstructuredTaskFunction(name: String) -> HostFunction {
+        HostFunction(name: name) { arguments, context in
+            guard let operation = arguments.closure(labeled: "operation")
+                    ?? arguments.firstUnlabeledClosure else {
+                throw RuntimeError(message:
+                    "\(name) needs an operation closure")
+            }
+            let priority = try RuntimeTaskPriority.sourceValue(
+                arguments.labeled("priority"))
+            // The explicit name slot selects canonical async-only creation
+            // even though this API has no source `name:` parameter. Legacy
+            // synchronous compatibility remains confined to the old Task
+            // constructor entry points.
+            return try context.spawnBackgroundTask(
+                operation,
+                arguments: [],
+                name: nil,
+                priority: priority)
         }
     }
 

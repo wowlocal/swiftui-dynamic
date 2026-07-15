@@ -217,7 +217,7 @@ extension EvalContext {
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue {
         throw RuntimeError(message:
-            "named Task creation requires a task-aware evaluation context")
+            "Task creation requires a task-aware evaluation context")
     }
 
     public func spawnDetachedTask(
@@ -235,7 +235,7 @@ extension EvalContext {
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue {
         throw RuntimeError(message:
-            "named Task.detached creation requires a task-aware "
+            "Task.detached creation requires a task-aware "
                 + "evaluation context")
     }
 

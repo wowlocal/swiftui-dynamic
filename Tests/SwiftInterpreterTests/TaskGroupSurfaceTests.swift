@@ -64,6 +64,7 @@ struct TaskGroupSurfaceTests {
         #expect(discarding["next"] == nil)
         #expect(discarding["waitForAll"] == nil)
         #expect(GeneratedConcurrencySurface.topLevelFunctionDispatch == [
+            "async": .unstructuredTask,
             "withDiscardingTaskGroup": .withDiscardingTaskGroup,
             "withTaskCancellationHandler": .withTaskCancellationHandler,
             "withTaskGroup": .withTaskGroup,
@@ -82,6 +83,39 @@ struct TaskGroupSurfaceTests {
                 continue
             }
             #expect(function.name == sourceName)
+        }
+    }
+
+    @Test func topLevelAsyncUsesCanonicalUnstructuredTaskRuntime() async throws {
+        let interpreter = Interpreter()
+        _ = try await interpreter.runAsync(source: """
+        let aliasTask = async(priority: .utility) {
+            await Task.yield()
+            return "value"
+        }
+        """)
+
+        guard case .host(let payload)? = interpreter.globals.lookup("aliasTask"),
+              let handle = payload as? RuntimeTaskHandle else {
+            Issue.record("expected top-level async to return a task handle")
+            return
+        }
+        #expect(handle.kind == .unstructured)
+        #expect(handle.parent != nil)
+        #expect(handle.basePriority == .low)
+        #expect(handle.state == .succeeded)
+        #expect(handle.result?.stringValue == "value")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func topLevelAsyncFailsClosedInSynchronousCompatibility() {
+        do {
+            _ = try Interpreter().run(source: "async { 1 }")
+            Issue.record(
+                "top-level async ran through synchronous compatibility")
+        } catch {
+            #expect(String(describing: error).contains(
+                "Task creation requires runAsync"))
         }
     }
 

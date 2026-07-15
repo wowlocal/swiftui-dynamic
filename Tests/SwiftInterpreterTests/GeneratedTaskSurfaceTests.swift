@@ -142,7 +142,7 @@ struct GeneratedTaskSurfaceTests {
                     "named task creation ran through synchronous compatibility")
             } catch {
                 #expect(String(describing: error).contains(
-                    "named Task creation requires runAsync"))
+                    "Task creation requires runAsync"))
             }
         }
     }

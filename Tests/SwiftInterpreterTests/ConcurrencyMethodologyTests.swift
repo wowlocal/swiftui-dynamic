@@ -966,6 +966,56 @@ struct ConcurrencyMethodologyTests {
         #expect(nameClaim.gapEvidenceIDs.isEmpty)
     }
 
+    @Test func topLevelAsyncHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let rows = inventory.declarations.filter {
+            $0.domain == "top-level-function" && $0.name == "async"
+        }
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 2,
+            "the active SDK top-level async denominator changed")
+        #expect(rows.allSatisfy {
+            $0.adapterIntrinsic == "unstructuredTask"
+                && $0.declaration.contains("priority: _Concurrency.TaskPriority? = nil")
+                && $0.declaration.contains("@_inheritActorContext")
+                && $0.declaration.contains("@isolated(any) @Sendable")
+                && $0.declaration.contains(") -> _Concurrency.Task<Success,")
+        }, "top-level async call shape changed")
+        #expect(rows.count {
+            $0.declaration.contains("() async -> Success)")
+                && $0.declaration.contains("Task<Success, Swift.Never>")
+        } == 1)
+        #expect(rows.count {
+            $0.declaration.contains("() async throws -> Success)")
+                && $0.declaration.contains("Task<Success, any Swift.Error>")
+        } == 1)
+        #expect(Set(claims.map(\.id)) == ids,
+            "both top-level async overloads need authored dispositions")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef
+                    == "M7/generated-signatures-and-preflight"
+                && $0.evidenceCaseIDs == ["top-level-async"]
+                && $0.gapEvidenceIDs
+                    == ["generated-concurrency-signatures-and-preflight"]
+                && $0.notes.contains("@isolated(any)")
+        }, "top-level async must retain its arbitrary-actor executor gap")
+    }
+
     @Test func topLevelCancellationHandlersHaveExplicitReviewedDispositions()
             throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(

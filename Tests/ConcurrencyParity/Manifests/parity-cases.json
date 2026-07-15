@@ -1257,5 +1257,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Task.name is the immutable optional name supplied at creation for ordinary, detached, and task-group child tasks; omitted and explicit nil names observe nil rather than inheriting their creator's name, and an empty string remains distinct from nil.",
     "notes": "Every read occurs inside the task whose name is observed. Awaited handles establish result delivery; group values are sorted, so no ready-task order is asserted. Exact output is nil|ordinary|optional|nil|parent/nil|detached|empty|group,nil."
+  },
+  {
+    "id": "top-level-async",
+    "fixture": "Fixtures/top-level-async.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await topLevelAsyncProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Both deprecated top-level async(priority:operation:) overloads return ordinary unstructured Task handles: an explicit priority is visible when the child starts, a child may finish after its creating function returns, successful value reads preserve the value, and throwing value reads rethrow the source error.",
+    "notes": "The successful child records its priority before any handle wait can donate priority, then remains behind a MainActor release gate after its creator returns. Awaited handles establish result delivery. Exact output is value:nil|17|boom; no relative start order between the two children is asserted."
   }
 ]

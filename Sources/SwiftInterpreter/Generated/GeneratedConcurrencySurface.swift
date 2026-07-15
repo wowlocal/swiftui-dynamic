@@ -4,6 +4,7 @@
 // swift-compiler-version: Apple Swift version 6.3.2 effective-5.10 (swiftlang-6.3.2.1.2 clang-2100.0.123.2)
 
 enum RuntimeConcurrencyFunctionIntrinsic: String, Sendable {
+    case unstructuredTask
     case withDiscardingTaskGroup
     case withTaskCancellationHandler
     case withTaskGroup
@@ -97,6 +98,7 @@ enum GeneratedConcurrencySurface {
     static let topLevelFunctionDispatch: [
         String: RuntimeConcurrencyFunctionIntrinsic
     ] = [
+        "async": .unstructuredTask,
         "withDiscardingTaskGroup": .withDiscardingTaskGroup,
         "withTaskCancellationHandler": .withTaskCancellationHandler,
         "withTaskGroup": .withTaskGroup,

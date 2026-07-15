@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "1c33b135ca246a770d5db08c1a2d2f11199686620e91fcad7c1d4142832ed4d6",
+  "inventorySHA256": "e33c04877d403c374d16a6edf161d56728b48d9120667c5eba3b327c44cddda1",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -1307,6 +1307,44 @@
         "remaining-generated-task-group-surface"
       ],
       "notes": "Strict Swift 6 SIL selects the public withThrowingTaskGroup(of:returning:isolation:body:) row. The default-isolation subset has same-source parity for success, child and body failure, cancellation, result drain, implicit join, and cleanup; an explicit arbitrary actor isolation is diagnosed until M5 executor ownership exists."
+    },
+    {
+      "id": "swift-concurrency-api-v1:f6d95cbc2f448697c4060a9ccd86afe28424eb11c4a73155622c23a57cd8c812",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "top-level-async"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+        "TaskGroupSurfaceTests/topLevelAsyncUsesCanonicalUnstructuredTaskRuntime",
+        "TaskGroupSurfaceTests/topLevelAsyncFailsClosedInSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/topLevelAsyncHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated nonthrowing top-level async overload routes through the ordinary unstructured-task runtime. Same-source Swift 6 evidence covers inherited MainActor execution, explicit priority, unnamed task metadata, lifetime beyond the creating function, and successful value delivery for that supported subset; the complete @isolated(any) operation executor contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:7286e830e433a6c04d9be9fc576609141e70fbac793f93b9939a32578d212c28",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "top-level-async"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+        "TaskGroupSurfaceTests/topLevelAsyncUsesCanonicalUnstructuredTaskRuntime",
+        "TaskGroupSurfaceTests/topLevelAsyncFailsClosedInSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/topLevelAsyncHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated throwing top-level async overload shares the ordinary unstructured-task runtime and preserves its source failure through the returned task handle for the supported inherited-MainActor subset; the complete @isolated(any) operation executor contract remains divergent until arbitrary actor executors are modeled."
     },
     {
       "id": "swift-concurrency-api-v1:cfc1899fdead0ef6bd626825dd9c8d6a15c2cedda031ed38d6f5e1fade7c9d34",

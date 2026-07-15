@@ -7357,6 +7357,7 @@
       "returnType" : "sending T"
     },
     {
+      "adapterIntrinsic" : "unstructuredTask",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@available(*, deprecated, message: \"`async` was replaced by `Task.init` and will be removed shortly.\")",
@@ -7417,6 +7418,7 @@
       "returnType" : "_Concurrency.Task<Success, Swift.Never>"
     },
     {
+      "adapterIntrinsic" : "unstructuredTask",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@available(*, deprecated, message: \"`async` was replaced by `Task.init` and will be removed shortly.\")",
@@ -8664,7 +8666,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 93,
+    "adapterRoutedDeclarationCount" : 95,
     "declarationCount" : 156,
     "declarationsByDomain" : {
       "task-group-iterator-member" : 6,

@@ -10,6 +10,7 @@ struct ConcurrencySurfaceGeneratorTests {
             interfaceSource: Self.syntheticInterface)
 
         #expect(inventory.topLevelFunctionDispatch == [
+            "async": "unstructuredTask",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
             "withTaskGroup": "withTaskGroup",
@@ -200,7 +201,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 156)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 93)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 95)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 47,
             "task-static-member": 21,
@@ -226,6 +227,10 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.domain == "top-level-function" && $0.name == "withTaskGroup"
                 && $0.adapterIntrinsic == "withTaskGroup"
         })
+        #expect(capabilities.declarations.filter {
+            $0.domain == "top-level-function" && $0.name == "async"
+                && $0.adapterIntrinsic == "unstructuredTask"
+        }.count == 2)
         #expect(capabilities.declarations.contains {
             $0.domain == "top-level-function"
                 && $0.name == "withCheckedContinuation"
@@ -269,7 +274,7 @@ struct ConcurrencySurfaceGeneratorTests {
         let inventory = try ConcurrencySurfaceGenerator.inventory(
             interfaceSource: interfaceSource)
         #expect(Set(inventory.topLevelFunctionDispatch.keys) == [
-            "withDiscardingTaskGroup", "withTaskCancellationHandler",
+            "async", "withDiscardingTaskGroup", "withTaskCancellationHandler",
             "withTaskGroup", "withThrowingDiscardingTaskGroup",
             "withThrowingTaskGroup",
         ])
@@ -455,6 +460,16 @@ struct ConcurrencySurfaceGeneratorTests {
         operation: () async throws -> Result,
         onCancel handler: @Sendable () -> Void
     ) async rethrows -> Result { fatalError() }
+    public func async<Success>(
+        priority: TaskPriority? = nil,
+        @_inheritActorContext
+        operation: @escaping @isolated(any) @Sendable () async -> Success
+    ) -> Task<Success, Never> where Success: Sendable { fatalError() }
+    public func async<Success>(
+        priority: TaskPriority? = nil,
+        @_inheritActorContext
+        operation: @escaping @isolated(any) @Sendable () async throws -> Success
+    ) -> Task<Success, any Error> where Success: Sendable { fatalError() }
     public func interfaceOnlyProbe() async {}
 
     public struct TaskGroup<Child> {

@@ -219,10 +219,17 @@ public enum ConcurrencySurfaceGenerator {
     private static let supportedTaskGroupIteratorIntrinsics: Set<String> = [
         "cancel", "next",
     ]
-    private static let supportedTopLevelFunctionIntrinsics: Set<String> = [
-        "withDiscardingTaskGroup", "withTaskCancellationHandler",
-        "withTaskGroup", "withThrowingDiscardingTaskGroup",
-        "withThrowingTaskGroup",
+    /// Maps interface-owned source names onto reusable runtime semantics.
+    /// Several deprecated spellings can deliberately share one intrinsic;
+    /// generated dispatch must not turn each spelling into a new runtime path.
+    private static let supportedTopLevelFunctionIntrinsics: [String: String] = [
+        "async": "unstructuredTask",
+        "withDiscardingTaskGroup": "withDiscardingTaskGroup",
+        "withTaskCancellationHandler": "withTaskCancellationHandler",
+        "withTaskGroup": "withTaskGroup",
+        "withThrowingDiscardingTaskGroup":
+            "withThrowingDiscardingTaskGroup",
+        "withThrowingTaskGroup": "withThrowingTaskGroup",
     ]
     private static let requiredIntrinsicsByType: [String: Set<String>] = [
         "DiscardingTaskGroup": [
@@ -300,8 +307,8 @@ public enum ConcurrencySurfaceGenerator {
                     declarationMetadata(
                         function, globalActorNames: globalActorNames),
                     to: &topLevelFunctionDeclarations[name, default: []])
-                if supportedTopLevelFunctionIntrinsics.contains(name) {
-                    topLevelFunctionDispatch[name] = name
+                if let intrinsic = supportedTopLevelFunctionIntrinsics[name] {
+                    topLevelFunctionDispatch[name] = intrinsic
                 }
                 continue
             }
@@ -364,8 +371,8 @@ public enum ConcurrencySurfaceGenerator {
             throw ConcurrencySurfaceGenerationError.missingIntrinsics(
                 missingMembers)
         }
-        let missingFunctions = supportedTopLevelFunctionIntrinsics
-            .subtracting(topLevelFunctionDispatch.values).sorted()
+        let missingFunctions = Set(supportedTopLevelFunctionIntrinsics.keys)
+            .subtracting(topLevelFunctionDispatch.keys).sorted()
         guard missingFunctions.isEmpty else {
             throw ConcurrencySurfaceGenerationError.missingFunctions(
                 missingFunctions)
@@ -458,7 +465,7 @@ public enum ConcurrencySurfaceGenerator {
                     + "\(inventory.topLevelFunctionDispatch[sourceName]!),"
             }.joined(separator: "\n")
         let topLevelFunctionIntrinsicCaseLines =
-            supportedTopLevelFunctionIntrinsics.sorted()
+            Set(supportedTopLevelFunctionIntrinsics.values).sorted()
                 .map { "    case \($0)" }.joined(separator: "\n")
         let topLevelFunctionKnownLines = inventory.knownTopLevelFunctions
             .sorted().map { "        \"\(escaped($0))\"," }
