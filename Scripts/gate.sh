@@ -786,8 +786,20 @@ runtime_resource="$swift_driver_runtime_resource"
 test_helper="${runtime_resource%/lib/swift}/libexec/swift/pm/swiftpm-testing-helper"
 test_bundle="$PWD/.build/debug/DynamicSwiftUIPackageTests.xctest/Contents/MacOS/DynamicSwiftUIPackageTests"
 test_library_path="$runtime_resource/macosx/testing:$runtime_resource/macosx"
+test_framework_path="$runtime_resource/macosx/testing:$runtime_resource/macosx"
+sdk_platform_path=$(xcrun --sdk macosx --show-sdk-platform-path 2>/dev/null \
+    || true)
+if [[ -n "$sdk_platform_path" ]]; then
+    platform_frameworks="$sdk_platform_path/Developer/Library/Frameworks"
+    if [[ -d "$platform_frameworks" ]]; then
+        test_framework_path="$platform_frameworks:$test_framework_path"
+    fi
+fi
 if [[ -n "${DYLD_LIBRARY_PATH:-}" ]]; then
     test_library_path="$test_library_path:$DYLD_LIBRARY_PATH"
+fi
+if [[ -n "${DYLD_FRAMEWORK_PATH:-}" ]]; then
+    test_framework_path="$test_framework_path:$DYLD_FRAMEWORK_PATH"
 fi
 if [[ ! -x "$test_helper" || ! -f "$test_bundle" ]]; then
     test_stage_status="failed-runner-location"
@@ -812,6 +824,7 @@ echo "── tests ($test_workers Swift workers + $parity_test_workers parity sh
 typeset -a test_pids test_names test_logs parity_test_logs
 
 env DYLD_LIBRARY_PATH="$test_library_path" \
+    DYLD_FRAMEWORK_PATH="$test_framework_path" \
     "$test_helper" --test-bundle-path "$test_bundle" --skip-build \
     --parallel --num-workers "$test_workers" \
     --skip 'ConcurrencyParityTests/runtimeFixturesMatchNativeGuarantees' \
@@ -829,6 +842,7 @@ for (( shard = 0; shard < parity_test_workers; shard++ )); do
     env DYNAMIC_SWIFT_PARITY_SHARD_INDEX="$shard" \
         DYNAMIC_SWIFT_PARITY_SHARD_COUNT="$parity_test_workers" \
         DYLD_LIBRARY_PATH="$test_library_path" \
+        DYLD_FRAMEWORK_PATH="$test_framework_path" \
         "$test_helper" --test-bundle-path "$test_bundle" --skip-build --no-parallel \
         --filter 'ConcurrencyParityTests/runtimeFixturesMatchNativeGuarantees' \
         "$test_bundle" --testing-library swift-testing \
