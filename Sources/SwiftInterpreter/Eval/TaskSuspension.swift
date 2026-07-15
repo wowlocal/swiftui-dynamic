@@ -34,13 +34,18 @@ extension Interpreter {
                     throw RuntimeError(message:
                         "interpreter was released during Task.sleep")
                 }
-                let duration = try Self.sourceSleepDuration(from: arguments)
-                try await sleepCurrentTask(for: duration)
+                let request = try Self.sourceSleepRequest(from: arguments)
+                try await sleepCurrentTask(
+                    for: request.duration,
+                    propagatesCancellation: request.declaration.isThrowing)
                 return .void
             })
     }
 
-    private func sleepCurrentTask(for duration: RuntimeDuration) async throws {
+    private func sleepCurrentTask(
+        for duration: RuntimeDuration,
+        propagatesCancellation: Bool
+    ) async throws {
         guard let taskID = evaluationTaskContext.runtimeTaskID else {
             throw RuntimeError(message: "Task.sleep requires an async runtime task")
         }
@@ -53,36 +58,57 @@ extension Interpreter {
                 task: taskID, until: deadline, tolerance: nil)
         } catch is CancellationError {
             concurrencyRuntime.observeCancellation(taskID)
-            throw CancellationError()
+            if propagatesCancellation {
+                throw CancellationError()
+            }
         }
     }
 
-    private static func sourceSleepDuration(
+    private struct SourceSleepRequest {
+        let duration: RuntimeDuration
+        let declaration: GeneratedConcurrencyDeclaration
+    }
+
+    private static func sourceSleepRequest(
         from arguments: CallArguments
-    ) throws -> RuntimeDuration {
+    ) throws -> SourceSleepRequest {
+        let duration: RuntimeDuration
+        let primaryLabel: String?
         if let value = arguments.labeled("nanoseconds") {
             guard let nanoseconds = value.intValue, nanoseconds >= 0 else {
                 throw RuntimeError(message:
                     "Task.sleep(nanoseconds:) requires a nonnegative integer")
             }
-            return .nanoseconds(Int64(nanoseconds))
-        }
-        // `_Concurrency` still exposes the deprecated
-        // `Task.sleep(_ duration: UInt64)` overload. Keep overload shape in
-        // argument dispatch rather than special-casing an upstream fixture.
-        if let value = arguments.positional(0) {
+            duration = .nanoseconds(Int64(nanoseconds))
+            primaryLabel = "nanoseconds"
+        } else if let value = arguments.positional(0) {
             guard let nanoseconds = value.intValue, nanoseconds >= 0 else {
                 throw RuntimeError(message:
                     "Task.sleep(_:) requires a nonnegative integer")
             }
-            return .nanoseconds(Int64(nanoseconds))
+            duration = .nanoseconds(Int64(nanoseconds))
+            primaryLabel = nil
+        } else if let value = arguments.labeled("for"),
+                  let parsedDuration = sourceDuration(from: value) {
+            duration = parsedDuration
+            primaryLabel = "for"
+        } else {
+            throw RuntimeError(message:
+                "Task.sleep requires nanoseconds: or a supported Duration value")
         }
-        if let value = arguments.labeled("for"),
-           let duration = sourceDuration(from: value) {
-            return duration
+
+        guard let declaration = GeneratedConcurrencySurface
+                .taskStaticMemberDeclarations["sleep"]?.first(where: {
+                    $0.kind == .function
+                        && $0.parameters.first?.label == primaryLabel
+                }) else {
+            let shape = primaryLabel.map { "\($0):" } ?? "_:"
+            throw RuntimeError(message:
+                "Task.sleep(\(shape)) is not declared by the active "
+                    + "_Concurrency.swiftinterface")
         }
-        throw RuntimeError(message:
-            "Task.sleep requires nanoseconds: or a supported Duration value")
+        return SourceSleepRequest(
+            duration: duration, declaration: declaration)
     }
 
     private static func sourceDuration(

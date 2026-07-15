@@ -6,8 +6,8 @@
   "scope" : "test/Concurrency/Runtime",
   "summary" : {
     "diagnostic" : 4,
-    "direct" : 8,
-    "needsAdapter" : 115,
+    "direct" : 9,
+    "needsAdapter" : 114,
     "total" : 134,
     "unsupported" : 7
   },
@@ -681,8 +681,9 @@
       "upstreamPath" : "test/Concurrency/Runtime/task_destruction.swift"
     },
     {
-      "classification" : "needs-adapter",
-      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-task-group-cancel-handler",
       "upstreamPath" : "test/Concurrency/Runtime/taskgroup_cancelAll_cancellationHandler.swift"
     },
     {

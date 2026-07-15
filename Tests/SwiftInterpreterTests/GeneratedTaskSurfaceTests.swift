@@ -15,6 +15,10 @@ struct GeneratedTaskSurfaceTests {
         let sleep = try #require(
             GeneratedConcurrencySurface.taskStaticMemberDeclarations["sleep"])
         #expect(sleep.contains {
+            $0.isAsync && $0.throwsKind == .nonThrowing
+                && $0.parameters.first?.label == nil
+        })
+        #expect(sleep.contains {
             $0.isAsync && $0.throwsKind == .throwing
                 && $0.parameters.contains { $0.label == "nanoseconds" }
         })

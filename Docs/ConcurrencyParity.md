@@ -3751,3 +3751,32 @@ manifests. The source-bound closing gate is GREEN over 880 tests, exact 88/88
 runtime parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet,
 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
 errors / 17 unstable / 0 no-twin.
+
+### M7 pinned swiftlang nonthrowing sleep cancellation
+
+The executable upstream corpus now includes the unchanged swiftlang fixture
+`test/Concurrency/Runtime/taskgroup_cancelAll_cancellationHandler.swift` from
+release `swift-6.3.3-RELEASE`, commit `064859e4…`, with SHA-256
+`1bb8aa78…`. Apple Swift 6.3.3 in Swift 6 complete strict-concurrency mode
+prints exactly `group task isCancelled: true` followed by `done`: cancelling
+the group interrupts the deprecated nonthrowing `Task.sleep(_:)`, but the child
+continues, observes its cancellation request, and returns a value. The parent
+cancellation handler does not run.
+
+The newly admitted differential test first captured the interpreter RED as
+`nonthrowing task-group child was cancelled without a value`. The runtime had
+collapsed all `Task.sleep` overloads into the throwing cancellation path. Sleep
+dispatch now selects the active `_Concurrency.swiftinterface` declaration by
+argument shape and uses its generated throwing effect. Cancellation from the
+positional nonthrowing overload remains recorded and observable without being
+re-thrown; `sleep(nanoseconds:)` and `sleep(for:)` retain their throwing
+contract. No upstream, demo, project, or API-name-specific source behavior was
+added.
+
+The pinned manifest now contains 21 cases, including 19 executable native
+versus interpreter comparisons. Runtime inventory is 9 direct / 4 diagnostic /
+114 needs-adapter / 7 unsupported. The focused generated-surface and complete
+upstream differential board is GREEN at 6 tests. The source-bound closing gate
+is GREEN over 880 tests, exact 88/88 runtime parity cases and 1,722 repetitions,
+the 678/680 pinned corpus ratchet, 5/5 live scenarios, and API parity at 345
+match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.
