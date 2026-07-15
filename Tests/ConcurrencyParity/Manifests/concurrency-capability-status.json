@@ -1123,6 +1123,35 @@
       "notes": "Strict Swift 6 SIL selects the canonical ThrowingDiscardingTaskGroup.addTaskUnlessCancelled(priority:operation:) row. Same-source and focused evidence cover active acceptance, automatic drain, post-cancel rejection, terminal emptiness, and child-error projection for the supported nonisolated subset; the complete sending @isolated(any) operation contract remains divergent until arbitrary actor executors are modeled."
     },
     {
+      "id": "swift-concurrency-api-v1:cfc1899fdead0ef6bd626825dd9c8d6a15c2cedda031ed38d6f5e1fade7c9d34",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M3/suspension-and-cancellation-semantics",
+      "evidenceCaseIDs": [
+        "task-cancellation-handler-active"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Strict Swift 6 SIL selects the deprecated withTaskCancellationHandler(handler:operation:) row. The controlled same-source probe proves synchronous handler delivery before cancel() returns, exactly-once delivery across repeated cancellation, cancelling-task dynamic context, operation wakeup, and successful completion."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ac8668f61540a6d28a250fcc294c091603fa5604f62c5c032159448eebd67350",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "task-cancellation-handler-active",
+        "task-cancellation-handler-pre-cancelled",
+        "task-cancellation-handler-nested",
+        "task-cancellation-handler-scope-exit"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "Strict Swift 6 SIL selects the modern withTaskCancellationHandler(operation:onCancel:isolation:) row. Its default-isolation subset has native parity for active, pre-cancelled, nested, throwing, and scope-exit behavior; an explicitly supplied isolation is diagnosed until arbitrary source actor executors and resume ownership exist."
+    },
+    {
       "id": "swift-concurrency-api-v1:ae7ac0cdc015b5f5ea24df9083ccee6beda64febf71851ba4dff3642c91ea612",
       "implementationStatus": "excluded-compiler-abi",
       "verificationStatus": "none",

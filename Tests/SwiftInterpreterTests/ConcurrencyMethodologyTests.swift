@@ -952,6 +952,66 @@ struct ConcurrencyMethodologyTests {
         })
     }
 
+    @Test func topLevelCancellationHandlersHaveExplicitReviewedDispositions()
+            throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let rows = inventory.declarations.filter {
+            $0.domain == "top-level-function"
+                && $0.name == "withTaskCancellationHandler"
+        }
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 2,
+            "the active SDK cancellation-handler denominator changed")
+        #expect(rows.allSatisfy {
+            $0.adapterIntrinsic == "withTaskCancellationHandler"
+                && $0.declaration.contains("async rethrows")
+        })
+        #expect(Set(claims.map(\.id)) == ids,
+            "both public cancellation-handler overloads need dispositions")
+
+        let deprecatedRow = try #require(rows.first {
+            $0.declaration.contains("handler: @Sendable")
+                && !$0.declaration.contains("isolation: isolated")
+        })
+        let deprecatedClaim = try #require(claims.first {
+            $0.id == deprecatedRow.id
+        })
+        #expect(deprecatedClaim.implementationStatus == .runtimeSupported)
+        #expect(deprecatedClaim.verificationStatus == .nativeParity)
+        #expect(deprecatedClaim.requirementRef
+            == "M3/suspension-and-cancellation-semantics")
+        #expect(deprecatedClaim.evidenceCaseIDs
+            .contains("task-cancellation-handler-active"))
+        #expect(deprecatedClaim.gapEvidenceIDs.isEmpty)
+
+        let modernRow = try #require(rows.first {
+            $0.declaration.contains("operation: () async throws")
+                && $0.declaration.contains("isolation: isolated")
+        })
+        let modernClaim = try #require(claims.first {
+            $0.id == modernRow.id
+        })
+        #expect(modernClaim.implementationStatus == .knownDivergence)
+        #expect(modernClaim.verificationStatus == .none)
+        #expect(modernClaim.requirementRef
+            == "M7/generated-signatures-and-preflight")
+        #expect(modernClaim.gapEvidenceIDs
+            == ["generated-concurrency-signatures-and-preflight"])
+    }
+
     @Test func compilerABITopLevelFunctionsHaveExplicitExclusions() throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)

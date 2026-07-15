@@ -397,8 +397,8 @@
     "timeoutSeconds": 5,
     "interpreterEntry": "await taskCancellationHandlerActiveProbe()",
     "interpreterProjection": "string",
-    "nativeFact": "An active task cancellation handler runs before cancel() returns, runs only once when cancellation is requested repeatedly, and executes in the cancelling task's dynamic context.",
-    "notes": "MainActor serialization keeps the operation from resuming until the controller has observed both cancel calls. The uncancelled controller makes Task.isCancelled false inside onCancel; exact output is 0,1,1,false,true,done on Swift 6.3.3. No ready-task scheduler order is asserted."
+    "nativeFact": "The modern operation:onCancel:isolation: and deprecated handler:operation: overloads both run an active cancellation handler before cancel() returns, only once for repeated cancellation requests, and in the cancelling task's dynamic context.",
+    "notes": "A controlled suspension proves that the deprecated handler is registered before cancellation; MainActor serialization provides the equivalent modern boundary. The uncancelled controller makes Task.isCancelled false inside each handler. Strict Swift 6 SIL selects both exact overloads. Exact output is deprecated[0,1,1,false,done]|modern[0,1,1,false,true,done] in all 20 Apple Swift 6.3.3 runs; no ready-task scheduler order is asserted."
   },
   {
     "id": "task-cancellation-handler-pre-cancelled",
