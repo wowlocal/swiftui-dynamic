@@ -3239,3 +3239,49 @@ source-bound repository receipt is GREEN in 661 seconds with 850 tests, exact
 corpus ratchet, 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0
 interpreter errors / 17 unstable / 0 no-twin. Its start/end commit and worktree
 fingerprints match and `driftDetected` is false.
+
+### M4 composed child executor inheritance
+
+`task-executor-composition.swift` is a same-source executor-selection probe.
+A MainActor root creates an ordinary `Task`; that task creates an `async let`
+and a nonisolated task-group child; the group child creates another ordinary
+`Task`. The owner awaits the outer task, async-let value, sole group result,
+and nested task value, so the assertion compares executor identity without
+claiming any independent ready-task order.
+
+Apple Swift 6.3.3 compiled the fixture in Swift 6 strict-concurrency mode. All
+20 bounded native runs produced
+`main|main:worker:worker:worker`: ordinary `Task` creation inherited MainActor,
+the async-let and nonisolated group-child operations began on the cooperative
+executor, and the task created by the group child inherited that executor.
+
+This iteration is a gap closure. Before the runtime change, all 20 interpreted
+runs produced `main|main:main:main:main`. `makePendingRuntimeTask` applied the
+ordinary unstructured-task inheritance rule to every non-detached task kind,
+so structured children copied the owner's MainActor identity. Initial executor
+selection is now task-kind-specific: detached tasks select detached identity,
+async-let and group children select the cooperative default, and ordinary
+unstructured tasks inherit the creator's current executor. Declaration-level
+actor hops remain scoped to the invoked declaration and restore the child's
+initial executor afterward.
+
+Focused runtime assertions cover both ownership chains:
+`root(main) -> Task(main) -> async let(default) -> group child(default)` and
+`root(main) -> group child(default) -> Task(default)`. They retain the existing
+task-local snapshot, structured-scope, unstructured-lifetime, and registry
+cleanup proof. Explicit actor-isolated closure metadata, arbitrary actors, and
+executor queues remain M5/M7 work; this M4 claim is the initial-executor rule
+for the currently supported nonisolated structured-child surface.
+
+With this case, `M4/nested-composition-and-child-created-work` is covered.
+Nested groups, nested async lets, Task-to-async-let-to-group task-local
+snapshots, child-created unstructured lifetime, and composed executor selection
+all have native plus focused runtime evidence.
+
+The targeted run passes 92/92 tests across `AsyncExecutionTests`, the complete
+native differential board, and the concurrency methodology suite. The
+source-bound repository receipt is GREEN in 833 seconds with 850 tests, exact
+86/86 runtime-case and 1,682-repetition coverage, an uncached 678/680 pinned
+corpus sweep, 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0
+interpreter errors / 17 unstable / 0 no-twin. Its start/end commit and worktree
+fingerprints match and `driftDetected` is false.

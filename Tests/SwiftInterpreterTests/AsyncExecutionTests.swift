@@ -1013,6 +1013,7 @@ struct AsyncExecutionTests {
     async throws {
         let interpreter = Interpreter()
         var observedBindings = false
+        var observedExecutorInheritance = false
         var observedRecords: [RuntimeTaskRecord] = []
         var observedAsyncLetScope: RuntimeStructuredScopeRecord?
         var observedGroup: RuntimeTaskGroupRecord?
@@ -1061,6 +1062,13 @@ struct AsyncExecutionTests {
                         && task.taskLocals.value(for: twoKey) == nil
                         && asyncLet.taskLocals.value(for: twoKey) == nil
                         && groupChild.taskLocals.value(for: twoKey)?.intValue == 22
+                    observedExecutorInheritance =
+                        root.executorPreference == .mainActor
+                        && task.executorPreference == .mainActor
+                        && asyncLet.executorPreference == .cooperativeDefault
+                        && groupChild.executorPreference == .cooperativeDefault
+                        && bound.evaluationContext.currentExecutor
+                            == .cooperativeDefault
                     await Task.yield()
                     return .void
                 })))
@@ -1103,6 +1111,7 @@ struct AsyncExecutionTests {
         let group = try #require(observedGroup)
         #expect(result.intValue == 33)
         #expect(observedBindings)
+        #expect(observedExecutorInheritance)
         #expect(root.kind == .root)
         #expect(task.kind == .unstructured)
         #expect(asyncLet.kind == .asyncLet)
@@ -1135,6 +1144,7 @@ struct AsyncExecutionTests {
         var taskOpen = false
         var observedOwnership = false
         var observedSessionTracking = false
+        var observedExecutorInheritance = false
         var observedRecords: [RuntimeTaskRecord] = []
         var observedGroup: RuntimeTaskGroupRecord?
         var retainedStorage: [RuntimeTaskLocalStorage] = []
@@ -1175,6 +1185,12 @@ struct AsyncExecutionTests {
                     } && !interpreter.scheduledTasks.contains {
                         $0.id == groupChild.id
                     }
+                    observedExecutorInheritance =
+                        owner.executorPreference == .mainActor
+                        && groupChild.executorPreference == .cooperativeDefault
+                        && task.executorPreference == .cooperativeDefault
+                        && bound.evaluationContext.currentExecutor
+                            == .cooperativeDefault
                     taskStarted = true
                     while !taskOpen { await Task.yield() }
                     return .void
@@ -1231,6 +1247,7 @@ struct AsyncExecutionTests {
         #expect(result.stringValue == "active:value")
         #expect(observedOwnership)
         #expect(observedSessionTracking)
+        #expect(observedExecutorInheritance)
         #expect(group.ownerTaskID == owner.id)
         #expect(group.completedChildTaskIDs == [groupChild.id])
         #expect(group.consumedChildTaskIDs == [groupChild.id])

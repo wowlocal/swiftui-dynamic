@@ -719,6 +719,18 @@
     "notes": "A MainActor gate holds the unstructured task after it starts. The group child returns its handle, both group joins complete, and only then does the owner open the gate and await the handle. Exact output is group-child-start,task-start,group-child-return,group-finished,after-scope,task-active:active:value in all 20 Swift 6.3.3 runs; every edge is barrier-, join-, or program-order-forced."
   },
   {
+    "id": "task-executor-composition",
+    "fixture": "Fixtures/task-executor-composition.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskExecutorCompositionProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An ordinary Task created on MainActor inherits MainActor, while its async-let and nonisolated task-group children start on the cooperative executor; an ordinary Task created by that group child inherits the cooperative executor.",
+    "notes": "The owner awaits its Task, async-let value, one group result, and the nested Task value, so no independent ready-task order is asserted. Exact output is main|main:worker:worker:worker in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-group-cancel-all",
     "fixture": "Fixtures/task-group-cancel-all.swift",
     "mode": "runtime",

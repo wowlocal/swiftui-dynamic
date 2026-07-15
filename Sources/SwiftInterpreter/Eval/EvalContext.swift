@@ -474,8 +474,19 @@ extension Interpreter: EvalContext {
         let taskLocals = kind == .detached
             ? RuntimeTaskLocalStorage()
             : evaluationTaskContext.taskLocals.inheritedCopy()
-        let executorPreference: RuntimeExecutorKind = kind == .detached
-            ? .detached : evaluationTaskContext.currentExecutor
+        let executorPreference: RuntimeExecutorKind
+        switch kind {
+        case .detached:
+            executorPreference = .detached
+        case .asyncLet, .groupChild:
+            // The currently supported nonisolated structured-child surface
+            // begins on Swift's cooperative executor. Any actor-isolated call
+            // made by the operation performs its own declaration-level hop
+            // for that dynamic call extent.
+            executorPreference = .cooperativeDefault
+        case .root, .unstructured, .hostCallback, .swiftUITask:
+            executorPreference = evaluationTaskContext.currentExecutor
+        }
         let record = concurrencyRuntime.createTask(
             sessionID: sessionID,
             kind: kind,
