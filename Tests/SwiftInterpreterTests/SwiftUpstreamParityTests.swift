@@ -16,6 +16,7 @@ private struct SwiftUpstreamManifest: Decodable {
     enum Assertion: String, Decodable {
         case exact
         case fileCheck = "file-check"
+        case fileCheckUnordered = "file-check-unordered"
     }
 
     let repository: String
@@ -272,7 +273,7 @@ struct SwiftUpstreamParityTests {
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
         #expect(manifest.revision == "swift-6.3.3-RELEASE")
         #expect(manifest.commit == "064859e41d68596f486c5d724401cb370f260409")
-        #expect(manifest.cases.count == 16)
+        #expect(manifest.cases.count == 17)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
@@ -301,6 +302,22 @@ struct SwiftUpstreamParityTests {
                     ] {
                         let problems = try SwiftUpstreamFileCheck.violations(
                             source: source, output: output)
+                        for problem in problems {
+                            Issue.record(Comment(rawValue:
+                                "\(parityCase.id) "
+                                    + "(\(parityCase.upstreamPath)) "
+                                    + "\(runtime): \(problem); output="
+                                    + String(reflecting: output)))
+                        }
+                    }
+                case .fileCheckUnordered:
+                    for (runtime, output) in [
+                        ("native", native),
+                        ("interpreter", interpreted),
+                    ] {
+                        let problems = try SwiftUpstreamFileCheck
+                            .unorderedViolations(
+                                source: source, output: output)
                         for problem in problems {
                             Issue.record(Comment(rawValue:
                                 "\(parityCase.id) "
@@ -355,7 +372,8 @@ struct SwiftUpstreamParityTests {
         #expect(directByPath == selectedByPath)
         #expect(inventory.summary.direct == concurrencyCases.count)
         #expect(concurrencyCases.allSatisfy { parityCase in
-            parityCase.assertion == .fileCheck
+            (parityCase.assertion == .fileCheck
+                || parityCase.assertion == .fileCheckUnordered)
                 && parityCase.compilerArguments == [
                     "-swift-version", "6",
                     "-strict-concurrency=complete",

@@ -2830,8 +2830,8 @@ The upstream harness now pins `swiftlang/swift` at
 Its reproducible sparse-checkout script inventories all 134 Swift sources in
 `test/Concurrency/Runtime`, assigns every file an explicit `direct`,
 `diagnostic`, `needs-adapter`, or `unsupported` reason, and copies only
-manifest-selected fixtures byte-for-byte. The current inventory is 6 direct,
-4 diagnostic, 117 needs-adapter, and 7 unsupported.
+manifest-selected fixtures byte-for-byte. The current inventory is 7 direct,
+4 diagnostic, 116 needs-adapter, and 7 unsupported.
 
 Native Swift compiles every selected concurrency fixture in Swift 6 strict
 concurrency mode. The interpreter receives the same source plus only a generic
@@ -2840,9 +2840,9 @@ and interpreted output; unsupported regex and variable syntax is rejected
 rather than weakened. The first direct tranche covers throwing `async let`,
 pre-start cancellation with a late async-let child, task-handle cancellation,
 task-group pending `next()`, and task-group `isEmpty` while a child is pending
-and after its completion has been consumed. The next direct fixture covers
+and after its completion has been consumed. The next direct fixtures cover
 `addTaskUnlessCancelled` for both ordinary and discarding groups whose owner is
-already cancelled.
+already cancelled, plus nested async-let task-local inheritance and restoration.
 
 The previously selected interpreter tests remain exact-output cases. Normal
 test runs are fully offline; `Scripts/sync-swift-upstream-tests.sh` is the only
@@ -3130,3 +3130,36 @@ unchanged pinned swiftlang executable corpus also remains GREEN, including
 fixtures anchor the semantic endpoints while the seeded runtime board explores
 their cancellation boundaries. M3 is complete; the next dependency-ready work
 belongs to M4.
+
+### M4 pinned swiftlang nested async-let task locals
+
+The unchanged pinned swiftlang fixture
+`test/Concurrency/Runtime/async_task_locals_async_let.swift` is now a direct
+case. It nests async-let children inside a task-local binding, nests another
+async let inside one of those children, and then repeats the inheritance check
+through a five-level async-let chain. Native Swift 6.3.3 observes the default
+`0` before and after the scope and the bound value `2` in all four child reads.
+
+Sibling async-let print order is not a Swift guarantee. Native runs observed
+both the source CHECK order and a run in which the two reads from the nested
+function preceded its sibling read. The manifest therefore uses a dedicated
+unordered literal-multiset oracle for this case. It requires two distinct
+default-value matches and four distinct bound-value matches in both native and
+interpreted output; a negative control proves that a missing duplicate fails.
+The upstream source and its CHECK lines remain byte-for-byte unchanged.
+
+The first interpreted run was RED at `TaskLocal projection has no member
+'get'`. A source task-local projection now carries its declaration's immutable
+default and value type, exposes the real zero-argument `get()` operation, and
+returns the current task-owned binding or a value-semantic copy of the default.
+Its description matches Swift's `TaskLocal<Value>(defaultValue: ...)` form
+instead of exposing the interpreter's internal declaration key.
+
+Focused runtime coverage records a root, async-let child, and nested async-let
+grandchild with three distinct task-local storage objects, both structured
+scope ownership edges, and inherited value `2` in both children. After join,
+all three storage objects and the task, group, scope, and scheduler registries
+are empty. The upstream inventory is now 7 direct / 4 diagnostic / 116
+needs-adapter / 7 unsupported across the same 134 pinned sources. The broader
+M4 composition requirement remains open for group/async-let cross-composition,
+executor inheritance, and child-created unstructured work.

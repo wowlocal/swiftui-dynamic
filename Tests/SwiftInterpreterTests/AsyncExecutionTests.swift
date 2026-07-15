@@ -908,6 +908,107 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func taskLocalProjectionGetReadsBindingAndDefault() async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        enum Local {
+            @TaskLocal static var value: Int = 3
+        }
+        func probe() -> String {
+            let before = "\\(Local.$value.get())|\\(Local.$value)"
+            let inside = Local.$value.withValue(9) {
+                "\\(Local.$value.get())|\\(Local.$value)"
+            }
+            let after = "\\(Local.$value.get())|\\(Local.$value)"
+            return "\\(before);\\(inside);\\(after)"
+        }
+        probe()
+        """)
+
+        #expect(result.stringValue == [
+            "3|TaskLocal<Int>(defaultValue: 3)",
+            "9|TaskLocal<Int>(defaultValue: 3)",
+            "3|TaskLocal<Int>(defaultValue: 3)",
+        ].joined(separator: ";"))
+    }
+
+    @Test func nestedAsyncLetsInheritTaskLocalAndCleanOwnership() async throws {
+        let interpreter = Interpreter()
+        var observedNestedOwnership = false
+        var retainedStorage: [RuntimeTaskLocalStorage] = []
+        interpreter.globals.define(
+            "inspectNestedTaskLocalAsyncLet",
+            .hostFunction(HostFunction(
+                name: "inspectNestedTaskLocalAsyncLet",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let leafID = bound.evaluationContext.runtimeTaskID,
+                          let leaf = interpreter.concurrencyRuntime.records[leafID],
+                          let parentID = leaf.parent,
+                          let parent = interpreter.concurrencyRuntime.records[parentID],
+                          let rootID = parent.parent,
+                          let root = interpreter.concurrencyRuntime.records[rootID],
+                          let key = interpreter.enumSymbols["Local"]?
+                            .taskLocalProperties["value"]?.key,
+                          let parentScope = interpreter.concurrencyRuntime
+                            .structuredScopes.values.first(where: {
+                                $0.ownerTaskID == rootID
+                                    && $0.childTaskIDs.contains(parentID)
+                            }),
+                          let leafScope = interpreter.concurrencyRuntime
+                            .structuredScopes.values.first(where: {
+                                $0.ownerTaskID == parentID
+                                    && $0.childTaskIDs.contains(leafID)
+                            }) else {
+                        throw RuntimeError(message:
+                            "nested async-let task-local ownership was incomplete")
+                    }
+                    retainedStorage = [
+                        root.taskLocals, parent.taskLocals, leaf.taskLocals,
+                    ]
+                    observedNestedOwnership = leaf.kind == .asyncLet
+                        && parent.kind == .asyncLet
+                        && parentScope.id != leafScope.id
+                        && parent.taskLocals.value(for: key)?.intValue == 2
+                        && leaf.taskLocals.value(for: key)?.intValue == 2
+                        && root.taskLocals !== parent.taskLocals
+                        && parent.taskLocals !== leaf.taskLocals
+                    await Task.yield()
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        enum Local {
+            @TaskLocal static var value: Int = 0
+        }
+        func leaf() async -> Int {
+            await inspectNestedTaskLocalAsyncLet()
+            return Local.$value.get()
+        }
+        func parent() async -> Int {
+            async let value = leaf()
+            return await value
+        }
+        func root() async -> Int {
+            await Local.$value.withValue(2) {
+                async let value = parent()
+                return await value
+            }
+        }
+        await root()
+        """)
+
+        #expect(result.intValue == 2)
+        #expect(observedNestedOwnership)
+        #expect(retainedStorage.count == 3)
+        #expect(Set(retainedStorage.map(ObjectIdentifier.init)).count == 3)
+        #expect(retainedStorage.allSatisfy { $0.isEmpty })
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.structuredScopes.isEmpty)
+        #expect(interpreter.concurrencyRuntime.taskGroups.isEmpty)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func runtimeTaskHandleDispatchesCancellableExtensions() throws {
         let interpreter = Interpreter()
         let result = try interpreter.run(source: """

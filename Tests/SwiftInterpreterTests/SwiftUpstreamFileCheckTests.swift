@@ -289,6 +289,40 @@ enum SwiftUpstreamFileCheck {
         validateNegatives(until: document.text.length)
         return problems
     }
+
+    /// Matches every plain CHECK directive against a distinct output range
+    /// without imposing source order. This is intentionally a separate
+    /// manifest oracle: it is valid only when native characterization proves
+    /// that the observations are a multiset rather than a happens-before
+    /// sequence. NEXT/SAME/DAG/NOT/LABEL must keep the ordered matcher above.
+    static func unorderedViolations(
+        source: String, output: String
+    ) throws -> [String] {
+        let directives = try parse(source)
+        if let directive = directives.first(where: { $0.kind != .check }) {
+            throw CheckError.unsupportedDirective(
+                line: directive.sourceLine,
+                directive: "unordered \(directive.kind.rawValue)")
+        }
+
+        let document = Document(output)
+        let range = NSRange(location: 0, length: document.text.length)
+        var used: Set<Match> = []
+        var problems: [String] = []
+        for directive in directives {
+            if let match = document.first(
+                directive.pattern, in: range, excluding: used
+            ) {
+                used.insert(match)
+            } else {
+                problems.append(
+                    "unordered CHECK at source line \(directive.sourceLine) "
+                        + "did not match a distinct "
+                        + String(reflecting: directive.pattern))
+            }
+        }
+        return problems
+    }
 }
 
 @Suite("Swift upstream FileCheck subset")
@@ -315,6 +349,26 @@ struct SwiftUpstreamFileCheckTests {
         let output = "third\nfirst\nsecond\n"
         #expect(try SwiftUpstreamFileCheck.violations(
             source: source, output: output).isEmpty)
+    }
+
+    @Test func unorderedChecksPreserveMultiplicityWithoutSchedulerOrder() throws {
+        let source = """
+        // CHECK: first
+        // CHECK: second
+        // CHECK: repeated
+        // CHECK: repeated
+        """
+        let reversed = "second\nrepeated\nfirst\nrepeated\n"
+        #expect(!(try SwiftUpstreamFileCheck.violations(
+            source: source, output: reversed).isEmpty))
+        #expect(try SwiftUpstreamFileCheck.unorderedViolations(
+            source: source, output: reversed).isEmpty)
+
+        let missingDuplicate = "second\nrepeated\nfirst\n"
+        let problems = try SwiftUpstreamFileCheck.unorderedViolations(
+            source: source, output: missingDuplicate)
+        #expect(problems.count == 1)
+        #expect(problems[0].contains("distinct"))
     }
 
     @Test func reportsMissingAndForbiddenOutput() throws {

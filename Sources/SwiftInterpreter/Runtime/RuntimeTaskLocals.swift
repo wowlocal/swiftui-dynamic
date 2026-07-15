@@ -60,16 +60,28 @@ final class RuntimeTaskLocalDeclaration {
     }
 }
 
-/// Source-visible projected `$value`. Member dispatch exposes only the real
-/// scoped-binding operation; it is not an absorbing property-wrapper stub.
+/// Source-visible projected `$value`. It carries the declaration's immutable
+/// default so `TaskLocal.get()` can distinguish an absent task binding from a
+/// bound optional `nil`, without reaching back into shared interpreter state.
 final class RuntimeTaskLocalProjection: CustomStringConvertible {
     let key: RuntimeTaskLocalKey
+    let defaultValue: RuntimeValue
+    let valueTypeName: String
 
-    init(key: RuntimeTaskLocalKey) {
+    init(
+        key: RuntimeTaskLocalKey,
+        defaultValue: RuntimeValue,
+        valueTypeName: String
+    ) {
         self.key = key
+        self.defaultValue = defaultValue.copiedForValueSemantics()
+        self.valueTypeName = valueTypeName
     }
 
-    var description: String { "TaskLocal<\(key)>" }
+    var description: String {
+        "TaskLocal<\(valueTypeName)>(defaultValue: "
+            + defaultValue.stringified + ")"
+    }
 }
 
 /// Mutable storage owned by exactly one interpreted task. Inheritance creates

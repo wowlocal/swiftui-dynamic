@@ -19,12 +19,26 @@ extension Interpreter {
         guard let declaration = declarations[name] else { return nil }
 
         if isProjection {
-            return .native(RuntimeTaskLocalProjection(key: declaration.key))
+            let defaultValue = try sourceTaskLocalDefault(
+                declaration, environment: environment)
+            return .native(RuntimeTaskLocalProjection(
+                key: declaration.key,
+                defaultValue: defaultValue,
+                valueTypeName: declaration.typeAnnotation?.trimmedDescription
+                    ?? HostRuntimeTypeSystem.typeName(of: defaultValue)))
         }
         if let bound = evaluationTaskContext.taskLocals.value(
             for: declaration.key) {
             return bound.copiedForValueSemantics()
         }
+        return try sourceTaskLocalDefault(
+            declaration, environment: environment)
+    }
+
+    private func sourceTaskLocalDefault(
+        _ declaration: RuntimeTaskLocalDeclaration,
+        environment: Environment
+    ) throws -> RuntimeValue {
         if let cached = declaration.cachedDefault {
             return cached.copiedForValueSemantics()
         }

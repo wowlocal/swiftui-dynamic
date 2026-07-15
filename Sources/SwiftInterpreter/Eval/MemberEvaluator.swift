@@ -1038,6 +1038,19 @@ extension Interpreter {
             // before any compatibility boxing occurs.
             let any = baseValue.hostPayload!
             if let projection = any as? RuntimeTaskLocalProjection {
+                if name == "get" {
+                    return .hostFunction(HostFunction(
+                        name: name,
+                        invoke: { arguments, context in
+                            guard arguments.isEmpty else {
+                                throw RuntimeError(message:
+                                    "TaskLocal.get does not accept arguments")
+                            }
+                            return (context.taskLocalValue(for: projection.key)
+                                ?? projection.defaultValue)
+                                .copiedForValueSemantics()
+                        }))
+                }
                 guard name == "withValue" else {
                     throw error(
                         node,
