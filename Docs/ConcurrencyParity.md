@@ -59,7 +59,7 @@ evidence that remains covered.
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity or focused runtime evidence. | Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup and Sendable diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level plus receiver-qualified method, initializer, and synchronous property declarations. | Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, add synthetic enclosing-type declarations and attributes plus async/throwing property accessors, and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup and Sendable diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level plus receiver-qualified method, initializer, synchronous property, and throwing-getter declarations. | Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, add synthetic enclosing-type declarations and attributes plus async property accessors, and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
@@ -3955,7 +3955,9 @@ constraints, async/throwing function effects, property mutability, and return
 types while removing only the runtime DSL's `Receiver.` qualifier. Production
 preflight deterministically emits public extension stubs for instance/static
 methods, initializers, and synchronous get/get-set properties. Explicitly
-non-public members and async/throwing property accessors fail configuration.
+non-public members and async property accessors fail configuration; the next
+slice below closes read-only throwing getters.
+
 The pinned invalid client receives the native static-property isolation
 diagnostic; a legal `@MainActor` program compiles and invokes the same typed
 method/property registry contracts, returning `9` with one call to each
@@ -3963,7 +3965,41 @@ gateway.
 
 This does not synthesize a nominal type or claim runtime actor enforcement.
 M7 remains partial for per-overload Task API dispositions, synthetic enclosing
-type declarations and attributes, async/throwing property accessors, and
+type declarations and attributes, async property accessors, and
 target-aware build manifests. The focused compiler/host-contract/upstream and
 generated board is GREEN at 40 tests, and `ConcurrencySurfaceGen --check` is
 GREEN. A source-bound closing gate follows this ledger update.
+
+### M7 throwing synthetic property getters
+
+This gap-closure slice asks whether a receiver-qualified synthetic `get throws`
+contract preserves the same access-site requirement as native Swift and then
+executes through the typed runtime property. The minimal diagnostic fixture is
+derived from swiftlang's
+`test/Concurrency/actor_call_implicitly_async.swift` at release
+`swift-6.3.3-RELEASE`, commit `064859e4…`. Apple Swift 6.3.3 rejects its line-8
+read with the stable category that property access can throw but is not marked
+with `try`; production preflight reports the same file, line, and category. No
+scheduler order is involved.
+
+Before the production change, composing
+`var String.syntheticThrowingCount: Int { get throws }` failed with the explicit
+configuration error that throwing accessors were not serializable. After stub
+serialization was enabled, the same end-to-end test exposed a second RED: a
+plain Swift `Error` from a legal throwing host getter escaped synchronous
+`do/catch`. The shared synchronous statement boundary now catches arbitrary
+host errors just like the suspending boundary while still rethrowing fatal
+runtime errors and `InterpreterSessionAbort`.
+
+Compiler stubs emit `get` with the exact SwiftSyntax effect spelling, preserving
+both ordinary and typed throws. A legal client reads the property, the typed
+`HostProperty` executes one success and one caught failure path, and invalid
+effectful get/set registration fails closed because native Swift rejects a
+setter paired with an async or throwing getter. Async synthetic getters remain
+open because their runtime member boundary still needs a genuinely suspending
+typed property contract; M7 also remains open for per-overload dispositions,
+synthetic enclosing types/attributes, and target-aware project manifests.
+
+The focused compiler/host-contract/upstream/diagnostic board is GREEN at 44
+tests, `ConcurrencyMethodologyTests` is GREEN at 7 tests, and
+`ConcurrencySurfaceGen --check` is GREEN. A source-bound closing gate follows.

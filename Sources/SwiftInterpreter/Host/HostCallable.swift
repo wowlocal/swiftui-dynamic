@@ -390,6 +390,11 @@ public final class HostProperty {
                 declaration: signature.declaration,
                 reason: "async property access is not supported by the synchronous member boundary")
         }
+        guard !(signature.isThrowing && signature.isSettable) else {
+            throw HostSignatureError.invalidRegistration(
+                declaration: signature.declaration,
+                reason: "a throwing getter cannot register a setter")
+        }
         guard signature.isSettable == (set != nil) else {
             throw HostSignatureError.invalidRegistration(
                 declaration: signature.declaration,

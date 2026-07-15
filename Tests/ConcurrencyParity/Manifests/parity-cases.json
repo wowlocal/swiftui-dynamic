@@ -1101,5 +1101,17 @@
     "diagnosticLine": 6,
     "nativeFact": "A synchronous nonisolated function cannot read actor-isolated mutable state without an actor hop.",
     "notes": "Milestone 0 records the compiler fact; interpreter preflight comparison belongs to Milestone 7."
+  },
+  {
+    "id": "throwing-property-missing-try-diagnostic",
+    "fixture": "Fixtures/throwing-property-missing-try-diagnostic.swift",
+    "mode": "diagnostic",
+    "assertion": "diagnostic",
+    "repetitions": 1,
+    "timeoutSeconds": 15,
+    "diagnosticContains": ["property access can throw", "not marked with 'try'"],
+    "diagnosticLine": 8,
+    "nativeFact": "A throwing property getter preserves its effect at the access site, and an unhandled read without try is rejected.",
+    "notes": "The minimal form is derived from swiftlang test/Concurrency/actor_call_implicitly_async.swift at the pinned Swift 6.3.3 release commit. M7 additionally verifies the same effect after serialization through a synthetic host declaration module, while a legal typed HostProperty executes success and error paths."
   }
 ]

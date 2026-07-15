@@ -422,10 +422,18 @@ extension Interpreter {
         }
         do {
             return try executeBlock(doStmt.body.statements, in: Environment(parent: env))
+        } catch is InterpreterSessionAbort {
+            throw InterpreterSessionAbort()
         } catch let thrown as InterpretedThrow {
             return try executeCatch(doStmt.catchClauses, error: thrown.value, in: env)
-        } catch let hostError as RuntimeError where !hostError.fatal {
+        } catch let hostError as RuntimeError {
+            if hostError.fatal { throw hostError }
             return try executeCatch(doStmt.catchClauses, error: .native(hostError.message), in: env)
+        } catch {
+            return try executeCatch(
+                doStmt.catchClauses,
+                error: .native(String(describing: error)),
+                in: env)
         }
     }
 

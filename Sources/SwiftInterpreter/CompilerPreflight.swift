@@ -91,11 +91,15 @@ private extension HostSignature {
             in: .whitespacesAndNewlines)
 
         if kind == .property || kind == .staticProperty {
-            guard !isAsync, !isThrowing else {
+            guard !isAsync else {
                 throw CompilerPreflightError.invalidConfiguration(
                     "synthetic compiler property '\(declaration)' has an "
-                        + "async or throwing accessor that is not yet "
-                        + "serializable")
+                        + "async accessor that is not yet serializable")
+            }
+            guard !(isThrowing && isSettable) else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "synthetic compiler property '\(declaration)' combines "
+                        + "a throwing getter with a setter")
             }
             nativeDeclaration = replacingReadOnlyLetWithComputedVar(
                 in: nativeDeclaration, at: accessOffset)
@@ -138,7 +142,13 @@ private extension HostSignature {
             }
             let failure =
                 "fatalError(\"compiler-preflight declaration only\")"
-            var accessors = "get {\n    \(failure)\n}"
+            var accessors = "get"
+            let getterEffects = compilerPreflightGetterEffects
+                ?? (isThrowing ? "throws" : "")
+            if !getterEffects.isEmpty {
+                accessors += " " + getterEffects
+            }
+            accessors += " {\n    \(failure)\n}"
             if isSettable {
                 accessors += "\nset {\n    \(failure)\n}"
             }

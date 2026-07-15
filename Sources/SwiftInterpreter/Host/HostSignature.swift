@@ -74,6 +74,10 @@ public struct HostSignature: Sendable, CustomStringConvertible {
     /// `compilerPreflightDeclaration`, used to export otherwise access-neutral
     /// runtime contracts without reprinting their syntax.
     let compilerPreflightAccessInsertionUTF8Offset: Int?
+    /// Exact getter effect spelling retained from SwiftSyntax (`throws`,
+    /// `throws(Failure)`, or `async throws`). Compiler preflight uses this
+    /// rather than reducing typed throws to the runtime Boolean flags.
+    let compilerPreflightGetterEffects: String?
 
     public var description: String { declaration }
 
@@ -108,7 +112,8 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         attributes: [String] = [],
         modifiers: [String] = [],
         compilerPreflightDeclaration: String? = nil,
-        compilerPreflightAccessInsertionUTF8Offset: Int? = nil
+        compilerPreflightAccessInsertionUTF8Offset: Int? = nil,
+        compilerPreflightGetterEffects: String? = nil
     ) {
         self.declaration = declaration
         self.kind = kind
@@ -126,6 +131,7 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         self.compilerPreflightDeclaration = compilerPreflightDeclaration
         self.compilerPreflightAccessInsertionUTF8Offset =
             compilerPreflightAccessInsertionUTF8Offset
+        self.compilerPreflightGetterEffects = compilerPreflightGetterEffects
     }
 
     public static func parse(_ rawDeclaration: String) throws -> HostSignature {
@@ -386,7 +392,9 @@ private extension HostSignature {
                 compilerPreflightAccessInsertionUTF8Offset:
                     introducerUTF8Offset(
                         match.kind, in: nativeMember,
-                        original: declaration))
+                        original: declaration),
+                compilerPreflightGetterEffects:
+                    getterEffectSpecifiers(in: variable))
 
         case .initializer, .failableInitializer,
              .implicitlyUnwrappedInitializer:
@@ -496,6 +504,18 @@ private extension HostSignature {
 
     static func normalizedCompilerDeclaration(_ declaration: String) -> String {
         declaration.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func getterEffectSpecifiers(
+        in variable: VariableDeclSyntax
+    ) -> String {
+        guard let accessorBlock = variable.bindings.first?.accessorBlock,
+              let accessors = accessorBlock.accessors.as(
+                AccessorDeclListSyntax.self),
+              let getter = accessors.first(where: {
+                $0.accessorSpecifier.text == "get"
+              }) else { return "" }
+        return getter.effectSpecifiers?.trimmedDescription ?? ""
     }
 
     static func introducerUTF8Offset(

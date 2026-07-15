@@ -51,6 +51,23 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func throwingPropertyFixtureMatchesProductionPreflight() throws {
+        let source = try Self.fixture(
+            "throwing-property-missing-try-diagnostic.swift")
+        let result = try Self.activePreflight().preflight(
+            source: source,
+            fileName: "throwing-property-missing-try-diagnostic.swift")
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.file == "throwing-property-missing-try-diagnostic.swift"
+                && $0.line == 8
+                && $0.message.contains("property access can throw")
+                && $0.message.contains("try")
+        }, Comment(rawValue: result.standardError))
+    }
+
+    @Test
     func legalProgramExecutesAndRepeatedPreflightUsesCache() throws {
         let engine = try Self.activePreflight()
         let source = """
@@ -314,6 +331,31 @@ struct CompilerPreflightTests {
         #expect(propertyComposition.source.contains("get {"))
         #expect(propertyComposition.source.contains("set {"))
 
+        let typedThrowingProperty = try HostSignature(parsing:
+            "var String.typedThrowingValue: Int { get throws(SyntheticFailure) }")
+        let typedThrowingBase = CompilerPreflightHostModule(
+            moduleName: "TypedThrowingHostSurface",
+            source: "public enum SyntheticFailure: Error { case failed }\n")
+        let typedThrowingCompositionResult = try CompilerPreflightHostModule
+            .composing(
+                base: typedThrowingBase,
+                syntheticSignatures: [typedThrowingProperty])
+        let typedThrowingComposition = try #require(
+            typedThrowingCompositionResult)
+        #expect(typedThrowingComposition.source.contains(
+            "get throws(SyntheticFailure) {"))
+        let typedThrowingPreflight = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: typedThrowingComposition)
+        let legalTypedThrowingRead = try typedThrowingPreflight.preflight(
+            source: """
+            func readTypedThrowingValue() throws(SyntheticFailure) -> Int {
+                try "swift".typedThrowingValue
+            }
+            """,
+            fileName: "TypedThrowingProperty.swift")
+        #expect(legalTypedThrowingRead.succeeded,
+            Comment(rawValue: legalTypedThrowingRead.standardError))
+
         let initializer = try HostSignature(
             parsing: "@MainActor init String(syntheticValue: Int)")
         let initializerCompositionResult = try CompilerPreflightHostModule
@@ -436,6 +478,46 @@ struct CompilerPreflightTests {
             "@MainActor public func syntheticLength() -> Int"))
         #expect(source.contains(
             "@MainActor public var syntheticCount: Int"))
+    }
+
+    @Test
+    func typedSyntheticThrowingPropertyPreservesEffectAndExecutes() throws {
+        let registry = try SyntheticThrowingPropertyHostRegistry()
+        let interpreter = try Interpreter.withActiveCompilerPreflight(
+            registry: registry)
+        let clientName =
+            "host-module-throwing-property-diagnostic.swift"
+        let diagnostic = try interpreter.preflight(
+            source: try Self.upstreamClient(clientName),
+            fileName: clientName)
+
+        #expect(!diagnostic.succeeded)
+        #expect(diagnostic.diagnostics.contains {
+            $0.file == clientName
+                && $0.line == 2
+                && $0.message.contains("property access can throw")
+                && $0.message.contains("try")
+                && !$0.message.contains("cannot find")
+        }, Comment(rawValue: diagnostic.standardError))
+
+        let value = try interpreter.run(source: """
+        func readSyntheticThrowingProperty() -> Int {
+            let success = (try? "swift".syntheticThrowingCount) ?? -100
+            do {
+                _ = try "fail".syntheticThrowingCount
+                return -200
+            } catch {
+                return success + 7
+            }
+        }
+        readSyntheticThrowingProperty()
+        """)
+        #expect(value.intValue == 12)
+        #expect(registry.invocationCount == 2)
+        #expect(interpreter.compilerPreflight?.hostModule?.source.contains(
+            "public var syntheticThrowingCount: Int") == true)
+        #expect(interpreter.compilerPreflight?.hostModule?.source.contains(
+            "get throws {") == true)
     }
 
     @Test
@@ -815,6 +897,52 @@ private final class SyntheticStringMemberHostRegistry: HostRegistry {
 
     func hostProperty(named name: String, on value: Any) -> HostProperty? {
         name == "syntheticCount" && value is String ? countProperty : nil
+    }
+
+    func cFunction(named name: String) -> HostFunction? { nil }
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+}
+
+private enum SyntheticThrowingPropertyError: Error {
+    case requested
+}
+
+private final class SyntheticThrowingPropertyHostRegistry: HostRegistry {
+    private let property: HostProperty
+    private let counter = PreflightInvocationCounter()
+    var invocationCount: Int { counter.value }
+
+    var compilerPreflightSyntheticSignatures: [HostSignature] {
+        [property.signature]
+    }
+
+    init() throws {
+        let counter = counter
+        property = try HostProperty(
+            declaration:
+                "var String.syntheticThrowingCount: Int { get throws }",
+            get: { receiver, _ in
+                counter.value += 1
+                guard let string = receiver.stringValue else {
+                    throw RuntimeError(message: "expected String receiver")
+                }
+                if string == "fail" {
+                    throw SyntheticThrowingPropertyError.requested
+                }
+                return .native(string.count)
+            })
+    }
+
+    func hostProperty(named name: String, on value: Any) -> HostProperty? {
+        name == "syntheticThrowingCount" && value is String ? property : nil
     }
 
     func cFunction(named name: String) -> HostFunction? { nil }

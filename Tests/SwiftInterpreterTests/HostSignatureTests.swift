@@ -402,6 +402,15 @@ struct HostSignatureTests {
         }
         #expect(registry.counter.value == 7)
     }
+
+    @Test func typedPropertyRejectsNativeIllegalEffectfulSetter() throws {
+        #expect(throws: HostSignatureError.self) {
+            _ = try HostProperty(
+                declaration: "var String.invalid: Int { get throws set }",
+                get: { _, _ in .native(1) },
+                set: { _, _, _ in })
+        }
+    }
 }
 
 private final class CounterBox {
