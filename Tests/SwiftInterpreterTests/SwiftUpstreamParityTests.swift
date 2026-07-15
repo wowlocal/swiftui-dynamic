@@ -327,7 +327,7 @@ struct SwiftUpstreamParityTests {
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
         #expect(manifest.cases.allSatisfy { $0.sha256?.count == 64 })
-        #expect(manifest.supportFiles.count == 2)
+        #expect(manifest.supportFiles.count == 3)
         #expect(Set(manifest.supportFiles.map(\.id)).count
             == manifest.supportFiles.count)
         #expect(Set(manifest.supportFiles.map(\.upstreamPath)).count
@@ -498,6 +498,36 @@ struct SwiftUpstreamParityTests {
                 && $0.line == 4
                 && $0.message.contains(
                     "main actor-isolated static property 'actorInteger'")
+                && $0.message.contains("nonisolated context")
+        }, Comment(rawValue: result.standardError))
+    }
+
+    @Test func importedSupportModulePreservesMainActorTypeIsolation() throws {
+        let manifest = try SwiftUpstreamParityHarness.loadManifest()
+        let support = try #require(manifest.supportFiles.first {
+            $0.id == "global-actor-isolated-type-module"
+        })
+        let module = CompilerPreflightHostModule(
+            moduleName: support.moduleName,
+            source: try SwiftUpstreamParityHarness.supportSource(for: support))
+        #expect(module.sourceSHA256 == support.sha256)
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: module)
+        let clientName = "host-module-mainactor-type-diagnostic.swift"
+        let client = try String(
+            contentsOf: SwiftUpstreamParityHarness.packageRoot
+                .appendingPathComponent("Tests/SwiftUpstream/Clients/\(clientName)"),
+            encoding: .utf8)
+        let result = try preflight.preflight(
+            source: client,
+            fileName: clientName)
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.file == clientName
+                && $0.line == 8
+                && $0.message.contains(
+                    "call to main actor-isolated instance method 'isolatedMember()'")
                 && $0.message.contains("nonisolated context")
         }, Comment(rawValue: result.standardError))
     }

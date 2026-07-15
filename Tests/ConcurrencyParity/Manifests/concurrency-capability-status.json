@@ -223,10 +223,12 @@
         "actor-isolation-diagnostic"
       ],
       "testNames": [
-        "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+        "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation",
+        "SwiftUpstreamParityTests/importedSupportModulePreservesMainActorTypeIsolation",
+        "CompilerPreflightTests/typedSyntheticMainActorTypePreservesPinnedIsolation"
       ],
       "gapEvidenceIDs": [],
-      "notes": "The native compiler supplies isolation and pinned concurrency diagnostics before interpreter mutation."
+      "notes": "The native compiler supplies isolation and pinned concurrency diagnostics before interpreter mutation, including MainActor inheritance from an imported or synthetic nominal type."
     },
     {
       "id": "sendable-checking",

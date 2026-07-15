@@ -261,6 +261,11 @@ public protocol HostRegistry: AnyObject {
     /// SDK-backed functions must stay out of this list: their canonical
     /// declarations come from the generated module re-exports instead.
     var compilerPreflightSyntheticSignatures: [HostSignature] { get }
+    /// Nominal declarations for receiver types that exist only behind this
+    /// registry. Members remain sourced from typed host signatures; these
+    /// declarations preserve enclosing-type attributes during native
+    /// compiler preflight.
+    var compilerPreflightSyntheticTypes: [CompilerPreflightHostType] { get }
     /// Real implementations for C functions worth answering truthfully
     /// (uname fills real host values). nil falls to the inert absorber.
     func cFunction(named name: String) -> HostFunction?
@@ -321,6 +326,7 @@ public protocol HostRegistry: AnyObject {
 extension HostRegistry {
     public var compilerPreflightHostModule: CompilerPreflightHostModule? { nil }
     public var compilerPreflightSyntheticSignatures: [HostSignature] { [] }
+    public var compilerPreflightSyntheticTypes: [CompilerPreflightHostType] { [] }
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
     public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }

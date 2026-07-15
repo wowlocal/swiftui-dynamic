@@ -479,7 +479,7 @@
             "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
           ],
           "gapEvidenceIDs": ["group-escape-project-preflight-boundary"],
-          "notes": "The unchanged pinned swiftlang fixture proves native inout TaskGroup capture diagnostics through the production preflight engine, while runtime lifetime checks remain covered separately. Close the requirement when target-aware real-project manifests and the remaining synthetic declaration kinds carry the same fail-closed boundary."
+          "notes": "The unchanged pinned swiftlang fixture proves native inout TaskGroup capture diagnostics through the production preflight engine, while runtime lifetime checks remain covered separately. Synthetic callable, property, and nominal type contracts now fail closed; close the requirement when target-aware real-project manifests carry the same boundary."
         },
         {
           "id": "structured-stress-and-leak-plateau",
@@ -632,8 +632,8 @@
       "title": "Compiler-backed concurrency checking",
       "status": "partial",
       "dependsOn": ["M0"],
-      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, and effectful-property diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level plus receiver-qualified method, initializer, synchronous property, throwing-getter, and genuinely suspending async-getter declarations.",
-      "ledgerRemainingWork": "Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, add synthetic enclosing-type declarations and attributes, and add target-aware build manifests before M5 or M8 closure.",
+      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, and fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes.",
+      "ledgerRemainingWork": "Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload and add target-aware build manifests before M5 or M8 closure.",
       "requirements": [
         {
           "id": "native-diagnostic-oracles",
@@ -645,16 +645,20 @@
           ],
           "testNames": [
             "SwiftUpstreamParityTests/importedDiagnosticsMatchProductionCompilerPreflight",
-            "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+            "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation",
+            "SwiftUpstreamParityTests/importedSupportModulePreservesMainActorTypeIsolation",
+            "CompilerPreflightTests/typedSyntheticMainActorTypePreservesPinnedIsolation"
           ],
           "evidenceByCoverage": {
             "diagnostic": [
               "case:actor-isolation-diagnostic",
               "test:SwiftUpstreamParityTests/importedDiagnosticsMatchProductionCompilerPreflight",
-              "test:CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+              "test:CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation",
+              "test:SwiftUpstreamParityTests/importedSupportModulePreservesMainActorTypeIsolation",
+              "test:CompilerPreflightTests/typedSyntheticMainActorTypePreservesPinnedIsolation"
             ]
           },
-          "notes": "The parity harness retains the actor-isolation oracle, and the same production compiler engine used by Interpreter validates an unchanged SHA-pinned swiftlang TaskGroup capture diagnostic. Required mode rejects before interpreter state or task creation."
+          "notes": "The parity harness retains the actor-isolation oracle, and the same production compiler engine used by Interpreter validates unchanged SHA-pinned swiftlang TaskGroup capture and imported MainActor-type diagnostics. The generated nominal type reproduces the imported-type diagnostic, and required mode rejects before interpreter state or task creation."
         },
         {
           "id": "generated-signatures-and-preflight",
@@ -671,26 +675,30 @@
             "ConcurrencySurfaceGeneratorTests/capabilityIDsArePathIndependentAndSignatureSensitive",
             "CompilerPreflightTests/legalProgramExecutesAndRepeatedPreflightUsesCache",
             "CompilerPreflightTests/generatedHostModuleParticipatesInIsolationChecking",
-          "CompilerPreflightTests/registryManifestAndRuntimeGatewayStayBoundEndToEnd",
-          "CompilerPreflightTests/typedSyntheticAsyncGatewayParticipatesInNativeCheckingAndExecution",
-          "CompilerPreflightTests/typedSyntheticMainActorGatewayPreservesPinnedIsolation",
+            "CompilerPreflightTests/registryManifestAndRuntimeGatewayStayBoundEndToEnd",
+            "CompilerPreflightTests/typedSyntheticAsyncGatewayParticipatesInNativeCheckingAndExecution",
+            "CompilerPreflightTests/typedSyntheticMainActorGatewayPreservesPinnedIsolation",
             "CompilerPreflightTests/typedSyntheticStaticPropertyPreservesPinnedIsolation",
             "CompilerPreflightTests/typedSyntheticMembersPassPreflightAndExecuteThroughRegistry",
             "CompilerPreflightTests/throwingPropertyFixtureMatchesProductionPreflight",
             "CompilerPreflightTests/typedSyntheticThrowingPropertyPreservesEffectAndExecutes",
             "CompilerPreflightTests/typedSyntheticAsyncPropertyPreservesEffectAndExecutes",
+            "CompilerPreflightTests/syntheticNominalTypeCompositionIsDeterministicAndFailClosed",
+            "CompilerPreflightTests/typedSyntheticMainActorTypePreservesPinnedIsolation",
+            "CompilerPreflightTests/typedSyntheticNominalMembersPassPreflightAndExecuteThroughRegistry",
             "HostSignatureTests/typedPropertyRejectsNativeIllegalEffectfulSetter",
             "HostSignatureTests/typedAsyncPropertySuspendsAndValidates",
             "ConcurrencyParityTests/diagnosticFixturesMatchRealCompiler",
             "CompilerPreflightTests/hostModuleCompilerArgumentsDoNotLeakIntoSwift6Client",
-          "SwiftUpstreamParityTests/importedSupportModulePreservesStaticPropertyMainActorIsolation",
-          "CompilerPreflightTests/cacheKeyInvalidatesOnSourceToolchainSDKTargetAndManifest",
+            "SwiftUpstreamParityTests/importedSupportModulePreservesStaticPropertyMainActorIsolation",
+            "SwiftUpstreamParityTests/importedSupportModulePreservesMainActorTypeIsolation",
+            "CompilerPreflightTests/cacheKeyInvalidatesOnSourceToolchainSDKTargetAndManifest",
             "CompilerPreflightTests/timeoutTerminatesCompilerDescendantProcessTree",
             "CompilerPreflightTests/diagnosticsOnlyModeRetainsErrorsAndAllowsEditorRecovery",
             "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
           ],
           "gapEvidenceIDs": ["generated-concurrency-signatures-and-preflight"],
-          "notes": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated with an explicit incomplete-scope denominator and stale checks. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified methods and initializers, synchronous properties, throwing getters, and async getters before interpreter mutation. Exact getter effect spelling, including typed throws and async throws, is retained from SwiftSyntax. Legal typed HostProperty async reads enter a task-bound host suspension and cover instance/static, nested, optional, success, and caught-error paths; synchronous entry fails closed. Host declaration modules may carry separately fingerprinted compiler arguments without changing Swift 6 client checking; this reproduces the unchanged pinned swiftlang GlobalVariables module's Swift 5 serialization and cross-module MainActor static-property diagnostic. The unchanged pinned swiftlang effectful-property fixture supplies access-site diagnostic coverage. Per-overload dispositions, synthetic enclosing-type declarations and attributes, and target-aware project build manifests remain open."
+          "notes": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated with an explicit incomplete-scope denominator and stale checks. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified callables/properties, and empty non-generic nominal struct/class/enum declarations before interpreter mutation. Exact member effects and enclosing attributes are retained from SwiftSyntax. Legal typed HostProperty async reads enter a task-bound host suspension and cover instance/static, nested, optional, success, and caught-error paths; synchronous entry fails closed. Nominal members are emitted inside their type bodies so type isolation is inherited and class designated initializers remain legal; conflicting, non-public, actor, protocol, generic, inherited, and non-empty nominal contracts fail closed. SHA-pinned swiftlang modules prove cross-module MainActor behavior for functions, static properties, and imported types. Per-overload dispositions and target-aware project build manifests remain open."
         }
       ]
     },

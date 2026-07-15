@@ -50,18 +50,51 @@ public struct CompilerPreflightHostModule: Sendable, Equatable {
 
     static func composing(
         base: CompilerPreflightHostModule?,
+        syntheticTypes: [CompilerPreflightHostType] = [],
         syntheticSignatures: [HostSignature]
     ) throws -> CompilerPreflightHostModule? {
-        guard !syntheticSignatures.isEmpty else { return base }
+        guard !syntheticTypes.isEmpty || !syntheticSignatures.isEmpty else {
+            return base
+        }
 
-        let declarations = try Dictionary(
-            syntheticSignatures.map { signature in
-                (signature.declaration, try signature.compilerPreflightStub())
-            },
-            uniquingKeysWith: { first, _ in first }
-        ).values.sorted()
+        var typesByName: [String: CompilerPreflightHostType] = [:]
+        for type in syntheticTypes {
+            if let existing = typesByName[type.name], existing != type {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "conflicting synthetic nominal declarations for "
+                        + "'\(type.name)': '\(existing.declaration)' and "
+                        + "'\(type.declaration)'")
+            }
+            typesByName[type.name] = type
+        }
+
+        var standaloneDeclarations: [String: String] = [:]
+        var membersByType: [String: [String: String]] = [:]
+        for signature in syntheticSignatures {
+            if let receiverType = signature.receiverType,
+               typesByName[receiverType] != nil {
+                if membersByType[receiverType]?[signature.declaration] == nil {
+                    membersByType[receiverType, default: [:]][
+                        signature.declaration
+                    ] = try signature.compilerPreflightStub(
+                        embeddedInReceiver: true)
+                }
+            } else if standaloneDeclarations[signature.declaration] == nil {
+                standaloneDeclarations[signature.declaration] =
+                    try signature.compilerPreflightStub()
+            }
+        }
+
+        let typeDeclarations = typesByName.values.sorted {
+            $0.compilerPreflightDeclaration < $1.compilerPreflightDeclaration
+        }.map { type in
+            type.compilerPreflightStub(
+                members: membersByType[type.name]?.values.sorted() ?? [])
+        }
+        let declarations = typeDeclarations
+            + standaloneDeclarations.values.sorted()
         let generatedSource = ([
-            "// Generated from typed interpreter-synthetic HostSignature contracts.",
+            "// Generated from typed interpreter-synthetic host contracts.",
         ] + declarations).joined(separator: "\n\n") + "\n"
         let source: String
         if let base {
@@ -79,7 +112,9 @@ public struct CompilerPreflightHostModule: Sendable, Equatable {
 }
 
 private extension HostSignature {
-    func compilerPreflightStub() throws -> String {
+    func compilerPreflightStub(
+        embeddedInReceiver: Bool = false
+    ) throws -> String {
         guard var nativeDeclaration = compilerPreflightDeclaration,
               let accessOffset =
                 compilerPreflightAccessInsertionUTF8Offset else {
@@ -117,9 +152,10 @@ private extension HostSignature {
                     "synthetic compiler member '\(declaration)' has no "
                         + "receiver type")
             }
-            return extensionStub(
-                receiverType: receiverType,
-                member: callableStub(for: exportedDeclaration))
+            let member = callableStub(for: exportedDeclaration)
+            return embeddedInReceiver
+                ? member
+                : extensionStub(receiverType: receiverType, member: member)
 
         case .property, .staticProperty:
             guard let receiverType else {
@@ -147,9 +183,10 @@ private extension HostSignature {
             if isSettable {
                 accessors += "\nset {\n    \(failure)\n}"
             }
-            return extensionStub(
-                receiverType: receiverType,
-                member: "\(head) {\n\(indented(accessors))\n}")
+            let member = "\(head) {\n\(indented(accessors))\n}"
+            return embeddedInReceiver
+                ? member
+                : extensionStub(receiverType: receiverType, member: member)
         }
     }
 
@@ -594,6 +631,8 @@ public final class SwiftCompilerPreflight {
     ) throws -> SwiftCompilerPreflight {
         let hostModule = try CompilerPreflightHostModule.composing(
             base: registry?.compilerPreflightHostModule,
+            syntheticTypes:
+                registry?.compilerPreflightSyntheticTypes ?? [],
             syntheticSignatures:
                 registry?.compilerPreflightSyntheticSignatures ?? [])
         if let hostModule {

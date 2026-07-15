@@ -59,14 +59,17 @@ syntax. Runtime gateway tests separately require a legal typed async getter to
 enter a first-class host suspension before it can complete.
 
 The exact upstream support inputs
-`test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift` and
-`test/Concurrency/Inputs/GlobalVariables.swift` are also SHA-pinned.
+`test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift`,
+`test/Concurrency/Inputs/GlobalVariables.swift`, and
+`test/Concurrency/Inputs/implicit_nonisolated_things.swift` are also
+SHA-pinned.
 Production preflight compiles them as separate host declaration modules,
 imports each module into a minimal client, and requires Swift 6 to preserve the
 serialized `MainActor` isolation diagnostic for a global function and a static
 property. The `GlobalVariables` module retains its upstream Swift 5 compiler
 mode while its client remains checked in Swift 6. These auxiliary-module
-oracles test the same boundary that generated
+oracles also require an extension member to inherit `MainActor` from an
+imported nominal type. They test the same boundary that generated
 bridge manifests use rather than copying expected diagnostic strings. The
 small clients under `Clients/` are repository-owned oracle plumbing, not
 upstream tests or independently claimed concurrency-parity cases.

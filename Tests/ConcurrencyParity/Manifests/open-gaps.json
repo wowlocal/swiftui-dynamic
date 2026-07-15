@@ -11,7 +11,7 @@
     "requirementRef": "M4/group-escape-legality",
     "kind": "surface-gap",
     "expectedObservation": "Escaping structured TaskGroup capabilities are rejected through the same generated, target-aware host and project declarations used by real interpreter entry points.",
-    "currentObservation": "The pinned upstream TaskGroup capture diagnostic is enforced by production required preflight, and receiver-qualified synthetic methods, initializers, synchronous properties, throwing getters, and genuinely suspending async getters preserve declaration effects/isolation. Target-aware project manifests and synthetic enclosing-type declarations and attributes are not complete."
+    "currentObservation": "The pinned upstream TaskGroup capture diagnostic is enforced by production required preflight. Receiver-qualified synthetic callables/properties and fail-closed nominal struct/class/enum declarations preserve member effects plus enclosing attributes; unsupported nominal forms are rejected before module compilation. Target-aware project manifests are not complete."
   },
   {
     "id": "actor-declaration-safety-boundary",
@@ -46,7 +46,7 @@
     "requirementRef": "M7/generated-signatures-and-preflight",
     "kind": "surface-gap",
     "expectedObservation": "Every declaration in the generated _Concurrency inventory scope has a reviewed implementation/verification disposition; synthetic host signatures preserve effects and isolation in compiled preflight, and target-aware manifests describe real projects.",
-    "currentObservation": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated, SDK modules are re-exported canonically, and typed synthetic top-level functions plus receiver-qualified methods, initializers, synchronous properties, throwing getters, and async getters enter compiled multi-file preflight. Async HostProperty reads use a task-bound host suspension and preserve optional/nested/static member access. Per-row dispositions, synthetic enclosing-type declarations and attributes, and target-aware build manifests remain open."
+    "currentObservation": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated, SDK modules are re-exported canonically, and typed synthetic top-level functions plus receiver-qualified callables/properties enter compiled multi-file preflight. Async HostProperty reads use a task-bound host suspension and preserve optional/nested/static member access. Empty non-generic synthetic struct/class/enum declarations retain enclosing attributes, embed typed members in their nominal bodies, and reject conflicting or unsupported contracts. Per-row dispositions and target-aware build manifests remain open."
   },
   {
     "id": "view-owned-async-lifecycle-runtime",

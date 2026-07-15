@@ -393,6 +393,150 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func syntheticNominalTypeCompositionIsDeterministicAndFailClosed()
+        throws {
+        let base = CompilerPreflightHostModule(
+            moduleName: "SyntheticNominalTypes",
+            source: "@_exported import Foundation\n")
+        let isolated = try CompilerPreflightHostType(
+            parsing: "@MainActor struct ImportedStruct {}")
+        let counter = try CompilerPreflightHostType(
+            parsing: "@MainActor final class SyntheticCounterBox {}")
+        let initializer = try HostSignature(
+            parsing: "init SyntheticCounterBox()")
+        let property = try HostSignature(
+            parsing: "var SyntheticCounterBox.value: Int { get set }")
+
+        let firstResult = try CompilerPreflightHostModule.composing(
+            base: base,
+            syntheticTypes: [counter, isolated, isolated],
+            syntheticSignatures: [property, initializer, property])
+        let reorderedResult = try CompilerPreflightHostModule.composing(
+            base: base,
+            syntheticTypes: [isolated, counter],
+            syntheticSignatures: [initializer, property])
+        let first = try #require(firstResult)
+        let reordered = try #require(reorderedResult)
+
+        #expect(first == reordered)
+        #expect(isolated.kind == .structure)
+        #expect(isolated.attributes == ["@MainActor"])
+        #expect(counter.kind == .class)
+        #expect(counter.modifiers == ["final"])
+        #expect(first.source.contains(
+            "@MainActor public struct ImportedStruct"))
+        #expect(first.source.contains(
+            "@MainActor public final class SyntheticCounterBox"))
+        #expect(first.source.contains("public init()"))
+        #expect(first.source.contains("public var value: Int"))
+        #expect(!first.source.contains("extension SyntheticCounterBox"))
+
+        let typeOnlyResult = try CompilerPreflightHostModule.composing(
+            base: nil,
+            syntheticTypes: [isolated],
+            syntheticSignatures: [])
+        let typeOnly = try #require(typeOnlyResult)
+        #expect(typeOnly.moduleName
+            == CompilerPreflightHostModule.defaultSyntheticModuleName)
+        #expect(typeOnly.source.contains(
+            "@MainActor public struct ImportedStruct"))
+
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: first)
+        let legalClient = try preflight.preflight(source: """
+        @MainActor
+        func useSyntheticCounter() -> Int {
+            let counter = SyntheticCounterBox()
+            counter.value = 7
+            return counter.value
+        }
+        """, fileName: "SyntheticNominalType.swift")
+        #expect(legalClient.succeeded,
+            Comment(rawValue: legalClient.standardError))
+
+        let conflicting = try CompilerPreflightHostType(
+            parsing: "struct ImportedStruct {}")
+        #expect(throws: CompilerPreflightError.self) {
+            _ = try CompilerPreflightHostModule.composing(
+                base: base,
+                syntheticTypes: [isolated, conflicting],
+                syntheticSignatures: [])
+        }
+
+        #expect(throws: CompilerPreflightHostTypeError.self) {
+            _ = try CompilerPreflightHostType(
+                parsing: "actor UnsupportedActor {}")
+        }
+        #expect(throws: CompilerPreflightHostTypeError.self) {
+            _ = try CompilerPreflightHostType(
+                parsing: "protocol UnsupportedProtocol {}")
+        }
+        #expect(throws: CompilerPreflightHostTypeError.self) {
+            _ = try CompilerPreflightHostType(
+                parsing: "struct Generic<T> {}")
+        }
+        #expect(throws: CompilerPreflightHostTypeError.self) {
+            _ = try CompilerPreflightHostType(
+                parsing: "struct NonEmpty { var value: Int }")
+        }
+        #expect(throws: CompilerPreflightHostTypeError.self) {
+            _ = try CompilerPreflightHostType(
+                parsing: "private struct Hidden {}")
+        }
+    }
+
+    @Test func typedSyntheticMainActorTypePreservesPinnedIsolation() throws {
+        let registry = try SyntheticNominalHostRegistry()
+        let interpreter = try Interpreter.withActiveCompilerPreflight(
+            registry: registry)
+        let clientName = "host-module-mainactor-type-diagnostic.swift"
+        let diagnostic = try interpreter.preflight(
+            source: try Self.upstreamClient(clientName),
+            fileName: clientName)
+
+        #expect(!diagnostic.succeeded)
+        #expect(diagnostic.diagnostics.contains {
+            $0.file == clientName
+                && $0.line == 8
+                && $0.message.contains(
+                    "call to main actor-isolated instance method 'isolatedMember()'")
+                && $0.message.contains("nonisolated context")
+                && !$0.message.contains("cannot find")
+        }, Comment(rawValue: diagnostic.standardError))
+        #expect(interpreter.compilerPreflight?.hostModule?.source.contains(
+            "@MainActor public struct ImportedStruct") == true)
+    }
+
+    @Test
+    func typedSyntheticNominalMembersPassPreflightAndExecuteThroughRegistry()
+        throws {
+        let registry = try SyntheticNominalHostRegistry()
+        let interpreter = try Interpreter.withActiveCompilerPreflight(
+            registry: registry)
+        let value = try interpreter.run(source: """
+        @MainActor
+        func exerciseSyntheticCounter() -> Int {
+            let counter = SyntheticCounterBox()
+            counter.value = 7
+            return counter.value
+        }
+        exerciseSyntheticCounter()
+        """)
+
+        #expect(value.intValue == 7)
+        #expect(registry.constructorInvocationCount == 1)
+        #expect(registry.getInvocationCount == 1)
+        #expect(registry.setInvocationCount == 1)
+        let source = try #require(
+            interpreter.compilerPreflight?.hostModule?.source)
+        #expect(source.contains(
+            "@MainActor public final class SyntheticCounterBox"))
+        #expect(source.contains("public init()"))
+        #expect(source.contains("public var value: Int"))
+        #expect(!source.contains("extension SyntheticCounterBox"))
+    }
+
+    @Test
     func typedSyntheticMainActorGatewayPreservesPinnedIsolation() throws {
         let registry = try SyntheticMainActorHostRegistry()
         let interpreter = try Interpreter.withActiveCompilerPreflight(
@@ -823,6 +967,92 @@ private final class PreflightHostRegistry: HostRegistry {
 
 private final class PreflightInvocationCounter {
     var value = 0
+}
+
+private final class SyntheticCounterBoxStorage {
+    var value = 0
+}
+
+private final class SyntheticNominalHostRegistry: HostRegistry {
+    let compilerPreflightHostModule: CompilerPreflightHostModule? =
+        CompilerPreflightHostModule(
+            moduleName: "TypeIsolationHost",
+            source: "// Interpreter-synthetic nominal declarations follow.\n")
+    private let syntheticTypes: [CompilerPreflightHostType]
+    private let counterConstructor: HostFunction
+    private let counterValue: HostProperty
+    private let constructorCounter = PreflightInvocationCounter()
+    private let getCounter = PreflightInvocationCounter()
+    private let setCounter = PreflightInvocationCounter()
+
+    var constructorInvocationCount: Int { constructorCounter.value }
+    var getInvocationCount: Int { getCounter.value }
+    var setInvocationCount: Int { setCounter.value }
+
+    var compilerPreflightSyntheticTypes: [CompilerPreflightHostType] {
+        syntheticTypes
+    }
+
+    var compilerPreflightSyntheticSignatures: [HostSignature] {
+        counterConstructor.signatures + [counterValue.signature]
+    }
+
+    init() throws {
+        syntheticTypes = [
+            try CompilerPreflightHostType(
+                parsing: "@MainActor struct ImportedStruct {}"),
+            try CompilerPreflightHostType(
+                parsing: "@MainActor final class SyntheticCounterBox {}"),
+        ]
+        let constructorCounter = constructorCounter
+        counterConstructor = try HostFunction(
+            declaration: "init SyntheticCounterBox()"
+        ) { _, _ in
+            constructorCounter.value += 1
+            return .native(SyntheticCounterBoxStorage())
+        }
+        let getCounter = getCounter
+        let setCounter = setCounter
+        counterValue = try HostProperty(
+            declaration: "var SyntheticCounterBox.value: Int { get set }",
+            get: { receiver, _ in
+                getCounter.value += 1
+                guard case .host(let value) = receiver,
+                      let counter = value as? SyntheticCounterBoxStorage else {
+                    throw RuntimeError(message: "wrong synthetic counter receiver")
+                }
+                return .native(counter.value)
+            },
+            set: { receiver, value, _ in
+                setCounter.value += 1
+                guard case .host(let receiver) = receiver,
+                      let counter = receiver as? SyntheticCounterBoxStorage,
+                      let value = value.intValue else {
+                    throw RuntimeError(message: "wrong synthetic counter setter")
+                }
+                counter.value = value
+            })
+    }
+
+    func cFunction(named name: String) -> HostFunction? { nil }
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? {
+        name == "SyntheticCounterBox" ? counterConstructor : nil
+    }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+    func hostTypeName(of value: Any) -> String? {
+        value is SyntheticCounterBoxStorage ? "SyntheticCounterBox" : nil
+    }
+    func hostProperty(named name: String, on value: Any) -> HostProperty? {
+        name == "value" && value is SyntheticCounterBoxStorage
+            ? counterValue : nil
+    }
 }
 
 private final class SyntheticAsyncHostRegistry: HostRegistry {
