@@ -20,8 +20,10 @@ struct TaskCompletionRuntimeTests {
                 parent: nil,
                 priority: .medium,
                 executorPreference: .cooperativeDefault,
-                taskLocals: RuntimeTaskLocalStorage())
+                taskLocals: RuntimeTaskLocalStorage(),
+                name: "released-name")
             weakRecord = record
+            #expect(record.name == "released-name")
             let handle = RuntimeTaskHandle(runtime: runtime, record: record)
             handle.attach(Task {})
             weakDriver = record.nativeDriver

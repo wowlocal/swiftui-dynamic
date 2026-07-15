@@ -950,6 +950,20 @@ struct ConcurrencyMethodologyTests {
         #expect(taskStaticClaims.allSatisfy {
             $0.implementationStatus != .unreviewed
         })
+
+        let nameRow = try #require(inventory.declarations.first {
+            $0.domain == "task-static-member" && $0.name == "name"
+        })
+        #expect(nameRow.adapterIntrinsic == "name")
+        let nameClaim = try #require(taskStaticClaims.first {
+            $0.id == nameRow.id
+        })
+        #expect(nameClaim.implementationStatus == .runtimeSupported)
+        #expect(nameClaim.verificationStatus == .nativeParity)
+        #expect(nameClaim.requirementRef
+            == "M7/generated-signatures-and-preflight")
+        #expect(nameClaim.evidenceCaseIDs == ["task-name"])
+        #expect(nameClaim.gapEvidenceIDs.isEmpty)
     }
 
     @Test func topLevelCancellationHandlersHaveExplicitReviewedDispositions()
@@ -1599,9 +1613,11 @@ struct ConcurrencyMethodologyTests {
             $0.implementationStatus == .knownDivergence
                 && $0.verificationStatus == .none
                 && $0.requirementRef == "M4/remaining-task-group-surface"
+                && $0.evidenceCaseIDs.contains("task-group-named-add")
                 && $0.gapEvidenceIDs
                     == ["remaining-generated-task-group-surface"]
                 && $0.notes.contains("Task.name")
+                && $0.notes.contains("@isolated(any)")
         }, "named rows must retain both name and actor-executor gaps")
     }
 

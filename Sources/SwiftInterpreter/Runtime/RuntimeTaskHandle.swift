@@ -210,7 +210,8 @@ public final class RuntimeTaskHandle {
             parent: nil,
             priority: .medium,
             executorPreference: .cooperativeDefault,
-            taskLocals: RuntimeTaskLocalStorage())
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: nil)
         self.init(runtime: runtime, record: record)
     }
 

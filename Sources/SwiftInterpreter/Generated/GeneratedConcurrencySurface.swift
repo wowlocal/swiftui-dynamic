@@ -16,6 +16,7 @@ enum RuntimeTaskStaticIntrinsic: String, Sendable {
     case currentPriority
     case detached
     case isCancelled
+    case name
     case sleep
     case yield
 }
@@ -288,6 +289,7 @@ enum GeneratedConcurrencySurface {
         "currentPriority": .currentPriority,
         "detached": .detached,
         "isCancelled": .isCancelled,
+        "name": .name,
         "sleep": .sleep,
         "yield": .yield,
     ]

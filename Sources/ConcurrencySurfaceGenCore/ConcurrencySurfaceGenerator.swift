@@ -211,7 +211,7 @@ public enum ConcurrencySurfaceGenerator {
     ]
     private static let supportedTaskStaticIntrinsics: Set<String> = [
         "checkCancellation", "currentPriority", "detached", "isCancelled",
-        "sleep", "yield",
+        "name", "sleep", "yield",
     ]
     private static let supportedTaskInstanceIntrinsics: Set<String> = [
         "cancel", "isCancelled", "result", "value",

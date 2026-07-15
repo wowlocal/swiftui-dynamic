@@ -115,6 +115,14 @@ public protocol EvalContext: AnyObject {
         arguments: [RuntimeValue],
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue
+    /// Name-aware creation used by the generated Swift concurrency surface.
+    /// Names belong to the new task and are not inherited from its creator.
+    func spawnBackgroundTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue
     /// Create a source `Task.detached`. The interpreter overrides this to
     /// remove parent/task-local inheritance; older embedders retain a
     /// source-compatible fallback to ordinary background work.
@@ -122,6 +130,12 @@ public protocol EvalContext: AnyObject {
     func spawnDetachedTask(
         _ closure: ClosureValue,
         arguments: [RuntimeValue],
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue
+    func spawnDetachedTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        name: String?,
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue
     /// Read and scope a runtime task-local value while preserving the source
@@ -196,12 +210,33 @@ extension EvalContext {
         try spawnBackgroundTask(closure, arguments: arguments)
     }
 
+    public func spawnBackgroundTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        throw RuntimeError(message:
+            "named Task creation requires a task-aware evaluation context")
+    }
+
     public func spawnDetachedTask(
         _ closure: ClosureValue,
         arguments: [RuntimeValue],
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue {
         try spawnDetachedTask(closure, arguments: arguments)
+    }
+
+    public func spawnDetachedTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        throw RuntimeError(message:
+            "named Task.detached creation requires a task-aware "
+                + "evaluation context")
     }
 
     public func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue? {

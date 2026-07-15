@@ -102,6 +102,7 @@ struct ConcurrencySurfaceGeneratorTests {
             "currentPriority": "currentPriority",
             "detached": "detached",
             "isCancelled": "isCancelled",
+            "name": "name",
             "sleep": "sleep",
             "yield": "yield",
         ])
@@ -199,7 +200,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 156)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 92)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 93)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 47,
             "task-static-member": 21,
@@ -233,6 +234,10 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.declarations.contains {
             $0.domain == "task-static-member" && $0.name == "sleep"
                 && $0.adapterIntrinsic == "sleep"
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "task-static-member" && $0.name == "name"
+                && $0.adapterIntrinsic == "name"
         })
         #expect(capabilities.declarations.contains {
             $0.domain == "task-static-member" && $0.name == "basePriority"
@@ -355,6 +360,10 @@ struct ConcurrencySurfaceGeneratorTests {
             declaration.parameters.contains {
                 $0.name == "operation" && $0.hasIsolatedFunctionType
             }
+        } == true)
+        #expect(taskStatics["name"]?.contains {
+            $0.kind == .variable && $0.returnType == "Swift.String?"
+                && !$0.isAsync && !$0.isThrowing
         } == true)
 
         #expect(inventory.taskInstanceDispatch == [
@@ -534,6 +543,7 @@ struct ConcurrencySurfaceGeneratorTests {
         public static var currentPriority: TaskPriority { fatalError() }
         public static var basePriority: TaskPriority? { nil }
         public static var isCancelled: Bool { false }
+        public static var name: Swift.String? { nil }
         public static func checkCancellation() throws {}
         public static func yield() async {}
         public static func sleep(nanoseconds duration: UInt64) async throws {}

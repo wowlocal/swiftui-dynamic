@@ -121,6 +121,22 @@ public struct RuntimeTaskPriority: Hashable, Sendable, Comparable,
     }
 }
 
+/// Converts the source-facing `String?` accepted by task creation APIs into
+/// immutable task-record metadata. Optional payloads are unwrapped exactly
+/// once; an empty string remains a real name and is never normalized to nil.
+enum RuntimeTaskName {
+    static func sourceValue(_ value: RuntimeValue?) throws -> String? {
+        guard let value,
+              let unwrapped = value.unwrappedOptionalOrSelf else {
+            return nil
+        }
+        guard let name = unwrapped.stringValue else {
+            throw RuntimeError(message: "task name must be a String?")
+        }
+        return name
+    }
+}
+
 public enum RuntimeTaskKind: String, Sendable {
     case root
     case unstructured
@@ -252,6 +268,9 @@ final class RuntimeTaskRecord {
     let id: RuntimeTaskID
     let sessionID: RuntimeSessionID
     let kind: RuntimeTaskKind
+    /// Source-visible immutable name supplied at creation. Names are metadata
+    /// of this task and are deliberately not inherited by child tasks.
+    let name: String?
     let parent: RuntimeTaskID?
     let basePriority: RuntimeTaskPriority
     var effectivePriority: RuntimeTaskPriority
@@ -292,6 +311,7 @@ final class RuntimeTaskRecord {
         id: RuntimeTaskID,
         sessionID: RuntimeSessionID,
         kind: RuntimeTaskKind,
+        name: String?,
         parent: RuntimeTaskID?,
         priority: RuntimeTaskPriority,
         executorPreference: RuntimeExecutorKind,
@@ -300,6 +320,7 @@ final class RuntimeTaskRecord {
         self.id = id
         self.sessionID = sessionID
         self.kind = kind
+        self.name = name
         self.parent = parent
         basePriority = priority
         effectivePriority = priority
@@ -437,12 +458,14 @@ final class CooperativeConcurrencyRuntime {
         parent: RuntimeTaskID?,
         priority: RuntimeTaskPriority,
         executorPreference: RuntimeExecutorKind,
-        taskLocals: RuntimeTaskLocalStorage
+        taskLocals: RuntimeTaskLocalStorage,
+        name: String?
     ) -> RuntimeTaskRecord {
         let id = RuntimeTaskID(rawValue: nextTaskID)
         nextTaskID += 1
         let record = RuntimeTaskRecord(
-            id: id, sessionID: sessionID, kind: kind, parent: parent,
+            id: id, sessionID: sessionID, kind: kind, name: name,
+            parent: parent,
             priority: priority, executorPreference: executorPreference,
             taskLocals: taskLocals)
         records[id] = record

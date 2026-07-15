@@ -5368,6 +5368,7 @@
       "returnType" : "Swift.Bool"
     },
     {
+      "adapterIntrinsic" : "name",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)"
       ],
@@ -8663,7 +8664,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 92,
+    "adapterRoutedDeclarationCount" : 93,
     "declarationCount" : 156,
     "declarationsByDomain" : {
       "task-group-iterator-member" : 6,

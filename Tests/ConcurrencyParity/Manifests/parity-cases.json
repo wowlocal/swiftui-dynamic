@@ -1233,5 +1233,29 @@
     "diagnosticLine": 8,
     "nativeFact": "A throwing property getter preserves its effect at the access site, and an unhandled read without try is rejected.",
     "notes": "The minimal form is derived from swiftlang test/Concurrency/actor_call_implicitly_async.swift at the pinned Swift 6.3.3 release commit. M7 additionally verifies the same effect after serialization through a synthetic host declaration module, while a legal typed HostProperty executes success and error paths."
+  },
+  {
+    "id": "task-group-named-add",
+    "fixture": "Fixtures/task-group-named-add.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await taskGroupNamedAddProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "All eight addTask(name:priority:operation:) and addTaskUnlessCancelled(name:priority:operation:) group overloads assign the supplied name to the accepted child across ordinary, throwing, discarding, and throwing-discarding groups.",
+    "notes": "Every group is active, each conditional add must be accepted, scope exit joins all children, and the recorder sorts the eight values before comparison. Exact output is discarding-add|discarding-unless|ordinary-add|ordinary-unless|throwing-add|throwing-discarding-add|throwing-discarding-unless|throwing-unless; no child scheduling order is asserted."
+  },
+  {
+    "id": "task-name",
+    "fixture": "Fixtures/task-name.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskNameProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Task.name is the immutable optional name supplied at creation for ordinary, detached, and task-group child tasks; omitted and explicit nil names observe nil rather than inheriting their creator's name, and an empty string remains distinct from nil.",
+    "notes": "Every read occurs inside the task whose name is observed. Awaited handles establish result delivery; group values are sorted, so no ready-task order is asserted. Exact output is nil|ordinary|optional|nil|parent/nil|detached|empty|group,nil."
   }
 ]

@@ -8,7 +8,7 @@ struct GeneratedTaskSurfaceTests {
     func activeInterfaceMetadataDrivesTaskStaticDispatch() throws {
         #expect(Set(GeneratedConcurrencySurface.taskStaticDispatch.keys) == [
             "checkCancellation", "currentPriority", "detached",
-            "isCancelled", "sleep", "yield",
+            "isCancelled", "name", "sleep", "yield",
         ])
         #expect(GeneratedConcurrencySurface.knownTaskStaticMembers.contains(
             "basePriority"))
@@ -71,7 +71,7 @@ struct GeneratedTaskSurfaceTests {
     @MainActor
     func generatedButUnsupportedTaskStaticMembersAreExplicit() {
         for member in [
-            "CancellationError", "basePriority", "name", "runDetached",
+            "CancellationError", "basePriority", "runDetached",
             "suspend", "withCancellationHandler", "withGroup",
         ] {
             do {
@@ -123,6 +123,27 @@ struct GeneratedTaskSurfaceTests {
             #expect(String(describing: error).contains(
                 "Task.detached(executorPreference:) is declared by the active "
                     + "_Concurrency.swiftinterface but is not supported yet"))
+        }
+    }
+
+    @Test
+    @MainActor
+    func namedTasksFailClosedOutsideCanonicalAsyncRuntime() {
+        for taskCreation in [
+            #"Task(name: "ordinary") { 1 }"#,
+            #"Task(name: nil) { 1 }"#,
+            #"Task.detached(name: "detached") { 1 }"#,
+            #"Task.detached(name: nil) { 1 }"#,
+            #"let name: String? = nil; Task(name: name) { 1 }"#,
+        ] {
+            do {
+                _ = try Interpreter().run(source: taskCreation)
+                Issue.record(
+                    "named task creation ran through synchronous compatibility")
+            } catch {
+                #expect(String(describing: error).contains(
+                    "named Task creation requires runAsync"))
+            }
         }
     }
 

@@ -129,6 +129,19 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func spawnBackgroundTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.spawnBackgroundTask(
+                closure, arguments: arguments, name: name,
+                priority: priority)
+        }
+    }
+
     func spawnDetachedTask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
@@ -145,6 +158,19 @@ final class TaskBoundEvalContext: EvalContext {
         try bound {
             try interpreter.spawnDetachedTask(
                 closure, arguments: arguments, priority: priority)
+        }
+    }
+
+    func spawnDetachedTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.spawnDetachedTask(
+                closure, arguments: arguments, name: name,
+                priority: priority)
         }
     }
 
@@ -274,7 +300,8 @@ extension Interpreter: EvalContext {
             parent: nil,
             priority: RuntimeTaskPriority(Task.currentPriority),
             executorPreference: .mainActor,
-            taskLocals: taskLocals)
+            taskLocals: taskLocals,
+            name: nil)
         precondition(
             concurrencyRuntime.begin(record),
             "a fresh host callback task must begin exactly once")
@@ -355,7 +382,7 @@ extension Interpreter: EvalContext {
     ) throws -> RuntimeValue {
         try spawnRuntimeTask(
             kind: .unstructured, closure: closure, arguments: arguments,
-            priority: nil)
+            name: nil, priority: nil)
     }
 
     public func spawnBackgroundTask(
@@ -365,7 +392,22 @@ extension Interpreter: EvalContext {
     ) throws -> RuntimeValue {
         try spawnRuntimeTask(
             kind: .unstructured, closure: closure, arguments: arguments,
-            priority: priority)
+            name: nil, priority: priority)
+    }
+
+    public func spawnBackgroundTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        guard evaluationTaskContext.isAsyncSession else {
+            throw RuntimeError(message:
+                "named Task creation requires runAsync")
+        }
+        return try spawnRuntimeTask(
+            kind: .unstructured, closure: closure, arguments: arguments,
+            name: name, priority: priority)
     }
 
     public func spawnDetachedTask(
@@ -373,7 +415,7 @@ extension Interpreter: EvalContext {
     ) throws -> RuntimeValue {
         try spawnRuntimeTask(
             kind: .detached, closure: closure, arguments: arguments,
-            priority: nil)
+            name: nil, priority: nil)
     }
 
     public func spawnDetachedTask(
@@ -383,7 +425,22 @@ extension Interpreter: EvalContext {
     ) throws -> RuntimeValue {
         try spawnRuntimeTask(
             kind: .detached, closure: closure, arguments: arguments,
-            priority: priority)
+            name: nil, priority: priority)
+    }
+
+    public func spawnDetachedTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        guard evaluationTaskContext.isAsyncSession else {
+            throw RuntimeError(message:
+                "named Task creation requires runAsync")
+        }
+        return try spawnRuntimeTask(
+            kind: .detached, closure: closure, arguments: arguments,
+            name: name, priority: priority)
     }
 
     func spawnAsyncLetTask(
@@ -418,6 +475,7 @@ extension Interpreter: EvalContext {
     func spawnTaskGroupChild(
         operation: ClosureValue,
         in group: RuntimeTaskGroup,
+        name: String?,
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeTaskHandle {
         guard evaluationTaskContext.isAsyncSession else {
@@ -428,7 +486,7 @@ extension Interpreter: EvalContext {
             ownerTaskID: evaluationTaskContext.runtimeTaskID)
 
         let pending = makePendingRuntimeTask(
-            kind: .groupChild, explicitPriority: priority)
+            kind: .groupChild, explicitPriority: priority, name: name)
         let discardsResult = group.kind.discardsResults
         for source in group.newChildCancellationSources {
             pending.handle.cancel(source: source)
@@ -465,7 +523,8 @@ extension Interpreter: EvalContext {
 
     private func makePendingRuntimeTask(
         kind: RuntimeTaskKind,
-        explicitPriority: RuntimeTaskPriority?
+        explicitPriority: RuntimeTaskPriority?,
+        name: String? = nil
     ) -> PendingRuntimeTask {
         let sessionID = evaluationTaskContext.runtimeSessionID
             ?? concurrencyRuntime.createSession()
@@ -494,7 +553,8 @@ extension Interpreter: EvalContext {
                 ? nil : evaluationTaskContext.runtimeTaskID,
             priority: priority,
             executorPreference: executorPreference,
-            taskLocals: taskLocals)
+            taskLocals: taskLocals,
+            name: name)
         return PendingRuntimeTask(
             sessionID: sessionID,
             priority: priority,
@@ -508,10 +568,11 @@ extension Interpreter: EvalContext {
         kind: RuntimeTaskKind,
         closure: ClosureValue,
         arguments: [RuntimeValue],
+        name: String?,
         priority explicitPriority: RuntimeTaskPriority?
     ) throws -> RuntimeValue {
         let pending = makePendingRuntimeTask(
-            kind: kind, explicitPriority: explicitPriority)
+            kind: kind, explicitPriority: explicitPriority, name: name)
         let handle = pending.handle
         let arguments = arguments
 

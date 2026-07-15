@@ -33,7 +33,8 @@ struct TaskCancellationRuntimeTests {
             parent: nil,
             priority: .medium,
             executorPreference: .cooperativeDefault,
-            taskLocals: RuntimeTaskLocalStorage())
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: nil)
         let handle = RuntimeTaskHandle(runtime: runtime, record: record)
         #expect(handle.begin())
         handle.succeed(with: .native("value"))
@@ -66,7 +67,8 @@ struct TaskCancellationRuntimeTests {
             parent: nil,
             priority: .medium,
             executorPreference: .mainActor,
-            taskLocals: RuntimeTaskLocalStorage())
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: nil)
         runtime.requestCancellation(owner, source: .taskHandle)
 
         let child = runtime.createTask(
@@ -75,14 +77,16 @@ struct TaskCancellationRuntimeTests {
             parent: owner.id,
             priority: .medium,
             executorPreference: .mainActor,
-            taskLocals: RuntimeTaskLocalStorage())
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: nil)
         let unstructured = runtime.createTask(
             sessionID: session,
             kind: .unstructured,
             parent: owner.id,
             priority: .medium,
             executorPreference: .mainActor,
-            taskLocals: RuntimeTaskLocalStorage())
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: nil)
 
         #expect(owner.structuredChildren == [child.id])
         #expect(child.cancellation.sources == [.structuredParent])

@@ -180,7 +180,8 @@ struct CancellationRaceExplorationTests {
             parent: nil,
             priority: .medium,
             executorPreference: .cooperativeDefault,
-            taskLocals: RuntimeTaskLocalStorage())
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: nil)
         let handle = RuntimeTaskHandle(runtime: runtime, record: record)
         try require(
             handle.begin(), seed: schedule.seed,
@@ -225,7 +226,8 @@ struct CancellationRaceExplorationTests {
             parent: nil,
             priority: .medium,
             executorPreference: .cooperativeDefault,
-            taskLocals: RuntimeTaskLocalStorage())
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: nil)
         let handle = RuntimeTaskHandle(runtime: runtime, record: record)
         try require(
             handle.begin(), seed: schedule.seed,
@@ -328,7 +330,8 @@ struct CancellationRaceExplorationTests {
             parent: nil,
             priority: .medium,
             executorPreference: .cooperativeDefault,
-            taskLocals: RuntimeTaskLocalStorage())
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: nil)
         let handle = RuntimeTaskHandle(runtime: runtime, record: record)
         try require(
             handle.begin(), seed: schedule.seed,

@@ -118,6 +118,8 @@ extension Interpreter {
                 }
                 let priority = try RuntimeTaskPriority.sourceValue(
                     arguments.labeled("priority"))
+                let taskName = try RuntimeTaskName.sourceValue(
+                    arguments.labeled("name"))
                 if skipsCancelledGroup {
                     try group.requireActive(
                         ownerTaskID: evaluationTaskContext.runtimeTaskID)
@@ -128,6 +130,7 @@ extension Interpreter {
                 _ = try spawnTaskGroupChild(
                     operation: operation,
                     in: group,
+                    name: taskName,
                     priority: priority)
                 if skipsCancelledGroup {
                     return .native(true)

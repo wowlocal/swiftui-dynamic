@@ -996,11 +996,19 @@ extension Interpreter {
                             throw RuntimeError(
                                 message: "Task.detached needs an operation closure")
                         }
+                        let priority = try RuntimeTaskPriority.sourceValue(
+                            args.labeled("priority"))
+                        if let sourceName = args.labeled("name") {
+                            return try context.spawnDetachedTask(
+                                body,
+                                arguments: [],
+                                name: try RuntimeTaskName.sourceValue(sourceName),
+                                priority: priority)
+                        }
                         return try context.spawnDetachedTask(
                             body,
                             arguments: [],
-                            priority: RuntimeTaskPriority.sourceValue(
-                                args.labeled("priority")))
+                            priority: priority)
                     })
                 case .currentPriority:
                     return .native(evaluationTaskContext.priority)
@@ -1008,6 +1016,13 @@ extension Interpreter {
                     let isCancelled = Task.isCancelled
                     if isCancelled { observeSourceCancellation() }
                     return .native(isCancelled)
+                case .name:
+                    let name = evaluationTaskContext.runtimeTaskID.flatMap {
+                        concurrencyRuntime.records[$0]?.name
+                    }
+                    return .optional(
+                        name.map(RuntimeValue.string),
+                        wrappedTypeName: "String")
                 case .checkCancellation:
                     return .hostFunction(HostFunction(name: name) { _, _ in
                         try Task.checkCancellation()

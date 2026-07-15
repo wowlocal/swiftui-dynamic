@@ -42,7 +42,8 @@ extension Interpreter {
             sessionID: sessionID, kind: .root, parent: nil,
             priority: RuntimeTaskPriority(Task.currentPriority),
             executorPreference: .mainActor,
-            taskLocals: taskLocals)
+            taskLocals: taskLocals,
+            name: nil)
         _ = concurrencyRuntime.begin(root)
         let context = makeEvaluationTaskContext(
             runtimeTaskID: root.id,
