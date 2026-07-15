@@ -1,8 +1,22 @@
+/// Eager member lookup retains all established precedence rules, but cannot
+/// itself await an effectful host getter. The async evaluator resolves this
+/// private carrier immediately after lookup and never exposes it to source.
+final class PendingHostPropertyRead {
+    let property: HostProperty
+    let receiver: RuntimeValue
+
+    init(property: HostProperty, receiver: RuntimeValue) {
+        self.property = property
+        self.receiver = receiver
+    }
+}
+
 extension Interpreter {
     /// One funnel for typed and legacy host-member reads. Parsed properties
     /// win; the dynamic hook remains the migration fallback.
     func readHostMember(
-        _ name: String, on value: Any
+        _ name: String, on value: Any,
+        deferringAsyncProperty: Bool = false
     ) throws -> RuntimeValue? {
         if let marker = value as? HostTypeMarker,
            marker.name == "MemoryLayout",
@@ -24,7 +38,12 @@ extension Interpreter {
             return .native(evaluationTaskContext.currentExecutor.isMainActor)
         }
         if let property = registry?.hostProperty(named: name, on: value) {
-            return try property.read(from: .native(value), in: self)
+            let receiver = RuntimeValue.native(value)
+            if deferringAsyncProperty && property.canSuspend {
+                return .native(PendingHostPropertyRead(
+                    property: property, receiver: receiver))
+            }
+            return try property.read(from: receiver, in: self)
         }
         return registry?.hostMember(name, on: value)
     }

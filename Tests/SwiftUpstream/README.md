@@ -30,7 +30,7 @@ a test reaches it only after native Swift 6 compilation and deterministic
 interpreter review. The inventory makes unsupported cases visible without
 pretending that an unexecuted upstream test passes.
 
-The current concurrency allowlist contains eight unchanged runtime fixtures.
+The current concurrency allowlist contains nine unchanged runtime fixtures.
 `async_taskgroup_is_empty.swift` is the first fixture whose admission is backed
 by dispatch generated from the active SDK's `_Concurrency.swiftinterface`; it
 also exercises the SDK's deprecated `TaskGroup.async` compatibility spelling.
@@ -50,6 +50,13 @@ extends that production boundary to Swift 6 `@Sendable` local-function,
 closure, and mutable `inout` capture errors. The harness requires error
 severity plus the upstream filename, line, and message fragment rather than
 accepting an unrelated compiler failure.
+
+The unchanged
+`test/Concurrency/effectful_properties_async_if_optional_unwrap.swift`
+pins the compiler's async-property diagnostics across ordinary reads,
+optional binding, shorthand optional binding, and invalid `if let await`
+syntax. Runtime gateway tests separately require a legal typed async getter to
+enter a first-class host suspension before it can complete.
 
 The exact upstream support inputs
 `test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift` and

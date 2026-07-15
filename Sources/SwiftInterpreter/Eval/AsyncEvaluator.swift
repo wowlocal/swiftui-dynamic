@@ -209,7 +209,9 @@ extension Interpreter {
             if forceInvocation || syntaxContainsSuspension(Syntax(expression)) {
                 try tick(expression)
                 return try await evaluateCallSuspending(
-                    expression.cast(FunctionCallExprSyntax.self), in: env)
+                    expression.cast(FunctionCallExprSyntax.self),
+                    in: env,
+                    forceInvocation: forceInvocation)
             }
             return try evaluate(expression, in: env)
 
@@ -219,7 +221,7 @@ extension Interpreter {
                 let member = expression.cast(MemberAccessExprSyntax.self)
                 if let baseExpression = member.base {
                     let base = try await evaluateSuspending(
-                        baseExpression, in: env)
+                        baseExpression, in: env, forceInvocation: true)
                     if case .host(let payload) = base,
                        let handle = payload as? RuntimeTaskHandle {
                         switch GeneratedConcurrencySurface.taskInstanceIntrinsic(
@@ -233,6 +235,11 @@ extension Interpreter {
                             break
                         }
                     }
+                    return try await accessMemberSuspending(
+                        member.declName.baseName.text,
+                        on: base,
+                        node: member,
+                        env: env)
                 }
             }
 
@@ -312,6 +319,59 @@ extension Interpreter {
         let outcome = await handle.waitForOutcome(
             waiter: evaluationTaskContext.runtimeTaskID)
         return .native(RuntimeResultValue(taskOutcome: outcome))
+    }
+
+    private func accessMemberSuspending(
+        _ name: String,
+        on base: RuntimeValue,
+        node: some SyntaxProtocol,
+        env: Environment
+    ) async throws -> RuntimeValue {
+        let eager = try accessMember(
+            name,
+            on: base,
+            node: node,
+            env: env,
+            deferringAsyncHostProperty: true)
+        return try await resolvePendingHostPropertyRead(eager, node: node).value
+    }
+
+    private func resolvePendingHostPropertyRead(
+        _ value: RuntimeValue,
+        node: some SyntaxProtocol
+    ) async throws -> (value: RuntimeValue, didResolve: Bool) {
+        switch value {
+        case .host(let payload):
+            guard let pending = payload as? PendingHostPropertyRead else {
+                return (value, false)
+            }
+            let context = TaskBoundEvalContext(
+                interpreter: self,
+                evaluationContext: evaluationTaskContext)
+            do {
+                return (
+                    try await pending.property.readSuspending(
+                        from: pending.receiver, in: context),
+                    true)
+            } catch let runtime as RuntimeError where runtime.line == 0 {
+                throw error(node, runtime.message)
+            }
+
+        case .optional(let optional):
+            guard let wrapped = optional.wrapped else {
+                return (value, false)
+            }
+            let resolved = try await resolvePendingHostPropertyRead(
+                wrapped, node: node)
+            guard resolved.didResolve else { return (value, false) }
+            return (
+                resolved.value.liftedToOptional(
+                    wrappedTypeName: optional.wrappedTypeName),
+                true)
+
+        default:
+            return (value, false)
+        }
     }
 
     func withExpectedAnnotationSuspending<T>(
@@ -446,12 +506,17 @@ extension Interpreter {
     /// mature synchronous evaluator; this path is entered only beneath await
     /// (or when an argument itself suspends).
     func evaluateCallSuspending(
-        _ call: FunctionCallExprSyntax, in env: Environment
+        _ call: FunctionCallExprSyntax,
+        in env: Environment,
+        forceInvocation: Bool
     ) async throws -> RuntimeValue {
         if let member = call.calledExpression.as(MemberAccessExprSyntax.self),
            let baseExpression = member.base {
             let name = member.declName.baseName.text
-            let baseValue = try await evaluateSuspending(baseExpression, in: env)
+            let baseValue = try await evaluateSuspending(
+                baseExpression,
+                in: env,
+                forceInvocation: forceInvocation)
 
             if let target = try? resolveLValue(baseExpression, in: env),
                let current = try? target.read(self),
@@ -526,8 +591,14 @@ extension Interpreter {
                 }
             }
 
-            let callee = try accessMember(
-                name, on: baseValue, node: member, env: env)
+            let callee: RuntimeValue
+            if forceInvocation {
+                callee = try await accessMemberSuspending(
+                    name, on: baseValue, node: member, env: env)
+            } else {
+                callee = try accessMember(
+                    name, on: baseValue, node: member, env: env)
+            }
             let args = try await collectArgumentsSuspending(of: call, in: env)
             do {
                 return try await invokeSuspending(callee, with: args, node: call)

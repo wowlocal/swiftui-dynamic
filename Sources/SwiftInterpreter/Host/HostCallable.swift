@@ -358,12 +358,20 @@ public final class HostFunction {
 public final class HostProperty {
     public typealias Getter = @MainActor
         (RuntimeValue, EvalContext) throws -> RuntimeValue
+    public typealias AsyncGetter = @MainActor
+        (RuntimeValue, EvalContext) async throws -> RuntimeValue
     public typealias Setter = @MainActor
         (RuntimeValue, RuntimeValue, EvalContext) throws -> Void
 
+    private enum GetterImplementation {
+        case synchronous(Getter)
+        case asynchronous(AsyncGetter)
+    }
+
     public let signature: HostSignature
     public let name: String
-    private let getter: Getter
+    public var canSuspend: Bool { signature.isAsync }
+    private let getter: GetterImplementation
     private let setter: Setter?
 
     public convenience init(
@@ -404,25 +412,88 @@ public final class HostProperty {
         }
         self.signature = signature
         self.name = signature.name
-        self.getter = get
+        self.getter = .synchronous(get)
         self.setter = set
+    }
+
+    /// Registers a genuinely suspending property getter. Swift does not
+    /// permit an effectful getter to have a setter, so the async boundary is
+    /// intentionally read-only.
+    public convenience init(
+        declaration: String,
+        asyncGet: @escaping AsyncGetter
+    ) throws {
+        try self.init(
+            signature: HostSignature(parsing: declaration),
+            asyncGet: asyncGet)
+    }
+
+    public init(
+        signature: HostSignature,
+        asyncGet: @escaping AsyncGetter
+    ) throws {
+        guard signature.kind == .property || signature.kind == .staticProperty else {
+            throw HostSignatureError.invalidRegistration(
+                declaration: signature.declaration,
+                reason: "HostProperty requires a property declaration")
+        }
+        guard signature.isAsync else {
+            throw HostSignatureError.invalidRegistration(
+                declaration: signature.declaration,
+                reason: "this implementation requires an async property declaration")
+        }
+        guard !signature.isSettable else {
+            throw HostSignatureError.invalidRegistration(
+                declaration: signature.declaration,
+                reason: "an async getter cannot register a setter")
+        }
+        self.signature = signature
+        self.name = signature.name
+        self.getter = .asynchronous(asyncGet)
+        self.setter = nil
     }
 
     public func read(
         from receiver: RuntimeValue, in context: EvalContext
     ) throws -> RuntimeValue {
+        guard case .synchronous(let getter) = getter else {
+            throw RuntimeError(message:
+                "async host property '\(signature.name)' requires runAsync and await")
+        }
         try signature.validateReceiver(receiver, in: context)
         let value: RuntimeValue
         do {
             value = try getter(receiver, context)
         } catch {
-            if signature.isThrowing || error is CancellationError { throw error }
-            if let runtime = error as? RuntimeError, runtime.fatal { throw runtime }
-            throw RuntimeError(message:
-                "host contract violation: nonthrowing property '\(signature.declaration)' threw \(String(describing: error))")
+            throw checkedGetterError(error)
         }
         try signature.validatePropertyValue(value, in: context)
         return value
+    }
+
+    public func readSuspending(
+        from receiver: RuntimeValue, in context: EvalContext
+    ) async throws -> RuntimeValue {
+        guard case .asynchronous(let getter) = getter else {
+            return try read(from: receiver, in: context)
+        }
+        try signature.validateReceiver(receiver, in: context)
+        let value = try await context.withHostOperation {
+            do {
+                return try await getter(receiver, context)
+            } catch {
+                throw checkedGetterError(error)
+            }
+        }
+        try signature.validatePropertyValue(value, in: context)
+        return value
+    }
+
+    private func checkedGetterError(_ error: Error) -> Error {
+        if signature.isThrowing || error is CancellationError { return error }
+        if let runtime = error as? RuntimeError, runtime.fatal { return runtime }
+        return RuntimeError(message:
+            "host contract violation: nonthrowing property '\(signature.declaration)' threw \(String(describing: error))")
     }
 
     public func write(

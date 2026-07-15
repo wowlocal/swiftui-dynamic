@@ -685,7 +685,13 @@ extension Interpreter {
         return try registry.makeGroup(views)
     }
 
-    func accessMember(_ name: String, on baseValue: RuntimeValue, node: some SyntaxProtocol, env: Environment) throws -> RuntimeValue {
+    func accessMember(
+        _ name: String,
+        on baseValue: RuntimeValue,
+        node: some SyntaxProtocol,
+        env: Environment,
+        deferringAsyncHostProperty: Bool = false
+    ) throws -> RuntimeValue {
         if name == "self" {
             return baseValue // `SizeKey.self`, `x.self` — the value itself
         }
@@ -747,7 +753,12 @@ extension Interpreter {
                 }
                 return .none()
             }
-            let member = try accessMember(name, on: wrapped, node: node, env: env)
+            let member = try accessMember(
+                name,
+                on: wrapped,
+                node: node,
+                env: env,
+                deferringAsyncHostProperty: deferringAsyncHostProperty)
             if optional.isImplicitlyUnwrapped && !explicitlyChained {
                 return member
             }
@@ -910,7 +921,9 @@ extension Interpreter {
             // design-token `Color` vs SwiftUI.Color): statics the enum
             // doesn't declare cross the module boundary to the host.
             if let member = try readHostMember(
-                name, on: HostTypeMarker(name: symbol.name)) {
+                name,
+                on: HostTypeMarker(name: symbol.name),
+                deferringAsyncProperty: deferringAsyncHostProperty) {
                 return member
             }
             if assumesCompiledImports, name.first?.isUppercase == true,
@@ -938,7 +951,9 @@ extension Interpreter {
             // (Color.black) or the gateway-boundary implicit member.
             if registry?.constructor(named: symbol.name) != nil {
                 if let value = try readHostMember(
-                    name, on: HostTypeMarker(name: symbol.name)) {
+                    name,
+                    on: HostTypeMarker(name: symbol.name),
+                    deferringAsyncProperty: deferringAsyncHostProperty) {
                     return value
                 }
                 return .implicitMember(name)
@@ -1030,9 +1045,11 @@ extension Interpreter {
                 }
             }
             if let value = try readHostMember(
-                name, on: HostTypeMarker(
+                name,
+                on: HostTypeMarker(
                     name: function.name,
-                    genericArguments: function.genericArguments)) {
+                    genericArguments: function.genericArguments),
+                deferringAsyncProperty: deferringAsyncHostProperty) {
                 return value
             }
             if let symbol = hostExtensionSymbols[function.name],
@@ -1276,7 +1293,10 @@ extension Interpreter {
             }
             // The bridge gets first refusal on host natives (GeometryProxy,
             // CGRect, and static chains like UIScreen.main / DispatchQueue.main).
-            if let value = try readHostMember(name, on: any) {
+            if let value = try readHostMember(
+                name,
+                on: any,
+                deferringAsyncProperty: deferringAsyncHostProperty) {
                 return value
             }
             if let marker = any as? HostTypeMarker {
@@ -1369,7 +1389,13 @@ extension Interpreter {
                 if let call = any as? ImplicitMemberCall, call.name == "init",
                    let wrapped = call.arguments.labeled("initialValue")
                     ?? call.arguments.labeled("wrappedValue") {
-                    return try accessMember(name, on: wrapped, node: node, env: env)
+                    return try accessMember(
+                        name,
+                        on: wrapped,
+                        node: node,
+                        env: env,
+                        deferringAsyncHostProperty:
+                            deferringAsyncHostProperty)
                 }
                 return .native(ChainedImplicitCall(base: baseValue, member: name, arguments: CallArguments()))
             }

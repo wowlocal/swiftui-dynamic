@@ -91,15 +91,10 @@ private extension HostSignature {
             in: .whitespacesAndNewlines)
 
         if kind == .property || kind == .staticProperty {
-            guard !isAsync else {
-                throw CompilerPreflightError.invalidConfiguration(
-                    "synthetic compiler property '\(declaration)' has an "
-                        + "async accessor that is not yet serializable")
-            }
-            guard !(isThrowing && isSettable) else {
+            guard !((isAsync || isThrowing) && isSettable) else {
                 throw CompilerPreflightError.invalidConfiguration(
                     "synthetic compiler property '\(declaration)' combines "
-                        + "a throwing getter with a setter")
+                        + "an effectful getter with a setter")
             }
             nativeDeclaration = replacingReadOnlyLetWithComputedVar(
                 in: nativeDeclaration, at: accessOffset)

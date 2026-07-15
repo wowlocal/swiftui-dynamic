@@ -632,8 +632,8 @@
       "title": "Compiler-backed concurrency checking",
       "status": "partial",
       "dependsOn": ["M0"],
-      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup and Sendable diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level plus receiver-qualified method, initializer, synchronous property, and throwing-getter declarations.",
-      "ledgerRemainingWork": "Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, add synthetic enclosing-type declarations and attributes plus async property accessors, and add target-aware build manifests before M5 or M8 closure.",
+      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, and effectful-property diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level plus receiver-qualified method, initializer, synchronous property, throwing-getter, and genuinely suspending async-getter declarations.",
+      "ledgerRemainingWork": "Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, add synthetic enclosing-type declarations and attributes, and add target-aware build manifests before M5 or M8 closure.",
       "requirements": [
         {
           "id": "native-diagnostic-oracles",
@@ -678,7 +678,9 @@
             "CompilerPreflightTests/typedSyntheticMembersPassPreflightAndExecuteThroughRegistry",
             "CompilerPreflightTests/throwingPropertyFixtureMatchesProductionPreflight",
             "CompilerPreflightTests/typedSyntheticThrowingPropertyPreservesEffectAndExecutes",
+            "CompilerPreflightTests/typedSyntheticAsyncPropertyPreservesEffectAndExecutes",
             "HostSignatureTests/typedPropertyRejectsNativeIllegalEffectfulSetter",
+            "HostSignatureTests/typedAsyncPropertySuspendsAndValidates",
             "ConcurrencyParityTests/diagnosticFixturesMatchRealCompiler",
             "CompilerPreflightTests/hostModuleCompilerArgumentsDoNotLeakIntoSwift6Client",
           "SwiftUpstreamParityTests/importedSupportModulePreservesStaticPropertyMainActorIsolation",
@@ -688,7 +690,7 @@
             "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
           ],
           "gapEvidenceIDs": ["generated-concurrency-signatures-and-preflight"],
-          "notes": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated with an explicit incomplete-scope denominator and stale checks. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified methods and initializers, synchronous properties, and read-only throwing getters before interpreter mutation. Throwing getter spelling, including typed throws, is retained from SwiftSyntax; legal typed HostProperty success/error paths execute through the same contract. Host declaration modules may carry separately fingerprinted compiler arguments without changing Swift 6 client checking; this reproduces the unchanged pinned swiftlang GlobalVariables module's Swift 5 serialization and cross-module MainActor static-property diagnostic. Per-overload dispositions, synthetic enclosing-type declarations and attributes, async property accessors, and target-aware project build manifests remain open."
+          "notes": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated with an explicit incomplete-scope denominator and stale checks. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified methods and initializers, synchronous properties, throwing getters, and async getters before interpreter mutation. Exact getter effect spelling, including typed throws and async throws, is retained from SwiftSyntax. Legal typed HostProperty async reads enter a task-bound host suspension and cover instance/static, nested, optional, success, and caught-error paths; synchronous entry fails closed. Host declaration modules may carry separately fingerprinted compiler arguments without changing Swift 6 client checking; this reproduces the unchanged pinned swiftlang GlobalVariables module's Swift 5 serialization and cross-module MainActor static-property diagnostic. The unchanged pinned swiftlang effectful-property fixture supplies access-site diagnostic coverage. Per-overload dispositions, synthetic enclosing-type declarations and attributes, and target-aware project build manifests remain open."
         }
       ]
     },

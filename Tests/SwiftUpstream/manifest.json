@@ -234,6 +234,21 @@
       ],
       "diagnosticLines": [11, 14, 22, 41],
       "timeoutSeconds": 5
+    },
+    {
+      "id": "concurrency-effectful-property-diagnostic",
+      "fixture": "Fixtures/Concurrency/effectful_properties_async_if_optional_unwrap.swift",
+      "upstreamPath": "test/Concurrency/effectful_properties_async_if_optional_unwrap.swift",
+      "sha256": "49d637f0bea4acf1359804ad3379318d76048d7d962f0da6e33a1de91426e302",
+      "assertion": "diagnostic",
+      "diagnosticContains": [
+        "'async' property access in a function that does not support concurrency",
+        "expression is 'async' but is not marked with 'await'",
+        "unwrap condition requires a valid identifier",
+        "pattern variable binding cannot appear in an expression"
+      ],
+      "diagnosticLines": [13, 17, 20, 29, 34, 38, 49, 52],
+      "timeoutSeconds": 5
     }
   ]
 }

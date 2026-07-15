@@ -411,6 +411,140 @@ struct HostSignatureTests {
                 set: { _, _, _ in })
         }
     }
+
+    @Test func typedAsyncPropertySuspendsAndValidates() async throws {
+        let state = AsyncPropertyProbeState()
+        let registry = try AsyncPropertyProbeRegistry(state: state)
+        let interpreter = Interpreter(registry: registry)
+        let evaluation = Task { @MainActor in
+            try await interpreter.runAsync(
+                source: "try await \"swift\".syntheticAsyncCount")
+        }
+
+        while !state.didEnter { await Task.yield() }
+        #expect(state.events == ["enter:swift"])
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 1)
+        let record = try #require(
+            interpreter.concurrencyRuntime.records.values.first)
+        #expect(record.state == .waiting)
+        if case .awaitingHost? = record.suspension {
+            // Expected: an async getter is a first-class host suspension.
+        } else {
+            Issue.record("async property did not suspend on a host operation")
+        }
+
+        state.isOpen = true
+        #expect(try await evaluation.value.intValue == 5)
+        #expect(state.events == ["enter:swift", "exit:swift"])
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+
+        let nested = try await interpreter.runAsync(
+            source: "try await \"swift\".syntheticAsyncCount.description")
+        #expect(nested.stringValue == "5")
+        let optional = try await interpreter.runAsync(source: """
+        let text: String? = "swift"
+        (try await text?.syntheticAsyncCount) ?? -1
+        """)
+        #expect(optional.intValue == 5)
+
+        let recovered = try await interpreter.runAsync(source: """
+        do {
+            _ = try await "fail".syntheticAsyncCount
+            return "missed"
+        } catch {
+            return "caught"
+        }
+        """)
+        #expect(recovered.stringValue == "caught")
+
+        do {
+            _ = try interpreter.run(
+                source: "try await \"swift\".syntheticAsyncCount")
+            Issue.record("synchronous entry accepted an async property")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("requires runAsync and await"))
+        }
+
+        do {
+            _ = try await interpreter.runAsync(
+                source: "try await \"wrong\".syntheticAsyncCount")
+            Issue.record("async property accepted the wrong result type")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains("expected 'Int'"))
+        }
+
+        let cancellation = Task { @MainActor in
+            try await interpreter.runAsync(
+                source: "try await \"cancel\".syntheticAsyncCount")
+        }
+        while !state.events.contains("enter:cancel") { await Task.yield() }
+        cancellation.cancel()
+        await #expect(throws: CancellationError.self) {
+            _ = try await cancellation.value
+        }
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+
+        #expect(throws: HostSignatureError.self) {
+            _ = try HostProperty(
+                declaration: "var String.notAsync: Int { get }",
+                asyncGet: { _, _ in .native(1) })
+        }
+    }
+}
+
+private enum AsyncPropertyProbeError: Error {
+    case requested
+}
+
+private final class AsyncPropertyProbeState {
+    var didEnter = false
+    var isOpen = false
+    var events: [String] = []
+}
+
+private final class AsyncPropertyProbeRegistry: HostRegistry {
+    private let property: HostProperty
+
+    init(state: AsyncPropertyProbeState) throws {
+        property = try HostProperty(
+            declaration:
+                "var String.syntheticAsyncCount: Int { get async throws }",
+            asyncGet: { receiver, _ in
+                guard let string = receiver.stringValue else {
+                    throw RuntimeError(message: "expected String receiver")
+                }
+                state.didEnter = true
+                state.events.append("enter:\(string)")
+                if string == "cancel" {
+                    try await Task.sleep(for: .seconds(30))
+                }
+                while !state.isOpen { await Task.yield() }
+                if string == "fail" {
+                    throw AsyncPropertyProbeError.requested
+                }
+                if string == "wrong" {
+                    return .native("wrong")
+                }
+                state.events.append("exit:\(string)")
+                return .native(string.count)
+            })
+    }
+
+    func hostProperty(named name: String, on value: Any) -> HostProperty? {
+        name == "syntheticAsyncCount" && value is String ? property : nil
+    }
+
+    func cFunction(named name: String) -> HostFunction? { nil }
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
 }
 
 private final class CounterBox {

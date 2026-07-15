@@ -322,7 +322,7 @@ struct SwiftUpstreamParityTests {
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
         #expect(manifest.revision == "swift-6.3.3-RELEASE")
         #expect(manifest.commit == "064859e41d68596f486c5d724401cb370f260409")
-        #expect(manifest.cases.count == 21)
+        #expect(manifest.cases.count == 22)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
@@ -403,7 +403,7 @@ struct SwiftUpstreamParityTests {
         let diagnosticCases = manifest.cases.filter {
             $0.assertion == .diagnostic
         }
-        #expect(diagnosticCases.count == 2)
+        #expect(diagnosticCases.count == 3)
         let preflight = try SwiftCompilerPreflight.activeMacOS(
             gatewayManifestSHA256:
                 SwiftCompilerPreflight.emptyGatewayManifestSHA256)

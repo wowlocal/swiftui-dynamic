@@ -59,7 +59,7 @@ evidence that remains covered.
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity or focused runtime evidence. | Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup and Sendable diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level plus receiver-qualified method, initializer, synchronous property, and throwing-getter declarations. | Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, add synthetic enclosing-type declarations and attributes plus async property accessors, and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, and effectful-property diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level plus receiver-qualified method, initializer, synchronous property, throwing-getter, and genuinely suspending async-getter declarations. | Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, add synthetic enclosing-type declarations and attributes, and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
@@ -4003,3 +4003,39 @@ synthetic enclosing types/attributes, and target-aware project manifests.
 The focused compiler/host-contract/upstream/diagnostic board is GREEN at 44
 tests, `ConcurrencyMethodologyTests` is GREEN at 7 tests, and
 `ConcurrencySurfaceGen --check` is GREEN. A source-bound closing gate follows.
+
+### M7 async synthetic property getters
+
+This slice closes the remaining synthetic accessor-effect gap without adding a
+`Task.value` or application-specific branch. The compiler oracle is the
+unchanged swiftlang
+`test/Concurrency/effectful_properties_async_if_optional_unwrap.swift` from
+release `swift-6.3.3-RELEASE`, commit `064859e4…`, SHA-256 `49d637f0…`.
+Production preflight preserves its errors for ordinary reads, optional binding,
+shorthand optional binding, and invalid `if let await` syntax. A separate
+repository-owned client proves that a receiver-qualified serialized
+`get async throws` still requires `await` and carries the native
+`property access is 'async'` note across the generated-module boundary.
+
+The RED had two independent parts: `CompilerPreflightHostModule` rejected every
+async property as non-serializable, and `HostProperty` had no asynchronous
+registration contract. Compiler stubs now reproduce the exact SwiftSyntax
+getter effects (`async`, `async throws`, and typed throws where present).
+`HostProperty(asyncGet:)` validates the receiver and result just like its
+synchronous face, rejects synchronous declarations and effectful setters, and
+tracks the getter as a runtime host operation.
+
+Member lookup remains eager so existing source-extension, typed-registry, and
+fallback precedence is unchanged. When lookup reaches an async typed property
+beneath `await`, it returns an interpreter-private carrier that the async
+overlay immediately resolves through a task-bound evaluation context. The
+caller is observably `.waiting/.awaitingHost` while a controlled gate is
+closed. Completion, arbitrary host errors, cancellation, nested member chains,
+optional chaining, and instance/static properties all use the same path;
+synchronous entry fails closed with `requires runAsync and await`.
+
+This is a typed host-boundary and compiler-serialization claim. It does not
+claim source-defined async computed-property execution, actor isolation, or
+physical worker parallelism. M7 remains open only for per-overload generated
+API dispositions, synthetic enclosing type declarations/attributes, and
+target-aware project build manifests.

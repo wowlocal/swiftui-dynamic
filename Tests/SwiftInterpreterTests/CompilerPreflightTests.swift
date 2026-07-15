@@ -521,6 +521,55 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func typedSyntheticAsyncPropertyPreservesEffectAndExecutes() async throws {
+        let registry = try SyntheticAsyncPropertyHostRegistry()
+        let interpreter = try Interpreter.withActiveCompilerPreflight(
+            registry: registry)
+        let clientName = "host-module-async-property-diagnostic.swift"
+        let diagnostic = try interpreter.preflight(
+            source: try Self.upstreamClient(clientName),
+            fileName: clientName)
+
+        #expect(!diagnostic.succeeded)
+        #expect(diagnostic.diagnostics.contains {
+            $0.file == clientName
+                && $0.line == 2
+                && $0.message.contains("expression is 'async'")
+                && $0.message.contains("await")
+                && !$0.message.contains("cannot find")
+        }, Comment(rawValue: diagnostic.standardError))
+        #expect(diagnostic.diagnostics.contains {
+            $0.file == clientName
+                && $0.line == 2
+                && $0.message.contains("property access is 'async'")
+        }, Comment(rawValue: diagnostic.standardError))
+
+        let value = try await interpreter.runAsync(source: """
+        func readSyntheticAsyncProperty() async -> Int {
+            let success = (try? await "swift".syntheticAsyncCount) ?? -100
+            do {
+                _ = try await "fail".syntheticAsyncCount
+                return -200
+            } catch {
+                return success + 7
+            }
+        }
+        await readSyntheticAsyncProperty()
+        """)
+        #expect(value.intValue == 12)
+        let staticValue = try await interpreter.runAsync(
+            source: "await String.syntheticAsyncStaticCount")
+        #expect(staticValue.intValue == 11)
+        #expect(registry.invocationCount == 3)
+        #expect(interpreter.compilerPreflight?.hostModule?.source.contains(
+            "public var syntheticAsyncCount: Int") == true)
+        #expect(interpreter.compilerPreflight?.hostModule?.source.contains(
+            "get async throws {") == true)
+        #expect(interpreter.compilerPreflight?.hostModule?.source.contains(
+            "syntheticAsyncStaticCount: Int") == true)
+    }
+
+    @Test
     func hostModuleCompilerArgumentsDoNotLeakIntoSwift6Client() throws {
         let module = CompilerPreflightHostModule(
             moduleName: "LegacyHostSurface",
@@ -943,6 +992,70 @@ private final class SyntheticThrowingPropertyHostRegistry: HostRegistry {
 
     func hostProperty(named name: String, on value: Any) -> HostProperty? {
         name == "syntheticThrowingCount" && value is String ? property : nil
+    }
+
+    func cFunction(named name: String) -> HostFunction? { nil }
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+}
+
+private enum SyntheticAsyncPropertyError: Error {
+    case requested
+}
+
+private final class SyntheticAsyncPropertyHostRegistry: HostRegistry {
+    private let property: HostProperty
+    private let staticProperty: HostProperty
+    private let counter = PreflightInvocationCounter()
+    var invocationCount: Int { counter.value }
+
+    var compilerPreflightSyntheticSignatures: [HostSignature] {
+        [property.signature, staticProperty.signature]
+    }
+
+    init() throws {
+        let counter = counter
+        property = try HostProperty(
+            declaration:
+                "var String.syntheticAsyncCount: Int { get async throws }",
+            asyncGet: { receiver, _ in
+                counter.value += 1
+                await Task.yield()
+                guard let string = receiver.stringValue else {
+                    throw RuntimeError(message: "expected String receiver")
+                }
+                if string == "fail" {
+                    throw SyntheticAsyncPropertyError.requested
+                }
+                return .native(string.count)
+            })
+        staticProperty = try HostProperty(
+            declaration:
+                "static var String.syntheticAsyncStaticCount: Int { get async }",
+            asyncGet: { _, _ in
+                counter.value += 1
+                await Task.yield()
+                return .native(11)
+            })
+    }
+
+    func hostProperty(named name: String, on value: Any) -> HostProperty? {
+        if name == "syntheticAsyncCount", value is String {
+            return property
+        }
+        if name == "syntheticAsyncStaticCount",
+           let marker = value as? HostTypeMarker,
+           marker.name == "String" {
+            return staticProperty
+        }
+        return nil
     }
 
     func cFunction(named name: String) -> HostFunction? { nil }
