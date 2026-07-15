@@ -35,6 +35,15 @@ struct GeneratedTaskSurfaceTests {
         ])
         #expect(GeneratedConcurrencySurface.knownTaskInstanceMembers.contains(
             "get"))
+        let get = try #require(
+            GeneratedConcurrencySurface.taskInstanceMemberDeclarations["get"])
+        #expect(get.count == 2)
+        #expect(get.contains { $0.isAsync && $0.isThrowing })
+        #expect(get.contains { $0.isAsync && !$0.isThrowing })
+        let getResult = try #require(
+            GeneratedConcurrencySurface.taskInstanceMemberDeclarations["getResult"])
+        #expect(getResult.count == 1)
+        #expect(getResult.allSatisfy { $0.isAsync && !$0.isThrowing })
         let value = try #require(
             GeneratedConcurrencySurface.taskInstanceMemberDeclarations["value"])
         #expect(value.contains { $0.isAsync && $0.isThrowing })
@@ -76,17 +85,21 @@ struct GeneratedTaskSurfaceTests {
 
     @Test
     @MainActor
-    func generatedButUnsupportedTaskInstanceMemberIsExplicit() async {
-        do {
-            _ = try await Interpreter().runAsync(source: """
-            let task = Task { 1 }
-            await task.get()
-            """)
-            Issue.record("unsupported generated Task member was absorbed")
-        } catch {
-            #expect(String(describing: error).contains(
-                "Task.get is declared by the active "
-                    + "_Concurrency.swiftinterface but is not supported yet"))
+    func generatedButUnsupportedTaskInstanceMembersAreExplicit() async {
+        for member in [
+            "escalatePriority", "get", "getResult", "hash", "hashValue",
+        ] {
+            do {
+                _ = try await Interpreter().runAsync(source: """
+                let task = Task { 1 }
+                task.\(member)
+                """)
+                Issue.record("unsupported generated Task.\(member) was absorbed")
+            } catch {
+                #expect(String(describing: error).contains(
+                    "Task.\(member) is declared by the active "
+                        + "_Concurrency.swiftinterface but is not supported yet"))
+            }
         }
     }
 

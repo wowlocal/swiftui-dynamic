@@ -60,7 +60,164 @@
     ],
     "notes": "Every generated declaration starts unreviewed. Promote an overload only with an explicit ID override: positive claims require executable evidence, while negative, excluded, or deferred claims require an owned rationale."
   },
-  "interfaceOverrides": [],
+  "interfaceOverrides": [
+    {
+      "id": "swift-concurrency-api-v1:b9cf4b4579d31cd1e6d932faf8cc2ff647ed68243717efc4373672d506acaa6a",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M2/task-values-and-lifetime",
+      "evidenceCaseIDs": [
+        "task-cancellation-before-start",
+        "task-cancellation-caught"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Task.cancel() routes to the runtime handle; same-source probes cover cancellation before execution and cancellation observed by a running operation."
+    },
+    {
+      "id": "swift-concurrency-api-v1:deff80148e6c636e1615d41e381de1fc2a13bc6e3708fe6abfe430ab014b4468",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskInstanceMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The active-SDK escalatePriority(to:) signature is retained, but explicit handle-priority mutation has no runtime intrinsic and fails with the generated-surface diagnostic."
+    },
+    {
+      "id": "swift-concurrency-api-v1:75fdef3bb0b8f2399fc60d03830549ddbf94006ba6fbebc8ce5c6b3bd92331f8",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskInstanceMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated async nonthrowing get() overload is inventoried separately from value, but name-level runtime dispatch currently diagnoses it instead of silently aliasing it."
+    },
+    {
+      "id": "swift-concurrency-api-v1:aa2122d11311735afe468018e4da38c54134b841e2a1aa870003def423b8db2a",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskInstanceMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated async throwing get() overload is retained with its throwing effect, but name-level runtime dispatch currently diagnoses it instead of silently aliasing it."
+    },
+    {
+      "id": "swift-concurrency-api-v1:305faaf0d4919c451ea4ad6297157fb02e07c9deec85c1cb8888489bcafe4dca",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskInstanceMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated async getResult() signature is generated, but runtime member lookup diagnoses it rather than claiming an unverified alias to result."
+    },
+    {
+      "id": "swift-concurrency-api-v1:8c972be51abdb1a4d60cdba8fbd4b8d929ae7fa8bf8b30c9cb8decc1d095d1a0",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskInstanceMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "Task.hash(into:) is present in the generated denominator, while RuntimeTaskHandle has no source-visible Hashable bridge and reports an explicit unsupported diagnostic."
+    },
+    {
+      "id": "swift-concurrency-api-v1:af50861c1fea30ae512d4b6a910ff6688e7d6c1294f2c0f235966c0f55802238",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskInstanceMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "Task.hashValue is inventoried but RuntimeTaskHandle does not expose source-level Hashable semantics; lookup fails explicitly instead of returning an incidental host hash."
+    },
+    {
+      "id": "swift-concurrency-api-v1:21032dd83e986bf9c415816620e4eab9ee3edcc59fa8d95b3b18d14fd811652d",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M2/task-values-and-lifetime",
+      "evidenceCaseIDs": [
+        "task-cancellation-before-start",
+        "task-value-waiter-cancellation"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Task.isCancelled reads the runtime handle's cancellation record; same-source probes distinguish target-handle state from waiter cancellation."
+    },
+    {
+      "id": "swift-concurrency-api-v1:f9eff2cc0af6389c7f9c20861d34752bcb927c0bc2e5149bb21169ce161bdbec",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M2/task-values-and-lifetime",
+      "evidenceCaseIDs": [
+        "task-result",
+        "task-completed-handle-reads",
+        "task-result-cancellation"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "The async result property suspends on the runtime handle and preserves success, failure, cancellation, and repeated terminal reads without throwing from the property access."
+    },
+    {
+      "id": "swift-concurrency-api-v1:112154dd9af1478993b7be00630bd8ec158f526e6560970fcc6fca3bbcbbbf5a",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M2/task-values-and-lifetime",
+      "evidenceCaseIDs": [
+        "task-value-success",
+        "task-completed-handle-reads"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "The async nonthrowing value overload waits for and reproduces the stored successful outcome, including repeated reads after completion."
+    },
+    {
+      "id": "swift-concurrency-api-v1:4dadce33181cf161e6649177e59f05a9dca7b465a00c66eb0f779e3ebe603658",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M2/task-values-and-lifetime",
+      "evidenceCaseIDs": [
+        "task-value-failure",
+        "task-completed-handle-reads"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "The async throwing value overload waits for the runtime handle and rethrows its stored source failure with native-parity repeated-outcome behavior."
+    }
+  ],
   "semanticCapabilities": [
     {
       "id": "core-async-await-language",

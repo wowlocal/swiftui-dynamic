@@ -889,6 +889,35 @@ struct ConcurrencyMethodologyTests {
             containing: "JSON::ParserError")
     }
 
+    @Test func taskInstanceGeneratedSurfaceHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let taskInstanceIDs = Set(inventory.declarations.compactMap {
+            $0.domain == "task-instance-member" ? $0.id : nil
+        })
+        let taskInstanceClaims = status.interfaceOverrides.filter {
+            taskInstanceIDs.contains($0.id)
+        }
+
+        #expect(taskInstanceIDs.count == 11,
+            "the active SDK Task-instance denominator changed")
+        #expect(Set(taskInstanceClaims.map(\.id)) == taskInstanceIDs,
+            "every Task-instance overload needs an authored disposition")
+        #expect(taskInstanceClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
     @Test func coveredRequirementCannotDependOnOpenWork() {
         let statuses: [String: AcceptanceRequirementStatus] = [
             "M0/foundation": .open,

@@ -59,7 +59,7 @@ evidence that remains covered.
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity or focused runtime evidence. | Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, and fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes. | Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, and authored implementation/verification dispositions for all 11 Task-instance overload rows. | Review the remaining 139 generated top-level, Task-static, and task-group overload rows and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
@@ -4079,3 +4079,34 @@ The focused compiler/host-contract/upstream/methodology board is GREEN at 52
 tests, and the pinned-corpus sync reproduces the new support input byte for
 byte. M7 remains partial only for per-overload generated API dispositions and
 target-aware project build manifests.
+
+### M7 authored Task-instance overload dispositions
+
+The generated active-SDK denominator now has an authored claim for every one
+of its 11 `Task` instance overload rows. The RED guard observed zero explicit
+overrides and now requires the exact 11-row domain to stay fully reviewed; an
+SDK inventory change also invalidates the existing SHA-256 pin before a new
+row can inherit an accidental support claim.
+
+Five rows are `runtime-supported` with `native-parity`: `cancel()`,
+`isCancelled`, `result`, and both the nonthrowing and throwing `value`
+overloads. Their evidence is the existing same-source Swift 6 differential
+suite for cancellation, successful and failing values, `Result` outcomes,
+waiter isolation, and repeated completed-handle reads. The unchanged swiftlang
+`test/Concurrency/Runtime/async_task_handle_cancellation.swift` fixture remains
+the independent upstream cancellation anchor, pinned at SHA-256 `5829b825…`.
+
+The other six rows are not mislabeled as implemented merely because the
+generator retained their declarations. `escalatePriority(to:)`, two deprecated
+`get()` overloads, deprecated `getResult()`, `hash(into:)`, and `hashValue` are
+`diagnosed-unsupported`. A focused executable test reads every unsupported
+name through a real runtime task handle and requires the generated active-SDK
+diagnostic. Metadata assertions separately retain both `get()` effect variants,
+so name-level rejection cannot erase the per-overload denominator.
+
+The resulting inventory is 5 native-parity runtime rows, 6 focused diagnosed
+rows, and 139 still unreviewed rows. M7 therefore remains open for those 139
+top-level, Task-static, and task-group dispositions plus target-aware project
+build manifests. The focused upstream/runtime/methodology board is GREEN at 29
+tests, five representative same-source parity cases pass 20 native and
+interpreted repetitions each, and `ConcurrencySurfaceGen --check` is GREEN.
