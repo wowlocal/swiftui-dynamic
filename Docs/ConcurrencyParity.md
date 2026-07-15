@@ -3918,7 +3918,7 @@ executor enforcement is complete. M7 remains partial for synthetic member,
 initializer, property, type, and extension stubs and target-aware project build
 manifests; runtime actor isolation remains gated on M5. The focused
 compiler/host-contract/upstream/generated board is GREEN at 35 tests. The
-source-bound closing gate is GREEN over 870 tests, exact 88/88 runtime parity
+source-bound closing gate is GREEN over 886 tests, exact 88/88 runtime parity
 cases and 1,722 repetitions, the 678/680 pinned corpus ratchet, 5/5 live
 scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
 unstable / 0 no-twin.
