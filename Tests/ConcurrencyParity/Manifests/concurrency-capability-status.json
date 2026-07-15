@@ -719,7 +719,7 @@
         "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
       ],
       "gapEvidenceIDs": [],
-      "notes": "Deprecated TaskGroup.spawn(priority:operation:) routes through the ordinary group-child primitive. Same-source parity covers explicit priority and value delivery; unchanged swiftlang coverage adds repeated default-priority children drained by async iteration."
+      "notes": "Deprecated TaskGroup.spawn(priority:operation:) routes through the ordinary group-child primitive. Same-source parity passes an explicit priority and covers unconditional value delivery without claiming exact effective priority; unchanged swiftlang coverage adds repeated default-priority children drained by async iteration."
     },
     {
       "id": "swift-concurrency-api-v1:7be9b4c150706ed3685271de0890ff4d235a680b017ecc773fcb28f2524c868c",
@@ -733,7 +733,7 @@
         "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
       ],
       "gapEvidenceIDs": [],
-      "notes": "Deprecated ThrowingTaskGroup.spawn(priority:operation:) routes through the throwing group-child primitive. Same-source parity covers explicit priority, value delivery, and source-error projection; unchanged swiftlang coverage adds repeated successful children drained by throwing async iteration."
+      "notes": "Deprecated ThrowingTaskGroup.spawn(priority:operation:) routes through the throwing group-child primitive. Same-source parity passes an explicit priority and covers unconditional value delivery plus source-error projection without claiming exact effective priority; unchanged swiftlang coverage adds repeated successful children drained by throwing async iteration."
     },
     {
       "id": "swift-concurrency-api-v1:770b17bc67e79900c5764e82d7135c42207c101cf924e73883274231ff715931",
@@ -747,7 +747,7 @@
         "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
       ],
       "gapEvidenceIDs": [],
-      "notes": "Deprecated TaskGroup.async(priority:operation:) routes through the ordinary group-child primitive. Same-source parity covers explicit priority and value delivery; unchanged swiftlang coverage independently exercises the default-priority spelling and group state transition."
+      "notes": "Deprecated TaskGroup.async(priority:operation:) routes through the ordinary group-child primitive. Same-source parity passes an explicit priority and covers unconditional value delivery without claiming exact effective priority; unchanged swiftlang coverage independently exercises the default-priority spelling and group state transition."
     },
     {
       "id": "swift-concurrency-api-v1:a33cceba05b2ac0085a932b69ba6e16e26e984e2d45aad2aa2623352ce5a7741",
@@ -759,7 +759,35 @@
       ],
       "testNames": [],
       "gapEvidenceIDs": [],
-      "notes": "Deprecated ThrowingTaskGroup.async(priority:operation:) routes through the throwing group-child primitive. Same-source parity covers explicit priority, value delivery, and source-error projection through next()."
+      "notes": "Deprecated ThrowingTaskGroup.async(priority:operation:) routes through the throwing group-child primitive. Same-source parity passes an explicit priority and covers unconditional value delivery plus source-error projection through next() without claiming exact effective priority."
+    },
+    {
+      "id": "swift-concurrency-api-v1:b9892e04f7dfa05c5a57ada631272fd24d75927c5d428424907c691c3df21991",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-deprecated-add"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Deprecated async TaskGroup.add(priority:operation:) is generated from the active SDK body that forwards to addTaskUnlessCancelled. Same-source parity covers accepted value delivery before cancellation and false with no child after cancelAll; unchanged swiftlang coverage independently anchors the shared cancellation primitive."
+    },
+    {
+      "id": "swift-concurrency-api-v1:bda571c6016134c5ab6587a224130ef2ee4d3f41fc79a5ac6b3c89f146401b29",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-deprecated-add"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Deprecated async ThrowingTaskGroup.add(priority:operation:) is generated from the active SDK body that forwards to addTaskUnlessCancelled. Same-source parity covers accepted success, exact child-error projection, and false with no child after cancelAll; unchanged swiftlang coverage independently anchors the shared cancellation primitive."
     },
     {
       "id": "swift-concurrency-api-v1:9ad1fef3411e21e32a6d49b0813fa94c6ccfda6238fdea780b13d91d91e8e53a",

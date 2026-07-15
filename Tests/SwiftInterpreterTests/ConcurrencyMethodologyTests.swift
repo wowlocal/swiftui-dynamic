@@ -1158,6 +1158,40 @@ struct ConcurrencyMethodologyTests {
         })
     }
 
+    @Test func taskGroupAddHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let addRows = inventory.declarations.filter {
+            $0.domain == "task-group-member" && $0.name == "add"
+        }
+        let addIDs = Set(addRows.map(\.id))
+        let addClaims = status.interfaceOverrides.filter {
+            addIDs.contains($0.id)
+        }
+
+        #expect(addRows.count == 2,
+            "the active SDK task-group add denominator changed")
+        #expect(Set(addRows.compactMap(\.container)) == [
+            "TaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(Set(addClaims.map(\.id)) == addIDs,
+            "every task-group add declaration needs an authored disposition")
+        #expect(addClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
     @Test func taskGroupMakeAsyncIteratorHasExplicitReviewedDispositions() throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)

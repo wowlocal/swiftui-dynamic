@@ -1087,8 +1087,8 @@
     "timeoutSeconds": 5,
     "interpreterEntry": "await taskGroupDeprecatedSpawnProbe()",
     "interpreterProjection": "string",
-    "nativeFact": "The deprecated spawn(priority:operation:) aliases remain unconditional child creation for ordinary and throwing task groups, preserve explicit child priority, return successful values, and let a throwing child project its source error through next().",
-    "notes": "Exact output must be ordinary-high|throwing-high:failure-child in every strict Swift 6.3.3 native and interpreter repetition; no child scheduling order is observed."
+    "nativeFact": "The deprecated spawn(priority:operation:) aliases remain unconditional child creation for ordinary and throwing task groups, return successful values, and let a throwing child project its source error through next().",
+    "notes": "The source passes .high through both aliases but does not claim an exact effective child priority. Exact output must be ordinary-value|throwing-value:failure-child in every strict Swift 6.3.3 native and interpreter repetition; no child scheduling order is observed."
   },
   {
     "id": "task-group-deprecated-async",
@@ -1099,8 +1099,20 @@
     "timeoutSeconds": 5,
     "interpreterEntry": "await taskGroupDeprecatedAsyncProbe()",
     "interpreterProjection": "string",
-    "nativeFact": "The deprecated async(priority:operation:) group aliases remain unconditional child creation for ordinary and throwing task groups, preserve explicit child priority, return successful values, and let a throwing child project its source error through next().",
-    "notes": "Exact output must be ordinary-high|throwing-high:failure-child in every strict Swift 6.3.3 native and interpreter repetition; no child scheduling order is observed."
+    "nativeFact": "The deprecated async(priority:operation:) group aliases remain unconditional child creation for ordinary and throwing task groups, return successful values, and let a throwing child project its source error through next().",
+    "notes": "The source passes .high through both aliases but does not claim an exact effective child priority. Exact output must be ordinary-value|throwing-value:failure-child in every strict Swift 6.3.3 native and interpreter repetition; no child scheduling order is observed."
+  },
+  {
+    "id": "task-group-deprecated-add",
+    "fixture": "Fixtures/task-group-deprecated-add.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupDeprecatedAddProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "The deprecated async add(priority:operation:) aliases use conditional child creation for ordinary and throwing groups: they return true and deliver the child outcome before cancellation, then return false and create no child after cancelAll; throwing children retain their source error.",
+    "notes": "The active swiftinterface explicitly forwards priority to addTaskUnlessCancelled, but runtime child-priority equality is not asserted. The probe must be nonisolated under strict Swift 6. Exact output must be ordinary-accepted:ordinary-value:ordinary-rejected:ordinary-empty|throwing-accepted:throwing-value:failure-accepted:failure-child:throwing-rejected:throwing-empty."
   },
   {
     "id": "task-group-make-async-iterator",

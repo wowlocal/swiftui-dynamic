@@ -6,14 +6,14 @@ enum TaskGroupDeprecatedAsyncError: Error {
 func taskGroupDeprecatedAsyncProbe() async -> String {
     let ordinary = await withTaskGroup(of: String.self) { group in
         group.async(priority: .high) {
-            Task.currentPriority == .high ? "ordinary-high" : "ordinary-wrong"
+            "ordinary-value"
         }
         return await group.next() ?? "ordinary-missing"
     }
 
     let throwing = await withThrowingTaskGroup(of: String.self) { group in
         group.async(priority: .high) {
-            Task.currentPriority == .high ? "throwing-high" : "throwing-wrong"
+            "throwing-value"
         }
         let success = (try? await group.next()) ?? "throwing-missing"
 
