@@ -24,9 +24,12 @@ private enum CommandError: Error, CustomStringConvertible {
 
 private let checkFlag = "--check"
 private let outputFlag = "--output"
+private let inventoryOutputFlag = "--inventory-output"
 private let interfaceFlag = "--interface"
 private let defaultOutput =
     "Sources/SwiftInterpreter/Generated/GeneratedConcurrencySurface.swift"
+private let defaultInventoryOutput =
+    "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json"
 
 private func argument(after flag: String) throws -> String? {
     guard let index = CommandLine.arguments.firstIndex(of: flag) else {
@@ -42,31 +45,49 @@ private func run() throws {
     let interfacePath = try argument(after: interfaceFlag)
         ?? ConcurrencySurfaceGenerator.activeInterfacePath()
     let outputPath = try argument(after: outputFlag) ?? defaultOutput
+    let inventoryOutputPath = try argument(after: inventoryOutputFlag)
+        ?? defaultInventoryOutput
     guard let source = try? String(
-        contentsOfFile: interfacePath, encoding: .utf8
+        contentsOfFile: interfacePath, encoding: .utf8,
     ) else {
         throw CommandError.unreadableInterface(interfacePath)
     }
     let output = try ConcurrencySurfaceGenerator.generatedSource(
-        interfacePath: interfacePath, interfaceSource: source)
+        interfacePath: interfacePath, interfaceSource: source,
+    )
+    let inventoryOutput = try ConcurrencySurfaceGenerator
+        .generatedCapabilityInventory(
+            interfacePath: interfacePath, interfaceSource: source,
+        )
     if CommandLine.arguments.contains(checkFlag) {
-        guard let existing = try? String(
-            contentsOfFile: outputPath, encoding: .utf8
-        ) else {
-            throw CommandError.missingGeneratedOutput(outputPath)
+        for (path, expected) in [
+            (outputPath, output),
+            (inventoryOutputPath, inventoryOutput),
+        ] {
+            guard let existing = try? String(
+                contentsOfFile: path, encoding: .utf8,
+            ) else {
+                throw CommandError.missingGeneratedOutput(path)
+            }
+            guard existing == expected else {
+                throw CommandError.staleGeneratedOutput(path)
+            }
+            print("verified \(path)")
         }
-        guard existing == output else {
-            throw CommandError.staleGeneratedOutput(outputPath)
-        }
-        print("verified \(outputPath)")
         return
     }
-    let outputURL = URL(fileURLWithPath: outputPath)
-    try FileManager.default.createDirectory(
-        at: outputURL.deletingLastPathComponent(),
-        withIntermediateDirectories: true)
-    try output.write(to: outputURL, atomically: true, encoding: .utf8)
-    print("wrote \(outputPath)")
+    for (path, contents) in [
+        (outputPath, output),
+        (inventoryOutputPath, inventoryOutput),
+    ] {
+        let outputURL = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(
+            at: outputURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+        )
+        try contents.write(to: outputURL, atomically: true, encoding: .utf8)
+        print("wrote \(path)")
+    }
 }
 
 do {

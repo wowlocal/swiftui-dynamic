@@ -1,0 +1,58 @@
+[
+  {
+    "id": "remaining-generated-task-group-surface",
+    "requirementRef": "M4/remaining-task-group-surface",
+    "kind": "surface-gap",
+    "expectedObservation": "The active _Concurrency.swiftinterface inventory is generated and every mechanically exposed group member and overload has an explicit implementation/verification disposition with positive evidence or an owned negative/deferral rationale.",
+    "currentObservation": "The generated inventory retains every active task-group overload and its effect/isolation metadata. Focused isEmpty and ordinary/throwing discarding-group runtime tests exist; same-source parity for those rows, repeated wait/new-work semantics, and a reviewed runtime/diagnostic disposition for every overload remain open."
+  },
+  {
+    "id": "group-escape-project-preflight-boundary",
+    "requirementRef": "M4/group-escape-legality",
+    "kind": "surface-gap",
+    "expectedObservation": "Escaping structured TaskGroup capabilities are rejected through the same generated, target-aware host and project declarations used by real interpreter entry points.",
+    "currentObservation": "The pinned upstream TaskGroup capture diagnostic is enforced by production required preflight, but target-aware project manifests and synthetic members, initializers, properties, enclosing types, and source-level global-actor attributes are not complete."
+  },
+  {
+    "id": "actor-declaration-safety-boundary",
+    "requirementRef": "M5/actor-declaration-safety-boundary",
+    "kind": "coverage-gap",
+    "expectedObservation": "Unsupported actor execution fails closed before valid actor declarations can run with class-like identity, storage, or dispatch semantics.",
+    "currentObservation": "Native isolation diagnostics are available through preflight, but valid interpreted actor declarations can still enter the class-like declaration path without actor-owned storage or executor semantics."
+  },
+  {
+    "id": "actor-identity-storage-serial-executor",
+    "requirementRef": "M5/actor-identity-storage-and-serial-executor",
+    "kind": "coverage-gap",
+    "expectedObservation": "Actors have distinct identity, actor-owned storage, serial mailbox/executor queues, isolated entry hops, and bounded lifetime cleanup.",
+    "currentObservation": "Only logical MainActor/cooperative-default executor identity and hop restoration are covered; there is no actor-owned storage or serial mailbox."
+  },
+  {
+    "id": "actor-reentrancy-isolated-dispatch",
+    "requirementRef": "M5/actor-reentrancy-and-isolated-dispatch",
+    "kind": "coverage-gap",
+    "expectedObservation": "Actor suspension/resume is reentrant without concurrent isolated execution; isolated parameters, arbitrary global actors, failure paths, and replayable stress are covered.",
+    "currentObservation": "There is no actor resume-ownership model, isolated actor dispatch, arbitrary global-actor runtime, or mailbox/reentrancy stress board."
+  },
+  {
+    "id": "async-sequence-continuation-runtime",
+    "requirementRef": "M6/protocol-iteration-streams-and-continuations",
+    "kind": "coverage-gap",
+    "expectedObservation": "Protocol AsyncSequence iteration, streams, checked and unsafe continuations, cancellation, and cleanup have native parity.",
+    "currentObservation": "TaskGroup-specific iteration exists, but protocol iteration and continuation ownership are not implemented."
+  },
+  {
+    "id": "generated-concurrency-signatures-and-preflight",
+    "requirementRef": "M7/generated-signatures-and-preflight",
+    "kind": "surface-gap",
+    "expectedObservation": "Every declaration in the generated _Concurrency inventory scope has a reviewed implementation/verification disposition; synthetic host signatures preserve effects and isolation in compiled preflight, and target-aware manifests describe real projects.",
+    "currentObservation": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated, SDK modules are re-exported canonically, and typed synthetic top-level functions enter compiled multi-file preflight. Per-row dispositions, synthetic members, initializers, properties, enclosing types, global-actor attributes, and target-aware build manifests remain open."
+  },
+  {
+    "id": "view-owned-async-lifecycle-runtime",
+    "requirementRef": "M8/view-owned-async-lifecycle",
+    "kind": "coverage-gap",
+    "expectedObservation": "Generated .task/.task(id:)/.refreshable exposure uses a reusable lifecycle primitive with view identity, cancellation, and teardown evidence.",
+    "currentObservation": "Synchronous host callbacks enter runtime-owned tasks, but view-owned async lifecycle identity and cancellation remain open."
+  }
+]

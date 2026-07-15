@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SwiftParser
 import SwiftSyntax
@@ -32,7 +33,6 @@ public enum ConcurrencySurfaceGenerationError: Error,
         }
     }
 }
-
 public enum ConcurrencySurfaceDeclarationKind: String, Sendable, Hashable {
     case function
     case variable
@@ -110,6 +110,81 @@ public struct ConcurrencySurfaceInventory: Sendable, Equatable {
     public let knownTaskGroupMembers: [String: Set<String>]
     public let taskGroupMemberDeclarations:
         [String: [String: [ConcurrencySurfaceDeclaration]]]
+}
+
+private struct GeneratedCapabilityInventory: Encodable {
+    let schemaVersion: Int
+    let kind: String
+    let generator: String
+    let source: GeneratedCapabilitySource
+    let scope: GeneratedCapabilityScope
+    let summary: GeneratedCapabilitySummary
+    let declarations: [GeneratedCapabilityDeclaration]
+}
+
+private struct GeneratedCapabilitySource: Encodable {
+    let module: String
+    let interface: String
+    let interfaceSHA256: String
+    let interfaceFormatVersion: String
+    let compilerVersion: String
+    let targetTriple: String
+}
+
+private struct GeneratedCapabilityScope: Encodable {
+    let id: String
+    let complete: Bool
+    let accountingUnit: String
+    let included: [String]
+    let excluded: [String]
+    let adapterRouteIsSupportEvidence: Bool
+}
+
+private struct GeneratedCapabilitySummary: Encodable {
+    let declarationCount: Int
+    let adapterRoutedDeclarationCount: Int
+    let declarationsByDomain: [String: Int]
+}
+
+private struct GeneratedCapabilityDeclaration: Encodable {
+    let id: String
+    let domain: String
+    let container: String
+    let name: String
+    let kind: String
+    let declaration: String
+    let adapterIntrinsic: String?
+    let parameters: [GeneratedCapabilityParameter]
+    let returnType: String?
+    let effects: GeneratedCapabilityEffects
+    let isolation: GeneratedCapabilityIsolation
+    let attributes: [String]
+    let modifiers: [String]
+}
+
+private struct GeneratedCapabilityParameter: Encodable {
+    let label: String?
+    let name: String
+    let type: String
+    let defaultValue: String?
+    let attributes: [String]
+    let modifiers: [String]
+    let isolated: Bool
+    let inheritsActorContext: Bool
+    let isolatedFunctionType: Bool
+    let sendableFunction: Bool
+}
+
+private struct GeneratedCapabilityEffects: Encodable {
+    let async: Bool
+    let throwsKind: String
+    let thrownErrorType: String?
+}
+
+private struct GeneratedCapabilityIsolation: Encodable {
+    let globalActor: String?
+    let mutating: Bool
+    let nonisolated: Bool
 }
 
 public enum ConcurrencySurfaceGenerator {
@@ -589,6 +664,193 @@ public enum ConcurrencySurfaceGenerator {
         """ + "\n"
     }
 
+    /// Produces the checked-in, SDK-derived denominator used by the external
+    /// completeness ledger. This deliberately describes only the declaration
+    /// families parsed by `inventory(interfaceSource:)`; `scope.complete` must
+    /// remain false until the parser covers the complete public module.
+    public static func generatedCapabilityInventory(
+        interfacePath: String,
+        interfaceSource: String,
+    ) throws -> String {
+        let inventory = try inventory(interfaceSource: interfaceSource)
+        var declarations: [GeneratedCapabilityDeclaration] = []
+
+        func append(
+            domain: String,
+            container: String,
+            name: String,
+            declaration: ConcurrencySurfaceDeclaration,
+            adapterIntrinsic: String?,
+        ) {
+            let identity = [
+                "swift-concurrency-api-v1", domain, container,
+                declaration.kind.rawValue, declaration.declaration,
+            ].joined(separator: "\u{0}")
+            declarations.append(GeneratedCapabilityDeclaration(
+                id: "swift-concurrency-api-v1:" + sha256(identity),
+                domain: domain,
+                container: container,
+                name: name,
+                kind: declaration.kind.rawValue,
+                declaration: declaration.declaration,
+                adapterIntrinsic: adapterIntrinsic,
+                parameters: declaration.parameters.map { parameter in
+                    GeneratedCapabilityParameter(
+                        label: parameter.label,
+                        name: parameter.name,
+                        type: parameter.type,
+                        defaultValue: parameter.defaultValue,
+                        attributes: parameter.attributes,
+                        modifiers: parameter.modifiers,
+                        isolated: parameter.isIsolated,
+                        inheritsActorContext: parameter.inheritsActorContext,
+                        isolatedFunctionType:
+                        parameter.hasIsolatedFunctionType,
+                        sendableFunction: parameter.isSendableFunction,
+                    )
+                },
+                returnType: declaration.returnType,
+                effects: GeneratedCapabilityEffects(
+                    async: declaration.isAsync,
+                    throwsKind: declaration.throwsKind.rawValue,
+                    thrownErrorType: declaration.thrownErrorType,
+                ),
+                isolation: GeneratedCapabilityIsolation(
+                    globalActor: declaration.globalActor,
+                    mutating: declaration.isMutating,
+                    nonisolated: declaration.isNonisolated,
+                ),
+                attributes: declaration.attributes,
+                modifiers: declaration.modifiers,
+            ))
+        }
+
+        for name in inventory.topLevelFunctionDeclarations.keys.sorted() {
+            for declaration in inventory.topLevelFunctionDeclarations[
+                name, default: [],
+            ] {
+                append(
+                    domain: "top-level-function",
+                    container: "_Concurrency",
+                    name: name,
+                    declaration: declaration,
+                    adapterIntrinsic:
+                    inventory.topLevelFunctionDispatch[name],
+                )
+            }
+        }
+        for name in inventory.taskStaticMemberDeclarations.keys.sorted() {
+            for declaration in inventory.taskStaticMemberDeclarations[
+                name, default: [],
+            ] {
+                append(
+                    domain: "task-static-member",
+                    container: "Task",
+                    name: name,
+                    declaration: declaration,
+                    adapterIntrinsic: inventory.taskStaticDispatch[name],
+                )
+            }
+        }
+        for name in inventory.taskInstanceMemberDeclarations.keys.sorted() {
+            for declaration in inventory.taskInstanceMemberDeclarations[
+                name, default: [],
+            ] {
+                append(
+                    domain: "task-instance-member",
+                    container: "Task",
+                    name: name,
+                    declaration: declaration,
+                    adapterIntrinsic: inventory.taskInstanceDispatch[name],
+                )
+            }
+        }
+        for typeName in taskGroupTypes.sorted() {
+            let members = inventory.taskGroupMemberDeclarations[
+                typeName, default: [:],
+            ]
+            for name in members.keys.sorted() {
+                for declaration in members[name, default: []] {
+                    append(
+                        domain: "task-group-member",
+                        container: typeName,
+                        name: name,
+                        declaration: declaration,
+                        adapterIntrinsic:
+                        inventory.taskGroupDispatch[typeName]?[name],
+                    )
+                }
+            }
+        }
+
+        declarations.sort {
+            ($0.domain, $0.container, $0.name, $0.declaration, $0.id)
+                < ($1.domain, $1.container, $1.name, $1.declaration, $1.id)
+        }
+        var declarationsByDomain: [String: Int] = [:]
+        for declaration in declarations {
+            declarationsByDomain[declaration.domain, default: 0] += 1
+        }
+        let moduleFlags = interfaceHeaderValue(
+            "swift-module-flags", in: interfaceSource,
+        )
+        let moduleFlagParts = moduleFlags.split(separator: " ").map(String.init)
+        let targetTriple = moduleFlagParts.firstIndex(of: "-target").flatMap {
+            moduleFlagParts.indices.contains($0 + 1) ? moduleFlagParts[$0 + 1] : nil
+        } ?? "unknown"
+        let document = GeneratedCapabilityInventory(
+            schemaVersion: 1,
+            kind: "swift-concurrency-api-inventory",
+            generator: "ConcurrencySurfaceGen",
+            source: GeneratedCapabilitySource(
+                module: "_Concurrency",
+                interface: portableInterfaceLabel(interfacePath),
+                interfaceSHA256: sha256(interfaceSource),
+                interfaceFormatVersion: interfaceHeaderValue(
+                    "swift-interface-format-version", in: interfaceSource,
+                ),
+                compilerVersion: interfaceHeaderValue(
+                    "swift-compiler-version", in: interfaceSource,
+                ),
+                targetTriple: targetTriple,
+            ),
+            scope: GeneratedCapabilityScope(
+                id: "top-level-functions-and-task-family-members-v1",
+                complete: false,
+                accountingUnit:
+                "public declaration row after canonical-text deduplication",
+                included: [
+                    "public top-level function overloads",
+                    "public static and instance Task function/variable declarations",
+                    "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
+                ],
+                excluded: [
+                    "public nominal types and members outside the selected Task/task-group families",
+                    "Task and other public initializers",
+                    "protocol requirements, type aliases, subscripts, and associated types",
+                    "nested and conditional-compilation declarations not reached by the current top-level walker",
+                    "availability evaluation and non-identifier variable bindings",
+                    "enclosing extension attributes, conformances, generic constraints, and duplicate declarations collapsed by canonical declaration text",
+                ],
+                adapterRouteIsSupportEvidence: false,
+            ),
+            summary: GeneratedCapabilitySummary(
+                declarationCount: declarations.count,
+                adapterRoutedDeclarationCount: declarations.count {
+                    $0.adapterIntrinsic != nil
+                },
+                declarationsByDomain: declarationsByDomain,
+            ),
+            declarations: declarations,
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [
+            .prettyPrinted, .sortedKeys, .withoutEscapingSlashes,
+        ]
+        return try String(decoding: encoder.encode(document), as: UTF8.self)
+            + "\n"
+    }
+
     private static func command(
         _ executable: String, _ arguments: [String]
     ) throws -> String {
@@ -937,5 +1199,23 @@ public enum ConcurrencySurfaceGenerator {
             return URL(fileURLWithPath: path).lastPathComponent
         }
         return "<macOS SDK>" + path[range.lowerBound...]
+    }
+
+    private static func sha256(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8)).map {
+            String(format: "%02x", $0)
+        }.joined()
+    }
+
+    private static func interfaceHeaderValue(
+        _ name: String, in source: String,
+    ) -> String {
+        let prefix = "// \(name):"
+        return source.split(separator: "\n").first {
+            $0.hasPrefix(prefix)
+        }.map {
+            String($0.dropFirst(prefix.count))
+                .trimmingCharacters(in: .whitespaces)
+        } ?? "unknown"
     }
 }

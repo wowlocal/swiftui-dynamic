@@ -1,10 +1,17 @@
 # Swift Concurrency: Target Architecture and Native-Parity Plan
 
-Status: proposed target design
+Status: normative target design; live implementation status is tracked in
+`ConcurrencyParity.md` and the machine-checked milestone acceptance manifest
 Scope: `SwiftInterpreter`, host gateways, SwiftUI lifecycle integration, and
 native differential verification
 Primary compatibility target: Swift 6 as implemented by the active Apple
 toolchain
+
+Operational verification rules, evidence workflows, process-isolation policy,
+and milestone closure criteria live in
+[`ConcurrencyVerificationMethodology.md`](ConcurrencyVerificationMethodology.md).
+The target architecture is intentionally not rewritten as a chronological
+implementation log.
 
 ## 1. Purpose
 
@@ -26,22 +33,21 @@ truth by themselves.
 
 ## 2. Executive summary
 
-The current interpreter has a useful async compatibility layer:
+The implementation has completed the first ownership migration: every source
+task has an `EvaluationTaskContext`, and the shared parked-frame protocol has
+been removed. A cooperative runtime now owns task IDs/records, typed outcomes,
+wait edges, cancellation state, priorities, task locals, clocks, suspension
+reasons, async-let scopes, and the currently covered task-group semantics.
+`ConcurrencyParity.md` records the exact supported subset and known gaps.
 
-- `runAsync` propagates suspension through interpreted functions;
-- async host gateways can genuinely suspend;
-- source `Task {}` bodies run in native Swift tasks;
-- cancellation is polled;
-- evaluator state is parked around host suspension;
-- descendant task work can be drained by the session.
-
-This is a strong migration base, but it is not yet a complete concurrency
-runtime. The central limitation is that dynamic evaluator state belongs to one
-shared `Interpreter` object. At an `await`, that state is copied out, cleared,
-and restored so another main-actor task can use the same interpreter. This
-works for the currently tested interleavings but does not provide the ownership
-model needed by structured concurrency, actor executors, task locals, true
-task joining, or eventual parallel execution.
+This is a strong migration base, but it is not yet the full target concurrency
+runtime. Source execution is still driven by native Swift tasks/continuations,
+the interpreter still combines program/session/heap responsibilities, and
+there is no runtime-owned executor queue, actor storage, continuation registry,
+or protocol-level async-sequence runtime. The remaining Task API work is a
+bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
+architecture built on scheduler/session ownership, not broader
+name-dispatched Task API surface.
 
 The stable target separates five concerns:
 
@@ -74,15 +80,12 @@ InterpreterSession ─────────────── HostGatewayRunt
                 └── evaluation budget
 ```
 
-The first mandatory architectural change is to give every interpreted task its
-own `EvaluationTaskContext`. Adding more concurrency APIs before that change
-would extend the surface while preserving a fragile shared-state core.
-
-The second mandatory change is a real task runtime. A source task must have a
-typed result, failure, waiters, cancellation state, parent/scope relationships,
-task-local values, priority, and executor preference. `await task.value` must
-actually suspend until completion. Structured children must be distinguished
-from unstructured and detached tasks.
+The first two mandatory architectural changes—task-owned evaluator context and
+a real logical task runtime—are implemented for the ledgered subset. M2 now
+includes weak ownership proof that an escaped completed handle releases its
+session and native driver. M3 now includes seeded, exactly replayable
+cancellation-race exploration; terminal outcome and cancellation remain
+independent dimensions.
 
 Actors and global actors are built on top of the task runtime and executor
 model. They are not special classes and cannot be implemented faithfully as
@@ -158,8 +161,9 @@ never counts as support.
 
 Once a native probe establishes a rule, it becomes a committed fixture. A
 handwritten expected value without the native source is insufficient evidence.
-Toolchain identity is captured with every parity run so SDK or compiler changes
-can be audited rather than silently accepted.
+Toolchain identity is persisted by every closing parity gate so SDK or compiler
+changes can be audited rather than silently accepted. Focused parity tests
+validate the active toolchain but are not historical receipts.
 
 ## 4. Current architecture and its ceiling
 
@@ -191,32 +195,20 @@ Eventually the targets should separate:
 
 This split happens only after runtime ownership is explicit.
 
-### 4.2 Shared dynamic evaluator state
+### 4.2 Task-owned evaluator state; shared session state remains
 
-The current `Interpreter` owns dynamic fields such as:
+Step/call-depth counters, active declarations and recursion guards, lexical
+owner frames, type/return context, temporary async identifiers, task locals,
+priority, current logical executor, and structured-scope frames now belong to
+one `EvaluationTaskContext`. Host callbacks carry that context explicitly, and
+task completion clears it. `withParkedEvaluatorFrames` no longer exists.
 
-- step and call-depth counters;
-- active functions, extensions, initializers, and equality pairs;
-- lexical-owner frames;
-- expected-type and return-type stacks;
-- temporary async identifiers;
-- scheduled task handles.
-
-These are properties of an evaluation task, not properties of the parsed
-program or runtime heap.
-
-`withParkedEvaluatorFrames` saves these fields before awaiting a host gateway,
-clears the shared instance, and restores them after resumption. This is an
-effective bridge during migration, but it has structural weaknesses:
-
-- every new dynamic stack must be remembered in the parked snapshot;
-- nested host re-entry can observe the wrong shared state if any field is
-  omitted;
-- a task cannot own its evaluator state independently;
-- actor and task-local context have no natural home;
-- eventual parallel execution would race immediately.
-
-The correct fix is ownership, not a larger parked snapshot.
+The remaining ceiling is one level higher: `Interpreter` still combines
+parsed declarations, global/runtime heap state, scheduled task handles, and the
+cooperative runtime. Overlapping sessions on one interpreter would therefore
+share mutable program/global state even though their per-task dynamic state is
+independent. The target `ParsedProgram`/`InterpreterSession`/`RuntimeHeap`
+separation remains required before executor-neutral or parallel operation.
 
 ### 4.3 Async overlay over synchronous evaluation
 
@@ -225,36 +217,32 @@ them asynchronously, rewrites the eager expression with temporary values, and
 delegates the remainder to mature synchronous machinery. This successfully
 reuses operator, assignment, lvalue, and member semantics.
 
-It becomes progressively harder to extend for constructs whose lifetime is a
-scope rather than one expression:
+Task-owned structured frames now cover the ledgered async-let, task-group,
+iteration, cancellation-handler, and `defer` combinations. The overlay still
+becomes progressively harder to extend for constructs requiring a runtime-owned
+resume point or executor queue:
 
-- `async let`;
-- task groups;
-- `for await`;
-- cancellation handlers;
 - actor executor hops;
 - continuations;
-- `defer` interacting with suspended scopes.
+- general async sequences/streams;
+- runtime-controlled scheduling and replay.
 
 The target evaluator must represent suspension as a first-class execution
 outcome and preserve one task-owned frame stack across it.
 
-### 4.4 Task handles are observational, not yet complete task values
+### 4.4 Logical task values and driver detachment are implemented
 
-`RuntimeTaskHandle` records a native task and a small lifecycle state. It is a
-useful starting point, but a Swift task value also requires:
+`RuntimeTaskHandle` now exposes runtime-owned IDs, typed logical outcomes,
+suspending `value`/`result`, multiple waiters, task-kind and structured-scope
+relationships, task-local/priority/executor inheritance, and explicit
+cancellation state. Incomplete reads do not return placeholders.
 
-- generic success and failure contracts;
-- a suspending `value` access;
-- `result` production;
-- multiple waiters;
-- structured-scope membership;
-- inherited task locals and priority;
-- executor inheritance;
-- precise cancellation relationships.
-
-Reading a not-yet-completed handle must never return a placeholder merely
-because the current member system is synchronous.
+When active bookkeeping releases a completed task, its escaped source handle
+switches to a compact value-only snapshot and drops the runtime record, session,
+and native driver. Weak-reference coverage proves those execution resources
+deallocate. The snapshot retains the typed immutable outcome and a separate
+cancellation state, so later reads remain stable and late source `cancel()`
+updates the handle flag without changing its terminal outcome.
 
 ### 4.5 Actors are currently class-like
 
@@ -1097,6 +1085,9 @@ synchronous render pass.
 | Actor `Instance` | Yes | Actor executor | Actor-confined |
 | SwiftUI state boxes | Yes | Main actor/view identity | Main-actor-confined |
 | `RuntimeTaskRecord` | Yes | Concurrency runtime | Runtime actor-confined |
+| `RuntimeStructuredScopeRecord` | Yes | Concurrency runtime/owner task | Runtime actor-confined |
+| `RuntimeTaskGroupRecord` | Yes | Concurrency runtime/owner task | Runtime actor-confined |
+| Lexical cleanup frame | Yes | One evaluation task | Never shared concurrently |
 | Task-local map | Persistent value | One task | Copied/inherited structurally |
 | Host opaque value | Varies | Declared host contract | Contract-specific Sendable/isolation |
 | Continuation record | Yes | Concurrency runtime | Exactly-once synchronized transition |
@@ -1125,13 +1116,20 @@ This matrix must be updated whenever a new mutable runtime component is added.
                  │
                  └──────────────▶ running
 
-Cancellation request may occur in pending, running, or waiting.
-It records a request immediately. Final transition depends on native semantics
-and the next cooperative observation point:
+Cancellation request is an orthogonal state dimension and may occur in
+pending, running, waiting, or terminal state. It records the request
+immediately without itself selecting a terminal outcome:
 
-  pending  ───────────────▶ cancelled
-  waiting  ──wake/error───▶ running or cancelled
-  running  ──observe──────▶ cancelled or source-handled outcome
+  pending  ──request──────▶ pending + cancellation requested
+  waiting  ──request──────▶ waiting + cancellation requested; a cancellable
+                             suspension may wake or throw
+  running  ──observe──────▶ source handles/returns/throws, or completes as
+                             cancelled according to the native operation
+  terminal ──request──────▶ same immutable outcome + handle marked cancelled
+
+Source cancellation before entry does not suppress an unstructured operation.
+Only the separate session/host-abort path may prevent source entry during
+infrastructure teardown.
 ```
 
 Completion is immutable. Double completion or double continuation resume is a
@@ -1441,8 +1439,30 @@ evidence for global runtime cleanup.
 
 ## 14. Migration plan
 
-Each milestone is independently gated. The next milestone does not begin while
-the current foundation has unexplained failures.
+Each milestone is independently gated through
+`Tests/ConcurrencyParity/Manifests/milestone-acceptance.json`. Its
+`executionPlan` records the current tail and next major cycle explicitly:
+
+- M0 through M3 are the completed task-runtime foundation;
+- M4 and M7 form the bounded Task API/compiler-surface closeout tail;
+- M5 actor/executor architecture is the next major runtime cycle; it may admit
+  dependency-ready characterization, but cannot close before M4 and M7;
+- M6 requires executor/resume ownership from M5;
+- M8 may characterize host entry incrementally, but view-owned async lifecycle
+  closure requires M2, M5, and M7; and
+- M9 remains deferred until the ownership/isolation/lifecycle prerequisites are
+  complete.
+
+M5 is intentionally decomposed. Its entry slice makes actor declarations fail
+closed instead of executing with class-like semantics. The next slice installs
+actor identity/storage and serial executor queues; only then do isolated
+dispatch, reentrancy/resume ownership, arbitrary global actors, and mailbox
+stress become closable work.
+
+A dependency-ready characterization may land before an earlier partial
+milestone closes. It must not claim guarantees supplied by an open dependency,
+and unexplained failures still block all dependent work. The executable matrix,
+not chronological prose, determines what may close.
 
 ### Milestone 0: native parity infrastructure
 
@@ -1638,12 +1658,16 @@ Proof:
 
 ### Per iteration
 
-- compile and run the new native probe;
-- run the equivalent interpreted case;
-- add a focused regression test that fails before the fix;
+- declare the change as gap closure or characterization under
+  `ConcurrencyVerificationMethodology.md`;
+- compile and run the new native probe in a bounded process;
+- run the equivalent interpreted case in a bounded process;
+- for gap closure, capture the failing interpreter observation before the fix;
+- for characterization, record that no production change was required;
+- add a focused ownership/state/cleanup regression where applicable;
 - run the relevant test filter;
 - inspect the diff for app/probe-specific behavior;
-- update the parity ledger.
+- update the acceptance matrix and parity ledger.
 
 ### Per milestone
 
@@ -1655,6 +1679,8 @@ Proof:
 - repository closing gate (`Scripts/gate.sh`) when supported by the current
   environment;
 - fresh-process cleanup/leak check;
+- non-vacuous milestone stress/race requirements;
+- retained machine-readable verification receipt;
 - documentation/status audit.
 
 Tests and thresholds are never weakened merely to preserve a previous claim.
@@ -1740,12 +1766,14 @@ A concurrency feature is complete only when:
 2. the active real compiler has compiled or diagnosed it;
 3. the guaranteed part of the native behavior is written down;
 4. the same semantic source executes through the interpreter;
-5. a differential test failed before the implementation and passes afterward;
+5. gap closure preserves a captured RED-to-GREEN result, or characterization
+   records that the same-source case was already GREEN;
 6. success, error, cancellation, and scope-exit paths are covered where
    applicable;
 7. the implementation is construct-based rather than fixture-specific;
 8. relevant and full regression gates pass;
-9. the parity ledger records its exact status and remaining divergence.
+9. the acceptance matrix and parity ledger record its exact status and
+   remaining divergence.
 
 ### Stable concurrency foundation
 
@@ -1778,18 +1806,23 @@ the agent to read, not something that must be copied into the GOAL field.
 Реализуй стабильный фундамент Swift Concurrency для интерпретатора строго по
 Docs/SwiftConcurrencyArchitecture.md.
 
-Перед началом полностью прочитай документ. Начни с самого раннего
-незавершённого milestone и двигайся небольшими проверяемыми изменениями.
+Перед началом полностью прочитай документ и
+Docs/ConcurrencyVerificationMethodology.md. Выбери самый ранний открытый
+requirement, чьи dependency уже выполнены, и двигайся небольшими проверяемыми
+изменениями.
 
 Для каждого изменения семантики обязательно:
 1. Сформулируй один точный семантический вопрос.
 2. Напиши минимальный native Swift probe.
 3. Скомпилируй и запусти его реальным swiftc в Swift 6 mode.
 4. Зафиксируй только доказанную гарантию, не случайный порядок scheduler.
-5. Добавь same-source differential test и сначала зафиксируй RED.
-6. Реализуй минимальный общий механизм без fixture-specific special cases.
-7. Доведи differential test до GREEN, запусти targeted tests и gate milestone.
-8. Обнови Docs/ConcurrencyParity.md и сделай минимальный зелёный коммит.
+5. Объяви workflow: gap closure или characterization. Для gap closure сначала
+   зафиксируй RED; для уже GREEN characterization не выдумывай ошибку.
+6. Добавь same-source differential test.
+7. Реализуй минимальный общий механизм без fixture-specific special cases, если
+   gap closure требует production change.
+8. Доведи проверки до GREEN, обнови acceptance matrix и
+   Docs/ConcurrencyParity.md, запусти targeted tests и gate milestone.
 
 Не добавляй silent no-op support, не ослабляй тесты и не затрагивай пользовательские
 изменения в worktree. Не переходи к более поздним API, пока не выполнены архитектурные
@@ -1823,8 +1856,9 @@ Source of truth:
   probe with the active real swiftc in Swift 6 mode.
 - Documentation, memory, existing interpreter behavior, and one observed
   scheduler order are not sufficient evidence.
-- Every semantic implementation begins with a native probe and a failing
-  differential interpreter test.
+- Every semantic change declares the gap-closure or characterization workflow.
+  Gap closure begins with a failing differential observation; an already-green
+  characterization never fabricates RED evidence.
 
 Before the first change:
 1. Run `git status --short` and record all existing modifications.
@@ -1833,8 +1867,8 @@ Before the first change:
    contracts, and existing async tests referenced by that document.
 4. Record swiftc version/path, SDK, target, and strict-concurrency flags.
 5. Run the existing targeted async tests to establish the starting baseline.
-6. Start at the earliest incomplete milestone. Do not skip architectural
-   prerequisites to add a later API surface.
+6. Select the earliest open acceptance requirement whose dependency edges are
+   satisfied. Do not skip architectural prerequisites to add later API surface.
 
 Mandatory native parity loop for every behavior:
 1. State one precise Swift semantic question.
@@ -1847,10 +1881,13 @@ Mandatory native parity loop for every behavior:
    diagnostic, or unspecified.
 7. Write down only the guarantee proved by the probe.
 8. Run equivalent source through Interpreter.runAsync.
-9. Add a focused differential test that demonstrates the current gap.
-10. Implement the smallest general mechanism that closes the gap.
+9. Declare the workflow: capture a failing differential observation for gap
+   closure, or record an already-green characterization without inventing RED.
+10. For gap closure, implement the smallest general mechanism that closes the
+    gap. Characterization does not require a production change.
 11. Re-run native and interpreted cases plus targeted regressions.
-12. Update Docs/ConcurrencyParity.md and the feature status.
+12. Update the acceptance matrix, Docs/ConcurrencyParity.md, and feature
+    status.
 
 Native probe rules:
 - Prefer one shared source fixture for native and interpreter execution.
@@ -1929,7 +1966,7 @@ Verification:
   it closes.
 
 Completion:
-- Continue with the smallest open gap in the earliest incomplete milestone.
+- Continue with the smallest dependency-ready open acceptance requirement.
 - A feature is not complete until it has a compiled native fixture, a written
   guarantee, a differential test, general implementation, cancellation/error
   coverage where applicable, green gates, and an updated parity status.
@@ -1964,8 +2001,16 @@ Before accepting any concurrency change, reviewers ask:
 - Which executor owns the resumed work?
 - Can a host callback re-enter while another task is suspended?
 - Is the implementation general or keyed to the fixture?
+- Is interface-encoded API surface generated and attached to a reusable
+  semantic intrinsic instead of recognized by another raw source-name branch?
 - Does synchronous compatibility hide a canonical async failure?
 - Is this feature exact, partial, compatibility-only, or unsupported?
+- Is this gap closure with captured RED evidence, or an already-green
+  characterization?
+- Are native and interpreted executions bounded, and does the shard receipt
+  prove exact manifest coverage?
+- Is the fixture assigned to an acceptance requirement, and does the closing
+  receipt identify the exact source/toolchain/manifest?
 - Did the full gate preserve every existing ratchet?
 
 If any answer is missing, the change is not ready to claim parity.

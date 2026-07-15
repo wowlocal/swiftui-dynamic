@@ -1,9 +1,16 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 public enum ParallelCheckError: Error, CustomStringConvertible {
     case invalidOption(String)
     case childFailed(index: Int, status: Int32, diagnostics: String)
+    case childTimedOut(index: Int, timeoutSeconds: TimeInterval, diagnostics: String)
     case missingSummary(index: Int)
+    case multipleSummaries(index: Int, count: Int)
     case malformedSummary(index: Int, line: String)
     case inconsistentCounters(index: Int, expected: [String], actual: [String])
     case missingCounter(String)
@@ -14,8 +21,14 @@ public enum ParallelCheckError: Error, CustomStringConvertible {
             return message
         case .childFailed(let index, let status, let diagnostics):
             return "check shard \(index) exited with status \(status): \(diagnostics)"
+        case .childTimedOut(let index, let timeoutSeconds, let diagnostics):
+            let timeout = timeoutSeconds.formatted(
+                .number.precision(.fractionLength(0...3)))
+            return "check shard \(index) exceeded its \(timeout)-second deadline: \(diagnostics)"
         case .missingSummary(let index):
             return "check shard \(index) did not emit a machine-readable summary"
+        case .multipleSummaries(let index, let count):
+            return "check shard \(index) emitted \(count) machine-readable summaries; expected one"
         case .malformedSummary(let index, let line):
             return "check shard \(index) emitted a malformed summary: \(line)"
         case .inconsistentCounters(let index, let expected, let actual):
@@ -173,18 +186,90 @@ public struct ParallelCheckOutput: Sendable {
     public let status: Int32
     public let standardOutput: String
     public let standardError: String
+    public let timeoutSeconds: TimeInterval?
+
+    public var timedOut: Bool { timeoutSeconds != nil }
+
+    public init(
+        shardIndex: Int,
+        status: Int32,
+        standardOutput: String,
+        standardError: String,
+        timeoutSeconds: TimeInterval? = nil
+    ) {
+        self.shardIndex = shardIndex
+        self.status = status
+        self.standardOutput = standardOutput
+        self.standardError = standardError
+        self.timeoutSeconds = timeoutSeconds
+    }
 }
 
 public enum ParallelCheckRunner {
     private static let summaryPrefix = "@@parallel-check-summary "
+    private static let timeoutEnvironmentVariable =
+        "DYNAMIC_SWIFT_CHECK_TIMEOUT_SECONDS"
+    private static let defaultTimeout: TimeInterval = 30 * 60
 
     /// Starts every child before waiting for any child, so the workers execute
     /// concurrently without requiring shared mutable Swift state.
     public static func runSelf(
         jobs: Int,
-        arguments: [String] = Array(CommandLine.arguments.dropFirst())
+        arguments: [String] = Array(CommandLine.arguments.dropFirst()),
+        timeout: TimeInterval? = nil,
+        terminationGracePeriod: TimeInterval = 2
     ) throws -> [ParallelCheckOutput] {
         guard jobs > 1 else { return [] }
+
+        let childTimeout: TimeInterval
+        if let timeout {
+            childTimeout = timeout
+        } else if let configured = ProcessInfo.processInfo.environment[
+            timeoutEnvironmentVariable]
+        {
+            guard let value = TimeInterval(configured), value.isFinite, value > 0 else {
+                throw ParallelCheckError.invalidOption(
+                    "\(timeoutEnvironmentVariable) must be a positive number, got '\(configured)'")
+            }
+            childTimeout = value
+        } else {
+            childTimeout = defaultTimeout
+        }
+
+        return try run(
+            executableURL: URL(fileURLWithPath: CommandLine.arguments[0]),
+            jobs: jobs,
+            arguments: arguments,
+            currentDirectoryURL: URL(
+                fileURLWithPath: FileManager.default.currentDirectoryPath,
+                isDirectory: true),
+            environment: ProcessInfo.processInfo.environment,
+            timeout: childTimeout,
+            terminationGracePeriod: terminationGracePeriod)
+    }
+
+    /// Runs a sharded executable under one deadline per child. This internal
+    /// entry point also lets CheckSupport exercise crash and timeout behavior
+    /// without recursively launching its own test bundle.
+    static func run(
+        executableURL: URL,
+        jobs: Int,
+        arguments: [String],
+        currentDirectoryURL: URL? = nil,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval,
+        terminationGracePeriod: TimeInterval = 2
+    ) throws -> [ParallelCheckOutput] {
+        guard jobs > 0 else {
+            throw ParallelCheckError.invalidOption("jobs must be greater than zero")
+        }
+        guard timeout.isFinite, timeout > 0 else {
+            throw ParallelCheckError.invalidOption("child timeout must be a positive number")
+        }
+        guard terminationGracePeriod.isFinite, terminationGracePeriod >= 0 else {
+            throw ParallelCheckError.invalidOption(
+                "termination grace period must be a nonnegative number")
+        }
 
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
             "dynamic-swift-check-\(UUID().uuidString)", isDirectory: true)
@@ -206,16 +291,14 @@ public enum ParallelCheckRunner {
                 let stdout = try FileHandle(forWritingTo: stdoutURL)
                 let stderr = try FileHandle(forWritingTo: stderrURL)
                 let process = Process()
-                process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+                process.executableURL = executableURL
                 process.arguments = baseArguments + [
                     "--jobs", "1",
                     "--shard-index", String(shardIndex),
                     "--shard-count", String(jobs),
                 ]
-                process.currentDirectoryURL = URL(
-                    fileURLWithPath: FileManager.default.currentDirectoryPath,
-                    isDirectory: true)
-                process.environment = ProcessInfo.processInfo.environment
+                process.currentDirectoryURL = currentDirectoryURL
+                process.environment = environment
                 process.standardOutput = stdout
                 process.standardError = stderr
                 do {
@@ -231,18 +314,36 @@ public enum ParallelCheckRunner {
                     stdout: stdout,
                     stderr: stderr,
                     stdoutURL: stdoutURL,
-                    stderrURL: stderrURL))
+                    stderrURL: stderrURL,
+                    startedAt: ProcessInfo.processInfo.systemUptime))
             }
         } catch {
-            for child in children where child.process.isRunning {
-                child.process.terminate()
-            }
+            terminate(children, gracePeriod: terminationGracePeriod)
             for child in children {
                 child.process.waitUntilExit()
                 try? child.stdout.close()
                 try? child.stderr.close()
             }
             throw error
+        }
+
+        var timedOutShardIndices: Set<Int> = []
+        while children.contains(where: { $0.process.isRunning }) {
+            let now = ProcessInfo.processInfo.systemUptime
+            let overdue = children.filter {
+                $0.process.isRunning && now - $0.startedAt >= timeout
+            }
+            if !overdue.isEmpty {
+                timedOutShardIndices.formUnion(overdue.map(\.shardIndex))
+                // Once one shard exceeds its deadline, the aggregate result is
+                // already invalid. Stop siblings too so a second stuck shard
+                // cannot extend the coordinator's failure path.
+                terminate(
+                    children.filter { $0.process.isRunning },
+                    gracePeriod: terminationGracePeriod)
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.01)
         }
 
         var outputs: [ParallelCheckOutput] = []
@@ -258,7 +359,10 @@ public enum ParallelCheckRunner {
                 standardOutput: (try? String(
                     contentsOf: child.stdoutURL, encoding: .utf8)) ?? "",
                 standardError: (try? String(
-                    contentsOf: child.stderrURL, encoding: .utf8)) ?? ""))
+                    contentsOf: child.stderrURL, encoding: .utf8)) ?? "",
+                timeoutSeconds: timedOutShardIndices.contains(child.shardIndex)
+                    ? timeout
+                    : nil))
         }
         return outputs.sorted { $0.shardIndex < $1.shardIndex }
     }
@@ -274,23 +378,34 @@ public enum ParallelCheckRunner {
     public static func aggregate(
         _ outputs: [ParallelCheckOutput]
     ) throws -> ParallelCheckSummary {
+        // Check timeouts before statuses because siblings are deliberately
+        // terminated when one shard times out. The deadline is the root cause.
+        if let output = outputs.first(where: \.timedOut) {
+            throw ParallelCheckError.childTimedOut(
+                index: output.shardIndex,
+                timeoutSeconds: output.timeoutSeconds ?? 0,
+                diagnostics: diagnostics(for: output))
+        }
         var counters: [String: Int] = [:]
         var expectedCounterNames: Set<String>?
         for output in outputs {
             guard output.status == 0 else {
-                let diagnostics = output.standardError.isEmpty
-                    ? String(output.standardOutput.suffix(2_000))
-                    : String(output.standardError.suffix(2_000))
                 throw ParallelCheckError.childFailed(
                     index: output.shardIndex,
                     status: output.status,
-                    diagnostics: diagnostics)
+                    diagnostics: diagnostics(for: output))
             }
             let lines = output.standardOutput.split(
                 separator: "\n", omittingEmptySubsequences: false)
-            guard let line = lines.last(where: { $0.hasPrefix(summaryPrefix) }) else {
+            let summaryLines = lines.filter { $0.hasPrefix(summaryPrefix) }
+            guard !summaryLines.isEmpty else {
                 throw ParallelCheckError.missingSummary(index: output.shardIndex)
             }
+            guard summaryLines.count == 1 else {
+                throw ParallelCheckError.multipleSummaries(
+                    index: output.shardIndex, count: summaryLines.count)
+            }
+            let line = summaryLines[0]
             let json = line.dropFirst(summaryPrefix.count)
             guard let data = String(json).data(using: .utf8),
                   let summary = try? JSONDecoder().decode(
@@ -333,6 +448,108 @@ public enum ParallelCheckRunner {
             }
         }
     }
+
+    private static func diagnostics(for output: ParallelCheckOutput) -> String {
+        output.standardError.isEmpty
+            ? String(output.standardOutput.suffix(2_000))
+            : String(output.standardError.suffix(2_000))
+    }
+
+    private static func terminate(
+        _ children: [ChildProcess],
+        gracePeriod: TimeInterval
+    ) {
+        // Snapshot descendants before TERM. If a parent exits first, an
+        // uncooperative descendant is reparented and can no longer be found by
+        // walking the original tree during escalation.
+        let processIdentities = children.flatMap { child in
+            descendantProcessIdentifiers(of: child.process.processIdentifier)
+                + [child.process.processIdentifier]
+        }.compactMap { processIdentity(for: $0) }
+        for identity in processIdentities {
+            signal(SIGTERM, ifStill: identity)
+        }
+
+        let deadline = ProcessInfo.processInfo.systemUptime + gracePeriod
+        while children.contains(where: { $0.process.isRunning }),
+              ProcessInfo.processInfo.systemUptime < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+
+        for identity in processIdentities {
+            signal(SIGKILL, ifStill: identity)
+        }
+    }
+
+    /// A captured PID alone is unsafe across a TERM grace period because the
+    /// kernel may reuse it for an unrelated process before escalation.
+    private static func processIdentity(for identifier: pid_t) -> ProcessIdentity? {
+        #if canImport(Darwin)
+        var info = proc_bsdinfo()
+        let expectedSize = Int32(MemoryLayout<proc_bsdinfo>.size)
+        let actualSize = proc_pidinfo(
+            identifier,
+            PROC_PIDTBSDINFO,
+            0,
+            &info,
+            expectedSize)
+        guard actualSize == expectedSize else { return nil }
+        return ProcessIdentity(
+            identifier: identifier,
+            startToken: "\(info.pbi_start_tvsec):\(info.pbi_start_tvusec)")
+        #else
+        guard let stat = try? String(
+            contentsOfFile: "/proc/\(identifier)/stat",
+            encoding: .utf8),
+              let commandEnd = stat.lastIndex(of: ")") else { return nil }
+        let fields = stat[stat.index(after: commandEnd)...].split {
+            $0 == " " || $0 == "\n"
+        }
+        // The suffix begins at proc(5) field 3; starttime is field 22.
+        guard fields.indices.contains(19) else { return nil }
+        return ProcessIdentity(
+            identifier: identifier,
+            startToken: String(fields[19]))
+        #endif
+    }
+
+    private static func signal(_ signal: Int32, ifStill identity: ProcessIdentity) {
+        guard processIdentity(for: identity.identifier) == identity else { return }
+        kill(identity.identifier, signal)
+    }
+
+    #if canImport(Darwin)
+    private static func descendantProcessIdentifiers(
+        of parent: pid_t
+    ) -> [pid_t] {
+        // Despite the buffer being byte-sized, this API's successful return is
+        // a PID count. Dividing it by MemoryLayout<pid_t>.stride drops children.
+        let estimatedCount = proc_listchildpids(parent, nil, 0)
+        guard estimatedCount > 0 else { return [] }
+        var children = [pid_t](
+            repeating: 0,
+            count: Int(estimatedCount) + 8)
+        let returnedCount = children.withUnsafeMutableBytes { buffer in
+            proc_listchildpids(parent, buffer.baseAddress, Int32(buffer.count))
+        }
+        guard returnedCount > 0 else { return [] }
+        return children.prefix(min(children.count, Int(returnedCount)))
+            .filter { $0 > 0 }.flatMap {
+                descendantProcessIdentifiers(of: $0) + [$0]
+            }
+    }
+    #else
+    private static func descendantProcessIdentifiers(
+        of parent: pid_t
+    ) -> [pid_t] {
+        guard let children = try? String(
+            contentsOfFile: "/proc/\(parent)/task/\(parent)/children",
+            encoding: .utf8) else { return [] }
+        return children.split(whereSeparator: \.isWhitespace)
+            .compactMap { pid_t($0) }
+            .flatMap { descendantProcessIdentifiers(of: $0) + [$0] }
+    }
+    #endif
 }
 
 private struct ChildProcess {
@@ -342,4 +559,10 @@ private struct ChildProcess {
     let stderr: FileHandle
     let stdoutURL: URL
     let stderrURL: URL
+    let startedAt: TimeInterval
+}
+
+private struct ProcessIdentity: Equatable {
+    let identifier: pid_t
+    let startToken: String
 }

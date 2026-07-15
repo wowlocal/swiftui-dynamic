@@ -72,6 +72,13 @@ state.
   `swift test --skip-build` commands still acquire the same SwiftPM workspace
   lock and serialize. Every other test uses that helper's
   `--parallel --num-workers` runner.
+  Each shard emits exactly one `@@concurrency-parity-summary` JSON marker with
+  its selected and completed case IDs/repetition counts plus a per-case digest
+  of the sorted native observations. The gate rejects missing or duplicate
+  markers, shard-index/count mismatches, incomplete work, overlapping
+  selections, or a union different from the runtime manifest. Interpreted
+  repetitions run in bounded fresh child processes, so a source deadlock is a
+  case timeout and process-global state cannot leak into the next observation.
 
 Do not shard before filtering or limiting: doing so changes which cases a
 bounded run covers. Do not let worker processes update a shared verification
@@ -123,7 +130,16 @@ All allocations can be overridden:
 | `GATE_PARITY_TEST_WORKERS` | Processes partitioning concurrency parity fixtures | remaining half |
 | `GATE_EVAL_WORKERS` | Workers per `ProjectCheck` and `ParityCheck` while those boards overlap | half the base budget |
 | `GATE_LIVE_WORKERS` | LiveCheck processes in its isolated stage | `min(base, 4)` |
+| `GATE_BUILD_TIMEOUT_SECONDS` | Whole build-stage deadline | `1800` |
+| `GATE_TEST_TIMEOUT_SECONDS` | Main-test plus concurrency-shard deadline | `1800` |
+| `GATE_EVAL_TIMEOUT_SECONDS` | Corpus plus API-parity deadline | `1800` |
+| `GATE_LIVE_TIMEOUT_SECONDS` | Live-stage deadline | `1800` |
+| `GATE_CHILD_TIMEOUT_SECONDS` | Deadline passed to process-sharding check tools | `1500` |
+| `GATE_TERMINATION_GRACE_SECONDS` | TERM grace before process-tree KILL | `5` |
 | `GATE_KEEP_LOGS=1` | Preserve the temporary build/worker logs and print their directory | disabled |
+| `GATE_RECEIPT_PATH` | Machine-readable closing receipt | `.build/gate-receipt.json` |
+| `GATE_EXPECTED_TOOLCHAIN_FINGERPRINT` | Require a pinned combined build/native/SDK fingerprint; unset records without pinning | unset |
+| `GATE_CAPABILITY_INVENTORY_INPUT_PATH` / `GATE_CAPABILITY_STATUS_INPUT_PATH` | Override only the physical accounting inputs for fail-closed negative controls; the receipt records both canonical and physical paths | checked-in manifests |
 
 Every worker value must be a positive integer. Setting an override above the
 base budget is an explicit request to oversubscribe; the gate does not silently
@@ -136,6 +152,9 @@ Scripts/gate.sh
 GATE_JOBS=4 Scripts/gate.sh
 GATE_EVAL_WORKERS=2 GATE_LIVE_WORKERS=1 Scripts/gate.sh
 GATE_KEEP_LOGS=1 Scripts/gate.sh
+GATE_TEST_TIMEOUT_SECONDS=900 Scripts/gate.sh
+GATE_RECEIPT_PATH=/tmp/gate-receipt.json Scripts/gate.sh
+GATE_EXPECTED_TOOLCHAIN_FINGERPRINT="$PINNED_TOOLCHAIN_FINGERPRINT" Scripts/gate.sh
 
 .build/debug/ProjectCheck --all --force --jobs 4
 .build/debug/ParityCheck --jobs 4
@@ -194,3 +213,35 @@ Any replacement algorithm must retain deterministic coverage, per-process
 semantic isolation, bounded resource use, full exit-status propagation, and an
 aggregate count check. Benchmark both wall time and peak RSS; optimizing only
 one can make the gate less usable on smaller machines.
+
+## Closing receipt and timeout policy
+
+Every stage and process worker has a finite wall-clock deadline. Timeout
+handling snapshots the process tree, sends TERM, waits the configured grace
+period, sends KILL to survivors, and returns RED. Every shell identity combines
+the PID with a captured process-start token and is revalidated before each
+signal, so PID reuse cannot redirect escalation. The gate watchdogs bound the
+build, test discovery and execution, evaluation boards, and live work;
+`ParallelCheckRunner`
+independently bounds the worker processes launched by each check executable.
+
+The gate writes its receipt on both GREEN and RED exit before deleting
+temporary logs. It recomputes the commit and dirty-worktree fingerprint at
+completion; any drift during verification turns an otherwise GREEN run RED.
+The JSON receipt records both source snapshots, parity/acceptance-manifest
+digests and parity counts, plus the generated concurrency-inventory and
+authored-status digests, pin result, scope flag, and resolved status counts.
+Malformed accounting or an SDK inventory/status pin mismatch blocks the build
+and produces RED. The receipt also records the build/test Swift driver,
+native-oracle compiler, SDK/target versions, worker/deadline configuration,
+per-stage status/duration, board summaries, parity-shard
+validation/native-observation digests, and a digest of the temporary evidence
+logs. RED receipts also retain stage exit statuses, timeout messages, bounded
+log tails, parity-validator diagnostics, interruptions, and source-drift
+details so the failure remains actionable after temporary logs are removed.
+Local runs print the
+receipt path; CI retains that file as the auditable closing artifact. Temporary
+logs remain optional because their digest and aggregate verdict survive in the
+receipt. A nominally green run becomes RED if the required receipt cannot be
+validated and installed atomically; if receipt creation itself fails, the gate
+keeps the temporary logs automatically.

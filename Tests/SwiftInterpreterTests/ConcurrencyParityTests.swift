@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 import Testing
@@ -43,6 +44,47 @@ private struct ParityProcessResult {
     let timedOut: Bool
 }
 
+private struct InterpretedParityChildReceipt: Codable, Equatable {
+    let version: Int
+    let caseID: String
+    let processIdentifier: Int32
+    let output: String
+}
+
+private struct ConcurrencyParityShard {
+    let index: Int
+    let count: Int
+    let cases: [ConcurrencyParityCase]
+}
+
+private struct ConcurrencyParityShardReceipt: Encodable {
+    let version: Int
+    let shardIndex: Int
+    let shardCount: Int
+    let selectedCount: Int
+    let completedCount: Int
+    let selectedIDs: [String]
+    let completedIDs: [String]
+    let selectedRepetitionsByCase: [String: Int]
+    let completedRepetitionsByCase: [String: Int]
+    let nativeObservationSHA256ByCase: [String: String]
+}
+
+private struct RecordedOpenConcurrencyGap: Decodable {
+    let id: String
+    let requirementRef: String
+    let kind: String
+    let expectedObservation: String
+    let currentObservation: String
+    let reproductionTest: String?
+    let parityCase: ConcurrencyParityCase?
+}
+
+private struct ParityProcessIdentity: Equatable {
+    let identifier: pid_t
+    let startToken: String
+}
+
 private struct ConcurrencyToolchainFingerprint: CustomStringConvertible {
     let swiftcPath: String
     let swiftVersion: String
@@ -68,6 +110,12 @@ private struct DetachedHostCallback: @unchecked Sendable {
 }
 
 private enum ConcurrencyParityHarness {
+    private static let childCaseEnvironmentVariable =
+        "DYNAMIC_SWIFT_PARITY_CHILD_CASE_ID"
+    private static let childOutputEnvironmentVariable =
+        "DYNAMIC_SWIFT_PARITY_CHILD_OUTPUT_PATH"
+    private static let shardSummaryPrefix = "@@concurrency-parity-summary "
+
     static let packageRoot: URL = {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -85,23 +133,41 @@ private enum ConcurrencyParityHarness {
             [ConcurrencyParityCase].self, from: Data(contentsOf: url))
     }
 
+    static func loadOpenGaps() throws -> [RecordedOpenConcurrencyGap] {
+        let url = parityRoot.appendingPathComponent(
+            "Manifests/open-gaps.json")
+        return try JSONDecoder().decode(
+            [RecordedOpenConcurrencyGap].self, from: Data(contentsOf: url))
+    }
+
     /// `Scripts/gate.sh` runs this long native/interpreter differential test
     /// in independent processes. A normal focused `swift test` has no shard
     /// environment and continues to cover the complete manifest.
     static func selectRuntimeShard(
         from cases: [ConcurrencyParityCase]
     ) throws -> [ConcurrencyParityCase] {
+        try runtimeShard(from: cases).cases
+    }
+
+    static func runtimeShard(
+        from cases: [ConcurrencyParityCase]
+    ) throws -> ConcurrencyParityShard {
         let environment = ProcessInfo.processInfo.environment
         let rawIndex = environment["DYNAMIC_SWIFT_PARITY_SHARD_INDEX"]
         let rawCount = environment["DYNAMIC_SWIFT_PARITY_SHARD_COUNT"]
-        guard rawIndex != nil || rawCount != nil else { return cases }
+        guard rawIndex != nil || rawCount != nil else {
+            return ConcurrencyParityShard(index: 0, count: 1, cases: cases)
+        }
         guard let rawIndex, let rawCount,
               let index = Int(rawIndex), let count = Int(rawCount),
               count > 0, index >= 0, index < count else {
             throw RuntimeError(message:
                 "parity shard environment requires 0 <= index < positive count")
         }
-        return try selectShard(from: cases, index: index, count: count)
+        return ConcurrencyParityShard(
+            index: index,
+            count: count,
+            cases: try selectShard(from: cases, index: index, count: count))
     }
 
     static func selectShard(
@@ -163,11 +229,14 @@ private enum ConcurrencyParityHarness {
         _ = try successful(compile, operation: "compile \(parityCase.id)")
 
         var outputs: [String] = []
-        for _ in 0..<max(1, parityCase.repetitions) {
+        let repetitionCount = max(1, parityCase.repetitions)
+        for repetition in 0..<repetitionCount {
             let execution = run(
                 binary, [], timeout: parityCase.timeoutSeconds)
             let successfulExecution = try successful(
-                execution, operation: "run \(parityCase.id)")
+                execution,
+                operation: "run \(parityCase.id) repetition "
+                    + "\(repetition + 1)/\(repetitionCount)")
             outputs.append(successfulExecution.standardOutput.trimmed)
         }
         return outputs
@@ -189,19 +258,109 @@ private enum ConcurrencyParityHarness {
             timeout: parityCase.timeoutSeconds)
     }
 
-    @MainActor
     static func interpretedOutputs(
-        for parityCase: ConcurrencyParityCase
-    ) async throws -> [String] {
+        for parityCase: ConcurrencyParityCase,
+        repetitions: Int? = nil
+    ) throws -> [String] {
+        guard !isInterpretedChild else {
+            throw RuntimeError(message:
+                "an interpreted parity child cannot recursively launch another child")
+        }
+        let helper = try testingHelperURL()
+        let testBundle = try testBundleExecutableURL()
         var outputs: [String] = []
-        for _ in 0..<max(1, parityCase.repetitions) {
-            outputs.append(try await interpretedOutput(for: parityCase))
+        var childProcessIdentifiers: Set<Int32> = []
+        let repetitionCount = max(1, repetitions ?? parityCase.repetitions)
+        for repetition in 0..<repetitionCount {
+            let directory = try makeTemporaryDirectory(
+                for: "interpreted-\(parityCase.id)")
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let receiptURL = directory.appendingPathComponent("receipt.json")
+            var environment = ProcessInfo.processInfo.environment
+            environment[childCaseEnvironmentVariable] = parityCase.id
+            environment[childOutputEnvironmentVariable] = receiptURL.path
+            let execution = run(
+                helper,
+                [
+                    "--test-bundle-path", testBundle.path,
+                    "--skip-build",
+                    "--no-parallel",
+                    "--filter",
+                    "SwiftInterpreterTests.ConcurrencyParityTests/interpretedParityChild",
+                    testBundle.path,
+                    "--testing-library", "swift-testing",
+                ],
+                timeout: parityCase.timeoutSeconds,
+                environment: environment)
+            _ = try successful(
+                execution,
+                operation: "run interpreted parity child \(parityCase.id) "
+                    + "repetition \(repetition + 1)/\(repetitionCount)")
+            guard FileManager.default.fileExists(atPath: receiptURL.path) else {
+                throw RuntimeError(message:
+                    "interpreted parity child '\(parityCase.id)' exited without a receipt")
+            }
+            let receipt = try JSONDecoder().decode(
+                InterpretedParityChildReceipt.self,
+                from: Data(contentsOf: receiptURL))
+            guard receipt.version == 1,
+                  receipt.caseID == parityCase.id,
+                  receipt.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+                  childProcessIdentifiers.insert(receipt.processIdentifier).inserted else {
+                throw RuntimeError(message:
+                    "interpreted parity child '\(parityCase.id)' wrote an invalid receipt")
+            }
+            outputs.append(receipt.output)
         }
         return outputs
     }
 
+    static var isInterpretedChild: Bool {
+        ProcessInfo.processInfo.environment[childCaseEnvironmentVariable] != nil
+            || ProcessInfo.processInfo.environment[childOutputEnvironmentVariable] != nil
+    }
+
+    static func interpretedChildRequest() throws -> (
+        parityCase: ConcurrencyParityCase,
+        outputURL: URL
+    )? {
+        let environment = ProcessInfo.processInfo.environment
+        let caseID = environment[childCaseEnvironmentVariable]
+        let outputPath = environment[childOutputEnvironmentVariable]
+        guard caseID != nil || outputPath != nil else { return nil }
+        guard let caseID, !caseID.isEmpty,
+              let outputPath, !outputPath.isEmpty else {
+            throw RuntimeError(message:
+                "interpreted parity child requires both its case ID and output path")
+        }
+        let openGapCases = try loadOpenGaps().compactMap(\.parityCase)
+        let matches = try (loadCases() + openGapCases).filter {
+            $0.mode == .runtime && $0.id == caseID
+        }
+        guard matches.count == 1, let parityCase = matches.first else {
+            throw RuntimeError(message:
+                "interpreted parity child requested unknown or duplicate case '\(caseID)'")
+        }
+        return (parityCase, URL(fileURLWithPath: outputPath))
+    }
+
+    static func writeInterpretedChildReceipt(
+        caseID: String,
+        output: String,
+        to outputURL: URL
+    ) throws {
+        let receipt = InterpretedParityChildReceipt(
+            version: 1,
+            caseID: caseID,
+            processIdentifier: ProcessInfo.processInfo.processIdentifier,
+            output: output)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(receipt).write(to: outputURL, options: .atomic)
+    }
+
     @MainActor
-    private static func interpretedOutput(
+    static func interpretedOutput(
         for parityCase: ConcurrencyParityCase
     ) async throws -> String {
         guard let entry = parityCase.interpreterEntry,
@@ -591,9 +750,17 @@ private enum ConcurrencyParityHarness {
             }
 
         case .stress:
-            guard !native.isEmpty else { return ["stress assertion needs native completion"] }
-            guard !interpreted.isEmpty else { return ["stress assertion needs interpreter completion"] }
-            return []
+            guard let expected = native.first else {
+                return ["stress assertion needs native completion"]
+            }
+            guard !interpreted.isEmpty else {
+                return ["stress assertion needs interpreter completion"]
+            }
+            return (Array(native.dropFirst()) + interpreted).compactMap { output in
+                output == expected
+                    ? nil
+                    : "stress output '\(output)' differs from native terminal '\(expected)'"
+            }
         case .diagnostic:
             return ["diagnostics are validated from compiler status/stderr"]
         }
@@ -630,13 +797,64 @@ private enum ConcurrencyParityHarness {
         _ result: ParityProcessResult, operation: String
     ) throws -> ParityProcessResult {
         if result.timedOut {
-            throw RuntimeError(message: "\(operation) timed out")
+            let diagnostics = [result.standardError, result.standardOutput]
+                .map(\.trimmed).filter { !$0.isEmpty }.joined(separator: "\n")
+            throw RuntimeError(message:
+                "\(operation) timed out"
+                    + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
         }
         if result.status != 0 {
+            let diagnostics = [result.standardError, result.standardOutput]
+                .map(\.trimmed).filter { !$0.isEmpty }.joined(separator: "\n")
             throw RuntimeError(message:
-                "\(operation) failed (\(result.status)):\n\(result.standardError)")
+                "\(operation) failed (\(result.status)):\n\(diagnostics)")
         }
         return result
+    }
+
+    static func emitShardReceipt(
+        shard: ConcurrencyParityShard,
+        completedIDs: [String],
+        completedRepetitionsByCase: [String: Int],
+        nativeObservationSHA256ByCase: [String: String]
+    ) {
+        let selectedIDs = shard.cases.map(\.id)
+        let selectedRepetitionsByCase = Dictionary(uniqueKeysWithValues:
+            shard.cases.map { ($0.id, max(1, $0.repetitions)) })
+        let receipt = ConcurrencyParityShardReceipt(
+            version: 1,
+            shardIndex: shard.index,
+            shardCount: shard.count,
+            selectedCount: selectedIDs.count,
+            completedCount: completedIDs.count,
+            selectedIDs: selectedIDs,
+            completedIDs: completedIDs,
+            selectedRepetitionsByCase: selectedRepetitionsByCase,
+            completedRepetitionsByCase: completedRepetitionsByCase,
+            nativeObservationSHA256ByCase: nativeObservationSHA256ByCase)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(receipt),
+              let json = String(data: data, encoding: .utf8) else {
+            print("\(shardSummaryPrefix){\"encodingError\":true}")
+            return
+        }
+        print(shardSummaryPrefix + json)
+    }
+
+    static func nativeObservationDigest(
+        caseID: String,
+        outputs: [String]
+    ) throws -> String {
+        let data = try JSONSerialization.data(
+            withJSONObject: [
+                "caseID": caseID,
+                "outputs": outputs.sorted(),
+            ],
+            options: [.sortedKeys])
+        return SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     private static func makeTemporaryDirectory(for id: String) throws -> URL {
@@ -649,11 +867,60 @@ private enum ConcurrencyParityHarness {
         return directory
     }
 
+    private static func loadedImageURLs() -> [URL] {
+        (0..<_dyld_image_count()).compactMap { index in
+            guard let name = _dyld_get_image_name(index) else { return nil }
+            return URL(fileURLWithPath: String(cString: name))
+        }
+    }
+
+    static func testBundleExecutableURL() throws -> URL {
+        guard let url = loadedImageURLs().first(where: {
+            $0.path.contains(".xctest/Contents/MacOS/")
+                && FileManager.default.isExecutableFile(atPath: $0.path)
+        }) else {
+            throw RuntimeError(message:
+                "could not locate the loaded SwiftPM test bundle executable")
+        }
+        return url
+    }
+
+    static func testingHelperURL() throws -> URL {
+        if let executable = CommandLine.arguments.first {
+            let url = URL(fileURLWithPath: executable)
+            if url.lastPathComponent == "swiftpm-testing-helper",
+               FileManager.default.isExecutableFile(atPath: url.path) {
+                return url
+            }
+        }
+
+        for testingLibrary in loadedImageURLs()
+        where testingLibrary.lastPathComponent == "libTesting.dylib" {
+            var toolchainUSR = testingLibrary
+            for _ in 0..<5 { toolchainUSR.deleteLastPathComponent() }
+            let helper = toolchainUSR.appendingPathComponent(
+                "libexec/swift/pm/swiftpm-testing-helper")
+            if FileManager.default.isExecutableFile(atPath: helper.path) {
+                return helper
+            }
+        }
+        throw RuntimeError(message:
+            "could not locate the active toolchain's swiftpm-testing-helper")
+    }
+
     static func run(
         _ executable: URL,
         _ arguments: [String],
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        environment: [String: String]? = nil
     ) -> ParityProcessResult {
+        guard timeout.isFinite, timeout > 0 else {
+            return ParityProcessResult(
+                status: -1,
+                standardOutput: "",
+                standardError: "timeout must be a positive finite number",
+                timedOut: false)
+        }
         let outputDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(
                 "dynamic-swift-process-\(UUID().uuidString)",
@@ -681,6 +948,7 @@ private enum ConcurrencyParityHarness {
         process.executableURL = executable
         process.arguments = arguments
         process.currentDirectoryURL = packageRoot
+        if let environment { process.environment = environment }
         process.standardOutput = stdout
         process.standardError = stderr
 
@@ -692,19 +960,42 @@ private enum ConcurrencyParityHarness {
                 standardError: String(describing: error), timedOut: false)
         }
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline {
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        while process.isRunning,
+              ProcessInfo.processInfo.systemUptime < deadline {
             Thread.sleep(forTimeInterval: 0.01)
         }
         let timedOut = process.isRunning
         if timedOut {
-            process.terminate()
-            let terminationDeadline = Date().addingTimeInterval(0.25)
-            while process.isRunning, Date() < terminationDeadline {
+            // Capture PID plus process start time before TERM. A parent can
+            // exit during the grace period and orphan an uncooperative child;
+            // a bare PID is also unsafe because the kernel can reuse it before
+            // escalation.
+            let identities = (descendantProcessIdentifiers(
+                of: process.processIdentifier) + [process.processIdentifier])
+                .compactMap { processIdentity(for: $0) }
+            for identity in identities {
+                signal(SIGTERM, ifStill: identity)
+            }
+            let graceDeadline = ProcessInfo.processInfo.systemUptime + 0.05
+            while identities.contains(where: { isRunning($0) }),
+                  ProcessInfo.processInfo.systemUptime < graceDeadline {
+                Thread.sleep(forTimeInterval: 0.005)
+            }
+            for identity in identities {
+                signal(SIGKILL, ifStill: identity)
+            }
+            let terminationDeadline =
+                ProcessInfo.processInfo.systemUptime + 0.25
+            while process.isRunning,
+                  ProcessInfo.processInfo.systemUptime < terminationDeadline {
                 Thread.sleep(forTimeInterval: 0.01)
             }
             if process.isRunning {
-                _ = Darwin.kill(process.processIdentifier, SIGKILL)
+                if let identity = processIdentity(
+                    for: process.processIdentifier) {
+                    signal(SIGKILL, ifStill: identity)
+                }
             }
         }
         process.waitUntilExit()
@@ -720,6 +1011,55 @@ private enum ConcurrencyParityHarness {
             standardOutput: standardOutput,
             standardError: standardError,
             timedOut: timedOut)
+    }
+
+    private static func descendantProcessIdentifiers(
+        of parent: pid_t
+    ) -> [pid_t] {
+        // `proc_listchildpids` returns a PID count, not a byte count.
+        let estimatedCount = proc_listchildpids(parent, nil, 0)
+        guard estimatedCount > 0 else { return [] }
+        var children = [pid_t](
+            repeating: 0,
+            count: Int(estimatedCount) + 8)
+        let returnedCount = children.withUnsafeMutableBytes { buffer in
+            proc_listchildpids(
+                parent, buffer.baseAddress, Int32(buffer.count))
+        }
+        guard returnedCount > 0 else { return [] }
+        return children.prefix(min(children.count, Int(returnedCount)))
+            .filter { $0 > 0 }.flatMap {
+                descendantProcessIdentifiers(of: $0) + [$0]
+            }
+    }
+
+    private static func processIdentity(
+        for identifier: pid_t
+    ) -> ParityProcessIdentity? {
+        var info = proc_bsdinfo()
+        let expectedSize = Int32(MemoryLayout<proc_bsdinfo>.size)
+        let actualSize = proc_pidinfo(
+            identifier,
+            PROC_PIDTBSDINFO,
+            0,
+            &info,
+            expectedSize)
+        guard actualSize == expectedSize else { return nil }
+        return ParityProcessIdentity(
+            identifier: identifier,
+            startToken: "\(info.pbi_start_tvsec):\(info.pbi_start_tvusec)")
+    }
+
+    private static func isRunning(_ identity: ParityProcessIdentity) -> Bool {
+        processIdentity(for: identity.identifier) == identity
+    }
+
+    private static func signal(
+        _ signal: Int32,
+        ifStill identity: ParityProcessIdentity
+    ) {
+        guard isRunning(identity) else { return }
+        _ = Darwin.kill(identity.identifier, signal)
     }
 }
 
@@ -740,17 +1080,37 @@ struct ConcurrencyParityTests {
     }
 
     @Test func runtimeFixturesMatchNativeGuarantees() async throws {
+        // The process-isolated child runner selects only interpretedParityChild,
+        // but keep this guard as a second recursion barrier if test filtering
+        // behavior changes in a future Testing/SwiftPM release.
+        guard !ConcurrencyParityHarness.isInterpretedChild else { return }
         let allCases = try ConcurrencyParityHarness.loadCases()
             .filter { $0.mode == .runtime }
         #expect(!allCases.isEmpty)
-        let cases = try ConcurrencyParityHarness.selectRuntimeShard(
+        let shard = try ConcurrencyParityHarness.runtimeShard(
             from: allCases)
+        var completedIDs: [String] = []
+        var completedRepetitionsByCase: [String: Int] = [:]
+        var nativeObservationSHA256ByCase: [String: String] = [:]
+        defer {
+            ConcurrencyParityHarness.emitShardReceipt(
+                shard: shard,
+                completedIDs: completedIDs,
+                completedRepetitionsByCase: completedRepetitionsByCase,
+                nativeObservationSHA256ByCase: nativeObservationSHA256ByCase)
+        }
 
-        for parityCase in cases {
+        for parityCase in shard.cases {
             let native = try ConcurrencyParityHarness.nativeOutputs(
                 for: parityCase)
-            let interpreted = try await ConcurrencyParityHarness
+            let interpreted = try ConcurrencyParityHarness
                 .interpretedOutputs(for: parityCase)
+            let expectedRepetitions = max(1, parityCase.repetitions)
+            guard native.count == expectedRepetitions,
+                  interpreted.count == expectedRepetitions else {
+                throw RuntimeError(message:
+                    "\(parityCase.id) did not complete every repetition")
+            }
             let problems = ConcurrencyParityHarness.violations(
                 assertion: parityCase.assertion,
                 native: native,
@@ -762,6 +1122,102 @@ struct ConcurrencyParityTests {
             if !problems.isEmpty {
                 Issue.record("\(parityCase.id): \(problems.joined(separator: "; "))")
             }
+            nativeObservationSHA256ByCase[parityCase.id] = try
+                ConcurrencyParityHarness.nativeObservationDigest(
+                    caseID: parityCase.id, outputs: native)
+            completedRepetitionsByCase[parityCase.id] = expectedRepetitions
+            completedIDs.append(parityCase.id)
+        }
+    }
+
+    @Test func interpretedParityChild() async throws {
+        guard let request = try ConcurrencyParityHarness
+            .interpretedChildRequest() else { return }
+        let output = try await ConcurrencyParityHarness.interpretedOutput(
+            for: request.parityCase)
+        try ConcurrencyParityHarness.writeInterpretedChildReceipt(
+            caseID: request.parityCase.id,
+            output: output,
+            to: request.outputURL)
+    }
+
+    @Test func processIsolatedInterpreterChildProducesValidatedReceipt() throws {
+        guard !ConcurrencyParityHarness.isInterpretedChild else { return }
+        let parityCase = try #require(
+            ConcurrencyParityHarness.loadCases().first {
+                $0.id == "async-function-exact"
+            })
+        let outputs = try ConcurrencyParityHarness.interpretedOutputs(
+            for: parityCase,
+            repetitions: 2)
+        #expect(outputs == ["ready", "ready"])
+    }
+
+    @Test func parityProcessRunnerEnforcesHardDeadlineForChildTree() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "dynamic-swift-timeout-test-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let childPIDURL = directory.appendingPathComponent("child-pid")
+        let scriptURL = directory.appendingPathComponent("descendant.sh")
+        try """
+        #!/bin/sh
+        trap '' TERM
+        depth="$1"
+        pid_file="$2"
+        if [ "$depth" -gt 0 ]; then
+            /bin/sh "$0" "$((depth - 1))" "$pid_file" &
+            child=$!
+            if [ "$depth" -eq 1 ]; then
+                echo "$child" > "$pid_file"
+            fi
+            wait "$child"
+        else
+            while :; do :; done
+        fi
+        """.write(to: scriptURL, atomically: true, encoding: .utf8)
+        let result = ConcurrencyParityHarness.run(
+            URL(fileURLWithPath: "/bin/sh"),
+            [
+                scriptURL.path,
+                "2",
+                childPIDURL.path,
+            ],
+            timeout: 0.1)
+        #expect(result.timedOut)
+
+        let rawChildPID = try String(
+            contentsOf: childPIDURL, encoding: .utf8).trimmed
+        let childPID = try #require(pid_t(rawChildPID))
+        for _ in 0..<25 where Darwin.kill(childPID, 0) == 0 {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        #expect(Darwin.kill(childPID, 0) == -1 && errno == ESRCH)
+    }
+
+    @Test func registeredNativeRedGapsAreExecutable() throws {
+        guard !ConcurrencyParityHarness.isInterpretedChild else { return }
+        let allGaps = try ConcurrencyParityHarness.loadOpenGaps()
+        #expect(!allGaps.isEmpty)
+        let gaps = allGaps.filter {
+            $0.kind == "native-red"
+        }
+
+        for gap in gaps {
+            let parityCase = try #require(gap.parityCase)
+            let native = try ConcurrencyParityHarness.nativeOutputs(
+                for: parityCase)
+            let interpreted = try ConcurrencyParityHarness.interpretedOutputs(
+                for: parityCase)
+            #expect(native == [gap.expectedObservation],
+                "\(gap.id) native baseline drifted")
+            #expect(interpreted == [gap.currentObservation],
+                "\(gap.id) interpreter RED changed; close or update the gap")
+            #expect(native != interpreted,
+                "\(gap.requirementRef) is no longer RED and must be closed")
         }
     }
 
@@ -805,12 +1261,34 @@ struct ConcurrencyParityTests {
             interpreted: ["interpreter"])
         #expect(!exactMismatch.isEmpty)
 
+        let unstableNativeExact = ConcurrencyParityHarness.violations(
+            assertion: .exact,
+            native: ["first", "second"],
+            interpreted: ["first"])
+        #expect(!unstableNativeExact.isEmpty)
+
         let allowed = ConcurrencyParityHarness.violations(
             assertion: .allowedSet,
             native: ["a", "b"],
             interpreted: ["b"],
             allowedOutputs: ["a", "b"])
         #expect(allowed.isEmpty)
+
+        let reversedPartialOrder = ConcurrencyParityHarness.violations(
+            assertion: .partialOrder,
+            native: ["first,second"],
+            interpreted: ["second,first"],
+            requiredEvents: ["first", "second"],
+            precedes: [["first", "second"]])
+        #expect(!reversedPartialOrder.isEmpty)
+
+        let missingPartialOrderEvent = ConcurrencyParityHarness.violations(
+            assertion: .partialOrder,
+            native: ["first,second"],
+            interpreted: ["first"],
+            requiredEvents: ["first", "second"],
+            precedes: [["first", "second"]])
+        #expect(!missingPartialOrderEvent.isEmpty)
 
         let predicate = ConcurrencyParityHarness.violations(
             assertion: .predicate,
@@ -824,6 +1302,30 @@ struct ConcurrencyParityTests {
             native: [],
             interpreted: [])
         #expect(!emptyStress.isEmpty)
+
+        let matchingStress = ConcurrencyParityHarness.violations(
+            assertion: .stress,
+            native: ["completed", "completed"],
+            interpreted: ["completed", "completed"])
+        #expect(matchingStress.isEmpty)
+
+        let unstableStress = ConcurrencyParityHarness.violations(
+            assertion: .stress,
+            native: ["completed", "unexpected"],
+            interpreted: ["arbitrary"])
+        #expect(unstableStress.count == 2)
+    }
+
+    @Test func nativeObservationDigestIsOrderIndependentAndContentSensitive() throws {
+        let first = try ConcurrencyParityHarness.nativeObservationDigest(
+            caseID: "probe", outputs: ["b", "a", "a"])
+        let reordered = try ConcurrencyParityHarness.nativeObservationDigest(
+            caseID: "probe", outputs: ["a", "b", "a"])
+        let changed = try ConcurrencyParityHarness.nativeObservationDigest(
+            caseID: "probe", outputs: ["a", "b"])
+        #expect(first.count == 64)
+        #expect(first == reordered)
+        #expect(first != changed)
     }
 
     @Test func harnessRejectsIntentionallyBadInterpreterParity() throws {

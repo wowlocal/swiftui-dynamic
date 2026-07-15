@@ -1,5 +1,11 @@
+import Foundation
 import Testing
 @testable import CheckSupport
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 @Suite struct ParallelCheckRunnerTests {
     @Test func parsesAndStripsRunnerOptions() throws {
@@ -89,5 +95,133 @@ import Testing
         #expect(throws: ParallelCheckError.self) {
             try ParallelCheckRunner.aggregate(outputs)
         }
+    }
+
+    @Test func aggregateRejectsDuplicateSummaries() {
+        let output = ParallelCheckOutput(
+            shardIndex: 3,
+            status: 0,
+            standardOutput: """
+                @@parallel-check-summary {"counters":{"passed":1}}
+                details
+                @@parallel-check-summary {"counters":{"passed":1}}
+                """,
+            standardError: "")
+
+        do {
+            _ = try ParallelCheckRunner.aggregate([output])
+            Issue.record("expected duplicate summary failure")
+        } catch let error as ParallelCheckError {
+            guard case .multipleSummaries(let index, let count) = error else {
+                Issue.record("expected multipleSummaries, got \(error)")
+                return
+            }
+            #expect(index == 3)
+            #expect(count == 2)
+        } catch {
+            Issue.record("expected ParallelCheckError, got \(error)")
+        }
+    }
+
+    @Test func childCrashIsPreservedByAggregation() throws {
+        let outputs = try runShell(
+            #"echo 'deliberate shard crash' >&2; exit 23"#)
+
+        do {
+            _ = try ParallelCheckRunner.aggregate(outputs)
+            Issue.record("expected child failure")
+        } catch let error as ParallelCheckError {
+            guard case .childFailed(let index, let status, let diagnostics) = error
+            else {
+                Issue.record("expected childFailed, got \(error)")
+                return
+            }
+            #expect(index == 0)
+            #expect(status == 23)
+            #expect(diagnostics.contains("deliberate shard crash"))
+        }
+    }
+
+    @Test func successfulChildWithoutSummaryIsRejected() throws {
+        let outputs = try runShell("exit 0")
+
+        do {
+            _ = try ParallelCheckRunner.aggregate(outputs)
+            Issue.record("expected missing summary failure")
+        } catch let error as ParallelCheckError {
+            guard case .missingSummary(let index) = error else {
+                Issue.record("expected missingSummary, got \(error)")
+                return
+            }
+            #expect(index == 0)
+        }
+    }
+
+    @Test func timeoutEscalatesToSIGKILLAndRemainsTheRootFailure() throws {
+        let started = ContinuousClock.now
+        let outputs = try runShell(
+            #"trap '' TERM; echo 'deliberately stuck' >&2; while :; do :; done"#,
+            timeout: 0.2,
+            terminationGracePeriod: 0.05)
+        let elapsed = ContinuousClock.now - started
+
+        #expect(elapsed < .seconds(2))
+        #expect(outputs.count == 1)
+        #expect(outputs[0].timedOut)
+        #expect(outputs[0].status == 9) // SIGKILL
+
+        do {
+            _ = try ParallelCheckRunner.aggregate(outputs)
+            Issue.record("expected timeout failure")
+        } catch let error as ParallelCheckError {
+            guard case .childTimedOut(
+                let index, let timeoutSeconds, let diagnostics) = error
+            else {
+                Issue.record("expected childTimedOut, got \(error)")
+                return
+            }
+            #expect(index == 0)
+            #expect(timeoutSeconds == 0.2)
+            #expect(diagnostics.contains("deliberately stuck"))
+        }
+    }
+
+    @Test func timeoutTerminatesTheDescendantProcessTree() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "parallel-check-descendant-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let pidURL = directory.appendingPathComponent("pid")
+        let outputs = try runShell(
+            #"sh -c 'trap "" TERM; while :; do sleep 1; done' & echo $! > "$1"; wait"#,
+            arguments: [pidURL.path],
+            timeout: 0.2,
+            terminationGracePeriod: 0.05)
+
+        #expect(outputs.first?.timedOut == true)
+        let rawPID = try String(contentsOf: pidURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let descendantPID = try #require(pid_t(rawPID))
+        for _ in 0..<100 where kill(descendantPID, 0) == 0 {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        #expect(kill(descendantPID, 0) == -1 && errno == ESRCH)
+    }
+
+    private func runShell(
+        _ command: String,
+        arguments: [String] = [],
+        timeout: TimeInterval = 2,
+        terminationGracePeriod: TimeInterval = 0.1
+    ) throws -> [ParallelCheckOutput] {
+        try ParallelCheckRunner.run(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            jobs: 1,
+            arguments: ["-c", command, "parallel-check-test"] + arguments,
+            timeout: timeout,
+            terminationGracePeriod: terminationGracePeriod)
     }
 }

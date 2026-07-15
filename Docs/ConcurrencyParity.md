@@ -5,8 +5,27 @@ with the active Apple Swift toolchain. It distinguishes language guarantees
 from observed scheduler order and tracks interpreter support without silent
 fallbacks.
 
-Target architecture and verification doctrine:
-[`SwiftConcurrencyArchitecture.md`](SwiftConcurrencyArchitecture.md).
+Normative architecture, operational methodology, and executable acceptance
+status are separate sources:
+
+- [`SwiftConcurrencyArchitecture.md`](SwiftConcurrencyArchitecture.md) defines
+  the target design;
+- [`ConcurrencyVerificationMethodology.md`](ConcurrencyVerificationMethodology.md)
+  defines evidence and closure rules; and
+- `Tests/ConcurrencyParity/Manifests/milestone-acceptance.json` assigns every
+  parity fixture to a dependency-gated requirement.
+
+External completeness accounting is split deliberately:
+
+- `generated-concurrency-api.json` is the generated active-SDK declaration
+  denominator for its explicitly incomplete top-level-function and
+  Task/task-group-member scope; and
+- `concurrency-capability-status.json` is the authored implementation and
+  verification overlay, pinned to the inventory digest.
+
+An adapter route in the generated inventory is dispatch metadata, not support
+evidence. The current inventory therefore must not be reported as full
+`_Concurrency` completeness; its exclusions are part of the checked-in claim.
 
 ## Toolchain baseline
 
@@ -18,25 +37,31 @@ Initial Milestone 0 run:
 - language mode Swift 6;
 - `-strict-concurrency=complete`.
 
-`ConcurrencyParityTests.toolchainFingerprintIsComplete` captures the live
-compiler path, complete version output, SDK path, and SDK version on every run.
-These values are evidence metadata, not hard-coded pass criteria beyond Swift
-major version 6.
+`ConcurrencyParityTests.toolchainFingerprintIsComplete` validates the live
+compiler path, complete version output, SDK path, and SDK version. A closing
+gate persists them in its machine-readable verification receipt; the focused
+test alone is not historical evidence. These values are metadata, not
+hard-coded pass criteria beyond Swift major version 6.
 
 ## Milestone status
 
+This table is the current claim and supersedes historical “closed” wording in
+the chronological verification record. Native-backed gaps discovered after a
+closing gate move a milestone to `provisional` without invalidating the
+evidence that remains covered.
+
 | Milestone | Status | Evidence | Remaining work |
 |---|---|---|---|
-| M0 native parity infrastructure | complete | Same-fixture runner, compiler fingerprint, bounded processes, repeated runtime probes, diagnostic fixture, negative control, cleanup probe; repository gate green at 678/680 corpus units | None |
-| M1 task-owned evaluator context | complete | `EvaluationTaskContext` owns dynamic stacks/counters; 100 generic/type and 100 async-initializer siblings have distinct contexts; parked shared-frame restoration is removed; detached host callbacks explicitly rebind; cancellation inside an async initializer leaves sibling extension context intact; closing gate green | None; M2 may begin |
-| M2 task runtime | complete | Runtime-owned task IDs/records distinguish root, unstructured, and detached tasks; task reads suspend, reject missing `await`, and preserve completed typed outcomes; session policies are task-kind neutral; cancellation request/observation is separate from terminal outcome; cancellation before entry and during another task's value wait, dropped-handle lifetime, creation lineage, base/effective priority, direct/transitive escalation, task-local storage, source `@TaskLocal` projection, and implicit optional defaults are natively covered; closing repository gate is green | None; M3 may begin |
-| M3 suspension and clocks | complete | Incomplete task-value/result reads, external async host gateways, async source `Task.sleep`, and `Task.yield` use runtime-owned `.awaitingTask`/`.awaitingHost`/`.sleeping`/`.yielding` states; host callbacks temporarily restore the source task and nested gateways receive distinct operation IDs; sleep has injected continuous/manual clocks and cancellable wake-up; cancellation handlers and the source/host-abort boundary have same-source Swift 6 parity and deterministic runtime-state coverage; closing repository gate is green at the 678/680 corpus ratchet | None; actor/group/stream/continuation reasons remain with their owning milestones, and M4 may begin |
-| M4 structured concurrency | partial | Identifier, tuple-pattern, and multi-binding `async let` declarations create runtime-owned structured children; tuple elements project one stored child outcome, while declaration bindings own distinct children; successful, throwing, and parent-cancelled value reads suspend and preserve their outcomes; parent cancellation propagates both to existing unread children and children created after the request, and unconsumed children join on normal, early-return, throwing, and cancellation exits; `defer` and async-let teardown share Swift's lexical LIFO registration order on normal, early-return, throwing, and owner-cancellation exits; nonthrowing `withTaskGroup`, successful `withThrowingTaskGroup` child consumption, source-error and cancellation projection through throwing `next`, and throwing `waitForAll` success plus completion-ordered source-error/cancellation projection with full remaining-outcome draining, `addTask`, `addTaskUnlessCancelled`, explicit nonthrowing `waitForAll` with remaining-result draining, `cancelAll`, combined owner/`cancelAll` `isCancelled` state, completion-ordered `next` consumption, drained-group `nil`, cancellation inheritance for late ordinary children, cancelled-state initialization when a group is created by an already-cancelled owner, non-cancelling implicit wait on normal group scope exit, normal throwing-group exit that joins children while discarding unconsumed child errors, exceptional body-error exit that cancels and joins children before rethrowing the body error, streaming nonthrowing `for await`, and successful, source-failing, cancelled, plus early-exit throwing `for try await` group iteration have runtime-owned group/scope support; body `defer` order is covered for normal cancelAll-driven, throwing exceptional, and owner-cancelled cleanup; missing `await` is diagnosed | A group child creating its own nested task group lacks differential coverage; escaped-capability runtime coverage and compiler-backed escape diagnostics remain explicit follow-up (the compiler preflight belongs to M7) |
-| M5 actors and executors | partial | Runtime tasks and task-owned evaluator contexts carry logical source-executor identity; `@concurrent nonisolated` methods hop to the cooperative default executor, `@MainActor` methods hop back, dynamic calls restore their caller executor, detached tasks start outside MainActor, and the SwiftUI `Thread.isMainThread` bridge projects this source identity instead of leaking the evaluator's physical hosting actor | Actor storage/IDs, executor queues and serialization, arbitrary actor/global-actor isolation, reentrancy, isolated parameters, closure isolation metadata, and physical worker execution |
-| M6 async sequences/continuations | unsupported | No protocol-level async iteration or continuation runtime | Requires scheduler foundation |
-| M7 compiler preflight | not started | Native diagnostic fixtures exist only in parity harness | Host stub module and surfaced native diagnostics |
-| M8 SwiftUI lifecycle | partial | Retained synchronous host actions now enter a fresh runtime-owned `.hostCallback` task/session while preserving inline state mutation; `Button`, generated actions, gestures, bindings, synchronous event modifiers, Objective-C completions, and headless/live action drivers share the runtime entry; uncaught action errors are observable; a same-source Swift 6 differential fixture proves nested `Task.detached` plus `withTaskGroup` execution in 20 repetitions | Give async `.task`/`.task(id:)`/`.refreshable` work `.swiftUITask` identity, view-lifetime cancellation, and teardown cleanup; reconcile queued GCD delivery policy with runtime entry semantics |
-| M9 physical parallelism | intentionally deferred | Core remains main-actor isolated | Requires stable ownership/isolation foundation |
+| M0 native parity infrastructure | complete | Same-source runtime and diagnostic oracles; compiler/SDK fingerprinting; bounded fresh-process repetitions and process-tree cleanup; exact shard/repetition/digest receipts; negative controls; durable source-bound gate receipts. | None |
+| M1 task-owned evaluator context | complete | Task-owned evaluator contexts, cancellation isolation, async-initializer ownership, and detached host re-entry have native parity and focused ownership coverage. | None; M2 may proceed. |
+| M2 task runtime | complete | Task outcomes, cancellation request versus observation, post-completion cancellation, completed-handle session/driver release, waiter and handle lifetimes, detached and top-level policy, priority donation, and task-local inheritance/unwind have native parity and focused ownership proof. | None; M3 may proceed. |
+| M3 suspension and clocks | complete | Runtime-owned task waits, host suspension, cancellable sleep, yield progress, cancellation-handler timing and cleanup, and seeded replayable cancellation-race exploration have native parity and focused runtime coverage. | None; M4 may proceed. |
+| M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity or focused runtime evidence. | Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
+| M5 actors and executors | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
+| M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup and Sendable diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level declarations. | Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, extend synthetic declarations to members, initializers, properties, enclosing types, and source-level global-actor attributes, and add target-aware build manifests before M5 or M8 closure. |
+| M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
+| M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
 ## Committed native facts
 
@@ -2179,11 +2204,12 @@ The Apple Swift 6.3.3 SDK `_Concurrency.swiftinterface` supplies the semantic
 algorithm rather than leaving it to observed scheduling: throwing
 `waitForAll` repeatedly consumes completion-ordered `next()` results, retains
 only the first caught error, continues until the group is empty, and then
-rethrows that retained error. Twenty bounded strict-concurrency native runs all
-produced `caught-second:drained`. The parity assertion nevertheless permits
-either nominal source error while requiring `drained`, so it checks Swift's
-first-observed-error and full-drain guarantees without promoting one scheduler
-order into a contract.
+rethrows that retained error. The original twenty bounded strict-concurrency
+native runs all produced `caught-second:drained`, but observation alone did not
+prove that alternative. The fixture now withholds the first child's gate until
+the second child records completion immediately before throwing. The exact
+assertion therefore proves `caught-second:drained` without promoting an
+uncontrolled scheduler order or permitting an unobserved interpreter result.
 
 The same-source interpreter case was RED through the explicit unsupported
 multiple-failure diagnostic; its attempted source-error switch reported
@@ -2201,12 +2227,19 @@ returns `caught-second`; both child IDs are completed and consumed, the pending
 completion count is zero, and the scheduler plus task/group/scope registries
 are empty.
 
-The allowed-set differential case is GREEN in all 20 repetitions. The combined
-targeted run passes 73/73 tests across `AsyncExecutionTests` (53),
+The original allowed-set differential case was GREEN in all 20 repetitions.
+Its historical combined targeted run passed 73/73 tests across
+`AsyncExecutionTests` (53),
 `HostSignatureTests` (12), and `ConcurrencyParityTests` (8), with 63 runtime
 fixtures. The full shared-worktree run passes 790 tests in 150 suites; one test
 and its suite come from a preserved unrelated untracked corpus-sweep file, so
 this tracked repository step accounts for 789 tests in 149 suites.
+
+The 2026-07-15 methodology hardening makes the same case exact through the
+added completion barrier. A fresh-process focused shard passed all 20 native
+and 20 interpreted repetitions as `caught-second:drained` and emitted a
+selected/completed receipt plus its native-observation digest for exactly this
+case.
 `Scripts/gate.sh` is green in 667 seconds with the same shared-worktree 790-test
 suite, the unchanged 678/680 project-corpus ratchet, 5/5 live-data scenarios,
 and API parity at 345 match / 0 diverge / 0 interpreter errors / 17 unstable /

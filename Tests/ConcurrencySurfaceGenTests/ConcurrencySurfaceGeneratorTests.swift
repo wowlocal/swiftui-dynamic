@@ -129,6 +129,79 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(checkedIn == generated,
             "generated concurrency surface is stale; run swift run ConcurrencySurfaceGen")
 
+        let generatedCapabilities = try ConcurrencySurfaceGenerator
+            .generatedCapabilityInventory(
+                interfacePath: interfacePath,
+                interfaceSource: interfaceSource,
+            )
+        let capabilityURL = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json")
+        let checkedInCapabilities = try String(
+            contentsOf: capabilityURL, encoding: .utf8,
+        )
+        #expect(checkedInCapabilities == generatedCapabilities,
+                "generated concurrency capability inventory is stale; run swift run ConcurrencySurfaceGen")
+        let capabilities = try JSONDecoder().decode(
+            CapabilityInventory.self, from: Data(generatedCapabilities.utf8),
+        )
+        #expect(capabilities.schemaVersion == 1)
+        #expect(capabilities.generator == "ConcurrencySurfaceGen")
+        #expect(capabilities.source.interface.hasPrefix("<macOS SDK>"))
+        #expect(!capabilities.source.interface.contains("/Applications/"))
+        #expect(capabilities.source.interfaceFormatVersion == "1.0")
+        #expect(capabilities.source.targetTriple.contains("apple-macosx"))
+        #expect(!capabilities.scope.complete)
+        #expect(!capabilities.scope.adapterRouteIsSupportEvidence)
+        #expect(!capabilities.scope.excluded.isEmpty)
+        #expect(capabilities.summary.declarationCount == 150)
+        #expect(capabilities.summary.declarationsByDomain == [
+            "top-level-function": 47,
+            "task-static-member": 21,
+            "task-instance-member": 11,
+            "task-group-member": 71,
+        ])
+        #expect(capabilities.declarations.count
+            == capabilities.summary.declarationCount)
+        #expect(Set(capabilities.declarations.map(\.id)).count
+            == capabilities.declarations.count)
+        #expect(capabilities.declarations.allSatisfy {
+            $0.id.range(
+                of: #"^swift-concurrency-api-v1:[0-9a-f]{64}$"#,
+                options: .regularExpression,
+            ) != nil
+        })
+        #expect(capabilities.declarations == capabilities.declarations.sorted {
+            ($0.domain, $0.container, $0.name, $0.declaration, $0.id)
+                < ($1.domain, $1.container, $1.name, $1.declaration, $1.id)
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "top-level-function" && $0.name == "withTaskGroup"
+                && $0.adapterIntrinsic == "withTaskGroup"
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "top-level-function"
+                && $0.name == "withCheckedContinuation"
+                && $0.adapterIntrinsic == nil
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "task-static-member" && $0.name == "sleep"
+                && $0.adapterIntrinsic == "sleep"
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "task-static-member" && $0.name == "basePriority"
+                && $0.adapterIntrinsic == nil
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "task-static-member" && $0.name == "=="
+                && $0.adapterIntrinsic == nil
+        })
+        #expect(capabilities.declarations.contains {
+            $0.container == "ThrowingTaskGroup" && $0.name == "nextResult"
+                && $0.adapterIntrinsic == nil
+        })
+        #expect(!generatedCapabilities.contains("implementationStatus"))
+        #expect(!generatedCapabilities.contains("verificationStatus"))
+
         let inventory = try ConcurrencySurfaceGenerator.inventory(
             interfaceSource: interfaceSource)
         #expect(Set(inventory.topLevelFunctionDispatch.keys) == [
@@ -214,6 +287,46 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(taskInstances["isCancelled"]?.contains {
             $0.kind == .variable && !$0.isAsync && !$0.isThrowing
         } == true)
+    }
+
+    @Test
+    func capabilityIDsArePathIndependentAndSignatureSensitive() throws {
+        let first = try ConcurrencySurfaceGenerator.generatedCapabilityInventory(
+            interfacePath: "/first/First.swiftinterface",
+            interfaceSource: Self.syntheticInterface,
+        )
+        let second = try ConcurrencySurfaceGenerator.generatedCapabilityInventory(
+            interfacePath: "/second/Second.swiftinterface",
+            interfaceSource: Self.syntheticInterface,
+        )
+        let originalDocument = try JSONDecoder().decode(
+            CapabilityInventory.self, from: Data(first.utf8),
+        )
+        let secondDocument = try JSONDecoder().decode(
+            CapabilityInventory.self, from: Data(second.utf8),
+        )
+        #expect(originalDocument.source.interface != secondDocument.source.interface)
+        #expect(originalDocument.declarations.map(\.id)
+            == secondDocument.declarations.map(\.id))
+
+        let changed = try ConcurrencySurfaceGenerator
+            .generatedCapabilityInventory(
+                interfacePath: "/second/_Concurrency.swiftinterface",
+                interfaceSource: Self.syntheticInterface.replacingOccurrences(
+                    of: "public func interfaceOnlyProbe() async {}",
+                    with: "public func interfaceOnlyProbe() async throws {}",
+                ),
+            )
+        let changedDocument = try JSONDecoder().decode(
+            CapabilityInventory.self, from: Data(changed.utf8),
+        )
+        let originalID = try #require(originalDocument.declarations.first {
+            $0.name == "interfaceOnlyProbe"
+        }?.id)
+        let changedID = try #require(changedDocument.declarations.first {
+            $0.name == "interfaceOnlyProbe"
+        }?.id)
+        #expect(originalID != changedID)
     }
 
     private static let packageRoot = URL(fileURLWithPath: #filePath)
@@ -321,4 +434,39 @@ struct ConcurrencySurfaceGeneratorTests {
         ) -> Task<Success, Never> { fatalError() }
     }
     """
+}
+
+private struct CapabilityInventory: Decodable {
+    let schemaVersion: Int
+    let generator: String
+    let source: CapabilitySource
+    let scope: CapabilityScope
+    let summary: CapabilitySummary
+    let declarations: [CapabilityDeclaration]
+}
+
+private struct CapabilitySource: Decodable {
+    let interface: String
+    let interfaceFormatVersion: String
+    let targetTriple: String
+}
+
+private struct CapabilityScope: Decodable {
+    let complete: Bool
+    let excluded: [String]
+    let adapterRouteIsSupportEvidence: Bool
+}
+
+private struct CapabilitySummary: Decodable {
+    let declarationCount: Int
+    let declarationsByDomain: [String: Int]
+}
+
+private struct CapabilityDeclaration: Decodable, Equatable {
+    let id: String
+    let domain: String
+    let container: String
+    let name: String
+    let declaration: String
+    let adapterIntrinsic: String?
 }

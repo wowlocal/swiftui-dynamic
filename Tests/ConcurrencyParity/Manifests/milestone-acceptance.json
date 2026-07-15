@@ -1,0 +1,752 @@
+{
+  "schemaVersion": 3,
+  "externalCapabilityAccounting": {
+    "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
+    "statusPath": "Tests/ConcurrencyParity/Manifests/concurrency-capability-status.json",
+    "inventorySchemaVersion": 1,
+    "statusSchemaVersion": 1,
+    "ownerRequirementRef": "M7/generated-signatures-and-preflight"
+  },
+  "executionPlan": {
+    "currentTail": {
+      "id": "task-api-closeout",
+      "state": "active-closeout",
+      "milestoneIDs": ["M4", "M7"],
+      "requirementRefs": [
+        "M4/remaining-task-group-surface",
+        "M4/group-escape-legality",
+        "M7/generated-signatures-and-preflight"
+      ]
+    },
+    "nextMajorCycle": {
+      "id": "actor-executor-architecture",
+      "state": "queued-behind-task-api-closeout",
+      "milestoneID": "M5",
+      "entryRequirementRefs": [
+        "M5/actor-declaration-safety-boundary"
+      ]
+    }
+  },
+  "milestones": [
+    {
+      "id": "M0",
+      "title": "Native parity infrastructure",
+      "status": "complete",
+      "dependsOn": [],
+      "ledgerEvidence": "Same-source runtime and diagnostic oracles; compiler/SDK fingerprinting; bounded fresh-process repetitions and process-tree cleanup; exact shard/repetition/digest receipts; negative controls; durable source-bound gate receipts.",
+      "ledgerRemainingWork": "None",
+      "requirements": [
+        {
+          "id": "runtime-differential-oracles",
+          "status": "covered",
+          "owners": ["verification", "compiler"],
+          "coverage": ["success", "negative-control"],
+          "ownedCaseIDs": [
+            "async-function-exact",
+            "main-actor-task-partial-order"
+          ],
+          "testNames": [
+            "ConcurrencyParityTests/assertionEngineDetectsDivergenceAndSupportsNonExactRules",
+            "ConcurrencyParityTests/harnessRejectsIntentionallyBadInterpreterParity",
+            "ConcurrencyParityTests/nativeObservationDigestIsOrderIndependentAndContentSensitive"
+          ],
+          "evidenceByCoverage": {
+            "success": ["case:async-function-exact", "case:main-actor-task-partial-order"],
+            "negative-control": ["test:ConcurrencyParityTests/harnessRejectsIntentionallyBadInterpreterParity"]
+          },
+          "notes": "Exact and partial-order same-source fixtures, digest stability, assertion negatives, and a deliberate mismatch exercise the runtime oracle."
+        },
+        {
+          "id": "diagnostic-oracles",
+          "status": "covered",
+          "owners": ["verification", "compiler"],
+          "coverage": ["diagnostic"],
+          "evidenceCaseIDs": ["actor-isolation-diagnostic"],
+          "testNames": [
+            "ConcurrencyParityTests/diagnosticFixturesMatchRealCompiler"
+          ],
+          "evidenceByCoverage": {
+            "diagnostic": ["case:actor-isolation-diagnostic", "test:ConcurrencyParityTests/diagnosticFixturesMatchRealCompiler"]
+          },
+          "notes": "The real compiler typechecks diagnostic fixtures under the pinned strict-concurrency flags and verifies line-specific fragments."
+        },
+        {
+          "id": "bounded-process-isolation",
+          "status": "covered",
+          "owners": ["verification"],
+          "coverage": ["liveness", "cleanup", "lifetime"],
+          "testNames": [
+            "ConcurrencyParityTests/processIsolatedInterpreterChildProducesValidatedReceipt",
+            "ConcurrencyParityTests/parityProcessRunnerEnforcesHardDeadlineForChildTree",
+            "ParallelCheckRunnerTests/timeoutEscalatesToSIGKILLAndRemainsTheRootFailure",
+            "ParallelCheckRunnerTests/timeoutTerminatesTheDescendantProcessTree"
+          ],
+          "evidenceByCoverage": {
+            "liveness": ["test:ConcurrencyParityTests/parityProcessRunnerEnforcesHardDeadlineForChildTree", "test:ParallelCheckRunnerTests/timeoutEscalatesToSIGKILLAndRemainsTheRootFailure"],
+            "cleanup": ["test:ParallelCheckRunnerTests/timeoutTerminatesTheDescendantProcessTree"],
+            "lifetime": ["test:ConcurrencyParityTests/processIsolatedInterpreterChildProducesValidatedReceipt"]
+          },
+          "notes": "Each interpreted repetition runs in a distinct process with a hard deadline, identity-safe TERM/KILL escalation, and descendant cleanup coverage."
+        },
+        {
+          "id": "exact-shard-accounting",
+          "status": "covered",
+          "owners": ["verification"],
+          "coverage": ["sharding", "negative-control"],
+          "testNames": [
+            "ConcurrencyParityTests/runtimeShardPartitionIsCompleteAndDisjoint",
+            "ConcurrencyMethodologyTests/parityShardValidatorProvesExactCoverageAndRejectsDuplicateMarkers"
+          ],
+          "evidenceByCoverage": {
+            "sharding": ["test:ConcurrencyParityTests/runtimeShardPartitionIsCompleteAndDisjoint"],
+            "negative-control": ["test:ConcurrencyMethodologyTests/parityShardValidatorProvesExactCoverageAndRejectsDuplicateMarkers"]
+          },
+          "notes": "The coordinator proves exact disjoint manifest coverage, per-case repetitions, native digests, and strict single-marker receipts."
+        },
+        {
+          "id": "toolchain-and-receipt-audit",
+          "status": "covered",
+          "owners": ["verification", "compiler"],
+          "coverage": ["audit"],
+          "testNames": [
+            "ConcurrencyParityTests/toolchainFingerprintIsComplete",
+            "ConcurrencyMethodologyTests/gateReceiptContractIsSourceBoundAndActionable"
+          ],
+          "evidenceByCoverage": {
+            "audit": ["test:ConcurrencyParityTests/toolchainFingerprintIsComplete", "test:ConcurrencyMethodologyTests/gateReceiptContractIsSourceBoundAndActionable"]
+          },
+          "notes": "Pinned or record-only toolchain identity, source start/end fingerprints, stage diagnostics, and durable GREEN/RED receipts are machine checked."
+        }
+      ]
+    },
+    {
+      "id": "M1",
+      "title": "Task-owned evaluator context",
+      "status": "complete",
+      "dependsOn": ["M0"],
+      "ledgerEvidence": "Task-owned evaluator contexts, cancellation isolation, async-initializer ownership, and detached host re-entry have native parity and focused ownership coverage.",
+      "ledgerRemainingWork": "None; M2 may proceed.",
+      "requirements": [
+        {
+          "id": "context-ownership-and-reentry",
+          "status": "covered",
+          "owners": ["runtime"],
+          "coverage": ["success", "cancellation", "cleanup", "ownership"],
+          "ownedCaseIDs": [
+            "task-owned-evaluator-context",
+            "task-context-cancellation",
+            "detached-host-context-reentry",
+            "async-initializer-context",
+            "async-initializer-outcomes"
+          ],
+          "testNames": [
+            "ConcurrencyParityTests/sourceTasksOwnDistinctEvaluatorContexts",
+            "ConcurrencyParityTests/asyncInitializersStayInsideTheirOwningTaskContexts"
+          ],
+          "evidenceByCoverage": {
+            "success": ["case:task-owned-evaluator-context", "case:async-initializer-outcomes"],
+            "cancellation": ["case:task-context-cancellation"],
+            "cleanup": ["case:task-context-cancellation"],
+            "ownership": ["case:detached-host-context-reentry", "test:ConcurrencyParityTests/sourceTasksOwnDistinctEvaluatorContexts"]
+          },
+          "notes": "Task-local evaluator ownership, cancellation isolation, detached re-entry, and async initializer interleaving are all covered."
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "title": "Task runtime",
+      "status": "complete",
+      "dependsOn": ["M1"],
+      "ledgerEvidence": "Task outcomes, cancellation request versus observation, post-completion cancellation, completed-handle session/driver release, waiter and handle lifetimes, detached and top-level policy, priority donation, and task-local inheritance/unwind have native parity and focused ownership proof.",
+      "ledgerRemainingWork": "None; M3 may proceed.",
+      "requirements": [
+        {
+          "id": "task-values-and-lifetime",
+          "status": "covered",
+          "owners": ["runtime", "compiler"],
+          "coverage": ["success", "failure", "cancellation", "cleanup", "diagnostic", "lifetime"],
+          "ownedCaseIDs": [
+            "task-value-success",
+            "task-value-failure",
+            "task-value-multiple-waiters",
+            "task-value-waiter-cancellation",
+            "task-cancellation-before-start",
+            "task-result",
+            "task-completed-handle-reads",
+            "task-result-cancellation",
+            "task-detached-value",
+            "unstructured-top-level-lifetime",
+            "task-handle-deallocation",
+            "task-cancellation-caught",
+            "unstructured-cancellation-isolation",
+            "task-read-missing-await-diagnostic"
+          ],
+          "testNames": [],
+          "evidenceByCoverage": {
+            "success": ["case:task-value-success", "case:task-completed-handle-reads"],
+            "failure": ["case:task-value-failure", "case:task-result"],
+            "cancellation": ["case:task-value-waiter-cancellation", "case:task-cancellation-before-start"],
+            "cleanup": ["case:task-handle-deallocation"],
+            "diagnostic": ["case:task-read-missing-await-diagnostic"],
+            "lifetime": ["case:unstructured-top-level-lifetime", "case:task-handle-deallocation"]
+          },
+          "notes": "Typed outcomes, waiter edges, source cancellation, detached tasks, source-handle lifetime, and missing-await diagnostics are covered."
+        },
+        {
+          "id": "priority-and-task-locals",
+          "status": "covered",
+          "owners": ["runtime"],
+          "coverage": ["success", "cleanup", "inheritance"],
+          "ownedCaseIDs": [
+            "task-priority-inheritance",
+            "task-priority-escalation",
+            "task-priority-transitive-escalation",
+            "task-local-declaration",
+            "task-local-inheritance",
+            "task-local-unwind",
+            "task-local-implicit-optional-default"
+          ],
+          "testNames": [],
+          "evidenceByCoverage": {
+            "success": ["case:task-priority-inheritance", "case:task-local-declaration"],
+            "cleanup": ["case:task-local-unwind"],
+            "inheritance": ["case:task-priority-transitive-escalation", "case:task-local-inheritance"]
+          },
+          "notes": "Initial inheritance, priority donation, declaration identity, scoped binding, and unwind are covered."
+        },
+        {
+          "id": "post-completion-cancellation",
+          "status": "covered",
+          "owners": ["runtime"],
+          "coverage": ["cancellation", "terminal-state"],
+          "ownedCaseIDs": ["task-cancellation-after-completion"],
+          "testNames": [
+            "TaskCancellationRuntimeTests/cancellationAfterCompletionPreservesSuccessfulOutcome",
+            "TaskCancellationRuntimeTests/terminalCancellationChangesOnlyCancellationState"
+          ],
+          "evidenceByCoverage": {
+            "cancellation": ["case:task-cancellation-after-completion", "test:TaskCancellationRuntimeTests/terminalCancellationChangesOnlyCancellationState"],
+            "terminal-state": ["case:task-cancellation-after-completion", "test:TaskCancellationRuntimeTests/terminalCancellationChangesOnlyCancellationState"]
+          },
+          "gapEvidenceIDs": [],
+          "notes": "Late task-handle cancellation updates the orthogonal cancellation state while preserving the immutable successful outcome and terminal state, including after active-registry release."
+        },
+        {
+          "id": "completed-handle-driver-release",
+          "status": "covered",
+          "owners": ["runtime", "verification"],
+          "coverage": ["cleanup", "lifetime"],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": [
+            "task-completed-handle-reads",
+            "task-handle-deallocation"
+          ],
+          "testNames": [
+            "TaskCompletionRuntimeTests/escapedCompletedHandleReleasesRuntimeOwnership"
+          ],
+          "evidenceByCoverage": {
+            "cleanup": ["case:task-handle-deallocation", "test:TaskCompletionRuntimeTests/escapedCompletedHandleReleasesRuntimeOwnership"],
+            "lifetime": ["case:task-completed-handle-reads", "test:TaskCompletionRuntimeTests/escapedCompletedHandleReleasesRuntimeOwnership"]
+          },
+          "gapEvidenceIDs": [],
+          "notes": "Release atomically replaces active runtime ownership with a value-only task snapshot. Weak references prove that the record, interpreter runtime/session, and native driver deallocate while repeated completed reads and late cancellation remain valid."
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "title": "Suspension, clocks, and cancellation handlers",
+      "status": "complete",
+      "dependsOn": ["M2"],
+      "ledgerEvidence": "Runtime-owned task waits, host suspension, cancellable sleep, yield progress, cancellation-handler timing and cleanup, and seeded replayable cancellation-race exploration have native parity and focused runtime coverage.",
+      "ledgerRemainingWork": "None; M4 may proceed.",
+      "requirements": [
+        {
+          "id": "suspension-and-cancellation-semantics",
+          "status": "covered",
+          "owners": ["runtime"],
+          "coverage": ["success", "cancellation", "cleanup", "liveness"],
+          "ownedCaseIDs": [
+            "async-try-await-conditional",
+            "host-gateway-suspension",
+            "task-sleep-cancellation",
+            "task-yield-progress",
+            "task-cancellation-handler-active",
+            "task-cancellation-handler-pre-cancelled",
+            "task-cancellation-handler-nested",
+            "task-cancellation-handler-scope-exit"
+          ],
+          "testNames": [],
+          "evidenceByCoverage": {
+            "success": ["case:async-try-await-conditional", "case:host-gateway-suspension"],
+            "cancellation": ["case:task-sleep-cancellation", "case:task-cancellation-handler-active"],
+            "cleanup": ["case:task-cancellation-handler-scope-exit"],
+            "liveness": ["case:task-yield-progress"]
+          },
+          "notes": "Controlled suspension, cancellable sleep, yield progress, handler timing, nesting, and cleanup are covered."
+        },
+        {
+          "id": "cancellation-race-exploration",
+          "status": "covered",
+          "owners": ["runtime", "verification"],
+          "coverage": ["cancellation", "liveness", "stress"],
+          "dependsOnRequirements": ["M2/post-completion-cancellation"],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": [
+            "task-cancellation-after-completion",
+            "task-sleep-cancellation",
+            "task-cancellation-handler-active",
+            "task-cancellation-handler-scope-exit"
+          ],
+          "testNames": [
+            "CancellationRaceExplorationTests/configuredRaceBoardCoversEveryScheduleAndCleansUp",
+            "CancellationRaceExplorationTests/failureDiagnosticContainsExactReplayCommand"
+          ],
+          "evidenceByCoverage": {
+            "cancellation": ["case:task-cancellation-after-completion", "case:task-sleep-cancellation", "case:task-cancellation-handler-active", "test:CancellationRaceExplorationTests/configuredRaceBoardCoversEveryScheduleAndCleansUp"],
+            "liveness": ["case:task-sleep-cancellation", "test:CancellationRaceExplorationTests/configuredRaceBoardCoversEveryScheduleAndCleansUp"],
+            "stress": ["test:CancellationRaceExplorationTests/configuredRaceBoardCoversEveryScheduleAndCleansUp", "test:CancellationRaceExplorationTests/failureDiagnosticContainsExactReplayCommand"]
+          },
+          "gapEvidenceIDs": [],
+          "notes": "The ordinary gate explores 64 deterministic seeds spanning cancel-before/after-complete, four cancel/wake boundaries, handler unregister ordering, and repeated cancellation requests. Every invariant failure reports an exact one-seed replay command; native fixtures independently anchor the terminal, sleep, and handler semantics."
+        }
+      ]
+    },
+    {
+      "id": "M4",
+      "title": "Structured concurrency",
+      "status": "partial",
+      "dependsOn": ["M3", "M7"],
+      "ledgerEvidence": "Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity or focused runtime evidence.",
+      "ledgerRemainingWork": "Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence.",
+      "requirements": [
+        {
+          "id": "async-let-values-and-cleanup",
+          "status": "covered",
+          "owners": ["runtime", "compiler"],
+          "coverage": ["success", "failure", "cancellation", "cleanup", "diagnostic"],
+          "ownedCaseIDs": [
+            "async-let-value",
+            "async-let-tuple-pattern",
+            "async-let-multiple-bindings",
+            "async-let-separate-declaration-cleanup-order",
+            "async-let-parent-cancellation-scope-exit",
+            "async-let-created-after-owner-cancellation",
+            "async-let-scope-exit",
+            "async-let-early-return",
+            "async-let-throwing-scope-exit",
+            "async-let-defer-before-declaration",
+            "async-let-defer-after-declaration",
+            "async-let-throwing-defer-order",
+            "async-let-early-return-defer-order",
+            "async-let-cancellation-defer-order",
+            "async-let-value-failure",
+            "async-let-value-cancellation",
+            "async-let-missing-await-diagnostic"
+          ],
+          "testNames": [],
+          "evidenceByCoverage": {
+            "success": ["case:async-let-value", "case:async-let-tuple-pattern"],
+            "failure": ["case:async-let-value-failure", "case:async-let-throwing-scope-exit"],
+            "cancellation": ["case:async-let-value-cancellation", "case:async-let-parent-cancellation-scope-exit"],
+            "cleanup": ["case:async-let-early-return-defer-order", "case:async-let-cancellation-defer-order"],
+            "diagnostic": ["case:async-let-missing-await-diagnostic"]
+          },
+          "notes": "Value projection and normal, return, throw, cancellation, and lexical-defer cleanup paths are covered."
+        },
+        {
+          "id": "task-group-values-and-cancellation",
+          "status": "covered",
+          "owners": ["runtime"],
+          "coverage": ["success", "cancellation", "cleanup", "ownership"],
+          "ownedCaseIDs": [
+            "task-group-wait-for-all",
+            "task-group-implicit-scope-exit",
+            "task-group-defer-cancel-cleanup-order",
+            "task-group-throwing-defer-cleanup-order",
+            "task-group-owner-cancellation-defer-cleanup-order",
+            "task-group-child-nested-group",
+            "task-group-cancel-all",
+            "task-group-next-completion-order",
+            "task-group-wait-for-all-consumes-results",
+            "task-group-add-after-cancel-all",
+            "task-group-is-cancelled",
+            "task-group-add-unless-cancelled",
+            "task-group-owner-cancellation",
+            "task-group-created-after-owner-cancellation"
+          ],
+          "testNames": [],
+          "evidenceByCoverage": {
+            "success": ["case:task-group-wait-for-all", "case:task-group-next-completion-order"],
+            "cancellation": ["case:task-group-cancel-all", "case:task-group-owner-cancellation"],
+            "cleanup": ["case:task-group-implicit-scope-exit", "case:task-group-defer-cancel-cleanup-order"],
+            "ownership": ["case:task-group-child-nested-group", "case:task-group-created-after-owner-cancellation"]
+          },
+          "notes": "Nonthrowing group joining, result consumption, cancellation state, late children, and defer composition are covered."
+        },
+        {
+          "id": "throwing-groups-and-iteration",
+          "status": "covered",
+          "owners": ["runtime"],
+          "coverage": ["success", "failure", "cancellation", "cleanup"],
+          "ownedCaseIDs": [
+            "task-group-iteration",
+            "task-group-throwing-iteration",
+            "task-group-throwing-iteration-failure",
+            "task-group-throwing-iteration-cancellation",
+            "task-group-throwing-iteration-early-exit",
+            "task-group-throwing-success",
+            "task-group-throwing-next-failure",
+            "task-group-throwing-next-cancellation",
+            "task-group-throwing-implicit-failure",
+            "task-group-throwing-body-throw",
+            "task-group-throwing-wait-for-all-failure",
+            "task-group-throwing-wait-for-all-empty",
+            "task-group-throwing-wait-for-all-multiple-success",
+            "task-group-throwing-wait-for-all-single-failure-among-multiple",
+            "task-group-throwing-wait-for-all-multiple-failures",
+            "task-group-throwing-wait-for-all-cancellation"
+          ],
+          "testNames": [],
+          "evidenceByCoverage": {
+            "success": ["case:task-group-throwing-success", "case:task-group-throwing-iteration"],
+            "failure": ["case:task-group-throwing-next-failure", "case:task-group-throwing-wait-for-all-multiple-failures"],
+            "cancellation": ["case:task-group-throwing-next-cancellation", "case:task-group-throwing-iteration-cancellation"],
+            "cleanup": ["case:task-group-throwing-body-throw", "case:task-group-throwing-iteration-early-exit"]
+          },
+          "notes": "Throwing next/wait/iteration behavior, body failure, cancellation projection, drain behavior, and cleanup are covered."
+        },
+        {
+          "id": "nested-composition-and-child-created-work",
+          "status": "covered",
+          "owners": ["runtime"],
+          "coverage": ["success", "cleanup", "ownership", "inheritance"],
+          "dependsOnRequirements": ["M3/cancellation-race-exploration"],
+          "ownedCaseIDs": [
+            "task-group-child-unstructured-task",
+            "task-executor-composition"
+          ],
+          "evidenceCaseIDs": ["task-group-child-nested-group"],
+          "testNames": [
+            "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift",
+            "AsyncExecutionTests/taskLocalProjectionGetReadsBindingAndDefault",
+            "AsyncExecutionTests/nestedAsyncLetsInheritTaskLocalAndCleanOwnership",
+            "AsyncExecutionTests/taskAsyncLetAndGroupChildComposeOwnershipAndTaskLocals",
+            "AsyncExecutionTests/taskGroupChildCreatedTaskStaysUnstructuredAndCleansUp"
+          ],
+          "evidenceByCoverage": {
+            "success": ["case:task-group-child-nested-group", "case:task-executor-composition"],
+            "cleanup": ["test:AsyncExecutionTests/taskAsyncLetAndGroupChildComposeOwnershipAndTaskLocals", "test:AsyncExecutionTests/taskGroupChildCreatedTaskStaysUnstructuredAndCleansUp"],
+            "ownership": ["case:task-group-child-unstructured-task", "test:AsyncExecutionTests/taskAsyncLetAndGroupChildComposeOwnershipAndTaskLocals", "test:AsyncExecutionTests/taskGroupChildCreatedTaskStaysUnstructuredAndCleansUp"],
+            "inheritance": ["case:task-executor-composition", "test:AsyncExecutionTests/taskLocalProjectionGetReadsBindingAndDefault", "test:AsyncExecutionTests/nestedAsyncLetsInheritTaskLocalAndCleanOwnership", "test:AsyncExecutionTests/taskAsyncLetAndGroupChildComposeOwnershipAndTaskLocals"]
+          },
+          "gapEvidenceIDs": [],
+          "notes": "Nested groups, async lets, task-local snapshotting, group-child-created unstructured lifetime, and MainActor/cooperative executor selection across Task-to-async-let-to-group composition have native parity plus focused ownership and cleanup proof."
+        },
+        {
+          "id": "remaining-task-group-surface",
+          "status": "open",
+          "owners": ["generator", "runtime"],
+          "coverage": ["success", "failure", "surface"],
+          "dependsOnRequirements": ["M7/generated-signatures-and-preflight"],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": [
+            "task-group-add-unless-cancelled",
+            "task-group-is-cancelled"
+          ],
+          "testNames": [
+            "ConcurrencySurfaceGeneratorTests/syntheticInterfacePreservesOverloadsEffectsAndIsolation",
+            "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+            "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+            "TaskGroupSurfaceTests/isEmptyTracksUnconsumedChildrenThroughLegacyAlias",
+            "TaskGroupSurfaceTests/discardingGroupConsumesSuccessfulChildOutcome",
+            "TaskGroupSurfaceTests/throwingDiscardingGroupProjectsFirstChildFailure",
+            "TaskGroupSurfaceTests/throwingDiscardingBodyFailureWinsAfterChildJoin"
+          ],
+          "gapEvidenceIDs": ["remaining-generated-task-group-surface"],
+          "notes": "The generated active-interface inventory now retains every task-group overload plus async, throws/rethrows, isolation, function-type isolation, Sendable, actor, modifier, and default-value metadata; active-SDK staleness and synthetic edge cases are tested. isEmpty and ordinary/throwing discarding-group runtime kinds have focused coverage. Add same-source parity for those rows, repeated waits/new work, and runtime or diagnostic disposition for every mechanically exposed overload."
+        },
+        {
+          "id": "group-escape-legality",
+          "status": "open",
+          "owners": ["compiler"],
+          "coverage": ["diagnostic", "lifetime"],
+          "dependsOnRequirements": ["M7/generated-signatures-and-preflight"],
+          "ownedCaseIDs": [],
+          "testNames": [
+            "SwiftUpstreamParityTests/importedDiagnosticsMatchProductionCompilerPreflight",
+            "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+          ],
+          "gapEvidenceIDs": ["group-escape-project-preflight-boundary"],
+          "notes": "The unchanged pinned swiftlang fixture proves native inout TaskGroup capture diagnostics through the production preflight engine, while runtime lifetime checks remain covered separately. Close the requirement when target-aware real-project manifests and the remaining synthetic declaration kinds carry the same fail-closed boundary."
+        },
+        {
+          "id": "structured-stress-and-leak-plateau",
+          "status": "covered",
+          "owners": ["runtime", "verification"],
+          "coverage": ["cancellation", "cleanup", "lifetime", "stress", "negative-control"],
+          "dependsOnRequirements": ["M3/cancellation-race-exploration"],
+          "ownedCaseIDs": [
+            "task-group-bounded-tree",
+            "task-group-cancellation-storm"
+          ],
+          "evidenceCaseIDs": [
+            "task-group-owner-cancellation",
+            "task-group-throwing-wait-for-all-cancellation"
+          ],
+          "testNames": [
+            "AsyncExecutionTests/boundedTaskGroupTreeCleansUpAcrossRepeatedSessions",
+            "AsyncExecutionTests/completedStructuredTaskGroupGraphDeallocatesAfterJoin",
+            "StructuredCancellationStressTests/configuredStormBoardDrainsEveryChildAndCleansUp",
+            "StructuredCancellationStressTests/failureDiagnosticContainsExactReplayCommand",
+            "StructuredMemoryPlateauTests/retainedStructuredWorkloadMemoryPlateausAcrossBatches",
+            "StructuredMemoryPlateauTests/plateauAnalyzerRejectsLinearRetentionAndAcceptsBoundedJitter"
+          ],
+          "evidenceByCoverage": {
+            "cancellation": [
+              "case:task-group-cancellation-storm",
+              "test:StructuredCancellationStressTests/configuredStormBoardDrainsEveryChildAndCleansUp"
+            ],
+            "cleanup": [
+              "test:AsyncExecutionTests/boundedTaskGroupTreeCleansUpAcrossRepeatedSessions",
+              "test:StructuredMemoryPlateauTests/retainedStructuredWorkloadMemoryPlateausAcrossBatches"
+            ],
+            "lifetime": [
+              "test:AsyncExecutionTests/completedStructuredTaskGroupGraphDeallocatesAfterJoin",
+              "test:StructuredMemoryPlateauTests/retainedStructuredWorkloadMemoryPlateausAcrossBatches"
+            ],
+            "stress": [
+              "case:task-group-bounded-tree",
+              "case:task-group-cancellation-storm",
+              "test:StructuredCancellationStressTests/configuredStormBoardDrainsEveryChildAndCleansUp",
+              "test:StructuredMemoryPlateauTests/retainedStructuredWorkloadMemoryPlateausAcrossBatches"
+            ],
+            "negative-control": [
+              "test:StructuredMemoryPlateauTests/plateauAnalyzerRejectsLinearRetentionAndAcceptsBoundedJitter"
+            ]
+          },
+          "gapEvidenceIDs": [],
+          "notes": "A native-anchored bounded fanout/depth tree and 16 repeated interpreter sessions cover structured completion and empty task/group/scope/scheduler registries. Weak references prove release of the complete task/group/scope/context/driver graph and its interpreter/runtime owner. A 64-seed replayable cancellation board varies fanout, before-add versus after-start cancellation, and duplicate requests while proving complete draining. A process-isolated 896-session probe executes 41,216 structured nodes while sampling RSS, physical footprint, and live heap across twelve measured batches; three focused runs plateaued at zero median RSS/footprint drift and 448 bytes of heap drift. A synthetic linear-retention negative control proves the plateau analyzer fails closed."
+        }
+      ]
+    },
+    {
+      "id": "M5",
+      "title": "Actors and executors",
+      "status": "partial",
+      "dependsOn": ["M4", "M7"],
+      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered.",
+      "ledgerRemainingWork": "Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9.",
+      "requirements": [
+        {
+          "id": "logical-executor-identity",
+          "status": "covered",
+          "owners": ["runtime"],
+          "coverage": ["success", "executor"],
+          "ownedCaseIDs": [
+            "concurrent-executor-hop"
+          ],
+          "testNames": [],
+          "evidenceByCoverage": {
+            "success": ["case:concurrent-executor-hop"],
+            "executor": ["case:concurrent-executor-hop"]
+          },
+          "notes": "Logical cooperative-default and MainActor hops are covered without claiming physical worker execution."
+        },
+        {
+          "id": "actor-declaration-safety-boundary",
+          "status": "open",
+          "owners": ["runtime", "compiler"],
+          "coverage": ["diagnostic", "isolation"],
+          "dependsOnRequirements": [
+            "M7/generated-signatures-and-preflight"
+          ],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": ["actor-isolation-diagnostic"],
+          "testNames": [
+            "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+          ],
+          "gapEvidenceIDs": ["actor-declaration-safety-boundary"],
+          "notes": "First cycle slice: valid actor declarations must not execute with class-like semantics; reject unsupported actor execution until actor-owned identity/storage and executor dispatch are installed."
+        },
+        {
+          "id": "actor-identity-storage-and-serial-executor",
+          "status": "open",
+          "owners": ["runtime"],
+          "coverage": ["success", "isolation", "executor", "lifetime"],
+          "dependsOnRequirements": [
+            "M4/structured-stress-and-leak-plateau",
+            "M5/actor-declaration-safety-boundary"
+          ],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": ["concurrent-executor-hop"],
+          "testNames": [],
+          "gapEvidenceIDs": ["actor-identity-storage-serial-executor"],
+          "notes": "Add actor IDs, actor-owned storage, serial mailbox/executor queues, lifetime cleanup, and isolated entry hops."
+        },
+        {
+          "id": "actor-reentrancy-and-isolated-dispatch",
+          "status": "open",
+          "owners": ["runtime", "compiler"],
+          "coverage": ["success", "failure", "isolation", "executor", "stress"],
+          "dependsOnRequirements": [
+            "M5/actor-identity-storage-and-serial-executor",
+            "M7/generated-signatures-and-preflight"
+          ],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": ["concurrent-executor-hop"],
+          "testNames": [],
+          "gapEvidenceIDs": ["actor-reentrancy-isolated-dispatch"],
+          "notes": "Add suspension-safe actor reentrancy/resume ownership, isolated parameters, arbitrary global actors, and replayable mailbox stress."
+        }
+      ]
+    },
+    {
+      "id": "M6",
+      "title": "Async sequences and continuations",
+      "status": "not-started",
+      "dependsOn": ["M5"],
+      "ledgerEvidence": "No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only.",
+      "ledgerRemainingWork": "Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage.",
+      "requirements": [
+        {
+          "id": "protocol-iteration-streams-and-continuations",
+          "status": "open",
+          "owners": ["runtime", "compiler"],
+          "coverage": ["success", "failure", "cancellation", "cleanup", "lifetime"],
+          "dependsOnRequirements": ["M5/actor-reentrancy-and-isolated-dispatch"],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": [
+            "task-group-iteration",
+            "task-group-throwing-iteration"
+          ],
+          "testNames": [],
+          "gapEvidenceIDs": ["async-sequence-continuation-runtime"],
+          "notes": "Group-specific iteration is M4 evidence and does not count as protocol-level AsyncSequence or continuation support."
+        }
+      ]
+    },
+    {
+      "id": "M7",
+      "title": "Compiler-backed concurrency checking",
+      "status": "partial",
+      "dependsOn": ["M0"],
+      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup and Sendable diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, and typed synthetic top-level declarations.",
+      "ledgerRemainingWork": "Close the Task API accounting tail with an explicit implementation/verification disposition for each generated overload, extend synthetic declarations to members, initializers, properties, enclosing types, and source-level global-actor attributes, and add target-aware build manifests before M5 or M8 closure.",
+      "requirements": [
+        {
+          "id": "native-diagnostic-oracles",
+          "status": "covered",
+          "owners": ["verification", "compiler"],
+          "coverage": ["diagnostic"],
+          "ownedCaseIDs": [
+            "actor-isolation-diagnostic"
+          ],
+          "testNames": [
+            "SwiftUpstreamParityTests/importedDiagnosticsMatchProductionCompilerPreflight",
+            "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+          ],
+          "evidenceByCoverage": {
+            "diagnostic": [
+              "case:actor-isolation-diagnostic",
+              "test:SwiftUpstreamParityTests/importedDiagnosticsMatchProductionCompilerPreflight",
+              "test:CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+            ]
+          },
+          "notes": "The parity harness retains the actor-isolation oracle, and the same production compiler engine used by Interpreter validates an unchanged SHA-pinned swiftlang TaskGroup capture diagnostic. Required mode rejects before interpreter state or task creation."
+        },
+        {
+          "id": "generated-signatures-and-preflight",
+          "status": "open",
+          "owners": ["generator", "compiler"],
+          "coverage": ["diagnostic", "isolation", "surface"],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": ["actor-isolation-diagnostic"],
+          "testNames": [
+            "ConcurrencySurfaceGeneratorTests/syntheticInterfacePreservesOverloadsEffectsAndIsolation",
+            "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+            "ConcurrencySurfaceGeneratorTests/capabilityIDsArePathIndependentAndSignatureSensitive",
+            "CompilerPreflightTests/legalProgramExecutesAndRepeatedPreflightUsesCache",
+            "CompilerPreflightTests/generatedHostModuleParticipatesInIsolationChecking",
+            "CompilerPreflightTests/registryManifestAndRuntimeGatewayStayBoundEndToEnd",
+            "CompilerPreflightTests/typedSyntheticAsyncGatewayParticipatesInNativeCheckingAndExecution",
+            "CompilerPreflightTests/typedSyntheticMainActorGatewayPreservesPinnedIsolation",
+            "CompilerPreflightTests/cacheKeyInvalidatesOnSourceToolchainSDKTargetAndManifest",
+            "CompilerPreflightTests/timeoutTerminatesCompilerDescendantProcessTree",
+            "CompilerPreflightTests/diagnosticsOnlyModeRetainsErrorsAndAllowsEditorRecovery",
+            "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+          ],
+          "gapEvidenceIDs": ["generated-concurrency-signatures-and-preflight"],
+          "notes": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated with an explicit incomplete-scope denominator and stale checks. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, and typed synthetic top-level declarations before interpreter mutation. Per-overload dispositions, synthetic members/initializers/properties/enclosing types/global-actor attributes, and target-aware build manifests remain open."
+        }
+      ]
+    },
+    {
+      "id": "M8",
+      "title": "SwiftUI lifecycle",
+      "status": "partial",
+      "dependsOn": ["M2", "M5", "M7"],
+      "ledgerEvidence": "Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity.",
+      "ledgerRemainingWork": "Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule.",
+      "requirements": [
+        {
+          "id": "host-callback-runtime-entry",
+          "status": "covered",
+          "owners": ["runtime", "integration"],
+          "coverage": ["success", "cleanup", "ownership"],
+          "ownedCaseIDs": [
+            "host-callback-task-runtime"
+          ],
+          "testNames": [],
+          "evidenceByCoverage": {
+            "success": ["case:host-callback-task-runtime"],
+            "cleanup": ["case:host-callback-task-runtime"],
+            "ownership": ["case:host-callback-task-runtime"]
+          },
+          "notes": "Retained synchronous host callbacks enter the canonical concurrency runtime."
+        },
+        {
+          "id": "view-owned-async-lifecycle",
+          "status": "open",
+          "owners": ["generator", "runtime", "integration"],
+          "coverage": ["cancellation", "cleanup", "lifetime", "isolation", "surface"],
+          "dependsOnRequirements": [
+            "M2/completed-handle-driver-release",
+            "M5/actor-reentrancy-and-isolated-dispatch",
+            "M7/generated-signatures-and-preflight"
+          ],
+          "ownedCaseIDs": [],
+          "evidenceCaseIDs": ["host-callback-task-runtime"],
+          "testNames": [],
+          "gapEvidenceIDs": ["view-owned-async-lifecycle-runtime"],
+          "notes": "Generate ordinary modifier exposure; keep only interface-inexpressible lifecycle ownership/cancellation as documented reusable SwiftUI magic."
+        }
+      ]
+    },
+    {
+      "id": "M9",
+      "title": "Optional physical parallelism",
+      "status": "deferred",
+      "dependsOn": ["M5", "M7", "M8"],
+      "ledgerEvidence": "The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made.",
+      "ledgerRemainingWork": "After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity.",
+      "requirements": [
+        {
+          "id": "parallel-runtime-and-sanitizers",
+          "status": "deferred",
+          "owners": ["runtime", "verification"],
+          "coverage": ["isolation", "lifetime", "stress"],
+          "dependsOnRequirements": [
+            "M5/actor-reentrancy-and-isolated-dispatch",
+            "M7/generated-signatures-and-preflight",
+            "M8/view-owned-async-lifecycle"
+          ],
+          "ownedCaseIDs": [],
+          "testNames": [],
+          "notes": "Physical workers, synchronized/confined heap components, Thread Sanitizer, and parity between cooperative and parallel modes remain intentionally deferred."
+        }
+      ]
+    }
+  ]
+}

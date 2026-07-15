@@ -168,10 +168,12 @@ several private declarations with the same bare name.
 
 `runAsync` is the async session entry point. Source `Task {}` bodies become
 real Swift main-actor tasks, never run inline with their constructor, and the
-session waits for the complete descendant-task tree. `RuntimeTaskHandle`
-exposes pending/running/succeeded/cancelled/failed state and drives real task
-cancellation. The evaluator checks native cancellation at every budget tick,
-so cancellation cannot be swallowed by interpreted `do`/`catch`.
+host selects an explicit top-level, drain-owned, or cancel-remaining completion
+policy without changing source task relationships. `RuntimeTaskHandle` exposes
+pending/running/succeeded/cancelled/failed state, typed outcomes, waiters, and
+cooperative cancellation. Source `CancellationError` remains catchable like
+native Swift; the distinct infrastructure `InterpreterSessionAbort` cannot be
+swallowed by interpreted `do`/`catch`.
 
 Await-bearing code runs through `AsyncEvaluator` and
 `AsyncStatementEvaluator`. Eager expression shells are lowered back into the
@@ -180,9 +182,10 @@ finish; lazy branches (`&&`, `||`, `??`, ternary, `if`, `switch`, and `try?`)
 stay suspension-aware so untaken work never runs. `HostFunction` has explicit
 sync and async gateway faces, and async gateways can re-enter interpreted code
 through `EvalContext.callClosureAsync`. When a gateway suspends, the current
-task's evaluator frames are parked and restored on resume, preventing
-main-actor reentrancy from mixing lexical, return-type, recursion, or budget
-stacks between interpreted tasks.
+task retains its own `EvaluationTaskContext`; host callbacks explicitly carry
+and rebind that identity. Lexical, return-type, recursion, task-local, executor,
+structured-scope, and budget state is never parked on or restored from a shared
+interpreter snapshot.
 
 Parsed `HostSignature` effects and gateway implementations agree at
 registration: a synchronous implementation cannot claim an `async`

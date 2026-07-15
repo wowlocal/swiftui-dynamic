@@ -1022,17 +1022,13 @@
     "id": "task-group-throwing-wait-for-all-multiple-failures",
     "fixture": "Fixtures/task-group-throwing-wait-for-all-multiple-failures.swift",
     "mode": "runtime",
-    "assertion": "allowed-set",
+    "assertion": "exact",
     "repetitions": 20,
     "timeoutSeconds": 5,
     "interpreterEntry": "await taskGroupThrowingWaitForAllMultipleFailuresProbe()",
     "interpreterProjection": "string",
-    "allowedOutputs": [
-      "caught-first:drained",
-      "caught-second:drained"
-    ],
     "nativeFact": "try await ThrowingTaskGroup.waitForAll() retains the first error observed through completion-ordered next(), drains all remaining children, then rethrows that source error.",
-    "notes": "One child waits on a gate and one can fail immediately; both record completion before throwing. All 20 Swift 6.3.3 runs returned caught-second:drained. The allowed set accepts either nominal source error but requires drained, so scheduler order is not asserted; the Swift 6 SDK swiftinterface supplies the first-observed-error algorithm."
+    "notes": "The first child waits behind a gate. Its opener does not release that gate until the second child has recorded completion immediately before throwing, so completion order is forced rather than inferred from scheduling. Exact output is caught-second:drained and proves both first-observed-error selection and full draining."
   },
   {
     "id": "task-group-throwing-wait-for-all-cancellation",

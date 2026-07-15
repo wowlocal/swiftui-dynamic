@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
+  "inventorySHA256": "397ed7fad8bfe4bf3cfcfa7352008020553d1a91670345d2271837e391e1732e",
+  "statusModel": {
+    "implementationStatuses": [
+      "runtime-supported",
+      "preflight-only",
+      "diagnosed-unsupported",
+      "excluded-compiler-abi",
+      "deferred",
+      "known-divergence",
+      "unreviewed"
+    ],
+    "verificationStatuses": [
+      "native-parity",
+      "focused-only",
+      "native-red",
+      "none"
+    ],
+    "rule": "Generated adapter routing is dispatch metadata only. Support and verification are authored claims with executable evidence."
+  },
+  "semanticCatalog": {
+    "id": "project-concurrency-roadmap-v1",
+    "version": 1,
+    "completeForAcceptanceScope": false,
+    "scope": "Versioned top-level capability families used for roadmap reporting; detailed acceptance requirements remain the authoritative semantic denominator.",
+    "excluded": [
+      "public _Concurrency declarations outside the generated inventory scope",
+      "distributed actors and distributed actor transports",
+      "custom executor preference APIs not yet decomposed into acceptance requirements"
+    ],
+    "capabilityIDs": [
+      "core-async-await-language",
+      "task-owned-evaluation-context",
+      "unstructured-task-runtime",
+      "task-suspension-sleep-and-cancellation-handlers",
+      "async-let-structured-lifetime",
+      "task-group-core-semantics",
+      "task-group-complete-generated-surface",
+      "logical-mainactor-and-default-executors",
+      "actor-declaration-safety-boundary",
+      "actor-identity-storage-and-serial-executor",
+      "actor-reentrancy-and-isolated-dispatch",
+      "compiler-backed-concurrency-diagnostics",
+      "sendable-checking",
+      "async-sequence-stream-and-continuation-runtime",
+      "swiftui-view-owned-async-lifecycle",
+      "physical-parallel-execution"
+    ]
+  },
+  "defaultInterfaceClaim": {
+    "implementationStatus": "unreviewed",
+    "verificationStatus": "none",
+    "requirementRef": "M7/generated-signatures-and-preflight",
+    "evidenceCaseIDs": [],
+    "testNames": [],
+    "gapEvidenceIDs": [
+      "generated-concurrency-signatures-and-preflight"
+    ],
+    "notes": "Every generated declaration starts unreviewed. Promote an overload only with an explicit ID override: positive claims require executable evidence, while negative, excluded, or deferred claims require an owned rationale."
+  },
+  "interfaceOverrides": [],
+  "semanticCapabilities": [
+    {
+      "id": "core-async-await-language",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M0/runtime-differential-oracles",
+      "evidenceCaseIDs": [
+        "async-function-exact"
+      ],
+      "testNames": [
+        "ConcurrencyParityTests/assertionEngineDetectsDivergenceAndSupportsNonExactRules"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Basic async function execution and await have a same-source differential oracle; richer suspension and ownership families are accounted separately."
+    },
+    {
+      "id": "task-owned-evaluation-context",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M1/context-ownership-and-reentry",
+      "evidenceCaseIDs": [
+        "task-owned-evaluator-context",
+        "detached-host-context-reentry"
+      ],
+      "testNames": [
+        "ConcurrencyParityTests/sourceTasksOwnDistinctEvaluatorContexts"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Source tasks own evaluator context and explicitly rebind it on detached host re-entry."
+    },
+    {
+      "id": "unstructured-task-runtime",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M2/task-values-and-lifetime",
+      "evidenceCaseIDs": [
+        "task-value-success",
+        "task-value-failure",
+        "task-value-multiple-waiters",
+        "task-cancellation-before-start",
+        "task-detached-value",
+        "unstructured-top-level-lifetime",
+        "task-handle-deallocation"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Task values, failures, cancellation state, waiters, detached work, and handle lifetime have native parity."
+    },
+    {
+      "id": "task-suspension-sleep-and-cancellation-handlers",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M3/suspension-and-cancellation-semantics",
+      "evidenceCaseIDs": [
+        "host-gateway-suspension",
+        "task-sleep-cancellation",
+        "task-cancellation-handler-active"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Suspension, sleep, yield, and cancellation-handler semantics are covered."
+    },
+    {
+      "id": "async-let-structured-lifetime",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/async-let-values-and-cleanup",
+      "evidenceCaseIDs": [
+        "async-let-value",
+        "async-let-throwing-scope-exit",
+        "async-let-cancellation-defer-order",
+        "async-let-missing-await-diagnostic"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Async-let values, failure, cancellation, lexical cleanup, and diagnostics are covered."
+    },
+    {
+      "id": "task-group-core-semantics",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/task-group-values-and-cancellation",
+      "evidenceCaseIDs": [
+        "task-group-wait-for-all",
+        "task-group-implicit-scope-exit",
+        "task-group-next-completion-order",
+        "task-group-cancel-all",
+        "task-group-child-nested-group"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "The covered core includes joining, result consumption, cancellation, nested ownership, and cleanup."
+    },
+    {
+      "id": "task-group-complete-generated-surface",
+      "implementationStatus": "unreviewed",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Core semantics exist, but every generated overload still needs an explicit implementation/verification disposition."
+    },
+    {
+      "id": "logical-mainactor-and-default-executors",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M5/logical-executor-identity",
+      "evidenceCaseIDs": [
+        "concurrent-executor-hop"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Logical MainActor/default-executor hops are covered without claiming physical parallelism."
+    },
+    {
+      "id": "actor-declaration-safety-boundary",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M5/actor-declaration-safety-boundary",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "actor-declaration-safety-boundary"
+      ],
+      "notes": "Valid actor declarations can still enter class-like execution; the next cycle begins by making unsupported actor semantics fail closed."
+    },
+    {
+      "id": "actor-identity-storage-and-serial-executor",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M5/actor-identity-storage-and-serial-executor",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "actor-identity-storage-serial-executor"
+      ],
+      "notes": "Actor-owned identity/storage and serial mailbox/executor queues are not implemented."
+    },
+    {
+      "id": "actor-reentrancy-and-isolated-dispatch",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M5/actor-reentrancy-and-isolated-dispatch",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "actor-reentrancy-isolated-dispatch"
+      ],
+      "notes": "Actor reentrancy/resume ownership, isolated dispatch, arbitrary global actors, and mailbox stress are not implemented."
+    },
+    {
+      "id": "compiler-backed-concurrency-diagnostics",
+      "implementationStatus": "preflight-only",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M7/native-diagnostic-oracles",
+      "evidenceCaseIDs": [
+        "actor-isolation-diagnostic"
+      ],
+      "testNames": [
+        "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "The native compiler supplies isolation and pinned concurrency diagnostics before interpreter mutation."
+    },
+    {
+      "id": "sendable-checking",
+      "implementationStatus": "preflight-only",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/native-diagnostic-oracles",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedDiagnosticsMatchProductionCompilerPreflight"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Pinned upstream Sendable diagnostics are delegated to production compiler preflight; no independent interpreter type checker is claimed."
+    },
+    {
+      "id": "async-sequence-stream-and-continuation-runtime",
+      "implementationStatus": "deferred",
+      "verificationStatus": "none",
+      "requirementRef": "M6/protocol-iteration-streams-and-continuations",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "async-sequence-continuation-runtime"
+      ],
+      "notes": "Protocol iteration, streams, and continuation ownership wait for M5 executor/resume ownership."
+    },
+    {
+      "id": "swiftui-view-owned-async-lifecycle",
+      "implementationStatus": "deferred",
+      "verificationStatus": "none",
+      "requirementRef": "M8/view-owned-async-lifecycle",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "view-owned-async-lifecycle-runtime"
+      ],
+      "notes": "View identity, cancellation, and teardown semantics remain behind M5 and M7."
+    },
+    {
+      "id": "physical-parallel-execution",
+      "implementationStatus": "deferred",
+      "verificationStatus": "none",
+      "requirementRef": "M9/parallel-runtime-and-sanitizers",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Physical worker execution and Thread Sanitizer evidence are intentionally deferred until ownership and isolation stabilize."
+    }
+  ]
+}

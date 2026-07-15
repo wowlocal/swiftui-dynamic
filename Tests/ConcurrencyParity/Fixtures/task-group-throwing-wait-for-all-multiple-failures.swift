@@ -15,6 +15,9 @@ func recordTaskGroupMultipleFailureCompletion() {
 func taskGroupThrowingWaitForAllMultipleFailuresProbe() async -> String {
     let opener = Task {
         await parityAwaitTaskValueGateStarted()
+        while taskGroupMultipleFailureCompletionCount == 0 {
+            await Task.yield()
+        }
         parityOpenTaskValueGate()
     }
 
