@@ -818,6 +818,32 @@
       "notes": "Deprecated ThrowingTaskGroup.asyncUnlessCancelled(priority:operation:) forwards to the generated addTaskUnlessCancelled intrinsic. Same-source parity covers synchronous true, success and exact source-error delivery, then false with no child after cancelAll; unchanged swiftlang coverage independently anchors rejection by the shared modern primitive."
     },
     {
+      "id": "swift-concurrency-api-v1:126a7d4f98c128809d142bb6d72568f954ed508af13a949c0c32f0e7247fb28e",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Deprecated TaskGroup.spawnUnlessCancelled(priority:operation:) forwards to the generated addTaskUnlessCancelled intrinsic. The unchanged pinned swiftlang cancel-then-spawn fixture directly proves true/value before cancellation, false/empty after cancelAll, and the contrast with unconditional spawn creating an already-cancelled child."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c597a186a213301dcf52af35fc91e462307eb14b7c4c2455ea51eac151bfe7ec",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-deprecated-throwing-spawn-unless-cancelled"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Deprecated ThrowingTaskGroup.spawnUnlessCancelled(priority:operation:) forwards to the generated addTaskUnlessCancelled intrinsic. Same-source parity covers true with success and exact source-error delivery, then false with no child after cancelAll; the pinned ordinary swiftlang fixture independently exercises the sibling alias."
+    },
+    {
       "id": "swift-concurrency-api-v1:9ad1fef3411e21e32a6d49b0813fa94c6ccfda6238fdea780b13d91d91e8e53a",
       "implementationStatus": "runtime-supported",
       "verificationStatus": "native-parity",

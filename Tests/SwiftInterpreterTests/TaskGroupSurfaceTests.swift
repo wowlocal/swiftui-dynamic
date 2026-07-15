@@ -19,6 +19,7 @@ struct TaskGroupSurfaceTests {
         #expect(dispatch["asyncUnlessCancelled"] == .addTaskUnlessCancelled)
         #expect(dispatch["spawnUnlessCancelled"] == .addTaskUnlessCancelled)
         #expect(throwing["asyncUnlessCancelled"] == .addTaskUnlessCancelled)
+        #expect(throwing["spawnUnlessCancelled"] == .addTaskUnlessCancelled)
         #expect(dispatch["isEmpty"] == .isEmpty)
         #expect(dispatch["waitForAll"] == .waitForAll)
         #expect(throwing["waitForAll"] == .waitForAll)

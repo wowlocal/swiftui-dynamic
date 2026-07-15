@@ -6,8 +6,8 @@
   "scope" : "test/Concurrency/Runtime",
   "summary" : {
     "diagnostic" : 4,
-    "direct" : 11,
-    "needsAdapter" : 112,
+    "direct" : 12,
+    "needsAdapter" : 111,
     "total" : 134,
     "unsupported" : 7
   },
@@ -369,8 +369,9 @@
       "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_cancel_then_completions.swift"
     },
     {
-      "classification" : "needs-adapter",
-      "reason" : "Requires imported runtime API review: Dispatch.",
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-task-group-spawn-unless-cancelled",
       "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_cancel_then_spawn.swift"
     },
     {

@@ -252,6 +252,20 @@
       "timeoutSeconds": 5
     },
     {
+      "id": "concurrency-task-group-spawn-unless-cancelled",
+      "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_cancel_then_spawn.swift",
+      "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_cancel_then_spawn.swift",
+      "sha256": "29866ac0f6d2db635787262db5186c5bb493e137c850451396d368adcdc961ed",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
+    },
+    {
       "id": "concurrency-task-group-inout-capture-diagnostic",
       "fixture": "Fixtures/Concurrency/taskgroup_cancelAll_from_child.swift",
       "upstreamPath": "test/Concurrency/taskgroup_cancelAll_from_child.swift",

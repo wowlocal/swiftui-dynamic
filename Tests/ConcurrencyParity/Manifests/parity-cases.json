@@ -1127,6 +1127,18 @@
     "notes": "The active swiftinterface forwards priority and operation directly to addTaskUnlessCancelled. The source passes .high but does not assert exact effective child priority. Exact output must be ordinary-accepted:ordinary-value:ordinary-rejected:ordinary-empty|throwing-accepted:throwing-value:failure-accepted:failure-child:throwing-rejected:throwing-empty."
   },
   {
+    "id": "task-group-deprecated-throwing-spawn-unless-cancelled",
+    "fixture": "Fixtures/task-group-deprecated-throwing-spawn-unless-cancelled.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupDeprecatedThrowingSpawnUnlessCancelledProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "The deprecated ThrowingTaskGroup.spawnUnlessCancelled alias returns true and delivers successful or source-error child outcomes while active, then returns false and creates no child after cancelAll.",
+    "notes": "The source passes .high but does not assert exact effective child priority. Exact output must be throwing-accepted:throwing-value:failure-accepted:failure-child:throwing-rejected:throwing-empty. The ordinary TaskGroup row is covered directly by the unchanged pinned swiftlang cancel-then-spawn fixture."
+  },
+  {
     "id": "task-group-make-async-iterator",
     "fixture": "Fixtures/task-group-make-async-iterator.swift",
     "mode": "runtime",
