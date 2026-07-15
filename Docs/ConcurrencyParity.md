@@ -3316,3 +3316,32 @@ tests, exact
 87/87 runtime cases and 1,702 repetitions, the 678/680 pinned corpus ratchet,
 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
 errors / 17 unstable / 0 no-twin.
+
+### M4 structured task-group graph weak lifetime
+
+The native semantic anchor remains `task-group-bounded-tree.swift`: every
+recursive group scope joins all of its children and produces the
+scheduler-independent terminal value `1,5,40` in 20/20 Apple Swift 6.3.3 and
+interpreter processes. Object release below is an interpreter ownership
+invariant layered on that compiled Swift behavior, not a claim that Swift
+exposes its internal task objects.
+
+During a live leaf in a depth-three binary group tree, the focused lifetime
+test retains only weak references to the root and leaf task records, the leaf's
+source handle, task group and structured scope, task-local storage,
+task-owned and host-bound evaluator contexts, and native task driver. The
+tree returns the exact node count `15` after all eight leaves execute. At that
+point all runtime registries are empty and every captured graph object has
+deallocated. Leaving the interpreter's ownership scope then deallocates both
+the cooperative runtime and the interpreter itself.
+
+This is a characterization slice: the ownership implementation was already
+correct and no production runtime behavior changed. It strengthens the prior
+registry-count evidence into an ARC lifetime proof. The
+`M4/structured-stress-and-leak-plateau` requirement remains open only for a
+seeded structured cancellation-storm board and a retained RSS plateau.
+
+The source-bound repository receipt for this slice is GREEN and covers 852
+tests, exact 87/87 runtime cases and 1,702 repetitions, the 678/680 pinned
+corpus ratchet, 5/5 live scenarios, and API parity at 345 match / 0 diverge /
+0 interpreter errors / 17 unstable / 0 no-twin.

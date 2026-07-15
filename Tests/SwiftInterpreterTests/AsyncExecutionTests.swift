@@ -1291,6 +1291,113 @@ struct AsyncExecutionTests {
         }
     }
 
+    @Test func completedStructuredTaskGroupGraphDeallocatesAfterJoin()
+    async throws {
+        weak var weakInterpreter: Interpreter?
+        weak var weakRuntime: CooperativeConcurrencyRuntime?
+        weak var weakRoot: RuntimeTaskRecord?
+        weak var weakLeaf: RuntimeTaskRecord?
+        weak var weakHandle: RuntimeTaskHandle?
+        weak var weakGroup: RuntimeTaskGroupRecord?
+        weak var weakScope: RuntimeStructuredScopeRecord?
+        weak var weakStorage: RuntimeTaskLocalStorage?
+        weak var weakEvaluationContext: EvaluationTaskContext?
+        weak var weakBoundContext: TaskBoundEvalContext?
+        weak var weakDriver: RuntimeNativeTaskDriver?
+        var inspectionCount = 0
+
+        do {
+            let interpreter = Interpreter()
+            weakInterpreter = interpreter
+            weakRuntime = interpreter.concurrencyRuntime
+            interpreter.globals.define(
+                "inspectStructuredTaskGroupLifetime",
+                .hostFunction(HostFunction(
+                    name: "inspectStructuredTaskGroupLifetime",
+                    asyncInvoke: { [weak interpreter] _, context in
+                        guard let interpreter,
+                              let bound = context as? TaskBoundEvalContext,
+                              let leafID = bound.evaluationContext.runtimeTaskID,
+                              let leaf = interpreter.concurrencyRuntime
+                                .records[leafID],
+                              let groupID = leaf.taskGroupID,
+                              let group = interpreter.concurrencyRuntime
+                                .taskGroups[groupID] else {
+                            throw RuntimeError(message:
+                                "structured lifetime probe lost its live graph")
+                        }
+
+                        var root = leaf
+                        while let parentID = root.parent,
+                              let parent = interpreter.concurrencyRuntime
+                                .records[parentID] {
+                            root = parent
+                        }
+                        guard root.kind == .root else {
+                            throw RuntimeError(message:
+                                "structured lifetime probe lost its root")
+                        }
+
+                        weakRoot = root
+                        weakLeaf = leaf
+                        weakHandle = leaf.sourceHandle
+                        weakGroup = group
+                        weakScope = group.structuredScope
+                        weakStorage = leaf.taskLocals
+                        weakEvaluationContext = leaf.evaluationContext
+                        weakBoundContext = bound
+                        weakDriver = leaf.nativeDriver
+                        inspectionCount += 1
+                        await Task.yield()
+                        return .void
+                    })))
+
+            let result = try await interpreter.runAsync(source: """
+            func structuredRetentionNode(_ depth: Int) async -> Int {
+                if depth == 0 {
+                    await inspectStructuredTaskGroupLifetime()
+                    return 1
+                }
+                let descendants = await withTaskGroup(of: Int.self) { group in
+                    for _ in 0..<2 {
+                        group.addTask {
+                            await structuredRetentionNode(depth - 1)
+                        }
+                    }
+                    var total = 0
+                    for await value in group {
+                        total += value
+                    }
+                    return total
+                }
+                return 1 + descendants
+            }
+            await structuredRetentionNode(3)
+            """)
+
+            #expect(result.intValue == 15)
+            #expect(inspectionCount == 8)
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+            #expect(weakRoot == nil)
+            #expect(weakLeaf == nil)
+            #expect(weakHandle == nil)
+            #expect(weakGroup == nil)
+            #expect(weakScope == nil)
+            #expect(weakStorage == nil)
+            #expect(weakEvaluationContext == nil)
+            #expect(weakBoundContext == nil)
+            #expect(weakDriver == nil)
+            #expect(weakInterpreter != nil)
+            #expect(weakRuntime != nil)
+        }
+
+        #expect(weakInterpreter == nil)
+        #expect(weakRuntime == nil)
+    }
+
     @Test func runtimeTaskHandleDispatchesCancellableExtensions() throws {
         let interpreter = Interpreter()
         let result = try interpreter.run(source: """
