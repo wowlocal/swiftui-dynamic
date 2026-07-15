@@ -7479,6 +7479,7 @@
       "returnType" : "_Concurrency.Task<Success, any Swift.Error>"
     },
     {
+      "adapterIntrinsic" : "detachedTask",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@available(*, deprecated, message: \"`asyncDetached` was replaced by `Task.detached` and will be removed shortly.\")",
@@ -7539,6 +7540,7 @@
       "returnType" : "_Concurrency.Task<Success, Swift.Never>"
     },
     {
+      "adapterIntrinsic" : "detachedTask",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@available(*, deprecated, message: \"`asyncDetached` was replaced by `Task.detached` and will be removed shortly.\")",
@@ -7599,6 +7601,7 @@
       "returnType" : "_Concurrency.Task<Success, any Swift.Error>"
     },
     {
+      "adapterIntrinsic" : "detachedTask",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@available(*, deprecated, message: \"`detach` was replaced by `Task.detached` and will be removed shortly.\")",
@@ -7659,6 +7662,7 @@
       "returnType" : "_Concurrency.Task<Success, Swift.Never>"
     },
     {
+      "adapterIntrinsic" : "detachedTask",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@available(*, deprecated, message: \"`detach` was replaced by `Task.detached` and will be removed shortly.\")",
@@ -8666,7 +8670,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 95,
+    "adapterRoutedDeclarationCount" : 99,
     "declarationCount" : 156,
     "declarationsByDomain" : {
       "task-group-iterator-member" : 6,

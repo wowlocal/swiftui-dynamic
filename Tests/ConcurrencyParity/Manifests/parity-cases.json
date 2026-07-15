@@ -1269,5 +1269,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Both deprecated top-level async(priority:operation:) overloads return ordinary unstructured Task handles: an explicit priority is visible when the child starts, a child may finish after its creating function returns, successful value reads preserve the value, and throwing value reads rethrow the source error.",
     "notes": "The successful child records its priority before any handle wait can donate priority, then remains behind a MainActor release gate after its creator returns. Awaited handles establish result delivery. Exact output is value:nil|17|boom; no relative start order between the two children is asserted."
+  },
+  {
+    "id": "top-level-detached-aliases",
+    "fixture": "Fixtures/top-level-detached-aliases.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await topLevelDetachedAliasesProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "The nonthrowing and throwing overloads of both deprecated top-level asyncDetached(priority:operation:) and detach(priority:operation:) create detached Task handles: they start with unnamed task metadata and cleared task-local storage, preserve explicit priorities before value-await donation, deliver successful values, and rethrow their exact source failures.",
+    "notes": "Each alias is created in a synchronous nonisolated helper. Both successful operations record entry before the parent opens their shared MainActor gate, so their utility/background priorities are captured before either handle wait can donate priority and both complete after their creating functions return. Awaited handles establish result delivery without asserting relative start order. Exact output is asyncDetached:nil:17:default|detach:nil:9:default|asyncDetached-boom|detach-boom."
   }
 ]

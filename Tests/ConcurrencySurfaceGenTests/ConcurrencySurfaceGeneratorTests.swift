@@ -11,6 +11,8 @@ struct ConcurrencySurfaceGeneratorTests {
 
         #expect(inventory.topLevelFunctionDispatch == [
             "async": "unstructuredTask",
+            "asyncDetached": "detachedTask",
+            "detach": "detachedTask",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
             "withTaskGroup": "withTaskGroup",
@@ -201,7 +203,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 156)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 95)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 99)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 47,
             "task-static-member": 21,
@@ -231,6 +233,11 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.domain == "top-level-function" && $0.name == "async"
                 && $0.adapterIntrinsic == "unstructuredTask"
         }.count == 2)
+        #expect(capabilities.declarations.filter {
+            $0.domain == "top-level-function"
+                && ["asyncDetached", "detach"].contains($0.name)
+                && $0.adapterIntrinsic == "detachedTask"
+        }.count == 4)
         #expect(capabilities.declarations.contains {
             $0.domain == "top-level-function"
                 && $0.name == "withCheckedContinuation"
@@ -274,8 +281,9 @@ struct ConcurrencySurfaceGeneratorTests {
         let inventory = try ConcurrencySurfaceGenerator.inventory(
             interfaceSource: interfaceSource)
         #expect(Set(inventory.topLevelFunctionDispatch.keys) == [
-            "async", "withDiscardingTaskGroup", "withTaskCancellationHandler",
-            "withTaskGroup", "withThrowingDiscardingTaskGroup",
+            "async", "asyncDetached", "detach", "withDiscardingTaskGroup",
+            "withTaskCancellationHandler", "withTaskGroup",
+            "withThrowingDiscardingTaskGroup",
             "withThrowingTaskGroup",
         ])
         #expect(inventory.knownTopLevelFunctions.contains("withUnsafeCurrentTask"))
@@ -466,6 +474,26 @@ struct ConcurrencySurfaceGeneratorTests {
         operation: @escaping @isolated(any) @Sendable () async -> Success
     ) -> Task<Success, Never> where Success: Sendable { fatalError() }
     public func async<Success>(
+        priority: TaskPriority? = nil,
+        @_inheritActorContext
+        operation: @escaping @isolated(any) @Sendable () async throws -> Success
+    ) -> Task<Success, any Error> where Success: Sendable { fatalError() }
+    public func asyncDetached<Success>(
+        priority: TaskPriority? = nil,
+        @_inheritActorContext
+        operation: @escaping @isolated(any) @Sendable () async -> Success
+    ) -> Task<Success, Never> where Success: Sendable { fatalError() }
+    public func asyncDetached<Success>(
+        priority: TaskPriority? = nil,
+        @_inheritActorContext
+        operation: @escaping @isolated(any) @Sendable () async throws -> Success
+    ) -> Task<Success, any Error> where Success: Sendable { fatalError() }
+    public func detach<Success>(
+        priority: TaskPriority? = nil,
+        @_inheritActorContext
+        operation: @escaping @isolated(any) @Sendable () async -> Success
+    ) -> Task<Success, Never> where Success: Sendable { fatalError() }
+    public func detach<Success>(
         priority: TaskPriority? = nil,
         @_inheritActorContext
         operation: @escaping @isolated(any) @Sendable () async throws -> Success

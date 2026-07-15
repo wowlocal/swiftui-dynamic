@@ -138,6 +138,8 @@ extension Interpreter {
             let function: HostFunction
             if intrinsic == .unstructuredTask {
                 function = sourceUnstructuredTaskFunction(name: sourceName)
+            } else if intrinsic == .detachedTask {
+                function = sourceDetachedTaskFunction(name: sourceName)
             } else if intrinsic == .withTaskCancellationHandler {
                 function = sourceTaskCancellationHandlerFunction(
                     name: sourceName)
@@ -638,6 +640,28 @@ extension Interpreter {
             // synchronous compatibility remains confined to the old Task
             // constructor entry points.
             return try context.spawnBackgroundTask(
+                operation,
+                arguments: [],
+                name: nil,
+                priority: priority)
+        }
+    }
+
+    /// Adapts deprecated detached-task spellings to the same parentless,
+    /// task-local-clearing runtime record used by `Task.detached`.
+    private func sourceDetachedTaskFunction(name: String) -> HostFunction {
+        HostFunction(name: name) { arguments, context in
+            guard let operation = arguments.closure(labeled: "operation")
+                    ?? arguments.firstUnlabeledClosure else {
+                throw RuntimeError(message:
+                    "\(name) needs an operation closure")
+            }
+            let priority = try RuntimeTaskPriority.sourceValue(
+                arguments.labeled("priority"))
+            // Selecting the name-aware face with an explicit nil keeps these
+            // aliases on canonical async-only creation rather than legacy
+            // synchronous Task.detached compatibility.
+            return try context.spawnDetachedTask(
                 operation,
                 arguments: [],
                 name: nil,

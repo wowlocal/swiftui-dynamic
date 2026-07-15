@@ -65,6 +65,8 @@ struct TaskGroupSurfaceTests {
         #expect(discarding["waitForAll"] == nil)
         #expect(GeneratedConcurrencySurface.topLevelFunctionDispatch == [
             "async": .unstructuredTask,
+            "asyncDetached": .detachedTask,
+            "detach": .detachedTask,
             "withDiscardingTaskGroup": .withDiscardingTaskGroup,
             "withTaskCancellationHandler": .withTaskCancellationHandler,
             "withTaskGroup": .withTaskGroup,
@@ -116,6 +118,56 @@ struct TaskGroupSurfaceTests {
         } catch {
             #expect(String(describing: error).contains(
                 "Task creation requires runAsync"))
+        }
+    }
+
+    @Test func topLevelDetachedAliasesUseCanonicalDetachedRuntime() async throws {
+        let interpreter = Interpreter()
+        _ = try await interpreter.runAsync(source: """
+        let asyncDetachedHandle = asyncDetached(priority: .utility) {
+            await Task.yield()
+            return "asyncDetached"
+        }
+        let detachHandle = detach(priority: .background) {
+            await Task.yield()
+            return "detach"
+        }
+        """)
+
+        func handle(_ name: String) throws -> RuntimeTaskHandle {
+            guard case .host(let payload)? = interpreter.globals.lookup(name),
+                  let handle = payload as? RuntimeTaskHandle else {
+                throw RuntimeError(message:
+                    "expected \(name) to contain a task handle")
+            }
+            return handle
+        }
+
+        let asyncDetached = try handle("asyncDetachedHandle")
+        let detach = try handle("detachHandle")
+        for task in [asyncDetached, detach] {
+            #expect(task.kind == .detached)
+            #expect(task.parent == nil)
+            #expect(task.taskLocalCount == 0)
+            #expect(task.state == .succeeded)
+        }
+        #expect(asyncDetached.basePriority == .low)
+        #expect(asyncDetached.result?.stringValue == "asyncDetached")
+        #expect(detach.basePriority == .background)
+        #expect(detach.result?.stringValue == "detach")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func topLevelDetachedAliasesFailClosedInSynchronousCompatibility() {
+        for source in ["asyncDetached { 1 }", "detach { 1 }"] {
+            do {
+                _ = try Interpreter().run(source: source)
+                Issue.record(
+                    "top-level detached alias ran through sync compatibility")
+            } catch {
+                #expect(String(describing: error).contains(
+                    "Task creation requires runAsync"))
+            }
         }
     }
 

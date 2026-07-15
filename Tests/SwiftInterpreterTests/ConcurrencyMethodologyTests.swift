@@ -1016,6 +1016,62 @@ struct ConcurrencyMethodologyTests {
         }, "top-level async must retain its arbitrary-actor executor gap")
     }
 
+    @Test func topLevelDetachedAliasesHaveExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let aliasNames: Set<String> = ["asyncDetached", "detach"]
+        let rows = inventory.declarations.filter {
+            $0.domain == "top-level-function" && aliasNames.contains($0.name)
+        }
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 4,
+            "the active SDK top-level detached-alias denominator changed")
+        #expect(Dictionary(grouping: rows, by: \.name).mapValues(\.count) == [
+            "asyncDetached": 2,
+            "detach": 2,
+        ])
+        #expect(rows.allSatisfy {
+            $0.adapterIntrinsic == "detachedTask"
+                && $0.declaration.contains(
+                    "priority: _Concurrency.TaskPriority? = nil")
+                && $0.declaration.contains("@_inheritActorContext")
+                && $0.declaration.contains("@isolated(any) @Sendable")
+                && $0.declaration.contains(") -> _Concurrency.Task<Success,")
+        }, "top-level detached-alias call shape changed")
+        #expect(rows.count {
+            $0.declaration.contains("() async -> Success)")
+                && $0.declaration.contains("Task<Success, Swift.Never>")
+        } == 2)
+        #expect(rows.count {
+            $0.declaration.contains("() async throws -> Success)")
+                && $0.declaration.contains("Task<Success, any Swift.Error>")
+        } == 2)
+        #expect(Set(claims.map(\.id)) == ids,
+            "all four detached aliases need authored dispositions")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef
+                    == "M7/generated-signatures-and-preflight"
+                && $0.evidenceCaseIDs == ["top-level-detached-aliases"]
+                && $0.gapEvidenceIDs
+                    == ["generated-concurrency-signatures-and-preflight"]
+                && $0.notes.contains("@isolated(any)")
+        }, "detached aliases must retain their arbitrary-actor executor gap")
+    }
+
     @Test func topLevelCancellationHandlersHaveExplicitReviewedDispositions()
             throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(

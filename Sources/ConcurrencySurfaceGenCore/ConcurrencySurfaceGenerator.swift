@@ -224,6 +224,8 @@ public enum ConcurrencySurfaceGenerator {
     /// generated dispatch must not turn each spelling into a new runtime path.
     private static let supportedTopLevelFunctionIntrinsics: [String: String] = [
         "async": "unstructuredTask",
+        "asyncDetached": "detachedTask",
+        "detach": "detachedTask",
         "withDiscardingTaskGroup": "withDiscardingTaskGroup",
         "withTaskCancellationHandler": "withTaskCancellationHandler",
         "withTaskGroup": "withTaskGroup",

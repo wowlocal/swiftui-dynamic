@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "e33c04877d403c374d16a6edf161d56728b48d9120667c5eba3b327c44cddda1",
+  "inventorySHA256": "98bdc0ea5f11651916c9909d03b9db5a24656a9fb3f6d646451c389d65961517",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -1345,6 +1345,82 @@
         "generated-concurrency-signatures-and-preflight"
       ],
       "notes": "The deprecated throwing top-level async overload shares the ordinary unstructured-task runtime and preserves its source failure through the returned task handle for the supported inherited-MainActor subset; the complete @isolated(any) operation executor contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:018dde46f444902c141ea31f7f69277246817845a9bb4d2b167d53124f1e2828",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "top-level-detached-aliases"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+        "TaskGroupSurfaceTests/topLevelDetachedAliasesUseCanonicalDetachedRuntime",
+        "TaskGroupSurfaceTests/topLevelDetachedAliasesFailClosedInSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/topLevelDetachedAliasesHaveExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated nonthrowing asyncDetached overload routes through canonical detached-task creation. Same-source Swift 6 evidence covers a nonisolated operation subset with parentless lifetime, cleared task-local storage, unnamed task metadata, explicit priority, and successful value delivery; its complete @_inheritActorContext @isolated(any) executor contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c6f245907415c2c3245d2ecbcbdd3884f31f2f5f77f80d147c72839f6adc33be",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "top-level-detached-aliases"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+        "TaskGroupSurfaceTests/topLevelDetachedAliasesUseCanonicalDetachedRuntime",
+        "TaskGroupSurfaceTests/topLevelDetachedAliasesFailClosedInSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/topLevelDetachedAliasesHaveExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated throwing asyncDetached overload shares canonical detached-task creation and preserves its source failure through the returned handle for the evidenced nonisolated subset; its complete @_inheritActorContext @isolated(any) executor contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:796f46ab85a987645712158aa7d08df2b81e651a36c13a5091722ef6ce0f9a51",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "top-level-detached-aliases"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+        "TaskGroupSurfaceTests/topLevelDetachedAliasesUseCanonicalDetachedRuntime",
+        "TaskGroupSurfaceTests/topLevelDetachedAliasesFailClosedInSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/topLevelDetachedAliasesHaveExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated nonthrowing detach overload routes through canonical detached-task creation. Same-source Swift 6 evidence covers a nonisolated operation subset with parentless lifetime, cleared task-local storage, unnamed task metadata, explicit priority, and successful value delivery; its complete @_inheritActorContext @isolated(any) executor contract remains divergent until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:e522050369271805a3d42e4ed64f1a0b1a685a8ef97c30cbd9151e25e0ce8b03",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "top-level-detached-aliases"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+        "TaskGroupSurfaceTests/topLevelDetachedAliasesUseCanonicalDetachedRuntime",
+        "TaskGroupSurfaceTests/topLevelDetachedAliasesFailClosedInSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/topLevelDetachedAliasesHaveExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated throwing detach overload shares canonical detached-task creation and preserves its source failure through the returned handle for the evidenced nonisolated subset; its complete @_inheritActorContext @isolated(any) executor contract remains divergent until arbitrary actor executors are modeled."
     },
     {
       "id": "swift-concurrency-api-v1:cfc1899fdead0ef6bd626825dd9c8d6a15c2cedda031ed38d6f5e1fade7c9d34",
