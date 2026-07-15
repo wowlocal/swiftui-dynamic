@@ -4,13 +4,27 @@ enum RuntimeTaskGroupKind: CaseIterable, Equatable, Sendable {
     case discarding
     case throwingDiscarding
 
-    var sourceFunctionName: String {
-        switch self {
-        case .nonthrowing: "withTaskGroup"
-        case .throwing: "withThrowingTaskGroup"
-        case .discarding: "withDiscardingTaskGroup"
-        case .throwingDiscarding: "withThrowingDiscardingTaskGroup"
+    init?(functionIntrinsic: RuntimeConcurrencyFunctionIntrinsic) {
+        switch functionIntrinsic {
+        case .withTaskGroup: self = .nonthrowing
+        case .withThrowingTaskGroup: self = .throwing
+        case .withDiscardingTaskGroup: self = .discarding
+        case .withThrowingDiscardingTaskGroup: self = .throwingDiscarding
+        case .withTaskCancellationHandler: return nil
         }
+    }
+
+    var functionIntrinsic: RuntimeConcurrencyFunctionIntrinsic {
+        switch self {
+        case .nonthrowing: .withTaskGroup
+        case .throwing: .withThrowingTaskGroup
+        case .discarding: .withDiscardingTaskGroup
+        case .throwingDiscarding: .withThrowingDiscardingTaskGroup
+        }
+    }
+
+    var sourceFunctionName: String {
+        functionIntrinsic.rawValue
     }
 
     var sourceTypeName: String {

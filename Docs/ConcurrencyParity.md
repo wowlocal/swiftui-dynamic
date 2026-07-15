@@ -3780,3 +3780,35 @@ upstream differential board is GREEN at 6 tests. The source-bound closing gate
 is GREEN over 880 tests, exact 88/88 runtime parity cases and 1,722 repetitions,
 the 678/680 pinned corpus ratchet, 5/5 live scenarios, and API parity at 345
 match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.
+
+### M7 generated top-level concurrency functions
+
+This characterization slice removes the remaining handwritten registration
+table for the supported top-level `_Concurrency` functions. The captured
+generator RED was the absence of a top-level function inventory, declaration
+metadata, and semantic dispatch; runtime behavior itself was already covered
+and was not given an artificial failing assertion.
+
+`ConcurrencySurfaceGen` now inventories all 41 public top-level function names
+in the active macOS SDK interface and preserves every overload's parameters,
+async/throwing effect, isolation, Sendable annotations, availability,
+modifiers, and return type. Five implemented names map to generated semantic
+intrinsics: `withTaskCancellationHandler` and the four ordinary, throwing, and
+discarding task-group scope functions. `GlobalBuiltins` consumes that generated
+map, and task-group kinds derive their source spelling from the intrinsic
+instead of retaining a second string table. The other 36 interface names stay
+explicitly inventoried without claiming runtime support.
+
+Native evidence remains the unchanged SHA-pinned swiftlang executable corpus,
+including cancellation-handler plus group composition and ordinary/discarding
+group operations; all 19 executable cases run the same source through Apple
+Swift 6.3.3 and the interpreter. The complete AsyncExecution board additionally
+exercises throwing and throwing-discarding adapters. Two generator runs and
+`--check` produced identical checked-in output SHA-256 `911e55a2…`.
+
+The focused generator/runtime/upstream board is GREEN at 89 tests. M7 remains
+partial for interpreter-synthetic host declarations and target-aware build
+manifests. The source-bound closing gate is GREEN over 880 tests, exact 88/88
+runtime parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet,
+5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
+errors / 17 unstable / 0 no-twin.

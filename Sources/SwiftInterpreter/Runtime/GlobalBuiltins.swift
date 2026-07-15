@@ -120,13 +120,28 @@ extension Interpreter {
             }
             throw RuntimeError(message: "Task needs an operation closure")
         }
-        globals.define(
-            "withTaskCancellationHandler",
-            .hostFunction(sourceTaskCancellationHandlerFunction()))
-        for kind in RuntimeTaskGroupKind.allCases {
-            globals.define(
-                kind.sourceFunctionName,
-                .hostFunction(sourceTaskGroupFunction(kind: kind)))
+        for sourceName in GeneratedConcurrencySurface
+                .topLevelFunctionDispatch.keys.sorted() {
+            guard let intrinsic = GeneratedConcurrencySurface
+                    .topLevelFunctionIntrinsic(named: sourceName) else {
+                preconditionFailure(
+                    "generated concurrency function lost its intrinsic")
+            }
+            let function: HostFunction
+            if intrinsic == .withTaskCancellationHandler {
+                function = sourceTaskCancellationHandlerFunction(
+                    name: sourceName)
+            } else if let kind = RuntimeTaskGroupKind(
+                functionIntrinsic: intrinsic
+            ) {
+                function = sourceTaskGroupFunction(kind: kind)
+            } else {
+                preconditionFailure(
+                    "generated concurrency intrinsic has no runtime adapter")
+            }
+            precondition(function.name == sourceName,
+                "generated concurrency function name drifted from its adapter")
+            globals.define(sourceName, .hostFunction(function))
         }
         for (name, function) in Self.typedMathBuiltins {
             globals.define(name, .hostFunction(function))

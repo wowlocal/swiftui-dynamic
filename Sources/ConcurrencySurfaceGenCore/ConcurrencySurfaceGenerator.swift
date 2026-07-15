@@ -21,7 +21,7 @@ public enum ConcurrencySurfaceGenerationError: Error,
             "active _Concurrency.swiftinterface is missing required task-group "
                 + "members: \(names.joined(separator: ", "))"
         case .missingFunctions(let names):
-            "active _Concurrency.swiftinterface is missing required task-group "
+            "active _Concurrency.swiftinterface is missing required top-level "
                 + "functions: \(names.joined(separator: ", "))"
         case .missingTaskIntrinsics(let names):
             "active _Concurrency.swiftinterface is missing required Task "
@@ -94,6 +94,10 @@ public struct ConcurrencySurfaceDeclaration: Sendable, Hashable {
 }
 
 public struct ConcurrencySurfaceInventory: Sendable, Equatable {
+    public let topLevelFunctionDispatch: [String: String]
+    public let knownTopLevelFunctions: Set<String>
+    public let topLevelFunctionDeclarations:
+        [String: [ConcurrencySurfaceDeclaration]]
     public let taskStaticDispatch: [String: String]
     public let knownTaskStaticMembers: Set<String>
     public let taskStaticMemberDeclarations:
@@ -104,11 +108,8 @@ public struct ConcurrencySurfaceInventory: Sendable, Equatable {
         [String: [ConcurrencySurfaceDeclaration]]
     public let taskGroupDispatch: [String: [String: String]]
     public let knownTaskGroupMembers: [String: Set<String>]
-    public let taskGroupFunctions: Set<String>
     public let taskGroupMemberDeclarations:
         [String: [String: [ConcurrencySurfaceDeclaration]]]
-    public let taskGroupFunctionDeclarations:
-        [String: [ConcurrencySurfaceDeclaration]]
 }
 
 public enum ConcurrencySurfaceGenerator {
@@ -128,6 +129,11 @@ public enum ConcurrencySurfaceGenerator {
     private static let supportedTaskInstanceIntrinsics: Set<String> = [
         "cancel", "isCancelled", "result", "value",
     ]
+    private static let supportedTopLevelFunctionIntrinsics: Set<String> = [
+        "withDiscardingTaskGroup", "withTaskCancellationHandler",
+        "withTaskGroup", "withThrowingDiscardingTaskGroup",
+        "withThrowingTaskGroup",
+    ]
     private static let requiredIntrinsicsByType: [String: Set<String>] = [
         "DiscardingTaskGroup": [
             "addTask", "addTaskUnlessCancelled", "cancelAll", "isCancelled",
@@ -140,11 +146,6 @@ public enum ConcurrencySurfaceGenerator {
         ],
         "ThrowingTaskGroup": supportedIntrinsics,
     ]
-    private static let requiredTaskGroupFunctions: Set<String> = [
-        "withDiscardingTaskGroup", "withTaskGroup",
-        "withThrowingDiscardingTaskGroup", "withThrowingTaskGroup",
-    ]
-
     public static func activeInterfacePath() throws -> String {
         let sdk = try command(
             "/usr/bin/xcrun", ["--show-sdk-path", "--sdk", "macosx"])
@@ -177,8 +178,10 @@ public enum ConcurrencySurfaceGenerator {
             taskGroupTypes.map {
                 ($0, [String: [ConcurrencySurfaceDeclaration]]())
             })
-        var knownFunctions: Set<String> = []
-        var functionDeclarations: [String: [ConcurrencySurfaceDeclaration]] = [:]
+        var knownTopLevelFunctions: Set<String> = []
+        var topLevelFunctionDispatch: [String: String] = [:]
+        var topLevelFunctionDeclarations:
+            [String: [ConcurrencySurfaceDeclaration]] = [:]
         var knownTaskStaticMembers: Set<String> = []
         var taskStaticDispatch: [String: String] = [:]
         var taskStaticMemberDeclarations:
@@ -193,12 +196,13 @@ public enum ConcurrencySurfaceGenerator {
             if let function = declaration.as(FunctionDeclSyntax.self),
                isPublic(function.modifiers) {
                 let name = function.name.text
-                knownFunctions.insert(name)
-                if requiredTaskGroupFunctions.contains(name) {
-                    appendUnique(
-                        declarationMetadata(
-                            function, globalActorNames: globalActorNames),
-                        to: &functionDeclarations[name, default: []])
+                knownTopLevelFunctions.insert(name)
+                appendUnique(
+                    declarationMetadata(
+                        function, globalActorNames: globalActorNames),
+                    to: &topLevelFunctionDeclarations[name, default: []])
+                if supportedTopLevelFunctionIntrinsics.contains(name) {
+                    topLevelFunctionDispatch[name] = name
                 }
                 continue
             }
@@ -252,8 +256,8 @@ public enum ConcurrencySurfaceGenerator {
             throw ConcurrencySurfaceGenerationError.missingIntrinsics(
                 missingMembers)
         }
-        let missingFunctions = requiredTaskGroupFunctions
-            .subtracting(knownFunctions).sorted()
+        let missingFunctions = supportedTopLevelFunctionIntrinsics
+            .subtracting(topLevelFunctionDispatch.values).sorted()
         guard missingFunctions.isEmpty else {
             throw ConcurrencySurfaceGenerationError.missingFunctions(
                 missingFunctions)
@@ -278,8 +282,8 @@ public enum ConcurrencySurfaceGenerator {
                 }
             }
         }
-        for name in functionDeclarations.keys {
-            functionDeclarations[name]?.sort {
+        for name in topLevelFunctionDeclarations.keys {
+            topLevelFunctionDeclarations[name]?.sort {
                 $0.declaration < $1.declaration
             }
         }
@@ -294,6 +298,9 @@ public enum ConcurrencySurfaceGenerator {
             }
         }
         return ConcurrencySurfaceInventory(
+            topLevelFunctionDispatch: topLevelFunctionDispatch,
+            knownTopLevelFunctions: knownTopLevelFunctions,
+            topLevelFunctionDeclarations: topLevelFunctionDeclarations,
             taskStaticDispatch: taskStaticDispatch,
             knownTaskStaticMembers: knownTaskStaticMembers,
             taskStaticMemberDeclarations: taskStaticMemberDeclarations,
@@ -302,9 +309,7 @@ public enum ConcurrencySurfaceGenerator {
             taskInstanceMemberDeclarations: taskInstanceMemberDeclarations,
             taskGroupDispatch: dispatch,
             knownTaskGroupMembers: knownNames,
-            taskGroupFunctions: requiredTaskGroupFunctions,
-            taskGroupMemberDeclarations: memberDeclarations,
-            taskGroupFunctionDeclarations: functionDeclarations)
+            taskGroupMemberDeclarations: memberDeclarations)
     }
 
     public static func generatedSource(
@@ -312,6 +317,26 @@ public enum ConcurrencySurfaceGenerator {
         interfaceSource: String
     ) throws -> String {
         let inventory = try inventory(interfaceSource: interfaceSource)
+        let topLevelFunctionDispatchLines = inventory
+            .topLevelFunctionDispatch.keys.sorted().map { sourceName in
+                "        \"\(escaped(sourceName))\": ."
+                    + "\(inventory.topLevelFunctionDispatch[sourceName]!),"
+            }.joined(separator: "\n")
+        let topLevelFunctionIntrinsicCaseLines =
+            supportedTopLevelFunctionIntrinsics.sorted()
+                .map { "    case \($0)" }.joined(separator: "\n")
+        let topLevelFunctionKnownLines = inventory.knownTopLevelFunctions
+            .sorted().map { "        \"\(escaped($0))\"," }
+            .joined(separator: "\n")
+        let topLevelFunctionDeclarationLines = inventory
+            .topLevelFunctionDeclarations.keys.sorted().map { name in
+                let declarations = inventory.topLevelFunctionDeclarations[
+                    name, default: []].map {
+                        "            \(render($0)),"
+                    }.joined(separator: "\n")
+                return "        \"\(escaped(name))\": [\n"
+                    + declarations + "\n        ],"
+            }.joined(separator: "\n")
         let taskStaticDispatchLines = inventory.taskStaticDispatch.keys
             .sorted().map { sourceName in
                 "        \"\(escaped(sourceName))\": ."
@@ -366,9 +391,6 @@ public enum ConcurrencySurfaceGenerator {
             }.joined(separator: "\n")
             return "        \"\(typeName)\": [\n\(lines)\n        ],"
         }.joined(separator: "\n")
-        let functionLines = inventory.taskGroupFunctions.sorted().map {
-            "        \"\(escaped($0))\","
-        }.joined(separator: "\n")
         let memberDeclarationBlocks = taskGroupTypes.map { typeName in
             let members = inventory.taskGroupMemberDeclarations[
                 typeName, default: [:]]
@@ -381,15 +403,6 @@ public enum ConcurrencySurfaceGenerator {
             }.joined(separator: "\n")
             return "        \"\(typeName)\": [\n\(memberLines)\n        ],"
         }.joined(separator: "\n")
-        let functionDeclarationLines = inventory.taskGroupFunctions.sorted()
-            .map { name in
-                let declarations = inventory.taskGroupFunctionDeclarations[
-                    name, default: []].map {
-                        "            \(render($0)),"
-                    }.joined(separator: "\n")
-                return "        \"\(escaped(name))\": [\n"
-                    + declarations + "\n        ],"
-            }.joined(separator: "\n")
         let compilerVersion = interfaceSource.split(separator: "\n").first {
             $0.hasPrefix("// swift-compiler-version:")
         }.map(String.init) ?? "// swift-compiler-version: unknown"
@@ -399,6 +412,10 @@ public enum ConcurrencySurfaceGenerator {
         // Do not edit. Regenerate: swift run ConcurrencySurfaceGen
         // Source: \(portableInterfaceLabel(interfacePath))
         \(compilerVersion)
+
+        enum RuntimeConcurrencyFunctionIntrinsic: String, Sendable {
+        \(topLevelFunctionIntrinsicCaseLines)
+        }
 
         enum RuntimeTaskStaticIntrinsic: String, Sendable {
         \(taskStaticIntrinsicCaseLines)
@@ -467,6 +484,22 @@ public enum ConcurrencySurfaceGenerator {
         }
 
         enum GeneratedConcurrencySurface {
+            static let topLevelFunctionDispatch: [
+                String: RuntimeConcurrencyFunctionIntrinsic
+            ] = [
+        \(topLevelFunctionDispatchLines)
+            ]
+
+            static let knownTopLevelFunctions: Set<String> = [
+        \(topLevelFunctionKnownLines)
+            ]
+
+            static let topLevelFunctionDeclarations: [
+                String: [GeneratedConcurrencyDeclaration]
+            ] = [
+        \(topLevelFunctionDeclarationLines)
+            ]
+
             static let taskStaticDispatch: [
                 String: RuntimeTaskStaticIntrinsic
             ] = [
@@ -509,26 +542,22 @@ public enum ConcurrencySurfaceGenerator {
         \(knownBlocks)
             ]
 
-            static let taskGroupFunctions: Set<String> = [
-        \(functionLines)
-            ]
-
             static let taskGroupMemberDeclarations: [
                 String: [String: [GeneratedConcurrencyDeclaration]]
             ] = [
         \(memberDeclarationBlocks)
             ]
 
-            static let taskGroupFunctionDeclarations: [
-                String: [GeneratedConcurrencyDeclaration]
-            ] = [
-        \(functionDeclarationLines)
-            ]
-
             static func intrinsic(
                 typeName: String, memberName: String
             ) -> RuntimeTaskGroupIntrinsic? {
                 taskGroupDispatch[typeName]?[memberName]
+            }
+
+            static func topLevelFunctionIntrinsic(
+                named functionName: String
+            ) -> RuntimeConcurrencyFunctionIntrinsic? {
+                topLevelFunctionDispatch[functionName]
             }
 
             static func taskStaticIntrinsic(

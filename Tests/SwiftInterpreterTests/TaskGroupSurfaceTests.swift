@@ -23,10 +23,26 @@ struct TaskGroupSurfaceTests {
         #expect(discarding["isEmpty"] == .isEmpty)
         #expect(discarding["next"] == nil)
         #expect(discarding["waitForAll"] == nil)
-        #expect(GeneratedConcurrencySurface.taskGroupFunctions == [
-            "withDiscardingTaskGroup", "withTaskGroup",
-            "withThrowingDiscardingTaskGroup", "withThrowingTaskGroup",
+        #expect(GeneratedConcurrencySurface.topLevelFunctionDispatch == [
+            "withDiscardingTaskGroup": .withDiscardingTaskGroup,
+            "withTaskCancellationHandler": .withTaskCancellationHandler,
+            "withTaskGroup": .withTaskGroup,
+            "withThrowingDiscardingTaskGroup":
+                .withThrowingDiscardingTaskGroup,
+            "withThrowingTaskGroup": .withThrowingTaskGroup,
         ])
+        #expect(GeneratedConcurrencySurface.knownTopLevelFunctions.contains(
+            "withUnsafeCurrentTask"))
+        let interpreter = Interpreter()
+        for sourceName in GeneratedConcurrencySurface
+                .topLevelFunctionDispatch.keys {
+            guard case .hostFunction(let function)? =
+                    interpreter.globals.lookup(sourceName) else {
+                Issue.record("generated concurrency function was not registered")
+                continue
+            }
+            #expect(function.name == sourceName)
+        }
     }
 
     @Test func isEmptyTracksUnconsumedChildrenThroughLegacyAlias() async throws {

@@ -9,8 +9,26 @@ struct ConcurrencySurfaceGeneratorTests {
         let inventory = try ConcurrencySurfaceGenerator.inventory(
             interfaceSource: Self.syntheticInterface)
 
+        #expect(inventory.topLevelFunctionDispatch == [
+            "withDiscardingTaskGroup": "withDiscardingTaskGroup",
+            "withTaskCancellationHandler": "withTaskCancellationHandler",
+            "withTaskGroup": "withTaskGroup",
+            "withThrowingDiscardingTaskGroup":
+                "withThrowingDiscardingTaskGroup",
+            "withThrowingTaskGroup": "withThrowingTaskGroup",
+        ])
+        #expect(inventory.knownTopLevelFunctions.contains("interfaceOnlyProbe"))
+        let cancellationHandler = try #require(
+            inventory.topLevelFunctionDeclarations[
+                "withTaskCancellationHandler"]?.first)
+        #expect(cancellationHandler.isAsync)
+        #expect(cancellationHandler.throwsKind == .rethrowing)
+        #expect(cancellationHandler.parameters.contains {
+            $0.label == "onCancel" && $0.isSendableFunction
+        })
+
         let withTaskGroup = try #require(
-            inventory.taskGroupFunctionDeclarations["withTaskGroup"]?.first)
+            inventory.topLevelFunctionDeclarations["withTaskGroup"]?.first)
         #expect(withTaskGroup.isAsync)
         #expect(withTaskGroup.throwsKind == .nonThrowing)
         #expect(withTaskGroup.globalActor == "ProbeActor")
@@ -26,7 +44,7 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(body.isSendableFunction)
 
         let throwing = try #require(
-            inventory.taskGroupFunctionDeclarations[
+            inventory.topLevelFunctionDeclarations[
                 "withThrowingTaskGroup"]?.first)
         #expect(throwing.isAsync)
         #expect(throwing.throwsKind == .rethrowing)
@@ -113,8 +131,23 @@ struct ConcurrencySurfaceGeneratorTests {
 
         let inventory = try ConcurrencySurfaceGenerator.inventory(
             interfaceSource: interfaceSource)
+        #expect(Set(inventory.topLevelFunctionDispatch.keys) == [
+            "withDiscardingTaskGroup", "withTaskCancellationHandler",
+            "withTaskGroup", "withThrowingDiscardingTaskGroup",
+            "withThrowingTaskGroup",
+        ])
+        #expect(inventory.knownTopLevelFunctions.contains("withUnsafeCurrentTask"))
+        let cancellationHandler = try #require(
+            inventory.topLevelFunctionDeclarations[
+                "withTaskCancellationHandler"])
+        #expect(cancellationHandler.contains { declaration in
+            declaration.isAsync && declaration.throwsKind == .rethrowing
+                && declaration.parameters.contains {
+                    $0.name == "handler" && $0.isSendableFunction
+                }
+        })
         let ordinary = try #require(
-            inventory.taskGroupFunctionDeclarations["withTaskGroup"]?.first)
+            inventory.topLevelFunctionDeclarations["withTaskGroup"]?.first)
         #expect(ordinary.isAsync)
         #expect(ordinary.throwsKind == .nonThrowing)
         #expect(ordinary.parameters.contains {
@@ -123,7 +156,7 @@ struct ConcurrencySurfaceGeneratorTests {
         })
 
         let throwing = try #require(
-            inventory.taskGroupFunctionDeclarations[
+            inventory.topLevelFunctionDeclarations[
                 "withThrowingTaskGroup"]?.first)
         #expect(throwing.isAsync)
         #expect(throwing.throwsKind == .rethrowing)
@@ -207,6 +240,11 @@ struct ConcurrencySurfaceGeneratorTests {
     public func withThrowingDiscardingTaskGroup<Result>(
         body: () async throws -> Result
     ) async throws -> Result { fatalError() }
+    public func withTaskCancellationHandler<Result>(
+        operation: () async throws -> Result,
+        onCancel handler: @Sendable () -> Void
+    ) async rethrows -> Result { fatalError() }
+    public func interfaceOnlyProbe() async {}
 
     public struct TaskGroup<Child> {
         public mutating func addTask(operation: () async -> Child) {}

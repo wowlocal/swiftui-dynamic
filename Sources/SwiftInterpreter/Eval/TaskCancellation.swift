@@ -1,9 +1,12 @@
 import Foundation
 
 extension Interpreter {
-    func sourceTaskCancellationHandlerFunction() -> HostFunction {
+    func sourceTaskCancellationHandlerFunction(
+        name: String = RuntimeConcurrencyFunctionIntrinsic
+            .withTaskCancellationHandler.rawValue
+    ) -> HostFunction {
         HostFunction(
-            name: "withTaskCancellationHandler",
+            name: name,
             tracksHostOperation: false,
             asyncInvoke: { [weak self] arguments, _ in
                 guard let self else {
