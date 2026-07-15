@@ -1563,7 +1563,7 @@ Proof:
 - no structured child outlives its required scope;
 - no group rule inferred solely from documentation.
 
-### Milestone 5: actors and executors
+### Milestone 5: actor support and executor architecture
 
 Deliverables:
 

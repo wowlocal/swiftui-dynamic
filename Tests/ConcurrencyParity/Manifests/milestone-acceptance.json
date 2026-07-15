@@ -533,7 +533,7 @@
     },
     {
       "id": "M5",
-      "title": "Actors and executors",
+      "title": "Actor support and executor architecture",
       "status": "partial",
       "dependsOn": ["M4", "M7"],
       "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered.",

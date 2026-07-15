@@ -74,6 +74,28 @@ live-data evaluation, run `Scripts/gate.sh`. Its process-sharding model,
 resource knobs, and tuning procedure are documented in
 [`Docs/ParallelVerification.md`](Docs/ParallelVerification.md).
 
+## Concurrency roadmap
+
+The machine-readable source of truth is
+[`milestone-acceptance.json`](Tests/ConcurrencyParity/Manifests/milestone-acceptance.json),
+with the detailed design in
+[`Docs/SwiftConcurrencyArchitecture.md`](Docs/SwiftConcurrencyArchitecture.md).
+
+- **Current closeout — M4 + M7:** finish the generated Task/task-group API
+  dispositions, structured-capability escape boundary, and compiler-derived
+  declaration surface.
+- **Next major cycle — M5 actor support and executor architecture:** first make
+  unsupported actor execution fail closed; then add actor identity and owned
+  storage, serial mailbox/executor queues, isolated entry hops, suspension-safe
+  reentrancy, isolated parameters, and global actors.
+- **Following cycles:** M6 async sequences and continuations, M8 SwiftUI-owned
+  async lifecycle, and finally optional M9 physical parallelism/custom
+  executors after ownership and isolation are stable.
+
+Actor support is complete only when every M5 requirement and its M4/M7
+dependencies are covered; parsing an `actor` declaration or running it through
+the current class-like compatibility path is not a support claim.
+
 ## How it works
 
 ```
@@ -405,10 +427,13 @@ coverage.
 - **Typed environment rides the model environment.**
   `@Environment(Type.self)` + `.environment(model)` behave exactly like
   `@EnvironmentObject` + `.environmentObject(_:)`, keyed by type name.
-- **Actors are reference-typed classes.** `actor` declarations collect like
-  classes (reference semantics, methods, properties); isolation is not
-  enforced — calls run synchronously on the caller, which is faithful in
-  practice: the interpreter is single-threaded.
+- **Actors are currently a known divergence.** `actor` declarations still
+  collect through the class-like compatibility path (reference semantics,
+  methods, properties), but isolation is not enforced and calls run on the
+  caller. Single-threaded execution does not make that Swift actor semantics.
+  M5 replaces this path with actor-owned identity/storage, serial executor
+  queues, isolated hops, and suspension-safe reentrancy; until then the runtime
+  does not claim actor support.
 - **`super` is inheritance-lite.** Interpreted superclasses dispatch
   methods/computed properties with `self` unchanged (plain member access
   walks the chain too), and stored properties MERGE down the interpreted
