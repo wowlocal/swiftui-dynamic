@@ -3285,3 +3285,34 @@ source-bound repository receipt is GREEN in 833 seconds with 850 tests, exact
 corpus sweep, 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0
 interpreter errors / 17 unstable / 0 no-twin. Its start/end commit and worktree
 fingerprints match and `driftDetected` is false.
+
+### M4 bounded structured tree and repeated sessions
+
+`task-group-bounded-tree.swift` recursively creates work only through
+`withTaskGroup`. It exercises shapes `(depth: 0, fanout: 4)`, `(1, 4)`, and
+`(3, 3)`. The deepest shape creates 39 structured children across 13 nested
+groups; consuming every result with a commutative sum gives the
+scheduler-independent node counts `1,5,40`.
+
+Apple Swift 6.3.3 compiled the fixture in Swift 6 strict-concurrency mode and
+produced `1,5,40` in all 20 bounded runs. The interpreter produced the same
+terminal value in all 20 fresh-process runs. The stress oracle intentionally
+asserts only complete structured joining and the aggregate result, not sibling
+completion order.
+
+A focused runtime test then reuses one interpreter for 16 consecutive async
+sessions. Every session rebuilds the same bounded tree and returns `1,5,40`;
+after each return, the active task, structured-scope, task-group,
+host-operation, and scheduled-task registries are empty. This is a
+characterization slice, so no production runtime behavior changed.
+
+The `M4/structured-stress-and-leak-plateau` requirement remains open. Bounded
+fanout/depth and repeated-session registry cleanup now have retained evidence;
+seeded cancellation storms, weak deallocation of a complete structured graph,
+and an RSS plateau are still required before the acceptance row can close.
+
+The source-bound repository receipt for this slice is GREEN and covers 851
+tests, exact
+87/87 runtime cases and 1,702 repetitions, the 678/680 pinned corpus ratchet,
+5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
+errors / 17 unstable / 0 no-twin.

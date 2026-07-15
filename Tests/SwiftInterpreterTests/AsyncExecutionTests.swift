@@ -1265,6 +1265,32 @@ struct AsyncExecutionTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func boundedTaskGroupTreeCleansUpAcrossRepeatedSessions()
+    async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("task-group-bounded-tree.swift")
+        let declarations = try String(contentsOf: fixture, encoding: .utf8)
+        let interpreter = Interpreter()
+
+        for iteration in 0..<16 {
+            let source = iteration == 0
+                ? declarations + "\nawait taskGroupBoundedTreeProbe()\n"
+                : "await taskGroupBoundedTreeProbe()\n"
+            let result = try await interpreter.runAsync(source: source)
+
+            #expect(result.stringValue == "1,5,40")
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
+    }
+
     @Test func runtimeTaskHandleDispatchesCancellableExtensions() throws {
         let interpreter = Interpreter()
         let result = try interpreter.run(source: """

@@ -719,6 +719,18 @@
     "notes": "A MainActor gate holds the unstructured task after it starts. The group child returns its handle, both group joins complete, and only then does the owner open the gate and await the handle. Exact output is group-child-start,task-start,group-child-return,group-finished,after-scope,task-active:active:value in all 20 Swift 6.3.3 runs; every edge is barrier-, join-, or program-order-forced."
   },
   {
+    "id": "task-group-bounded-tree",
+    "fixture": "Fixtures/task-group-bounded-tree.swift",
+    "mode": "runtime",
+    "assertion": "stress",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupBoundedTreeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Every recursively nested withTaskGroup scope joins all of its children before returning, so a bounded tree has a scheduler-independent node count.",
+    "notes": "Depth/fanout shapes (0,4), (1,4), and (3,3) produce 1, 5, and 40 nodes. The deepest shape creates 39 structured children across 13 nested groups per execution; summation consumes every result and makes no child-completion-order claim. Exact terminal output is 1,5,40 in all 20 Swift 6.3.3 runs."
+  },
+  {
     "id": "task-executor-composition",
     "fixture": "Fixtures/task-executor-composition.swift",
     "mode": "runtime",
