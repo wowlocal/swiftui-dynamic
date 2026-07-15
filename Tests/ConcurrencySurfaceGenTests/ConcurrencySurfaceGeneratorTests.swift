@@ -48,6 +48,29 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(inventory.taskGroupDispatch["TaskGroup"]?["async"]
             == "addTask")
 
+        #expect(inventory.taskStaticDispatch == [
+            "checkCancellation": "checkCancellation",
+            "currentPriority": "currentPriority",
+            "detached": "detached",
+            "isCancelled": "isCancelled",
+            "sleep": "sleep",
+            "yield": "yield",
+        ])
+        #expect(inventory.knownTaskStaticMembers.contains("basePriority"))
+        let staticTaskMembers = inventory.taskStaticMemberDeclarations
+        #expect(staticTaskMembers["yield"]?.first?.isAsync == true)
+        #expect(staticTaskMembers["checkCancellation"]?.first?.throwsKind
+            == .throwing)
+        #expect(staticTaskMembers["sleep"]?.contains {
+            $0.isAsync && $0.throwsKind == .throwing
+                && $0.parameters.first?.label == "nanoseconds"
+        } == true)
+        #expect(staticTaskMembers["detached"]?.contains { declaration in
+            declaration.parameters.contains {
+                $0.name == "operation" && $0.hasIsolatedFunctionType
+            }
+        } == true)
+
         for typeName in ConcurrencySurfaceGenerator.taskGroupTypes {
             #expect(Set(inventory.taskGroupMemberDeclarations[
                 typeName, default: [:]].keys)
@@ -98,6 +121,23 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.isAsync && !$0.isThrowing
         } == true)
         #expect(group["addTask"]?.contains { declaration in
+            declaration.parameters.contains {
+                $0.name == "operation" && $0.hasIsolatedFunctionType
+            }
+        } == true)
+
+        let taskStatics = inventory.taskStaticMemberDeclarations
+        #expect(taskStatics["yield"]?.contains {
+            $0.isAsync && !$0.isThrowing
+        } == true)
+        #expect(taskStatics["checkCancellation"]?.contains {
+            !$0.isAsync && $0.throwsKind == .throwing
+        } == true)
+        #expect(taskStatics["sleep"]?.contains {
+            $0.isAsync && $0.throwsKind == .throwing
+                && $0.parameters.contains { $0.label == "nanoseconds" }
+        } == true)
+        #expect(taskStatics["detached"]?.contains { declaration in
             declaration.parameters.contains {
                 $0.name == "operation" && $0.hasIsolatedFunctionType
             }
@@ -177,6 +217,21 @@ struct ConcurrencySurfaceGeneratorTests {
         public func cancelAll() {}
         public var isCancelled: Bool { false }
         public var isEmpty: Bool { true }
+    }
+
+    public struct Task<Success, Failure> {}
+    extension Task where Success == Never, Failure == Never {
+        public static var currentPriority: TaskPriority { fatalError() }
+        public static var basePriority: TaskPriority? { nil }
+        public static var isCancelled: Bool { false }
+        public static func checkCancellation() throws {}
+        public static func yield() async {}
+        public static func sleep(nanoseconds duration: UInt64) async throws {}
+    }
+    extension Task where Failure == Never {
+        public static func detached(
+            operation: @escaping @isolated(any) () async -> Success
+        ) -> Task<Success, Never> { fatalError() }
     }
     """
 }

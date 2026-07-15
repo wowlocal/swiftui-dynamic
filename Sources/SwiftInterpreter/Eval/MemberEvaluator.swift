@@ -965,9 +965,17 @@ extension Interpreter {
                 return baseValue // `NSNumber.init(value:)` ≡ `NSNumber(value:)`
             }
             if function.name == "Task" {
-                switch name {
-                case "detached":
+                switch GeneratedConcurrencySurface.taskStaticIntrinsic(
+                    memberName: name
+                ) {
+                case .detached:
                     return .hostFunction(HostFunction(name: name) { args, context in
+                        guard args.labeled("executorPreference") == nil else {
+                            throw RuntimeError(message:
+                                "Task.detached(executorPreference:) is declared "
+                                + "by the active _Concurrency.swiftinterface "
+                                + "but is not supported yet")
+                        }
                         guard let body = args.firstUnlabeledClosure
                                 ?? args.closure(labeled: "operation") else {
                             throw RuntimeError(
@@ -979,23 +987,31 @@ extension Interpreter {
                             priority: RuntimeTaskPriority.sourceValue(
                                 args.labeled("priority")))
                     })
-                case "currentPriority":
+                case .currentPriority:
                     return .native(evaluationTaskContext.priority)
-                case "isCancelled":
+                case .isCancelled:
                     let isCancelled = Task.isCancelled
                     if isCancelled { observeSourceCancellation() }
                     return .native(isCancelled)
-                case "checkCancellation":
+                case .checkCancellation:
                     return .hostFunction(HostFunction(name: name) { _, _ in
                         try Task.checkCancellation()
                         return .void
                     })
-                case "sleep" where evaluationTaskContext.isAsyncSession:
-                    return .hostFunction(sourceTaskSleepFunction())
-                case "yield" where evaluationTaskContext.isAsyncSession:
-                    return .hostFunction(sourceTaskYieldFunction())
-                default:
-                    break
+                case .sleep:
+                    if evaluationTaskContext.isAsyncSession {
+                        return .hostFunction(sourceTaskSleepFunction())
+                    }
+                case .yield:
+                    if evaluationTaskContext.isAsyncSession {
+                        return .hostFunction(sourceTaskYieldFunction())
+                    }
+                case nil:
+                    if GeneratedConcurrencySurface.knowsTaskStaticMember(name) {
+                        throw RuntimeError(message:
+                            "Task.\(name) is declared by the active "
+                            + "_Concurrency.swiftinterface but is not supported yet")
+                    }
                 }
             }
             // Host TYPE names (Color, UIScreen, …) resolve to constructor

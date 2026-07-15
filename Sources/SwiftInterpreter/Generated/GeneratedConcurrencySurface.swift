@@ -3,6 +3,15 @@
 // Source: <macOS SDK>/usr/lib/swift/_Concurrency.swiftmodule/arm64e-apple-macos.swiftinterface
 // swift-compiler-version: Apple Swift version 6.3.2 effective-5.10 (swiftlang-6.3.2.1.2 clang-2100.0.123.2)
 
+enum RuntimeTaskStaticIntrinsic: String, Sendable {
+    case checkCancellation
+    case currentPriority
+    case detached
+    case isCancelled
+    case sleep
+    case yield
+}
+
 enum RuntimeTaskGroupIntrinsic: String, Sendable {
     case addTask
     case addTaskUnlessCancelled
@@ -62,6 +71,88 @@ struct GeneratedConcurrencyDeclaration: Sendable {
 }
 
 enum GeneratedConcurrencySurface {
+    static let taskStaticDispatch: [
+        String: RuntimeTaskStaticIntrinsic
+    ] = [
+        "checkCancellation": .checkCancellation,
+        "currentPriority": .currentPriority,
+        "detached": .detached,
+        "isCancelled": .isCancelled,
+        "sleep": .sleep,
+        "yield": .yield,
+    ]
+
+    static let knownTaskStaticMembers: Set<String> = [
+        "==",
+        "CancellationError",
+        "basePriority",
+        "checkCancellation",
+        "currentPriority",
+        "detached",
+        "isCancelled",
+        "name",
+        "runDetached",
+        "sleep",
+        "suspend",
+        "withCancellationHandler",
+        "withGroup",
+        "yield",
+    ]
+
+    static let taskStaticMemberDeclarations: [
+        String: [GeneratedConcurrencyDeclaration]
+    ] = [
+        "==": [
+            .init(declaration: "public static func == (lhs: _Concurrency.Task<Success, Failure>, rhs: _Concurrency.Task<Success, Failure>) -> Swift.Bool", kind: .function, parameters: [.init(label: "lhs", name: "lhs", type: "_Concurrency.Task<Success, Failure>", defaultValue: nil, attributes: [], modifiers: []), .init(label: "rhs", name: "rhs", type: "_Concurrency.Task<Success, Failure>", defaultValue: nil, attributes: [], modifiers: [])], returnType: "Swift.Bool", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "CancellationError": [
+            .init(declaration: "@available(*, deprecated, message: \"Task.CancellationError has been removed; use CancellationError\")\n  @_alwaysEmitIntoClient public static func CancellationError() -> _Concurrency.CancellationError", kind: .function, parameters: [], returnType: "_Concurrency.CancellationError", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(*, deprecated, message: \"Task.CancellationError has been removed; use CancellationError\")", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "basePriority": [
+            .init(declaration: "@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)\n  public static var basePriority: _Concurrency.TaskPriority? {\n    get\n  }", kind: .variable, parameters: [], returnType: "_Concurrency.TaskPriority?", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)"], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "checkCancellation": [
+            .init(declaration: "public static func checkCancellation() throws", kind: .function, parameters: [], returnType: nil, isAsync: false, throwsKind: .throwing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "currentPriority": [
+            .init(declaration: "public static var currentPriority: _Concurrency.TaskPriority {\n    get\n  }", kind: .variable, parameters: [], returnType: "_Concurrency.TaskPriority", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "detached": [
+            .init(declaration: "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)\n  @discardableResult\n  @_alwaysEmitIntoClient public static func detached(name: Swift.String? = nil, priority: _Concurrency.TaskPriority? = nil, operation: sending @escaping @isolated(any) () async -> Success) -> _Concurrency.Task<Success, Swift.Never>", kind: .function, parameters: [.init(label: "name", name: "name", type: "Swift.String?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "priority", name: "priority", type: "_Concurrency.TaskPriority?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "operation", name: "operation", type: "sending @escaping @isolated(any) () async -> Success", defaultValue: nil, attributes: [], modifiers: [])], returnType: "_Concurrency.Task<Success, Swift.Never>", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)", "@discardableResult", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+            .init(declaration: "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)\n  @discardableResult\n  @_alwaysEmitIntoClient public static func detached(name: Swift.String? = nil, priority: _Concurrency.TaskPriority? = nil, operation: sending @escaping @isolated(any) () async throws -> Success) -> _Concurrency.Task<Success, any Swift.Error>", kind: .function, parameters: [.init(label: "name", name: "name", type: "Swift.String?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "priority", name: "priority", type: "_Concurrency.TaskPriority?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "operation", name: "operation", type: "sending @escaping @isolated(any) () async throws -> Success", defaultValue: nil, attributes: [], modifiers: [])], returnType: "_Concurrency.Task<Success, any Swift.Error>", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)", "@discardableResult", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+            .init(declaration: "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)\n  @discardableResult\n  @_alwaysEmitIntoClient public static func detached(name: Swift.String? = nil, executorPreference taskExecutor: (any _Concurrency.TaskExecutor)?, priority: _Concurrency.TaskPriority? = nil, operation: sending @escaping () async -> Success) -> _Concurrency.Task<Success, Swift.Never>", kind: .function, parameters: [.init(label: "name", name: "name", type: "Swift.String?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "executorPreference", name: "taskExecutor", type: "(any _Concurrency.TaskExecutor)?", defaultValue: nil, attributes: [], modifiers: []), .init(label: "priority", name: "priority", type: "_Concurrency.TaskPriority?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "operation", name: "operation", type: "sending @escaping () async -> Success", defaultValue: nil, attributes: [], modifiers: [])], returnType: "_Concurrency.Task<Success, Swift.Never>", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)", "@discardableResult", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+            .init(declaration: "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)\n  @discardableResult\n  @_alwaysEmitIntoClient public static func detached(name: Swift.String? = nil, executorPreference taskExecutor: (any _Concurrency.TaskExecutor)?, priority: _Concurrency.TaskPriority? = nil, operation: sending @escaping () async throws -> Success) -> _Concurrency.Task<Success, any Swift.Error>", kind: .function, parameters: [.init(label: "name", name: "name", type: "Swift.String?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "executorPreference", name: "taskExecutor", type: "(any _Concurrency.TaskExecutor)?", defaultValue: nil, attributes: [], modifiers: []), .init(label: "priority", name: "priority", type: "_Concurrency.TaskPriority?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "operation", name: "operation", type: "sending @escaping () async throws -> Success", defaultValue: nil, attributes: [], modifiers: [])], returnType: "_Concurrency.Task<Success, any Swift.Error>", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)", "@discardableResult", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "isCancelled": [
+            .init(declaration: "public static var isCancelled: Swift.Bool {\n    get\n  }", kind: .variable, parameters: [], returnType: "Swift.Bool", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "name": [
+            .init(declaration: "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n  public static var name: Swift.String? {\n    get\n  }", kind: .variable, parameters: [], returnType: "Swift.String?", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)"], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "runDetached": [
+            .init(declaration: "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)\n  @available(*, deprecated, message: \"`Task.runDetached` was replaced by `Task.detached` and will be removed shortly.\")\n  @discardableResult\n  @_alwaysEmitIntoClient public static func runDetached(priority: _Concurrency.TaskPriority? = nil, @_inheritActorContext @_implicitSelfCapture operation: __owned @escaping @isolated(any) @Sendable () async -> Success) -> _Concurrency.Task<Success, Swift.Never>", kind: .function, parameters: [.init(label: "priority", name: "priority", type: "_Concurrency.TaskPriority?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "operation", name: "operation", type: "__owned @escaping @isolated(any) @Sendable () async -> Success", defaultValue: nil, attributes: ["@_inheritActorContext", "@_implicitSelfCapture"], modifiers: [])], returnType: "_Concurrency.Task<Success, Swift.Never>", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)", "@available(*, deprecated, message: \"`Task.runDetached` was replaced by `Task.detached` and will be removed shortly.\")", "@discardableResult", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+            .init(declaration: "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)\n  @available(*, deprecated, message: \"`Task.runDetached` was replaced by `Task.detached` and will be removed shortly.\")\n  @discardableResult\n  @_alwaysEmitIntoClient public static func runDetached(priority: _Concurrency.TaskPriority? = nil, @_inheritActorContext @_implicitSelfCapture operation: __owned @escaping @isolated(any) @Sendable () async throws -> Success) -> _Concurrency.Task<Success, any Swift.Error>", kind: .function, parameters: [.init(label: "priority", name: "priority", type: "_Concurrency.TaskPriority?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "operation", name: "operation", type: "__owned @escaping @isolated(any) @Sendable () async throws -> Success", defaultValue: nil, attributes: ["@_inheritActorContext", "@_implicitSelfCapture"], modifiers: [])], returnType: "_Concurrency.Task<Success, any Swift.Error>", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)", "@available(*, deprecated, message: \"`Task.runDetached` was replaced by `Task.detached` and will be removed shortly.\")", "@discardableResult", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "sleep": [
+            .init(declaration: "@available(*, deprecated, renamed: \"Task.sleep(nanoseconds:)\")\n  public static func sleep(_ duration: Swift.UInt64) async", kind: .function, parameters: [.init(label: nil, name: "duration", type: "Swift.UInt64", defaultValue: nil, attributes: [], modifiers: [])], returnType: nil, isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(*, deprecated, renamed: \"Task.sleep(nanoseconds:)\")"], modifiers: ["public", "static"], globalActor: nil),
+            .init(declaration: "@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)\n  @_alwaysEmitIntoClient public static func sleep<C>(for duration: C.Instant.Duration, tolerance: C.Instant.Duration? = nil, clock: C = .continuous) async throws where C : _Concurrency.Clock", kind: .function, parameters: [.init(label: "for", name: "duration", type: "C.Instant.Duration", defaultValue: nil, attributes: [], modifiers: []), .init(label: "tolerance", name: "tolerance", type: "C.Instant.Duration?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "clock", name: "clock", type: "C", defaultValue: ".continuous", attributes: [], modifiers: [])], returnType: nil, isAsync: true, throwsKind: .throwing, thrownErrorType: nil, attributes: ["@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+            .init(declaration: "@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)\n  public static func sleep<C>(until deadline: C.Instant, tolerance: C.Instant.Duration? = nil, clock: C = .continuous) async throws where C : _Concurrency.Clock", kind: .function, parameters: [.init(label: "until", name: "deadline", type: "C.Instant", defaultValue: nil, attributes: [], modifiers: []), .init(label: "tolerance", name: "tolerance", type: "C.Instant.Duration?", defaultValue: "nil", attributes: [], modifiers: []), .init(label: "clock", name: "clock", type: "C", defaultValue: ".continuous", attributes: [], modifiers: [])], returnType: nil, isAsync: true, throwsKind: .throwing, thrownErrorType: nil, attributes: ["@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)"], modifiers: ["public", "static"], globalActor: nil),
+            .init(declaration: "public static func sleep(nanoseconds duration: Swift.UInt64) async throws", kind: .function, parameters: [.init(label: "nanoseconds", name: "duration", type: "Swift.UInt64", defaultValue: nil, attributes: [], modifiers: [])], returnType: nil, isAsync: true, throwsKind: .throwing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "suspend": [
+            .init(declaration: "@available(*, deprecated, renamed: \"yield()\")\n  @_alwaysEmitIntoClient public static func suspend() async", kind: .function, parameters: [], returnType: nil, isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(*, deprecated, renamed: \"yield()\")", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "withCancellationHandler": [
+            .init(declaration: "@available(*, deprecated, message: \"`Task.withCancellationHandler` has been replaced by `withTaskCancellationHandler` and will be removed shortly.\")\n  @_alwaysEmitIntoClient public static func withCancellationHandler<T>(handler: @Sendable () -> Swift.Void, operation: () async throws -> T) async rethrows -> T", kind: .function, parameters: [.init(label: "handler", name: "handler", type: "@Sendable () -> Swift.Void", defaultValue: nil, attributes: [], modifiers: []), .init(label: "operation", name: "operation", type: "() async throws -> T", defaultValue: nil, attributes: [], modifiers: [])], returnType: "T", isAsync: true, throwsKind: .rethrowing, thrownErrorType: nil, attributes: ["@available(*, deprecated, message: \"`Task.withCancellationHandler` has been replaced by `withTaskCancellationHandler` and will be removed shortly.\")", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "withGroup": [
+            .init(declaration: "@available(*, deprecated, message: \"`Task.withGroup` was replaced by `withThrowingTaskGroup` and `withTaskGroup` and will be removed shortly.\")\n  @_alwaysEmitIntoClient public static func withGroup<TaskResult, BodyResult>(resultType: TaskResult.Type, returning returnType: BodyResult.Type = BodyResult.self, body: (inout _Concurrency.Task<Success, Failure>.Group<TaskResult>) async throws -> BodyResult) async rethrows -> BodyResult where TaskResult : Swift.Sendable", kind: .function, parameters: [.init(label: "resultType", name: "resultType", type: "TaskResult.Type", defaultValue: nil, attributes: [], modifiers: []), .init(label: "returning", name: "returnType", type: "BodyResult.Type", defaultValue: "BodyResult.self", attributes: [], modifiers: []), .init(label: "body", name: "body", type: "(inout _Concurrency.Task<Success, Failure>.Group<TaskResult>) async throws -> BodyResult", defaultValue: nil, attributes: [], modifiers: [])], returnType: "BodyResult", isAsync: true, throwsKind: .rethrowing, thrownErrorType: nil, attributes: ["@available(*, deprecated, message: \"`Task.withGroup` was replaced by `withThrowingTaskGroup` and `withTaskGroup` and will be removed shortly.\")", "@_alwaysEmitIntoClient"], modifiers: ["public", "static"], globalActor: nil),
+        ],
+        "yield": [
+            .init(declaration: "public static func yield() async", kind: .function, parameters: [], returnType: nil, isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+        ],
+    ]
+
     static let taskGroupDispatch: [
         String: [String: RuntimeTaskGroupIntrinsic]
     ] = [
@@ -367,6 +458,16 @@ enum GeneratedConcurrencySurface {
         typeName: String, memberName: String
     ) -> RuntimeTaskGroupIntrinsic? {
         taskGroupDispatch[typeName]?[memberName]
+    }
+
+    static func taskStaticIntrinsic(
+        memberName: String
+    ) -> RuntimeTaskStaticIntrinsic? {
+        taskStaticDispatch[memberName]
+    }
+
+    static func knowsTaskStaticMember(_ memberName: String) -> Bool {
+        knownTaskStaticMembers.contains(memberName)
     }
 
     static func knowsMember(

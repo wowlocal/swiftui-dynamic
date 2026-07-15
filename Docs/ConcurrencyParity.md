@@ -3678,3 +3678,39 @@ The source-bound closing gate is GREEN over 875 tests, exact 88/88 runtime
 parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet, 5/5 live
 scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
 unstable / 0 no-twin.
+
+### M7 generated static Task surface
+
+This characterization slice asks whether the static `Task` operations already
+implemented by the runtime come from the active `_Concurrency.swiftinterface`
+or from another handwritten name table. Before the generator change, the
+runtime behavior was already GREEN, but `MemberEvaluator` selected
+`detached`, `currentPriority`, `isCancelled`, `checkCancellation`, `sleep`, and
+`yield` through raw string cases. The captured generator RED was the absence of
+`taskStaticDispatch`, the known-member inventory, and declaration effect
+metadata.
+
+The bounded same-source probe
+`Tests/NativeProbes/Concurrency/task-static-generated-surface.swift` checks an
+uncancelled task, `checkCancellation`, `yield`, zero-duration `sleep`, detached
+task creation, and its awaited value. Apple Swift 6.3.3 and `runAsync` both
+produce exactly `active:detached`; sequential awaits establish the complete
+order, so no scheduler choice is asserted.
+
+`ConcurrencySurfaceGen` now inventories all 14 public static `Task` member
+names in the active macOS SDK interface and preserves every overload's async,
+throwing, parameter, actor-isolation, Sendable, modifier, availability, and
+return metadata. Six implemented names map to generated semantic intrinsics;
+`MemberEvaluator` consumes that map instead of owning another source-name
+table. Known but unsupported members such as `basePriority` are diagnosed as
+active-interface surface, and `detached(executorPreference:)` is rejected
+explicitly instead of silently discarding its executor contract. Two complete
+generator runs produced the same checked-in output SHA-256 `a40fbcc6…`.
+
+The focused generator/runtime board is GREEN at 89 tests. M7 remains partial:
+instance `Task` surface, interpreter-synthetic host declarations, and
+target-aware project build manifests are still open. The source-bound closing
+gate is GREEN over 879 tests, exact 88/88 runtime parity cases and 1,722
+repetitions, the 678/680 pinned corpus ratchet, 5/5 live scenarios, and API
+parity at 345 match / 0 diverge / 0 interpreter errors / 17 unstable / 0
+no-twin.
