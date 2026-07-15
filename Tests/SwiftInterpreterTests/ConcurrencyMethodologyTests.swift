@@ -1747,6 +1747,87 @@ struct ConcurrencyMethodologyTests {
         }, "conditional add must not overclaim arbitrary-actor support")
     }
 
+    @Test func taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions()
+            throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let rows = inventory.declarations.filter {
+            $0.domain == "task-group-member"
+                && $0.name == "addTaskUnlessCancelled"
+                && $0.declaration.contains("executorPreference")
+        }
+        let expectedIDs: Set<String> = [
+            "swift-concurrency-api-v1:7193654c2ce6605a7ef4b65a223a89ee453fcf806fc92a4e7b30f57f54962b3c",
+            "swift-concurrency-api-v1:a4cf732124d8ea8052dc1d8023c262cc2ca6df34115cadf32751672349a5b016",
+            "swift-concurrency-api-v1:c0908c7c67c1678539f7e6891a6ba354b932f7cc5629e1f230bd507b9f86ec68",
+            "swift-concurrency-api-v1:f1a8416d54168393bf82567af4eba2ab8f691334ab27ecac373fb823ad002034",
+            "swift-concurrency-api-v1:09b12567828c894ba0ba682092d1734d846502c319f995a3740a15b437e0f8b5",
+            "swift-concurrency-api-v1:bf03c66d92e715aba8fa05ce4289bc2ed500578da39417e8a0402970b105919b",
+            "swift-concurrency-api-v1:7763873ae30507abe97a6abc23d51a1d4c3deedd9f0dcb0d947ea6ecbab78a53",
+            "swift-concurrency-api-v1:ae387c398f7e5addef96035255b387142bed2598b4f154535805e204c29e6813",
+        ]
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 8,
+            "the active SDK conditional executor-preference denominator changed")
+        #expect(ids == expectedIDs,
+            "the active SDK conditional executor-preference identities changed")
+        #expect(Set(rows.compactMap(\.container)) == [
+            "DiscardingTaskGroup",
+            "TaskGroup",
+            "ThrowingDiscardingTaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        for container in Set(rows.compactMap(\.container)) {
+            #expect(rows.count { $0.container == container } == 2,
+                "\(container) should expose named and unnamed conditional rows")
+        }
+        #expect(rows.count {
+            $0.declaration.contains("name: Swift.String?")
+        } == 4)
+        #expect(rows.count {
+            !$0.declaration.contains("name: Swift.String?")
+        } == 4)
+        #expect(rows.allSatisfy {
+            $0.adapterIntrinsic == "addTaskUnlessCancelled"
+                && $0.declaration.contains(
+                    "executorPreference taskExecutor: (any _Concurrency.TaskExecutor)? = nil")
+                && $0.declaration.contains("priority:")
+                && $0.declaration.contains("@isolated(any)")
+                && $0.declaration.hasSuffix("-> Swift.Bool")
+        }, "conditional executor-preference interface shape changed")
+        #expect(Set(claims.map(\.id)) == ids,
+            "every conditional executor-preference row needs a disposition")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef == "M4/remaining-task-group-surface"
+                && $0.evidenceCaseIDs == [
+                    "task-group-executor-preference-nil-add-unless-cancelled",
+                ]
+                && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed")
+                && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference")
+                && $0.gapEvidenceIDs
+                    == ["remaining-generated-task-group-surface"]
+                && $0.notes.contains("explicit-nil")
+                && $0.notes.contains("non-nil TaskExecutor")
+                && $0.notes.contains("@isolated(any)")
+        }, "conditional rows must retain executor and actor gaps")
+    }
+
     @Test func taskGroupNamedAddOverloadsHaveExplicitReviewedDispositions()
             throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(

@@ -193,6 +193,31 @@ struct TaskGroupSurfaceTests {
         }
     }
 
+    @Test func nonNilConditionalTaskGroupExecutorPreferenceFailsClosed() async {
+        do {
+            _ = try await Interpreter().runAsync(source: """
+            final class ProbeTaskExecutor: TaskExecutor {
+                func enqueue(_ job: consuming ExecutorJob) {
+                    globalConcurrentExecutor.enqueue(job)
+                }
+            }
+            await withTaskGroup(of: Int.self) { group in
+                let executor = ProbeTaskExecutor()
+                let accepted = group.addTaskUnlessCancelled(
+                    executorPreference: executor
+                ) { 7 }
+                return accepted ? (await group.next() ?? -1) : -2
+            }
+            """)
+            Issue.record(
+                "non-nil conditional executor preference was silently ignored")
+        } catch {
+            #expect(String(describing: error).contains(
+                "TaskGroup.addTaskUnlessCancelled(executorPreference:) "
+                    + "is not supported yet"))
+        }
+    }
+
     @Test func cancelledConditionalAddSkipsExecutorPreference() async throws {
         let result = try await Interpreter().runAsync(source: """
         final class ProbeTaskExecutor: TaskExecutor {

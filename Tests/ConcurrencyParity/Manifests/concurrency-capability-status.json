@@ -1848,6 +1848,150 @@
       "notes": "The named ThrowingTaskGroup.addTask(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity and preserves Task.name, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
     },
     {
+      "id": "swift-concurrency-api-v1:7193654c2ce6605a7ef4b65a223a89ee453fcf806fc92a4e7b30f57f54962b3c",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The DiscardingTaskGroup.addTaskUnlessCancelled(executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts and runs the child, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:a4cf732124d8ea8052dc1d8023c262cc2ca6df34115cadf32751672349a5b016",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The named DiscardingTaskGroup.addTaskUnlessCancelled(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts the child and preserves Task.name, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c0908c7c67c1678539f7e6891a6ba354b932f7cc5629e1f230bd507b9f86ec68",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The TaskGroup.addTaskUnlessCancelled(executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts and runs the child, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:f1a8416d54168393bf82567af4eba2ab8f691334ab27ecac373fb823ad002034",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The named TaskGroup.addTaskUnlessCancelled(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts the child and preserves Task.name, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:09b12567828c894ba0ba682092d1734d846502c319f995a3740a15b437e0f8b5",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The ThrowingDiscardingTaskGroup.addTaskUnlessCancelled(executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts and runs the child, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:bf03c66d92e715aba8fa05ce4289bc2ed500578da39417e8a0402970b105919b",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The named ThrowingDiscardingTaskGroup.addTaskUnlessCancelled(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts the child and preserves Task.name, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:7763873ae30507abe97a6abc23d51a1d4c3deedd9f0dcb0d947ea6ecbab78a53",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The ThrowingTaskGroup.addTaskUnlessCancelled(executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts and runs the child, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ae387c398f7e5addef96035255b387142bed2598b4f154535805e204c29e6813",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add-unless-cancelled"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilConditionalTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskUnlessCancelledHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The named ThrowingTaskGroup.addTaskUnlessCancelled(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts the child and preserves Task.name, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
       "id": "swift-concurrency-api-v1:75560cb6e0a7a099f0a8150723dc13a0cc65e7c2e76faec35eb7fa38cd1d6805",
       "implementationStatus": "deferred",
       "verificationStatus": "none",

@@ -1293,5 +1293,17 @@
     "interpreterProjection": "string",
     "nativeFact": "All eight addTask overloads carrying executorPreference across ordinary, throwing, discarding, and throwing-discarding groups accept an explicit nil preference, execute the child operation, preserve supplied or absent Task.name metadata, and join the children before their scopes return.",
     "notes": "Strict Swift 6 SIL selects each exact named and unnamed executorPreference overload once. Every group body waits until both operations record their names before returning, then scope exit joins the children. The recorder sorts all eight observations, so no child scheduling order is asserted. Exact output is discarding-named:discarding-name|discarding-unnamed:nil|ordinary-named:ordinary-name|ordinary-unnamed:nil|throwing-discarding-named:throwing-discarding-name|throwing-discarding-unnamed:nil|throwing-named:throwing-name|throwing-unnamed:nil."
+  },
+  {
+    "id": "task-group-executor-preference-nil-add-unless-cancelled",
+    "fixture": "Fixtures/task-group-executor-preference-nil-add-unless-cancelled.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await taskGroupExecutorPreferenceNilAddUnlessCancelledProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "All eight addTaskUnlessCancelled overloads carrying executorPreference across ordinary, throwing, discarding, and throwing-discarding groups accept explicit nil preferences while active, run named and unnamed children with the supplied Task.name metadata, and return false without creating children after group cancellation.",
+    "notes": "Strict Swift 6 SIL selects each exact named and unnamed executorPreference overload twice: once while active and once after cancelAll(). Every group waits until its two accepted children record before cancellation, scope exit joins them, and the final recorder output is sorted, so no child scheduling order is asserted. Exact output is discarding-decisions:true:true:false:false|discarding-named:discarding-name|discarding-unnamed:nil|ordinary-decisions:true:true:false:false|ordinary-named:ordinary-name|ordinary-unnamed:nil|throwing-decisions:true:true:false:false|throwing-discarding-decisions:true:true:false:false|throwing-discarding-named:throwing-discarding-name|throwing-discarding-unnamed:nil|throwing-named:throwing-name|throwing-unnamed:nil."
   }
 ]
