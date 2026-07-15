@@ -3104,3 +3104,29 @@ reads, 20 dropped-live-handle runs, and the post-completion cancellation case.
 The focused task, cancellation, structured-runtime, and methodology run passes
 89/89 tests. The machine-readable repository gate receipt is the final
 source-bound evidence for this M2 completion claim.
+
+### M3 seeded cancellation-race exploration
+
+`CancellationRaceExplorationTests` runs 64 deterministic seeds in the ordinary
+test gate. Seed bits select both cancel-versus-complete orders, four
+cancel-versus-manual-clock-wake boundaries, both cancellation-handler
+unregister orders, and one through four duplicate cancellation requests. Each
+iteration verifies terminal outcome/cancellation independence, wake and
+observation consistency, one-shot handler invocation, and empty sleeper,
+suspension, handler, and active-task registries.
+
+The board deliberately varies only explicit happens-before boundaries; it does
+not promote a native scheduler's ready-task order into a guarantee. Failures
+include the exact `DYNAMIC_SWIFT_CANCELLATION_RACE_SEED=0x... swift test
+--filter CancellationRaceExplorationTests` replay command. The negative
+control verifies that diagnostic, and a focused replay of seed
+`0xcacec0de0000002d` executes exactly one iteration.
+
+Fresh Apple Swift 6.3.3 differential runs remain GREEN for 20/20 repetitions
+of cancellation-before-start, cancellable sleep, active cancellation handlers,
+and handler scope exit, plus the post-completion cancellation fixture. The
+unchanged pinned swiftlang executable corpus also remains GREEN, including
+`test/Concurrency/Runtime/async_task_cancellation_early.swift`. These native
+fixtures anchor the semantic endpoints while the seeded runtime board explores
+their cancellation boundaries. M3 is complete; the next dependency-ready work
+belongs to M4.
