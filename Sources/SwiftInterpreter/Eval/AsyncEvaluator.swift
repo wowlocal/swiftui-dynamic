@@ -222,12 +222,14 @@ extension Interpreter {
                         baseExpression, in: env)
                     if case .host(let payload) = base,
                        let handle = payload as? RuntimeTaskHandle {
-                        switch member.declName.baseName.text {
-                        case "value":
+                        switch GeneratedConcurrencySurface.taskInstanceIntrinsic(
+                            memberName: member.declName.baseName.text
+                        ) {
+                        case .value:
                             return try await taskValue(from: handle)
-                        case "result":
+                        case .result:
                             return await taskResult(from: handle)
-                        default:
+                        case .cancel, .isCancelled, nil:
                             break
                         }
                     }

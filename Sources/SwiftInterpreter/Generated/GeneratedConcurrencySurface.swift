@@ -12,6 +12,13 @@ enum RuntimeTaskStaticIntrinsic: String, Sendable {
     case yield
 }
 
+enum RuntimeTaskInstanceIntrinsic: String, Sendable {
+    case cancel
+    case isCancelled
+    case result
+    case value
+}
+
 enum RuntimeTaskGroupIntrinsic: String, Sendable {
     case addTask
     case addTaskUnlessCancelled
@@ -150,6 +157,61 @@ enum GeneratedConcurrencySurface {
         ],
         "yield": [
             .init(declaration: "public static func yield() async", kind: .function, parameters: [], returnType: nil, isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+        ],
+    ]
+
+    static let taskInstanceDispatch: [
+        String: RuntimeTaskInstanceIntrinsic
+    ] = [
+        "cancel": .cancel,
+        "isCancelled": .isCancelled,
+        "result": .result,
+        "value": .value,
+    ]
+
+    static let knownTaskInstanceMembers: Set<String> = [
+        "cancel",
+        "escalatePriority",
+        "get",
+        "getResult",
+        "hash",
+        "hashValue",
+        "isCancelled",
+        "result",
+        "value",
+    ]
+
+    static let taskInstanceMemberDeclarations: [
+        String: [GeneratedConcurrencyDeclaration]
+    ] = [
+        "cancel": [
+            .init(declaration: "public func cancel()", kind: .function, parameters: [], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+        ],
+        "escalatePriority": [
+            .init(declaration: "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n  public func escalatePriority(to newPriority: _Concurrency.TaskPriority)", kind: .function, parameters: [.init(label: "to", name: "newPriority", type: "_Concurrency.TaskPriority", defaultValue: nil, attributes: [], modifiers: [])], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)"], modifiers: ["public"], globalActor: nil),
+        ],
+        "get": [
+            .init(declaration: "@available(*, deprecated, message: \"get() has been replaced by .value\")\n  @_alwaysEmitIntoClient public func get() async -> Success", kind: .function, parameters: [], returnType: "Success", isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(*, deprecated, message: \"get() has been replaced by .value\")", "@_alwaysEmitIntoClient"], modifiers: ["public"], globalActor: nil),
+            .init(declaration: "@available(*, deprecated, message: \"get() has been replaced by .value\")\n  @_alwaysEmitIntoClient public func get() async throws -> Success", kind: .function, parameters: [], returnType: "Success", isAsync: true, throwsKind: .throwing, thrownErrorType: nil, attributes: ["@available(*, deprecated, message: \"get() has been replaced by .value\")", "@_alwaysEmitIntoClient"], modifiers: ["public"], globalActor: nil),
+        ],
+        "getResult": [
+            .init(declaration: "@available(*, deprecated, message: \"getResult() has been replaced by .result\")\n  @_alwaysEmitIntoClient public func getResult() async -> Swift.Result<Success, Failure>", kind: .function, parameters: [], returnType: "Swift.Result<Success, Failure>", isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(*, deprecated, message: \"getResult() has been replaced by .result\")", "@_alwaysEmitIntoClient"], modifiers: ["public"], globalActor: nil),
+        ],
+        "hash": [
+            .init(declaration: "public func hash(into hasher: inout Swift.Hasher)", kind: .function, parameters: [.init(label: "into", name: "hasher", type: "inout Swift.Hasher", defaultValue: nil, attributes: [], modifiers: [])], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+        ],
+        "hashValue": [
+            .init(declaration: "public var hashValue: Swift.Int {\n    get\n  }", kind: .variable, parameters: [], returnType: "Swift.Int", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+        ],
+        "isCancelled": [
+            .init(declaration: "@_transparent public var isCancelled: Swift.Bool {\n    @_transparent get {\n    _taskIsCancelled(_task)\n  }\n  }", kind: .variable, parameters: [], returnType: "Swift.Bool", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@_transparent"], modifiers: ["public"], globalActor: nil),
+        ],
+        "result": [
+            .init(declaration: "public var result: Swift.Result<Success, Failure> {\n    get async\n  }", kind: .variable, parameters: [], returnType: "Swift.Result<Success, Failure>", isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+        ],
+        "value": [
+            .init(declaration: "public var value: Success {\n    get async\n  }", kind: .variable, parameters: [], returnType: "Success", isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+            .init(declaration: "public var value: Success {\n    get async throws\n  }", kind: .variable, parameters: [], returnType: "Success", isAsync: true, throwsKind: .throwing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
         ],
     ]
 
@@ -468,6 +530,16 @@ enum GeneratedConcurrencySurface {
 
     static func knowsTaskStaticMember(_ memberName: String) -> Bool {
         knownTaskStaticMembers.contains(memberName)
+    }
+
+    static func taskInstanceIntrinsic(
+        memberName: String
+    ) -> RuntimeTaskInstanceIntrinsic? {
+        taskInstanceDispatch[memberName]
+    }
+
+    static func knowsTaskInstanceMember(_ memberName: String) -> Bool {
+        knownTaskInstanceMembers.contains(memberName)
     }
 
     static func knowsMember(

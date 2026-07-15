@@ -201,23 +201,34 @@ extension Interpreter {
             }
         }
         if let handle = any as? RuntimeTaskHandle {
-            switch name {
-            case "cancel":
+            switch GeneratedConcurrencySurface.taskInstanceIntrinsic(
+                memberName: name
+            ) {
+            case .cancel:
                 return .hostFunction(HostFunction(name: name) { _, _ in
                     handle.cancel()
                     return .void
                 })
-            case "isCancelled":
+            case .isCancelled:
                 return .native(handle.isCancelled)
+            case .value, .result:
+                throw RuntimeError(message: "Task.\(name) requires await")
+            case nil:
+                break
+            }
+            switch name {
             case "isCompleted":
                 return .native(handle.isCompleted)
             case "state":
                 return .native(handle.state.rawValue)
-            case "value", "result":
-                throw RuntimeError(message: "Task.\(name) requires await")
             case "failureDescription":
                 return .native(handle.failureDescription)
             default:
+                if GeneratedConcurrencySurface.knowsTaskInstanceMember(name) {
+                    throw RuntimeError(message:
+                        "Task.\(name) is declared by the active "
+                            + "_Concurrency.swiftinterface but is not supported yet")
+                }
                 return nil
             }
         }

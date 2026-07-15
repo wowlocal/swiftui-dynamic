@@ -25,6 +25,19 @@ struct GeneratedTaskSurfaceTests {
                 $0.name == "operation" && $0.hasIsolatedFunctionType
             }
         })
+
+        #expect(Set(GeneratedConcurrencySurface.taskInstanceDispatch.keys) == [
+            "cancel", "isCancelled", "result", "value",
+        ])
+        #expect(GeneratedConcurrencySurface.knownTaskInstanceMembers.contains(
+            "get"))
+        let value = try #require(
+            GeneratedConcurrencySurface.taskInstanceMemberDeclarations["value"])
+        #expect(value.contains { $0.isAsync && $0.isThrowing })
+        #expect(value.contains { $0.isAsync && !$0.isThrowing })
+        let result = try #require(
+            GeneratedConcurrencySurface.taskInstanceMemberDeclarations["result"])
+        #expect(result.contains { $0.isAsync && !$0.isThrowing })
     }
 
     @Test
@@ -53,6 +66,22 @@ struct GeneratedTaskSurfaceTests {
         } catch {
             #expect(String(describing: error).contains(
                 "Task.detached(executorPreference:) is declared by the active "
+                    + "_Concurrency.swiftinterface but is not supported yet"))
+        }
+    }
+
+    @Test
+    @MainActor
+    func generatedButUnsupportedTaskInstanceMemberIsExplicit() async {
+        do {
+            _ = try await Interpreter().runAsync(source: """
+            let task = Task { 1 }
+            await task.get()
+            """)
+            Issue.record("unsupported generated Task member was absorbed")
+        } catch {
+            #expect(String(describing: error).contains(
+                "Task.get is declared by the active "
                     + "_Concurrency.swiftinterface but is not supported yet"))
         }
     }

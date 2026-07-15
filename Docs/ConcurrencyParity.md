@@ -3714,3 +3714,40 @@ gate is GREEN over 879 tests, exact 88/88 runtime parity cases and 1,722
 repetitions, the 678/680 pinned corpus ratchet, 5/5 live scenarios, and API
 parity at 345 match / 0 diverge / 0 interpreter errors / 17 unstable / 0
 no-twin.
+
+### M7 generated Task instance surface
+
+This characterization slice moves source-visible `Task` handle dispatch onto
+the active `_Concurrency.swiftinterface`. Before the generator change,
+`cancel`, `isCancelled`, `value`, and `result` were selected independently by
+raw string switches in the synchronous member and suspension evaluators. The
+captured generator RED was the absence of `taskInstanceDispatch`, the complete
+known-member inventory, and instance declaration effect metadata; no semantic
+RED was invented for behavior that already matched native Swift.
+
+The native anchor is the unchanged swiftlang fixture
+`test/Concurrency/Runtime/async_task_handle_cancellation.swift` from release
+`swift-6.3.3-RELEASE`, SHA-256 `5829b825…`. Its FileCheck oracle requires the
+detached task to observe cancellation, its handle to remain cancelled after
+`await task.value`, and the parent task to remain uncancelled. The pinned
+upstream runner executes the same file natively and through the interpreter.
+Existing exact same-source fixtures separately cover successful, failing, and
+cancelled `Task.result` reads.
+
+`ConcurrencySurfaceGen` now inventories all nine public instance `Task` member
+names in the active macOS SDK interface and retains both throwing and
+nonthrowing `value` overloads plus the async/nonthrowing `result` contract.
+Four supported names map to generated semantic intrinsics consumed by both
+member lookup and suspension dispatch. Known but unsupported active-interface
+members, including deprecated `get`/`getResult`, hashing, and priority
+escalation, now fail with an explicit generated-surface diagnostic instead of
+falling through as unknown API. Two complete generator runs produced identical
+checked-in output SHA-256 `e1c8e433…`.
+
+The focused generator/runtime/upstream board is GREEN at 86 tests. M7 remains
+partial for the remaining generated concurrency surface,
+interpreter-synthetic host declarations, and target-aware project build
+manifests. The source-bound closing gate is GREEN over 880 tests, exact 88/88
+runtime parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet,
+5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
+errors / 17 unstable / 0 no-twin.

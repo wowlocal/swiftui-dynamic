@@ -9,6 +9,7 @@ public enum ConcurrencySurfaceGenerationError: Error,
     case missingIntrinsics([String])
     case missingFunctions([String])
     case missingTaskIntrinsics([String])
+    case missingTaskInstanceIntrinsics([String])
 
     public var description: String {
         switch self {
@@ -25,6 +26,9 @@ public enum ConcurrencySurfaceGenerationError: Error,
         case .missingTaskIntrinsics(let names):
             "active _Concurrency.swiftinterface is missing required Task "
                 + "members: \(names.joined(separator: ", "))"
+        case .missingTaskInstanceIntrinsics(let names):
+            "active _Concurrency.swiftinterface is missing required Task "
+                + "instance members: \(names.joined(separator: ", "))"
         }
     }
 }
@@ -94,6 +98,10 @@ public struct ConcurrencySurfaceInventory: Sendable, Equatable {
     public let knownTaskStaticMembers: Set<String>
     public let taskStaticMemberDeclarations:
         [String: [ConcurrencySurfaceDeclaration]]
+    public let taskInstanceDispatch: [String: String]
+    public let knownTaskInstanceMembers: Set<String>
+    public let taskInstanceMemberDeclarations:
+        [String: [ConcurrencySurfaceDeclaration]]
     public let taskGroupDispatch: [String: [String: String]]
     public let knownTaskGroupMembers: [String: Set<String>]
     public let taskGroupFunctions: Set<String>
@@ -116,6 +124,9 @@ public enum ConcurrencySurfaceGenerator {
     private static let supportedTaskStaticIntrinsics: Set<String> = [
         "checkCancellation", "currentPriority", "detached", "isCancelled",
         "sleep", "yield",
+    ]
+    private static let supportedTaskInstanceIntrinsics: Set<String> = [
+        "cancel", "isCancelled", "result", "value",
     ]
     private static let requiredIntrinsicsByType: [String: Set<String>] = [
         "DiscardingTaskGroup": [
@@ -172,6 +183,10 @@ public enum ConcurrencySurfaceGenerator {
         var taskStaticDispatch: [String: String] = [:]
         var taskStaticMemberDeclarations:
             [String: [ConcurrencySurfaceDeclaration]] = [:]
+        var knownTaskInstanceMembers: Set<String> = []
+        var taskInstanceDispatch: [String: String] = [:]
+        var taskInstanceMemberDeclarations:
+            [String: [ConcurrencySurfaceDeclaration]] = [:]
 
         for statement in syntax.statements {
             guard case .decl(let declaration) = statement.item else { continue }
@@ -206,12 +221,15 @@ public enum ConcurrencySurfaceGenerator {
             }
             guard let typeName, let members else { continue }
             if typeName == "Task" {
-                inspectTaskStatics(
+                inspectTaskMembers(
                     members,
                     globalActorNames: globalActorNames,
-                    knownNames: &knownTaskStaticMembers,
-                    dispatch: &taskStaticDispatch,
-                    declarations: &taskStaticMemberDeclarations)
+                    knownStaticNames: &knownTaskStaticMembers,
+                    staticDispatch: &taskStaticDispatch,
+                    staticDeclarations: &taskStaticMemberDeclarations,
+                    knownInstanceNames: &knownTaskInstanceMembers,
+                    instanceDispatch: &taskInstanceDispatch,
+                    instanceDeclarations: &taskInstanceMemberDeclarations)
                 continue
             }
             guard taskGroupTypeSet.contains(typeName) else { continue }
@@ -246,6 +264,12 @@ public enum ConcurrencySurfaceGenerator {
             throw ConcurrencySurfaceGenerationError.missingTaskIntrinsics(
                 missingTaskIntrinsics)
         }
+        let missingTaskInstanceIntrinsics = supportedTaskInstanceIntrinsics
+            .subtracting(taskInstanceDispatch.values).sorted()
+        guard missingTaskInstanceIntrinsics.isEmpty else {
+            throw ConcurrencySurfaceGenerationError
+                .missingTaskInstanceIntrinsics(missingTaskInstanceIntrinsics)
+        }
 
         for typeName in taskGroupTypes {
             for member in memberDeclarations[typeName, default: [:]].keys {
@@ -264,10 +288,18 @@ public enum ConcurrencySurfaceGenerator {
                 $0.declaration < $1.declaration
             }
         }
+        for name in taskInstanceMemberDeclarations.keys {
+            taskInstanceMemberDeclarations[name]?.sort {
+                $0.declaration < $1.declaration
+            }
+        }
         return ConcurrencySurfaceInventory(
             taskStaticDispatch: taskStaticDispatch,
             knownTaskStaticMembers: knownTaskStaticMembers,
             taskStaticMemberDeclarations: taskStaticMemberDeclarations,
+            taskInstanceDispatch: taskInstanceDispatch,
+            knownTaskInstanceMembers: knownTaskInstanceMembers,
+            taskInstanceMemberDeclarations: taskInstanceMemberDeclarations,
             taskGroupDispatch: dispatch,
             knownTaskGroupMembers: knownNames,
             taskGroupFunctions: requiredTaskGroupFunctions,
@@ -293,6 +325,25 @@ public enum ConcurrencySurfaceGenerator {
         let taskStaticDeclarationLines = inventory
             .taskStaticMemberDeclarations.keys.sorted().map { memberName in
                 let declarations = inventory.taskStaticMemberDeclarations[
+                    memberName, default: []].map {
+                        "            \(render($0)),"
+                    }.joined(separator: "\n")
+                return "        \"\(escaped(memberName))\": [\n"
+                    + declarations + "\n        ],"
+            }.joined(separator: "\n")
+        let taskInstanceDispatchLines = inventory.taskInstanceDispatch.keys
+            .sorted().map { sourceName in
+                "        \"\(escaped(sourceName))\": ."
+                    + "\(inventory.taskInstanceDispatch[sourceName]!),"
+            }.joined(separator: "\n")
+        let taskInstanceIntrinsicCaseLines = supportedTaskInstanceIntrinsics
+            .sorted().map { "    case \($0)" }.joined(separator: "\n")
+        let taskInstanceKnownLines = inventory.knownTaskInstanceMembers.sorted()
+            .map { "        \"\(escaped($0))\"," }
+            .joined(separator: "\n")
+        let taskInstanceDeclarationLines = inventory
+            .taskInstanceMemberDeclarations.keys.sorted().map { memberName in
+                let declarations = inventory.taskInstanceMemberDeclarations[
                     memberName, default: []].map {
                         "            \(render($0)),"
                     }.joined(separator: "\n")
@@ -351,6 +402,10 @@ public enum ConcurrencySurfaceGenerator {
 
         enum RuntimeTaskStaticIntrinsic: String, Sendable {
         \(taskStaticIntrinsicCaseLines)
+        }
+
+        enum RuntimeTaskInstanceIntrinsic: String, Sendable {
+        \(taskInstanceIntrinsicCaseLines)
         }
 
         enum RuntimeTaskGroupIntrinsic: String, Sendable {
@@ -428,6 +483,22 @@ public enum ConcurrencySurfaceGenerator {
         \(taskStaticDeclarationLines)
             ]
 
+            static let taskInstanceDispatch: [
+                String: RuntimeTaskInstanceIntrinsic
+            ] = [
+        \(taskInstanceDispatchLines)
+            ]
+
+            static let knownTaskInstanceMembers: Set<String> = [
+        \(taskInstanceKnownLines)
+            ]
+
+            static let taskInstanceMemberDeclarations: [
+                String: [GeneratedConcurrencyDeclaration]
+            ] = [
+        \(taskInstanceDeclarationLines)
+            ]
+
             static let taskGroupDispatch: [
                 String: [String: RuntimeTaskGroupIntrinsic]
             ] = [
@@ -468,6 +539,16 @@ public enum ConcurrencySurfaceGenerator {
 
             static func knowsTaskStaticMember(_ memberName: String) -> Bool {
                 knownTaskStaticMembers.contains(memberName)
+            }
+
+            static func taskInstanceIntrinsic(
+                memberName: String
+            ) -> RuntimeTaskInstanceIntrinsic? {
+                taskInstanceDispatch[memberName]
+            }
+
+            static func knowsTaskInstanceMember(_ memberName: String) -> Bool {
+                knownTaskInstanceMembers.contains(memberName)
             }
 
             static func knowsMember(
@@ -559,44 +640,69 @@ public enum ConcurrencySurfaceGenerator {
         }
     }
 
-    private static func inspectTaskStatics(
+    private static func inspectTaskMembers(
         _ members: MemberBlockItemListSyntax,
         globalActorNames: Set<String>,
-        knownNames: inout Set<String>,
-        dispatch: inout [String: String],
-        declarations: inout [String: [ConcurrencySurfaceDeclaration]]
+        knownStaticNames: inout Set<String>,
+        staticDispatch: inout [String: String],
+        staticDeclarations:
+            inout [String: [ConcurrencySurfaceDeclaration]],
+        knownInstanceNames: inout Set<String>,
+        instanceDispatch: inout [String: String],
+        instanceDeclarations:
+            inout [String: [ConcurrencySurfaceDeclaration]]
     ) {
         for item in members {
             if let function = item.decl.as(FunctionDeclSyntax.self),
-               isPublic(function.modifiers),
-               isStatic(function.modifiers) {
+               isPublic(function.modifiers) {
                 let name = function.name.text
-                knownNames.insert(name)
-                appendUnique(
-                    declarationMetadata(
-                        function, globalActorNames: globalActorNames),
-                    to: &declarations[name, default: []])
-                if supportedTaskStaticIntrinsics.contains(name) {
-                    dispatch[name] = name
+                let metadata = declarationMetadata(
+                    function, globalActorNames: globalActorNames)
+                if isStatic(function.modifiers) {
+                    knownStaticNames.insert(name)
+                    appendUnique(
+                        metadata,
+                        to: &staticDeclarations[name, default: []])
+                    if supportedTaskStaticIntrinsics.contains(name) {
+                        staticDispatch[name] = name
+                    }
+                } else {
+                    knownInstanceNames.insert(name)
+                    appendUnique(
+                        metadata,
+                        to: &instanceDeclarations[name, default: []])
+                    if supportedTaskInstanceIntrinsics.contains(name) {
+                        instanceDispatch[name] = name
+                    }
                 }
                 continue
             }
             guard let variable = item.decl.as(VariableDeclSyntax.self),
-                  isPublic(variable.modifiers),
-                  isStatic(variable.modifiers) else { continue }
+                  isPublic(variable.modifiers) else { continue }
             for binding in variable.bindings {
                 guard let identifier = binding.pattern.as(
                     IdentifierPatternSyntax.self
                 ) else { continue }
                 let name = identifier.identifier.text
-                knownNames.insert(name)
-                appendUnique(
-                    declarationMetadata(
-                        variable, binding: binding,
-                        globalActorNames: globalActorNames),
-                    to: &declarations[name, default: []])
-                if supportedTaskStaticIntrinsics.contains(name) {
-                    dispatch[name] = name
+                let metadata = declarationMetadata(
+                    variable, binding: binding,
+                    globalActorNames: globalActorNames)
+                if isStatic(variable.modifiers) {
+                    knownStaticNames.insert(name)
+                    appendUnique(
+                        metadata,
+                        to: &staticDeclarations[name, default: []])
+                    if supportedTaskStaticIntrinsics.contains(name) {
+                        staticDispatch[name] = name
+                    }
+                } else {
+                    knownInstanceNames.insert(name)
+                    appendUnique(
+                        metadata,
+                        to: &instanceDeclarations[name, default: []])
+                    if supportedTaskInstanceIntrinsics.contains(name) {
+                        instanceDispatch[name] = name
+                    }
                 }
             }
         }

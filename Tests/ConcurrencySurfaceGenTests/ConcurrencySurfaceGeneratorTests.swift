@@ -71,6 +71,25 @@ struct ConcurrencySurfaceGeneratorTests {
             }
         } == true)
 
+        #expect(inventory.taskInstanceDispatch == [
+            "cancel": "cancel",
+            "isCancelled": "isCancelled",
+            "result": "result",
+            "value": "value",
+        ])
+        #expect(inventory.knownTaskInstanceMembers.contains("hash"))
+        let instanceTaskMembers = inventory.taskInstanceMemberDeclarations
+        #expect(instanceTaskMembers["value"]?.contains {
+            $0.kind == .variable && $0.isAsync && $0.isThrowing
+        } == true)
+        #expect(instanceTaskMembers["value"]?.contains {
+            $0.kind == .variable && $0.isAsync && !$0.isThrowing
+        } == true)
+        #expect(instanceTaskMembers["result"]?.first?.isAsync == true)
+        #expect(instanceTaskMembers["result"]?.first?.isThrowing == false)
+        #expect(instanceTaskMembers["cancel"]?.first?.isAsync == false)
+        #expect(instanceTaskMembers["isCancelled"]?.first?.kind == .variable)
+
         for typeName in ConcurrencySurfaceGenerator.taskGroupTypes {
             #expect(Set(inventory.taskGroupMemberDeclarations[
                 typeName, default: [:]].keys)
@@ -141,6 +160,26 @@ struct ConcurrencySurfaceGeneratorTests {
             declaration.parameters.contains {
                 $0.name == "operation" && $0.hasIsolatedFunctionType
             }
+        } == true)
+
+        #expect(inventory.taskInstanceDispatch == [
+            "cancel": "cancel",
+            "isCancelled": "isCancelled",
+            "result": "result",
+            "value": "value",
+        ])
+        let taskInstances = inventory.taskInstanceMemberDeclarations
+        #expect(taskInstances["value"]?.contains {
+            $0.kind == .variable && $0.isAsync && $0.isThrowing
+        } == true)
+        #expect(taskInstances["value"]?.contains {
+            $0.kind == .variable && $0.isAsync && !$0.isThrowing
+        } == true)
+        #expect(taskInstances["result"]?.contains {
+            $0.kind == .variable && $0.isAsync && !$0.isThrowing
+        } == true)
+        #expect(taskInstances["isCancelled"]?.contains {
+            $0.kind == .variable && !$0.isAsync && !$0.isThrowing
         } == true)
     }
 
@@ -220,6 +259,16 @@ struct ConcurrencySurfaceGeneratorTests {
     }
 
     public struct Task<Success, Failure> {}
+    extension Task {
+        public var value: Success { get async throws }
+        public var result: Result<Success, Failure> { get async }
+        public var isCancelled: Bool { get }
+        public func cancel() {}
+        public func hash(into hasher: inout Hasher) {}
+    }
+    extension Task where Failure == Never {
+        public var value: Success { get async }
+    }
     extension Task where Success == Never, Failure == Never {
         public static var currentPriority: TaskPriority { fatalError() }
         public static var basePriority: TaskPriority? { nil }
