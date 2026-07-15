@@ -253,6 +253,14 @@ public protocol HostRegistry: AnyObject {
     /// preflight. Runtime implementations remain in this registry; the module
     /// carries only their Swift-facing call contracts.
     var compilerPreflightHostModule: CompilerPreflightHostModule? { get }
+    /// Typed top-level APIs implemented by the interpreter rather than an SDK
+    /// module. Compiler preflight emits declarations from these exact runtime
+    /// contracts and appends them to `compilerPreflightHostModule` (or creates
+    /// a synthetic module when the registry has no SDK surface).
+    ///
+    /// SDK-backed functions must stay out of this list: their canonical
+    /// declarations come from the generated module re-exports instead.
+    var compilerPreflightSyntheticSignatures: [HostSignature] { get }
     /// Real implementations for C functions worth answering truthfully
     /// (uname fills real host values). nil falls to the inert absorber.
     func cFunction(named name: String) -> HostFunction?
@@ -312,6 +320,7 @@ public protocol HostRegistry: AnyObject {
 
 extension HostRegistry {
     public var compilerPreflightHostModule: CompilerPreflightHostModule? { nil }
+    public var compilerPreflightSyntheticSignatures: [HostSignature] { [] }
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
     public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }

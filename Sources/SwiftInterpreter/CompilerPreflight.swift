@@ -17,6 +17,8 @@ public enum CompilerPreflightMode: String, Sendable {
 /// preflight. The module is compiled once per engine; only its serialized
 /// public declarations participate in checking user source.
 public struct CompilerPreflightHostModule: Sendable, Equatable {
+    public static let defaultSyntheticModuleName = "DynamicSwiftHostSurface"
+
     public let moduleName: String
     public let source: String
     public let sourceSHA256: String
@@ -33,6 +35,54 @@ public struct CompilerPreflightHostModule: Sendable, Equatable {
             moduleName,
             sourceSHA256,
         ])
+    }
+
+    static func composing(
+        base: CompilerPreflightHostModule?,
+        syntheticSignatures: [HostSignature]
+    ) throws -> CompilerPreflightHostModule? {
+        guard !syntheticSignatures.isEmpty else { return base }
+
+        let declarations = try Dictionary(
+            syntheticSignatures.map { signature in
+                (signature.declaration, try signature.compilerPreflightStub())
+            },
+            uniquingKeysWith: { first, _ in first }
+        ).values.sorted()
+        let generatedSource = ([
+            "// Generated from typed interpreter-synthetic HostSignature contracts.",
+        ] + declarations).joined(separator: "\n\n") + "\n"
+        let source: String
+        if let base {
+            source = base.source
+                + (base.source.hasSuffix("\n") ? "" : "\n")
+                + generatedSource
+        } else {
+            source = generatedSource
+        }
+        return CompilerPreflightHostModule(
+            moduleName: base?.moduleName ?? defaultSyntheticModuleName,
+            source: source)
+    }
+}
+
+private extension HostSignature {
+    func compilerPreflightStub() throws -> String {
+        guard kind == .function, receiverType == nil else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "synthetic compiler declaration '\(declaration)' is not a "
+                    + "top-level function")
+        }
+        let declaration = declaration.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        guard declaration.hasPrefix("func ") else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "synthetic compiler declaration '\(declaration)' cannot be "
+                    + "exported from a host module")
+        }
+        return "public \(declaration) {\n"
+            + "    fatalError(\"compiler-preflight declaration only\")\n"
+            + "}"
     }
 }
 
@@ -414,7 +464,11 @@ public final class SwiftCompilerPreflight {
         additionalCompilerArguments: [String] = [],
         timeoutSeconds: TimeInterval = 10
     ) throws -> SwiftCompilerPreflight {
-        if let hostModule = registry?.compilerPreflightHostModule {
+        let hostModule = try CompilerPreflightHostModule.composing(
+            base: registry?.compilerPreflightHostModule,
+            syntheticSignatures:
+                registry?.compilerPreflightSyntheticSignatures ?? [])
+        if let hostModule {
             return try activeMacOS(
                 hostModule: hostModule,
                 additionalCompilerArguments: additionalCompilerArguments,

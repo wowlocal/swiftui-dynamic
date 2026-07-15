@@ -205,6 +205,102 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func typedSyntheticAsyncGatewayParticipatesInNativeCheckingAndExecution()
+        async throws {
+        let diagnosticSource = try Self.compilerPreflightFixture(
+            "SyntheticAsyncHostMissingAwait.swift")
+        let oracleModule = CompilerPreflightHostModule(
+            moduleName: CompilerPreflightHostModule.defaultSyntheticModuleName,
+            source: try Self.compilerPreflightFixture(
+                "SyntheticAsyncHostModule.swift"))
+        #expect(oracleModule.sourceSHA256
+            == "8713f01522c861608a23268fa9dd2ffd85a7ddc15766f3c64d1ba2645f7b0857")
+        let oracle = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: oracleModule)
+        let nativeDiagnostic = try oracle.preflight(
+            source: diagnosticSource,
+            fileName: "SyntheticAsyncHostMissingAwait.swift")
+        #expect(!nativeDiagnostic.succeeded)
+        #expect(nativeDiagnostic.diagnostics.contains {
+            $0.file == "SyntheticAsyncHostMissingAwait.swift"
+                && $0.line == 4
+                && $0.message.contains("async")
+                && $0.message.contains("does not support concurrency")
+        })
+
+        let registry = try SyntheticAsyncHostRegistry()
+        let interpreter = try Interpreter.withActiveCompilerPreflight(
+            registry: registry)
+        let diagnostic = try interpreter.preflight(
+            source: diagnosticSource,
+            fileName: "SyntheticAsyncHostMissingAwait.swift")
+
+        #expect(!diagnostic.succeeded)
+        #expect(diagnostic.diagnostics.contains {
+            $0.file == "SyntheticAsyncHostMissingAwait.swift"
+                && $0.line == 4
+                && $0.message.contains("async")
+                && !$0.message.contains("cannot find")
+        })
+
+        let value = try await interpreter.runAsync(source: """
+        import DynamicSwiftHostSurface
+
+        func readSyntheticHost() async -> Int {
+            await syntheticAsyncValue()
+        }
+        await readSyntheticHost()
+        """)
+        #expect(value.intValue == 42)
+        #expect(registry.invocationCount == 1)
+        #expect(interpreter.compilerPreflight?.hostModule?.moduleName
+            == CompilerPreflightHostModule.defaultSyntheticModuleName)
+        #expect(interpreter.compilerPreflight?.hostModule?.source.contains(
+            "public func syntheticAsyncValue() async -> Int") == true)
+        #expect(interpreter.compilerPreflight?.configuration
+            .gatewayManifestSHA256
+            == interpreter.compilerPreflight?.hostModule?.manifestSHA256)
+    }
+
+    @Test
+    func syntheticSignatureModuleCompositionIsDeterministicAndFailClosed()
+        throws {
+        let base = CompilerPreflightHostModule(
+            moduleName: "ComposedHostSurface",
+            source: "@_exported import Foundation\n")
+        let integer = try HostSignature(
+            parsing: "func syntheticIdentity(_ value: Int) -> Int")
+        let string = try HostSignature(
+            parsing: "func syntheticIdentity(_ value: String) async throws -> String")
+
+        let composed = try CompilerPreflightHostModule.composing(
+            base: base,
+            syntheticSignatures: [string, integer, integer])
+        let reorderedComposition = try CompilerPreflightHostModule.composing(
+            base: base,
+            syntheticSignatures: [integer, string])
+        let first = try #require(composed)
+        let reordered = try #require(reorderedComposition)
+
+        #expect(first == reordered)
+        #expect(first.moduleName == base.moduleName)
+        #expect(first.source.hasPrefix(base.source))
+        #expect(first.source.components(separatedBy:
+            "public func syntheticIdentity(_ value: Int) -> Int"
+        ).count == 2)
+        #expect(first.source.contains(
+            "public func syntheticIdentity(_ value: String) async throws -> String"))
+
+        let member = try HostSignature(
+            parsing: "func String.syntheticMember() -> Int")
+        #expect(throws: CompilerPreflightError.self) {
+            _ = try CompilerPreflightHostModule.composing(
+                base: base,
+                syntheticSignatures: [member])
+        }
+    }
+
+    @Test
     func invalidHostModuleFailsBeforeCheckingUserSource() throws {
         let invalidName = CompilerPreflightHostModule(
             moduleName: "invalid-module",
@@ -428,4 +524,37 @@ private final class PreflightHostRegistry: HostRegistry {
 
 private final class PreflightInvocationCounter {
     var value = 0
+}
+
+private final class SyntheticAsyncHostRegistry: HostRegistry {
+    private let asyncValue: HostFunction
+    private let counter = PreflightInvocationCounter()
+    var invocationCount: Int { counter.value }
+    var compilerPreflightSyntheticSignatures: [HostSignature] {
+        asyncValue.signatures
+    }
+
+    init() throws {
+        let counter = counter
+        asyncValue = try HostFunction(
+            declaration: "func syntheticAsyncValue() async -> Int",
+            asyncInvoke: { _, _ in
+                counter.value += 1
+                return .native(42)
+            })
+    }
+
+    func cFunction(named name: String) -> HostFunction? {
+        name == "syntheticAsyncValue" ? asyncValue : nil
+    }
+
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
 }

@@ -3812,3 +3812,40 @@ manifests. The source-bound closing gate is GREEN over 880 tests, exact 88/88
 runtime parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet,
 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
 errors / 17 unstable / 0 no-twin.
+
+### M7 typed synthetic top-level host declarations
+
+This gap-closure slice asks whether the compiler sees the same `async` effect
+as an interpreter-synthetic typed host gateway. The bounded native diagnostic
+probe consists of `SyntheticAsyncHostModule.swift` (SHA-256 `8713f015…`) and
+`SyntheticAsyncHostMissingAwait.swift`. Apple Swift 6.3.3 compiles the module
+in Swift 6 complete strict-concurrency mode, then rejects the unchanged client
+on line 4 with `async call in a function that does not support concurrency`.
+There is no scheduler observation in this diagnostic assertion.
+
+Before the fix, production preflight reported `no such module
+'DynamicSwiftHostSurface'` even though the runtime registry contained a parsed
+`func syntheticAsyncValue() async -> Int` gateway. The registry manifest and
+runtime behavior could therefore disagree, and the compiler could not enforce
+the gateway's effect. The same focused test captured that RED before the
+production change.
+
+`HostRegistry.compilerPreflightSyntheticSignatures` now exposes exact parsed
+contracts for APIs implemented by the interpreter rather than an SDK.
+Production preflight deterministically deduplicates and sorts those contracts,
+emits public declaration-only trap bodies, appends them to any generated SDK
+re-export module or creates `DynamicSwiftHostSurface`, and derives the manifest
+identity from the composed source. A legal client using `await` passes native
+preflight and invokes the same runtime gateway once, returning `42`. SDK APIs
+remain sourced from canonical serialized SDK modules rather than declaration
+copies.
+
+This first synthetic slice deliberately supports typed top-level functions.
+Member, initializer, and property signatures fail configuration explicitly;
+generated extension/type stubs and source-level global-actor attributes remain
+open together with target-aware project build manifests. The focused
+compiler/host-contract/upstream/SwiftUI board is GREEN at 33 tests. The
+source-bound closing gate is GREEN over 882 tests, exact 88/88 runtime parity
+cases and 1,722 repetitions, the 678/680 pinned corpus ratchet, 5/5 live
+scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
+unstable / 0 no-twin.
