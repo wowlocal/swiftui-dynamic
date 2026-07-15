@@ -1055,6 +1055,18 @@
     "notes": "Each child enters a 30-second cancellable sleep, so the post-add nonempty read does not depend on scheduling. The owner then cancels and deterministically drains the child. All four summaries were true:false:false:false:true:true in 20 strict Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-wait-for-all-explicit-main-actor-isolation",
+    "fixture": "Fixtures/task-group-wait-for-all-explicit-isolation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupWaitForAllExplicitIsolationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Strict Swift 6 accepts MainActor.shared as the explicit isolated-actor argument for ordinary and throwing waitForAll; each call suspends for a gated child and resumes its caller on MainActor.",
+    "notes": "The gates force both waits to suspend. Exact output is ordinary-supported:main:main|throwing-supported:main:main in all repetitions; arbitrary source-defined actor executors remain an explicit M5 gap."
+  },
+  {
     "id": "host-callback-task-runtime",
     "fixture": "Fixtures/host-callback-task-runtime.swift",
     "mode": "runtime",

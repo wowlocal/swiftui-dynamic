@@ -26,6 +26,14 @@
       "upstreamPath": "test/Concurrency/Inputs/implicit_nonisolated_things.swift",
       "sha256": "f4bd6452d24fdc2484aa503a0246828751f0420472627f022a5a2f5b581085a1",
       "purpose": "Cross-module serialization of MainActor isolation inherited from an imported nominal type."
+    },
+    {
+      "id": "task-group-mainactor-isolation-oracle",
+      "moduleName": "TaskGroupMainActorIsolationOracle",
+      "fixture": "Fixtures/Concurrency/async_task_groups_and_actors.swift",
+      "upstreamPath": "test/Concurrency/async_task_groups_and_actors.swift",
+      "sha256": "85a2cc342df2cd68c630c828aef353702e6b0979342a9ceb0c70e7fc20f1ba45",
+      "purpose": "Positive compiler oracle for ordinary, throwing, and discarding task groups used from MainActor-isolated code."
     }
   ],
   "cases": [

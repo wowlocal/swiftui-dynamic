@@ -1022,6 +1022,40 @@ struct ConcurrencyMethodologyTests {
         })
     }
 
+    @Test func taskGroupWaitForAllHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let waitRows = inventory.declarations.filter {
+            $0.domain == "task-group-member" && $0.name == "waitForAll"
+        }
+        let waitIDs = Set(waitRows.map(\.id))
+        let waitClaims = status.interfaceOverrides.filter {
+            waitIDs.contains($0.id)
+        }
+
+        #expect(waitRows.count == 2,
+            "the active SDK task-group waitForAll denominator changed")
+        #expect(Set(waitRows.compactMap(\.container)) == [
+            "TaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(Set(waitClaims.map(\.id)) == waitIDs,
+            "every task-group waitForAll declaration needs an authored disposition")
+        #expect(waitClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
     @Test func coveredRequirementCannotDependOnOpenWork() {
         let statuses: [String: AcceptanceRequirementStatus] = [
             "M0/foundation": .open,

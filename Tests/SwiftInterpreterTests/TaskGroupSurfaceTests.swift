@@ -6,6 +6,9 @@ struct TaskGroupSurfaceTests {
     @Test func activeInterfaceAliasesResolveToRuntimeIntrinsics() {
         let dispatch = try! #require(
             GeneratedConcurrencySurface.taskGroupDispatch["TaskGroup"])
+        let throwing = try! #require(
+            GeneratedConcurrencySurface.taskGroupDispatch[
+                "ThrowingTaskGroup"])
         let discarding = try! #require(
             GeneratedConcurrencySurface.taskGroupDispatch[
                 "DiscardingTaskGroup"])
@@ -16,6 +19,26 @@ struct TaskGroupSurfaceTests {
         #expect(dispatch["asyncUnlessCancelled"] == .addTaskUnlessCancelled)
         #expect(dispatch["spawnUnlessCancelled"] == .addTaskUnlessCancelled)
         #expect(dispatch["isEmpty"] == .isEmpty)
+        #expect(dispatch["waitForAll"] == .waitForAll)
+        #expect(throwing["waitForAll"] == .waitForAll)
+        let ordinaryWaitDeclarations = try! #require(
+            GeneratedConcurrencySurface.taskGroupMemberDeclarations[
+                "TaskGroup"]?["waitForAll"])
+        let throwingWaitDeclarations = try! #require(
+            GeneratedConcurrencySurface.taskGroupMemberDeclarations[
+                "ThrowingTaskGroup"]?["waitForAll"])
+        #expect(ordinaryWaitDeclarations.count == 1)
+        #expect(throwingWaitDeclarations.count == 1)
+        let ordinaryWait = try! #require(ordinaryWaitDeclarations.first)
+        let throwingWait = try! #require(throwingWaitDeclarations.first)
+        #expect(ordinaryWait.isAsync)
+        #expect(ordinaryWait.throwsKind == .nonThrowing)
+        #expect(throwingWait.isAsync)
+        #expect(throwingWait.throwsKind == .throwing)
+        #expect(ordinaryWait.parameters.count == 1)
+        #expect(throwingWait.parameters.count == 1)
+        #expect(ordinaryWait.parameters.first?.label == "isolation")
+        #expect(throwingWait.parameters.first?.label == "isolation")
         #expect(GeneratedConcurrencySurface.knownTaskGroupMembers[
             "ThrowingTaskGroup"]?.contains("nextResult") == true)
         #expect(dispatch["nextResult"] == nil)

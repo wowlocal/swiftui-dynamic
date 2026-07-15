@@ -658,6 +658,38 @@
       "testNames": [],
       "gapEvidenceIDs": [],
       "notes": "ThrowingTaskGroup.cancelAll() requests child cancellation while preserving a successful caught child outcome that remains consumable through try await next()."
+    },
+    {
+      "id": "swift-concurrency-api-v1:072b4439a14123f0add7efe2d58e3b4a9180c84dbefeb9b76b76f47aa9312971",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-wait-for-all-explicit-main-actor-isolation"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedTaskGroupsPreserveMainActorIsolation"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Default and explicit MainActor.shared TaskGroup.waitForAll calls have native parity for joining, consumption, suspension, and MainActor resumption. The complete any-Actor contract remains a known divergence until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:8c427f3378e6dd8ca4c080a2b582c4ba5c3c00c83378dc8a92e49ae5f3b33df7",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-wait-for-all-explicit-main-actor-isolation"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedTaskGroupsPreserveMainActorIsolation"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Default and explicit MainActor.shared ThrowingTaskGroup.waitForAll calls have native parity for success, drain, failure, cancellation, suspension, and MainActor resumption. The complete any-Actor contract remains a known divergence until arbitrary actor executors are modeled."
     }
   ],
   "semanticCapabilities": [

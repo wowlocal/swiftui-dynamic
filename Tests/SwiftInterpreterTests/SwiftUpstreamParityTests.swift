@@ -327,7 +327,7 @@ struct SwiftUpstreamParityTests {
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
         #expect(manifest.cases.allSatisfy { $0.sha256?.count == 64 })
-        #expect(manifest.supportFiles.count == 3)
+        #expect(manifest.supportFiles.count == 4)
         #expect(Set(manifest.supportFiles.map(\.id)).count
             == manifest.supportFiles.count)
         #expect(Set(manifest.supportFiles.map(\.upstreamPath)).count
@@ -530,6 +530,26 @@ struct SwiftUpstreamParityTests {
                     "call to main actor-isolated instance method 'isolatedMember()'")
                 && $0.message.contains("nonisolated context")
         }, Comment(rawValue: result.standardError))
+    }
+
+    @Test func importedTaskGroupsPreserveMainActorIsolation() throws {
+        let manifest = try SwiftUpstreamParityHarness.loadManifest()
+        let support = try #require(manifest.supportFiles.first {
+            $0.id == "task-group-mainactor-isolation-oracle"
+        })
+        let source = try SwiftUpstreamParityHarness.supportSource(for: support)
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            gatewayManifestSHA256:
+                SwiftCompilerPreflight.emptyGatewayManifestSHA256)
+        let fileName = "async_task_groups_and_actors.swift"
+        let result = try preflight.preflight(
+            source: source,
+            fileName: fileName)
+
+        #expect(support.upstreamPath
+            == "test/Concurrency/async_task_groups_and_actors.swift")
+        #expect(result.succeeded, Comment(rawValue: result.standardError))
+        #expect(!result.diagnostics.contains { $0.severity == .error })
     }
 
     @Test func concurrencyRuntimeInventoryClassifiesEveryPinnedSource() throws {

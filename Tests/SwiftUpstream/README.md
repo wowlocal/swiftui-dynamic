@@ -74,6 +74,14 @@ bridge manifests use rather than copying expected diagnostic strings. The
 small clients under `Clients/` are repository-owned oracle plumbing, not
 upstream tests or independently claimed concurrency-parity cases.
 
+The unchanged positive compiler oracle
+`test/Concurrency/async_task_groups_and_actors.swift` is SHA-pinned alongside
+those module inputs. Production preflight must accept its ordinary, throwing,
+and discarding task groups inside `MainActor`-isolated code. This complements
+the executable task-group fixtures by checking the isolation contract directly
+against swiftlang source without treating the interpreter's generated routing
+table as semantic proof.
+
 The corpus is checked in so normal test runs do not need network access. To
 refresh it reproducibly, run:
 

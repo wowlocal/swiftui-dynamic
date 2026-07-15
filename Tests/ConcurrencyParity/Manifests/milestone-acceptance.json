@@ -320,7 +320,7 @@
       "title": "Structured concurrency",
       "status": "partial",
       "dependsOn": ["M3", "M7"],
-      "ledgerEvidence": "Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all eight generated `isEmpty`/`isCancelled` state properties and all four `cancelAll()` declarations, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity or focused runtime evidence.",
+      "ledgerEvidence": "Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, and default plus explicit-MainActor `waitForAll()` behavior with the arbitrary-actor executor gap recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition.",
       "ledgerRemainingWork": "Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence.",
       "requirements": [
         {
@@ -453,12 +453,21 @@
           "coverage": ["success", "failure", "surface"],
           "dependsOnRequirements": ["M7/generated-signatures-and-preflight"],
           "ownedCaseIDs": [
-            "task-group-state-properties"
+            "task-group-state-properties",
+            "task-group-wait-for-all-explicit-main-actor-isolation"
           ],
           "evidenceCaseIDs": [
             "task-group-add-unless-cancelled",
             "task-group-cancel-all",
-            "task-group-is-cancelled"
+            "task-group-is-cancelled",
+            "task-group-throwing-wait-for-all-cancellation",
+            "task-group-throwing-wait-for-all-empty",
+            "task-group-throwing-wait-for-all-failure",
+            "task-group-throwing-wait-for-all-multiple-failures",
+            "task-group-throwing-wait-for-all-multiple-success",
+            "task-group-throwing-wait-for-all-single-failure-among-multiple",
+            "task-group-wait-for-all",
+            "task-group-wait-for-all-consumes-results"
           ],
           "testNames": [
             "ConcurrencySurfaceGeneratorTests/syntheticInterfacePreservesOverloadsEffectsAndIsolation",
@@ -469,11 +478,13 @@
             "TaskGroupSurfaceTests/throwingDiscardingGroupProjectsFirstChildFailure",
             "TaskGroupSurfaceTests/throwingDiscardingBodyFailureWinsAfterChildJoin",
             "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift",
+            "SwiftUpstreamParityTests/importedTaskGroupsPreserveMainActorIsolation",
             "ConcurrencyMethodologyTests/taskGroupStatePropertiesHaveExplicitReviewedDispositions",
-            "ConcurrencyMethodologyTests/taskGroupCancelAllHasExplicitReviewedDispositions"
+            "ConcurrencyMethodologyTests/taskGroupCancelAllHasExplicitReviewedDispositions",
+            "ConcurrencyMethodologyTests/taskGroupWaitForAllHasExplicitReviewedDispositions"
           ],
           "gapEvidenceIDs": ["remaining-generated-task-group-surface"],
-          "notes": "The generated active-interface inventory now retains every task-group overload plus async, throws/rethrows, isolation, function-type isolation, Sendable, actor, modifier, and default-value metadata; active-SDK staleness and synthetic edge cases are tested. Same-source parity covers isEmpty/isCancelled and cancelAll on all four group kinds, while ordinary/throwing discarding runtime kinds also have focused coverage. Add repeated waits/new work and a runtime or diagnostic disposition for every remaining mechanically exposed overload."
+          "notes": "The generated active-interface inventory now retains every task-group overload plus async, throws/rethrows, isolation, function-type isolation, Sendable, actor, modifier, and default-value metadata; active-SDK staleness and synthetic edge cases are tested. Same-source parity covers isEmpty/isCancelled and cancelAll on all four group kinds plus default and explicit-MainActor nonthrowing/throwing waitForAll behavior. A pinned unchanged swiftlang input independently proves that both group kinds remain callable from MainActor-isolated code. Arbitrary actor executors remain outside the current runtime model. Add repeated waits/new work and a runtime or diagnostic disposition for every remaining mechanically exposed overload."
         },
         {
           "id": "group-escape-legality",
@@ -640,8 +651,8 @@
       "title": "Compiler-backed concurrency checking",
       "status": "partial",
       "dependsOn": ["M0"],
-      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, and authored implementation/verification dispositions for all 32 Task instance/static rows plus all twelve task-group state/cancellation rows.",
-      "ledgerRemainingWork": "Review the remaining 106 generated top-level and task-group overload rows and add target-aware build manifests before M5 or M8 closure.",
+      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, and authored implementation/verification dispositions for all 32 Task instance/static rows plus fourteen task-group state, cancellation, and wait rows.",
+      "ledgerRemainingWork": "Review the remaining 104 generated top-level and task-group overload rows and add target-aware build manifests before M5 or M8 closure.",
       "requirements": [
         {
           "id": "native-diagnostic-oracles",
@@ -712,10 +723,11 @@
             "ConcurrencyMethodologyTests/taskInstanceGeneratedSurfaceHasExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/taskStaticGeneratedSurfaceHasExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/taskGroupStatePropertiesHaveExplicitReviewedDispositions",
-            "ConcurrencyMethodologyTests/taskGroupCancelAllHasExplicitReviewedDispositions"
+            "ConcurrencyMethodologyTests/taskGroupCancelAllHasExplicitReviewedDispositions",
+            "ConcurrencyMethodologyTests/taskGroupWaitForAllHasExplicitReviewedDispositions"
           ],
           "gapEvidenceIDs": ["generated-concurrency-signatures-and-preflight"],
-          "notes": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated with an explicit incomplete-scope denominator and stale checks. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified callables/properties, and empty non-generic nominal struct/class/enum declarations before interpreter mutation. Exact member effects and enclosing attributes are retained from SwiftSyntax. Legal typed HostProperty async reads enter a task-bound host suspension and cover instance/static, nested, optional, success, and caught-error paths; synchronous entry fails closed. Nominal members are emitted inside their type bodies so type isolation is inherited and class designated initializers remain legal; conflicting, non-public, actor, protocol, generic, inherited, and non-empty nominal contracts fail closed. SHA-pinned swiftlang modules prove cross-module MainActor behavior for functions, static properties, imported types, positional nonthrowing sleep cancellation, ordinary TaskGroup.isEmpty, and ordinary TaskGroup.cancelAll. All 32 active-SDK Task instance/static rows and all twelve task-group state/cancellation rows now have explicit native-parity or negative dispositions; the remaining generated rows and target-aware project build manifests remain open."
+          "notes": "Active-SDK top-level function, Task static/instance, and task-group declaration slices are generated with an explicit incomplete-scope denominator and stale checks. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified callables/properties, and empty non-generic nominal struct/class/enum declarations before interpreter mutation. Exact member effects and enclosing attributes are retained from SwiftSyntax. Legal typed HostProperty async reads enter a task-bound host suspension and cover instance/static, nested, optional, success, and caught-error paths; synchronous entry fails closed. Nominal members are emitted inside their type bodies so type isolation is inherited and class designated initializers remain legal; conflicting, non-public, actor, protocol, generic, inherited, and non-empty nominal contracts fail closed. SHA-pinned swiftlang modules prove cross-module MainActor behavior for functions, static properties, imported types, positional nonthrowing sleep cancellation, ordinary TaskGroup.isEmpty, and ordinary TaskGroup.cancelAll. All 32 active-SDK Task instance/static rows and fourteen task-group state, cancellation, and wait rows now have explicit native-parity or negative dispositions; the remaining generated rows and target-aware project build manifests remain open."
         }
       ]
     },
