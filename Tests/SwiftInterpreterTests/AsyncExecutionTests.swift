@@ -1128,6 +1128,126 @@ struct AsyncExecutionTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func taskGroupChildCreatedTaskStaysUnstructuredAndCleansUp()
+    async throws {
+        let interpreter = Interpreter()
+        var taskStarted = false
+        var taskOpen = false
+        var observedOwnership = false
+        var observedSessionTracking = false
+        var observedRecords: [RuntimeTaskRecord] = []
+        var observedGroup: RuntimeTaskGroupRecord?
+        var retainedStorage: [RuntimeTaskLocalStorage] = []
+        interpreter.globals.define(
+            "inspectChildCreatedUnstructuredTask",
+            .hostFunction(HostFunction(
+                name: "inspectChildCreatedUnstructuredTask",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let taskID = bound.evaluationContext.runtimeTaskID,
+                          let task = interpreter.concurrencyRuntime.records[taskID],
+                          let groupChildID = task.parent,
+                          let groupChild = interpreter.concurrencyRuntime
+                            .records[groupChildID],
+                          let groupID = groupChild.taskGroupID,
+                          let group = interpreter.concurrencyRuntime
+                            .taskGroups[groupID],
+                          let owner = interpreter.concurrencyRuntime
+                            .records[group.ownerTaskID] else {
+                        throw RuntimeError(message:
+                            "child-created Task lost runtime ownership")
+                    }
+
+                    observedRecords = [owner, groupChild, task]
+                    observedGroup = group
+                    retainedStorage = observedRecords.map(\.taskLocals)
+                    observedOwnership = owner.kind == .root
+                        && groupChild.kind == .groupChild
+                        && task.kind == .unstructured
+                        && groupChild.parent == owner.id
+                        && task.parent == groupChild.id
+                        && group.structuredScope.childTaskIDs == [groupChild.id]
+                        && owner.structuredChildren.contains(groupChild.id)
+                        && !groupChild.structuredChildren.contains(task.id)
+                        && groupChild.spawnedTasks.contains(task.id)
+                    observedSessionTracking = interpreter.scheduledTasks.contains {
+                        $0.id == task.id
+                    } && !interpreter.scheduledTasks.contains {
+                        $0.id == groupChild.id
+                    }
+                    taskStarted = true
+                    while !taskOpen { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "awaitChildCreatedUnstructuredTaskStarted",
+            .hostFunction(HostFunction(
+                name: "awaitChildCreatedUnstructuredTaskStarted",
+                asyncInvoke: { _, _ in
+                    while !taskStarted { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "openChildCreatedUnstructuredTask",
+            .hostFunction(HostFunction(
+                name: "openChildCreatedUnstructuredTask"
+            ) { _, _ in
+                taskOpen = true
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        func childCreatedUnstructuredOperation() async -> String {
+            await inspectChildCreatedUnstructuredTask()
+            return Task.isCancelled ? "cancelled" : "value"
+        }
+        func groupChildCreateUnstructuredTask() async -> Task<String, Never> {
+            let task = Task {
+                await childCreatedUnstructuredOperation()
+            }
+            await awaitChildCreatedUnstructuredTaskStarted()
+            return task
+        }
+        func childCreatedUnstructuredOwner() async -> String {
+            let task = await withTaskGroup(
+                of: Task<String, Never>.self
+            ) { group in
+                group.addTask {
+                    await groupChildCreateUnstructuredTask()
+                }
+                return await group.next()!
+            }
+            let state = task.isCancelled ? "cancelled" : "active"
+            openChildCreatedUnstructuredTask()
+            return state + ":" + (await task.value)
+        }
+        await childCreatedUnstructuredOwner()
+        """)
+
+        let owner = try #require(observedRecords.first)
+        let groupChild = try #require(observedRecords.dropFirst().first)
+        let task = try #require(observedRecords.dropFirst(2).first)
+        let group = try #require(observedGroup)
+        #expect(result.stringValue == "active:value")
+        #expect(observedOwnership)
+        #expect(observedSessionTracking)
+        #expect(group.ownerTaskID == owner.id)
+        #expect(group.completedChildTaskIDs == [groupChild.id])
+        #expect(group.consumedChildTaskIDs == [groupChild.id])
+        #expect(!group.completedChildTaskIDs.contains(task.id))
+        #expect(task.state == .succeeded)
+        #expect(!task.cancellation.isRequested)
+        #expect(Set(retainedStorage.map(ObjectIdentifier.init)).count == 3)
+        #expect(retainedStorage.allSatisfy { $0.isEmpty })
+        #expect(observedRecords.allSatisfy {
+            $0.evaluationContext == nil && $0.nativeDriver == nil
+        })
+        #expect(interpreter.concurrencyRuntime.records.isEmpty)
+        #expect(interpreter.concurrencyRuntime.structuredScopes.isEmpty)
+        #expect(interpreter.concurrencyRuntime.taskGroups.isEmpty)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func runtimeTaskHandleDispatchesCancellableExtensions() throws {
         let interpreter = Interpreter()
         let result = try interpreter.run(source: """

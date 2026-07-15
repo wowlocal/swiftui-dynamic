@@ -707,6 +707,18 @@
     "notes": "One child exists at each level. A shared gate places the inner grandchild before inner-open, and both awaited next() calls force the remaining edges. Exact output is grandchild-start,inner-open,grandchild-end,inner-finished,outer-finished:value in all 20 Swift 6.3.3 runs."
   },
   {
+    "id": "task-group-child-unstructured-task",
+    "fixture": "Fixtures/task-group-child-unstructured-task.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupChildUnstructuredTaskProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An unstructured Task created by a task-group child remains outside the group's structured ownership: the child and group scope may complete while that task is still active, and group cleanup neither waits for nor cancels it.",
+    "notes": "A MainActor gate holds the unstructured task after it starts. The group child returns its handle, both group joins complete, and only then does the owner open the gate and await the handle. Exact output is group-child-start,task-start,group-child-return,group-finished,after-scope,task-active:active:value in all 20 Swift 6.3.3 runs; every edge is barrier-, join-, or program-order-forced."
+  },
+  {
     "id": "task-group-cancel-all",
     "fixture": "Fixtures/task-group-cancel-all.swift",
     "mode": "runtime",

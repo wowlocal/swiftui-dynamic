@@ -3200,3 +3200,42 @@ case and 1,642-repetition coverage, the unchanged 678/680 corpus ratchet, 5/5
 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors /
 17 unstable / 0 no-twin. Its start/end commit and worktree fingerprints match
 and `driftDetected` is false.
+
+### M4 group-child-created unstructured Task lifetime
+
+`task-group-child-unstructured-task.swift` is a same-source native/interpreted
+fixture for the ownership boundary between structured group children and the
+unstructured work they create. A main-actor gate holds the unstructured `Task`
+after it starts. The group child returns its handle, the group joins that child,
+and the group scope exits while the returned task remains active. Only then does
+the owner open the gate and await the task handle.
+
+Apple Swift 6.3.3 produced
+`group-child-start,task-start,group-child-return,group-finished,after-scope,task-active:active:value`
+in all 20 bounded runs. Every asserted edge is forced by the gate, a join, or
+program order. The fixture therefore establishes that group cleanup neither
+waits for nor cancels an unstructured `Task` created by a group child; creation
+lineage is not structured ownership.
+
+This iteration is a characterization: the fresh interpreted differential case
+was already GREEN, so no production behavior changed. A focused runtime test
+observes `root -> group child -> unstructured Task` creation lineage while the
+group scope owns only the group child. The child records the nested task in its
+spawned-task lineage but not in its structured children, and the session keeps
+the nested task scheduled after the group child has completed. After the owner
+explicitly awaits the handle, all three task-local stores, task records,
+structured scopes, groups, native drivers, and scheduled-task registries are
+empty.
+
+The nested-composition requirement now has direct evidence for nested groups,
+async lets, task-local snapshots, and child-created unstructured lifetime. Its
+remaining semantic gap is executor identity inheritance across those composed
+children.
+
+The targeted run passes 92/92 tests across `AsyncExecutionTests`, the complete
+native differential board, and the concurrency methodology suite. The
+source-bound repository receipt is GREEN in 661 seconds with 850 tests, exact
+85/85 runtime-case and 1,662-repetition coverage, the unchanged 678/680 pinned
+corpus ratchet, 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0
+interpreter errors / 17 unstable / 0 no-twin. Its start/end commit and worktree
+fingerprints match and `driftDetected` is false.
