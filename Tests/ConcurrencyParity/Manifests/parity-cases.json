@@ -1103,6 +1103,18 @@
     "notes": "Exact output must be ordinary-high|throwing-high:failure-child in every strict Swift 6.3.3 native and interpreter repetition; no child scheduling order is observed."
   },
   {
+    "id": "task-group-make-async-iterator",
+    "fixture": "Fixtures/task-group-make-async-iterator.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupMakeAsyncIteratorProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "TaskGroup and ThrowingTaskGroup iterators consume the group's exactly-once completion stream, have value-semantic per-copy terminal state, become permanently terminal after nil, cancel(), or a thrown next(), and iterator cancellation requests group cancellation.",
+    "notes": "The shared-stream sum is order-independent. Exact output must be default:5:6|shared:3|terminal:nil:nil:42|copy:nil:7:nil|throwing:failure-child:nil:9|cancel:cancelled:nil:rejected:cancelled:nil:rejected in every strict Swift 6.3.3 native and interpreter repetition."
+  },
+  {
     "id": "host-callback-task-runtime",
     "fixture": "Fixtures/host-callback-task-runtime.swift",
     "mode": "runtime",

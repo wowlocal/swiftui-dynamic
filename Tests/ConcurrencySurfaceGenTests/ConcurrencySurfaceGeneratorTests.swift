@@ -68,6 +68,34 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(inventory.taskGroupDispatch["TaskGroup"]?["nextResult"] == nil)
         #expect(inventory.taskGroupDispatch["ThrowingTaskGroup"]?["nextResult"]
             == "nextResult")
+        #expect(inventory.taskGroupDispatch["TaskGroup"]?["makeAsyncIterator"]
+            == "makeAsyncIterator")
+        #expect(inventory.taskGroupDispatch["ThrowingTaskGroup"]?["makeAsyncIterator"]
+            == "makeAsyncIterator")
+
+        #expect(inventory.taskGroupIteratorDispatch == [
+            "TaskGroup": ["cancel": "cancel", "next": "next"],
+            "ThrowingTaskGroup": ["cancel": "cancel", "next": "next"],
+        ])
+        let ordinaryIterator = try #require(
+            inventory.taskGroupIteratorMemberDeclarations["TaskGroup"])
+        #expect(ordinaryIterator["next"]?.count == 2)
+        #expect(ordinaryIterator["next"]?.allSatisfy {
+            $0.isAsync && !$0.isThrowing && $0.isMutating
+        } == true)
+        #expect(ordinaryIterator["next"]?.contains { declaration in
+            declaration.parameters.contains {
+                $0.label == "isolation" && $0.isIsolated
+            }
+        } == true)
+        #expect(ordinaryIterator["cancel"]?.first?.isAsync == false)
+        let throwingIterator = try #require(
+            inventory.taskGroupIteratorMemberDeclarations[
+                "ThrowingTaskGroup"])
+        #expect(throwingIterator["next"]?.count == 2)
+        #expect(throwingIterator["next"]?.allSatisfy {
+            $0.isAsync && $0.isThrowing && $0.isMutating
+        } == true)
 
         #expect(inventory.taskStaticDispatch == [
             "checkCancellation": "checkCancellation",
@@ -116,6 +144,12 @@ struct ConcurrencySurfaceGeneratorTests {
                 typeName, default: [:]].keys)
                 == inventory.knownTaskGroupMembers[typeName, default: []])
         }
+        for typeName in ConcurrencySurfaceGenerator.taskGroupIteratorTypes {
+            #expect(Set(inventory.taskGroupIteratorMemberDeclarations[
+                typeName, default: [:]].keys)
+                == inventory.knownTaskGroupIteratorMembers[
+                    typeName, default: []])
+        }
     }
 
     @Test
@@ -154,15 +188,24 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.source.interfaceFormatVersion == "1.0")
         #expect(capabilities.source.targetTriple.contains("apple-macosx"))
         #expect(!capabilities.scope.complete)
+        #expect(capabilities.scope.id
+            == "top-level-functions-and-task-family-members-v2")
         #expect(!capabilities.scope.adapterRouteIsSupportEvidence)
         #expect(!capabilities.scope.excluded.isEmpty)
-        #expect(capabilities.summary.declarationCount == 150)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 84)
+        #expect(capabilities.scope.included.contains {
+            $0.contains("TaskGroup.Iterator")
+        })
+        #expect(capabilities.scope.excluded.contains {
+            $0.contains("nested declarations outside")
+        })
+        #expect(capabilities.summary.declarationCount == 156)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 92)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 47,
             "task-static-member": 21,
             "task-instance-member": 11,
             "task-group-member": 71,
+            "task-group-iterator-member": 6,
         ])
         #expect(capabilities.declarations.count
             == capabilities.summary.declarationCount)
@@ -202,6 +245,18 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.declarations.contains {
             $0.container == "ThrowingTaskGroup" && $0.name == "nextResult"
                 && $0.adapterIntrinsic == "nextResult"
+        })
+        #expect(capabilities.declarations.filter {
+            $0.domain == "task-group-iterator-member"
+                && $0.name == "next"
+        }.count == 4)
+        #expect(capabilities.declarations.contains {
+            $0.container == "TaskGroup.Iterator" && $0.name == "cancel"
+                && $0.adapterIntrinsic == "cancel"
+        })
+        #expect(capabilities.declarations.contains {
+            $0.container == "ThrowingTaskGroup.Iterator"
+                && $0.name == "next" && $0.adapterIntrinsic == "next"
         })
         #expect(!generatedCapabilities.contains("implementationStatus"))
         #expect(!generatedCapabilities.contains("verificationStatus"))
@@ -249,10 +304,40 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(group["nextResult"]?.contains {
             $0.isAsync && !$0.isThrowing
         } == true)
+        #expect(group["makeAsyncIterator"]?.contains {
+            !$0.isAsync && !$0.isThrowing
+        } == true)
         #expect(group["addTask"]?.contains { declaration in
             declaration.parameters.contains {
                 $0.name == "operation" && $0.hasIsolatedFunctionType
             }
+        } == true)
+
+        let taskGroupIterator = try #require(
+            inventory.taskGroupIteratorMemberDeclarations["TaskGroup"])
+        #expect(taskGroupIterator["next"]?.count == 2)
+        #expect(taskGroupIterator["next"]?.contains { declaration in
+            declaration.isAsync && !declaration.isThrowing
+                && declaration.isMutating
+                && declaration.parameters.contains {
+                    $0.label == "isolation" && $0.isIsolated
+                }
+        } == true)
+        #expect(taskGroupIterator["cancel"]?.contains {
+            !$0.isAsync && !$0.isThrowing && $0.isMutating
+        } == true)
+        let throwingTaskGroupIterator = try #require(
+            inventory.taskGroupIteratorMemberDeclarations[
+                "ThrowingTaskGroup"])
+        #expect(throwingTaskGroupIterator["next"]?.count == 2)
+        #expect(throwingTaskGroupIterator["next"]?.allSatisfy {
+            $0.isAsync && $0.isThrowing && $0.isMutating
+        } == true)
+        #expect(throwingTaskGroupIterator["next"]?.contains { declaration in
+            declaration.thrownErrorType == "Failure"
+                && declaration.parameters.contains {
+                    $0.label == "isolation" && $0.isIsolated
+                }
         } == true)
 
         let taskStatics = inventory.taskStaticMemberDeclarations
@@ -371,6 +456,16 @@ struct ConcurrencySurfaceGeneratorTests {
         ) -> Bool { true }
         public mutating func waitForAll() async {}
         public mutating func next() async -> Child? { nil }
+        public func makeAsyncIterator() -> TaskGroup<Child>.Iterator {
+            fatalError()
+        }
+        public struct Iterator {
+            public mutating func next() async -> Child? { nil }
+            public mutating func next(
+                isolation actor: isolated (any Actor)?
+            ) async -> Child? { nil }
+            public mutating func cancel() {}
+        }
         public func cancelAll() {}
         public var isCancelled: Bool { false }
         public var isEmpty: Bool { true }
@@ -389,6 +484,16 @@ struct ConcurrencySurfaceGeneratorTests {
         public mutating func waitForAll() async throws {}
         public mutating func next() async throws -> Child? { nil }
         public mutating func nextResult() async -> Result<Child, Failure>? { nil }
+        public func makeAsyncIterator() -> ThrowingTaskGroup<Child, Failure>.Iterator {
+            fatalError()
+        }
+        public struct Iterator {
+            public mutating func next() async throws -> Child? { nil }
+            public mutating func next(
+                isolation actor: isolated (any Actor)?
+            ) async throws(Failure) -> Child? { nil }
+            public mutating func cancel() {}
+        }
         public func cancelAll() {}
         public var isCancelled: Bool { false }
         public var isEmpty: Bool { true }
@@ -457,7 +562,9 @@ private struct CapabilitySource: Decodable {
 }
 
 private struct CapabilityScope: Decodable {
+    let id: String
     let complete: Bool
+    let included: [String]
     let excluded: [String]
     let adapterRouteIsSupportEvidence: Bool
 }

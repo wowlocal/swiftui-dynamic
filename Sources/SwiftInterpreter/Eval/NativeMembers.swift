@@ -192,6 +192,9 @@ extension Interpreter {
         if let group = any as? RuntimeTaskGroup {
             return try sourceTaskGroupMember(name, on: group)
         }
+        if let iterator = any as? RuntimeTaskGroupIterator {
+            return try sourceTaskGroupIteratorMember(name, on: iterator)
+        }
         if let priority = any as? RuntimeTaskPriority {
             switch name {
             case "rawValue":

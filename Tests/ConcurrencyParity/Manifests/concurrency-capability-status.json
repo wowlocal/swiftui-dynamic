@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "ddff9adb0e95a0dbb760e472b89b52977ee374ccf833b85194d9f63c8f2b038c",
+  "inventorySHA256": "ce9a7463d94f2d1df85346bdcd55fc914db0ab6c74eeb5e71f5ffbe206e2fef7",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -760,6 +760,110 @@
       "testNames": [],
       "gapEvidenceIDs": [],
       "notes": "Deprecated ThrowingTaskGroup.async(priority:operation:) routes through the throwing group-child primitive. Same-source parity covers explicit priority, value delivery, and source-error projection through next()."
+    },
+    {
+      "id": "swift-concurrency-api-v1:9ad1fef3411e21e32a6d49b0813fa94c6ccfda6238fdea780b13d91d91e8e53a",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-make-async-iterator"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "TaskGroup.makeAsyncIterator returns a distinct iterator capability over the group's shared completion stream. Same-source parity covers explicit MainActor-isolated next calls, order-independent value consumption, and nil after exhaustion; unchanged swiftlang coverage independently drains an ordinary group through async iteration."
+    },
+    {
+      "id": "swift-concurrency-api-v1:73891da2cce79d72f8bcdabf38f2849845e6e6abd060c9947e2c1b1ac6b692fe",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-make-async-iterator"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "ThrowingTaskGroup.makeAsyncIterator returns a distinct iterator capability over the group's shared completion stream. Same-source parity covers default success, explicit MainActor source-error projection, and terminal nil after that error; unchanged swiftlang coverage independently drains a throwing group through async iteration."
+    },
+    {
+      "id": "swift-concurrency-api-v1:4537d7dd0084dd47f3f903b886cfefce8431b9717f67cf0feefb651ba005cddb",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-make-async-iterator"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "TaskGroup.Iterator.cancel() permanently finishes that iterator value, requests cancellation of the shared group, and causes addTaskUnlessCancelled to reject new work in the same-source probe."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d7f4f75c2eee8e2ace96108aa3e2facdcce76d3ac5133bf67ee0159adefe8e57",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-make-async-iterator"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "The non-isolated TaskGroup.Iterator.next() overload consumes the shared completion queue exactly once. Same-source parity covers success, terminal nil across later group work, and value-semantic iterator-copy independence."
+    },
+    {
+      "id": "swift-concurrency-api-v1:910c65140c6c20b976ef897250de5e9a65a7571bc3a4cd2ff95a1b4228e5f114",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-make-async-iterator"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Explicit MainActor.shared TaskGroup.Iterator.next calls have native parity for shared consumption, terminal state, and copy independence. The complete isolated any-Actor contract remains a known divergence until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:740a02840f6e37cf8bce1018c18d1e792de264ed74e42d3e174b82f3f083e9c6",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-make-async-iterator"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "ThrowingTaskGroup.Iterator.cancel() permanently finishes that iterator value, requests cancellation of the shared group, and causes addTaskUnlessCancelled to reject new work in the same-source probe."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c9bbd2332357fa1e64b772b5873807adabebe928e22acd6dd76ac535926d8381",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-make-async-iterator"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "The non-isolated ThrowingTaskGroup.Iterator.next() overload preserves successful values and exact source-error projection. A thrown child permanently finishes that iterator while leaving later work consumable through the group."
+    },
+    {
+      "id": "swift-concurrency-api-v1:864f62b9ed3016ecfb5b0c769d935e0e9de76f3efdef58116ce436a3c80c8f78",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-make-async-iterator"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "Explicit MainActor.shared ThrowingTaskGroup.Iterator.next calls have native parity for source-error projection and terminal state. The complete isolated any-Actor contract remains a known divergence until arbitrary actor executors are modeled."
     }
   ],
   "semanticCapabilities": [

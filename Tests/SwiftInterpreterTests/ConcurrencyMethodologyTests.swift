@@ -745,7 +745,8 @@ struct ConcurrencyMethodologyTests {
         }
         if requirements["M4/remaining-task-group-surface"]?.status == .covered {
             let unreviewedTaskGroupRows = inventory.declarations.filter {
-                $0.domain == "task-group-member"
+                ($0.domain == "task-group-member"
+                    || $0.domain == "task-group-iterator-member")
                     && resolvedByID[$0.id]?.implementationStatus == .unreviewed
             }
             #expect(unreviewedTaskGroupRows.isEmpty,
@@ -1153,6 +1154,76 @@ struct ConcurrencyMethodologyTests {
         #expect(Set(asyncClaims.map(\.id)) == asyncIDs,
             "every task-group async declaration needs an authored disposition")
         #expect(asyncClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
+    @Test func taskGroupMakeAsyncIteratorHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let iteratorRows = inventory.declarations.filter {
+            $0.domain == "task-group-member" && $0.name == "makeAsyncIterator"
+        }
+        let iteratorIDs = Set(iteratorRows.map(\.id))
+        let iteratorClaims = status.interfaceOverrides.filter {
+            iteratorIDs.contains($0.id)
+        }
+
+        #expect(iteratorRows.count == 2,
+            "the active SDK task-group makeAsyncIterator denominator changed")
+        #expect(Set(iteratorRows.compactMap(\.container)) == [
+            "TaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(Set(iteratorClaims.map(\.id)) == iteratorIDs,
+            "every task-group makeAsyncIterator declaration needs an authored disposition")
+        #expect(iteratorClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
+    @Test func taskGroupIteratorMembersHaveExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let iteratorRows = inventory.declarations.filter {
+            $0.domain == "task-group-iterator-member"
+        }
+        let iteratorIDs = Set(iteratorRows.map(\.id))
+        let iteratorClaims = status.interfaceOverrides.filter {
+            iteratorIDs.contains($0.id)
+        }
+
+        #expect(iteratorRows.count == 6,
+            "the active SDK task-group iterator-member denominator changed")
+        #expect(Set(iteratorRows.map(\.container)) == [
+            "TaskGroup.Iterator",
+            "ThrowingTaskGroup.Iterator",
+        ])
+        #expect(iteratorRows.count { $0.name == "next" } == 4)
+        #expect(iteratorRows.count { $0.name == "cancel" } == 2)
+        #expect(Set(iteratorClaims.map(\.id)) == iteratorIDs,
+            "every task-group iterator declaration needs an authored disposition")
+        #expect(iteratorClaims.allSatisfy {
             $0.implementationStatus != .unreviewed
         })
     }

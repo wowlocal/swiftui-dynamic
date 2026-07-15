@@ -18,8 +18,8 @@ status are separate sources:
 External completeness accounting is split deliberately:
 
 - `generated-concurrency-api.json` is the generated active-SDK declaration
-  denominator for its explicitly incomplete top-level-function and
-  Task/task-group-member scope; and
+  denominator for its explicitly incomplete top-level-function,
+  Task/task-group-member, and selected nested task-group-iterator scope; and
 - `concurrency-capability-status.json` is the authored implementation and
   verification overlay, pinned to the inventory digest.
 
@@ -56,10 +56,10 @@ evidence that remains covered.
 | M1 task-owned evaluator context | complete | Task-owned evaluator contexts, cancellation isolation, async-initializer ownership, and detached host re-entry have native parity and focused ownership coverage. | None; M2 may proceed. |
 | M2 task runtime | complete | Task outcomes, cancellation request versus observation, post-completion cancellation, completed-handle session/driver release, waiter and handle lifetimes, detached and top-level policy, priority donation, and task-local inheritance/unwind have native parity and focused ownership proof. | None; M3 may proceed. |
 | M3 suspension and clocks | complete | Runtime-owned task waits, host suspension, cancellable sleep, yield progress, cancellation-handler timing and cleanup, and seeded replayable cancellation-race exploration have native parity and focused runtime coverage. | None; M4 may proceed. |
-| M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, both deprecated `spawn()` and both deprecated `async()` aliases, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition. | Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
+| M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, both deprecated `spawn()` and both deprecated `async()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition. | Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, and authored implementation/verification dispositions for all 32 Task instance/static rows plus nineteen task-group state, cancellation, wait, nextResult, spawn, and async rows. | Review the remaining 99 generated top-level and task-group overload rows and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, and authored implementation/verification dispositions for all 32 Task instance/static rows plus twenty-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, makeAsyncIterator, next, and cancel rows. | Review the remaining 97 generated top-level and task-group overload rows and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
@@ -4313,3 +4313,52 @@ alias implementation was introduced. They are `runtime-supported` with
 `native-parity`. Generated accounting is 51/150 reviewed: 27
 runtime-supported, 18 diagnosed-unsupported, 6 known divergences, and 99
 unreviewed rows.
+
+### M4 explicit task-group iterator dispositions
+
+This slice begins with the two ordinary/throwing `makeAsyncIterator()` rows and
+expands the generated denominator to the six public members on their nested
+`Iterator` types: two `cancel()` declarations and default plus isolated `next`
+overloads for both group kinds. A strict Swift 6 probe exposed an important
+compiler boundary: calling default `iterator.next()` from a MainActor-isolated
+probe is rejected because sending the mutable iterator may race. The fixture
+therefore tests default `next()` in a nonisolated function and tests the modern
+overloads explicitly with `next(isolation: MainActor.shared)`.
+
+The initial interpreter RED was the generated-surface diagnostic that
+`TaskGroup.makeAsyncIterator` was declared by the active
+`_Concurrency.swiftinterface` but unsupported. A first implementation then
+revealed a deeper native contract: an iterator is permanently terminal after
+`nil`, `cancel()`, or a thrown `next`, even when later work is added to the
+group. Iterator copies have independent terminal flags while sharing the
+group's exactly-once completion queue. The generated active interface also
+shows `finished` storage and public `cancel()` on both iterator types.
+
+The reusable implementation therefore uses generated nested-iterator dispatch
+rather than raw member-name checks. Its source iterator carrier adopts the
+interpreter's host value-semantics protocol and copies `{group, finished}` at
+Swift storage boundaries. `next` preserves owner/lifetime checks, consumes the
+existing group queue, and marks only that iterator value terminal on nil or
+error. `cancel` marks that iterator terminal, requests group cancellation, and
+cancels children; a copied iterator retains its own terminal state while still
+observing the shared group's cancellation.
+
+Twenty strict Swift 6 native and interpreted repetitions are exact at
+`default:5:6|shared:3|terminal:nil:nil:42|copy:nil:7:nil|throwing:failure-child:nil:9|cancel:cancelled:nil:rejected:cancelled:nil:rejected`,
+with native observation SHA-256
+`947e1cea23ffcad0de409eaa81cd2134a2acec6a742830a7e7b3051954647630`.
+The shared result is a sum, so scheduler order is deliberately unobserved. The
+probe covers both default overloads, explicit MainActor next, iterator/group
+interleaving, terminal-after-new-work, copy independence, source-error
+terminality, both cancel declarations, and rejection of new conditional work.
+
+The unchanged pinned swiftlang oracle
+`test/Concurrency/Runtime/async_taskgroup_is_asyncsequence.swift`, SHA-256
+`46a6aec7…`, independently drains ordinary and throwing groups while asserting
+stable sums. In interpreted execution that fixture uses the existing direct
+task-group iteration path, so it is independent semantic evidence rather than
+adapter coverage; the explicit differential fixture carries all maker/iterator
+claims. The two isolated `next` rows remain known divergences for arbitrary
+actors despite explicit MainActor parity. Generated accounting is 59/156
+reviewed: 33 runtime-supported, 18 diagnosed-unsupported, 8 known divergences,
+and 97 unreviewed rows.

@@ -27,12 +27,18 @@ enum RuntimeTaskInstanceIntrinsic: String, Sendable {
     case value
 }
 
+enum RuntimeTaskGroupIteratorIntrinsic: String, Sendable {
+    case cancel
+    case next
+}
+
 enum RuntimeTaskGroupIntrinsic: String, Sendable {
     case addTask
     case addTaskUnlessCancelled
     case waitForAll
     case next
     case nextResult
+    case makeAsyncIterator
     case cancelAll
     case isCancelled
     case isEmpty
@@ -431,6 +437,7 @@ enum GeneratedConcurrencySurface {
             "cancelAll": .cancelAll,
             "isCancelled": .isCancelled,
             "isEmpty": .isEmpty,
+            "makeAsyncIterator": .makeAsyncIterator,
             "next": .next,
             "spawn": .addTask,
             "spawnUnlessCancelled": .addTaskUnlessCancelled,
@@ -452,6 +459,7 @@ enum GeneratedConcurrencySurface {
             "cancelAll": .cancelAll,
             "isCancelled": .isCancelled,
             "isEmpty": .isEmpty,
+            "makeAsyncIterator": .makeAsyncIterator,
             "next": .next,
             "nextResult": .nextResult,
             "spawn": .addTask,
@@ -690,10 +698,70 @@ enum GeneratedConcurrencySurface {
         ],
     ]
 
+    static let taskGroupIteratorDispatch: [
+        String: [String: RuntimeTaskGroupIteratorIntrinsic]
+    ] = [
+        "TaskGroup": [
+            "cancel": .cancel,
+            "next": .next,
+        ],
+        "ThrowingTaskGroup": [
+            "cancel": .cancel,
+            "next": .next,
+        ],
+    ]
+
+    static let knownTaskGroupIteratorMembers: [String: Set<String>] = [
+        "TaskGroup": [
+            "cancel",
+            "next",
+        ],
+        "ThrowingTaskGroup": [
+            "cancel",
+            "next",
+        ],
+    ]
+
+    static let taskGroupIteratorMemberDeclarations: [
+        String: [String: [GeneratedConcurrencyDeclaration]]
+    ] = [
+        "TaskGroup": [
+            "cancel": [
+                .init(declaration: "public mutating func cancel()", kind: .function, parameters: [], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "mutating"], globalActor: nil),
+            ],
+            "next": [
+                .init(declaration: "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)\n    public mutating func next(isolation actor: isolated (any _Concurrency.Actor)?) async -> _Concurrency.TaskGroup<ChildTaskResult>.Iterator.Element?", kind: .function, parameters: [.init(label: "isolation", name: "actor", type: "isolated (any _Concurrency.Actor)?", defaultValue: nil, attributes: [], modifiers: [])], returnType: "_Concurrency.TaskGroup<ChildTaskResult>.Iterator.Element?", isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)"], modifiers: ["public", "mutating"], globalActor: nil),
+                .init(declaration: "public mutating func next() async -> _Concurrency.TaskGroup<ChildTaskResult>.Iterator.Element?", kind: .function, parameters: [], returnType: "_Concurrency.TaskGroup<ChildTaskResult>.Iterator.Element?", isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "mutating"], globalActor: nil),
+            ],
+        ],
+        "ThrowingTaskGroup": [
+            "cancel": [
+                .init(declaration: "public mutating func cancel()", kind: .function, parameters: [], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "mutating"], globalActor: nil),
+            ],
+            "next": [
+                .init(declaration: "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)\n    public mutating func next(isolation actor: isolated (any _Concurrency.Actor)?) async throws(Failure) -> _Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?", kind: .function, parameters: [.init(label: "isolation", name: "actor", type: "isolated (any _Concurrency.Actor)?", defaultValue: nil, attributes: [], modifiers: [])], returnType: "_Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?", isAsync: true, throwsKind: .throwing, thrownErrorType: "Failure", attributes: ["@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)"], modifiers: ["public", "mutating"], globalActor: nil),
+                .init(declaration: "public mutating func next() async throws -> _Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?", kind: .function, parameters: [], returnType: "_Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?", isAsync: true, throwsKind: .throwing, thrownErrorType: nil, attributes: [], modifiers: ["public", "mutating"], globalActor: nil),
+            ],
+        ],
+    ]
+
     static func intrinsic(
         typeName: String, memberName: String
     ) -> RuntimeTaskGroupIntrinsic? {
         taskGroupDispatch[typeName]?[memberName]
+    }
+
+    static func taskGroupIteratorIntrinsic(
+        typeName: String, memberName: String
+    ) -> RuntimeTaskGroupIteratorIntrinsic? {
+        taskGroupIteratorDispatch[typeName]?[memberName]
+    }
+
+    static func knowsTaskGroupIteratorMember(
+        typeName: String, memberName: String
+    ) -> Bool {
+        knownTaskGroupIteratorMembers[typeName]?
+            .contains(memberName) == true
     }
 
     static func topLevelFunctionIntrinsic(

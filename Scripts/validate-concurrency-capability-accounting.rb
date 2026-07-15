@@ -330,7 +330,9 @@ begin
   if requirements.fetch("M4/remaining-task-group-surface")
       .fetch("status") == "covered"
     task_group_ids = declarations.filter_map do |row|
-      row.fetch("id") if row.fetch("domain") == "task-group-member"
+      row.fetch("id") if [
+        "task-group-member", "task-group-iterator-member"
+      ].include?(row.fetch("domain"))
     end
     unreviewed_group_ids = task_group_ids.select do |id|
       overrides_by_id.fetch(id, default_claim)

@@ -11,6 +11,7 @@ public enum ConcurrencySurfaceGenerationError: Error,
     case missingFunctions([String])
     case missingTaskIntrinsics([String])
     case missingTaskInstanceIntrinsics([String])
+    case missingTaskGroupIteratorIntrinsics([String])
 
     public var description: String {
         switch self {
@@ -30,6 +31,9 @@ public enum ConcurrencySurfaceGenerationError: Error,
         case .missingTaskInstanceIntrinsics(let names):
             "active _Concurrency.swiftinterface is missing required Task "
                 + "instance members: \(names.joined(separator: ", "))"
+        case .missingTaskGroupIteratorIntrinsics(let names):
+            "active _Concurrency.swiftinterface is missing required task-group "
+                + "iterator members: \(names.joined(separator: ", "))"
         }
     }
 }
@@ -109,6 +113,10 @@ public struct ConcurrencySurfaceInventory: Sendable, Equatable {
     public let taskGroupDispatch: [String: [String: String]]
     public let knownTaskGroupMembers: [String: Set<String>]
     public let taskGroupMemberDeclarations:
+        [String: [String: [ConcurrencySurfaceDeclaration]]]
+    public let taskGroupIteratorDispatch: [String: [String: String]]
+    public let knownTaskGroupIteratorMembers: [String: Set<String>]
+    public let taskGroupIteratorMemberDeclarations:
         [String: [String: [ConcurrencySurfaceDeclaration]]]
 }
 
@@ -192,10 +200,14 @@ public enum ConcurrencySurfaceGenerator {
         "DiscardingTaskGroup", "TaskGroup", "ThrowingDiscardingTaskGroup",
         "ThrowingTaskGroup",
     ]
+    public static let taskGroupIteratorTypes = [
+        "TaskGroup", "ThrowingTaskGroup",
+    ]
 
     private static let supportedIntrinsics: Set<String> = [
         "addTask", "addTaskUnlessCancelled", "waitForAll", "next",
-        "nextResult", "cancelAll", "isCancelled", "isEmpty",
+        "nextResult", "makeAsyncIterator", "cancelAll", "isCancelled",
+        "isEmpty",
     ]
     private static let supportedTaskStaticIntrinsics: Set<String> = [
         "checkCancellation", "currentPriority", "detached", "isCancelled",
@@ -203,6 +215,9 @@ public enum ConcurrencySurfaceGenerator {
     ]
     private static let supportedTaskInstanceIntrinsics: Set<String> = [
         "cancel", "isCancelled", "result", "value",
+    ]
+    private static let supportedTaskGroupIteratorIntrinsics: Set<String> = [
+        "cancel", "next",
     ]
     private static let supportedTopLevelFunctionIntrinsics: Set<String> = [
         "withDiscardingTaskGroup", "withTaskCancellationHandler",
@@ -244,6 +259,7 @@ public enum ConcurrencySurfaceGenerator {
     ) throws -> ConcurrencySurfaceInventory {
         let syntax = Parser.parse(source: interfaceSource)
         let taskGroupTypeSet = Set(taskGroupTypes)
+        let taskGroupIteratorTypeSet = Set(taskGroupIteratorTypes)
         let globalActorNames = globalActors(in: syntax)
         var knownNames = Dictionary(uniqueKeysWithValues:
             taskGroupTypes.map { ($0, Set<String>()) })
@@ -251,6 +267,14 @@ public enum ConcurrencySurfaceGenerator {
             taskGroupTypes.map { ($0, [String: String]()) })
         var memberDeclarations = Dictionary(uniqueKeysWithValues:
             taskGroupTypes.map {
+                ($0, [String: [ConcurrencySurfaceDeclaration]]())
+            })
+        var knownIteratorNames = Dictionary(uniqueKeysWithValues:
+            taskGroupIteratorTypes.map { ($0, Set<String>()) })
+        var iteratorDispatch = Dictionary(uniqueKeysWithValues:
+            taskGroupIteratorTypes.map { ($0, [String: String]()) })
+        var iteratorMemberDeclarations = Dictionary(uniqueKeysWithValues:
+            taskGroupIteratorTypes.map {
                 ($0, [String: [ConcurrencySurfaceDeclaration]]())
             })
         var knownTopLevelFunctions: Set<String> = []
@@ -318,6 +342,15 @@ public enum ConcurrencySurfaceGenerator {
                 knownNames: &knownNames[typeName, default: []],
                 dispatch: &dispatch[typeName, default: [:]],
                 declarations: &memberDeclarations[typeName, default: [:]])
+            if taskGroupIteratorTypeSet.contains(typeName) {
+                inspectNestedTaskGroupIterator(
+                    members,
+                    globalActorNames: globalActorNames,
+                    knownNames: &knownIteratorNames[typeName, default: []],
+                    dispatch: &iteratorDispatch[typeName, default: [:]],
+                    declarations:
+                    &iteratorMemberDeclarations[typeName, default: [:]])
+            }
         }
 
         var missingMembers: [String] = []
@@ -349,10 +382,34 @@ public enum ConcurrencySurfaceGenerator {
             throw ConcurrencySurfaceGenerationError
                 .missingTaskInstanceIntrinsics(missingTaskInstanceIntrinsics)
         }
+        var missingTaskGroupIteratorIntrinsics: [String] = []
+        for typeName in taskGroupIteratorTypes {
+            let implemented = Set(
+                iteratorDispatch[typeName, default: [:]].values)
+            missingTaskGroupIteratorIntrinsics.append(contentsOf:
+                supportedTaskGroupIteratorIntrinsics
+                    .subtracting(implemented).sorted().map {
+                        "\(typeName).Iterator.\($0)"
+                    })
+        }
+        guard missingTaskGroupIteratorIntrinsics.isEmpty else {
+            throw ConcurrencySurfaceGenerationError
+                .missingTaskGroupIteratorIntrinsics(
+                    missingTaskGroupIteratorIntrinsics)
+        }
 
         for typeName in taskGroupTypes {
             for member in memberDeclarations[typeName, default: [:]].keys {
                 memberDeclarations[typeName]?[member]?.sort {
+                    $0.declaration < $1.declaration
+                }
+            }
+        }
+        for typeName in taskGroupIteratorTypes {
+            for member in iteratorMemberDeclarations[
+                typeName, default: [:]
+            ].keys {
+                iteratorMemberDeclarations[typeName]?[member]?.sort {
                     $0.declaration < $1.declaration
                 }
             }
@@ -384,7 +441,10 @@ public enum ConcurrencySurfaceGenerator {
             taskInstanceMemberDeclarations: taskInstanceMemberDeclarations,
             taskGroupDispatch: dispatch,
             knownTaskGroupMembers: knownNames,
-            taskGroupMemberDeclarations: memberDeclarations)
+            taskGroupMemberDeclarations: memberDeclarations,
+            taskGroupIteratorDispatch: iteratorDispatch,
+            knownTaskGroupIteratorMembers: knownIteratorNames,
+            taskGroupIteratorMemberDeclarations: iteratorMemberDeclarations)
     }
 
     public static func generatedSource(
@@ -478,6 +538,38 @@ public enum ConcurrencySurfaceGenerator {
             }.joined(separator: "\n")
             return "        \"\(typeName)\": [\n\(memberLines)\n        ],"
         }.joined(separator: "\n")
+        let iteratorIntrinsicCaseLines =
+            supportedTaskGroupIteratorIntrinsics.sorted()
+                .map { "    case \($0)" }.joined(separator: "\n")
+        let iteratorDispatchBlocks = taskGroupIteratorTypes.map { typeName in
+            let entries = inventory.taskGroupIteratorDispatch[
+                typeName, default: [:]]
+            let lines = entries.keys.sorted().map { sourceName in
+                "            \"\(escaped(sourceName))\": ."
+                    + "\(entries[sourceName]!),"
+            }.joined(separator: "\n")
+            return "        \"\(typeName)\": [\n\(lines)\n        ],"
+        }.joined(separator: "\n")
+        let iteratorKnownBlocks = taskGroupIteratorTypes.map { typeName in
+            let lines = inventory.knownTaskGroupIteratorMembers[
+                typeName, default: []
+            ].sorted().map {
+                "            \"\(escaped($0))\","
+            }.joined(separator: "\n")
+            return "        \"\(typeName)\": [\n\(lines)\n        ],"
+        }.joined(separator: "\n")
+        let iteratorDeclarationBlocks = taskGroupIteratorTypes.map { typeName in
+            let members = inventory.taskGroupIteratorMemberDeclarations[
+                typeName, default: [:]]
+            let memberLines = members.keys.sorted().map { memberName in
+                let declarations = members[memberName, default: []].map {
+                    "                \(render($0)),"
+                }.joined(separator: "\n")
+                return "            \"\(escaped(memberName))\": [\n"
+                    + declarations + "\n            ],"
+            }.joined(separator: "\n")
+            return "        \"\(typeName)\": [\n\(memberLines)\n        ],"
+        }.joined(separator: "\n")
         let compilerVersion = interfaceSource.split(separator: "\n").first {
             $0.hasPrefix("// swift-compiler-version:")
         }.map(String.init) ?? "// swift-compiler-version: unknown"
@@ -500,12 +592,17 @@ public enum ConcurrencySurfaceGenerator {
         \(taskInstanceIntrinsicCaseLines)
         }
 
+        enum RuntimeTaskGroupIteratorIntrinsic: String, Sendable {
+        \(iteratorIntrinsicCaseLines)
+        }
+
         enum RuntimeTaskGroupIntrinsic: String, Sendable {
             case addTask
             case addTaskUnlessCancelled
             case waitForAll
             case next
             case nextResult
+            case makeAsyncIterator
             case cancelAll
             case isCancelled
             case isEmpty
@@ -624,10 +721,39 @@ public enum ConcurrencySurfaceGenerator {
         \(memberDeclarationBlocks)
             ]
 
+            static let taskGroupIteratorDispatch: [
+                String: [String: RuntimeTaskGroupIteratorIntrinsic]
+            ] = [
+        \(iteratorDispatchBlocks)
+            ]
+
+            static let knownTaskGroupIteratorMembers: [String: Set<String>] = [
+        \(iteratorKnownBlocks)
+            ]
+
+            static let taskGroupIteratorMemberDeclarations: [
+                String: [String: [GeneratedConcurrencyDeclaration]]
+            ] = [
+        \(iteratorDeclarationBlocks)
+            ]
+
             static func intrinsic(
                 typeName: String, memberName: String
             ) -> RuntimeTaskGroupIntrinsic? {
                 taskGroupDispatch[typeName]?[memberName]
+            }
+
+            static func taskGroupIteratorIntrinsic(
+                typeName: String, memberName: String
+            ) -> RuntimeTaskGroupIteratorIntrinsic? {
+                taskGroupIteratorDispatch[typeName]?[memberName]
+            }
+
+            static func knowsTaskGroupIteratorMember(
+                typeName: String, memberName: String
+            ) -> Bool {
+                knownTaskGroupIteratorMembers[typeName]?
+                    .contains(memberName) == true
             }
 
             static func topLevelFunctionIntrinsic(
@@ -783,6 +909,23 @@ public enum ConcurrencySurfaceGenerator {
                 }
             }
         }
+        for typeName in taskGroupIteratorTypes.sorted() {
+            let members = inventory.taskGroupIteratorMemberDeclarations[
+                typeName, default: [:],
+            ]
+            for name in members.keys.sorted() {
+                for declaration in members[name, default: []] {
+                    append(
+                        domain: "task-group-iterator-member",
+                        container: typeName + ".Iterator",
+                        name: name,
+                        declaration: declaration,
+                        adapterIntrinsic:
+                        inventory.taskGroupIteratorDispatch[typeName]?[name],
+                    )
+                }
+            }
+        }
 
         declarations.sort {
             ($0.domain, $0.container, $0.name, $0.declaration, $0.id)
@@ -816,7 +959,7 @@ public enum ConcurrencySurfaceGenerator {
                 targetTriple: targetTriple,
             ),
             scope: GeneratedCapabilityScope(
-                id: "top-level-functions-and-task-family-members-v1",
+                id: "top-level-functions-and-task-family-members-v2",
                 complete: false,
                 accountingUnit:
                 "public declaration row after canonical-text deduplication",
@@ -824,12 +967,13 @@ public enum ConcurrencySurfaceGenerator {
                     "public top-level function overloads",
                     "public static and instance Task function/variable declarations",
                     "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
+                    "public function/variable declarations on directly nested TaskGroup.Iterator and ThrowingTaskGroup.Iterator types",
                 ],
                 excluded: [
                     "public nominal types and members outside the selected Task/task-group families",
                     "Task and other public initializers",
                     "protocol requirements, type aliases, subscripts, and associated types",
-                    "nested and conditional-compilation declarations not reached by the current top-level walker",
+                    "nested declarations outside the selected task-group iterators and conditional-compilation declarations not reached by the current walker",
                     "availability evaluation and non-identifier variable bindings",
                     "enclosing extension attributes, conformances, generic constraints, and duplicate declarations collapsed by canonical declaration text",
                 ],
@@ -927,6 +1071,56 @@ public enum ConcurrencySurfaceGenerator {
                     to: &declarations[name, default: []])
                 if supportedIntrinsics.contains(name) {
                     dispatch[name] = name
+                }
+            }
+        }
+    }
+
+    /// Reads the iterator declaration nested directly in the selected task-
+    /// group extension/nominal. The outer type remains the dispatch key so the
+    /// generated runtime does not have to reconstruct generic iterator names.
+    private static func inspectNestedTaskGroupIterator(
+        _ members: MemberBlockItemListSyntax,
+        globalActorNames: Set<String>,
+        knownNames: inout Set<String>,
+        dispatch: inout [String: String],
+        declarations: inout [String: [ConcurrencySurfaceDeclaration]]
+    ) {
+        for item in members {
+            guard let structure = item.decl.as(StructDeclSyntax.self),
+                  structure.name.text == "Iterator",
+                  isPublic(structure.modifiers) else { continue }
+            for iteratorItem in structure.memberBlock.members {
+                if let function = iteratorItem.decl.as(
+                    FunctionDeclSyntax.self),
+                   isPublic(function.modifiers) {
+                    let name = function.name.text
+                    knownNames.insert(name)
+                    appendUnique(
+                        declarationMetadata(
+                            function, globalActorNames: globalActorNames),
+                        to: &declarations[name, default: []])
+                    if supportedTaskGroupIteratorIntrinsics.contains(name) {
+                        dispatch[name] = name
+                    }
+                    continue
+                }
+                guard let variable = iteratorItem.decl.as(
+                    VariableDeclSyntax.self),
+                      isPublic(variable.modifiers) else { continue }
+                for binding in variable.bindings {
+                    guard let identifier = binding.pattern.as(
+                        IdentifierPatternSyntax.self) else { continue }
+                    let name = identifier.identifier.text
+                    knownNames.insert(name)
+                    appendUnique(
+                        declarationMetadata(
+                            variable, binding: binding,
+                            globalActorNames: globalActorNames),
+                        to: &declarations[name, default: []])
+                    if supportedTaskGroupIteratorIntrinsics.contains(name) {
+                        dispatch[name] = name
+                    }
                 }
             }
         }

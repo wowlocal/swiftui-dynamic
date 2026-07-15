@@ -187,6 +187,22 @@ extension Interpreter {
                     return try await nextSourceTaskGroupResult(group)
                 }))
 
+        case .makeAsyncIterator:
+            guard !group.kind.discardsResults else {
+                throw RuntimeError(message:
+                    "\(group.kind.sourceTypeName).makeAsyncIterator is not public")
+            }
+            return .hostFunction(HostFunction(name: name) {
+                [weak self, weak group] _, _ in
+                guard let self, let group else {
+                    throw RuntimeError(message:
+                        "task group was released before makeAsyncIterator")
+                }
+                try group.requireActive(
+                    ownerTaskID: evaluationTaskContext.runtimeTaskID)
+                return .native(RuntimeTaskGroupIterator(group: group))
+            })
+
         case .cancelAll:
             return .hostFunction(HostFunction(name: name) {
                 [weak self, weak group] _, _ in
@@ -202,6 +218,55 @@ extension Interpreter {
                 return .void
             })
 
+        }
+    }
+
+    func sourceTaskGroupIteratorMember(
+        _ name: String,
+        on iterator: RuntimeTaskGroupIterator
+    ) throws -> RuntimeValue? {
+        let typeName = iterator.group.kind.sourceTypeName
+        guard let intrinsic = GeneratedConcurrencySurface
+            .taskGroupIteratorIntrinsic(
+                typeName: typeName, memberName: name)
+        else {
+            guard GeneratedConcurrencySurface.knowsTaskGroupIteratorMember(
+                typeName: typeName, memberName: name)
+            else { return nil }
+            throw RuntimeError(message:
+                "\(typeName).Iterator.\(name) is declared by the active "
+                    + "_Concurrency.swiftinterface but is not supported yet")
+        }
+
+        switch intrinsic {
+        case .next:
+            return .hostFunction(HostFunction(
+                name: name,
+                tracksHostOperation: false,
+                asyncInvoke: { [weak self, weak iterator] _, _ in
+                    guard let self, let iterator else {
+                        throw RuntimeError(message:
+                            "task-group iterator was released before next")
+                    }
+                    return try await nextSourceTaskGroupIteratorValue(iterator)
+                }))
+
+        case .cancel:
+            return .hostFunction(HostFunction(name: name) {
+                [weak self, weak iterator] _, _ in
+                guard let self, let iterator else {
+                    throw RuntimeError(message:
+                        "task-group iterator was released before cancel")
+                }
+                let group = iterator.group
+                try group.requireActive(
+                    ownerTaskID: evaluationTaskContext.runtimeTaskID)
+                iterator.markFinished()
+                group.requestCancelAll()
+                cancelSourceTaskGroupChildren(
+                    group, source: .taskGroupCancelAll)
+                return .void
+            })
         }
     }
 
@@ -267,6 +332,29 @@ extension Interpreter {
                 throw RuntimeError(message:
                     "nonthrowing task-group child was cancelled without a value")
             }
+        }
+    }
+
+    private func nextSourceTaskGroupIteratorValue(
+        _ iterator: RuntimeTaskGroupIterator
+    ) async throws -> RuntimeValue {
+        let group = iterator.group
+        try group.requireActive(
+            ownerTaskID: evaluationTaskContext.runtimeTaskID)
+        guard !iterator.isFinished else { return .none() }
+
+        do {
+            let next = try await nextSourceTaskGroupValue(group)
+            guard case .optional(let optional) = next else {
+                preconditionFailure("task-group next must return an Optional")
+            }
+            if optional.wrapped == nil {
+                iterator.markFinished()
+            }
+            return next
+        } catch {
+            iterator.markFinished()
+            throw error
         }
     }
 

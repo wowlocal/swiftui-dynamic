@@ -23,6 +23,20 @@ struct TaskGroupSurfaceTests {
         #expect(throwing["waitForAll"] == .waitForAll)
         #expect(dispatch["nextResult"] == nil)
         #expect(throwing["nextResult"] == .nextResult)
+        #expect(dispatch["makeAsyncIterator"] == .makeAsyncIterator)
+        #expect(throwing["makeAsyncIterator"] == .makeAsyncIterator)
+        #expect(GeneratedConcurrencySurface.taskGroupIteratorIntrinsic(
+            typeName: "TaskGroup", memberName: "next") == .next)
+        #expect(GeneratedConcurrencySurface.taskGroupIteratorIntrinsic(
+            typeName: "TaskGroup", memberName: "cancel") == .cancel)
+        #expect(GeneratedConcurrencySurface.taskGroupIteratorIntrinsic(
+            typeName: "ThrowingTaskGroup", memberName: "next") == .next)
+        #expect(GeneratedConcurrencySurface.taskGroupIteratorIntrinsic(
+            typeName: "ThrowingTaskGroup", memberName: "cancel") == .cancel)
+        #expect(GeneratedConcurrencySurface.taskGroupIteratorMemberDeclarations[
+            "TaskGroup"]?["next"]?.count == 2)
+        #expect(GeneratedConcurrencySurface.taskGroupIteratorMemberDeclarations[
+            "ThrowingTaskGroup"]?["next"]?.count == 2)
         let ordinaryWaitDeclarations = try! #require(
             GeneratedConcurrencySurface.taskGroupMemberDeclarations[
                 "TaskGroup"]?["waitForAll"])

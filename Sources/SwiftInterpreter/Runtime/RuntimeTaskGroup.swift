@@ -121,3 +121,25 @@ final class RuntimeTaskGroup {
         childHandles.removeAll(keepingCapacity: false)
     }
 }
+
+/// Source-facing iterator capability returned by `TaskGroup.makeAsyncIterator`.
+/// It intentionally shares the owning group's completion queue while retaining
+/// a distinct member surface; returning the group itself would incorrectly
+/// expose child creation and cancellation through an iterator value.
+final class RuntimeTaskGroupIterator: HostValueSemantic {
+    let group: RuntimeTaskGroup
+    private(set) var isFinished: Bool
+
+    init(group: RuntimeTaskGroup, isFinished: Bool = false) {
+        self.group = group
+        self.isFinished = isFinished
+    }
+
+    func markFinished() {
+        isFinished = true
+    }
+
+    func copiedHostValue() -> Any {
+        RuntimeTaskGroupIterator(group: group, isFinished: isFinished)
+    }
+}

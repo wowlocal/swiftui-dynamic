@@ -1,6 +1,201 @@
 {
   "declarations" : [
     {
+      "adapterIntrinsic" : "cancel",
+      "attributes" : [
+
+      ],
+      "container" : "TaskGroup.Iterator",
+      "declaration" : "public mutating func cancel()",
+      "domain" : "task-group-iterator-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:4537d7dd0084dd47f3f903b886cfefce8431b9717f67cf0feefb651ba005cddb",
+      "isolation" : {
+        "mutating" : true,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "mutating"
+      ],
+      "name" : "cancel",
+      "parameters" : [
+
+      ]
+    },
+    {
+      "adapterIntrinsic" : "next",
+      "attributes" : [
+        "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)"
+      ],
+      "container" : "TaskGroup.Iterator",
+      "declaration" : "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)\n    public mutating func next(isolation actor: isolated (any _Concurrency.Actor)?) async -> _Concurrency.TaskGroup<ChildTaskResult>.Iterator.Element?",
+      "domain" : "task-group-iterator-member",
+      "effects" : {
+        "async" : true,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:910c65140c6c20b976ef897250de5e9a65a7571bc3a4cd2ff95a1b4228e5f114",
+      "isolation" : {
+        "mutating" : true,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "mutating"
+      ],
+      "name" : "next",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : true,
+          "isolatedFunctionType" : false,
+          "label" : "isolation",
+          "modifiers" : [
+
+          ],
+          "name" : "actor",
+          "sendableFunction" : false,
+          "type" : "isolated (any _Concurrency.Actor)?"
+        }
+      ],
+      "returnType" : "_Concurrency.TaskGroup<ChildTaskResult>.Iterator.Element?"
+    },
+    {
+      "adapterIntrinsic" : "next",
+      "attributes" : [
+
+      ],
+      "container" : "TaskGroup.Iterator",
+      "declaration" : "public mutating func next() async -> _Concurrency.TaskGroup<ChildTaskResult>.Iterator.Element?",
+      "domain" : "task-group-iterator-member",
+      "effects" : {
+        "async" : true,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:d7f4f75c2eee8e2ace96108aa3e2facdcce76d3ac5133bf67ee0159adefe8e57",
+      "isolation" : {
+        "mutating" : true,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "mutating"
+      ],
+      "name" : "next",
+      "parameters" : [
+
+      ],
+      "returnType" : "_Concurrency.TaskGroup<ChildTaskResult>.Iterator.Element?"
+    },
+    {
+      "adapterIntrinsic" : "cancel",
+      "attributes" : [
+
+      ],
+      "container" : "ThrowingTaskGroup.Iterator",
+      "declaration" : "public mutating func cancel()",
+      "domain" : "task-group-iterator-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:740a02840f6e37cf8bce1018c18d1e792de264ed74e42d3e174b82f3f083e9c6",
+      "isolation" : {
+        "mutating" : true,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "mutating"
+      ],
+      "name" : "cancel",
+      "parameters" : [
+
+      ]
+    },
+    {
+      "adapterIntrinsic" : "next",
+      "attributes" : [
+        "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)"
+      ],
+      "container" : "ThrowingTaskGroup.Iterator",
+      "declaration" : "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)\n    public mutating func next(isolation actor: isolated (any _Concurrency.Actor)?) async throws(Failure) -> _Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?",
+      "domain" : "task-group-iterator-member",
+      "effects" : {
+        "async" : true,
+        "thrownErrorType" : "Failure",
+        "throwsKind" : "throwing"
+      },
+      "id" : "swift-concurrency-api-v1:864f62b9ed3016ecfb5b0c769d935e0e9de76f3efdef58116ce436a3c80c8f78",
+      "isolation" : {
+        "mutating" : true,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "mutating"
+      ],
+      "name" : "next",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : true,
+          "isolatedFunctionType" : false,
+          "label" : "isolation",
+          "modifiers" : [
+
+          ],
+          "name" : "actor",
+          "sendableFunction" : false,
+          "type" : "isolated (any _Concurrency.Actor)?"
+        }
+      ],
+      "returnType" : "_Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?"
+    },
+    {
+      "adapterIntrinsic" : "next",
+      "attributes" : [
+
+      ],
+      "container" : "ThrowingTaskGroup.Iterator",
+      "declaration" : "public mutating func next() async throws -> _Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?",
+      "domain" : "task-group-iterator-member",
+      "effects" : {
+        "async" : true,
+        "throwsKind" : "throwing"
+      },
+      "id" : "swift-concurrency-api-v1:c9bbd2332357fa1e64b772b5873807adabebe928e22acd6dd76ac535926d8381",
+      "isolation" : {
+        "mutating" : true,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "mutating"
+      ],
+      "name" : "next",
+      "parameters" : [
+
+      ],
+      "returnType" : "_Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?"
+    },
+    {
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -1883,6 +2078,7 @@
       "returnType" : "Swift.Bool"
     },
     {
+      "adapterIntrinsic" : "makeAsyncIterator",
       "attributes" : [
 
       ],
@@ -4023,6 +4219,7 @@
       "returnType" : "Swift.Bool"
     },
     {
+      "adapterIntrinsic" : "makeAsyncIterator",
       "attributes" : [
 
       ],
@@ -8445,15 +8642,16 @@
       "public nominal types and members outside the selected Task/task-group families",
       "Task and other public initializers",
       "protocol requirements, type aliases, subscripts, and associated types",
-      "nested and conditional-compilation declarations not reached by the current top-level walker",
+      "nested declarations outside the selected task-group iterators and conditional-compilation declarations not reached by the current walker",
       "availability evaluation and non-identifier variable bindings",
       "enclosing extension attributes, conformances, generic constraints, and duplicate declarations collapsed by canonical declaration text"
     ],
-    "id" : "top-level-functions-and-task-family-members-v1",
+    "id" : "top-level-functions-and-task-family-members-v2",
     "included" : [
       "public top-level function overloads",
       "public static and instance Task function/variable declarations",
-      "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup"
+      "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
+      "public function/variable declarations on directly nested TaskGroup.Iterator and ThrowingTaskGroup.Iterator types"
     ]
   },
   "source" : {
@@ -8465,9 +8663,10 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 84,
-    "declarationCount" : 150,
+    "adapterRoutedDeclarationCount" : 92,
+    "declarationCount" : 156,
     "declarationsByDomain" : {
+      "task-group-iterator-member" : 6,
       "task-group-member" : 71,
       "task-instance-member" : 11,
       "task-static-member" : 21,
