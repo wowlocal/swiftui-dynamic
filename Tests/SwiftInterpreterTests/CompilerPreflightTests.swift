@@ -298,6 +298,49 @@ struct CompilerPreflightTests {
                 base: base,
                 syntheticSignatures: [member])
         }
+
+        let privateFunction = try HostSignature(
+            parsing: "private func hiddenSyntheticValue() -> Int")
+        #expect(throws: CompilerPreflightError.self) {
+            _ = try CompilerPreflightHostModule.composing(
+                base: base,
+                syntheticSignatures: [privateFunction])
+        }
+    }
+
+    @Test
+    func typedSyntheticMainActorGatewayPreservesPinnedIsolation() throws {
+        let registry = try SyntheticMainActorHostRegistry()
+        let interpreter = try Interpreter.withActiveCompilerPreflight(
+            registry: registry)
+        let client = try Self.upstreamClient(
+            "host-module-mainactor-diagnostic.swift")
+        let diagnostic = try interpreter.preflight(
+            source: client,
+            fileName: "host-module-mainactor-diagnostic.swift")
+
+        #expect(!diagnostic.succeeded)
+        #expect(diagnostic.diagnostics.contains {
+            $0.file == "host-module-mainactor-diagnostic.swift"
+                && $0.line == 4
+                && $0.message.contains("main actor-isolated global function")
+                && $0.message.contains("nonisolated context")
+        }, Comment(rawValue: diagnostic.standardError))
+        #expect(interpreter.compilerPreflight?.hostModule?.moduleName
+            == "GlobalActorIsolatedFunction")
+        #expect(interpreter.compilerPreflight?.hostModule?.source.contains(
+            "@MainActor public func mainActorFunction()") == true)
+
+        let value = try interpreter.run(source: """
+        @MainActor
+        func validSyntheticMainActorCall() -> Int {
+            mainActorFunction()
+            return 42
+        }
+        validSyntheticMainActorCall()
+        """)
+        #expect(value.intValue == 42)
+        #expect(registry.invocationCount == 1)
     }
 
     @Test
@@ -546,6 +589,43 @@ private final class SyntheticAsyncHostRegistry: HostRegistry {
 
     func cFunction(named name: String) -> HostFunction? {
         name == "syntheticAsyncValue" ? asyncValue : nil
+    }
+
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+}
+
+private final class SyntheticMainActorHostRegistry: HostRegistry {
+    let compilerPreflightHostModule: CompilerPreflightHostModule? =
+        CompilerPreflightHostModule(
+        moduleName: "GlobalActorIsolatedFunction",
+        source: "// Interpreter-synthetic host declarations follow.\n")
+    private let mainActorFunction: HostFunction
+    private let counter = PreflightInvocationCounter()
+    var invocationCount: Int { counter.value }
+    var compilerPreflightSyntheticSignatures: [HostSignature] {
+        mainActorFunction.signatures
+    }
+
+    init() throws {
+        let counter = counter
+        mainActorFunction = try HostFunction(
+            declaration: "@MainActor func mainActorFunction()"
+        ) { _, _ in
+            counter.value += 1
+            return .void
+        }
+    }
+
+    func cFunction(named name: String) -> HostFunction? {
+        name == "mainActorFunction" ? mainActorFunction : nil
     }
 
     func absorbedCValue(named name: String) -> RuntimeValue? { nil }

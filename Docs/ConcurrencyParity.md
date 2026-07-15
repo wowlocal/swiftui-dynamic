@@ -3849,3 +3849,43 @@ source-bound closing gate is GREEN over 882 tests, exact 88/88 runtime parity
 cases and 1,722 repetitions, the 678/680 pinned corpus ratchet, 5/5 live
 scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
 unstable / 0 no-twin.
+
+### M7 synthetic global-actor host declarations
+
+This gap-closure slice asks whether an interpreter-synthetic host contract
+retains source isolation when production preflight serializes it into a Swift
+module. The native oracle is the unchanged swiftlang support fixture
+`Concurrency/Inputs/GlobalActorIsolatedFunction.swift` from release
+`swift-6.3.3-RELEASE`, commit `064859e4…`, with SHA-256 `5f40cc13…`, plus the
+unchanged `host-module-mainactor-diagnostic.swift` client. Apple Swift 6.3.3
+rejects the cross-module call on line 4 as a main-actor-isolated global call
+from a nonisolated context. This is a compiler diagnostic guarantee; it does
+not assert a runtime schedule or physical thread.
+
+Before the fix, registering the equivalent runtime gateway as
+`@MainActor func mainActorFunction()` failed while parsing its typed
+`HostSignature` with `unsupported host declaration`. The generated compiler
+surface therefore could not express isolation even though the native module
+contract could. That exact production failure was captured before changing
+the parser.
+
+Native-shaped top-level host functions now retain SwiftSyntax declaration
+attributes and modifiers together with their existing parameters, generic
+constraints, effects, and return type. Stub generation inserts `public` at the
+parsed `func` token without reordering attributes or rewriting the contract;
+an explicitly non-public synthetic declaration fails configuration instead of
+silently changing visibility. Production preflight compiles the resulting
+`@MainActor public func` in the same registry-bound module, the pinned invalid
+client receives the native line/category diagnostic, and a legal
+`@MainActor` client invokes the original runtime gateway once and returns
+`42`.
+
+This is compiler-preflight serialization, not a claim that actor storage or
+executor enforcement is complete. M7 remains partial for synthetic member,
+initializer, property, type, and extension stubs and target-aware project build
+manifests; runtime actor isolation remains gated on M5. The focused
+compiler/host-contract/upstream/generated board is GREEN at 35 tests. The
+source-bound closing gate is GREEN over 870 tests, exact 88/88 runtime parity
+cases and 1,722 repetitions, the 678/680 pinned corpus ratchet, 5/5 live
+scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors / 17
+unstable / 0 no-twin.

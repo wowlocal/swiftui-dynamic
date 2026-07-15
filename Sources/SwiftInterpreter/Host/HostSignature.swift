@@ -53,12 +53,19 @@ public struct HostSignature: Sendable, CustomStringConvertible {
     public let name: String
     public let parameters: [Parameter]
     public let genericParameters: [GenericParameter]
+    /// Declaration attributes retained for compiler-preflight serialization.
+    /// Runtime dispatch does not reinterpret global-actor or availability
+    /// attributes; the native compiler consumes their original spelling.
+    public let attributes: [String]
+    /// Source declaration modifiers such as `public` or `nonisolated`.
+    public let modifiers: [String]
     /// `nil` is a `Void` return for functions and methods.
     public let returnType: String?
     public let isAsync: Bool
     public let isThrowing: Bool
     public let isFailable: Bool
     public let isSettable: Bool
+    let functionIntroducerUTF8Offset: Int?
 
     public var description: String { declaration }
 
@@ -89,7 +96,10 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         isAsync: Bool,
         isThrowing: Bool,
         isFailable: Bool,
-        isSettable: Bool
+        isSettable: Bool,
+        attributes: [String] = [],
+        modifiers: [String] = [],
+        functionIntroducerUTF8Offset: Int? = nil
     ) {
         self.declaration = declaration
         self.kind = kind
@@ -97,11 +107,14 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         self.name = name
         self.parameters = parameters
         self.genericParameters = genericParameters
+        self.attributes = attributes
+        self.modifiers = modifiers
         self.returnType = returnType
         self.isAsync = isAsync
         self.isThrowing = isThrowing
         self.isFailable = isFailable
         self.isSettable = isSettable
+        self.functionIntroducerUTF8Offset = functionIntroducerUTF8Offset
     }
 
     public static func parse(_ rawDeclaration: String) throws -> HostSignature {
@@ -109,6 +122,12 @@ public struct HostSignature: Sendable, CustomStringConvertible {
         guard !declaration.isEmpty else {
             throw HostSignatureError.invalidDeclaration(
                 declaration: rawDeclaration, reason: "declaration is empty")
+        }
+
+        if let nativeTopLevel = try parseNativeTopLevelFunctionIfPresent(
+            declaration
+        ) {
+            return nativeTopLevel
         }
 
         if declaration.hasPrefix("static func ") {
@@ -193,6 +212,63 @@ private extension HostSignature {
         let returnType: String?
         let isAsync: Bool
         let isThrowing: Bool
+    }
+
+    static func parseNativeTopLevelFunctionIfPresent(
+        _ declaration: String
+    ) throws -> HostSignature? {
+        if declaration.hasPrefix("func ") {
+            let body = String(declaration.dropFirst("func ".count))
+            guard let parameterStart = firstTopLevelIndex(of: "(", in: body)
+            else {
+                let tree = Parser.parse(source: declaration + " {}")
+                try rejectParseErrors(in: tree, original: declaration)
+                throw HostSignatureError.invalidDeclaration(
+                    declaration: declaration, reason: "missing parameter clause")
+            }
+            let qualifiedAndGenerics = String(body[..<parameterStart])
+            if lastTopLevelIndex(of: ".", in: qualifiedAndGenerics) != nil {
+                return nil
+            }
+        } else {
+            let nativePrefixes = [
+                "@", "public ", "internal ", "private ", "fileprivate ",
+                "package ", "nonisolated ", "borrowing ", "consuming ",
+            ]
+            guard nativePrefixes.contains(where: declaration.hasPrefix) else {
+                return nil
+            }
+        }
+
+        let source = declaration + " {}"
+        let tree = Parser.parse(source: source)
+        try rejectParseErrors(in: tree, original: declaration)
+        guard tree.statements.count == 1,
+              let function = tree.statements.first?.item.as(
+                FunctionDeclSyntax.self
+              ) else {
+            throw HostSignatureError.invalidDeclaration(
+                declaration: declaration,
+                reason: "expected one body-free top-level function declaration")
+        }
+        let parsed = try parseSyntheticFunction(source, original: declaration)
+        return HostSignature(
+            declaration: declaration,
+            kind: .function,
+            receiverType: nil,
+            name: function.name.text,
+            parameters: parsed.parameters,
+            genericParameters: parsed.generics,
+            returnType: parsed.returnType,
+            isAsync: parsed.isAsync,
+            isThrowing: parsed.isThrowing,
+            isFailable: false,
+            isSettable: false,
+            attributes: function.attributes.map(\.trimmedDescription),
+            modifiers: function.modifiers.map(\.trimmedDescription),
+            functionIntroducerUTF8Offset:
+                function.funcKeyword.positionAfterSkippingLeadingTrivia
+                    .utf8Offset)
     }
 
     static func parseFunction(

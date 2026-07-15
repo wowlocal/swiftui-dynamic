@@ -75,12 +75,31 @@ private extension HostSignature {
         }
         let declaration = declaration.trimmingCharacters(
             in: .whitespacesAndNewlines)
-        guard declaration.hasPrefix("func ") else {
+        let accessModifiers = Set([
+            "private", "fileprivate", "internal", "package", "public", "open",
+        ])
+        let declaredAccess = modifiers.lazy.map {
+            $0.split(separator: "(", maxSplits: 1).first.map(String.init) ?? $0
+        }.first(where: accessModifiers.contains)
+        if let declaredAccess, declaredAccess != "public" {
             throw CompilerPreflightError.invalidConfiguration(
-                "synthetic compiler declaration '\(declaration)' cannot be "
-                    + "exported from a host module")
+                "synthetic compiler declaration '\(declaration)' has "
+                    + "non-public access '\(declaredAccess)'")
         }
-        return "public \(declaration) {\n"
+        let exportedDeclaration: String
+        if declaredAccess == "public" {
+            exportedDeclaration = declaration
+        } else {
+            guard let offset = functionIntroducerUTF8Offset else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "synthetic compiler declaration '\(declaration)' cannot be "
+                        + "exported from a host module")
+            }
+            var bytes = Array(declaration.utf8)
+            bytes.insert(contentsOf: Array("public ".utf8), at: offset)
+            exportedDeclaration = String(decoding: bytes, as: UTF8.self)
+        }
+        return "\(exportedDeclaration) {\n"
             + "    fatalError(\"compiler-preflight declaration only\")\n"
             + "}"
     }

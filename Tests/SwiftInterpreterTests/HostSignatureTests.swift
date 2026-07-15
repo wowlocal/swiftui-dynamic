@@ -78,6 +78,24 @@ struct HostSignatureTests {
         ])
     }
 
+    @Test func parserRetainsTopLevelAttributesAndModifiers() throws {
+        let signature = try HostSignature.parse("""
+        @available(macOS 14, *)
+        @MainActor
+        public func isolatedHostValue() async throws -> Int
+        """)
+
+        #expect(signature.kind == .function)
+        #expect(signature.name == "isolatedHostValue")
+        #expect(signature.attributes == [
+            "@available(macOS 14, *)",
+            "@MainActor",
+        ])
+        #expect(signature.modifiers == ["public"])
+        #expect(signature.isAsync)
+        #expect(signature.isThrowing)
+    }
+
     @Test func parserRejectsRecoveredSyntaxAndUnsupportedShapes() {
         #expect(throws: HostSignatureError.self) {
             _ = try HostSignature.parse("func broken(_ value: ) -> Int")
