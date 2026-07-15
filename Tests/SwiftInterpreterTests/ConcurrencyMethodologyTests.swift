@@ -213,6 +213,7 @@ private struct CapabilityInventoryDeclaration: Decodable {
     let domain: String
     let container: String?
     let name: String
+    let declaration: String
 }
 
 private struct CapabilityStatusDocument: Decodable {
@@ -1330,6 +1331,46 @@ struct ConcurrencyMethodologyTests {
         #expect(Set(iteratorClaims.map(\.id)) == iteratorIDs,
             "every task-group iterator declaration needs an authored disposition")
         #expect(iteratorClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
+    @Test func taskGroupNextHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let nextRows = inventory.declarations.filter {
+            $0.domain == "task-group-member" && $0.name == "next"
+        }
+        let nextIDs = Set(nextRows.map(\.id))
+        let nextClaims = status.interfaceOverrides.filter {
+            nextIDs.contains($0.id)
+        }
+
+        #expect(nextRows.count == 4,
+            "the active SDK task-group next denominator changed")
+        #expect(Set(nextRows.compactMap(\.container)) == [
+            "TaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(nextRows.count {
+            $0.declaration.contains("@_disfavoredOverload")
+        } == 2)
+        #expect(nextRows.count {
+            $0.declaration.contains("next(isolation:")
+        } == 2)
+        #expect(Set(nextClaims.map(\.id)) == nextIDs,
+            "every task-group next declaration needs an authored disposition")
+        #expect(nextClaims.allSatisfy {
             $0.implementationStatus != .unreviewed
         })
     }

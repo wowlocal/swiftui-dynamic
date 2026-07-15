@@ -779,6 +779,18 @@
     "notes": "The first-added child is held in a confirmed cancellable suspension before the second child is added. Exact output is fast:slow:empty in 20 Swift 6.3.3 runs; the first next consumes the later-added fast result, cancelAll releases slow for the second next, and a third next observes no remaining result."
   },
   {
+    "id": "task-group-next-overloads",
+    "fixture": "Fixtures/task-group-next-overloads.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupNextOverloadProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Protocol witnesses select both @_disfavoredOverload zero-argument TaskGroup.next ABI entries, while direct zero-argument source selects the modern defaulted-isolation overload; all four preserve the shared completion, failure, cancellation, and drain semantics.",
+    "notes": "Strict Swift 6 SIL identifies the legacy protocol witnesses separately from direct next(isolation:) calls. Nonisolated calls cover explicit nil, while explicit MainActor calls include a cancellation-driven suspension and resumption. Exact output is deterministic in 20 native and interpreted process repetitions; arbitrary source-defined actor executors remain outside this claim."
+  },
+  {
     "id": "task-group-iteration",
     "fixture": "Fixtures/task-group-iteration.swift",
     "mode": "runtime",
