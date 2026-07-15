@@ -211,6 +211,8 @@ private struct CapabilityInventorySummary: Decodable {
 private struct CapabilityInventoryDeclaration: Decodable {
     let id: String
     let domain: String
+    let container: String?
+    let name: String
 }
 
 private struct CapabilityStatusDocument: Decodable {
@@ -943,6 +945,43 @@ struct ConcurrencyMethodologyTests {
         #expect(Set(taskStaticClaims.map(\.id)) == taskStaticIDs,
             "every Task-static overload needs an authored disposition")
         #expect(taskStaticClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
+    @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let stateRows = inventory.declarations.filter {
+            $0.domain == "task-group-member"
+                && ($0.name == "isEmpty" || $0.name == "isCancelled")
+        }
+        let stateIDs = Set(stateRows.map(\.id))
+        let stateClaims = status.interfaceOverrides.filter {
+            stateIDs.contains($0.id)
+        }
+
+        #expect(stateRows.count == 8,
+            "the active SDK task-group state denominator changed")
+        #expect(Set(stateRows.compactMap(\.container)) == [
+            "DiscardingTaskGroup",
+            "TaskGroup",
+            "ThrowingDiscardingTaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(Set(stateClaims.map(\.id)) == stateIDs,
+            "every task-group state property needs an authored disposition")
+        #expect(stateClaims.allSatisfy {
             $0.implementationStatus != .unreviewed
         })
     }

@@ -508,6 +508,105 @@
       "testNames": [],
       "gapEvidenceIDs": [],
       "notes": "Task.yield() records a first-class yielding suspension and permits another ready source task to make progress without asserting scheduler order."
+    },
+    {
+      "id": "swift-concurrency-api-v1:70eea91525a02d81cc71030eeab63d5a518f1c9c90779389e0719642a535a57b",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "DiscardingTaskGroup.isCancelled reads the group's combined cancellation state; the same-source four-kind probe proves the active-to-cancelled transition around cancelAll."
+    },
+    {
+      "id": "swift-concurrency-api-v1:adcdc6f97bd5fdeb1274ac00cc8c4e8c8c7cfaba43cd72f44e4f93237fcae95d",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "DiscardingTaskGroup.isEmpty becomes false for an outstanding child and true after automatic outcome consumption; the same-source probe waits for the cancelled child to drain."
+    },
+    {
+      "id": "swift-concurrency-api-v1:b3d10faf2768968e06a1cc144498625eafdead19594542f6943b846f4b2918fd",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties",
+        "task-group-is-cancelled"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "TaskGroup.isCancelled is false initially and true immediately after cancelAll; two same-source probes cover the transition with and without a child."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c789afaf33eaec54f173c8619b57e9cfbb154c5ab55df62432ba5fff038c89f2",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "TaskGroup.isEmpty tracks unconsumed outcomes. The same-source four-kind probe and unchanged swiftlang async_taskgroup_is_empty.swift both cover empty, outstanding, and drained states."
+    },
+    {
+      "id": "swift-concurrency-api-v1:053f98e6626df4ad6d19b2a1b7237bf3fabd20f41ea9a68337de9b6912d29e65",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "ThrowingDiscardingTaskGroup.isCancelled reads the group's combined cancellation state; the same-source four-kind probe proves the active-to-cancelled transition around cancelAll."
+    },
+    {
+      "id": "swift-concurrency-api-v1:5534670a1af9a8a0d165dbe7ad892b85179085ddc3985ee782531c1c99489653",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "ThrowingDiscardingTaskGroup.isEmpty becomes false for an outstanding child and true after automatic outcome consumption; the probe catches the child's cancellation before draining."
+    },
+    {
+      "id": "swift-concurrency-api-v1:e717104a4eea0f3790e14aef0d61c6076dd3449d6f44e3a4d2de2c74a8b7d068",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "ThrowingTaskGroup.isCancelled is false initially and true after cancelAll in the same-source four-kind state probe."
+    },
+    {
+      "id": "swift-concurrency-api-v1:6144b1758edfcc824fd21c0fbfe732485bbe8a88a14de9c5148c7c812b104b95",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-state-properties"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "ThrowingTaskGroup.isEmpty tracks the outstanding child until try await next consumes its successful outcome in the same-source four-kind probe."
     }
   ],
   "semanticCapabilities": [

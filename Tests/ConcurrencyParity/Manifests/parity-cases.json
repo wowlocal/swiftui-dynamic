@@ -1043,6 +1043,18 @@
     "notes": "The group is cancelled before either child is added. One child records completion and calls Task.checkCancellation(); the other records completion and succeeds while ignoring cancellation. All 20 Swift 6.3.3 runs returned cancellation:owner-active:drained."
   },
   {
+    "id": "task-group-state-properties",
+    "fixture": "Fixtures/task-group-state-properties.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await taskGroupStatePropertiesProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "TaskGroup, ThrowingTaskGroup, DiscardingTaskGroup, and ThrowingDiscardingTaskGroup begin empty and active; an outstanding child makes each nonempty, cancelAll marks each cancelled, and consuming or automatically discarding the child makes each empty again.",
+    "notes": "Each child enters a 30-second cancellable sleep, so the post-add nonempty read does not depend on scheduling. The owner then cancels and deterministically drains the child. All four summaries were true:false:false:false:true:true in 20 strict Swift 6.3.3 runs."
+  },
+  {
     "id": "host-callback-task-runtime",
     "fixture": "Fixtures/host-callback-task-runtime.swift",
     "mode": "runtime",
