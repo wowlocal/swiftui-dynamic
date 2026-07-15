@@ -1,0 +1,14 @@
+#!/bin/sh
+# Auto-push to GitHub after each commit.
+# Skips during rebase/merge/cherry-pick to avoid pushing intermediate state.
+
+git_dir=$(git rev-parse --git-dir)
+if [ -d "$git_dir/rebase-merge" ] || [ -d "$git_dir/rebase-apply" ] || \
+   [ -f "$git_dir/MERGE_HEAD" ] || [ -f "$git_dir/CHERRY_PICK_HEAD" ]; then
+  exit 0
+fi
+
+branch=$(git symbolic-ref --short -q HEAD) || exit 0
+
+echo "post-commit: pushing $branch to origin..."
+git push origin "$branch"
