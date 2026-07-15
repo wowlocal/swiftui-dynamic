@@ -3532,3 +3532,48 @@ log digest `0c7e88d9…` under Apple Swift 6.3.3 / macOS SDK 26.5. After the
 repository-owned client fixture was moved to its final test-only directory,
 the affected compiler-preflight and official-Swift suites repeated GREEN at
 8/8 and 5/5 tests respectively.
+
+### M7 generated active-SDK bridge preflight surface
+
+The previous compiled-module boundary still required callers to invent a host
+module: `ViewRegistry` exposed no compiler surface, so the compiler and runtime
+could silently describe different environments. The RED integration test
+observed exactly that nil manifest before any source was type checked.
+
+BridgeGen now emits `GeneratedCompilerPreflightSurface.swift` beside its
+runtime gateway tables. The generated module re-exports `_Concurrency`,
+Foundation, and SwiftUI, plus the conditionally available Combine,
+CoreGraphics, Darwin, ObjectiveC, AppKit, UIKit, and Metal modules already
+backing generated gateways. This deliberately does not print lossy declaration
+copies from a swiftinterface: compiling the re-export module makes Swift
+deserialize the SDK's canonical signatures, effects, generic constraints,
+availability, Sendable annotations, and actor isolation. New SDK declarations
+therefore enter compiler checking with the SDK update; only APIs synthesized by
+the interpreter will require generated declaration stubs of their own.
+
+`ViewRegistry.compilerPreflightHostModule` supplies that generated surface, and
+its content-derived manifest identity is now the same identity used by
+`Interpreter.withActiveCompilerPreflight(registry:)`. A positive end-to-end
+test checks and interprets a real `Button` whose MainActor-isolated action calls
+an `@MainActor` function. The corresponding direct call from a synchronous
+nonisolated function is rejected on its original source line. This matches a
+standalone Apple Swift 6.3.3 module/client oracle and demonstrates that the
+result comes from real SwiftUI isolation metadata rather than a handwritten
+Button rule.
+
+Two complete BridgeGen emissions produced byte-identical output: the new
+surface SHA-256 is `435c2893...`, while all five existing generated gateway
+artifacts retained their prior hashes and no SDK drift. The focused closure
+board ran 62 tests across compiler preflight, official pinned swiftlang inputs,
+the `_Concurrency` surface generator, and generated SwiftUI, Foundation, and
+platform gateways.
+
+M7 remains partial. The next dependency-ready work is generated declarations
+for interpreter-synthetic host APIs and a recovery-aware project entry policy;
+required compiler checking is not silently enabled for the editor or merged
+projects in this slice.
+
+The source-bound closing repository gate is GREEN over 870 tests, exact 88/88
+runtime parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet,
+5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
+errors / 17 unstable / 0 no-twin.

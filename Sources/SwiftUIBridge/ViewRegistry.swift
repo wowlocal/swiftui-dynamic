@@ -11,6 +11,10 @@ public final class ViewRegistry: HostRegistry {
     let mainQueueDeliveryMode: MainQueueDeliveryMode
     private let generatedPlatformFallbacks = GeneratedPlatformFallbackRuntime()
 
+    public var compilerPreflightHostModule: CompilerPreflightHostModule? {
+        GeneratedCompilerPreflightSurface.module
+    }
+
     public convenience init() {
         self.init(mainQueueDeliveryMode: .wallClock)
     }
