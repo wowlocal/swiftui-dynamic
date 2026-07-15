@@ -1626,6 +1626,83 @@ struct ConcurrencyMethodologyTests {
         }, "canonical addTask must not overclaim arbitrary-actor support")
     }
 
+    @Test func taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions()
+            throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let rows = inventory.declarations.filter {
+            $0.domain == "task-group-member"
+                && $0.name == "addTask"
+                && $0.declaration.contains("executorPreference")
+        }
+        let expectedIDs: Set<String> = [
+            "swift-concurrency-api-v1:70204490d1f1eb798aaa7fc797f86f8d0346591f9d3a9567599c4fa266a115f2",
+            "swift-concurrency-api-v1:c879f92586f549f9f163cd2b25d10446301f5da5c57c24b8349132642ded264f",
+            "swift-concurrency-api-v1:04e812c711affe7241baab6633e75c7da52b852d78cfc817db011662ba87394b",
+            "swift-concurrency-api-v1:dc4fe7d267ec3fcdfb471d4a68118707547ef1cb1d93481735ed15ddee8db942",
+            "swift-concurrency-api-v1:b0ddd176b7a816b800bbd45b7b78ed26258d890f8482b06e26b3d7d1a6422515",
+            "swift-concurrency-api-v1:0de8c842b4314d07dbefe7d36793703041e6d501fca947f045488e09fccac5fe",
+            "swift-concurrency-api-v1:514ef8e7268807c626d9c9e523833f97513a82374d539d3a504c67c47bd48019",
+            "swift-concurrency-api-v1:afa72af44f86a812624609ff70f595de47fe32829058340d692e40ae8d04c2ec",
+        ]
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 8,
+            "the active SDK executor-preference addTask denominator changed")
+        #expect(ids == expectedIDs,
+            "the active SDK executor-preference addTask identities changed")
+        #expect(Set(rows.compactMap(\.container)) == [
+            "DiscardingTaskGroup",
+            "TaskGroup",
+            "ThrowingDiscardingTaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        for container in Set(rows.compactMap(\.container)) {
+            #expect(rows.count { $0.container == container } == 2,
+                "\(container) should expose named and unnamed addTask rows")
+        }
+        #expect(rows.count {
+            $0.declaration.contains("name: Swift.String?")
+        } == 4)
+        #expect(rows.count {
+            !$0.declaration.contains("name: Swift.String?")
+        } == 4)
+        #expect(rows.allSatisfy {
+            $0.adapterIntrinsic == "addTask"
+                && $0.declaration.contains(
+                    "executorPreference taskExecutor: (any _Concurrency.TaskExecutor)? = nil")
+                && $0.declaration.contains("priority:")
+                && $0.declaration.contains("@isolated(any)")
+        }, "executor-preference addTask interface shape changed")
+        #expect(Set(claims.map(\.id)) == ids,
+            "every executor-preference addTask row needs an authored disposition")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef == "M4/remaining-task-group-surface"
+                && $0.evidenceCaseIDs
+                    == ["task-group-executor-preference-nil-add"]
+                && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed")
+                && $0.gapEvidenceIDs
+                    == ["remaining-generated-task-group-surface"]
+                && $0.notes.contains("explicit-nil")
+                && $0.notes.contains("non-nil TaskExecutor")
+                && $0.notes.contains("@isolated(any)")
+        }, "executor-preference rows must retain executor and actor gaps")
+    }
+
     @Test func taskGroupCanonicalAddTaskUnlessCancelledHasExplicitDispositions()
             throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(

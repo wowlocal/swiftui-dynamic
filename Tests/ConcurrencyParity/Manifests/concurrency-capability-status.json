@@ -1712,6 +1712,142 @@
       "notes": "This @_unsafeInheritExecutor unsafe-throwing-continuation symbol is a legacy/back-deployment ABI twin of the public nonunderscored API; it has no independent source adapter or support claim."
     },
     {
+      "id": "swift-concurrency-api-v1:70204490d1f1eb798aaa7fc797f86f8d0346591f9d3a9567599c4fa266a115f2",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The DiscardingTaskGroup.addTask(executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c879f92586f549f9f163cd2b25d10446301f5da5c57c24b8349132642ded264f",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The named DiscardingTaskGroup.addTask(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity and preserves Task.name, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:04e812c711affe7241baab6633e75c7da52b852d78cfc817db011662ba87394b",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The TaskGroup.addTask(executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:dc4fe7d267ec3fcdfb471d4a68118707547ef1cb1d93481735ed15ddee8db942",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The named TaskGroup.addTask(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity and preserves Task.name, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:b0ddd176b7a816b800bbd45b7b78ed26258d890f8482b06e26b3d7d1a6422515",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The ThrowingDiscardingTaskGroup.addTask(executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:0de8c842b4314d07dbefe7d36793703041e6d501fca947f045488e09fccac5fe",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The named ThrowingDiscardingTaskGroup.addTask(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity and preserves Task.name, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:514ef8e7268807c626d9c9e523833f97513a82374d539d3a504c67c47bd48019",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The ThrowingTaskGroup.addTask(executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:afa72af44f86a812624609ff70f595de47fe32829058340d692e40ae8d04c2ec",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-executor-preference-nil-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/nonNilTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupExecutorPreferenceAddTaskHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The named ThrowingTaskGroup.addTask(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source native parity and preserves Task.name, while the shared executor-preference guard fails closed for a non-nil TaskExecutor. A native CountingTaskExecutor probe proves that a non-nil preference is observable, and the arbitrary @isolated(any) operation executor is not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
       "id": "swift-concurrency-api-v1:75560cb6e0a7a099f0a8150723dc13a0cc65e7c2e76faec35eb7fa38cd1d6805",
       "implementationStatus": "deferred",
       "verificationStatus": "none",

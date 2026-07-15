@@ -127,6 +127,9 @@ extension Interpreter {
                         return .native(false)
                     }
                 }
+                try RuntimeTaskExecutorPreference.requireSupportedNil(
+                    arguments.labeled("executorPreference"),
+                    api: "\(group.kind.sourceTypeName).\(name)")
                 _ = try spawnTaskGroupChild(
                     operation: operation,
                     in: group,

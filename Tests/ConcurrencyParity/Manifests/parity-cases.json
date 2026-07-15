@@ -1281,5 +1281,17 @@
     "interpreterProjection": "string",
     "nativeFact": "The nonthrowing and throwing overloads of both deprecated top-level asyncDetached(priority:operation:) and detach(priority:operation:) create detached Task handles: they start with unnamed task metadata and cleared task-local storage, preserve explicit priorities before value-await donation, deliver successful values, and rethrow their exact source failures.",
     "notes": "Each alias is created in a synchronous nonisolated helper. Both successful operations record entry before the parent opens their shared MainActor gate, so their utility/background priorities are captured before either handle wait can donate priority and both complete after their creating functions return. Awaited handles establish result delivery without asserting relative start order. Exact output is asyncDetached:nil:17:default|detach:nil:9:default|asyncDetached-boom|detach-boom."
+  },
+  {
+    "id": "task-group-executor-preference-nil-add",
+    "fixture": "Fixtures/task-group-executor-preference-nil-add.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await taskGroupExecutorPreferenceNilAddProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "All eight addTask overloads carrying executorPreference across ordinary, throwing, discarding, and throwing-discarding groups accept an explicit nil preference, execute the child operation, preserve supplied or absent Task.name metadata, and join the children before their scopes return.",
+    "notes": "Strict Swift 6 SIL selects each exact named and unnamed executorPreference overload once. Every group body waits until both operations record their names before returning, then scope exit joins the children. The recorder sorts all eight observations, so no child scheduling order is asserted. Exact output is discarding-named:discarding-name|discarding-unnamed:nil|ordinary-named:ordinary-name|ordinary-unnamed:nil|throwing-discarding-named:throwing-discarding-name|throwing-discarding-unnamed:nil|throwing-named:throwing-name|throwing-unnamed:nil."
   }
 ]

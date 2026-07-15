@@ -171,6 +171,48 @@ struct TaskGroupSurfaceTests {
         }
     }
 
+    @Test func nonNilTaskGroupExecutorPreferenceFailsClosed() async {
+        do {
+            _ = try await Interpreter().runAsync(source: """
+            final class ProbeTaskExecutor: TaskExecutor {
+                func enqueue(_ job: consuming ExecutorJob) {
+                    globalConcurrentExecutor.enqueue(job)
+                }
+            }
+            await withTaskGroup(of: Int.self) { group in
+                let executor = ProbeTaskExecutor()
+                group.addTask(executorPreference: executor) { 7 }
+                return await group.next() ?? -1
+            }
+            """)
+            Issue.record(
+                "non-nil task-group executor preference was silently ignored")
+        } catch {
+            #expect(String(describing: error).contains(
+                "TaskGroup.addTask(executorPreference:) is not supported yet"))
+        }
+    }
+
+    @Test func cancelledConditionalAddSkipsExecutorPreference() async throws {
+        let result = try await Interpreter().runAsync(source: """
+        final class ProbeTaskExecutor: TaskExecutor {
+            func enqueue(_ job: consuming ExecutorJob) {
+                globalConcurrentExecutor.enqueue(job)
+            }
+        }
+        await withTaskGroup(of: Int.self) { group in
+            group.cancelAll()
+            let executor = ProbeTaskExecutor()
+            let accepted = group.addTaskUnlessCancelled(
+                executorPreference: executor
+            ) { 7 }
+            return accepted ? "accepted" : "rejected"
+        }
+        """)
+
+        #expect(result.stringValue == "rejected")
+    }
+
     @Test func isEmptyTracksUnconsumedChildrenThroughLegacyAlias() async throws {
         let interpreter = Interpreter()
         var observedGroup: RuntimeTaskGroupRecord?

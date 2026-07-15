@@ -137,6 +137,22 @@ enum RuntimeTaskName {
     }
 }
 
+/// Task-executor preferences require an owned source executor implementation,
+/// not merely a value-shaped argument. The cooperative runtime currently
+/// supports only the native `nil` spelling, which requests no custom task
+/// executor. Any non-nil value must fail closed instead of being silently
+/// downgraded to the cooperative default executor.
+enum RuntimeTaskExecutorPreference {
+    static func requireSupportedNil(
+        _ value: RuntimeValue?, api: String
+    ) throws {
+        guard value == nil || value?.isNil == true else {
+            throw RuntimeError(message:
+                "\(api)(executorPreference:) is not supported yet")
+        }
+    }
+}
+
 public enum RuntimeTaskKind: String, Sendable {
     case root
     case unstructured
