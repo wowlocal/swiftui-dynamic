@@ -3614,3 +3614,39 @@ The source-bound closing repository gate is GREEN over 872 tests, exact 88/88
 runtime parity cases and 1,722 repetitions, the 678/680 pinned corpus ratchet,
 5/5 live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter
 errors / 17 unstable / 0 no-twin.
+
+### M7 native multi-file project preflight
+
+The project facade previously passed its merged interpreter source to
+`swiftc` as one physical file. That is not equivalent to a Swift module:
+file-scoped `private` declarations from different files collide after the
+merge, and native diagnostics lose the file that produced them.
+
+`SwiftCompilerPreflight` now accepts an ordered set of logical source files,
+includes every filename and body in its bounded cache identity, writes them as
+distinct temporary inputs to one strict Swift 6 typecheck, and maps diagnostics
+back to their logical files. The existing single-source API and `run` ABI are
+preserved as forwarding overloads. Host-module imports are injected into every
+input, so all files deserialize the same generated SDK isolation and effect
+metadata.
+
+`ProjectMaterial` recovers these inputs from its existing `// FILE:` markers;
+duplicate basenames receive deterministic logical names. `InterpreterHost`
+uses the recovered files only for explicit `required` or `diagnosticsOnly`
+compiler policy, while runtime evaluation continues to use the merged syntax
+tree. Snippets and the default disabled policy retain their old behavior.
+
+The native Apple Swift 6.3.3 oracle compiles three separate files whose first
+two both declare `private func fileScopedValue()` and prints exactly `42`.
+Concatenating the same bodies is rejected as an invalid redeclaration. The
+production multi-file preflight accepts the native layout, preserves a failing
+file's name and line, caches an identical module, and lets the required public
+project facade check both TaskObservatory and a duplicate-private project.
+The focused compiler/project board is GREEN at 14 tests.
+
+M7 remains partial for target-aware build manifests and declarations that are
+truly synthesized by the interpreter rather than re-exported from an SDK. The
+source-bound closing gate is GREEN over 875 tests, exact 88/88 runtime parity
+cases and 1,722 repetitions, the 678/680 pinned swiftlang corpus ratchet, 5/5
+live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors
+/ 17 unstable / 0 no-twin.

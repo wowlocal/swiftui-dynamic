@@ -36,6 +36,19 @@ public struct CompilerPreflightHostModule: Sendable, Equatable {
     }
 }
 
+/// One logical Swift source file participating in a compiler-preflight
+/// module. Keeping files separate preserves Swift's file-scoped access rules
+/// and lets diagnostics point back to the source that produced them.
+public struct CompilerPreflightSource: Sendable, Equatable {
+    public let fileName: String
+    public let source: String
+
+    public init(fileName: String, source: String) {
+        self.fileName = fileName
+        self.source = source
+    }
+}
+
 public struct CompilerPreflightConfiguration: Sendable, Equatable {
     public let swiftCompilerPath: String
     public let compilerVersion: String
@@ -184,7 +197,7 @@ struct CompilerPreflightInvocationOutput {
     let exitStatus: Int32
     let standardOutput: String
     let standardError: String
-    let sourcePath: String
+    let logicalFileNamesByPath: [String: String]
 }
 
 struct CompilerPreflightModuleImport {
@@ -316,7 +329,7 @@ public final class SwiftCompilerPreflight {
     public let hostModule: CompilerPreflightHostModule?
 
     typealias Executor = (
-        CompilerPreflightConfiguration, String, String,
+        CompilerPreflightConfiguration, [CompilerPreflightSource],
         CompilerPreflightModuleImport?
     ) throws -> CompilerPreflightInvocationOutput
 
@@ -479,13 +492,37 @@ public final class SwiftCompilerPreflight {
         source: String,
         fileName: String = "input.swift"
     ) throws -> CompilerPreflightResult {
-        let logicalFileName = sanitizedFileName(fileName)
-        let key = compilerPreflightDigest([
-            "compiler-preflight-result-v1",
+        try preflight(sources: [CompilerPreflightSource(
+            fileName: fileName,
+            source: source,
+        )])
+    }
+
+    /// Typecheck all inputs in one native Swift module while retaining their
+    /// file boundaries. Source order and logical filenames are part of the
+    /// cache identity because both can affect compiler behavior and evidence.
+    public func preflight(
+        sources: [CompilerPreflightSource]
+    ) throws -> CompilerPreflightResult {
+        guard !sources.isEmpty else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "compiler preflight requires at least one source file")
+        }
+        let normalizedSources = sources.map {
+            CompilerPreflightSource(
+                fileName: sanitizedFileName($0.fileName),
+                source: $0.source)
+        }
+        var keyComponents = [
+            "compiler-preflight-result-v2",
             configuration.fingerprint,
-            logicalFileName,
-            source,
-        ])
+            String(normalizedSources.count),
+        ]
+        for source in normalizedSources {
+            keyComponents.append(source.fileName)
+            keyComponents.append(source.source)
+        }
+        let key = compilerPreflightDigest(keyComponents)
         if let cached = cache.value(for: key) {
             return cached.markingCached()
         }
@@ -493,11 +530,10 @@ public final class SwiftCompilerPreflight {
         let moduleImport = try hostModuleBuild?.prepare(
             configuration: configuration)
         let output = try executor(
-            configuration, source, logicalFileName, moduleImport)
+            configuration, normalizedSources, moduleImport)
         let diagnostics = Self.parseDiagnostics(
             output.standardError + "\n" + output.standardOutput,
-            sourcePath: output.sourcePath,
-            logicalFileName: logicalFileName)
+            logicalFileNamesByPath: output.logicalFileNamesByPath)
         let result = CompilerPreflightResult(
             cacheKey: key,
             configurationFingerprint: configuration.fingerprint,
@@ -512,8 +548,7 @@ public final class SwiftCompilerPreflight {
 
     private static func invokeCompiler(
         configuration: CompilerPreflightConfiguration,
-        source: String,
-        fileName: String,
+        sources: [CompilerPreflightSource],
         moduleImport: CompilerPreflightModuleImport?
     ) throws -> CompilerPreflightInvocationOutput {
         #if os(macOS)
@@ -525,22 +560,38 @@ public final class SwiftCompilerPreflight {
             at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let sourceURL = directory.appendingPathComponent(fileName)
-        let compilerSource: String
-        if let moduleImport {
-            compilerSource = sourceByImportingHostModule(
-                moduleImport.moduleName,
-                into: source,
-                fileName: fileName)
-        } else {
-            compilerSource = source
-        }
-        try compilerSource.write(
-            to: sourceURL, atomically: true, encoding: .utf8)
         let moduleCache = directory.appendingPathComponent(
             "ModuleCache", isDirectory: true)
         try FileManager.default.createDirectory(
             at: moduleCache, withIntermediateDirectories: true)
+
+        var usedPhysicalFileNames: Set<String> = []
+        var sourceURLs: [URL] = []
+        var logicalFileNamesByPath: [String: String] = [:]
+        for (index, source) in sources.enumerated() {
+            var physicalFileName = source.fileName
+            var discriminator = index + 1
+            while usedPhysicalFileNames.contains(physicalFileName) {
+                physicalFileName = String(
+                    format: "%04d-%@", discriminator, source.fileName)
+                discriminator += 1
+            }
+            usedPhysicalFileNames.insert(physicalFileName)
+            let sourceURL = directory.appendingPathComponent(physicalFileName)
+            let compilerSource: String
+            if let moduleImport {
+                compilerSource = sourceByImportingHostModule(
+                    moduleImport.moduleName,
+                    into: source.source,
+                    fileName: source.fileName)
+            } else {
+                compilerSource = source.source
+            }
+            try compilerSource.write(
+                to: sourceURL, atomically: true, encoding: .utf8)
+            sourceURLs.append(sourceURL)
+            logicalFileNamesByPath[sourceURL.path] = source.fileName
+        }
 
         var arguments = [
             "-swift-version", "6",
@@ -555,7 +606,7 @@ public final class SwiftCompilerPreflight {
             arguments += ["-I", moduleImport.searchPath]
         }
         arguments += configuration.additionalCompilerArguments
-        arguments.append(sourceURL.path)
+        arguments += sourceURLs.map(\.path)
         let output = try executeProcess(
             executable: configuration.swiftCompilerPath,
             arguments: arguments,
@@ -564,7 +615,7 @@ public final class SwiftCompilerPreflight {
             exitStatus: output.exitStatus,
             standardOutput: output.standardOutput,
             standardError: output.standardError,
-            sourcePath: sourceURL.path)
+            logicalFileNamesByPath: logicalFileNamesByPath)
         #else
         throw CompilerPreflightError.unsupportedPlatform
         #endif
@@ -572,9 +623,12 @@ public final class SwiftCompilerPreflight {
 
     private static func parseDiagnostics(
         _ output: String,
-        sourcePath: String,
-        logicalFileName: String
+        logicalFileNamesByPath: [String: String]
     ) -> [CompilerPreflightDiagnostic] {
+        let standardizedLogicalFileNamesByPath = Dictionary(
+            uniqueKeysWithValues: logicalFileNamesByPath.map {
+                (URL(fileURLWithPath: $0.key).standardizedFileURL.path, $0.value)
+            })
         let located = try? NSRegularExpression(pattern:
             #"^(.+):([0-9]+):([0-9]+): (error|warning|note|remark): (.+)$"#)
         let unlocated = try? NSRegularExpression(pattern:
@@ -593,8 +647,10 @@ public final class SwiftCompilerPreflight {
                let severity = CompilerPreflightDiagnostic.Severity(
                 rawValue: rawSeverity),
                let message = capture(5, from: match, in: line) {
-                let reportedFile = file == sourcePath
-                    ? logicalFileName : file
+                let reportedFile = logicalFileNamesByPath[file]
+                    ?? standardizedLogicalFileNamesByPath[
+                        URL(fileURLWithPath: file).standardizedFileURL.path]
+                    ?? file
                 return CompilerPreflightDiagnostic(
                     severity: severity,
                     message: message,
@@ -665,15 +721,35 @@ extension Interpreter {
         return result
     }
 
-    func performCompilerPreflightIfNeeded(source: String) throws {
+    /// Run one native typecheck over a logical multi-file Swift module.
+    @discardableResult
+    public func preflight(
+        sources: [CompilerPreflightSource]
+    ) throws -> CompilerPreflightResult {
+        guard let compilerPreflight else {
+            throw CompilerPreflightError.notConfigured
+        }
+        let result = try compilerPreflight.preflight(sources: sources)
+        lastCompilerPreflightResult = result
+        return result
+    }
+
+    func performCompilerPreflightIfNeeded(
+        source: String,
+        sources: [CompilerPreflightSource]? = nil
+    ) throws {
         switch compilerPreflightMode {
         case .disabled:
             return
-        case .diagnosticsOnly:
-            _ = try preflight(source: source)
-        case .required:
-            let result = try preflight(source: source)
-            guard result.succeeded else {
+        case .diagnosticsOnly, .required:
+            let result: CompilerPreflightResult
+            if let sources {
+                result = try preflight(sources: sources)
+            } else {
+                result = try preflight(source: source)
+            }
+            guard compilerPreflightMode == .diagnosticsOnly
+                    || result.succeeded else {
                 throw CompilerPreflightRejection(result: result)
             }
         }

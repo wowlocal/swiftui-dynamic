@@ -85,6 +85,68 @@ public enum ProjectMaterial {
         mergedSource(at: root, files: swiftFiles(under: root))
     }
 
+    /// Recover the logical files embedded by `mergedSource`. The interpreter
+    /// still consumes one merged syntax tree, while native compiler preflight
+    /// receives the original file boundaries needed for `private` scope and
+    /// file-specific diagnostics. Unmarked source returns nil so ordinary
+    /// snippets keep their single-file behavior.
+    public static func compilerPreflightSources(
+        from mergedSource: String
+    ) -> [CompilerPreflightSource]? {
+        let marker = "// FILE: "
+        var sections: [(fileName: String, lines: [Substring])] = []
+        var currentFileName: String?
+        var currentLines: [Substring] = []
+
+        for line in mergedSource.split(
+            separator: "\n", omittingEmptySubsequences: false
+        ) {
+            guard line.hasPrefix(marker) else {
+                currentLines.append(line)
+                continue
+            }
+
+            if let currentFileName {
+                sections.append((currentFileName, currentLines))
+            } else if currentLines.contains(where: {
+                !$0.trimmingCharacters(in: .whitespaces).isEmpty
+            }) {
+                return nil
+            }
+            currentFileName = String(line.dropFirst(marker.count))
+                .trimmingCharacters(in: .whitespaces)
+            currentLines = []
+        }
+
+        guard let currentFileName else { return nil }
+        sections.append((currentFileName, currentLines))
+
+        let baseNames = sections.map {
+            let candidate = URL(fileURLWithPath: $0.fileName)
+                .lastPathComponent
+            return candidate.isEmpty ? "input.swift" : candidate
+        }
+        let counts = Dictionary(grouping: baseNames, by: { $0 })
+            .mapValues(\.count)
+        var occurrences: [String: Int] = [:]
+
+        return zip(sections, baseNames).map { section, baseName in
+            occurrences[baseName, default: 0] += 1
+            let logicalFileName: String
+            if counts[baseName] == 1 {
+                logicalFileName = baseName
+            } else {
+                logicalFileName = String(
+                    format: "%04d-%@",
+                    occurrences[baseName, default: 0],
+                    baseName)
+            }
+            return CompilerPreflightSource(
+                fileName: logicalFileName,
+                source: section.lines.joined(separator: "\n"))
+        }
+    }
+
     /// Per-TARGET merge: a compiler never merges sibling app targets
     /// (MovieSwiftTV with the iOS app — duplicate @main/HomeView/etc.).
     /// Callers exclude the sibling-target directories the built product

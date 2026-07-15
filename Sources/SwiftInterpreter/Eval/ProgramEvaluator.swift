@@ -17,7 +17,25 @@ extension Interpreter {
         lazyTopLevelGlobals: Bool = false,
         completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
     ) async throws -> RuntimeValue {
-        try performCompilerPreflightIfNeeded(source: source)
+        try await runAsync(
+            source: source,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy,
+            compilerPreflightSources: nil)
+    }
+
+    /// Preserve native source-file boundaries during compiler preflight while
+    /// executing the interpreter's merged representation of the same module.
+    @discardableResult
+    public func runAsync(
+        source: String,
+        lazyTopLevelGlobals: Bool,
+        completionPolicy: SessionCompletionPolicy,
+        compilerPreflightSources: [CompilerPreflightSource]?
+    ) async throws -> RuntimeValue {
+        try performCompilerPreflightIfNeeded(
+            source: source,
+            sources: compilerPreflightSources)
         let sessionID = concurrencyRuntime.createSession()
         let taskLocals = RuntimeTaskLocalStorage()
         let root = concurrencyRuntime.createTask(
@@ -209,8 +227,27 @@ extension Interpreter {
     /// no main.swift — every top-level global is a LIBRARY global, which
     /// real Swift initializes lazily on first use. Single-source programs
     /// keep eager main.swift semantics (statement order matters in tests).
-    public func run(source: String, lazyTopLevelGlobals: Bool = false) throws -> RuntimeValue {
-        try performCompilerPreflightIfNeeded(source: source)
+    public func run(
+        source: String,
+        lazyTopLevelGlobals: Bool = false
+    ) throws -> RuntimeValue {
+        try run(
+            source: source,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            compilerPreflightSources: nil)
+    }
+
+    /// Preserve native source-file boundaries during compiler preflight while
+    /// executing the interpreter's merged representation of the same module.
+    @discardableResult
+    public func run(
+        source: String,
+        lazyTopLevelGlobals: Bool,
+        compilerPreflightSources: [CompilerPreflightSource]?
+    ) throws -> RuntimeValue {
+        try performCompilerPreflightIfNeeded(
+            source: source,
+            sources: compilerPreflightSources)
         let file = try parse(source: source)
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved

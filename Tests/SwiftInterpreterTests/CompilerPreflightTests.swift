@@ -73,6 +73,67 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func multiFilePreflightPreservesFileScopedPrivateDeclarations() throws {
+        let engine = try Self.activePreflight()
+        let sources = try [
+            "MultiFilePrivateFirst.swift",
+            "MultiFilePrivateSecond.swift",
+            "MultiFilePrivateMain.swift",
+        ].map {
+            CompilerPreflightSource(
+                fileName: $0,
+                source: try Self.compilerPreflightFixture($0))
+        }
+
+        let incorrectlyMerged = try engine.preflight(
+            source: sources.map(\.source).joined(separator: "\n"))
+        #expect(!incorrectlyMerged.succeeded)
+        #expect(incorrectlyMerged.diagnostics.contains {
+            $0.severity == .error
+                && $0.message.contains("invalid redeclaration")
+        })
+
+        let first = try engine.preflight(sources: sources)
+        let repeated = try engine.preflight(sources: sources)
+        let reordered = try engine.preflight(
+            sources: Array(sources.reversed()))
+        #expect(first.succeeded)
+        #expect(!first.wasCached)
+        #expect(repeated.succeeded)
+        #expect(repeated.wasCached)
+        #expect(first.cacheKey == repeated.cacheKey)
+        #expect(reordered.succeeded)
+        #expect(!reordered.wasCached)
+        #expect(reordered.cacheKey != first.cacheKey)
+    }
+
+    @Test
+    func multiFileDiagnosticsRetainTheirLogicalFile() throws {
+        let engine = try Self.activePreflight()
+        let result = try engine.preflight(sources: [
+            CompilerPreflightSource(
+                fileName: "Valid.swift",
+                source: "func valid() {}"),
+            CompilerPreflightSource(
+                fileName: "Invalid.swift",
+                source: """
+                @MainActor func update() {}
+                func invalidCall() {
+                    update()
+                }
+                """),
+        ])
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.severity == .error
+                && $0.file == "Invalid.swift"
+                && $0.line == 3
+                && $0.message.contains("main actor-isolated global function")
+        })
+    }
+
+    @Test
     func generatedHostModuleParticipatesInIsolationChecking() throws {
         let source = try Self.upstreamFixture(
             "Concurrency/Inputs/GlobalActorIsolatedFunction.swift")
@@ -197,13 +258,16 @@ struct CompilerPreflightTests {
             return SwiftCompilerPreflight(
                 configuration: configuration,
                 cache: cache,
-                executor: { _, _, fileName, _ in
+                executor: { _, sources, _ in
                     invocationCount += 1
                     return CompilerPreflightInvocationOutput(
                         exitStatus: 0,
                         standardOutput: "",
                         standardError: "",
-                        sourcePath: fileName)
+                        logicalFileNamesByPath: Dictionary(
+                            uniqueKeysWithValues: sources.map {
+                                ($0.fileName, $0.fileName)
+                            }))
                 })
         }
 
@@ -308,6 +372,15 @@ struct CompilerPreflightTests {
         try String(
             contentsOf: packageRoot
                 .appendingPathComponent("Tests/SwiftUpstream/Clients")
+                .appendingPathComponent(name),
+            encoding: .utf8)
+    }
+
+    private static func compilerPreflightFixture(_ name: String) throws -> String {
+        try String(
+            contentsOf: packageRoot
+                .appendingPathComponent(
+                    "Tests/CompilerPreflight/Fixtures")
                 .appendingPathComponent(name),
             encoding: .utf8)
     }

@@ -68,6 +68,16 @@ struct GeneratedCompilerPreflightSurfaceTests {
             .appendingPathComponent("Examples/TaskObservatory")
             .path
         let source = ProjectMaterial.mergedSource(at: projectRoot)
+        let compilerSources = ProjectMaterial.compilerPreflightSources(
+            from: source)
+        #expect(compilerSources?.map(\.fileName) == [
+            "ContentView.swift",
+            "Models.swift",
+            "TaskObservatoryStore.swift",
+        ])
+        #expect(compilerSources?.allSatisfy {
+            !$0.source.contains("// FILE:")
+        } == true)
         let outcome = InterpreterHost(compilerPreflightMode: .required)
             .render(source: source, lazyTopLevelGlobals: true)
 
@@ -80,7 +90,10 @@ struct GeneratedCompilerPreflightSurfaceTests {
     func requiredProjectFacadeRejectsNativeIsolationDiagnostic() {
         let outcome = InterpreterHost(compilerPreflightMode: .required)
             .render(source: """
+            // FILE: State.swift
             @MainActor func update() {}
+
+            // FILE: ContentView.swift
             func invalidCall() {
                 update()
             }
@@ -93,7 +106,30 @@ struct GeneratedCompilerPreflightSurfaceTests {
             Issue.record("required compiler checking accepted invalid source")
             return
         }
+        #expect(error.message.contains("ContentView.swift"))
         #expect(error.message.contains("main actor-isolated global function"))
         #expect(error.message.contains("synchronous nonisolated context"))
+    }
+
+    @Test
+    func requiredProjectFacadePreservesSwiftFilePrivateScope() {
+        let source = """
+        // FILE: First.swift
+        private func fileScopedValue() -> Int { 20 }
+
+        // FILE: Second.swift
+        private func fileScopedValue() -> Int { 22 }
+
+        // FILE: ContentView.swift
+        struct ContentView: View {
+            var body: some View { Text("Ready") }
+        }
+        """
+        let outcome = InterpreterHost(compilerPreflightMode: .required)
+            .render(source: source, lazyTopLevelGlobals: true)
+
+        if case .failure(let error) = outcome {
+            Issue.record("multi-file private scope was flattened: \(error)")
+        }
     }
 }

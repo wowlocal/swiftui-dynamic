@@ -28,7 +28,18 @@ public struct InterpreterHost {
                     registry: registry,
                     mode: compilerPreflightMode)
             }
-            let last = try interpreter.run(source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+            let compilerSources: [CompilerPreflightSource]?
+            switch compilerPreflightMode {
+            case .disabled:
+                compilerSources = nil
+            case .diagnosticsOnly, .required:
+                compilerSources = ProjectMaterial.compilerPreflightSources(
+                    from: source)
+            }
+            let last = try interpreter.run(
+                source: source,
+                lazyTopLevelGlobals: lazyTopLevelGlobals,
+                compilerPreflightSources: compilerSources)
 
             // A trailing view expression (e.g. `ContentView()`) is an explicit root.
             if case .host(let any) = last, let view = any as? AnyView {
