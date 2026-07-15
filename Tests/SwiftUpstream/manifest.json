@@ -80,6 +80,19 @@
       "timeoutSeconds": 5
     },
     {
+      "id": "concurrency-task-locals-task-group-copy",
+      "fixture": "Fixtures/Concurrency/Runtime/async_task_locals_in_task_group_may_need_to_copy.swift",
+      "upstreamPath": "test/Concurrency/Runtime/async_task_locals_in_task_group_may_need_to_copy.swift",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
+    },
+    {
       "id": "concurrency-task-cancellation-early",
       "fixture": "Fixtures/Concurrency/Runtime/async_task_cancellation_early.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_task_cancellation_early.swift",

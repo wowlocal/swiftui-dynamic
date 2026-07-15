@@ -1009,6 +1009,125 @@ struct AsyncExecutionTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func taskAsyncLetAndGroupChildComposeOwnershipAndTaskLocals()
+    async throws {
+        let interpreter = Interpreter()
+        var observedBindings = false
+        var observedRecords: [RuntimeTaskRecord] = []
+        var observedAsyncLetScope: RuntimeStructuredScopeRecord?
+        var observedGroup: RuntimeTaskGroupRecord?
+        var retainedStorage: [RuntimeTaskLocalStorage] = []
+        interpreter.globals.define(
+            "inspectTaskAsyncLetGroupComposition",
+            .hostFunction(HostFunction(
+                name: "inspectTaskAsyncLetGroupComposition",
+                asyncInvoke: { _, context in
+                    guard let bound = context as? TaskBoundEvalContext,
+                          let groupChildID = bound.evaluationContext.runtimeTaskID,
+                          let groupChild = interpreter.concurrencyRuntime
+                            .records[groupChildID],
+                          let groupID = groupChild.taskGroupID,
+                          let group = interpreter.concurrencyRuntime
+                            .taskGroups[groupID],
+                          let asyncLet = interpreter.concurrencyRuntime
+                            .records[group.ownerTaskID],
+                          let taskID = asyncLet.parent,
+                          let task = interpreter.concurrencyRuntime.records[taskID],
+                          let rootID = task.parent,
+                          let root = interpreter.concurrencyRuntime.records[rootID],
+                          let asyncLetScope = interpreter.concurrencyRuntime
+                            .structuredScopes.values.first(where: {
+                                $0.kind == .asyncLet
+                                    && $0.ownerTaskID == taskID
+                                    && $0.childTaskIDs.contains(asyncLet.id)
+                            }),
+                          let oneKey = interpreter.enumSymbols["Local"]?
+                            .taskLocalProperties["one"]?.key,
+                          let twoKey = interpreter.enumSymbols["Local"]?
+                            .taskLocalProperties["two"]?.key else {
+                        throw RuntimeError(message:
+                            "Task/async-let/group composition lost ownership")
+                    }
+
+                    observedRecords = [root, task, asyncLet, groupChild]
+                    observedAsyncLetScope = asyncLetScope
+                    observedGroup = group
+                    retainedStorage = observedRecords.map(\.taskLocals)
+                    observedBindings = root.taskLocals.value(for: oneKey)?.intValue == 11
+                        && task.taskLocals.value(for: oneKey)?.intValue == 11
+                        && asyncLet.taskLocals.value(for: oneKey)?.intValue == 11
+                        && groupChild.taskLocals.value(for: oneKey)?.intValue == 11
+                        && root.taskLocals.value(for: twoKey) == nil
+                        && task.taskLocals.value(for: twoKey) == nil
+                        && asyncLet.taskLocals.value(for: twoKey) == nil
+                        && groupChild.taskLocals.value(for: twoKey)?.intValue == 22
+                    await Task.yield()
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+        enum Local {
+            @TaskLocal static var one: Int = 1
+            @TaskLocal static var two: Int = 2
+        }
+        func composedGroupChild() async -> Int {
+            await inspectTaskAsyncLetGroupComposition()
+            return Local.one + Local.two
+        }
+        func composedOwner() async -> Int {
+            await Local.$one.withValue(11) {
+                let task = Task {
+                    async let value: Int = await withTaskGroup(
+                        of: Int.self
+                    ) { group in
+                        Local.$two.withValue(22) {
+                            group.addTask {
+                                await composedGroupChild()
+                            }
+                        }
+                        return await group.next() ?? -1
+                    }
+                    return await value
+                }
+                return await task.value
+            }
+        }
+        await composedOwner()
+        """)
+
+        let root = try #require(observedRecords.first)
+        let task = try #require(observedRecords.dropFirst().first)
+        let asyncLet = try #require(observedRecords.dropFirst(2).first)
+        let groupChild = try #require(observedRecords.dropFirst(3).first)
+        let asyncLetScope = try #require(observedAsyncLetScope)
+        let group = try #require(observedGroup)
+        #expect(result.intValue == 33)
+        #expect(observedBindings)
+        #expect(root.kind == .root)
+        #expect(task.kind == .unstructured)
+        #expect(asyncLet.kind == .asyncLet)
+        #expect(groupChild.kind == .groupChild)
+        #expect(task.parent == root.id)
+        #expect(asyncLet.parent == task.id)
+        #expect(groupChild.parent == asyncLet.id)
+        #expect(asyncLetScope.ownerTaskID == task.id)
+        #expect(asyncLetScope.childTaskIDs == [asyncLet.id])
+        #expect(group.ownerTaskID == asyncLet.id)
+        #expect(group.structuredScope.ownerTaskID == asyncLet.id)
+        #expect(group.structuredScope.childTaskIDs == [groupChild.id])
+        #expect(group.completedChildTaskIDs == [groupChild.id])
+        #expect(group.consumedChildTaskIDs == [groupChild.id])
+        #expect(Set(retainedStorage.map(ObjectIdentifier.init)).count == 4)
+        #expect(retainedStorage.allSatisfy { $0.isEmpty })
+        #expect(observedRecords.allSatisfy {
+            $0.evaluationContext == nil && $0.nativeDriver == nil
+        })
+        #expect(interpreter.concurrencyRuntime.records.isEmpty)
+        #expect(interpreter.concurrencyRuntime.structuredScopes.isEmpty)
+        #expect(interpreter.concurrencyRuntime.taskGroups.isEmpty)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func runtimeTaskHandleDispatchesCancellableExtensions() throws {
         let interpreter = Interpreter()
         let result = try interpreter.run(source: """

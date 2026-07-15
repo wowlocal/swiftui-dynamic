@@ -2830,8 +2830,8 @@ The upstream harness now pins `swiftlang/swift` at
 Its reproducible sparse-checkout script inventories all 134 Swift sources in
 `test/Concurrency/Runtime`, assigns every file an explicit `direct`,
 `diagnostic`, `needs-adapter`, or `unsupported` reason, and copies only
-manifest-selected fixtures byte-for-byte. The current inventory is 7 direct,
-4 diagnostic, 116 needs-adapter, and 7 unsupported.
+manifest-selected fixtures byte-for-byte. The current inventory is 8 direct,
+4 diagnostic, 115 needs-adapter, and 7 unsupported.
 
 Native Swift compiles every selected concurrency fixture in Swift 6 strict
 concurrency mode. The interpreter receives the same source plus only a generic
@@ -2842,7 +2842,8 @@ pre-start cancellation with a late async-let child, task-handle cancellation,
 task-group pending `next()`, and task-group `isEmpty` while a child is pending
 and after its completion has been consumed. The next direct fixtures cover
 `addTaskUnlessCancelled` for both ordinary and discarding groups whose owner is
-already cancelled, plus nested async-let task-local inheritance and restoration.
+already cancelled, nested async-let task-local inheritance and restoration, and
+Task-to-async-let-to-group task-local snapshotting.
 
 The previously selected interpreter tests remain exact-output cases. Normal
 test runs are fully offline; `Scripts/sync-swift-upstream-tests.sh` is the only
@@ -3163,3 +3164,39 @@ are empty. The upstream inventory is now 7 direct / 4 diagnostic / 116
 needs-adapter / 7 unsupported across the same 134 pinned sources. The broader
 M4 composition requirement remains open for group/async-let cross-composition,
 executor inheritance, and child-created unstructured work.
+
+### M4 pinned swiftlang Task/async-let/task-group composition
+
+The unchanged pinned swiftlang fixture
+`test/Concurrency/Runtime/async_task_locals_in_task_group_may_need_to_copy.swift`
+is now a direct case. It composes an unstructured `Task`, an `async let`, task
+groups nested both in one task and across group children, and task-local scopes
+that end immediately after `addTask`. The source hash matches the pinned Swift
+checkout byte-for-byte.
+
+Apple Swift 6.3.3 compiled the fixture in Swift 6 strict-concurrency mode. All
+20 bounded native runs produced the same trace hash. The committed FileCheck
+oracle asserts the source's ordered task-local values; each checked handoff is
+bounded by `group.next()`, an awaited task value, or structured scope exit. It
+does not claim a relative execution order for independent ready tasks.
+
+This iteration is a characterization: the unchanged source was already GREEN
+through the interpreter, so no production behavior changed. A focused runtime
+test observes the live ownership chain `root -> Task -> async let -> group
+child`, the separate async-let and group structured scopes, and four distinct
+task-local storage objects. The active `one = 11` binding reaches every task,
+while `two = 22` is snapshotted only by the child added inside that binding.
+After completion all retained task-local stores, task records, structured
+scopes, groups, native drivers, and scheduled-task registries are empty.
+
+The upstream inventory is now 8 direct / 4 diagnostic / 115 needs-adapter / 7
+unsupported across the same 134 pinned sources. The broader requirement remains
+open for executor inheritance and child-created unstructured work.
+
+The targeted run passes 81/81 tests across `AsyncExecutionTests`, the official
+Swift upstream suite, and the concurrency methodology suite. The source-bound
+repository receipt is GREEN in 665 seconds with 849 tests, exact 84/84 runtime
+case and 1,642-repetition coverage, the unchanged 678/680 corpus ratchet, 5/5
+live scenarios, and API parity at 345 match / 0 diverge / 0 interpreter errors /
+17 unstable / 0 no-twin. Its start/end commit and worktree fingerprints match
+and `driftDetected` is false.
