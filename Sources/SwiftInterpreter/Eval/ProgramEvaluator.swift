@@ -17,6 +17,7 @@ extension Interpreter {
         lazyTopLevelGlobals: Bool = false,
         completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
     ) async throws -> RuntimeValue {
+        try performCompilerPreflightIfNeeded(source: source)
         let sessionID = concurrencyRuntime.createSession()
         let taskLocals = RuntimeTaskLocalStorage()
         let root = concurrencyRuntime.createTask(
@@ -209,6 +210,7 @@ extension Interpreter {
     /// real Swift initializes lazily on first use. Single-source programs
     /// keep eager main.swift semantics (statement order matters in tests).
     public func run(source: String, lazyTopLevelGlobals: Bool = false) throws -> RuntimeValue {
+        try performCompilerPreflightIfNeeded(source: source)
         let file = try parse(source: source)
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved

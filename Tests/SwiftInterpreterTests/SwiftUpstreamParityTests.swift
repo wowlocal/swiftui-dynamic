@@ -1,4 +1,5 @@
 import Darwin
+import CryptoKit
 import Foundation
 import Testing
 @testable import SwiftInterpreter
@@ -8,8 +9,11 @@ private struct SwiftUpstreamManifest: Decodable {
         let id: String
         let fixture: String
         let upstreamPath: String
+        let sha256: String?
         let assertion: Assertion?
         let compilerArguments: [String]?
+        let diagnosticContains: [String]?
+        let diagnosticLines: [Int]?
         let timeoutSeconds: TimeInterval?
     }
 
@@ -17,6 +21,7 @@ private struct SwiftUpstreamManifest: Decodable {
         case exact
         case fileCheck = "file-check"
         case fileCheckUnordered = "file-check-unordered"
+        case diagnostic
     }
 
     let repository: String
@@ -89,7 +94,21 @@ private enum SwiftUpstreamParityHarness {
         for parityCase: SwiftUpstreamManifest.Case
     ) throws -> String {
         let fixture = corpusRoot.appendingPathComponent(parityCase.fixture)
-        return try String(contentsOf: fixture, encoding: .utf8)
+        let data = try Data(contentsOf: fixture)
+        if let expected = parityCase.sha256 {
+            let actual = SHA256.hash(data: data).map {
+                String(format: "%02x", $0)
+            }.joined()
+            guard actual == expected else {
+                throw SwiftUpstreamParityError(description:
+                    "\(parityCase.id) fixture SHA-256 is \(actual), expected \(expected)")
+            }
+        }
+        guard let source = String(data: data, encoding: .utf8) else {
+            throw SwiftUpstreamParityError(description:
+                "\(parityCase.id) fixture is not UTF-8")
+        }
+        return source
     }
 
     static func nativeOutput(
@@ -273,12 +292,17 @@ struct SwiftUpstreamParityTests {
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
         #expect(manifest.revision == "swift-6.3.3-RELEASE")
         #expect(manifest.commit == "064859e41d68596f486c5d724401cb370f260409")
-        #expect(manifest.cases.count == 18)
+        #expect(manifest.cases.count == 19)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
+        #expect(manifest.cases.allSatisfy { $0.sha256?.count == 64 })
 
-        for parityCase in manifest.cases {
+        let executableCases = manifest.cases.filter {
+            $0.assertion != .diagnostic
+        }
+        #expect(executableCases.count == 18)
+        for parityCase in executableCases {
             do {
                 let source = try SwiftUpstreamParityHarness.source(
                     for: parityCase)
@@ -326,10 +350,42 @@ struct SwiftUpstreamParityTests {
                                     + String(reflecting: output)))
                         }
                     }
+                case .diagnostic:
+                    Issue.record("diagnostic case entered the executable runner")
                 }
             } catch {
                 Issue.record(
                     "\(parityCase.id) (\(parityCase.upstreamPath)): \(error)")
+            }
+        }
+    }
+
+    @Test func importedDiagnosticsMatchProductionCompilerPreflight() throws {
+        let manifest = try SwiftUpstreamParityHarness.loadManifest()
+        let diagnosticCases = manifest.cases.filter {
+            $0.assertion == .diagnostic
+        }
+        #expect(diagnosticCases.count == 1)
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            gatewayManifestSHA256:
+                SwiftCompilerPreflight.emptyGatewayManifestSHA256)
+
+        for parityCase in diagnosticCases {
+            let source = try SwiftUpstreamParityHarness.source(for: parityCase)
+            let result = try preflight.preflight(
+                source: source,
+                fileName: URL(fileURLWithPath: parityCase.fixture)
+                    .lastPathComponent)
+            #expect(!result.succeeded,
+                "\(parityCase.id) unexpectedly passed native preflight")
+            for fragment in parityCase.diagnosticContains ?? [] {
+                #expect(result.diagnostics.contains {
+                    $0.message.contains(fragment)
+                }, "\(parityCase.id) did not contain '\(fragment)'")
+            }
+            for line in parityCase.diagnosticLines ?? [] {
+                #expect(result.diagnostics.contains { $0.line == line },
+                    "\(parityCase.id) did not diagnose line \(line)")
             }
         }
     }

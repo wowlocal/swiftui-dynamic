@@ -6,57 +6,68 @@
     {
       "id": "hello-toplevel",
       "fixture": "Fixtures/hello_toplevel.swift",
-      "upstreamPath": "test/Interpreter/hello_toplevel.swift"
+      "upstreamPath": "test/Interpreter/hello_toplevel.swift",
+      "sha256": "776f8653b9bea970199f9f35a64a31352c560dd762ec1f6a46df5421af45d497"
     },
     {
       "id": "hello-function",
       "fixture": "Fixtures/hello_func.swift",
-      "upstreamPath": "test/Interpreter/hello_func.swift"
+      "upstreamPath": "test/Interpreter/hello_func.swift",
+      "sha256": "f3bd8ec05f2a13f8b7e06927bc77bc1f2e7e40e336ca5f73ed629f967b974d6d"
     },
     {
       "id": "ternary-expression",
       "fixture": "Fixtures/ternary_expr.swift",
-      "upstreamPath": "test/Interpreter/ternary_expr.swift"
+      "upstreamPath": "test/Interpreter/ternary_expr.swift",
+      "sha256": "d7ae179c9e713c4433996deb18fc3ff1f47081f2c075f1b34982856754b33648"
     },
     {
       "id": "array-of-optional",
       "fixture": "Fixtures/array_of_optional.swift",
-      "upstreamPath": "test/Interpreter/array_of_optional.swift"
+      "upstreamPath": "test/Interpreter/array_of_optional.swift",
+      "sha256": "a68f033e0e5436b9f009fb956b20082dfd5dc75f2d8825f0f942730a710456e7"
     },
     {
       "id": "break-continue",
       "fixture": "Fixtures/break_continue.swift",
-      "upstreamPath": "test/Interpreter/break_continue.swift"
+      "upstreamPath": "test/Interpreter/break_continue.swift",
+      "sha256": "8a3d48ebb0ac5f8ccd8087df9fbd70627cabc0de97be4044d34fb8f870590e17"
     },
     {
       "id": "protocol-existentials",
       "fixture": "Fixtures/protocols.swift",
-      "upstreamPath": "test/Interpreter/protocols.swift"
+      "upstreamPath": "test/Interpreter/protocols.swift",
+      "sha256": "f9f17d33142e45d017cf4ed47f7006e568c83f094fe0d60addf21b0e08ed1532"
     },
     {
       "id": "captured-inout",
       "fixture": "Fixtures/capture_inout.swift",
-      "upstreamPath": "test/Interpreter/capture_inout.swift"
+      "upstreamPath": "test/Interpreter/capture_inout.swift",
+      "sha256": "7e6df5eecd579d96540d5df07e1d868e79497707da30c559841b27ff105282fc"
     },
     {
       "id": "rosetta-code",
       "fixture": "Fixtures/RosettaCode.swift",
-      "upstreamPath": "test/Interpreter/RosettaCode.swift"
+      "upstreamPath": "test/Interpreter/RosettaCode.swift",
+      "sha256": "ca9e8491159a605689994ab45ecf7292394317603a4c1ef57baf9e5d24a70245"
     },
     {
       "id": "generic-struct",
       "fixture": "Fixtures/generic_struct.swift",
-      "upstreamPath": "test/Interpreter/generic_struct.swift"
+      "upstreamPath": "test/Interpreter/generic_struct.swift",
+      "sha256": "0be7f17ed3e4115df34e1f909dc0151538caaf70c24dbce9a0545b922a794481"
     },
     {
       "id": "wildcard-dispatch-on-catch",
       "fixture": "Fixtures/wildcard_dispatch_on_catch.swift",
-      "upstreamPath": "test/Interpreter/wildcard_dispatch_on_catch.swift"
+      "upstreamPath": "test/Interpreter/wildcard_dispatch_on_catch.swift",
+      "sha256": "91761fb1e659b0e1cc6e773cb358546958325e17a5379225065e9056a734ba60"
     },
     {
       "id": "concurrency-async-let-throws",
       "fixture": "Fixtures/Concurrency/Runtime/async_let_throws.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_let_throws.swift",
+      "sha256": "2dd774649bf4ba7c05d3c6c7d3184d688bd5d33a05b15f9650c21b05c3e22cba",
       "assertion": "file-check",
       "compilerArguments": [
         "-swift-version",
@@ -70,6 +81,7 @@
       "id": "concurrency-task-locals-async-let",
       "fixture": "Fixtures/Concurrency/Runtime/async_task_locals_async_let.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_task_locals_async_let.swift",
+      "sha256": "8987f9fb3f4dc5abe8406845b9c51c425f3a0f675ad791cca4250109adcf888a",
       "assertion": "file-check-unordered",
       "compilerArguments": [
         "-swift-version",
@@ -83,6 +95,7 @@
       "id": "concurrency-task-locals-task-group-copy",
       "fixture": "Fixtures/Concurrency/Runtime/async_task_locals_in_task_group_may_need_to_copy.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_task_locals_in_task_group_may_need_to_copy.swift",
+      "sha256": "1a435fe3fce61200f4a1f42c96f912a247cf3de7170d7d5e4e0cb3cd674806ef",
       "assertion": "file-check",
       "compilerArguments": [
         "-swift-version",
@@ -96,6 +109,7 @@
       "id": "concurrency-task-cancellation-early",
       "fixture": "Fixtures/Concurrency/Runtime/async_task_cancellation_early.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_task_cancellation_early.swift",
+      "sha256": "79bf9d3ee5bbb06d9ad785c3222ddd6a61105ca0d0bd28aa5286327fcb1f4cab",
       "assertion": "file-check",
       "compilerArguments": [
         "-swift-version",
@@ -109,6 +123,7 @@
       "id": "concurrency-task-handle-cancellation",
       "fixture": "Fixtures/Concurrency/Runtime/async_task_handle_cancellation.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_task_handle_cancellation.swift",
+      "sha256": "5829b825747ce5f5aa1010777c3a8630d02de5fd27658c0dcfe4e755210c77f8",
       "assertion": "file-check",
       "compilerArguments": [
         "-swift-version",
@@ -122,6 +137,7 @@
       "id": "concurrency-task-group-next-pending",
       "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_next_on_pending.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_next_on_pending.swift",
+      "sha256": "d112c3e17699a79a3ec23a15dd6009a798ebac95e1115ced06cd85a2e692c646",
       "assertion": "file-check",
       "compilerArguments": [
         "-swift-version",
@@ -135,6 +151,7 @@
       "id": "concurrency-task-group-is-empty",
       "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_is_empty.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_is_empty.swift",
+      "sha256": "46c4c047341fc535039cb19f0e2143c50bb1944bcd7d8cfef15a36963fa3fa95",
       "assertion": "file-check",
       "compilerArguments": [
         "-swift-version",
@@ -148,6 +165,7 @@
       "id": "concurrency-discarding-task-group-add-unless-cancelled",
       "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_addUnlessCancelled.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_addUnlessCancelled.swift",
+      "sha256": "2c5673f63a67f2f0d02f8770c42519ca6dfee101a78fafc4dd6fa14d79e0ed00",
       "assertion": "file-check",
       "compilerArguments": [
         "-swift-version",
@@ -155,6 +173,19 @@
         "-strict-concurrency=complete",
         "-parse-as-library"
       ],
+      "timeoutSeconds": 5
+    },
+    {
+      "id": "concurrency-task-group-inout-capture-diagnostic",
+      "fixture": "Fixtures/Concurrency/taskgroup_cancelAll_from_child.swift",
+      "upstreamPath": "test/Concurrency/taskgroup_cancelAll_from_child.swift",
+      "sha256": "a358a89ab3623a36034a1c6c89a3ad33d13c100ba7c49cb4ce7edca7c757fb2a",
+      "assertion": "diagnostic",
+      "diagnosticContains": [
+        "capture of 'group' with non-Sendable type 'TaskGroup<Int>' in a '@Sendable' closure",
+        "mutable capture of 'inout' parameter 'group' is not allowed in concurrently-executing code"
+      ],
+      "diagnosticLines": [18, 25],
       "timeoutSeconds": 5
     }
   ]

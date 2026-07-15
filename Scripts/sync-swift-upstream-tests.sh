@@ -26,7 +26,7 @@ git -c advice.detachedHead=false clone \
     "$checkout"
 git -C "$checkout" sparse-checkout set \
     test/Interpreter \
-    test/Concurrency/Runtime
+    test/Concurrency
 
 actual_commit=$(git -C "$checkout" rev-parse HEAD)
 if [ "$actual_commit" != "$expected_commit" ]; then

@@ -12,6 +12,10 @@ public final class Interpreter {
     let concurrencyRuntime: CooperativeConcurrencyRuntime
     public let runtimeClock: any RuntimeClock
     public var registry: HostRegistry?
+    public let compilerPreflight: SwiftCompilerPreflight?
+    public let compilerPreflightMode: CompilerPreflightMode
+    public internal(set) var lastCompilerPreflightResult:
+        CompilerPreflightResult?
     /// Struct symbols in declaration order (used to pick the root View).
     public internal(set) var structSymbols: [StructSymbol] = []
     var enumSymbols: [String: EnumSymbol] = [:]
@@ -472,6 +476,21 @@ public final class Interpreter {
 
     public init(registry: HostRegistry? = nil) {
         self.registry = registry
+        compilerPreflight = nil
+        compilerPreflightMode = .disabled
+        runtimeClock = ContinuousRuntimeClock()
+        concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
+        defineGlobalBuiltins()
+    }
+
+    public init(
+        registry: HostRegistry? = nil,
+        compilerPreflight: SwiftCompilerPreflight,
+        compilerPreflightMode: CompilerPreflightMode = .required
+    ) {
+        self.registry = registry
+        self.compilerPreflight = compilerPreflight
+        self.compilerPreflightMode = compilerPreflightMode
         runtimeClock = ContinuousRuntimeClock()
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
@@ -482,6 +501,22 @@ public final class Interpreter {
         runtimeClock: any RuntimeClock
     ) {
         self.registry = registry
+        compilerPreflight = nil
+        compilerPreflightMode = .disabled
+        self.runtimeClock = runtimeClock
+        concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
+        defineGlobalBuiltins()
+    }
+
+    public init(
+        registry: HostRegistry? = nil,
+        runtimeClock: any RuntimeClock,
+        compilerPreflight: SwiftCompilerPreflight,
+        compilerPreflightMode: CompilerPreflightMode = .required
+    ) {
+        self.registry = registry
+        self.compilerPreflight = compilerPreflight
+        self.compilerPreflightMode = compilerPreflightMode
         self.runtimeClock = runtimeClock
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()

@@ -3436,12 +3436,50 @@ checked-in file while asserting the real `withTaskGroup`,
 toolchain update therefore fails `swift test` until the generated surface and
 its semantic disposition are reviewed.
 
-This slice changes metadata generation, not interpreted runtime behavior. M7
-is now partial: complete `_Concurrency`/SDK host stubs, compiler invocation,
-cache identity, and surfaced preflight diagnostics remain open.
+That slice changed metadata generation, not interpreted runtime behavior. At
+that checkpoint, complete `_Concurrency`/SDK host stubs, compiler invocation,
+cache identity, and surfaced preflight diagnostics all remained open; the next
+slice closes the production invocation/cache/diagnostic portion while leaving
+generated compiled host stubs open.
 
 The source-bound repository receipt for this slice is GREEN in 852 seconds and
 covers 859 tests, exact 88/88 runtime cases and 1,722 repetitions, the 678/680
 pinned swiftlang corpus ratchet, 5/5 live scenarios, and API parity at 345
 match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin. The
 start/end commit and worktree fingerprints match and `driftDetected` is false.
+
+### M7 production compiler preflight and pinned swiftlang diagnostic
+
+`SwiftCompilerPreflight` is the first production compiler-backed semantic
+boundary. It discovers the active Xcode `swiftc`, complete compiler version,
+macOS SDK path/version, target triple, and deployment target, then invokes
+strict Swift 6 type checking with an isolated module cache. Its bounded
+per-engine cache key includes the source and logical filename plus compiler,
+SDK, target/deployment, additional arguments, and gateway-manifest identity.
+Compiler diagnostics are normalized to the logical source filename while raw
+stdout/stderr and the native exit status remain available for investigation.
+
+The interpreter exposes three explicit policies. Existing callers remain
+`disabled`; `diagnosticsOnly` retains native errors while permitting editor
+recovery; `required` rejects invalid source before parsing, global mutation,
+session creation, or task creation. Both synchronous and asynchronous program
+entries cross the same preflight boundary. A hard monotonic deadline snapshots
+the compiler driver and all `swift-frontend` descendants by PID plus process
+start time, sends TERM, and escalates surviving identities to KILL so a timed
+out compiler cannot remain attached or be confused with a reused PID.
+
+The pinned swiftlang corpus now contains the unchanged
+`test/Concurrency/taskgroup_cancelAll_from_child.swift` diagnostic from
+`swift-6.3.3-RELEASE` commit `064859e4…`. Its SHA-256 is `a358a89a…`; production
+preflight must reproduce the Swift 6 non-Sendable and mutable `inout TaskGroup`
+capture diagnostics on lines 18 and 25. All 19 allowlisted upstream fixtures
+now carry and verify their own SHA-256 before either native or interpreted
+execution, preventing a local edit from silently weakening the oracle.
+
+Focused clean-build evidence covers required rejection before mutation,
+diagnostics-only recovery, successful execution, cache reuse and invalidation,
+compiler process-tree cleanup, all 18 executable upstream comparisons, and the
+new compiler diagnostic. M7 remains partial: generated `_Concurrency` and SDK
+host declarations still need to become a compiled stub module, and real
+project/bridge gateway manifests must be wired into preflight before required
+mode can become the default for SwiftUI projects.
