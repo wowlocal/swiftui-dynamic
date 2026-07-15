@@ -790,6 +790,34 @@
       "notes": "Deprecated async ThrowingTaskGroup.add(priority:operation:) is generated from the active SDK body that forwards to addTaskUnlessCancelled. Same-source parity covers accepted success, exact child-error projection, and false with no child after cancelAll; unchanged swiftlang coverage independently anchors the shared cancellation primitive."
     },
     {
+      "id": "swift-concurrency-api-v1:504a09a4f228068fa2c2a128e8231e484f6db9f0b86e9be395ab58abe45235d7",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-deprecated-async-unless-cancelled"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Deprecated TaskGroup.asyncUnlessCancelled(priority:operation:) forwards to the generated addTaskUnlessCancelled intrinsic. Same-source parity covers synchronous true/value before cancellation and false with no child after cancelAll; unchanged swiftlang coverage independently anchors rejection by the shared modern primitive."
+    },
+    {
+      "id": "swift-concurrency-api-v1:659157c7e5585258a3933652df5bc1309059f8853c8abb41f4e057ab3be7e62a",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-deprecated-async-unless-cancelled"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Deprecated ThrowingTaskGroup.asyncUnlessCancelled(priority:operation:) forwards to the generated addTaskUnlessCancelled intrinsic. Same-source parity covers synchronous true, success and exact source-error delivery, then false with no child after cancelAll; unchanged swiftlang coverage independently anchors rejection by the shared modern primitive."
+    },
+    {
       "id": "swift-concurrency-api-v1:9ad1fef3411e21e32a6d49b0813fa94c6ccfda6238fdea780b13d91d91e8e53a",
       "implementationStatus": "runtime-supported",
       "verificationStatus": "native-parity",

@@ -1158,6 +1158,42 @@ struct ConcurrencyMethodologyTests {
         })
     }
 
+    @Test func taskGroupAsyncUnlessCancelledHasExplicitReviewedDispositions()
+            throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let aliasRows = inventory.declarations.filter {
+            $0.domain == "task-group-member"
+                && $0.name == "asyncUnlessCancelled"
+        }
+        let aliasIDs = Set(aliasRows.map(\.id))
+        let aliasClaims = status.interfaceOverrides.filter {
+            aliasIDs.contains($0.id)
+        }
+
+        #expect(aliasRows.count == 2,
+            "the active SDK asyncUnlessCancelled denominator changed")
+        #expect(Set(aliasRows.compactMap(\.container)) == [
+            "TaskGroup",
+            "ThrowingTaskGroup",
+        ])
+        #expect(Set(aliasClaims.map(\.id)) == aliasIDs,
+            "every asyncUnlessCancelled declaration needs a disposition")
+        #expect(aliasClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
     @Test func taskGroupAddHasExplicitReviewedDispositions() throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)

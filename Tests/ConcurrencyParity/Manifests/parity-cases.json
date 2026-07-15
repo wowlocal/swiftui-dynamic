@@ -1115,6 +1115,18 @@
     "notes": "The active swiftinterface explicitly forwards priority to addTaskUnlessCancelled, but runtime child-priority equality is not asserted. The probe must be nonisolated under strict Swift 6. Exact output must be ordinary-accepted:ordinary-value:ordinary-rejected:ordinary-empty|throwing-accepted:throwing-value:failure-accepted:failure-child:throwing-rejected:throwing-empty."
   },
   {
+    "id": "task-group-deprecated-async-unless-cancelled",
+    "fixture": "Fixtures/task-group-deprecated-async-unless-cancelled.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupDeprecatedAsyncUnlessCancelledProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "The deprecated asyncUnlessCancelled aliases are synchronous conditional child creation for ordinary and throwing groups: they return true and deliver the child outcome before cancellation, then return false and create no child after cancelAll; throwing children retain their source error.",
+    "notes": "The active swiftinterface forwards priority and operation directly to addTaskUnlessCancelled. The source passes .high but does not assert exact effective child priority. Exact output must be ordinary-accepted:ordinary-value:ordinary-rejected:ordinary-empty|throwing-accepted:throwing-value:failure-accepted:failure-child:throwing-rejected:throwing-empty."
+  },
+  {
     "id": "task-group-make-async-iterator",
     "fixture": "Fixtures/task-group-make-async-iterator.swift",
     "mode": "runtime",
