@@ -918,6 +918,35 @@ struct ConcurrencyMethodologyTests {
         })
     }
 
+    @Test func taskStaticGeneratedSurfaceHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let taskStaticIDs = Set(inventory.declarations.compactMap {
+            $0.domain == "task-static-member" ? $0.id : nil
+        })
+        let taskStaticClaims = status.interfaceOverrides.filter {
+            taskStaticIDs.contains($0.id)
+        }
+
+        #expect(taskStaticIDs.count == 21,
+            "the active SDK Task-static denominator changed")
+        #expect(Set(taskStaticClaims.map(\.id)) == taskStaticIDs,
+            "every Task-static overload needs an authored disposition")
+        #expect(taskStaticClaims.allSatisfy {
+            $0.implementationStatus != .unreviewed
+        })
+    }
+
     @Test func coveredRequirementCannotDependOnOpenWork() {
         let statuses: [String: AcceptanceRequirementStatus] = [
             "M0/foundation": .open,

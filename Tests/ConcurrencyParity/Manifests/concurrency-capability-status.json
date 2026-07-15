@@ -216,6 +216,298 @@
       "testNames": [],
       "gapEvidenceIDs": [],
       "notes": "The async throwing value overload waits for the runtime handle and rethrows its stored source failure with native-parity repeated-outcome behavior."
+    },
+    {
+      "id": "swift-concurrency-api-v1:97d4be18b1d11a4bf19866c88cb229098c4b36d5bae99fefd5c74492c8e42fb5",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/unsupportedTaskEqualityAndSleepUntilAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "Task handle equality is retained in the generated static denominator, but RuntimeTaskHandle does not yet expose source Equatable identity and the operator fails explicitly."
+    },
+    {
+      "id": "swift-concurrency-api-v1:831a04e48f8c6e17813036063a843fcfdb4209e923c0dd5fe848c80443cefcd1",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskStaticMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated Task.CancellationError() compatibility spelling is inventoried but is not aliased by the runtime and receives the generated unsupported diagnostic."
+    },
+    {
+      "id": "swift-concurrency-api-v1:229ceaebaac138f383c05187d883c7aa1d5b8a855f621a322fd80e2a87bf3583",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskStaticMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "Task.basePriority is generated but source lookup does not expose the runtime record's base priority and fails explicitly."
+    },
+    {
+      "id": "swift-concurrency-api-v1:6d57484dec7d2098de32eeade820758698206e39e459044a2fa4f5410159bf8e",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/throwing-groups-and-iteration",
+      "evidenceCaseIDs": [
+        "task-group-throwing-next-cancellation",
+        "task-group-throwing-iteration-cancellation"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Task.checkCancellation() throws from a cancelled source task and remains nonthrowing for an active task; same-source group probes exercise the cancelled path."
+    },
+    {
+      "id": "swift-concurrency-api-v1:1014060ff88f66f78888ade3f49bb9af637aff5256f14acfcd4e13f56fe95b60",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M2/priority-and-task-locals",
+      "evidenceCaseIDs": [
+        "task-priority-inheritance",
+        "task-priority-escalation",
+        "task-priority-transitive-escalation"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Task.currentPriority reads the task-owned effective priority; native-parity probes cover inheritance and direct and transitive donation."
+    },
+    {
+      "id": "swift-concurrency-api-v1:e2a74619b7d87bf1a98db175102c8e23eadeda92978ffc4f78845d2e23087914",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "Nonthrowing detached execution, priority, and value semantics work, but a supplied name is currently accepted and ignored, so the complete overload is not claimed."
+    },
+    {
+      "id": "swift-concurrency-api-v1:3ae0dc9f206cee6f29c464f07773dc9203543275647659e9194a820657e0468a",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "Throwing detached execution and failure propagation work, but a supplied name is currently accepted and ignored, so the complete overload is not claimed."
+    },
+    {
+      "id": "swift-concurrency-api-v1:90fe71fcd6d21b43f50ed46b3b6db81f9ee689e1e8103bdd3c0e37d48920852a",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/unsupportedGeneratedDetachedOverloadIsNotSilentlyDowngraded"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The nonthrowing executorPreference detached overload is preserved, while custom task executors are outside the runtime contract and receive a shape-specific diagnostic."
+    },
+    {
+      "id": "swift-concurrency-api-v1:393734136eb3ea085fc4daa9b9750580ec3980592ca2fb7704ff2ba0a350684f",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/unsupportedGeneratedDetachedOverloadIsNotSilentlyDowngraded"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The throwing executorPreference detached overload is separately inventoried, while custom task executors are outside the runtime contract and receive a shape-specific diagnostic."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ad695ab49a09c75762e2af42e46bbace193dcfa0f986884082dbf3cea368acec",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M2/task-values-and-lifetime",
+      "evidenceCaseIDs": [
+        "task-cancellation-before-start",
+        "task-value-waiter-cancellation"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Static Task.isCancelled reads the current source task rather than a handle; same-source probes cover inherited cancellation and cancellation isolation."
+    },
+    {
+      "id": "swift-concurrency-api-v1:8481a1e2ba4748b7149ef7323f04a6a95f2be3cf60bc0d57fa77588d26f075bf",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskStaticMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The active-SDK Task.name property is inventoried, but runtime task records do not yet expose source task names and lookup fails explicitly."
+    },
+    {
+      "id": "swift-concurrency-api-v1:f0e86f7bcae1cae67fea2201a9ded80094533942ba224034abc59ceea8c252fa",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskStaticMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated nonthrowing runDetached overload retains its actor-context metadata but has no runtime compatibility alias and is diagnosed."
+    },
+    {
+      "id": "swift-concurrency-api-v1:76ab48571f3b92a04f21a0b157a65227d2894538c0e8ac48e3c2cdb25fdc5e07",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskStaticMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated throwing runDetached overload is retained separately but has no runtime compatibility alias and is diagnosed."
+    },
+    {
+      "id": "swift-concurrency-api-v1:190d0ca1bcceac8f7b7cd1d999f5ef93c17c5d710bb061b6198ec3ae28f0025a",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M3/suspension-and-cancellation-semantics",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "The deprecated positional nonthrowing sleep suspends and records cancellation without throwing; the unchanged swiftlang cancellation-handler fixture proves the effect distinction."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d77a525f299e33b7445b5d5ce31f565c843de1c7a8b6bea5e47f77f2bbe33111",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "Task.sleep(for:) supports Duration and cancellation with the default continuous clock, but explicit tolerance and generic clock arguments are currently ignored."
+    },
+    {
+      "id": "swift-concurrency-api-v1:6742e21e110b0ae008dc55d769a04d908fc25fed3829468bbaebfd2bb7d45d90",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/unsupportedTaskEqualityAndSleepUntilAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The generic deadline-based sleep overload is retained, but source clock instants are not modeled and the call fails explicitly."
+    },
+    {
+      "id": "swift-concurrency-api-v1:7bd692534ed451057d2c0f9aae4f93950c4dbedec5ceaf4badcd1451e0af759c",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M3/suspension-and-cancellation-semantics",
+      "evidenceCaseIDs": [
+        "task-sleep-cancellation"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Task.sleep(nanoseconds:) creates a first-class sleeping suspension and throws CancellationError when the source task is cancelled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ce6652c642d7dbf461ae22608418f4667ee86dfd94813cd9d3a060831b96ffae",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskStaticMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated Task.suspend() spelling is retained but is not silently redirected to yield and receives the generated unsupported diagnostic."
+    },
+    {
+      "id": "swift-concurrency-api-v1:7e6a3536f6d75b21ed14c848c787d74271729f6690842309c5244e0eb9a9e17e",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskStaticMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated Task.withCancellationHandler spelling is inventoried, while only the modern top-level API is implemented and the legacy member is diagnosed."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c966c3e96ef1571ba42586d4ea9723afc0aed914dbe92ff9868205bfe809aed5",
+      "implementationStatus": "diagnosed-unsupported",
+      "verificationStatus": "focused-only",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [],
+      "testNames": [
+        "GeneratedTaskSurfaceTests/activeInterfaceMetadataDrivesTaskStaticDispatch",
+        "GeneratedTaskSurfaceTests/generatedButUnsupportedTaskStaticMembersAreExplicit"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The deprecated Task.withGroup spelling is inventoried, while modern task-group entry points are implemented separately and the legacy member is diagnosed."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ab285113dd82c1e331f20b6ed3b9d483584962bbd6d868a94d07a12353683020",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M3/suspension-and-cancellation-semantics",
+      "evidenceCaseIDs": [
+        "task-yield-progress"
+      ],
+      "testNames": [],
+      "gapEvidenceIDs": [],
+      "notes": "Task.yield() records a first-class yielding suspension and permits another ready source task to make progress without asserting scheduler order."
     }
   ],
   "semanticCapabilities": [

@@ -59,7 +59,7 @@ evidence that remains covered.
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity or focused runtime evidence. | Close the Task API tail by assigning every generated task-group overload an explicit implementation/verification disposition, cover repeated-wait/new-work behavior, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, and authored implementation/verification dispositions for all 11 Task-instance overload rows. | Review the remaining 139 generated top-level, Task-static, and task-group overload rows and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, and authored implementation/verification dispositions for all 32 Task instance/static overload rows. | Review the remaining 118 generated top-level and task-group overload rows and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
@@ -4110,3 +4110,40 @@ top-level, Task-static, and task-group dispositions plus target-aware project
 build manifests. The focused upstream/runtime/methodology board is GREEN at 29
 tests, five representative same-source parity cases pass 20 native and
 interpreted repetitions each, and `ConcurrencySurfaceGen --check` is GREEN.
+
+### M7 authored Task-static overload dispositions
+
+The 21-row active-SDK `Task` static denominator is now reviewed independently
+of its generated name routing. The RED guard found no authored static claims;
+it now requires the exact domain to remain 21/21 reviewed and continues to
+inherit the inventory SHA-256 stale check.
+
+Six rows are fully `runtime-supported` with native parity: `checkCancellation`,
+`currentPriority`, static `isCancelled`, positional nonthrowing `sleep(_:)`,
+throwing `sleep(nanoseconds:)`, and `yield`. Existing same-source cases cover
+cancelled checks, priority inheritance and donation, cancellation isolation,
+sleep cancellation, and yield progress. The unchanged swiftlang
+`taskgroup_cancelAll_cancellationHandler.swift` fixture is the independent
+oracle for the subtle positional sleep effect: cancellation wakes it and stays
+observable without being rethrown.
+
+Twelve rows are `diagnosed-unsupported`: task equality, the deprecated
+`CancellationError`, `runDetached`, `suspend`, `withCancellationHandler`, and
+`withGroup` spellings, `basePriority`, `name`, both custom-executor detached
+overloads, and deadline-based `sleep(until:)`. Focused tests retain overload
+counts and effect metadata, then require real interpreter diagnostics for each
+name or call shape.
+
+The two ordinary detached overloads and `sleep(for:)` are deliberately
+`known-divergence`, not positive claims. Their core operation forms work, but
+the runtime currently ignores a supplied task name and explicit sleep
+tolerance/custom clock respectively. Recording these three partial overloads
+prevents generated routing or default-argument happy paths from overstating
+support.
+
+Across both Task domains, 32/32 rows are now authored: 11 runtime-supported,
+18 diagnosed-unsupported, and 3 known divergences. The total generated
+inventory leaves 118 unreviewed top-level and task-group rows, plus the
+target-aware project-manifest gap. The focused generated/upstream/methodology
+board is GREEN at 22 tests, eight representative same-source parity cases pass
+20 native and interpreted repetitions each, and the generator check is GREEN.

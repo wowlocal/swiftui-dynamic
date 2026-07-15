@@ -12,8 +12,22 @@ struct GeneratedTaskSurfaceTests {
         ])
         #expect(GeneratedConcurrencySurface.knownTaskStaticMembers.contains(
             "basePriority"))
+        #expect(GeneratedConcurrencySurface.taskStaticMemberDeclarations
+            .values.reduce(0) { $0 + $1.count } == 21)
+        let staticDetached = try #require(
+            GeneratedConcurrencySurface.taskStaticMemberDeclarations["detached"])
+        #expect(staticDetached.count == 4)
+        #expect(staticDetached.count {
+            $0.parameters.contains { $0.label == "executorPreference" }
+        } == 2)
+        #expect(staticDetached.count {
+            $0.parameters.contains {
+                $0.name == "operation" && $0.type.contains("async throws")
+            }
+        } == 2)
         let sleep = try #require(
             GeneratedConcurrencySurface.taskStaticMemberDeclarations["sleep"])
+        #expect(sleep.count == 4)
         #expect(sleep.contains {
             $0.isAsync && $0.throwsKind == .nonThrowing
                 && $0.parameters.first?.label == nil
@@ -55,14 +69,43 @@ struct GeneratedTaskSurfaceTests {
 
     @Test
     @MainActor
-    func generatedButUnsupportedTaskStaticMemberIsExplicit() {
+    func generatedButUnsupportedTaskStaticMembersAreExplicit() {
+        for member in [
+            "CancellationError", "basePriority", "name", "runDetached",
+            "suspend", "withCancellationHandler", "withGroup",
+        ] {
+            do {
+                _ = try Interpreter().run(source: "Task.\(member)")
+                Issue.record("unsupported generated Task.\(member) was absorbed")
+            } catch {
+                #expect(String(describing: error).contains(
+                    "Task.\(member) is declared by the active "
+                        + "_Concurrency.swiftinterface but is not supported yet"))
+            }
+        }
+    }
+
+    @Test
+    @MainActor
+    func unsupportedTaskEqualityAndSleepUntilAreExplicit() async {
         do {
-            _ = try Interpreter().run(source: "Task.basePriority")
-            Issue.record("unsupported generated Task member was absorbed")
+            _ = try await Interpreter().runAsync(source: """
+            let task = Task { 1 }
+            task == task
+            """)
+            Issue.record("unsupported Task equality was absorbed")
+        } catch {
+            #expect(String(describing: error).contains("cannot compare"))
+        }
+
+        do {
+            _ = try await Interpreter().runAsync(source: """
+            try await Task.sleep(until: .now)
+            """)
+            Issue.record("unsupported Task.sleep(until:) was absorbed")
         } catch {
             #expect(String(describing: error).contains(
-                "Task.basePriority is declared by the active "
-                    + "_Concurrency.swiftinterface but is not supported yet"))
+                "Task.sleep requires nanoseconds: or a supported Duration value"))
         }
     }
 
