@@ -9,9 +9,15 @@ private struct Manifest: Decodable {
         let upstreamPath: String
     }
 
+    struct SupportFile: Decodable {
+        let fixture: String
+        let upstreamPath: String
+    }
+
     let repository: String
     let revision: String
     let commit: String
+    let supportFiles: [SupportFile]
     let cases: [Case]
 }
 
@@ -240,6 +246,14 @@ private func run() throws {
             throw InventoryError.missingSelectedFixture(selected.upstreamPath)
         }
         let target = try child(selected.fixture, of: destination)
+        try writeBytes(from: source, to: target)
+    }
+    for support in manifest.supportFiles {
+        let source = try child(support.upstreamPath, of: checkout)
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            throw InventoryError.missingSelectedFixture(support.upstreamPath)
+        }
+        let target = try child(support.fixture, of: destination)
         try writeBytes(from: source, to: target)
     }
     try writeBytes(

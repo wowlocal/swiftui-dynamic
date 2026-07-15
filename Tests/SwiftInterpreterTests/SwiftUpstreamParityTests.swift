@@ -17,6 +17,15 @@ private struct SwiftUpstreamManifest: Decodable {
         let timeoutSeconds: TimeInterval?
     }
 
+    struct SupportFile: Decodable {
+        let id: String
+        let moduleName: String
+        let fixture: String
+        let upstreamPath: String
+        let sha256: String
+        let purpose: String
+    }
+
     enum Assertion: String, Decodable {
         case exact
         case fileCheck = "file-check"
@@ -27,6 +36,7 @@ private struct SwiftUpstreamManifest: Decodable {
     let repository: String
     let revision: String
     let commit: String
+    let supportFiles: [SupportFile]
     let cases: [Case]
 }
 
@@ -93,20 +103,40 @@ private enum SwiftUpstreamParityHarness {
     static func source(
         for parityCase: SwiftUpstreamManifest.Case
     ) throws -> String {
-        let fixture = corpusRoot.appendingPathComponent(parityCase.fixture)
+        try verifiedSource(
+            fixture: parityCase.fixture,
+            expectedSHA256: parityCase.sha256,
+            identity: parityCase.id)
+    }
+
+    static func supportSource(
+        for support: SwiftUpstreamManifest.SupportFile
+    ) throws -> String {
+        try verifiedSource(
+            fixture: support.fixture,
+            expectedSHA256: support.sha256,
+            identity: support.id)
+    }
+
+    private static func verifiedSource(
+        fixture: String,
+        expectedSHA256: String?,
+        identity: String
+    ) throws -> String {
+        let fixture = corpusRoot.appendingPathComponent(fixture)
         let data = try Data(contentsOf: fixture)
-        if let expected = parityCase.sha256 {
+        if let expected = expectedSHA256 {
             let actual = SHA256.hash(data: data).map {
                 String(format: "%02x", $0)
             }.joined()
             guard actual == expected else {
                 throw SwiftUpstreamParityError(description:
-                    "\(parityCase.id) fixture SHA-256 is \(actual), expected \(expected)")
+                    "\(identity) fixture SHA-256 is \(actual), expected \(expected)")
             }
         }
         guard let source = String(data: data, encoding: .utf8) else {
             throw SwiftUpstreamParityError(description:
-                "\(parityCase.id) fixture is not UTF-8")
+                "\(identity) fixture is not UTF-8")
         }
         return source
     }
@@ -297,6 +327,14 @@ struct SwiftUpstreamParityTests {
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
         #expect(manifest.cases.allSatisfy { $0.sha256?.count == 64 })
+        #expect(manifest.supportFiles.count == 1)
+        #expect(Set(manifest.supportFiles.map(\.id)).count
+            == manifest.supportFiles.count)
+        #expect(Set(manifest.supportFiles.map(\.upstreamPath)).count
+            == manifest.supportFiles.count)
+        #expect(manifest.supportFiles.allSatisfy {
+            $0.sha256.count == 64 && !$0.purpose.isEmpty
+        })
 
         let executableCases = manifest.cases.filter {
             $0.assertion != .diagnostic
@@ -388,6 +426,35 @@ struct SwiftUpstreamParityTests {
                     "\(parityCase.id) did not diagnose line \(line)")
             }
         }
+    }
+
+    @Test func importedSupportModulePreservesMainActorIsolation() throws {
+        let manifest = try SwiftUpstreamParityHarness.loadManifest()
+        let support = try #require(manifest.supportFiles.first {
+            $0.id == "global-actor-isolated-function-module"
+        })
+        let module = CompilerPreflightHostModule(
+            moduleName: support.moduleName,
+            source: try SwiftUpstreamParityHarness.supportSource(for: support))
+        #expect(module.sourceSHA256 == support.sha256)
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: module)
+        let client = try String(
+            contentsOf: SwiftUpstreamParityHarness.packageRoot
+                .appendingPathComponent(
+                    "Tests/SwiftUpstream/Clients/host-module-mainactor-diagnostic.swift"),
+            encoding: .utf8)
+        let result = try preflight.preflight(
+            source: client,
+            fileName: "host-module-mainactor-diagnostic.swift")
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.file == "host-module-mainactor-diagnostic.swift"
+                && $0.line == 4
+                && $0.message.contains("main actor-isolated global function")
+                && $0.message.contains("nonisolated context")
+        })
     }
 
     @Test func concurrencyRuntimeInventoryClassifiesEveryPinnedSource() throws {

@@ -3483,3 +3483,52 @@ new compiler diagnostic. M7 remains partial: generated `_Concurrency` and SDK
 host declarations still need to become a compiled stub module, and real
 project/bridge gateway manifests must be wired into preflight before required
 mode can become the default for SwiftUI projects.
+
+### M7 compiled host declaration module boundary
+
+This gap-closure slice asks whether a host gateway's serialized isolation is
+visible to the same Swift 6 compiler that checks user source. Before the fix,
+the gateway-manifest SHA affected only the preflight cache key: a source call to
+the declared gateway failed as an unresolved identifier, so no actor-isolation
+rule could be checked. That RED observation distinguished declaration presence
+from a merely well-keyed cache.
+
+`CompilerPreflightHostModule` now binds a generated module name and source to a
+content-derived manifest identity. Production preflight validates the name,
+compiles the module once per engine with the selected compiler/SDK/target and
+the same strict Swift 6 policy, imports the artifact into each user check, and
+uses `#sourceLocation` so the invisible import does not shift client file or
+line diagnostics. A malformed module fails before user type checking; the
+shared bounded process runner supplies the same deadline and descendant-tree
+cleanup as ordinary preflight. `HostRegistry` exposes the module with a nil
+default, and `Interpreter.withActiveCompilerPreflight` binds compiler and
+runtime gateway environments from the same registry rather than accepting an
+unrelated caller-supplied hash.
+
+The module oracle is the unchanged swiftlang input
+`test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift` from pinned commit
+`064859e4…`, SHA-256 `5f40cc13…`. Native Apple Swift 6.3.3 serializes its
+`@MainActor public func mainActorFunction()` declaration; a minimal client call
+from a synchronous nonisolated function is rejected on the original client
+line as a main-actor-isolated call. Production preflight reproduces that
+cross-module diagnostic, accepts a MainActor-isolated client, compiles the
+module only once across distinct client sources, and executes the legal source
+through the registry-backed runtime gateway with result `42`.
+
+M7 remains open rather than claiming a generated bridge surface prematurely.
+The next slice must make BridgeGen/project manifests emit their actual module
+source, extend host call contracts with generated isolation/effect metadata,
+and enable this registry-bound path in the real SwiftUI project entry rather
+than only an explicit compiler-checked construction.
+
+The clean closing gate was GREEN with no source drift in
+926 seconds: build 61 seconds, 869 tests 256 seconds, project/API evaluation
+180 seconds, and live verification 425 seconds. Its four parity shards ran all
+88 runtime cases for 1,722 selected and completed repetitions; the remaining
+boards report 678/680 project fixtures, 345 API matches with zero divergences
+or interpreter errors, and 5/5 live scenarios. The machine receipt records
+`source.driftDetected = false`, worktree fingerprint `7adc4883…`, and evidence
+log digest `0c7e88d9…` under Apple Swift 6.3.3 / macOS SDK 26.5. After the
+repository-owned client fixture was moved to its final test-only directory,
+the affected compiler-preflight and official-Swift suites repeated GREEN at
+8/8 and 5/5 tests respectively.

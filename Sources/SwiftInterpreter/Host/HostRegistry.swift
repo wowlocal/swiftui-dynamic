@@ -249,6 +249,10 @@ extension EvalContext {
 /// The interpreter core never imports SwiftUI; view values flow through it
 /// opaquely and all rendering decisions happen behind this protocol.
 public protocol HostRegistry: AnyObject {
+    /// Generated declarations compiled and imported by native semantic
+    /// preflight. Runtime implementations remain in this registry; the module
+    /// carries only their Swift-facing call contracts.
+    var compilerPreflightHostModule: CompilerPreflightHostModule? { get }
     /// Real implementations for C functions worth answering truthfully
     /// (uname fills real host values). nil falls to the inert absorber.
     func cFunction(named name: String) -> HostFunction?
@@ -307,6 +311,7 @@ public protocol HostRegistry: AnyObject {
 }
 
 extension HostRegistry {
+    public var compilerPreflightHostModule: CompilerPreflightHostModule? { nil }
     public func combineValues(_ op: String, _ lhs: RuntimeValue, _ rhs: RuntimeValue) -> RuntimeValue? { nil }
     public func hostTypeName(of value: Any) -> String? { nil }
     public func hostABILayout(ofTypeNamed name: String) -> RuntimeABILayout? { nil }

@@ -2,6 +2,16 @@
   "repository": "https://github.com/swiftlang/swift.git",
   "revision": "swift-6.3.3-RELEASE",
   "commit": "064859e41d68596f486c5d724401cb370f260409",
+  "supportFiles": [
+    {
+      "id": "global-actor-isolated-function-module",
+      "moduleName": "GlobalActorIsolatedFunction",
+      "fixture": "Fixtures/Concurrency/Inputs/GlobalActorIsolatedFunction.swift",
+      "upstreamPath": "test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift",
+      "sha256": "5f40cc13f4a2b131698ef5e05b7245cb3425ac96985f232fbf05a429fa0d2d24",
+      "purpose": "Cross-module serialization of MainActor isolation for production host-module preflight."
+    }
+  ],
   "cases": [
     {
       "id": "hello-toplevel",

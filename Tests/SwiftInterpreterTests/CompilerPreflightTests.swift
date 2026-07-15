@@ -73,6 +73,109 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func generatedHostModuleParticipatesInIsolationChecking() throws {
+        let source = try Self.upstreamFixture(
+            "Concurrency/Inputs/GlobalActorIsolatedFunction.swift")
+        let module = CompilerPreflightHostModule(
+            moduleName: "GlobalActorIsolatedFunction",
+            source: source)
+        #expect(module.sourceSHA256
+            == "5f40cc13f4a2b131698ef5e05b7245cb3425ac96985f232fbf05a429fa0d2d24")
+        let engine = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: module)
+        let result = try engine.preflight(
+            source: try Self.upstreamClient(
+                "host-module-mainactor-diagnostic.swift"),
+            fileName: "host-module-mainactor-diagnostic.swift")
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.file == "host-module-mainactor-diagnostic.swift"
+                && $0.line == 4
+                && $0.message.contains("main actor-isolated global function")
+                && $0.message.contains("nonisolated context")
+        })
+
+        let legal = try engine.preflight(source: """
+        @MainActor
+        func validCrossModuleCall() {
+            mainActorFunction()
+        }
+        """)
+        #expect(legal.succeeded)
+
+        let script = try engine.preflight(
+            source: """
+            #!/usr/bin/env swift
+            @MainActor
+            func validScriptCall() {
+                mainActorFunction()
+            }
+            validScriptCall()
+            """,
+            fileName: "valid-script.swift")
+        #expect(script.succeeded)
+        #expect(engine.hostModuleCompilationCount == 1)
+    }
+
+    @Test
+    func registryManifestAndRuntimeGatewayStayBoundEndToEnd() throws {
+        let moduleSource = try Self.upstreamFixture(
+            "Concurrency/Inputs/GlobalActorIsolatedFunction.swift")
+        let registry = try PreflightHostRegistry(moduleSource: moduleSource)
+        let interpreter = try Interpreter.withActiveCompilerPreflight(
+            registry: registry)
+        let value = try interpreter.run(source: """
+        @MainActor
+        func validCrossModuleCall() -> Int {
+            mainActorFunction()
+            return 42
+        }
+        validCrossModuleCall()
+        """)
+
+        #expect(value.intValue == 42)
+        #expect(registry.invocationCount == 1)
+        #expect(interpreter.compilerPreflight?.hostModule
+            == registry.compilerPreflightHostModule)
+        #expect(interpreter.compilerPreflight?.configuration
+            .gatewayManifestSHA256
+            == registry.compilerPreflightHostModule?.manifestSHA256)
+    }
+
+    @Test
+    func invalidHostModuleFailsBeforeCheckingUserSource() throws {
+        let invalidName = CompilerPreflightHostModule(
+            moduleName: "invalid-module",
+            source: "public func value() {}")
+        let invalidNameEngine = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: invalidName)
+        do {
+            _ = try invalidNameEngine.preflight(source: "let value = 1")
+            Issue.record("invalid host module name unexpectedly compiled")
+        } catch CompilerPreflightError.invalidConfiguration(let message) {
+            #expect(message.contains("not a Swift identifier"))
+        }
+        #expect(invalidNameEngine.hostModuleCompilationCount == 0)
+
+        let invalidSource = CompilerPreflightHostModule(
+            moduleName: "InvalidHostSource",
+            source: "public func broken(")
+        let invalidSourceEngine = try SwiftCompilerPreflight.activeMacOS(
+            hostModule: invalidSource)
+        do {
+            _ = try invalidSourceEngine.preflight(source: "let value = 1")
+            Issue.record("invalid host module source unexpectedly compiled")
+        } catch CompilerPreflightError.hostModuleCompilationFailed(
+            let moduleName, let exitStatus, let diagnostics) {
+            #expect(moduleName == "InvalidHostSource")
+            #expect(exitStatus != 0)
+            #expect(diagnostics.contains("expected parameter name"))
+        }
+        #expect(invalidSourceEngine.hostModuleCompilationCount == 1)
+    }
+
+    @Test
     func cacheKeyInvalidatesOnSourceToolchainSDKTargetAndManifest() throws {
         var invocationCount = 0
         let cache = CompilerPreflightCache(capacity: 16)
@@ -94,7 +197,7 @@ struct CompilerPreflightTests {
             return SwiftCompilerPreflight(
                 configuration: configuration,
                 cache: cache,
-                executor: { _, _, fileName in
+                executor: { _, _, fileName, _ in
                     invocationCount += 1
                     return CompilerPreflightInvocationOutput(
                         exitStatus: 0,
@@ -193,8 +296,63 @@ struct CompilerPreflightTests {
             encoding: .utf8)
     }
 
+    private static func upstreamFixture(_ path: String) throws -> String {
+        try String(
+            contentsOf: packageRoot
+                .appendingPathComponent("Tests/SwiftUpstream/Fixtures")
+                .appendingPathComponent(path),
+            encoding: .utf8)
+    }
+
+    private static func upstreamClient(_ name: String) throws -> String {
+        try String(
+            contentsOf: packageRoot
+                .appendingPathComponent("Tests/SwiftUpstream/Clients")
+                .appendingPathComponent(name),
+            encoding: .utf8)
+    }
+
     private static let packageRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
+}
+
+private final class PreflightHostRegistry: HostRegistry {
+    let compilerPreflightHostModule: CompilerPreflightHostModule?
+    private let mainActorFunction: HostFunction
+    private let counter: PreflightInvocationCounter
+    var invocationCount: Int { counter.value }
+
+    init(moduleSource: String) throws {
+        let counter = PreflightInvocationCounter()
+        self.counter = counter
+        compilerPreflightHostModule = CompilerPreflightHostModule(
+            moduleName: "GlobalActorIsolatedFunction",
+            source: moduleSource)
+        mainActorFunction = try HostFunction(
+            declaration: "func mainActorFunction()"
+        ) { _, _ in
+            counter.value += 1
+            return .void
+        }
+    }
+
+    func cFunction(named name: String) -> HostFunction? {
+        name == "mainActorFunction" ? mainActorFunction : nil
+    }
+
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+}
+
+private final class PreflightInvocationCounter {
+    var value = 0
 }

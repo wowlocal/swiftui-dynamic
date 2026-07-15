@@ -13,6 +13,29 @@ public enum CompilerPreflightMode: String, Sendable {
     case required
 }
 
+/// Immutable source for a generated declaration module imported by compiler
+/// preflight. The module is compiled once per engine; only its serialized
+/// public declarations participate in checking user source.
+public struct CompilerPreflightHostModule: Sendable, Equatable {
+    public let moduleName: String
+    public let source: String
+    public let sourceSHA256: String
+    public let manifestSHA256: String
+
+    public init(moduleName: String, source: String) {
+        self.moduleName = moduleName
+        self.source = source
+        self.sourceSHA256 = SHA256.hash(data: Data(source.utf8)).map {
+            String(format: "%02x", $0)
+        }.joined()
+        self.manifestSHA256 = compilerPreflightDigest([
+            "compiler-preflight-host-module-v1",
+            moduleName,
+            sourceSHA256,
+        ])
+    }
+}
+
 public struct CompilerPreflightConfiguration: Sendable, Equatable {
     public let swiftCompilerPath: String
     public let compilerVersion: String
@@ -108,6 +131,8 @@ public enum CompilerPreflightError: Error, CustomStringConvertible {
     case commandFailed(String)
     case timedOut(TimeInterval)
     case invalidToolchainOutput(String)
+    case hostModuleCompilationFailed(
+        moduleName: String, exitStatus: Int32, diagnostics: String)
 
     public var description: String {
         switch self {
@@ -125,6 +150,10 @@ public enum CompilerPreflightError: Error, CustomStringConvertible {
             "compiler preflight exceeded its \(seconds)-second deadline"
         case .invalidToolchainOutput(let message):
             "compiler preflight received invalid toolchain metadata: \(message)"
+        case .hostModuleCompilationFailed(
+            let moduleName, let exitStatus, let diagnostics):
+            "compiler preflight could not compile host module '\(moduleName)' "
+                + "(exit \(exitStatus)): \(diagnostics)"
         }
     }
 }
@@ -158,6 +187,11 @@ struct CompilerPreflightInvocationOutput {
     let sourcePath: String
 }
 
+struct CompilerPreflightModuleImport {
+    let moduleName: String
+    let searchPath: String
+}
+
 final class CompilerPreflightCache {
     private let capacity: Int
     private var values: [String: CompilerPreflightResult] = [:]
@@ -184,6 +218,94 @@ final class CompilerPreflightCache {
     }
 }
 
+final class CompilerPreflightHostModuleBuild {
+    let module: CompilerPreflightHostModule
+    private var artifactDirectory: URL?
+    private var preparedImport: CompilerPreflightModuleImport?
+    private(set) var compilationCount = 0
+
+    init(module: CompilerPreflightHostModule) {
+        self.module = module
+    }
+
+    deinit {
+        if let artifactDirectory {
+            try? FileManager.default.removeItem(at: artifactDirectory)
+        }
+    }
+
+    func prepare(
+        configuration: CompilerPreflightConfiguration
+    ) throws -> CompilerPreflightModuleImport {
+        if let preparedImport { return preparedImport }
+        guard isValidCompilerModuleName(module.moduleName) else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "host module name '\(module.moduleName)' is not a Swift identifier")
+        }
+        guard !module.source.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "host module source is empty")
+        }
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "dynamic-swift-host-module-\(UUID().uuidString)",
+                isDirectory: true)
+        do {
+            let modules = directory.appendingPathComponent(
+                "Modules", isDirectory: true)
+            let moduleCache = directory.appendingPathComponent(
+                "ModuleCache", isDirectory: true)
+            try FileManager.default.createDirectory(
+                at: modules, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: moduleCache, withIntermediateDirectories: true)
+            let sourceURL = directory.appendingPathComponent(
+                module.moduleName + ".swift")
+            try module.source.write(
+                to: sourceURL, atomically: true, encoding: .utf8)
+            let moduleURL = modules.appendingPathComponent(
+                module.moduleName + ".swiftmodule")
+            let arguments = [
+                "-swift-version", "6",
+                "-strict-concurrency=complete",
+                "-sdk", configuration.sdkPath,
+                "-target", configuration.targetTriple,
+                "-module-cache-path", moduleCache.path,
+                "-parse-as-library",
+                "-module-name", module.moduleName,
+                "-emit-module",
+                "-emit-module-path", moduleURL.path,
+            ] + configuration.additionalCompilerArguments + [sourceURL.path]
+            compilationCount += 1
+            let output = try executeProcess(
+                executable: configuration.swiftCompilerPath,
+                arguments: arguments,
+                timeoutSeconds: configuration.timeoutSeconds)
+            guard output.exitStatus == 0 else {
+                let diagnostics = (
+                    output.standardError + "\n" + output.standardOutput
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+                throw CompilerPreflightError.hostModuleCompilationFailed(
+                    moduleName: module.moduleName,
+                    exitStatus: output.exitStatus,
+                    diagnostics: diagnostics)
+            }
+            let moduleImport = CompilerPreflightModuleImport(
+                moduleName: module.moduleName,
+                searchPath: modules.path)
+            artifactDirectory = directory
+            preparedImport = moduleImport
+            return moduleImport
+        } catch {
+            try? FileManager.default.removeItem(at: directory)
+            throw error
+        }
+    }
+}
+
 /// A bounded, compiler-backed semantic check. Compiler failures are returned
 /// as data; only discovery, launch, and deadline failures throw.
 public final class SwiftCompilerPreflight {
@@ -191,18 +313,43 @@ public final class SwiftCompilerPreflight {
         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
     public let configuration: CompilerPreflightConfiguration
+    public let hostModule: CompilerPreflightHostModule?
 
     typealias Executor = (
-        CompilerPreflightConfiguration, String, String
+        CompilerPreflightConfiguration, String, String,
+        CompilerPreflightModuleImport?
     ) throws -> CompilerPreflightInvocationOutput
 
     private let cache: CompilerPreflightCache
     private let executor: Executor
+    private let hostModuleBuild: CompilerPreflightHostModuleBuild?
+
+    var hostModuleCompilationCount: Int {
+        hostModuleBuild?.compilationCount ?? 0
+    }
 
     public init(configuration: CompilerPreflightConfiguration) {
         self.configuration = configuration
+        hostModule = nil
         cache = CompilerPreflightCache()
         executor = Self.invokeCompiler
+        hostModuleBuild = nil
+    }
+
+    public init(
+        configuration: CompilerPreflightConfiguration,
+        hostModule: CompilerPreflightHostModule
+    ) throws {
+        guard configuration.gatewayManifestSHA256
+                == hostModule.manifestSHA256 else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "gateway manifest identity does not match host module source")
+        }
+        self.configuration = configuration
+        self.hostModule = hostModule
+        cache = CompilerPreflightCache()
+        executor = Self.invokeCompiler
+        hostModuleBuild = CompilerPreflightHostModuleBuild(module: hostModule)
     }
 
     init(
@@ -211,8 +358,10 @@ public final class SwiftCompilerPreflight {
         executor: @escaping Executor
     ) {
         self.configuration = configuration
+        hostModule = nil
         self.cache = cache
         self.executor = executor
+        hostModuleBuild = nil
     }
 
     /// Discover the active Xcode compiler and macOS SDK. The target triple
@@ -222,6 +371,53 @@ public final class SwiftCompilerPreflight {
         gatewayManifestSHA256: String,
         additionalCompilerArguments: [String] = [],
         timeoutSeconds: TimeInterval = 10
+    ) throws -> SwiftCompilerPreflight {
+        try activeMacOS(
+            gatewayManifestSHA256: gatewayManifestSHA256,
+            hostModule: nil,
+            additionalCompilerArguments: additionalCompilerArguments,
+            timeoutSeconds: timeoutSeconds)
+    }
+
+    /// Discover the active compiler and compile the generated host surface
+    /// into an importable module before checking user source.
+    public static func activeMacOS(
+        hostModule: CompilerPreflightHostModule,
+        additionalCompilerArguments: [String] = [],
+        timeoutSeconds: TimeInterval = 10
+    ) throws -> SwiftCompilerPreflight {
+        try activeMacOS(
+            gatewayManifestSHA256: hostModule.manifestSHA256,
+            hostModule: hostModule,
+            additionalCompilerArguments: additionalCompilerArguments,
+            timeoutSeconds: timeoutSeconds)
+    }
+
+    /// Bind discovery to the same registry that will execute host calls. An
+    /// empty registry preserves ordinary compiler checking without inventing
+    /// gateway declarations.
+    public static func activeMacOS(
+        registry: HostRegistry?,
+        additionalCompilerArguments: [String] = [],
+        timeoutSeconds: TimeInterval = 10
+    ) throws -> SwiftCompilerPreflight {
+        if let hostModule = registry?.compilerPreflightHostModule {
+            return try activeMacOS(
+                hostModule: hostModule,
+                additionalCompilerArguments: additionalCompilerArguments,
+                timeoutSeconds: timeoutSeconds)
+        }
+        return try activeMacOS(
+            gatewayManifestSHA256: emptyGatewayManifestSHA256,
+            additionalCompilerArguments: additionalCompilerArguments,
+            timeoutSeconds: timeoutSeconds)
+    }
+
+    private static func activeMacOS(
+        gatewayManifestSHA256: String,
+        hostModule: CompilerPreflightHostModule?,
+        additionalCompilerArguments: [String],
+        timeoutSeconds: TimeInterval
     ) throws -> SwiftCompilerPreflight {
         #if os(macOS)
         let xcrun = "/usr/bin/xcrun"
@@ -269,6 +465,10 @@ public final class SwiftCompilerPreflight {
             gatewayManifestSHA256: gatewayManifestSHA256,
             additionalCompilerArguments: additionalCompilerArguments,
             timeoutSeconds: timeoutSeconds)
+        if let hostModule {
+            return try SwiftCompilerPreflight(
+                configuration: configuration, hostModule: hostModule)
+        }
         return SwiftCompilerPreflight(configuration: configuration)
         #else
         throw CompilerPreflightError.unsupportedPlatform
@@ -290,7 +490,10 @@ public final class SwiftCompilerPreflight {
             return cached.markingCached()
         }
 
-        let output = try executor(configuration, source, logicalFileName)
+        let moduleImport = try hostModuleBuild?.prepare(
+            configuration: configuration)
+        let output = try executor(
+            configuration, source, logicalFileName, moduleImport)
         let diagnostics = Self.parseDiagnostics(
             output.standardError + "\n" + output.standardOutput,
             sourcePath: output.sourcePath,
@@ -310,7 +513,8 @@ public final class SwiftCompilerPreflight {
     private static func invokeCompiler(
         configuration: CompilerPreflightConfiguration,
         source: String,
-        fileName: String
+        fileName: String,
+        moduleImport: CompilerPreflightModuleImport?
     ) throws -> CompilerPreflightInvocationOutput {
         #if os(macOS)
         let directory = FileManager.default.temporaryDirectory
@@ -322,13 +526,23 @@ public final class SwiftCompilerPreflight {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let sourceURL = directory.appendingPathComponent(fileName)
-        try source.write(to: sourceURL, atomically: true, encoding: .utf8)
+        let compilerSource: String
+        if let moduleImport {
+            compilerSource = sourceByImportingHostModule(
+                moduleImport.moduleName,
+                into: source,
+                fileName: fileName)
+        } else {
+            compilerSource = source
+        }
+        try compilerSource.write(
+            to: sourceURL, atomically: true, encoding: .utf8)
         let moduleCache = directory.appendingPathComponent(
             "ModuleCache", isDirectory: true)
         try FileManager.default.createDirectory(
             at: moduleCache, withIntermediateDirectories: true)
 
-        let arguments = [
+        var arguments = [
             "-swift-version", "6",
             "-strict-concurrency=complete",
             "-diagnostic-style", "llvm",
@@ -336,7 +550,12 @@ public final class SwiftCompilerPreflight {
             "-target", configuration.targetTriple,
             "-module-cache-path", moduleCache.path,
             "-typecheck",
-        ] + configuration.additionalCompilerArguments + [sourceURL.path]
+        ]
+        if let moduleImport {
+            arguments += ["-I", moduleImport.searchPath]
+        }
+        arguments += configuration.additionalCompilerArguments
+        arguments.append(sourceURL.path)
         let output = try executeProcess(
             executable: configuration.swiftCompilerPath,
             arguments: arguments,
@@ -413,6 +632,24 @@ public final class SwiftCompilerPreflight {
 }
 
 extension Interpreter {
+    /// Construct an interpreter whose compiler environment and runtime host
+    /// implementations come from one registry identity.
+    public static func withActiveCompilerPreflight(
+        registry: HostRegistry? = nil,
+        mode: CompilerPreflightMode = .required,
+        additionalCompilerArguments: [String] = [],
+        timeoutSeconds: TimeInterval = 10
+    ) throws -> Interpreter {
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            registry: registry,
+            additionalCompilerArguments: additionalCompilerArguments,
+            timeoutSeconds: timeoutSeconds)
+        return Interpreter(
+            registry: registry,
+            compilerPreflight: preflight,
+            compilerPreflightMode: mode)
+    }
+
     /// Run the configured engine directly regardless of execution mode.
     @discardableResult
     public func preflight(
@@ -471,6 +708,46 @@ private func compilerPreflightDigest(_ components: [String]) -> String {
 private func sanitizedFileName(_ fileName: String) -> String {
     let candidate = URL(fileURLWithPath: fileName).lastPathComponent
     return candidate.isEmpty ? "input.swift" : candidate
+}
+
+private func isValidCompilerModuleName(_ name: String) -> Bool {
+    guard let first = name.first,
+          first == "_" || first.isASCII && first.isLetter else {
+        return false
+    }
+    return name.dropFirst().allSatisfy {
+        $0 == "_" || $0.isASCII && ($0.isLetter || $0.isNumber)
+    }
+}
+
+private func swiftStringLiteral(_ value: String) -> String {
+    "\"" + value
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
+        .replacingOccurrences(of: "\r", with: "\\r")
+        .replacingOccurrences(of: "\n", with: "\\n")
+        .replacingOccurrences(of: "\t", with: "\\t") + "\""
+}
+
+private func sourceByImportingHostModule(
+    _ moduleName: String,
+    into source: String,
+    fileName: String
+) -> String {
+    let sourceLocation = "#sourceLocation(file: "
+        + swiftStringLiteral(fileName)
+    if source.hasPrefix("#!") {
+        let newline = source.firstIndex(of: "\n") ?? source.endIndex
+        let shebang = source[..<newline]
+        let remainderStart = newline == source.endIndex
+            ? newline : source.index(after: newline)
+        return shebang + "\nimport \(moduleName)\n"
+            + sourceLocation + ", line: 2)\n"
+            + source[remainderStart...]
+    }
+    return "import \(moduleName)\n"
+        + sourceLocation + ", line: 1)\n"
+        + source
 }
 
 private func deploymentTarget(in triple: String) -> String {

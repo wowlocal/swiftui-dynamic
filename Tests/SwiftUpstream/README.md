@@ -7,7 +7,8 @@ machine-readable intake inventory for the concurrency runtime suite:
 - repository: <https://github.com/swiftlang/swift.git>
 - release: `swift-6.3.3-RELEASE`
 - commit: `064859e41d68596f486c5d724401cb370f260409`
-- upstream directories: `test/Interpreter` and `test/Concurrency/Runtime`
+- upstream directories: `test/Interpreter` and selected `test/Concurrency`
+  compiler/runtime paths
 
 `SwiftUpstreamParityTests` compiles and runs every fixture with the active
 native `swiftc`, runs the exact same file through `SwiftInterpreter`, and
@@ -44,6 +45,16 @@ The pinned compiler corpus also includes
 compiler preflight typechecks it in Swift 6 strict-concurrency mode and checks
 the upstream `inout TaskGroup` capture diagnostics.
 
+The exact upstream support input
+`test/Concurrency/Inputs/GlobalActorIsolatedFunction.swift` is also SHA-pinned.
+Production preflight compiles it as a separate host declaration module, imports
+that module into a minimal client, and requires Swift 6 to preserve its
+serialized `MainActor` isolation diagnostic at the original client line. This
+is the first auxiliary-module oracle; it tests the same boundary that generated
+bridge manifests will use rather than copying an expected diagnostic string.
+The small client under `Clients/` is repository-owned oracle plumbing, not an
+upstream test or an independently claimed concurrency-parity case.
+
 The corpus is checked in so normal test runs do not need network access. To
 refresh it reproducibly, run:
 
@@ -54,8 +65,10 @@ Scripts/sync-swift-upstream-tests.sh
 The sync script uses a depth-one, blob-filtered sparse checkout, verifies the
 resolved commit, copies only manifest-selected fixtures byte-for-byte, and
 regenerates the complete concurrency inventory. Additions should stay
-self-contained and deterministic: no SDK-specific inputs, auxiliary modules,
-unstable output, or `StdlibUnittest` dependency.
+self-contained and deterministic: no SDK-specific inputs, unstable
+output, or `StdlibUnittest` dependency. Auxiliary modules are admitted
+only when their source is independently pinned and their compiler contract is
+bounded by production preflight.
 
 The imported files are distributed under Swift's Apache License 2.0 with
 Runtime Library Exception; see `LICENSE.txt` in this directory.
