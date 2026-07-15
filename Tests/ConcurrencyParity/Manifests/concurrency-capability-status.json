@@ -706,6 +706,34 @@
         "remaining-generated-task-group-surface"
       ],
       "notes": "ThrowingTaskGroup.nextResult has native parity for empty, success, source failure, cancellation, single consumption, and explicit MainActor resumption. The complete any-Actor contract remains a known divergence until arbitrary actor executors are modeled."
+    },
+    {
+      "id": "swift-concurrency-api-v1:e31a24101c49c7a2666e71768672884d92b48427de97e0a2fd35ca2c32acf9a5",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-deprecated-spawn"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Deprecated TaskGroup.spawn(priority:operation:) routes through the ordinary group-child primitive. Same-source parity covers explicit priority and value delivery; unchanged swiftlang coverage adds repeated default-priority children drained by async iteration."
+    },
+    {
+      "id": "swift-concurrency-api-v1:7be9b4c150706ed3685271de0890ff4d235a680b017ecc773fcb28f2524c868c",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-deprecated-spawn"
+      ],
+      "testNames": [
+        "SwiftUpstreamParityTests/importedExecutableTestsMatchNativeSwift"
+      ],
+      "gapEvidenceIDs": [],
+      "notes": "Deprecated ThrowingTaskGroup.spawn(priority:operation:) routes through the throwing group-child primitive. Same-source parity covers explicit priority, value delivery, and source-error projection; unchanged swiftlang coverage adds repeated successful children drained by throwing async iteration."
     }
   ],
   "semanticCapabilities": [

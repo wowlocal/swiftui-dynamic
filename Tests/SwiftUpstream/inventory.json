@@ -6,8 +6,8 @@
   "scope" : "test/Concurrency/Runtime",
   "summary" : {
     "diagnostic" : 4,
-    "direct" : 10,
-    "needsAdapter" : 113,
+    "direct" : 11,
+    "needsAdapter" : 112,
     "total" : 134,
     "unsupported" : 7
   },
@@ -404,8 +404,9 @@
       "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_dontLeakTasks.swift"
     },
     {
-      "classification" : "needs-adapter",
-      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-task-group-deprecated-spawn",
       "upstreamPath" : "test/Concurrency/Runtime/async_taskgroup_is_asyncsequence.swift"
     },
     {

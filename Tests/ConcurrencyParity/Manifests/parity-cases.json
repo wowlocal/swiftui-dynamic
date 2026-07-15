@@ -1079,6 +1079,18 @@
     "notes": "Every nextResult call passes MainActor.shared explicitly. Exact output is main|empty,success-value,success-consumed,failure-child,failure-consumed-active,cancellation:owner-active,cancellation-consumed|main in all 20 strict Swift 6.3.3 runs; arbitrary source-defined actor executors remain an M5 gap."
   },
   {
+    "id": "task-group-deprecated-spawn",
+    "fixture": "Fixtures/task-group-deprecated-spawn.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskGroupDeprecatedSpawnProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "The deprecated spawn(priority:operation:) aliases remain unconditional child creation for ordinary and throwing task groups, preserve explicit child priority, return successful values, and let a throwing child project its source error through next().",
+    "notes": "Exact output must be ordinary-high|throwing-high:failure-child in every strict Swift 6.3.3 native and interpreter repetition; no child scheduling order is observed."
+  },
+  {
     "id": "host-callback-task-runtime",
     "fixture": "Fixtures/host-callback-task-runtime.swift",
     "mode": "runtime",

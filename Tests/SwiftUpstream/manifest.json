@@ -224,6 +224,20 @@
       "timeoutSeconds": 5
     },
     {
+      "id": "concurrency-task-group-deprecated-spawn",
+      "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_is_asyncsequence.swift",
+      "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_is_asyncsequence.swift",
+      "sha256": "46a6aec7a255044c72e3d82f5c4fcfe81014088f57688f50937383501f77b0d8",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
+    },
+    {
       "id": "concurrency-discarding-task-group-add-unless-cancelled",
       "fixture": "Fixtures/Concurrency/Runtime/async_taskgroup_addUnlessCancelled.swift",
       "upstreamPath": "test/Concurrency/Runtime/async_taskgroup_addUnlessCancelled.swift",
