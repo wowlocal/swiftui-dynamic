@@ -205,9 +205,9 @@ public enum ConcurrencySurfaceGenerator {
     ]
 
     private static let supportedIntrinsics: Set<String> = [
-        "addTask", "addTaskUnlessCancelled", "waitForAll", "next",
-        "nextResult", "makeAsyncIterator", "cancelAll", "isCancelled",
-        "isEmpty",
+        "addImmediateTask", "addImmediateTaskUnlessCancelled", "addTask",
+        "addTaskUnlessCancelled", "waitForAll", "next", "nextResult",
+        "makeAsyncIterator", "cancelAll", "isCancelled", "isEmpty",
     ]
     private static let supportedTaskStaticIntrinsics: Set<String> = [
         "checkCancellation", "currentPriority", "detached", "isCancelled",
@@ -235,13 +235,13 @@ public enum ConcurrencySurfaceGenerator {
     ]
     private static let requiredIntrinsicsByType: [String: Set<String>] = [
         "DiscardingTaskGroup": [
-            "addTask", "addTaskUnlessCancelled", "cancelAll", "isCancelled",
-            "isEmpty",
+            "addImmediateTask", "addImmediateTaskUnlessCancelled", "addTask",
+            "addTaskUnlessCancelled", "cancelAll", "isCancelled", "isEmpty",
         ],
         "TaskGroup": supportedIntrinsics.subtracting(["nextResult"]),
         "ThrowingDiscardingTaskGroup": [
-            "addTask", "addTaskUnlessCancelled", "cancelAll", "isCancelled",
-            "isEmpty",
+            "addImmediateTask", "addImmediateTaskUnlessCancelled", "addTask",
+            "addTaskUnlessCancelled", "cancelAll", "isCancelled", "isEmpty",
         ],
         "ThrowingTaskGroup": supportedIntrinsics,
     ]
@@ -606,6 +606,8 @@ public enum ConcurrencySurfaceGenerator {
         }
 
         enum RuntimeTaskGroupIntrinsic: String, Sendable {
+            case addImmediateTask
+            case addImmediateTaskUnlessCancelled
             case addTask
             case addTaskUnlessCancelled
             case waitForAll

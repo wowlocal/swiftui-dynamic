@@ -111,6 +111,13 @@ final class RuntimeTaskGroup {
         childHandles.append(handle)
     }
 
+    func removePending(_ handle: RuntimeTaskHandle) {
+        precondition(
+            childHandles.last === handle,
+            "task-group launch rollback must remove its newest child")
+        childHandles.removeLast()
+    }
+
     func requestCancelAll() {
         precondition(!isClosed, "cannot cancel a closed task group")
         record.hasCancelAllRequest = true

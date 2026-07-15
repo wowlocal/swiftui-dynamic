@@ -476,7 +476,8 @@ extension Interpreter: EvalContext {
         operation: ClosureValue,
         in group: RuntimeTaskGroup,
         name: String?,
-        priority: RuntimeTaskPriority?
+        priority: RuntimeTaskPriority?,
+        startsImmediately: Bool = false
     ) throws -> RuntimeTaskHandle {
         guard evaluationTaskContext.isAsyncSession else {
             throw RuntimeError(message:
@@ -491,9 +492,17 @@ extension Interpreter: EvalContext {
         for source in group.newChildCancellationSources {
             pending.handle.cancel(source: source)
         }
+        // An immediate child may complete before its constructor returns.
+        // Install every structured/group ownership edge first so its source
+        // prefix and completion publication observe one valid transaction.
+        concurrencyRuntime.addGroupChild(
+            pending.handle.id, to: group.record)
+        group.append(pending.handle)
         do {
             try launchRuntimeTask(
-                pending, sessionOwned: false,
+                pending,
+                sessionOwned: false,
+                startsImmediately: startsImmediately,
                 body: { [weak self] in
                     guard let self else {
                         throw RuntimeError(message:
@@ -503,10 +512,10 @@ extension Interpreter: EvalContext {
                         operation, arguments: [])
                     return discardsResult ? .void : result
                 })
-            concurrencyRuntime.addGroupChild(
-                pending.handle.id, to: group.record)
-            group.append(pending.handle)
         } catch {
+            group.removePending(pending.handle)
+            concurrencyRuntime.removePendingGroupChild(
+                pending.handle.id, from: group.record)
             concurrencyRuntime.release(pending.handle.id)
             throw error
         }
@@ -624,6 +633,7 @@ extension Interpreter: EvalContext {
     private func launchRuntimeTask(
         _ pending: PendingRuntimeTask,
         sessionOwned: Bool,
+        startsImmediately: Bool = false,
         body: @escaping @MainActor @Sendable () async throws -> RuntimeValue
     ) throws {
         guard concurrencyRuntime.activeRecordCount <= scheduledTaskLimit else {
@@ -645,8 +655,12 @@ extension Interpreter: EvalContext {
             [weak self, weak handle] in
             await EvaluationTaskContext.$current.withValue(taskContext) {
                 defer { taskContext.removeAllDynamicState() }
-                // A newly-created Task never runs inline with its constructor.
-                await Task.yield()
+                // Ordinary task construction never runs inline. Swift 6's
+                // immediate task APIs deliberately run this prefix on the
+                // caller until the first real suspension instead.
+                if !startsImmediately {
+                    await Task.yield()
+                }
                 guard let self, let handle else { return }
                 guard handle.begin() else {
                     handle.completeCancellation()
@@ -670,7 +684,15 @@ extension Interpreter: EvalContext {
             }
         }
         let task: Task<Void, Never>
-        if record.kind == .detached {
+        if startsImmediately {
+            guard #available(macOS 26.0, iOS 26.0, *) else {
+                throw RuntimeError(message:
+                    "immediate task creation requires macOS or iOS 26")
+            }
+            task = Task.immediate(
+                priority: pending.priority.nativePriority,
+                operation: operation)
+        } else if record.kind == .detached {
             task = Task.detached(
                 priority: pending.priority.nativePriority, operation: operation)
         } else {

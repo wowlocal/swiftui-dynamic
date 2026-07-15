@@ -36,6 +36,8 @@ enum RuntimeTaskGroupIteratorIntrinsic: String, Sendable {
 }
 
 enum RuntimeTaskGroupIntrinsic: String, Sendable {
+    case addImmediateTask
+    case addImmediateTaskUnlessCancelled
     case addTask
     case addTaskUnlessCancelled
     case waitForAll
@@ -429,6 +431,8 @@ enum GeneratedConcurrencySurface {
         String: [String: RuntimeTaskGroupIntrinsic]
     ] = [
         "DiscardingTaskGroup": [
+            "addImmediateTask": .addImmediateTask,
+            "addImmediateTaskUnlessCancelled": .addImmediateTaskUnlessCancelled,
             "addTask": .addTask,
             "addTaskUnlessCancelled": .addTaskUnlessCancelled,
             "cancelAll": .cancelAll,
@@ -437,6 +441,8 @@ enum GeneratedConcurrencySurface {
         ],
         "TaskGroup": [
             "add": .addTaskUnlessCancelled,
+            "addImmediateTask": .addImmediateTask,
+            "addImmediateTaskUnlessCancelled": .addImmediateTaskUnlessCancelled,
             "addTask": .addTask,
             "addTaskUnlessCancelled": .addTaskUnlessCancelled,
             "async": .addTask,
@@ -451,6 +457,8 @@ enum GeneratedConcurrencySurface {
             "waitForAll": .waitForAll,
         ],
         "ThrowingDiscardingTaskGroup": [
+            "addImmediateTask": .addImmediateTask,
+            "addImmediateTaskUnlessCancelled": .addImmediateTaskUnlessCancelled,
             "addTask": .addTask,
             "addTaskUnlessCancelled": .addTaskUnlessCancelled,
             "cancelAll": .cancelAll,
@@ -459,6 +467,8 @@ enum GeneratedConcurrencySurface {
         ],
         "ThrowingTaskGroup": [
             "add": .addTaskUnlessCancelled,
+            "addImmediateTask": .addImmediateTask,
+            "addImmediateTaskUnlessCancelled": .addImmediateTaskUnlessCancelled,
             "addTask": .addTask,
             "addTaskUnlessCancelled": .addTaskUnlessCancelled,
             "async": .addTask,

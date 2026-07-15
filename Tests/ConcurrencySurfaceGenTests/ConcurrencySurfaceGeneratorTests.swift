@@ -63,6 +63,23 @@ struct ConcurrencySurfaceGeneratorTests {
                 $0.name == "operation" && $0.type.contains("async throws")
             }
         })
+        let immediateTask = try #require(taskMembers["addImmediateTask"]?.first)
+        #expect(immediateTask.isMutating)
+        #expect(immediateTask.parameters.contains { parameter in
+            parameter.label == "executorPreference"
+                && parameter.name == "taskExecutor"
+                && parameter.type.hasPrefix("consuming ")
+                && parameter.type.contains("TaskExecutor")
+                && parameter.defaultValue == "nil"
+        })
+        #expect(immediateTask.parameters.contains { parameter in
+            parameter.name == "operation"
+                && parameter.inheritsActorContext
+                && parameter.hasIsolatedFunctionType
+                && parameter.attributes.contains("@_implicitSelfCapture")
+        })
+        #expect(taskMembers["addImmediateTaskUnlessCancelled"]?.first?
+            .returnType == "Bool")
         #expect(taskMembers["next"]?.allSatisfy { $0.isAsync } == true)
         #expect(taskMembers["isEmpty"]?.first?.kind == .variable)
         #expect(taskMembers["isEmpty"]?.first?.returnType == "Bool")
@@ -203,7 +220,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 156)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 99)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 107)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 47,
             "task-static-member": 21,
@@ -329,6 +346,20 @@ struct ConcurrencySurfaceGeneratorTests {
             declaration.parameters.contains {
                 $0.name == "operation" && $0.hasIsolatedFunctionType
             }
+        } == true)
+        #expect(group["addImmediateTask"]?.contains { declaration in
+            declaration.parameters.contains {
+                $0.label == "executorPreference"
+                    && $0.name == "taskExecutor"
+                    && $0.type.hasPrefix("consuming ")
+                    && $0.defaultValue == "nil"
+            } && declaration.parameters.contains {
+                $0.name == "operation" && $0.inheritsActorContext
+                    && $0.hasIsolatedFunctionType
+            }
+        } == true)
+        #expect(group["addImmediateTaskUnlessCancelled"]?.contains {
+            $0.returnType == "Swift.Bool"
         } == true)
 
         let taskGroupIterator = try #require(
@@ -501,6 +532,20 @@ struct ConcurrencySurfaceGeneratorTests {
     public func interfaceOnlyProbe() async {}
 
     public struct TaskGroup<Child> {
+        public mutating func addImmediateTask(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_inheritActorContext @_implicitSelfCapture
+            operation: sending @escaping @isolated(any) () async -> Child
+        ) {}
+        public mutating func addImmediateTaskUnlessCancelled(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_inheritActorContext @_implicitSelfCapture
+            operation: sending @escaping @isolated(any) () async -> Child
+        ) -> Bool { true }
         public mutating func addTask(operation: () async -> Child) {}
         public mutating func addTask(operation: () async throws -> Child) {}
         public mutating func addTaskUnlessCancelled(
@@ -529,6 +574,20 @@ struct ConcurrencySurfaceGeneratorTests {
     }
 
     public struct ThrowingTaskGroup<Child, Failure> {
+        public mutating func addImmediateTask(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_inheritActorContext @_implicitSelfCapture
+            operation: sending @escaping @isolated(any) () async throws -> Child
+        ) {}
+        public mutating func addImmediateTaskUnlessCancelled(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_inheritActorContext @_implicitSelfCapture
+            operation: sending @escaping @isolated(any) () async throws -> Child
+        ) -> Bool { true }
         public mutating func addTask(operation: () async throws -> Child) {}
         public mutating func addTaskUnlessCancelled(
             operation: () async throws -> Child
@@ -552,6 +611,20 @@ struct ConcurrencySurfaceGeneratorTests {
     }
 
     public struct DiscardingTaskGroup {
+        public mutating func addImmediateTask(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_inheritActorContext @_implicitSelfCapture
+            operation: sending @escaping @isolated(any) () async -> Void
+        ) {}
+        public mutating func addImmediateTaskUnlessCancelled(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_inheritActorContext @_implicitSelfCapture
+            operation: sending @escaping @isolated(any) () async -> Void
+        ) -> Bool { true }
         public mutating func addTask(operation: () async -> Void) {}
         public mutating func addTaskUnlessCancelled(
             operation: () async -> Void
@@ -562,6 +635,20 @@ struct ConcurrencySurfaceGeneratorTests {
     }
 
     public struct ThrowingDiscardingTaskGroup<Failure> {
+        public mutating func addImmediateTask(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_inheritActorContext @_implicitSelfCapture
+            operation: sending @escaping @isolated(any) () async throws -> Void
+        ) {}
+        public mutating func addImmediateTaskUnlessCancelled(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_inheritActorContext @_implicitSelfCapture
+            operation: sending @escaping @isolated(any) () async throws -> Void
+        ) -> Bool { true }
         public mutating func addTask(operation: () async throws -> Void) {}
         public mutating func addTaskUnlessCancelled(
             operation: () async throws -> Void

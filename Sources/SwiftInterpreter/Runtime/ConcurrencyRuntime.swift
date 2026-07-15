@@ -587,6 +587,29 @@ final class CooperativeConcurrencyRuntime {
         }
     }
 
+    /// Roll back the ownership half of a group-child launch transaction.
+    /// This is legal only before the native driver has begun; successful and
+    /// completed children are removed exclusively by normal group teardown.
+    func removePendingGroupChild(
+        _ childID: RuntimeTaskID,
+        from group: RuntimeTaskGroupRecord
+    ) {
+        guard taskGroups[group.id] === group,
+              let child = records[childID],
+              child.taskGroupID == group.id,
+              child.state == .pending,
+              group.childTaskIDs.last == childID,
+              !group.completedChildTaskIDs.contains(childID) else {
+            preconditionFailure(
+                "cannot roll back started task-group child \(childID)")
+        }
+        group.childTaskIDs.removeLast()
+        precondition(
+            group.structuredScope.childTaskIDs.remove(childID) != nil,
+            "pending child \(childID) lost its structured-scope edge")
+        child.taskGroupID = nil
+    }
+
     func nextTaskGroupOutcome(
         _ waiterID: RuntimeTaskID,
         on group: RuntimeTaskGroupRecord

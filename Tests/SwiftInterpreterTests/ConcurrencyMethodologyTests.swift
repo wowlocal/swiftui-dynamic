@@ -1828,6 +1828,107 @@ struct ConcurrencyMethodologyTests {
         }, "conditional rows must retain executor and actor gaps")
     }
 
+    @Test func taskGroupImmediateAddHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let expectedIDsByContainer: [String: Set<String>] = [
+            "DiscardingTaskGroup": [
+                "swift-concurrency-api-v1:6224211ab41ee0275ffe93f8662fa5c0e0999e7c6a68858ed604208b0aafcf84",
+                "swift-concurrency-api-v1:31fa53cd8382fe9d2d7e27f9696dcf7664439085288856147723b003bc4bc4b9",
+            ],
+            "TaskGroup": [
+                "swift-concurrency-api-v1:051a100512d614f5768a06cffe2493a44bb4fd8e627186404eb0fa9edc1537e0",
+                "swift-concurrency-api-v1:23abbdf6354a9a77abb062af62b3327c55b7f5518a570bd2bfb6f9eda00724d5",
+            ],
+            "ThrowingDiscardingTaskGroup": [
+                "swift-concurrency-api-v1:374f13d062447dbda0bb8f1a50fbcce663291d1ba2182e7d363da3ebf9fa768a",
+                "swift-concurrency-api-v1:e27437346aed95ad921eb3bedca138b8d6d0a9804bc468f81257e604fcd9d3d4",
+            ],
+            "ThrowingTaskGroup": [
+                "swift-concurrency-api-v1:ee75592c5c4944442086b49ff3bd3f85b7cded12db973cbb3f75ac415b29104b",
+                "swift-concurrency-api-v1:c349a0b9ddb2ca9af09e001a724a1352504b1df962d026a638cbbf1547e4ae9a",
+            ],
+        ]
+        let expectedNames: Set<String> = [
+            "addImmediateTask",
+            "addImmediateTaskUnlessCancelled",
+        ]
+        let rows = inventory.declarations.filter {
+            $0.domain == "task-group-member"
+                && expectedNames.contains($0.name)
+        }
+        let ids = Set(rows.map(\.id))
+        let actualIDsByContainer = Dictionary(grouping: rows) {
+            $0.container ?? "<missing>"
+        }.mapValues { Set($0.map(\.id)) }
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 8,
+            "the active SDK immediate task-group denominator changed")
+        #expect(actualIDsByContainer == expectedIDsByContainer,
+            "the active SDK immediate task-group identities changed")
+        for container in expectedIDsByContainer.keys {
+            #expect(Set(rows.filter { $0.container == container }.map(\.name))
+                == expectedNames,
+                "\(container) should expose both immediate-add operations")
+        }
+        #expect(rows.allSatisfy {
+            $0.adapterIntrinsic == $0.name
+                && $0.declaration.contains(
+                    "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)")
+                && $0.declaration.contains("name: Swift.String? = nil")
+                && $0.declaration.contains(
+                    "priority: _Concurrency.TaskPriority? = nil")
+                && $0.declaration.contains(
+                    "executorPreference taskExecutor: consuming (any _Concurrency.TaskExecutor)? = nil")
+                && $0.declaration.contains(
+                    "@_inheritActorContext @_implicitSelfCapture operation: sending @escaping @isolated(any)")
+                && $0.declaration.hasSuffix("-> Swift.Bool")
+                    == ($0.name == "addImmediateTaskUnlessCancelled")
+        }, "immediate task-group interface shape changed")
+        #expect(Set(claims.map(\.id)) == ids,
+            "every immediate task-group declaration needs an authored disposition")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef == "M4/remaining-task-group-surface"
+                && $0.evidenceCaseIDs == ["task-group-immediate-add"]
+                && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns")
+                && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed")
+                && $0.testNames.contains(
+                    "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions")
+                && $0.gapEvidenceIDs
+                    == ["remaining-generated-task-group-surface"]
+                && $0.notes.contains("explicit-nil")
+                && $0.notes.contains("MainActor")
+                && $0.notes.contains("non-nil")
+                && $0.notes.contains("preference")
+                && $0.notes.contains("@isolated(any)")
+        }, "immediate rows must retain executor and actor gaps")
+        let conditionalClaims = claims.filter { claim in
+            rows.first { $0.id == claim.id }?.name
+                == "addImmediateTaskUnlessCancelled"
+        }
+        #expect(conditionalClaims.count == 4)
+        #expect(conditionalClaims.allSatisfy {
+            $0.testNames.contains(
+                "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference")
+                && $0.notes.contains("cancel")
+        }, "conditional immediate rows must preserve cancellation ordering evidence")
+    }
+
     @Test func taskGroupNamedAddOverloadsHaveExplicitReviewedDispositions()
             throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(

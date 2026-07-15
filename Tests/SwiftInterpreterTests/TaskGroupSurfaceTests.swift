@@ -218,6 +218,113 @@ struct TaskGroupSurfaceTests {
         }
     }
 
+    @Test func immediateTaskGroupChildCompletesBeforeAddReturns() async throws {
+        let interpreter = Interpreter()
+        var observedMembershipBeforeSourceEntry = false
+        interpreter.globals.define(
+            "inspectImmediateTaskGroupMembership",
+            .hostFunction(HostFunction(
+                name: "inspectImmediateTaskGroupMembership"
+            ) { _, _ in
+                guard let childID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      let child = interpreter.concurrencyRuntime
+                        .records[childID],
+                      let groupID = child.taskGroupID,
+                      let group = interpreter.concurrencyRuntime
+                        .taskGroups[groupID],
+                      group.childTaskIDs.contains(childID),
+                      group.structuredScope.childTaskIDs.contains(childID)
+                else {
+                    throw RuntimeError(message:
+                        "immediate child started before group ownership")
+                }
+                observedMembershipBeforeSourceEntry = true
+                return .void
+            }))
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        final class ImmediateRecorder {
+            var value = "pending"
+
+            func record(_ newValue: String) {
+                value = newValue
+            }
+        }
+
+        @MainActor
+        func immediateCompletionProbe() async -> String {
+            let recorder = ImmediateRecorder()
+            return await withTaskGroup(of: Int.self) { group in
+                group.addImmediateTask(
+                    name: "immediate-child",
+                    executorPreference: nil
+                ) {
+                    inspectImmediateTaskGroupMembership()
+                    recorder.record("started:" + (Task.name ?? "nil"))
+                    return 7
+                }
+                let snapshot = recorder.value
+                let child = await group.next() ?? -1
+                return snapshot + ":" + String(child)
+            }
+        }
+
+        await immediateCompletionProbe()
+        """)
+
+        #expect(result.stringValue == "started:immediate-child:7")
+        #expect(observedMembershipBeforeSourceEntry)
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func nonNilImmediateTaskGroupExecutorPreferenceFailsClosed() async {
+        do {
+            _ = try await Interpreter().runAsync(source: """
+            final class ProbeTaskExecutor: TaskExecutor {
+                func enqueue(_ job: consuming ExecutorJob) {
+                    globalConcurrentExecutor.enqueue(job)
+                }
+            }
+            await withTaskGroup(of: Int.self) { group in
+                let executor = ProbeTaskExecutor()
+                group.addImmediateTask(executorPreference: executor) { 7 }
+                return await group.next() ?? -1
+            }
+            """)
+            Issue.record(
+                "non-nil immediate executor preference was silently ignored")
+        } catch {
+            #expect(String(describing: error).contains(
+                "TaskGroup.addImmediateTask(executorPreference:) "
+                    + "is not supported yet"))
+        }
+    }
+
+    @Test func cancelledImmediateConditionalAddSkipsExecutorPreference()
+            async throws {
+        let result = try await Interpreter().runAsync(source: """
+        final class ProbeTaskExecutor: TaskExecutor {
+            func enqueue(_ job: consuming ExecutorJob) {
+                globalConcurrentExecutor.enqueue(job)
+            }
+        }
+        await withTaskGroup(of: Int.self) { group in
+            group.cancelAll()
+            let executor = ProbeTaskExecutor()
+            let accepted = group.addImmediateTaskUnlessCancelled(
+                executorPreference: executor
+            ) { 7 }
+            return accepted ? -1 : 0
+        }
+        """)
+
+        #expect(result.intValue == 0)
+    }
+
     @Test func cancelledConditionalAddSkipsExecutorPreference() async throws {
         let result = try await Interpreter().runAsync(source: """
         final class ProbeTaskExecutor: TaskExecutor {

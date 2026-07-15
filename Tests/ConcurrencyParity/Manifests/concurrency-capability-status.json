@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "98bdc0ea5f11651916c9909d03b9db5a24656a9fb3f6d646451c389d65961517",
+  "inventorySHA256": "cee8604a387b0942e8948185fe882cd9eefde6c8670482039296aa574d3d4bc9",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -1990,6 +1990,154 @@
         "remaining-generated-task-group-surface"
       ],
       "notes": "The named ThrowingTaskGroup.addTaskUnlessCancelled(name:executorPreference:priority:operation:) explicit-nil nonisolated subset has same-source parity: an active group accepts the child and preserves Task.name, while a cancelled group returns false without creating it. The shared guard rejects an active non-nil TaskExecutor but deliberately follows the cancelled-group early return; native executors are observable and arbitrary @isolated(any) operation executors are not modeled, so the complete row remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:6224211ab41ee0275ffe93f8662fa5c0e0999e7c6a68858ed604208b0aafcf84",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-immediate-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The DiscardingTaskGroup.addImmediateTask explicit-nil inherited-MainActor subset has same-source parity for the guaranteed causal behavior: the operation starts synchronously before the add call returns, resumes after forced suspension, preserves Task.name, and joins before group scope exit. No sibling finish order or physical-thread behavior is claimed. The shared guard rejects non-nil TaskExecutor values; native preference-driven resumption and arbitrary @isolated(any) operation executors remain unmodeled, so the complete row stays known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:31fa53cd8382fe9d2d7e27f9696dcf7664439085288856147723b003bc4bc4b9",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-immediate-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The DiscardingTaskGroup.addImmediateTaskUnlessCancelled explicit-nil inherited-MainActor subset has same-source parity: an active call returns true after the operation starts synchronously, the child resumes after forced suspension with Task.name preserved, and scope exit joins it; after cancelAll the call returns false without creating the child. Cancellation is checked before executor-preference validation. No sibling finish order or physical-thread behavior is claimed. Native non-nil preference resumption and arbitrary @isolated(any) operation executors remain unmodeled, so the complete row stays known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:051a100512d614f5768a06cffe2493a44bb4fd8e627186404eb0fa9edc1537e0",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-immediate-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The TaskGroup.addImmediateTask explicit-nil inherited-MainActor subset has same-source parity for the guaranteed causal behavior: the operation starts synchronously before the add call returns, resumes after forced suspension, preserves Task.name, delivers its value, and joins before group scope exit. No sibling finish order or physical-thread behavior is claimed. The shared guard rejects non-nil TaskExecutor values; native preference-driven resumption and arbitrary @isolated(any) operation executors remain unmodeled, so the complete row stays known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:23abbdf6354a9a77abb062af62b3327c55b7f5518a570bd2bfb6f9eda00724d5",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-immediate-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The TaskGroup.addImmediateTaskUnlessCancelled explicit-nil inherited-MainActor subset has same-source parity: an active call returns true after the operation starts synchronously, the child resumes after forced suspension with Task.name preserved and delivers its value, and scope exit joins it; after cancelAll the call returns false without creating the child. Cancellation is checked before executor-preference validation. No sibling finish order or physical-thread behavior is claimed. Native non-nil preference resumption and arbitrary @isolated(any) operation executors remain unmodeled, so the complete row stays known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:374f13d062447dbda0bb8f1a50fbcce663291d1ba2182e7d363da3ebf9fa768a",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-immediate-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The ThrowingDiscardingTaskGroup.addImmediateTask explicit-nil inherited-MainActor subset has same-source parity for the guaranteed causal behavior: the operation starts synchronously before the add call returns, resumes after forced suspension, preserves Task.name, and joins before group scope exit. No sibling finish order or physical-thread behavior is claimed. The shared guard rejects non-nil TaskExecutor values; native preference-driven resumption and arbitrary @isolated(any) operation executors remain unmodeled, so the complete row stays known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:e27437346aed95ad921eb3bedca138b8d6d0a9804bc468f81257e604fcd9d3d4",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-immediate-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The ThrowingDiscardingTaskGroup.addImmediateTaskUnlessCancelled explicit-nil inherited-MainActor subset has same-source parity: an active call returns true after the operation starts synchronously, the child resumes after forced suspension with Task.name preserved, and scope exit joins it; after cancelAll the call returns false without creating the child. Cancellation is checked before executor-preference validation. No sibling finish order or physical-thread behavior is claimed. Native non-nil preference resumption and arbitrary @isolated(any) operation executors remain unmodeled, so the complete row stays known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:ee75592c5c4944442086b49ff3bd3f85b7cded12db973cbb3f75ac415b29104b",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-immediate-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The ThrowingTaskGroup.addImmediateTask explicit-nil inherited-MainActor subset has same-source parity for the guaranteed causal behavior: the operation starts synchronously before the add call returns, resumes after forced suspension, preserves Task.name, delivers its value, and joins before group scope exit. No sibling finish order or physical-thread behavior is claimed. The shared guard rejects non-nil TaskExecutor values; native preference-driven resumption and arbitrary @isolated(any) operation executors remain unmodeled, so the complete row stays known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c349a0b9ddb2ca9af09e001a724a1352504b1df962d026a638cbbf1547e4ae9a",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M4/remaining-task-group-surface",
+      "evidenceCaseIDs": [
+        "task-group-immediate-add"
+      ],
+      "testNames": [
+        "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference",
+        "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "remaining-generated-task-group-surface"
+      ],
+      "notes": "The ThrowingTaskGroup.addImmediateTaskUnlessCancelled explicit-nil inherited-MainActor subset has same-source parity: an active call returns true after the operation starts synchronously, the child resumes after forced suspension with Task.name preserved and delivers its value, and scope exit joins it; after cancelAll the call returns false without creating the child. Cancellation is checked before executor-preference validation. No sibling finish order or physical-thread behavior is claimed. Native non-nil preference resumption and arbitrary @isolated(any) operation executors remain unmodeled, so the complete row stays known-divergence with verification none."
     },
     {
       "id": "swift-concurrency-api-v1:75560cb6e0a7a099f0a8150723dc13a0cc65e7c2e76faec35eb7fa38cd1d6805",

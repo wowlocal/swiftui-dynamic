@@ -102,8 +102,12 @@ extension Interpreter {
                 ownerTaskID: evaluationTaskContext.runtimeTaskID)
             return .native(group.record.isEmpty)
 
-        case .addTask, .addTaskUnlessCancelled:
+        case .addImmediateTask, .addImmediateTaskUnlessCancelled,
+                .addTask, .addTaskUnlessCancelled:
             let skipsCancelledGroup = intrinsic == .addTaskUnlessCancelled
+                || intrinsic == .addImmediateTaskUnlessCancelled
+            let startsImmediately = intrinsic == .addImmediateTask
+                || intrinsic == .addImmediateTaskUnlessCancelled
             return .hostFunction(HostFunction(name: name) {
                 [weak self, weak group] arguments, _ in
                 guard let self, let group else {
@@ -134,7 +138,8 @@ extension Interpreter {
                     operation: operation,
                     in: group,
                     name: taskName,
-                    priority: priority)
+                    priority: priority,
+                    startsImmediately: startsImmediately)
                 if skipsCancelledGroup {
                     return .native(true)
                 }

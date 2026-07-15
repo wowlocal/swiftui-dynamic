@@ -196,6 +196,7 @@
       "returnType" : "_Concurrency.ThrowingTaskGroup<ChildTaskResult, Failure>.Iterator.Element?"
     },
     {
+      "adapterIntrinsic" : "addImmediateTask",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -286,6 +287,7 @@
       ]
     },
     {
+      "adapterIntrinsic" : "addImmediateTaskUnlessCancelled",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -1108,6 +1110,7 @@
       "returnType" : "Swift.Bool"
     },
     {
+      "adapterIntrinsic" : "addImmediateTask",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -1198,6 +1201,7 @@
       ]
     },
     {
+      "adapterIntrinsic" : "addImmediateTaskUnlessCancelled",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -2337,6 +2341,7 @@
       ]
     },
     {
+      "adapterIntrinsic" : "addImmediateTask",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -2427,6 +2432,7 @@
       ]
     },
     {
+      "adapterIntrinsic" : "addImmediateTaskUnlessCancelled",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -3249,6 +3255,7 @@
       "returnType" : "Swift.Bool"
     },
     {
+      "adapterIntrinsic" : "addImmediateTask",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -3339,6 +3346,7 @@
       ]
     },
     {
+      "adapterIntrinsic" : "addImmediateTaskUnlessCancelled",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -8670,7 +8678,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 99,
+    "adapterRoutedDeclarationCount" : 107,
     "declarationCount" : 156,
     "declarationsByDomain" : {
       "task-group-iterator-member" : 6,
