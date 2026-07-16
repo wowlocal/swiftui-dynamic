@@ -927,7 +927,8 @@ extension Interpreter {
     func callWithArgumentsSuspending(
         _ closure: ClosureValue, args: CallArguments, node: Syntax?
     ) async throws -> RuntimeValue {
-        let calleeExecutor = try resolvedExecutor(for: closure)
+        let calleeExecutor = try resolvedExecutor(
+            for: closure, arguments: args)
         let suspendedCallerActor = suspendCallerActorForExecutorHop(
             to: calleeExecutor)
         do {

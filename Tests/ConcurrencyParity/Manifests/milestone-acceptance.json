@@ -657,8 +657,8 @@
       "title": "Actor support and executor architecture",
       "status": "partial",
       "dependsOn": ["M4", "M7"],
-      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, depth-counted mailbox ownership for synchronous and async actor-function plus externally awaited synchronous computed-getter and subscript-getter segments, actor computed-property and subscript-setter confinement to already-owned segments, controlled suspension release/reacquisition and actor reentrancy, cross-actor throwing and cancellation-observing function hops with caller restoration, explicit waitingForActor handoff/cleanup, and mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions are covered.",
-      "ledgerRemainingWork": "Active demand cycle (2026-07-16): add isolated parameters, arbitrary global actors, remaining effectful-accessor failure/cancellation paths, and replayable mailbox stress, then finish per-feature fail-closed flips with no up-front global rejection; physical workers remain M9.",
+      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, depth-counted mailbox ownership for synchronous and async actor-function plus externally awaited synchronous computed-getter and subscript-getter segments, actor computed-property and subscript-setter confinement to already-owned segments, controlled suspension release/reacquisition and actor reentrancy, cross-actor throwing and cancellation-observing function hops with caller restoration, required explicit source-actor isolated-parameter dispatch, explicit waitingForActor handoff/cleanup, and mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions are covered.",
+      "ledgerRemainingWork": "Active demand cycle (2026-07-16): add arbitrary global actors, defaulted and optional isolated-parameter forms, remaining effectful-accessor failure/cancellation paths, and replayable mailbox stress, then finish per-feature fail-closed flips with no up-front global rejection; physical workers remain M9.",
       "requirements": [
         {
           "id": "logical-executor-identity",
@@ -739,16 +739,18 @@
           "ownedCaseIDs": [
             "actor-reentrancy",
             "actor-cross-actor-failure",
-            "actor-cross-actor-cancellation"
+            "actor-cross-actor-cancellation",
+            "actor-isolated-parameter"
           ],
           "evidenceCaseIDs": ["concurrent-executor-hop"],
           "testNames": [
             "ActorRuntimeTests/actorSuspensionReleasesAndRestoresCompleteNestedSegment",
             "ActorRuntimeTests/crossActorFailureRestoresCallerAndReleasesCallee",
-            "ActorRuntimeTests/crossActorCancellationRestoresCallerAndReleasesCallee"
+            "ActorRuntimeTests/crossActorCancellationRestoresCallerAndReleasesCallee",
+            "ActorRuntimeTests/isolatedParameterSelectsArgumentActorAndRejectsUnawaitedEntry"
           ],
           "gapEvidenceIDs": ["actor-reentrancy-isolated-dispatch"],
-          "notes": "Controlled same-source parity proves that an async actor message owns its synchronous prefix, releases the complete nested segment at a host suspension, permits a second message to mutate isolated state, and reacquires the same actor before resuming. A second exact case proves a cross-actor throwing-function hop: the callee owns its segment, releases it on error, the caller is restored before catch handling, and a later callee message retains both mutations. A third gated case cancels the source task while the callee is suspended, then proves callee reacquisition before cancellation observation, balanced release, caller restoration before catch, and subsequent callee progress. The shared runtime path balances task, clock, host, group, and explicit executor-hop suspensions. The second slice remains open for isolated parameters, arbitrary global actors, remaining effectful-accessor failure/cancellation paths, and replayable mailbox stress."
+          "notes": "Controlled same-source parity proves that an async actor message owns its synchronous prefix, releases the complete nested segment at a host suspension, permits a second message to mutate isolated state, and reacquires the same actor before resuming. A second exact case proves a cross-actor throwing-function hop: the callee owns its segment, releases it on error, the caller is restored before catch handling, and a later callee message retains both mutations. A third gated case cancels the source task while the callee is suspended, then proves callee reacquisition before cancellation observation, balanced release, caller restoration before catch, and subsequent callee progress. Required explicit source-actor isolated parameters now preserve syntax metadata, select their executor from the bound argument before function entry, allow already-owned synchronous entry, and reject unawaited cross-actor entry. The shared runtime path balances task, clock, host, group, and explicit executor-hop suspensions. The second slice remains open for arbitrary global actors, defaulted and optional isolated-parameter forms, remaining effectful-accessor failure/cancellation paths, and replayable mailbox stress."
         }
       ]
     },

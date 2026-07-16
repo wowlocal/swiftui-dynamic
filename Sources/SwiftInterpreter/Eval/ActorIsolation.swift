@@ -34,6 +34,56 @@ extension Interpreter {
         return nil
     }
 
+    /// Resolve dynamic isolation selected by a source function's `isolated`
+    /// parameter. Argument matching happens before the hop, exactly as native
+    /// Swift chooses the target executor from the call-site value. Static
+    /// declaration/receiver isolation and dynamic parameter isolation are
+    /// mutually exclusive source contracts.
+    func resolvedExecutor(
+        for closure: ClosureValue,
+        arguments: CallArguments
+    ) throws -> RuntimeExecutorKind? {
+        let declarationExecutor = try resolvedExecutor(for: closure)
+        let isolatedIndices = closure.parameters.indices.filter {
+            closure.parameters[$0].isIsolated
+        }
+        guard !isolatedIndices.isEmpty else { return declarationExecutor }
+        guard isolatedIndices.count == 1 else {
+            throw RuntimeError(
+                message: "a function may have only one isolated parameter",
+                fatal: true)
+        }
+        guard declarationExecutor == nil else {
+            throw RuntimeError(
+                message: "isolated parameter conflicts with declaration "
+                    + "executor isolation",
+                fatal: true)
+        }
+
+        let index = isolatedIndices[0]
+        let matched = matchedParameterArguments(
+            of: closure, to: arguments)
+        guard let argument = matched[index] else {
+            throw RuntimeError(
+                message: "isolated parameter '"
+                    + closure.parameters[index].name
+                    + "' requires an explicit runtime argument",
+                fatal: true)
+        }
+        if argument.isNil { return nil }
+        guard let value = argument.unwrappingInoutSlot.unwrappedOptionalOrSelf,
+              case .instance(let actor) = value,
+              actor.symbol.isActor,
+              let actorID = actor.actorID else {
+            throw RuntimeError(
+                message: "isolated parameter '"
+                    + closure.parameters[index].name
+                    + "' requires a source actor instance",
+                fatal: true)
+        }
+        return .actor(actorID)
+    }
+
     /// A source actor's instance computed property is isolated to that exact
     /// actor unless the declaration is explicitly `nonisolated`. Accessor
     /// execution shares the same executor capability as an isolated method;

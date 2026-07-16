@@ -692,7 +692,8 @@ extension Interpreter {
     }
 
     func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {
-        let calleeExecutor = try resolvedExecutor(for: closure)
+        let calleeExecutor = try resolvedExecutor(
+            for: closure, arguments: args)
         try requireSynchronousActorInvocationAccess(to: calleeExecutor)
         callDepth += 1
         defer { callDepth -= 1 }
@@ -970,7 +971,8 @@ extension Interpreter {
     /// Label-aware binding: labeled arguments match parameter labels, omitted
     /// defaulted parameters (including in the middle) fall back to their
     /// defaults, positional arguments fill unlabeled parameters in order, and
-    /// the unlabeled trailing closure binds to the LAST unbound parameter.
+    /// the unlabeled trailing closure binds to the first compatible unbound
+    /// function parameter.
     /// No-parameter closures get `$0`, `$1`, … shorthand bindings.
     /// Returns the copy-out list for `inout` arguments that need a write-back
     /// on return (box-backed ones alias live and need none).
@@ -996,86 +998,7 @@ extension Interpreter {
             return []
         }
 
-        // `{ index, char in … }` over enumerated() — one tuple argument
-        // splats across multiple parameters.
-        if closure.parameters.count > 1, args.arguments.count == 1,
-           let tuple = args.arguments[0].value.tupleValue,
-            tuple.values.count == closure.parameters.count {
-            for (parameter, value) in zip(closure.parameters, tuple.values) {
-                env.define(
-                    parameter.name,
-                    try resolveAnnotated(value, parameter: parameter),
-                    declaredTypeName: parameter.typeName)
-            }
-            return []
-        }
-
-        var labeled: [String: RuntimeValue] = [:]
-        var positionals: [RuntimeValue] = []
-        var unlabeledTrailing: [RuntimeValue] = []
-        for argument in args.arguments {
-            if let label = argument.label {
-                labeled[label] = argument.value
-            } else if argument.isTrailing {
-                unlabeledTrailing.append(argument.value)
-            } else {
-                positionals.append(argument.value)
-            }
-        }
-
-        var bound = [RuntimeValue?](repeating: nil, count: closure.parameters.count)
-        var positionalCursor = 0
-        for (index, parameter) in closure.parameters.enumerated() {
-            if parameter.isVariadic {
-                // `arguments: CVarArg...` — the labeled value (Swift labels
-                // only the first) plus every remaining positional; absent
-                // means empty, never a binding error.
-                var gathered: [RuntimeValue] = []
-                if let label = parameter.label, let value = labeled.removeValue(forKey: label) {
-                    gathered.append(value)
-                    gathered.append(contentsOf: positionals[positionalCursor...])
-                    positionalCursor = positionals.count
-                } else if parameter.label == nil {
-                    gathered.append(contentsOf: positionals[positionalCursor...])
-                    positionalCursor = positionals.count
-                }
-                // Each element resolves against the ELEMENT annotation —
-                // implicit members contextually type exactly like
-                // non-variadic arguments (TestStore.assert(_ steps: Step…)
-                // receiving `.send(action) { … }` factories).
-                gathered = try gathered.map { try resolveAnnotated($0, parameter: parameter) }
-                bound[index] = .native(gathered)
-                continue
-            }
-            if let label = parameter.label, let value = labeled.removeValue(forKey: label) {
-                bound[index] = value
-            } else if parameter.label == nil, positionalCursor < positionals.count {
-                bound[index] = positionals[positionalCursor]
-                positionalCursor += 1
-            }
-        }
-        // Leftover positionals fill remaining unbound params in order (calls
-        // that pass labeled params positionally — a tolerated looseness).
-        for (index, value) in zip(bound.indices.filter({ bound[$0] == nil }), positionals[positionalCursor...]) {
-            bound[index] = value
-        }
-        // The unlabeled trailing closure binds by SE-0286 forward scan:
-        // the FIRST unbound function-typed parameter
-        // (`getNavigationView { … }` fills `content:` even when defaulted
-        // Bools follow); falling back to the last unbound slot when no
-        // annotation is function-shaped.
-        for trailing in unlabeledTrailing.reversed() {
-            let accepts: (Int) -> Bool = { index in
-                let parameter = closure.parameters[index]
-                return parameter.isBuilderAttributed
-                    || parameter.typeAnnotation?.trimmedDescription.contains("->") == true
-            }
-            if let index = bound.indices.first(where: { bound[$0] == nil && accepts($0) }) {
-                bound[index] = trailing
-            } else if let index = bound.indices.last(where: { bound[$0] == nil }) {
-                bound[index] = trailing
-            }
-        }
+        let bound = matchedParameterArguments(of: closure, to: args)
 
         var writeBacks: [(name: String, slot: InoutSlot)] = []
         for (index, parameter) in closure.parameters.enumerated() {
@@ -1094,7 +1017,16 @@ extension Interpreter {
                     }
                     continue
                 }
-                var resolved = try resolveAnnotated(value, parameter: parameter)
+                let initiallyResolved: RuntimeValue
+                if parameter.isVariadic, let elements = value.arrayValue {
+                    initiallyResolved = .native(try elements.map {
+                        try resolveAnnotated($0, parameter: parameter)
+                    })
+                } else {
+                    initiallyResolved = try resolveAnnotated(
+                        value, parameter: parameter)
+                }
+                var resolved = initiallyResolved
                 // The result-builder transform: a closure bound to a
                 // @…Builder parameter collects its block's items when
                 // called instead of returning the last expression.
@@ -1130,5 +1062,91 @@ extension Interpreter {
             }
         }
         return writeBacks
+    }
+
+    /// Match evaluated source arguments to declaration parameters without
+    /// entering the callee. Executor selection for an `isolated` parameter
+    /// and ordinary environment binding must use exactly the same labels,
+    /// positional compatibility, variadics, and trailing-closure rules.
+    func matchedParameterArguments(
+        of closure: ClosureValue, to args: CallArguments
+    ) -> [RuntimeValue?] {
+        if closure.parameters.count > 1, args.arguments.count == 1,
+           let tuple = args.arguments[0].value.tupleValue,
+           tuple.values.count == closure.parameters.count {
+            return tuple.values.map(Optional.some)
+        }
+
+        var labeled: [String: RuntimeValue] = [:]
+        var positionals: [RuntimeValue] = []
+        var unlabeledTrailing: [RuntimeValue] = []
+        for argument in args.arguments {
+            if let label = argument.label {
+                labeled[label] = argument.value
+            } else if argument.isTrailing {
+                unlabeledTrailing.append(argument.value)
+            } else {
+                positionals.append(argument.value)
+            }
+        }
+
+        var bound = [RuntimeValue?](
+            repeating: nil, count: closure.parameters.count)
+        var positionalCursor = 0
+        for (index, parameter) in closure.parameters.enumerated() {
+            if parameter.isVariadic {
+                // `arguments: CVarArg...` — the labeled value (Swift labels
+                // only the first) plus every remaining positional; absent
+                // means empty, never a binding error.
+                var gathered: [RuntimeValue] = []
+                if let label = parameter.label,
+                   let value = labeled.removeValue(forKey: label) {
+                    gathered.append(value)
+                    gathered.append(contentsOf: positionals[positionalCursor...])
+                    positionalCursor = positionals.count
+                } else if parameter.label == nil {
+                    gathered.append(contentsOf: positionals[positionalCursor...])
+                    positionalCursor = positionals.count
+                }
+                bound[index] = .native(gathered)
+                continue
+            }
+            if let label = parameter.label,
+               let value = labeled.removeValue(forKey: label) {
+                bound[index] = value
+            } else if parameter.label == nil,
+                      positionalCursor < positionals.count {
+                bound[index] = positionals[positionalCursor]
+                positionalCursor += 1
+            }
+        }
+        // Leftover positionals fill remaining unbound params in order (calls
+        // that pass labeled params positionally — a tolerated looseness).
+        for (index, value) in zip(
+            bound.indices.filter { bound[$0] == nil },
+            positionals[positionalCursor...]
+        ) {
+            bound[index] = value
+        }
+        // The unlabeled trailing closure binds by SE-0286 forward scan: the
+        // first unbound function-typed parameter, or the last unbound slot.
+        for trailing in unlabeledTrailing.reversed() {
+            let accepts: (Int) -> Bool = { index in
+                let parameter = closure.parameters[index]
+                return parameter.isBuilderAttributed
+                    || parameter.typeAnnotation?.trimmedDescription
+                        .contains("->") == true
+            }
+            if let index = bound.indices.first(where: {
+                bound[$0] == nil && accepts($0)
+            }) {
+                bound[index] = trailing
+            } else if let index = bound.indices.last(where: {
+                bound[$0] == nil
+            }) {
+                bound[index] = trailing
+            }
+        }
+        return bound
     }
 }

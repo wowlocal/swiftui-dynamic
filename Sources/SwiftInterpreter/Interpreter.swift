@@ -723,7 +723,9 @@ public final class Interpreter {
                 isBuilderAttributed: parameter.attributes.contains {
                     $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
                 } || ClosureValue.Parameter.isBuilderAttributedType(parameter.type),
-                isVariadic: parameter.ellipsis != nil))
+                isVariadic: parameter.ellipsis != nil,
+                isIsolated: ClosureValue.Parameter.isIsolatedType(
+                    parameter.type)))
         }
         return result
     }

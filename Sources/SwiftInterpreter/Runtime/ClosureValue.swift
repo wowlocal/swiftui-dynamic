@@ -23,11 +23,15 @@ public final class ClosureValue {
         public let isBuilderAttributed: Bool
         /// `arguments: CVarArg...` — gathers zero-or-more into an array.
         public let isVariadic: Bool
+        /// `isolated Actor` / `isolated (any Actor)?` selects the callee's
+        /// executor from the runtime argument rather than from the function
+        /// declaration or receiver.
+        public let isIsolated: Bool
 
         public init(
             name: String, label: String? = nil, defaultValue: ExprSyntax? = nil,
             typeAnnotation: TypeSyntax? = nil, isBuilderAttributed: Bool = false,
-            isVariadic: Bool = false
+            isVariadic: Bool = false, isIsolated: Bool = false
         ) {
             self.name = name
             self.label = label
@@ -39,6 +43,7 @@ public final class ClosureValue {
             self.builderReturnTypeName = builderReturnType?.trimmedDescription
             self.isBuilderAttributed = isBuilderAttributed
             self.isVariadic = isVariadic
+            self.isIsolated = isIsolated
         }
 
         /// `@FloatingActionBuilder actions: () -> [FloatingAction]` — the
@@ -47,6 +52,21 @@ public final class ClosureValue {
             guard let attributed = type?.as(AttributedTypeSyntax.self) else { return false }
             return attributed.attributes.contains {
                 $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+            }
+        }
+
+        /// SwiftSyntax represents `isolated` as a type specifier on an
+        /// AttributedTypeSyntax. Keep this semantic bit independently from
+        /// the textual annotation so invocation does not need string parsing.
+        public static func isIsolatedType(_ type: TypeSyntax?) -> Bool {
+            guard let attributed = type?.as(AttributedTypeSyntax.self) else {
+                return false
+            }
+            return attributed.specifiers.contains { element in
+                guard case .simpleTypeSpecifier(let specifier) = element else {
+                    return false
+                }
+                return specifier.specifier.tokenKind == .keyword(.isolated)
             }
         }
 

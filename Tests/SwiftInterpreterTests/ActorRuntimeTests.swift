@@ -554,6 +554,93 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func isolatedParameterSelectsArgumentActorAndRejectsUnawaitedEntry()
+        async throws
+    {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "inspectIsolatedParameterOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectIsolatedParameterOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+            actor IsolatedParameterProbe {
+                var stored = 0
+
+                func addLocally(_ amount: Int) -> String {
+                    addToIsolatedParameter(self, by: amount)
+                }
+
+                func current() -> Int { stored }
+            }
+
+            func addToIsolatedParameter(
+                _ probe: isolated IsolatedParameterProbe,
+                by amount: Int
+            ) -> String {
+                let ownership = inspectIsolatedParameterOwnership(probe)
+                guard ownership == "owned" else { return ownership }
+                probe.stored += amount
+                return ownership + ":" + String(probe.stored)
+            }
+
+            func runIsolatedParameterProbe() async -> String {
+                let probe = IsolatedParameterProbe()
+                let first = await addToIsolatedParameter(probe, by: 2)
+                let second = await probe.addLocally(3)
+                let final = await probe.current()
+                return first + "|" + second + "|" + String(final)
+            }
+
+            await runIsolatedParameterProbe()
+            """)
+        guard case .closure(let operation)? = interpreter.globals.lookup(
+            "addToIsolatedParameter") else {
+            Issue.record("missing isolated-parameter operation")
+            return
+        }
+
+        #expect(result.stringValue == "owned:2|owned:5|5")
+        #expect(operation.parameters.map(\.isIsolated) == [true, false])
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+
+        do {
+            _ = try await Interpreter().runAsync(source: """
+                actor IsolatedParameterProbe {
+                    var stored = 0
+                }
+                func readIsolatedParameter(
+                    _ probe: isolated IsolatedParameterProbe
+                ) -> Int {
+                    probe.stored
+                }
+                let probe = IsolatedParameterProbe()
+                readIsolatedParameter(probe)
+                """)
+            Issue.record(
+                "isolated parameter entered synchronously without ownership")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "cross-actor synchronous call requires an awaited "
+                    + "actor-executor entry"))
+        }
+    }
+
+    @Test
     func crossActorFailureRestoresCallerAndReleasesCallee() async throws {
         let interpreter = Interpreter()
         interpreter.globals.define(

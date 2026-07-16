@@ -182,6 +182,18 @@
     "notes": "Exact output is owned|cancelled|owned|owned:owned:owned:2|owned in all 20 Swift 6.3.3 runs. Explicit gates establish cancellation after suspension and before resume; no FIFO, physical-thread, or unrelated scheduling order is asserted."
   },
   {
+    "id": "actor-isolated-parameter",
+    "fixture": "Fixtures/actor-isolated-parameter.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorIsolatedParameterProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A synchronous function with an isolated actor parameter executes on that argument's actor executor and may synchronously access and mutate the actor's isolated state.",
+    "notes": "Exact output is owned:2|owned:5|5 in all 20 Swift 6.3.3 runs. Sequential external awaits establish both isolated mutations without asserting physical threads or independent-message ordering."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",

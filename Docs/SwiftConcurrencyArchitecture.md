@@ -927,11 +927,15 @@ a host callback or dynamically constructed call from bypassing isolation.
 Externally awaited synchronous computed-property getters now acquire the exact
 receiver actor and execute through a common accessor context; unawaited dynamic
 entry fails closed, and explicit `nonisolated` metadata avoids over-isolation.
-Computed setters use that common context but require an already-owned actor
-segment; external mutation is rejected by native/compiler preflight rather than
-turned into a setter hop. Subscripts, isolated parameters, and
-failure/cancellation coverage remain open and must not be inferred from this
-stored-property/accessor and successful-resume subset.
+Computed and subscript setters use that common context but require an
+already-owned actor segment; external mutation is rejected by native/compiler
+preflight rather than turned into a setter hop. Awaited subscript getters use
+the same receiver-selected executor path. Required explicit source-actor
+`isolated` parameters retain syntax metadata and select their executor from the
+bound runtime argument before invocation; synchronous entry is legal only
+when that actor is already owned. Defaulted and optional isolated-parameter
+forms plus remaining accessor failure/cancellation coverage stay open and must
+not be inferred from this subset.
 
 ### 6.12 Actor reentrancy
 
@@ -964,9 +968,14 @@ already-owned execution and reject an invented external hop. The
 `actor-cross-actor-failure` fixture proves callee release and caller restoration
 around a throwing function hop. `actor-cross-actor-cancellation` uses a
 controlled gate to prove callee reacquisition before cancellation observation,
-followed by callee release and caller restoration. Effectful-accessor failure/
-cancellation, isolated-parameter dispatch, arbitrary global actors, and
-replayable mailbox stress remain open M5 work.
+followed by callee release and caller restoration. The
+`actor-isolated-parameter` fixture proves that ordinary argument matching and
+executor selection share one mapping: the required explicit actor argument is
+resolved before a hop, its mailbox is acquired for the complete synchronous
+body, and an already-owned same-actor call stays synchronous. Eager unowned
+entry and malformed dynamic values fail closed. Defaulted/optional isolated
+parameters, effectful-accessor failure/cancellation, arbitrary global actors,
+and replayable mailbox stress remain open M5 work.
 
 ### 6.13 Cancellation
 
