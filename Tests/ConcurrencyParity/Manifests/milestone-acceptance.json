@@ -884,8 +884,8 @@
       "title": "Async sequences and continuations",
       "status": "partial",
       "dependsOn": ["M5"],
-      "ledgerEvidence": "Protocol-level `for await` dispatches `makeAsyncIterator()` and suspending mutating `next()` witnesses through the ordinary evaluator/executor path. Exact same-source parity covers finite success, typed source failure, cooperative user-iterator cancellation, real suspension, iterator value-state copy-out, terminal `nil`, and registry cleanup. Task-group iteration remains separate M4 evidence.",
-      "ledgerRemainingWork": "Add early-exit, protocol-default, and host-bridged sequence coverage; then implement `AsyncStream`/`AsyncThrowingStream` and checked continuations on cooperative-default and MainActor executors with termination, cancellable-consumer, double-resume, abandonment, lifetime, and cleanup evidence.",
+      "ledgerEvidence": "Protocol-level `for await` dispatches `makeAsyncIterator()` and suspending mutating `next()` witnesses through the ordinary evaluator/executor path. Exact same-source parity covers finite success, typed source failure, cooperative user-iterator cancellation, early `break` plus per-iteration `defer` cleanup, real suspension, iterator value-state copy-out, terminal `nil`, and registry cleanup. Task-group iteration remains separate M4 evidence.",
+      "ledgerRemainingWork": "Add `return`/`continue`, protocol-default, and host-bridged sequence coverage; then implement `AsyncStream`/`AsyncThrowingStream` and checked continuations on cooperative-default and MainActor executors with termination, cancellable-consumer, double-resume, abandonment, lifetime, and cleanup evidence.",
       "requirements": [
         {
           "id": "protocol-iteration-streams-and-continuations",
@@ -896,7 +896,8 @@
           "ownedCaseIDs": [
             "protocol-async-sequence-iteration",
             "protocol-async-sequence-throwing",
-            "protocol-async-sequence-cancellation"
+            "protocol-async-sequence-cancellation",
+            "protocol-async-sequence-early-exit"
           ],
           "evidenceCaseIDs": [
             "task-group-iteration",
@@ -907,7 +908,7 @@
             "AsyncExecutionTests/protocolForAwaitPreservesMutatingIteratorAcrossSuspension"
           ],
           "gapEvidenceIDs": ["async-sequence-continuation-runtime"],
-          "notes": "The first protocol-level slice is a gap closure: before the production change, the async statement evaluator accepted only concrete RuntimeTaskGroup values and diagnosed a user AsyncSequence as a non-iterable instance; an initial direct witness call then exposed a second RED by losing mutating iterator state. The shared runtime now dispatches makeAsyncIterator and suspending next witnesses and reuses the ordinary async mutating-method copy-in/copy-out kernel. Exact same-source parity and focused cleanup evidence cover the finite success path. Follow-up characterizations prove typed source-failure projection and Swift's cooperative user-iterator cancellation rule: cancellation during next does not terminate the loop automatically, the iterator may observe the request and return an element, and the task may succeed while remaining marked cancelled. No production change was required for either. Group-specific iteration remains M4 evidence. Early exit, protocol-extension defaults, host-bridged sequences, streams (including cancellable consumers), and continuations remain open. The four generated public continuation entry points retain their strict native signature/isolation probe but no adapter route or runtime claim."
+          "notes": "The first protocol-level slice is a gap closure: before the production change, the async statement evaluator accepted only concrete RuntimeTaskGroup values and diagnosed a user AsyncSequence as a non-iterable instance; an initial direct witness call then exposed a second RED by losing mutating iterator state. The shared runtime now dispatches makeAsyncIterator and suspending next witnesses and reuses the ordinary async mutating-method copy-in/copy-out kernel. Exact same-source parity and focused cleanup evidence cover the finite success path. Follow-up characterizations prove typed source-failure projection, Swift's cooperative user-iterator cancellation rule, and early break cleanup: cancellation during next does not terminate the loop automatically, while break stops before a third next request and runs the current iteration's defer before post-loop code. No production change was required for those characterizations. Group-specific iteration remains M4 evidence. Return/continue control flow, protocol-extension defaults, host-bridged sequences, streams (including cancellable consumers), and continuations remain open. The four generated public continuation entry points retain their strict native signature/isolation probe but no adapter route or runtime claim."
         }
       ]
     },

@@ -1831,5 +1831,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Cancelling a task while a user AsyncIterator.next() is suspended does not automatically terminate for-await iteration. Cancellation remains cooperative: the iterator resumes, observes its task's request, may return an element that the loop consumes, and the task may complete successfully while remaining marked cancelled.",
     "notes": "A MainActor gate forces cancel() after next() enters and before it resumes. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 1:7:true:true. The iterator chooses value 7 only when it observes cancellation, then returns nil on its next call. No physical-thread or unrelated ready-task order is asserted; cancellable streams are a separate M6 question."
+  },
+  {
+    "id": "protocol-async-sequence-early-exit",
+    "fixture": "Fixtures/protocol-async-sequence-early-exit.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceEarlyExitProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Breaking from protocol for-await iteration stops requesting elements immediately. The current iteration's defer runs before control reaches the statement after the loop, just as it does for earlier normally completed iterations.",
+    "notes": "The iterator has no terminal nil path, so exact completion proves that break prevents a third next call. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 12:2:next-1,defer-1,next-2,defer-2,after. Task.yield forces real suspension in every next call; no physical-thread or unrelated ready-task order is asserted."
   }
 ]
