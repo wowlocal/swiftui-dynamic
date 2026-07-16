@@ -1807,5 +1807,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Protocol for-await iteration obtains a user-defined AsyncSequence iterator and repeatedly awaits its mutating next() operation until nil. Each nonnil element is delivered exactly once; a real Task.yield suspension inside next() does not duplicate, skip, or terminate iteration.",
     "notes": "Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 3:6. Count and a commutative sum avoid any scheduler-order claim; physical threads, unrelated ready-task order, throwing iteration, cancellation, early exit, and host-backed sequences are outside this first M6 success slice."
+  },
+  {
+    "id": "protocol-async-sequence-throwing",
+    "fixture": "Fixtures/protocol-async-sequence-throwing.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceThrowingProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "When a mutating AsyncIterator.next() throws a typed source error after two successful suspending results, for try await terminates without delivering an element for the throwing call and the enclosing case-specific catch handles that exact error.",
+    "notes": "Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 2:3:caught. Count and sum record only the two successful elements; the case-specific catch proves source-error identity without expanding this sequence test into associated-value catch-pattern support. Physical threads, unrelated scheduling, cancellation, early exit, and host-backed sequences are not asserted."
   }
 ]
