@@ -48,10 +48,14 @@ if ! is_positive_integer "$detected_jobs"; then detected_jobs=4; fi
 if (( detected_jobs > 8 )); then detected_jobs=8; fi
 if ! gate_jobs=$(positive_integer_value GATE_JOBS "$detected_jobs"); then exit 2; fi
 
-default_parity_workers=$(( gate_jobs / 2 ))
-if (( default_parity_workers < 1 )); then default_parity_workers=1; fi
-default_test_workers=$(( gate_jobs - default_parity_workers ))
+# Runtime parity now owns thousands of fresh-process repetitions, while the
+# ordinary suite finishes much earlier. Give the long lane three quarters of
+# the fixed test-stage budget. Both required pools retain a one-worker floor;
+# for budgets of two or more their sum remains exactly gate_jobs.
+default_test_workers=$(( gate_jobs / 4 ))
 if (( default_test_workers < 1 )); then default_test_workers=1; fi
+default_parity_workers=$(( gate_jobs - default_test_workers ))
+if (( default_parity_workers < 1 )); then default_parity_workers=1; fi
 default_eval_workers=$(( gate_jobs / 2 ))
 if (( default_eval_workers < 1 )); then default_eval_workers=1; fi
 default_live_workers=$gate_jobs
