@@ -1457,3 +1457,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   recordDrops flag; all 20 hostedRealRender cases +
   taskObservatoryExample pass. Instrument lesson logged: keep gate logs
   (GATE_KEEP_LOGS) BEFORE re-rolling a red gate.
+- 2026-07-16 THE FORECAST CHART RENDERS (worktree iteration 6): the
+  two-pass divergence root was the WeatherKit absorb — the card's .task
+  called WeatherService.shared.weather(for:including:), the interpreter
+  ABSORBED it into a stub (headless native THROWS without the
+  entitlement), the map produced empty entries, and the state write
+  overwrote placeholderForecast — the re-render pass drew an empty
+  chart while the first pass had drawn marks. Fix per the scope
+  quarantine + AGENTS.md documented allowlist: entitlement-gated
+  service types FAIL CLOSED — a new environmentalServiceTypes allowlist
+  (WeatherService) at the HostTypeMarker seam throws a catchable
+  NSError-backed InterpretedThrow from any member call; the app's own
+  catch keeps the sample data, exactly like compiled headless. The
+  interpreted forecast card now renders the gradient temperature curve,
+  masked night band, and pillar marks. Board: truck/detail-truck
+  11.889%→12.625% (+0.74pp, ACCEPTED structure-first: the rendered
+  chart's DEFAULT axes diverge more from the twin's custom axes than
+  the old blank card did — same trade as iter 239, and the completing
+  class is staked: the AxisMarks/AxisValueLabel/AxisTick/AxisGridLine/
+  DateBins axis DSL, plus the annotation icons and the masked-band
+  color). Pin: EnvironmentalServiceTests (throw + catch keeps state).

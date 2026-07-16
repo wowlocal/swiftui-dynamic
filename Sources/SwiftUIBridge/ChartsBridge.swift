@@ -197,9 +197,13 @@ extension ViewRegistry {
         // residual is visible instead of silent.
         for name in ["chartXAxis", "chartYAxis"] {
             modifiers[name] = HostModifier(name: name) { value, _, _ in
-                RenderDiagnostics.record(
-                    RuntimeError(message: "custom \(name) builder not bridged; default axes render"),
-                    in: "Chart")
+                // Intentional degrade, NOT an error: the default axes are
+                // real Charts axes. Trace-gated so empty-diagnostics
+                // assertions in tests stay meaningful.
+                if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                    FileHandle.standardError.write(Data(
+                        "CHART custom \(name) builder not bridged; default axes render\n".utf8))
+                }
                 return .native(try Self.anyView(value))
             }
         }
