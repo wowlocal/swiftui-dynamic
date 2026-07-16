@@ -1477,3 +1477,29 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   class is staked: the AxisMarks/AxisValueLabel/AxisTick/AxisGridLine/
   DateBins axis DSL, plus the annotation icons and the masked-band
   color). Pin: EnvironmentalServiceTests (throw + catch keeps state).
+- 2026-07-17 CHART AXIS DSL + stdlib sweep (worktree iteration 7):
+  truck/detail-truck **11.889% → 4.336%** — the completing class landed.
+  Two roots: (1) the axis DSL is bridged through the ChartsBridge
+  magic-tier gateway — DateBins(unit:by:range:) (real, ClosedRange
+  Date), AxisMarks (values array / .automatic(minimumStride:
+  desiredCount:roundLowerBound:)), AxisValueLabel (string +
+  format: .dateTime chains), AxisTick/AxisGridLine, composed via
+  AnyAxisMark(erasing: AxisMarkBuilder.buildBlock(...)) count-switch;
+  the per-value content closure runs INTERPRETED through an
+  AxisMarksSpec carrier (InterpretedLayout pattern — Charts calls it at
+  layout), with AxisValue.as(Double/Int/Date/String) host members.
+  (2) binRange's `first(where:)!` returned nil because Int.isMultiple
+  (of:) was UNBRIDGED — a STDLIB protocol-extension member: BridgeGen
+  now sweeps the Swift stdlib swiftinterface with the same
+  protocol-receiver expansion (Self params/returns resolve to the
+  concrete carrier in both mapping and contract). The forecast card
+  now renders hour labels, °F labels, gradient curve, night band —
+  near twin-identical. Same-day board (twin refreshed; the frozen
+  clock shadows Date.now but Calendar.isDateInToday compares REAL
+  now, so cross-day twin captures go stale — documented): truck/
+  detail-truck 4.336%, orders family 0.777-0.869%, orders-after-steps
+  3.144%, donuts 1.041% (+0.6pp residual, staked), card-orders
+  2.385%, socialfeed 17.155%, content 26.201%, four AE=0 rows hold.
+  Remaining truck residue: pillar .shadow(.drop) style + annotation
+  icons. Pins: InterpretedChartTests.customAxisBuildersRender
+  InterpretedLabels (pixel), StdlibNumericMemberTests.

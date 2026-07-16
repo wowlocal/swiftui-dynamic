@@ -182,6 +182,91 @@ extension ViewRegistry {
             throw RuntimeError(message: "BarMark argument shape not bridged yet")
         }
 
+        constructors["DateBins"] = HostFunction(name: "DateBins") { args, _ in
+            var unit = Calendar.Component.hour
+            if case .implicitMember(let name)? = args.labeled("unit") {
+                switch name {
+                case "hour": unit = .hour
+                case "day": unit = .day
+                case "minute": unit = .minute
+                case "month": unit = .month
+                default: break
+                }
+            }
+            let stride = args.labeled("by")?.intValue ?? 1
+            guard let rawRange = args.labeled("range"),
+                  case .range(let range) = rawRange,
+                  case .host(let lowerAny)? = range.lowerBound, let lower = lowerAny as? Date,
+                  case .host(let upperAny)? = range.upperBound, let upper = upperAny as? Date else {
+                throw RuntimeError(message: "DateBins needs unit:by:range: with a Date range")
+            }
+            return .native(DateBins(unit: unit, by: stride, range: lower...upper))
+        }
+
+        constructors["AxisTick"] = HostFunction(name: "AxisTick") { _, _ in
+            .native(AnyAxisMark(erasing: AxisTick()))
+        }
+        constructors["AxisGridLine"] = HostFunction(name: "AxisGridLine") { _, _ in
+            .native(AnyAxisMark(erasing: AxisGridLine()))
+        }
+        constructors["AxisValueLabel"] = HostFunction(name: "AxisValueLabel") { args, _ in
+            if let format = args.labeled("format") {
+                if let style = dateFormatStyle(format) {
+                    return .native(AnyAxisMark(erasing: AxisValueLabel(format: style)))
+                }
+                throw RuntimeError(message: "AxisValueLabel format shape not bridged yet")
+            }
+            let label = args.positional(0)?.stringValue ?? ""
+            return .native(AnyAxisMark(erasing: AxisValueLabel(label)))
+        }
+
+        constructors["AxisMarks"] = HostFunction(name: "AxisMarks") { args, ctx in
+            guard let interpreter = ctx as? Interpreter else {
+                throw RuntimeError(message: "AxisMarks needs the interpreter")
+            }
+            let content = args.firstUnlabeledClosure
+            var values: AxisMarkValues = .automatic
+            if case .host(let any)? = args.labeled("values"), let call = any as? ImplicitMemberCall,
+               call.name == "automatic" {
+                if let stride = call.arguments.labeled("minimumStride")?.doubleValue {
+                    values = .automatic(
+                        minimumStride: stride,
+                        desiredCount: call.arguments.labeled("desiredCount")?.intValue,
+                        roundLowerBound: call.arguments.labeled("roundLowerBound")?.boolValue)
+                } else {
+                    values = .automatic(
+                        desiredCount: call.arguments.labeled("desiredCount")?.intValue,
+                        roundLowerBound: call.arguments.labeled("roundLowerBound")?.boolValue)
+                }
+            } else if let raw = args.labeled("values") {
+                var dates: [Date] = []
+                var numbers: [Double] = []
+                for element in raw.arrayValue ?? [] {
+                    if case .host(let any) = element, let date = any as? Date {
+                        dates.append(date)
+                    } else if let number = element.doubleValue {
+                        numbers.append(number)
+                    }
+                }
+                if !dates.isEmpty {
+                    return .native(AxisMarksSpec(
+                        dateValues: dates, automatic: nil, content: content, interpreter: interpreter))
+                }
+                if !numbers.isEmpty {
+                    return .native(AxisMarksSpec(
+                        numberValues: numbers, content: content, interpreter: interpreter))
+                }
+            }
+            return .native(AxisMarksSpec(automatic: values, content: content, interpreter: interpreter))
+        }
+
+        modifiers["chartXAxis"] = HostModifier(name: "chartXAxis") { value, args, ctx in
+            try Self.applyAxis(value, args, ctx, isX: true)
+        }
+        modifiers["chartYAxis"] = HostModifier(name: "chartYAxis") { value, args, ctx in
+            try Self.applyAxis(value, args, ctx, isX: false)
+        }
+
         modifiers["chartYScale"] = HostModifier(name: "chartYScale") { value, args, _ in
             let view = try Self.anyView(value)
             if case .host(let any)? = args.labeled("domain"), let call = any as? ImplicitMemberCall,
@@ -192,21 +277,33 @@ extension ViewRegistry {
             }
             return .native(view)
         }
-        // Custom axis builders (AxisMarks DSL) are not bridged yet: the
-        // DEFAULT axes render (real Charts), and the gap is recorded so the
-        // residual is visible instead of silent.
-        for name in ["chartXAxis", "chartYAxis"] {
-            modifiers[name] = HostModifier(name: name) { value, _, _ in
-                // Intentional degrade, NOT an error: the default axes are
-                // real Charts axes. Trace-gated so empty-diagnostics
-                // assertions in tests stay meaningful.
-                if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
-                    FileHandle.standardError.write(Data(
-                        "CHART custom \(name) builder not bridged; default axes render\n".utf8))
-                }
-                return .native(try Self.anyView(value))
-            }
+    }
+
+    static func applyAxis(
+        _ value: RuntimeValue, _ args: CallArguments, _ ctx: EvalContext, isX: Bool
+    ) throws -> RuntimeValue {
+        let view = try Self.anyView(value)
+        guard let closure = args.firstUnlabeledClosure,
+              let interpreter = ctx as? Interpreter else {
+            return .native(view)
         }
+        let specs = try interpreter.callBuilderClosure(closure, arguments: [])
+            .compactMap { collected -> AxisMarksSpec? in
+                if case .host(let any) = collected { return any as? AxisMarksSpec }
+                return nil
+            }
+        guard let spec = specs.first else {
+            // No bridgeable AxisMarks in the builder — real default axes.
+            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                FileHandle.standardError.write(Data(
+                    "CHART axis builder produced no AxisMarks; default axes render\n".utf8))
+            }
+            return .native(view)
+        }
+        if isX {
+            return .native(AnyView(view.chartXAxis { spec.marks() }))
+        }
+        return .native(AnyView(view.chartYAxis { spec.marks() }))
     }
 
     /// Builder output → real chart contents (ForEach fans splice like views).
@@ -347,5 +444,136 @@ func chartContentMember(_ name: String, on value: Any) -> RuntimeValue? {
         })
     default:
         return nil
+    }
+}
+
+
+/// `.dateTime.hour()`-style Date.FormatStyle chains for AxisValueLabel.
+private func dateFormatStyle(_ value: RuntimeValue) -> Date.FormatStyle? {
+    if case .implicitMember("dateTime") = value { return Date.FormatStyle() }
+    if case .host(let any) = value, let chained = any as? ChainedImplicitCall,
+       let base = dateFormatStyle(chained.base) {
+        switch chained.member {
+        case "hour": return base.hour()
+        case "minute": return base.minute()
+        case "day": return base.day()
+        case "month": return base.month()
+        case "year": return base.year()
+        default: return nil
+        }
+    }
+    return nil
+}
+
+/// AxisMarks carrier: builds the REAL AxisMarks whose per-value content
+/// closure runs the interpreted builder (the InterpretedLayout pattern —
+/// Charts calls it on the main thread during layout).
+final class AxisMarksSpec: @unchecked Sendable {
+    nonisolated(unsafe) private let dateValues: [Date]?
+    nonisolated(unsafe) private let numberValues: [Double]?
+    nonisolated(unsafe) private let automatic: AxisMarkValues?
+    nonisolated(unsafe) private let content: ClosureValue?
+    nonisolated(unsafe) private let interpreter: Interpreter
+
+    @MainActor
+    init(dateValues: [Date]? = nil, numberValues: [Double]? = nil,
+         automatic: AxisMarkValues?, content: ClosureValue?, interpreter: Interpreter) {
+        self.dateValues = dateValues
+        self.numberValues = numberValues
+        self.automatic = automatic
+        self.content = content
+        self.interpreter = interpreter
+    }
+
+    @MainActor
+    convenience init(numberValues: [Double], content: ClosureValue?, interpreter: Interpreter) {
+        self.init(dateValues: nil, numberValues: numberValues,
+                  automatic: nil, content: content, interpreter: interpreter)
+    }
+
+    nonisolated func marks() -> AnyAxisContent {
+        if let dateValues {
+            return AnyAxisContent(erasing: AxisMarks(values: dateValues) { value in
+                self.builtMarks(for: value)
+            })
+        }
+        if let numberValues {
+            return AnyAxisContent(erasing: AxisMarks(values: numberValues) { value in
+                self.builtMarks(for: value)
+            })
+        }
+        return AnyAxisContent(erasing: AxisMarks(values: automatic ?? .automatic) { value in
+            self.builtMarks(for: value)
+        })
+    }
+
+    private nonisolated func builtMarks(for value: AxisValue) -> AnyAxisMark {
+        nonisolated(unsafe) let carried = value
+        nonisolated(unsafe) var result = AnyAxisMark(erasing: AxisTick())
+        MainActor.assumeIsolated {
+            guard let content = self.content else { return }
+            do {
+                let values = try self.interpreter.callBuilderClosure(
+                    content, arguments: [.native(carried)])
+                let marks = values.compactMap { collected -> AnyAxisMark? in
+                    if case .host(let any) = collected { return any as? AnyAxisMark }
+                    return nil
+                }
+                switch marks.count {
+                case 0: break
+                case 1: result = marks[0]
+                case 2: result = AnyAxisMark(erasing: AxisMarkBuilder.buildBlock(marks[0], marks[1]))
+                default: result = AnyAxisMark(erasing: AxisMarkBuilder.buildBlock(marks[0], marks[1], marks[2]))
+                }
+            } catch let error as RuntimeError {
+                RenderDiagnostics.record(error, in: "AxisMarks")
+            } catch {
+            }
+        }
+        return result
+    }
+}
+
+/// AxisValue members: `value.as(Double.self)` in axis label closures.
+@MainActor
+func axisValueMember(_ name: String, on value: Any) -> RuntimeValue? {
+    guard let axisValue = value as? AxisValue else { return nil }
+    switch name {
+    case "as":
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            let typeName: String? = {
+                if case .host(let any)? = args.positional(0),
+                   let marker = any as? HostTypeMarker { return marker.name }
+                if case .hostFunction(let function)? = args.positional(0) { return function.name }
+                return nil
+            }()
+            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                FileHandle.standardError.write(Data(
+                    "AXISVALUE .as arg=\(String(describing: args.positional(0)).prefix(80)) typeName=\(typeName ?? "nil") asDouble=\(String(describing: axisValue.as(Double.self)))\n".utf8))
+            }
+            switch typeName {
+            case "Double", "CGFloat":
+                return .optional(
+                    axisValue.as(Double.self).map { RuntimeValue.native($0) },
+                    wrappedTypeName: "Double")
+            case "Int":
+                return .optional(
+                    axisValue.as(Int.self).map { RuntimeValue.native($0) },
+                    wrappedTypeName: "Int")
+            case "Date":
+                return .optional(
+                    axisValue.as(Date.self).map { RuntimeValue.native($0) },
+                    wrappedTypeName: "Date")
+            case "String":
+                return .optional(
+                    axisValue.as(String.self).map { RuntimeValue.native($0) },
+                    wrappedTypeName: "String")
+            default:
+                return .optional(nil, wrappedTypeName: typeName ?? "Any")
+            }
+        })
+    case "index": return .native(axisValue.index)
+    case "count": return .native(axisValue.count)
+    default: return nil
     }
 }

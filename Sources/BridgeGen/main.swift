@@ -902,6 +902,10 @@ let memberTypes: Set<String> = [
 /// interpreter's numeric payloads are Int and Double, so members Foundation
 /// publishes on the numeric protocols (`formatted()` and the FormatStyle
 /// family) register once per carrier the dispatch can actually receive.
+/// While sweeping a protocol extension for a concrete carrier, `Self`
+/// params/returns mean the carrier (`isMultiple(of other: Self)`).
+var currentSelfCarrier: String?
+
 let protocolReceivers: [String: [String]] = [
     "BinaryInteger": ["Int"],
     "SignedInteger": ["Int"],
@@ -911,6 +915,9 @@ let protocolReceivers: [String: [String]] = [
 ]
 
 func memberMapping(for normalized: String) -> TypeMapping? {
+    if normalized == "Self", let carrier = currentSelfCarrier {
+        return memberMapping(for: carrier)
+    }
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
     case "Bool": return .init(tag: "bool", cast: "%@ as! Bool")
@@ -1090,7 +1097,9 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
                 .init(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
-                    contractType: $0.contractType!)
+                    // Protocol-receiver expansion: `Self` params contract
+                    // as the concrete carrier (Int.isMultiple(of: Int)).
+                    contractType: $0.contractType == "Self" ? typeName : $0.contractType!)
             }
         )
         if memberMethodSeen.insert(variant.key).inserted {
@@ -1152,10 +1161,11 @@ let foundationFile: SourceFileSyntax? = {
     return Parser.parse(source: source)
 }()
 
-if let foundationFile {
-    for statement in foundationFile.statements {
+func sweepMemberFile(_ file: SourceFileSyntax) {
+    for statement in file.statements {
         guard case .decl(let decl) = statement.item else { continue }
         var typeNames: [String] = []
+        var isProtocolExpansion = false
         var members: MemberBlockItemListSyntax?
         var guarded = false
         if let structDecl = decl.as(StructDeclSyntax.self),
@@ -1170,6 +1180,7 @@ if let foundationFile {
                 typeNames = [extended]
             } else if let carriers = protocolReceivers[extended] {
                 typeNames = carriers
+                isProtocolExpansion = true
             }
             if !typeNames.isEmpty {
                 members = ext.memberBlock.members
@@ -1178,6 +1189,7 @@ if let foundationFile {
         }
         guard !typeNames.isEmpty, let members else { continue }
         for typeName in typeNames {
+            currentSelfCarrier = isProtocolExpansion ? typeName : nil
             for member in members {
                 if let function = member.decl.as(FunctionDeclSyntax.self), memberIsUsable(function.attributes) {
                     processMemberFunction(typeName, function, guarded: guarded)
@@ -1185,8 +1197,34 @@ if let foundationFile {
                     processMemberProperty(typeName, variable, guarded: guarded)
                 }
             }
+            currentSelfCarrier = nil
         }
     }
+}
+
+if let foundationFile {
+    sweepMemberFile(foundationFile)
+}
+
+// The STDLIB owns the numeric protocol surface (isMultiple(of:), …);
+// Foundation only ADDS formatted(). Same sweep, same receiver gates.
+let stdlibFile: SourceFileSyntax? = {
+    let moduleDir = "\(sdk)/usr/lib/swift/Swift.swiftmodule"
+    let candidates = ((try? FileManager.default.contentsOfDirectory(atPath: moduleDir)) ?? [])
+        .filter { $0.hasSuffix("-apple-macos.swiftinterface") }
+        .sorted()
+    let architecturePrefix = hostArchitecture == "arm64" ? "arm64" : hostArchitecture
+    guard let name = candidates.first(where: { $0.hasPrefix(architecturePrefix) }) ?? candidates.first,
+          let source = try? String(contentsOfFile: "\(moduleDir)/\(name)", encoding: .utf8) else {
+        print("warning: no swiftinterface for the Swift stdlib")
+        return nil
+    }
+    print("parsing Swift stdlib (\(source.count) chars)…")
+    return Parser.parse(source: source)
+}()
+
+if let stdlibFile {
+    sweepMemberFile(stdlibFile)
 }
 
 // MARK: - Report

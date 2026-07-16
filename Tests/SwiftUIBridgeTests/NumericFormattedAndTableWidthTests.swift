@@ -50,3 +50,20 @@ import Testing
         #expect(ranged.maxWidth == 30)
     }
 }
+
+/// The stdlib protocol-extension sweep (BinaryInteger & friends expand to
+/// their concrete carriers) — isMultiple(of:) gated FoodTruck's DateBins
+/// binRange computation; contract types resolve Self -> carrier.
+@Suite struct StdlibNumericMemberTests {
+    @MainActor
+    @Test func isMultipleMatchesNative() throws {
+        let source = """
+        let yes = 9.isMultiple(of: 3)
+        let no = 10.isMultiple(of: 3)
+        """
+        let interpreter = Interpreter(registry: ViewRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("yes")?.boolValue == true)
+        #expect(interpreter.globals.lookup("no")?.boolValue == false)
+    }
+}
