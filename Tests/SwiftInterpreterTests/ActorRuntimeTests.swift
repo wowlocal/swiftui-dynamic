@@ -481,6 +481,78 @@ struct ActorRuntimeTests {
         }
     }
 
+    @Test
+    func actorSubscriptSetterRequiresOwnedSynchronousEntry() async throws {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "inspectSubscriptSetterOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectSubscriptSetterOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+            actor SetterProbe {
+                var stored = 0
+                var setterOwnership = "unset"
+
+                subscript(_ index: Int) -> Int {
+                    get { stored + index }
+                    set {
+                        setterOwnership = inspectSubscriptSetterOwnership(self)
+                        stored = newValue
+                    }
+                }
+
+                func assign(_ newValue: Int) -> String {
+                    self[0] = newValue
+                    return setterOwnership + ":" + String(stored)
+                }
+            }
+
+            func runSetterProbe() async -> String {
+                let probe = SetterProbe()
+                return await probe.assign(7)
+            }
+
+            await runSetterProbe()
+            """)
+
+        #expect(result.stringValue == "owned:7")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+
+        do {
+            _ = try await Interpreter().runAsync(source: """
+                actor SetterProbe {
+                    subscript(_ index: Int) -> Int {
+                        get { index }
+                        set {}
+                    }
+                }
+                let probe = SetterProbe()
+                probe[0] = 1
+                """)
+            Issue.record(
+                "actor subscript setter executed without executor ownership")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "cross-actor synchronous call requires an awaited "
+                    + "actor-executor entry"))
+        }
+    }
+
     private static func instance(from value: RuntimeValue?) -> Instance? {
         guard case .instance(let instance)? = value else { return nil }
         return instance

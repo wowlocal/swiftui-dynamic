@@ -272,7 +272,10 @@ native Swift rejects external mutation even with `await`, so the shared
 accessor context requires the caller to already own the receiver actor. An
 externally awaited synchronous subscript getter uses that same mailbox and
 accessor context after evaluating its base once and its indices before the hop;
-an explicit `nonisolated` subscript stays on the caller executor.
+an explicit `nonisolated` subscript stays on the caller executor. A synchronous
+subscript setter also uses the common accessor context and requires an
+already-owned actor segment. Native Swift rejects external subscript mutation
+even when it is prefixed with `await`; no setter hop is synthesized.
 
 This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
@@ -281,7 +284,6 @@ complete actor isolation. Remaining actor work includes:
 - complete native evidence for cross-actor executor hops and every failure or
   cancellation exit;
 - replayable mailbox/reentrancy stress;
-- complete actor-subscript setter legality and confinement;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
 
@@ -951,9 +953,11 @@ accessor segment. The `actor-computed-setter` fixture proves legal setter
 execution inside an already-owned actor method, while a diagnostic fixture
 proves that external mutation cannot be made into a hop with `await`. The
 `actor-subscript-getter` fixture proves the corresponding externally awaited
-getter segment and explicit-nonisolated exception. Failure, cancellation,
-actor-subscript setters, isolated-parameter dispatch, arbitrary global actors,
-and replayable mailbox stress remain open M5 work.
+getter segment and explicit-nonisolated exception. The
+`actor-subscript-setter` fixture plus its compiler-diagnostic twin prove legal
+already-owned execution and reject an invented external hop. Failure,
+cancellation, isolated-parameter dispatch, arbitrary global actors, and
+replayable mailbox stress remain open M5 work.
 
 ### 6.13 Cancellation
 

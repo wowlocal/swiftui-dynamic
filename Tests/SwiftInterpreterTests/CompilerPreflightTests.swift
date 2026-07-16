@@ -62,6 +62,36 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func requiredModeRejectsExternalActorSubscriptSetterBeforeMutation()
+        async throws
+    {
+        let engine = try Self.activePreflight()
+        let interpreter = Interpreter(compilerPreflight: engine)
+        let source = try Self.fixture(
+            "actor-subscript-setter-diagnostic.swift")
+
+        do {
+            _ = try await interpreter.runAsync(source: source)
+            Issue.record(
+                "external actor subscript setter unexpectedly executed")
+        } catch let rejection as CompilerPreflightRejection {
+            #expect(!rejection.result.succeeded)
+            #expect(rejection.result.diagnostics.contains {
+                $0.severity == .error
+                    && $0.file == "input.swift"
+                    && $0.line == 9
+                    && $0.message.contains("actor-isolated subscript")
+                    && $0.message.contains(
+                        "can not be mutated from a nonisolated context")
+            })
+        }
+
+        #expect(interpreter.lastCompilerPreflightResult?.succeeded == false)
+        #expect(interpreter.globals.lookup("SubscriptSetterCounter") == nil)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
     func diagnosticsOnlyModeRetainsErrorsAndAllowsEditorRecovery() throws {
         let engine = try Self.activePreflight()
         let interpreter = Interpreter(

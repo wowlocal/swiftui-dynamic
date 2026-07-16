@@ -662,19 +662,40 @@ extension Interpreter {
     func runUserSubscriptSetter(
         _ symbol: StructSymbol, selfValue: RuntimeValue, args: CallArguments, newValue: RuntimeValue
     ) throws {
-        guard let member = symbol.subscripts.first(where: { $0.parameters.count == args.arguments.count })
-            ?? symbol.subscripts.first else {
-            throw RuntimeError(message: "'\(symbol.name)' has no subscript")
-        }
+        let member = try userSubscriptMember(
+            in: symbol, argumentCount: args.arguments.count)
+        try runUserSubscriptSetter(
+            member,
+            symbolName: symbol.name,
+            selfValue: selfValue,
+            args: args,
+            newValue: newValue)
+    }
+
+    private func runUserSubscriptSetter(
+        _ member: StructSymbol.SubscriptMember,
+        symbolName: String,
+        selfValue: RuntimeValue,
+        args: CallArguments,
+        newValue: RuntimeValue
+    ) throws {
         guard let setter = member.setter else {
-            throw RuntimeError(message: "subscript on '\(symbol.name)' is get-only")
+            throw RuntimeError(message: "subscript on '\(symbolName)' is get-only")
         }
-        let env = selfEnvironment(selfValue)
-        for (parameter, argument) in zip(member.parameters, args.arguments) {
-            env.define(parameter.name, try resolveAnnotated(argument.value, parameter: parameter))
+        try withUserSubscriptContext(
+            member, selfValue: selfValue, symbolName: symbolName
+        ) { env in
+            for (parameter, argument) in zip(
+                member.parameters, args.arguments
+            ) {
+                env.define(
+                    parameter.name,
+                    try resolveAnnotated(
+                        argument.value, parameter: parameter))
+            }
+            env.define(setter.parameterName, newValue)
+            _ = try executeBlock(setter.body, in: env)
         }
-        env.define(setter.parameterName, newValue)
-        _ = try executeBlock(setter.body, in: env)
     }
 
     private func withAccessorContext<T>(

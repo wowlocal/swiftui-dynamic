@@ -57,10 +57,11 @@ extension Interpreter {
         return .actor(actorID)
     }
 
-    /// A source actor's synchronous subscript getter follows the same
-    /// receiver-isolation rule as an instance computed property. The caller's
-    /// suspending expression path owns mailbox acquisition; eager access may
-    /// only proceed when the current task already owns the actor.
+    /// A source actor's synchronous subscript accessor follows the same
+    /// receiver-isolation rule as an instance computed property. An awaited
+    /// getter's suspending expression path owns mailbox acquisition; every
+    /// eager getter or setter may proceed only when the current task already
+    /// owns the actor.
     func resolvedExecutor(
         for subscriptMember: StructSymbol.SubscriptMember,
         on instance: Instance

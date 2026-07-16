@@ -134,6 +134,18 @@
     "notes": "Exact output is owned:1|owned:3|unowned|3 in all 20 Swift 6.3.3 runs. Sequential awaits establish both isolated mutations; no FIFO, physical-thread, independent-message ordering, or setter behavior is asserted."
   },
   {
+    "id": "actor-subscript-setter",
+    "fixture": "Fixtures/actor-subscript-setter.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorSubscriptSetterProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A synchronous actor subscript setter invoked from an actor-isolated method executes inside that method's actor-owned executor segment and may mutate actor-isolated storage.",
+    "notes": "Exact output is owned:7|owned:11 in all 20 Swift 6.3.3 runs. Sequential awaited method calls establish both assignments; no external setter hop, physical-thread behavior, or independent-message order is asserted."
+  },
+  {
     "id": "actor-reentrancy",
     "fixture": "Fixtures/actor-reentrancy.swift",
     "mode": "runtime",
@@ -1317,6 +1329,18 @@
     "diagnosticLine": 9,
     "nativeFact": "An actor-isolated computed property cannot be mutated from outside the actor, and writing await before the assignment does not create a legal setter hop.",
     "notes": "The compiler also reports that the await contains no async operation and recommends an isolated method. Runtime setter execution is therefore confined to an already-owned actor segment."
+  },
+  {
+    "id": "actor-subscript-setter-diagnostic",
+    "fixture": "Fixtures/actor-subscript-setter-diagnostic.swift",
+    "mode": "diagnostic",
+    "assertion": "diagnostic",
+    "repetitions": 1,
+    "timeoutSeconds": 15,
+    "diagnosticContains": ["actor-isolated subscript", "can not be mutated from a nonisolated context"],
+    "diagnosticLine": 9,
+    "nativeFact": "An actor-isolated subscript cannot be mutated from outside the actor, and writing await before the assignment does not create a legal setter hop.",
+    "notes": "The compiler also warns that the await contains no async operation. Runtime subscript-setter execution is therefore confined to an already-owned actor segment."
   },
   {
     "id": "throwing-property-missing-try-diagnostic",
