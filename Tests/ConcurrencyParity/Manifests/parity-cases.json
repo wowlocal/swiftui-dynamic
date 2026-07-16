@@ -122,6 +122,18 @@
     "notes": "Exact output is default:owned|bound:owned|bound:owned>bound:owned|default:owned in all 20 Swift 6.3.3 runs. The fixture proves task-local restoration and mailbox ownership without asserting FIFO, physical threads, or independent-message order."
   },
   {
+    "id": "actor-queued-message-cancellation",
+    "fixture": "Fixtures/actor-queued-message-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorQueuedMessageCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling a task whose cross-actor call is already waiting behind an occupied actor does not discard that call; after the actor becomes available, the method enters with actor ownership and observes the task's cancellation request.",
+    "notes": "Exact output is requested|released|owned:cancelled in all 20 Swift 6.3.3 runs. MainActor run-to-suspension and a condition gate establish cancellation while the call is queued; no FIFO among multiple waiters, physical thread, or automatic throwing behavior is asserted."
+  },
+  {
     "id": "actor-serial-segment",
     "fixture": "Fixtures/actor-serial-segment.swift",
     "mode": "runtime",

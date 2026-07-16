@@ -384,6 +384,9 @@ private enum ConcurrencyParityHarness {
         var sleepStarted = false
         var actorMessageSuspended = false
         var actorMessageMayResume = false
+        var actorQueueGateActorID: RuntimeActorID?
+        var actorQueueGateTask: RuntimeTaskRecord?
+        var actorQueueGateLease: RuntimeActorExecutorLease?
         var priorityEscalationEvents: [String] = []
         var taskLocalStorageByTask: [
             RuntimeTaskID: RuntimeTaskLocalStorage
@@ -486,6 +489,84 @@ private enum ConcurrencyParityHarness {
                     actorMessageMayResume = true
                     return .void
                 })))
+        interpreter.globals.define(
+            "parityBlockActorUntilReleased",
+            .hostFunction(HostFunction(
+                name: "parityBlockActorUntilReleased"
+            ) { _, context in
+                guard let actorID = context.sourceExecutor.actorID else {
+                    throw RuntimeError(message:
+                        "actor queue gate requires actor-isolated entry")
+                }
+                guard actorQueueGateActorID == nil
+                        || actorQueueGateActorID == actorID else {
+                    throw RuntimeError(message:
+                        "actor queue gate cannot hold multiple actors")
+                }
+                actorQueueGateActorID = actorID
+                return .void
+            }))
+        interpreter.globals.define(
+            "parityAwaitActorBlockEntered",
+            .hostFunction(HostFunction(
+                name: "parityAwaitActorBlockEntered",
+                asyncInvoke: { _, _ in
+                    while actorQueueGateActorID == nil {
+                        await Task.yield()
+                    }
+                    guard actorQueueGateTask == nil,
+                          actorQueueGateLease == nil,
+                          let actorID = actorQueueGateActorID,
+                          let ownerID = interpreter.evaluationTaskContext
+                            .runtimeTaskID,
+                          let owner = interpreter.concurrencyRuntime
+                            .records[ownerID] else {
+                        throw RuntimeError(message:
+                            "actor queue gate entered an invalid state")
+                    }
+                    let blocker = interpreter.concurrencyRuntime.createTask(
+                        sessionID: owner.sessionID,
+                        kind: .unstructured,
+                        parent: nil,
+                        priority: owner.effectivePriority,
+                        executorPreference: .actor(actorID),
+                        taskLocals: RuntimeTaskLocalStorage(),
+                        name: "parity-actor-queue-blocker")
+                    guard interpreter.concurrencyRuntime.begin(blocker) else {
+                        throw RuntimeError(message:
+                            "actor queue blocker did not start")
+                    }
+                    actorQueueGateTask = blocker
+                    do {
+                        actorQueueGateLease = try await interpreter
+                            .concurrencyRuntime.acquireActorExecutor(
+                                actorID, for: blocker.id)
+                    } catch {
+                        interpreter.concurrencyRuntime.fail(
+                            blocker, with: error)
+                        interpreter.concurrencyRuntime.release(blocker.id)
+                        actorQueueGateTask = nil
+                        throw error
+                    }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "parityReleaseActorBlock",
+            .hostFunction(HostFunction(
+                name: "parityReleaseActorBlock"
+            ) { _, _ in
+                guard let blocker = actorQueueGateTask,
+                      let lease = actorQueueGateLease else {
+                    throw RuntimeError(message:
+                        "actor queue gate was not holding an actor")
+                }
+                interpreter.concurrencyRuntime.releaseActorExecutor(lease)
+                interpreter.concurrencyRuntime.succeed(blocker, with: .void)
+                interpreter.concurrencyRuntime.release(blocker.id)
+                actorQueueGateLease = nil
+                actorQueueGateTask = nil
+                return .void
+            }))
         interpreter.globals.define(
             "parityRecordHostGatewayEvent",
             .hostFunction(HostFunction(
@@ -711,7 +792,9 @@ private enum ConcurrencyParityHarness {
             externalProjectionOutput = immediate + "," + (try projectedString())
         }
 
-        guard interpreter.scheduledTasks.isEmpty,
+        guard actorQueueGateTask == nil,
+              actorQueueGateLease == nil,
+              interpreter.scheduledTasks.isEmpty,
               interpreter.concurrencyRuntime.activeRecordCount == 0,
               interpreter.concurrencyRuntime.activeStructuredScopeCount == 0,
               interpreter.concurrencyRuntime.activeTaskGroupCount == 0

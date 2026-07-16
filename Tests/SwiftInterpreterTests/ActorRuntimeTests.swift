@@ -293,6 +293,93 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func queuedActorMessageCancellationPreservesWaiterUntilOwnedEntry()
+        async throws
+    {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: "actor CancellationQueueProbe {}")
+        let actorSymbol = try #require(
+            interpreter.globals.lookup("CancellationQueueProbe")?.typeSymbol)
+        var actorValue: RuntimeValue? = try interpreter.instantiateRoot(
+            actorSymbol)
+        var actor: Instance? = try #require(Self.instance(from: actorValue))
+        let actorID = try #require(actor?.actorID)
+        let runtime = interpreter.concurrencyRuntime
+        let session = runtime.createSession()
+        let blocker = runtime.createTask(
+            sessionID: session,
+            kind: .unstructured,
+            parent: nil,
+            priority: .medium,
+            executorPreference: .actor(actorID),
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: "blocker")
+        let waiter = runtime.createTask(
+            sessionID: session,
+            kind: .unstructured,
+            parent: nil,
+            priority: .medium,
+            executorPreference: .actor(actorID),
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: "cancelled-waiter")
+        #expect(runtime.begin(blocker))
+        #expect(runtime.begin(waiter))
+
+        let blockerLease = try await runtime.acquireActorExecutor(
+            actorID, for: blocker.id)
+        let waiterAcquisition = Task { @MainActor in
+            try await runtime.acquireActorExecutor(actorID, for: waiter.id)
+        }
+        for _ in 0..<1_000 {
+            if runtime.actors[actorID]?.mailboxTaskIDs == [waiter.id] {
+                break
+            }
+            await Task.yield()
+        }
+
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == blocker.id)
+        #expect(runtime.actors[actorID]?.mailboxTaskIDs == [waiter.id])
+        #expect(waiter.state == .waiting)
+        #expect(waiter.suspension == .waitingForActor(actorID))
+
+        runtime.requestCancellation(waiter, source: .taskHandle)
+
+        #expect(waiter.cancellation.isRequested)
+        #expect(!waiter.cancellation.isObserved)
+        #expect(waiter.cancellation.sources == [.taskHandle])
+        #expect(waiter.state == .waiting)
+        #expect(waiter.suspension == .waitingForActor(actorID))
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == blocker.id)
+        #expect(runtime.actors[actorID]?.mailboxTaskIDs == [waiter.id])
+
+        runtime.releaseActorExecutor(blockerLease)
+        let waiterLease = try await waiterAcquisition.value
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == waiter.id)
+        #expect(runtime.actors[actorID]?.mailboxTaskIDs.isEmpty == true)
+        #expect(waiter.state == .running)
+        #expect(waiter.suspension == nil)
+        #expect(waiter.suspensionHistory == [.waitingForActor(actorID)])
+        #expect(waiter.cancellation.isRequested)
+        #expect(!waiter.cancellation.isObserved)
+
+        runtime.observeCancellation(waiter.id)
+        #expect(waiter.cancellation.isObserved)
+
+        runtime.releaseActorExecutor(waiterLease)
+        runtime.succeed(blocker, with: .void)
+        runtime.succeed(waiter, with: .void)
+        runtime.release(blocker.id)
+        runtime.release(waiter.id)
+        #expect(runtime.activeRecordCount == 0)
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == nil)
+        #expect(runtime.actors[actorID]?.mailboxTaskIDs.isEmpty == true)
+
+        actorValue = nil
+        actor = nil
+        #expect(runtime.activeActorCount == 0)
+    }
+
+    @Test
     func actorSuspensionReleasesAndRestoresCompleteNestedSegment()
         async throws
     {

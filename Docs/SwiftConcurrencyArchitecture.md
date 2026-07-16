@@ -1062,6 +1062,12 @@ global actors whose `shared` values have distinct source-actor types. The
 the task's required executor: the same task-owned local map remains visible
 inside the actor, survives release/reacquisition across suspension, and is
 restored at dynamic-scope exit while each source segment owns the mailbox.
+The `actor-queued-message-cancellation` fixture holds one actor segment behind
+a controlled gate, proves a second cross-actor call has suspended, cancels its
+task, and then releases the owner. Swift retains that mailbox message: the
+cancelled task receives ownership, enters the method, and observes its request.
+The runtime therefore keeps `waitingForActor` independent from cancellation;
+handoff removes the queue edge, and source observation remains cooperative.
 The per-feature fail-closed safety boundary remains open M5 work.
 
 ### 6.13 Cancellation
@@ -1107,6 +1113,13 @@ terminal outcome, cancellation request, and cancellation observation are
 therefore independent runtime dimensions. A separate session/host abort may
 prevent entry because it is infrastructure teardown rather than source task
 cancellation.
+
+Likewise, cancelling a task already waiting for an actor does not remove its
+mailbox entry or synthesize a thrown result. The task remains
+`.waitingForActor` until ordinary handoff, enters the actor with the request
+still set, and observes or ignores cancellation according to its source body.
+Queue ownership and cancellation state are separate edges and both must drain
+before the task record can be released.
 
 The committed Swift 6 probe for an ordinary unstructured task establishes one
 additional value-wait rule: cancelling the waiter while it is suspended on

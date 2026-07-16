@@ -43,6 +43,37 @@ private actor ActorReentrancyGate {
 
 private let actorReentrancyGate = ActorReentrancyGate()
 
+private final class ActorQueueCancellationGate: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var actorSegmentEntered = false
+    private var released = false
+
+    func blockActorSegmentUntilReleased() {
+        condition.lock()
+        actorSegmentEntered = true
+        condition.broadcast()
+        while !released {
+            condition.wait()
+        }
+        condition.unlock()
+    }
+
+    func hasEnteredActorSegment() -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        return actorSegmentEntered
+    }
+
+    func releaseActorSegment() {
+        condition.lock()
+        released = true
+        condition.broadcast()
+        condition.unlock()
+    }
+}
+
+private let actorQueueCancellationGate = ActorQueueCancellationGate()
+
 nonisolated func parityRecordPriorityEscalationEvent(_ event: String) {
     priorityEscalationEventStorage.record(event)
 }
@@ -93,6 +124,20 @@ nonisolated func parityAwaitActorMessageSuspension() async {
 
 nonisolated func parityResumeActorMessage() async {
     await actorReentrancyGate.open()
+}
+
+nonisolated func parityBlockActorUntilReleased() {
+    actorQueueCancellationGate.blockActorSegmentUntilReleased()
+}
+
+nonisolated func parityAwaitActorBlockEntered() async {
+    while !actorQueueCancellationGate.hasEnteredActorSegment() {
+        await Task.yield()
+    }
+}
+
+nonisolated func parityReleaseActorBlock() {
+    actorQueueCancellationGate.releaseActorSegment()
 }
 
 @MainActor
