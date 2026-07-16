@@ -195,6 +195,39 @@ extension Interpreter {
         if let iterator = any as? RuntimeTaskGroupIterator {
             return try sourceTaskGroupIteratorMember(name, on: iterator)
         }
+        if let task = any as? RuntimeUnsafeCurrentTask {
+            switch GeneratedConcurrencySurface.nominalMemberIntrinsic(
+                typeName: "UnsafeCurrentTask", memberName: name
+            ) {
+            case .currentTaskIsCancelled:
+                return .native(try task.isCancelled())
+            case .currentTaskPriority:
+                return .native(try task.priority())
+            case .currentTaskBasePriority:
+                return .native(try task.basePriority())
+            case .currentTaskCancel:
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    try task.cancel()
+                    return .void
+                })
+            case .currentTaskHashValue:
+                return .native(try task.identityHashValue())
+            case .currentTaskIdentityEquals:
+                // `==` enters through the interpreter's operator evaluator;
+                // RuntimeUnsafeCurrentTask consults this generated route from
+                // its HostRuntimeEquatable implementation.
+                return nil
+            case nil:
+                if GeneratedConcurrencySurface.knowsNominalMember(
+                    typeName: "UnsafeCurrentTask", memberName: name
+                ) {
+                    throw RuntimeError(message:
+                        "UnsafeCurrentTask.\(name) is declared by the active "
+                            + "_Concurrency.swiftinterface but is not supported yet")
+                }
+                return nil
+            }
+        }
         if let priority = any as? RuntimeTaskPriority {
             switch name {
             case "rawValue":

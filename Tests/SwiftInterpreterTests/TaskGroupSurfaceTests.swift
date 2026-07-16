@@ -73,6 +73,7 @@ struct TaskGroupSurfaceTests {
             "withThrowingDiscardingTaskGroup":
                 .withThrowingDiscardingTaskGroup,
             "withThrowingTaskGroup": .withThrowingTaskGroup,
+            "withUnsafeCurrentTask": .withCurrentTaskCapability,
         ])
         #expect(GeneratedConcurrencySurface.knownTopLevelFunctions.contains(
             "withUnsafeCurrentTask"))

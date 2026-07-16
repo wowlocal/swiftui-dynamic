@@ -143,6 +143,9 @@ extension Interpreter {
             } else if intrinsic == .withTaskCancellationHandler {
                 function = sourceTaskCancellationHandlerFunction(
                     name: sourceName)
+            } else if intrinsic == .withCurrentTaskCapability {
+                function = sourceCurrentTaskCapabilityFunction(
+                    name: sourceName)
             } else if let kind = RuntimeTaskGroupKind(
                 functionIntrinsic: intrinsic
             ) {

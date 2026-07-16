@@ -13,6 +13,7 @@ public enum ConcurrencySurfaceGenerationError: Error,
     case missingFunctions([String])
     case missingTaskIntrinsics([String])
     case missingTaskInstanceIntrinsics([String])
+    case missingNominalMemberIntrinsics([String])
     case missingTaskGroupIteratorIntrinsics([String])
 
     public var description: String {
@@ -36,6 +37,9 @@ public enum ConcurrencySurfaceGenerationError: Error,
         case .missingTaskInstanceIntrinsics(let names):
             "active _Concurrency.swiftinterface is missing required Task "
                 + "instance members: \(names.joined(separator: ", "))"
+        case .missingNominalMemberIntrinsics(let names):
+            "active _Concurrency.swiftinterface is missing required selected "
+                + "nominal members: \(names.joined(separator: ", "))"
         case .missingTaskGroupIteratorIntrinsics(let names):
             "active _Concurrency.swiftinterface is missing required task-group "
                 + "iterator members: \(names.joined(separator: ", "))"
@@ -115,6 +119,10 @@ public struct ConcurrencySurfaceInventory: Sendable, Equatable {
     public let knownTaskInstanceMembers: Set<String>
     public let taskInstanceMemberDeclarations:
         [String: [ConcurrencySurfaceDeclaration]]
+    public let nominalMemberDispatch: [String: [String: String]]
+    public let knownNominalMembers: [String: Set<String>]
+    public let nominalMemberDeclarations:
+        [String: [String: [ConcurrencySurfaceDeclaration]]]
     public let taskGroupDispatch: [String: [String: String]]
     public let knownTaskGroupMembers: [String: Set<String>]
     public let taskGroupMemberDeclarations:
@@ -227,6 +235,23 @@ public enum ConcurrencySurfaceGenerator {
         ])
     private static let supportedTaskInstanceIntrinsics: Set<String> = [
         "cancel", "isCancelled", "result", "value",
+    ]
+    /// Selected public nominal families use the same data-driven walker and
+    /// generated fail-closed dispatch. Adding another family changes this
+    /// declaration map, not parser control flow or hand-authored output code.
+    private static let selectedNominalMemberIntrinsics:
+        [String: [String: String]] = [
+        "UnsafeCurrentTask": [
+            "==": "currentTaskIdentityEquals",
+            "basePriority": "currentTaskBasePriority",
+            "cancel": "currentTaskCancel",
+            "hashValue": "currentTaskHashValue",
+            "isCancelled": "currentTaskIsCancelled",
+            "priority": "currentTaskPriority",
+        ],
+    ]
+    private static let optionalNominalMemberIntrinsics: Set<String> = [
+        "currentTaskBasePriority",
     ]
     private static let supportedTaskGroupIteratorIntrinsics: Set<String> = [
         "cancel", "next",
@@ -444,6 +469,7 @@ public enum ConcurrencySurfaceGenerator {
         "withThrowingDiscardingTaskGroup":
             "withThrowingDiscardingTaskGroup",
         "withThrowingTaskGroup": "withThrowingTaskGroup",
+        "withUnsafeCurrentTask": "withCurrentTaskCapability",
     ]
     private static let requiredIntrinsicsByType: [String: Set<String>] = [
         "DiscardingTaskGroup": [
@@ -536,6 +562,14 @@ public enum ConcurrencySurfaceGenerator {
         var taskInstanceDispatch: [String: String] = [:]
         var taskInstanceMemberDeclarations:
             [String: [ConcurrencySurfaceDeclaration]] = [:]
+        var nominalMemberDispatch = Dictionary(uniqueKeysWithValues:
+            selectedNominalMemberIntrinsics.keys.map { ($0, [String: String]()) })
+        var knownNominalMembers = Dictionary(uniqueKeysWithValues:
+            selectedNominalMemberIntrinsics.keys.map { ($0, Set<String>()) })
+        var nominalMemberDeclarations = Dictionary(uniqueKeysWithValues:
+            selectedNominalMemberIntrinsics.keys.map {
+                ($0, [String: [ConcurrencySurfaceDeclaration]]())
+            })
 
         for statement in syntax.statements {
             guard case .decl(let declaration) = statement.item else { continue }
@@ -580,6 +614,17 @@ public enum ConcurrencySurfaceGenerator {
                     knownInstanceNames: &knownTaskInstanceMembers,
                     instanceDispatch: &taskInstanceDispatch,
                     instanceDeclarations: &taskInstanceMemberDeclarations)
+                continue
+            }
+            if let intrinsicMap = selectedNominalMemberIntrinsics[typeName] {
+                inspectNominalMembers(
+                    members,
+                    globalActorNames: globalActorNames,
+                    intrinsicMap: intrinsicMap,
+                    knownNames: &knownNominalMembers[typeName, default: []],
+                    dispatch: &nominalMemberDispatch[typeName, default: [:]],
+                    declarations:
+                        &nominalMemberDeclarations[typeName, default: [:]])
                 continue
             }
             guard taskGroupTypeSet.contains(typeName) else { continue }
@@ -629,6 +674,26 @@ public enum ConcurrencySurfaceGenerator {
             throw ConcurrencySurfaceGenerationError
                 .missingTaskInstanceIntrinsics(missingTaskInstanceIntrinsics)
         }
+        var missingNominalMemberIntrinsics: [String] = []
+        for typeName in selectedNominalMemberIntrinsics.keys.sorted() {
+            let expected = Set(selectedNominalMemberIntrinsics[
+                typeName, default: [:]].values)
+                .subtracting(optionalNominalMemberIntrinsics)
+            let implemented = Set(
+                nominalMemberDispatch[typeName, default: [:]].values)
+            missingNominalMemberIntrinsics.append(contentsOf:
+                expected.subtracting(implemented).sorted().map {
+                    "\(typeName).\($0)"
+                })
+            if knownNominalMembers[typeName, default: []].isEmpty {
+                missingNominalMemberIntrinsics.append(typeName + ".<type>")
+            }
+        }
+        guard missingNominalMemberIntrinsics.isEmpty else {
+            throw ConcurrencySurfaceGenerationError
+                .missingNominalMemberIntrinsics(
+                    missingNominalMemberIntrinsics.sorted())
+        }
         var missingTaskGroupIteratorIntrinsics: [String] = []
         for typeName in taskGroupIteratorTypes {
             let implemented = Set(
@@ -676,6 +741,13 @@ public enum ConcurrencySurfaceGenerator {
                 $0.declaration < $1.declaration
             }
         }
+        for typeName in nominalMemberDeclarations.keys {
+            for name in nominalMemberDeclarations[typeName, default: [:]].keys {
+                nominalMemberDeclarations[typeName]?[name]?.sort {
+                    $0.declaration < $1.declaration
+                }
+            }
+        }
         return ConcurrencySurfaceInventory(
             topLevelFunctionDispatch: topLevelFunctionDispatch,
             knownTopLevelFunctions: knownTopLevelFunctions,
@@ -686,6 +758,9 @@ public enum ConcurrencySurfaceGenerator {
             taskInstanceDispatch: taskInstanceDispatch,
             knownTaskInstanceMembers: knownTaskInstanceMembers,
             taskInstanceMemberDeclarations: taskInstanceMemberDeclarations,
+            nominalMemberDispatch: nominalMemberDispatch,
+            knownNominalMembers: knownNominalMembers,
+            nominalMemberDeclarations: nominalMemberDeclarations,
             taskGroupDispatch: dispatch,
             knownTaskGroupMembers: knownNames,
             taskGroupMemberDeclarations: memberDeclarations,
@@ -756,6 +831,40 @@ public enum ConcurrencySurfaceGenerator {
                     }.joined(separator: "\n")
                 return "        \"\(escaped(memberName))\": [\n"
                     + declarations + "\n        ],"
+            }.joined(separator: "\n")
+        let nominalMemberIntrinsicCaseLines = Set(
+            selectedNominalMemberIntrinsics.values.flatMap(\.values)
+        ).sorted().map { "    case \($0)" }.joined(separator: "\n")
+        let nominalMemberDispatchBlocks = selectedNominalMemberIntrinsics
+            .keys.sorted().map { typeName in
+                let entries = inventory.nominalMemberDispatch[
+                    typeName, default: [:]]
+                let lines = entries.keys.sorted().map { sourceName in
+                    "            \"\(escaped(sourceName))\": ."
+                        + "\(entries[sourceName]!),"
+                }.joined(separator: "\n")
+                return "        \"\(escaped(typeName))\": [\n\(lines)\n        ],"
+            }.joined(separator: "\n")
+        let nominalMemberKnownBlocks = selectedNominalMemberIntrinsics.keys
+            .sorted().map { typeName in
+                let lines = inventory.knownNominalMembers[
+                    typeName, default: []].sorted().map {
+                        "            \"\(escaped($0))\","
+                    }.joined(separator: "\n")
+                return "        \"\(escaped(typeName))\": [\n\(lines)\n        ],"
+            }.joined(separator: "\n")
+        let nominalMemberDeclarationBlocks = selectedNominalMemberIntrinsics
+            .keys.sorted().map { typeName in
+                let members = inventory.nominalMemberDeclarations[
+                    typeName, default: [:]]
+                let lines = members.keys.sorted().map { memberName in
+                    let declarations = members[memberName, default: []].map {
+                        "                \(render($0)),"
+                    }.joined(separator: "\n")
+                    return "            \"\(escaped(memberName))\": [\n"
+                        + declarations + "\n            ],"
+                }.joined(separator: "\n")
+                return "        \"\(escaped(typeName))\": [\n\(lines)\n        ],"
             }.joined(separator: "\n")
         let dispatchBlocks = taskGroupTypes.map { typeName in
             let entries = inventory.taskGroupDispatch[typeName, default: [:]]
@@ -837,6 +946,10 @@ public enum ConcurrencySurfaceGenerator {
 
         enum RuntimeTaskInstanceIntrinsic: String, Sendable {
         \(taskInstanceIntrinsicCaseLines)
+        }
+
+        enum RuntimeConcurrencyNominalMemberIntrinsic: String, Sendable {
+        \(nominalMemberIntrinsicCaseLines)
         }
 
         enum RuntimeTaskGroupIteratorIntrinsic: String, Sendable {
@@ -954,6 +1067,22 @@ public enum ConcurrencySurfaceGenerator {
         \(taskInstanceDeclarationLines)
             ]
 
+            static let nominalMemberDispatch: [
+                String: [String: RuntimeConcurrencyNominalMemberIntrinsic]
+            ] = [
+        \(nominalMemberDispatchBlocks)
+            ]
+
+            static let knownNominalMembers: [String: Set<String>] = [
+        \(nominalMemberKnownBlocks)
+            ]
+
+            static let nominalMemberDeclarations: [
+                String: [String: [GeneratedConcurrencyDeclaration]]
+            ] = [
+        \(nominalMemberDeclarationBlocks)
+            ]
+
             static let taskGroupDispatch: [
                 String: [String: RuntimeTaskGroupIntrinsic]
             ] = [
@@ -1029,6 +1158,18 @@ public enum ConcurrencySurfaceGenerator {
 
             static func knowsTaskInstanceMember(_ memberName: String) -> Bool {
                 knownTaskInstanceMembers.contains(memberName)
+            }
+
+            static func nominalMemberIntrinsic(
+                typeName: String, memberName: String
+            ) -> RuntimeConcurrencyNominalMemberIntrinsic? {
+                nominalMemberDispatch[typeName]?[memberName]
+            }
+
+            static func knowsNominalMember(
+                typeName: String, memberName: String
+            ) -> Bool {
+                knownNominalMembers[typeName]?.contains(memberName) == true
             }
 
             static func knowsMember(
@@ -1141,6 +1282,22 @@ public enum ConcurrencySurfaceGenerator {
                 )
             }
         }
+        for typeName in inventory.nominalMemberDeclarations.keys.sorted() {
+            for name in inventory.nominalMemberDeclarations[
+                typeName, default: [:]].keys.sorted() {
+                for declaration in inventory.nominalMemberDeclarations[
+                    typeName, default: [:]][name, default: []] {
+                    append(
+                        domain: "selected-nominal-member",
+                        container: typeName,
+                        name: name,
+                        declaration: declaration,
+                        adapterIntrinsic:
+                            inventory.nominalMemberDispatch[typeName]?[name],
+                    )
+                }
+            }
+        }
         for typeName in taskGroupTypes.sorted() {
             let members = inventory.taskGroupMemberDeclarations[
                 typeName, default: [:],
@@ -1208,19 +1365,20 @@ public enum ConcurrencySurfaceGenerator {
                 targetTriple: targetTriple,
             ),
             scope: GeneratedCapabilityScope(
-                id: "top-level-functions-and-task-family-members-v3",
+                id: "top-level-functions-and-task-family-members-v4",
                 complete: false,
                 accountingUnit:
                 "public declaration row after canonical-text deduplication",
                 included: [
                     "public top-level function overloads",
                     "public static and instance Task function/variable declarations",
+                    "public function/variable declarations on selected nominal concurrency families (currently UnsafeCurrentTask)",
                     "declarations selected by active compiler conditional-compilation regions",
                     "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
                     "public function/variable declarations on directly nested TaskGroup.Iterator and ThrowingTaskGroup.Iterator types",
                 ],
                 excluded: [
-                    "public nominal types and members outside the selected Task/task-group families",
+                    "public nominal types and members outside the selected Task/task-group/selected-nominal families",
                     "Task and other public initializers",
                     "protocol requirements, type aliases, subscripts, and associated types",
                     "nested declarations outside the selected task-group iterators",
@@ -1445,6 +1603,52 @@ public enum ConcurrencySurfaceGenerator {
                     if supportedTaskInstanceIntrinsics.contains(name) {
                         instanceDispatch[name] = name
                     }
+                }
+            }
+        }
+    }
+
+    /// Inventories a selected nominal's complete public function/property
+    /// surface. Dispatch remains a separate, deliberately smaller map:
+    /// generated knowledge makes unsupported SDK members fail closed without
+    /// pretending that every inventoried declaration works.
+    private static func inspectNominalMembers(
+        _ members: MemberBlockItemListSyntax,
+        globalActorNames: Set<String>,
+        intrinsicMap: [String: String],
+        knownNames: inout Set<String>,
+        dispatch: inout [String: String],
+        declarations: inout [String: [ConcurrencySurfaceDeclaration]]
+    ) {
+        for item in members {
+            if let function = item.decl.as(FunctionDeclSyntax.self),
+               isPublic(function.modifiers) {
+                let name = function.name.text
+                knownNames.insert(name)
+                appendUnique(
+                    declarationMetadata(
+                        function, globalActorNames: globalActorNames),
+                    to: &declarations[name, default: []])
+                if let intrinsic = intrinsicMap[name] {
+                    dispatch[name] = intrinsic
+                }
+                continue
+            }
+            guard let variable = item.decl.as(VariableDeclSyntax.self),
+                  isPublic(variable.modifiers) else { continue }
+            for binding in variable.bindings {
+                guard let identifier = binding.pattern.as(
+                    IdentifierPatternSyntax.self
+                ) else { continue }
+                let name = identifier.identifier.text
+                knownNames.insert(name)
+                appendUnique(
+                    declarationMetadata(
+                        variable, binding: binding,
+                        globalActorNames: globalActorNames),
+                    to: &declarations[name, default: []])
+                if let intrinsic = intrinsicMap[name] {
+                    dispatch[name] = intrinsic
                 }
             }
         }

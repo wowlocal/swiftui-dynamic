@@ -6,6 +6,7 @@
 enum RuntimeConcurrencyFunctionIntrinsic: String, Sendable {
     case detachedTask
     case unstructuredTask
+    case withCurrentTaskCapability
     case withDiscardingTaskGroup
     case withTaskCancellationHandler
     case withTaskGroup
@@ -30,6 +31,15 @@ enum RuntimeTaskInstanceIntrinsic: String, Sendable {
     case isCancelled
     case result
     case value
+}
+
+enum RuntimeConcurrencyNominalMemberIntrinsic: String, Sendable {
+    case currentTaskBasePriority
+    case currentTaskCancel
+    case currentTaskHashValue
+    case currentTaskIdentityEquals
+    case currentTaskIsCancelled
+    case currentTaskPriority
 }
 
 enum RuntimeTaskGroupIteratorIntrinsic: String, Sendable {
@@ -111,6 +121,7 @@ enum GeneratedConcurrencySurface {
         "withTaskGroup": .withTaskGroup,
         "withThrowingDiscardingTaskGroup": .withThrowingDiscardingTaskGroup,
         "withThrowingTaskGroup": .withThrowingTaskGroup,
+        "withUnsafeCurrentTask": .withCurrentTaskCapability,
     ]
 
     static let knownTopLevelFunctions: Set<String> = [
@@ -446,6 +457,67 @@ enum GeneratedConcurrencySurface {
         "value": [
             .init(declaration: "public var value: Success {\n    get async\n  }", kind: .variable, parameters: [], returnType: "Success", isAsync: true, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
             .init(declaration: "public var value: Success {\n    get async throws\n  }", kind: .variable, parameters: [], returnType: "Success", isAsync: true, throwsKind: .throwing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+        ],
+    ]
+
+    static let nominalMemberDispatch: [
+        String: [String: RuntimeConcurrencyNominalMemberIntrinsic]
+    ] = [
+        "UnsafeCurrentTask": [
+            "==": .currentTaskIdentityEquals,
+            "basePriority": .currentTaskBasePriority,
+            "cancel": .currentTaskCancel,
+            "hashValue": .currentTaskHashValue,
+            "isCancelled": .currentTaskIsCancelled,
+            "priority": .currentTaskPriority,
+        ],
+    ]
+
+    static let knownNominalMembers: [String: Set<String>] = [
+        "UnsafeCurrentTask": [
+            "==",
+            "basePriority",
+            "cancel",
+            "escalatePriority",
+            "hash",
+            "hashValue",
+            "isCancelled",
+            "priority",
+            "unownedTaskExecutor",
+        ],
+    ]
+
+    static let nominalMemberDeclarations: [
+        String: [String: [GeneratedConcurrencyDeclaration]]
+    ] = [
+        "UnsafeCurrentTask": [
+            "==": [
+                .init(declaration: "public static func == (lhs: _Concurrency.UnsafeCurrentTask, rhs: _Concurrency.UnsafeCurrentTask) -> Swift.Bool", kind: .function, parameters: [.init(label: "lhs", name: "lhs", type: "_Concurrency.UnsafeCurrentTask", defaultValue: nil, attributes: [], modifiers: []), .init(label: "rhs", name: "rhs", type: "_Concurrency.UnsafeCurrentTask", defaultValue: nil, attributes: [], modifiers: [])], returnType: "Swift.Bool", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public", "static"], globalActor: nil),
+            ],
+            "basePriority": [
+                .init(declaration: "@available(macOS 14.0, iOS 17.0, watchOS 10.0, tvOS 17.0, *)\n  public var basePriority: _Concurrency.TaskPriority {\n    get\n  }", kind: .variable, parameters: [], returnType: "_Concurrency.TaskPriority", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 14.0, iOS 17.0, watchOS 10.0, tvOS 17.0, *)"], modifiers: ["public"], globalActor: nil),
+            ],
+            "cancel": [
+                .init(declaration: "public func cancel()", kind: .function, parameters: [], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+            ],
+            "escalatePriority": [
+                .init(declaration: "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n  public func escalatePriority(to newPriority: _Concurrency.TaskPriority)", kind: .function, parameters: [.init(label: "to", name: "newPriority", type: "_Concurrency.TaskPriority", defaultValue: nil, attributes: [], modifiers: [])], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)"], modifiers: ["public"], globalActor: nil),
+            ],
+            "hash": [
+                .init(declaration: "public func hash(into hasher: inout Swift.Hasher)", kind: .function, parameters: [.init(label: "into", name: "hasher", type: "inout Swift.Hasher", defaultValue: nil, attributes: [], modifiers: [])], returnType: nil, isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+            ],
+            "hashValue": [
+                .init(declaration: "public var hashValue: Swift.Int {\n    get\n  }", kind: .variable, parameters: [], returnType: "Swift.Int", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+            ],
+            "isCancelled": [
+                .init(declaration: "public var isCancelled: Swift.Bool {\n    get\n  }", kind: .variable, parameters: [], returnType: "Swift.Bool", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+            ],
+            "priority": [
+                .init(declaration: "public var priority: _Concurrency.TaskPriority {\n    get\n  }", kind: .variable, parameters: [], returnType: "_Concurrency.TaskPriority", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: [], modifiers: ["public"], globalActor: nil),
+            ],
+            "unownedTaskExecutor": [
+                .init(declaration: "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)\n  public var unownedTaskExecutor: _Concurrency.UnownedTaskExecutor? {\n    get\n  }", kind: .variable, parameters: [], returnType: "_Concurrency.UnownedTaskExecutor?", isAsync: false, throwsKind: .nonThrowing, thrownErrorType: nil, attributes: ["@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)"], modifiers: ["public"], globalActor: nil),
+            ],
         ],
     ]
 
@@ -827,6 +899,18 @@ enum GeneratedConcurrencySurface {
 
     static func knowsTaskInstanceMember(_ memberName: String) -> Bool {
         knownTaskInstanceMembers.contains(memberName)
+    }
+
+    static func nominalMemberIntrinsic(
+        typeName: String, memberName: String
+    ) -> RuntimeConcurrencyNominalMemberIntrinsic? {
+        nominalMemberDispatch[typeName]?[memberName]
+    }
+
+    static func knowsNominalMember(
+        typeName: String, memberName: String
+    ) -> Bool {
+        knownNominalMembers[typeName]?.contains(memberName) == true
     }
 
     static func knowsMember(

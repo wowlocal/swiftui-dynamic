@@ -20,6 +20,7 @@ struct ConcurrencySurfaceGeneratorTests {
             "withThrowingDiscardingTaskGroup":
                 "withThrowingDiscardingTaskGroup",
             "withThrowingTaskGroup": "withThrowingTaskGroup",
+            "withUnsafeCurrentTask": "withCurrentTaskCapability",
         ])
         #expect(inventory.knownTopLevelFunctions.contains("interfaceOnlyProbe"))
         let cancellationHandler = try #require(
@@ -163,6 +164,25 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(instanceTaskMembers["cancel"]?.first?.isAsync == false)
         #expect(instanceTaskMembers["isCancelled"]?.first?.kind == .variable)
 
+        #expect(inventory.nominalMemberDispatch["UnsafeCurrentTask"] == [
+            "==": "currentTaskIdentityEquals",
+            "basePriority": "currentTaskBasePriority",
+            "cancel": "currentTaskCancel",
+            "hashValue": "currentTaskHashValue",
+            "isCancelled": "currentTaskIsCancelled",
+            "priority": "currentTaskPriority",
+        ])
+        #expect(inventory.knownNominalMembers["UnsafeCurrentTask"] == [
+            "==", "basePriority", "cancel", "escalatePriority", "hash",
+            "hashValue", "isCancelled", "priority", "unownedTaskExecutor",
+        ])
+        let currentTaskMembers = try #require(
+            inventory.nominalMemberDeclarations["UnsafeCurrentTask"])
+        #expect(currentTaskMembers["priority"]?.first?.returnType
+            == "TaskPriority")
+        #expect(currentTaskMembers["=="]?.first?.modifiers.contains("static")
+            == true)
+
         for typeName in ConcurrencySurfaceGenerator.taskGroupTypes {
             #expect(Set(inventory.taskGroupMemberDeclarations[
                 typeName, default: [:]].keys)
@@ -239,6 +259,28 @@ struct ConcurrencySurfaceGeneratorTests {
     }
 
     @Test
+    func selectedNominalInventoryFailsClosedWhenTypeDisappears() throws {
+        let source = Self.syntheticInterface
+            .replacingOccurrences(
+                of: "public struct UnsafeCurrentTask",
+                with: "public struct MissingCurrentTask")
+            .replacingOccurrences(
+                of: "extension UnsafeCurrentTask",
+                with: "extension MissingCurrentTask")
+
+        do {
+            _ = try ConcurrencySurfaceGenerator.inventory(
+                interfaceSource: source)
+            Issue.record("missing selected nominal unexpectedly generated")
+        } catch ConcurrencySurfaceGenerationError
+                .missingNominalMemberIntrinsics(let names) {
+            #expect(names.contains("UnsafeCurrentTask.<type>"))
+            #expect(names.contains(
+                "UnsafeCurrentTask.currentTaskIdentityEquals"))
+        }
+    }
+
+    @Test
     func checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects() throws {
         let interfacePath = try ConcurrencySurfaceGenerator.activeInterfacePath()
         let interfaceSource = try String(
@@ -275,7 +317,7 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.source.targetTriple.contains("apple-macosx"))
         #expect(!capabilities.scope.complete)
         #expect(capabilities.scope.id
-            == "top-level-functions-and-task-family-members-v3")
+            == "top-level-functions-and-task-family-members-v4")
         #expect(!capabilities.scope.adapterRouteIsSupportEvidence)
         #expect(!capabilities.scope.excluded.isEmpty)
         #expect(capabilities.scope.included.contains {
@@ -284,17 +326,21 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.scope.included.contains {
             $0.contains("active compiler conditional-compilation")
         })
+        #expect(capabilities.scope.included.contains {
+            $0.contains("selected nominal") && $0.contains("UnsafeCurrentTask")
+        })
         #expect(capabilities.scope.excluded.contains {
             $0.contains("nested declarations outside")
         })
-        #expect(capabilities.summary.declarationCount == 162)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 111)
+        #expect(capabilities.summary.declarationCount == 171)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 119)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 49,
             "task-static-member": 25,
             "task-instance-member": 11,
             "task-group-member": 71,
             "task-group-iterator-member": 6,
+            "selected-nominal-member": 9,
         ])
         #expect(capabilities.declarations.count
             == capabilities.summary.declarationCount)
@@ -349,6 +395,19 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.domain == "task-static-member" && $0.name == "=="
                 && $0.adapterIntrinsic == nil
         })
+        #expect(capabilities.declarations.filter {
+            $0.domain == "selected-nominal-member"
+                && $0.container == "UnsafeCurrentTask"
+        }.count == 9)
+        #expect(capabilities.declarations.contains {
+            $0.domain == "selected-nominal-member" && $0.name == "=="
+                && $0.adapterIntrinsic == "currentTaskIdentityEquals"
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "selected-nominal-member"
+                && $0.name == "unownedTaskExecutor"
+                && $0.adapterIntrinsic == nil
+        })
         #expect(capabilities.declarations.contains {
             $0.container == "ThrowingTaskGroup" && $0.name == "nextResult"
                 && $0.adapterIntrinsic == "nextResult"
@@ -374,9 +433,19 @@ struct ConcurrencySurfaceGeneratorTests {
             "async", "asyncDetached", "detach", "withDiscardingTaskGroup",
             "withTaskCancellationHandler", "withTaskGroup",
             "withThrowingDiscardingTaskGroup",
-            "withThrowingTaskGroup",
+            "withThrowingTaskGroup", "withUnsafeCurrentTask",
         ])
         #expect(inventory.knownTopLevelFunctions.contains("withUnsafeCurrentTask"))
+        #expect(inventory.nominalMemberDeclarations["UnsafeCurrentTask"]?.values
+            .flatMap { $0 }.count == 9)
+        #expect(inventory.nominalMemberDispatch["UnsafeCurrentTask"]?["=="]
+            == "currentTaskIdentityEquals")
+        #expect(inventory.nominalMemberDispatch["UnsafeCurrentTask"]?["hash"]
+            == nil)
+        #expect(inventory.nominalMemberDispatch["UnsafeCurrentTask"]?[
+            "escalatePriority"] == nil)
+        #expect(inventory.nominalMemberDispatch["UnsafeCurrentTask"]?[
+            "unownedTaskExecutor"] == nil)
         let cancellationHandler = try #require(
             inventory.topLevelFunctionDeclarations[
                 "withTaskCancellationHandler"])
@@ -588,6 +657,12 @@ struct ConcurrencySurfaceGeneratorTests {
         operation: () async throws -> Result,
         onCancel handler: @Sendable () -> Void
     ) async rethrows -> Result { fatalError() }
+    public func withUnsafeCurrentTask<Result>(
+        body: (UnsafeCurrentTask?) throws -> Result
+    ) rethrows -> Result { fatalError() }
+    public func withUnsafeCurrentTask<Result>(
+        body: (UnsafeCurrentTask?) async throws -> Result
+    ) async rethrows -> Result { fatalError() }
     public func async<Success>(
         priority: TaskPriority? = nil,
         @_inheritActorContext
@@ -619,6 +694,22 @@ struct ConcurrencySurfaceGeneratorTests {
         operation: @escaping @isolated(any) @Sendable () async throws -> Success
     ) -> Task<Success, any Error> where Success: Sendable { fatalError() }
     public func interfaceOnlyProbe() async {}
+
+    public struct UnsafeCurrentTask {
+        public var isCancelled: Bool { false }
+        public var priority: TaskPriority { fatalError() }
+        public var basePriority: TaskPriority { fatalError() }
+        public func cancel() {}
+    }
+    extension UnsafeCurrentTask {
+        public func hash(into hasher: inout Hasher) {}
+        public var hashValue: Int { 0 }
+        public static func == (
+            lhs: UnsafeCurrentTask, rhs: UnsafeCurrentTask
+        ) -> Bool { false }
+        public func escalatePriority(to newPriority: TaskPriority) {}
+        public var unownedTaskExecutor: UnownedTaskExecutor? { nil }
+    }
 
     public struct TaskGroup<Child> {
         public mutating func addImmediateTask(

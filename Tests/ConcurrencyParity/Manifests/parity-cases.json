@@ -1419,5 +1419,17 @@
     ],
       "nativeFact": "All four Task.immediate and Task.immediateDetached overload families synchronously enter a same-actor operation before construction returns, stop at a real suspension, install name and explicit priority before that prefix, and preserve values and exact source failures through handle waits. Task.immediate copies task-local context while Task.immediateDetached clears it; detached context inheritance is independent from the shared immediate-start policy.",
     "notes": "Apple Swift 6.3.3 strict compilation and SIL select each of the four macOS 26 declarations once. The MainActor gates establish start < after < finish without asserting finish order between independent tasks. Explicit nil executor preferences delimit the supported subset; arbitrary operation actors and nonnil TaskExecutor preferences remain recorded divergences. Twenty native fresh runs produced two allowed sibling-finish distributions."
+  },
+  {
+    "id": "with-unsafe-current-task",
+    "fixture": "Fixtures/with-unsafe-current-task.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await unsafeCurrentTaskProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "The synchronous and asynchronous withUnsafeCurrentTask overloads pass the current task identity inline. The capability reports effective and base priority, cancel() immediately updates both capability and Task cancellation views, identity survives suspension, and both overloads rethrow the operation's exact source error.",
+    "notes": "Apple Swift 6.3.3 strict compilation selects both active macOS declarations. Exact output is deterministic because the probe compares effective priority with Task.currentPriority, equal-identity hashes only with each other, and observes only explicit base-priority raw values; it does not claim scheduling order or physical threads. This is the deterministic same-source adapter for pinned swiftlang test/Concurrency/Runtime/async_task_withUnsafeCurrentTask.swift, whose pointer-regex oracle covers only the synchronous overload."
   }
 ]

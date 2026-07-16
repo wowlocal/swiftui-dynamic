@@ -263,6 +263,7 @@ public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
 
 public enum RuntimeCancellationSource: Hashable, Sendable {
     case taskHandle
+    case unsafeCurrentTask
     case sessionPolicy
     case hostTask
     case inherited

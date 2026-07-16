@@ -2032,6 +2032,113 @@ struct ConcurrencyMethodologyTests {
         }, "conditional immediate rows must preserve cancellation ordering evidence")
     }
 
+    @Test func unsafeCurrentTaskSurfaceHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let topLevelRows = inventory.declarations.filter {
+            $0.domain == "top-level-function"
+                && $0.name == "withUnsafeCurrentTask"
+        }
+        let memberRows = inventory.declarations.filter {
+            $0.domain == "selected-nominal-member"
+                && $0.container == "UnsafeCurrentTask"
+        }
+        let rows = topLevelRows + memberRows
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+        let expectedTopLevelIDs: Set<String> = [
+            "swift-concurrency-api-v1:635f7627d1ccf205c9733f1ca400229cb59a05cbfc81c128e11eafb04c46d75a",
+            "swift-concurrency-api-v1:bde627a4e43726d3fa2b742ff780a9db75c50b38631e924469819d073c42c219",
+        ]
+        let expectedMemberIDs: Set<String> = [
+            "swift-concurrency-api-v1:78eae36b8427f8e8809109d2b2d43de9a7bcff463b04c24d78fd32df34c2d1cf",
+            "swift-concurrency-api-v1:8887b127db3a8d5643e1b58f287662ec9ab6177b002a031c17c95958c9b79d43",
+            "swift-concurrency-api-v1:4718b96d2ea97a4fd27ff85e8760af3adb8bd4017ace873d4cc6a2dfa374b6d0",
+            "swift-concurrency-api-v1:f475b4b3d31eaa92a265b77fe81da55ee3cce943b06a809e7d5688aafc592687",
+            "swift-concurrency-api-v1:b21dc773880caaea60df8d860d4d6cab956c2bdafcaea609ab0975af9e970bb0",
+            "swift-concurrency-api-v1:f1c29904cee2bda5407ad9e247270f7c87ededa91b9bd4a84ad33d7f47f00c95",
+            "swift-concurrency-api-v1:04b47d12b7997736e800b486c3483b669f51b8f5e21ba7cfbfaa6626ded3615c",
+            "swift-concurrency-api-v1:475ba589dec42bcadc348e92da712c9b86e7fb14b526241a245b042e829d5740",
+            "swift-concurrency-api-v1:12802b7fc89d3a829975702ab13bb49374878be460e6ae40ce29a6089fd42a98",
+        ]
+        let supportedNames: Set<String> = [
+            "==", "basePriority", "cancel", "hashValue", "isCancelled",
+            "priority",
+        ]
+        let unsupportedNames: Set<String> = [
+            "escalatePriority", "hash", "unownedTaskExecutor",
+        ]
+
+        #expect(Set(topLevelRows.map(\.id)) == expectedTopLevelIDs,
+            "the active SDK withUnsafeCurrentTask overloads changed")
+        #expect(topLevelRows.count == 2)
+        #expect(topLevelRows.allSatisfy {
+            $0.adapterIntrinsic == "withCurrentTaskCapability"
+        })
+        #expect(Set(memberRows.map(\.id)) == expectedMemberIDs,
+            "the active SDK UnsafeCurrentTask member denominator changed")
+        #expect(memberRows.count == 9)
+        #expect(Set(memberRows.map(\.name))
+            == supportedNames.union(unsupportedNames))
+        #expect(Set(claims.map(\.id)) == ids,
+            "every UnsafeCurrentTask declaration needs a disposition")
+
+        let topLevelClaims = claims.filter {
+            expectedTopLevelIDs.contains($0.id)
+        }
+        #expect(topLevelClaims.allSatisfy {
+            $0.implementationStatus == .runtimeSupported
+                && $0.verificationStatus == .nativeParity
+                && $0.requirementRef == "M2/unsafe-current-task-capability"
+                && $0.evidenceCaseIDs == ["with-unsafe-current-task"]
+        })
+
+        let supportedMemberIDs = Set(memberRows.filter {
+            supportedNames.contains($0.name)
+        }.map(\.id))
+        let supportedClaims = claims.filter {
+            supportedMemberIDs.contains($0.id)
+        }
+        #expect(supportedClaims.count == supportedNames.count)
+        #expect(supportedClaims.allSatisfy {
+            $0.implementationStatus == .runtimeSupported
+                && $0.verificationStatus == .nativeParity
+                && $0.requirementRef == "M2/unsafe-current-task-capability"
+                && $0.evidenceCaseIDs == ["with-unsafe-current-task"]
+        })
+
+        let unsupportedMemberIDs = Set(memberRows.filter {
+            unsupportedNames.contains($0.name)
+        }.map(\.id))
+        let unsupportedClaims = claims.filter {
+            unsupportedMemberIDs.contains($0.id)
+        }
+        #expect(unsupportedClaims.count == unsupportedNames.count)
+        #expect(memberRows.filter {
+            unsupportedNames.contains($0.name)
+        }.allSatisfy { $0.adapterIntrinsic == nil })
+        #expect(unsupportedClaims.allSatisfy {
+            $0.implementationStatus == .diagnosedUnsupported
+                && $0.verificationStatus == .focusedOnly
+                && $0.requirementRef
+                    == "M7/generated-signatures-and-preflight"
+                && $0.gapEvidenceIDs
+                    == ["generated-concurrency-signatures-and-preflight"]
+                && $0.testNames.contains(
+                    "UnsafeCurrentTaskRuntimeTests/everyGeneratedUnroutedMemberHasExplicitDiagnostic")
+        })
+    }
+
     @Test func taskGroupNamedAddOverloadsHaveExplicitReviewedDispositions()
             throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(

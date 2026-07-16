@@ -1,6 +1,301 @@
 {
   "declarations" : [
     {
+      "adapterIntrinsic" : "currentTaskIdentityEquals",
+      "attributes" : [
+
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "public static func == (lhs: _Concurrency.UnsafeCurrentTask, rhs: _Concurrency.UnsafeCurrentTask) -> Swift.Bool",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:78eae36b8427f8e8809109d2b2d43de9a7bcff463b04c24d78fd32df34c2d1cf",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "==",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "lhs",
+          "modifiers" : [
+
+          ],
+          "name" : "lhs",
+          "sendableFunction" : false,
+          "type" : "_Concurrency.UnsafeCurrentTask"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "rhs",
+          "modifiers" : [
+
+          ],
+          "name" : "rhs",
+          "sendableFunction" : false,
+          "type" : "_Concurrency.UnsafeCurrentTask"
+        }
+      ],
+      "returnType" : "Swift.Bool"
+    },
+    {
+      "adapterIntrinsic" : "currentTaskBasePriority",
+      "attributes" : [
+        "@available(macOS 14.0, iOS 17.0, watchOS 10.0, tvOS 17.0, *)"
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "@available(macOS 14.0, iOS 17.0, watchOS 10.0, tvOS 17.0, *)\n  public var basePriority: _Concurrency.TaskPriority {\n    get\n  }",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:8887b127db3a8d5643e1b58f287662ec9ab6177b002a031c17c95958c9b79d43",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "variable",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "basePriority",
+      "parameters" : [
+
+      ],
+      "returnType" : "_Concurrency.TaskPriority"
+    },
+    {
+      "adapterIntrinsic" : "currentTaskCancel",
+      "attributes" : [
+
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "public func cancel()",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:4718b96d2ea97a4fd27ff85e8760af3adb8bd4017ace873d4cc6a2dfa374b6d0",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "cancel",
+      "parameters" : [
+
+      ]
+    },
+    {
+      "attributes" : [
+        "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)"
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n  public func escalatePriority(to newPriority: _Concurrency.TaskPriority)",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:f475b4b3d31eaa92a265b77fe81da55ee3cce943b06a809e7d5688aafc592687",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "escalatePriority",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "to",
+          "modifiers" : [
+
+          ],
+          "name" : "newPriority",
+          "sendableFunction" : false,
+          "type" : "_Concurrency.TaskPriority"
+        }
+      ]
+    },
+    {
+      "attributes" : [
+
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "public func hash(into hasher: inout Swift.Hasher)",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:b21dc773880caaea60df8d860d4d6cab956c2bdafcaea609ab0975af9e970bb0",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "hash",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "into",
+          "modifiers" : [
+
+          ],
+          "name" : "hasher",
+          "sendableFunction" : false,
+          "type" : "inout Swift.Hasher"
+        }
+      ]
+    },
+    {
+      "adapterIntrinsic" : "currentTaskHashValue",
+      "attributes" : [
+
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "public var hashValue: Swift.Int {\n    get\n  }",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:f1c29904cee2bda5407ad9e247270f7c87ededa91b9bd4a84ad33d7f47f00c95",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "variable",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "hashValue",
+      "parameters" : [
+
+      ],
+      "returnType" : "Swift.Int"
+    },
+    {
+      "adapterIntrinsic" : "currentTaskIsCancelled",
+      "attributes" : [
+
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "public var isCancelled: Swift.Bool {\n    get\n  }",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:04b47d12b7997736e800b486c3483b669f51b8f5e21ba7cfbfaa6626ded3615c",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "variable",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "isCancelled",
+      "parameters" : [
+
+      ],
+      "returnType" : "Swift.Bool"
+    },
+    {
+      "adapterIntrinsic" : "currentTaskPriority",
+      "attributes" : [
+
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "public var priority: _Concurrency.TaskPriority {\n    get\n  }",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:475ba589dec42bcadc348e92da712c9b86e7fb14b526241a245b042e829d5740",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "variable",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "priority",
+      "parameters" : [
+
+      ],
+      "returnType" : "_Concurrency.TaskPriority"
+    },
+    {
+      "attributes" : [
+        "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)"
+      ],
+      "container" : "UnsafeCurrentTask",
+      "declaration" : "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)\n  public var unownedTaskExecutor: _Concurrency.UnownedTaskExecutor? {\n    get\n  }",
+      "domain" : "selected-nominal-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:12802b7fc89d3a829975702ab13bb49374878be460e6ae40ce29a6089fd42a98",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "variable",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "unownedTaskExecutor",
+      "parameters" : [
+
+      ],
+      "returnType" : "_Concurrency.UnownedTaskExecutor?"
+    },
+    {
       "adapterIntrinsic" : "cancel",
       "attributes" : [
 
@@ -9012,6 +9307,7 @@
       "returnType" : "sending T"
     },
     {
+      "adapterIntrinsic" : "withCurrentTaskCapability",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)"
       ],
@@ -9052,6 +9348,7 @@
       "returnType" : "T"
     },
     {
+      "adapterIntrinsic" : "withCurrentTaskCapability",
       "attributes" : [
         "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)"
       ],
@@ -9157,17 +9454,18 @@
     "adapterRouteIsSupportEvidence" : false,
     "complete" : false,
     "excluded" : [
-      "public nominal types and members outside the selected Task/task-group families",
+      "public nominal types and members outside the selected Task/task-group/selected-nominal families",
       "Task and other public initializers",
       "protocol requirements, type aliases, subscripts, and associated types",
       "nested declarations outside the selected task-group iterators",
       "availability evaluation and non-identifier variable bindings",
       "enclosing extension attributes, conformances, generic constraints, and duplicate declarations collapsed by canonical declaration text"
     ],
-    "id" : "top-level-functions-and-task-family-members-v3",
+    "id" : "top-level-functions-and-task-family-members-v4",
     "included" : [
       "public top-level function overloads",
       "public static and instance Task function/variable declarations",
+      "public function/variable declarations on selected nominal concurrency families (currently UnsafeCurrentTask)",
       "declarations selected by active compiler conditional-compilation regions",
       "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
       "public function/variable declarations on directly nested TaskGroup.Iterator and ThrowingTaskGroup.Iterator types"
@@ -9182,9 +9480,10 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 111,
-    "declarationCount" : 162,
+    "adapterRoutedDeclarationCount" : 119,
+    "declarationCount" : 171,
     "declarationsByDomain" : {
+      "selected-nominal-member" : 9,
       "task-group-iterator-member" : 6,
       "task-group-member" : 71,
       "task-instance-member" : 11,
