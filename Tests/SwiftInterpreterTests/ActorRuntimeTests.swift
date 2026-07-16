@@ -404,6 +404,144 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func asyncActorComputedPropertyCancellationRestoresCallerAndReleasesTarget()
+        async throws
+    {
+        let interpreter = Interpreter()
+        var accessorSuspended = false
+        var accessorMayResume = false
+        interpreter.globals.define(
+            "inspectComputedCancellationOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectComputedCancellationOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+        interpreter.globals.define(
+            "suspendComputedCancellationMessage",
+            .hostFunction(HostFunction(
+                name: "suspendComputedCancellationMessage",
+                asyncInvoke: { _, _ in
+                    accessorSuspended = true
+                    while !accessorMayResume { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "awaitComputedCancellationSuspension",
+            .hostFunction(HostFunction(
+                name: "awaitComputedCancellationSuspension",
+                asyncInvoke: { _, _ in
+                    while !accessorSuspended { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "resumeComputedCancellationMessage",
+            .hostFunction(HostFunction(
+                name: "resumeComputedCancellationMessage",
+                asyncInvoke: { _, _ in
+                    accessorMayResume = true
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+            actor ComputedCancellationTarget {
+                var stored = 0
+                var entryOwnership = "unset"
+                var resumeOwnership = "unset"
+
+                var cancellingValue: Int {
+                    get async throws {
+                        entryOwnership = inspectComputedCancellationOwnership(self)
+                        stored += 1
+                        await suspendComputedCancellationMessage()
+                        resumeOwnership = inspectComputedCancellationOwnership(self)
+                        try Task.checkCancellation()
+                        return stored
+                    }
+                }
+
+                func recover() -> String {
+                    let recoveryOwnership =
+                        inspectComputedCancellationOwnership(self)
+                    stored += 1
+                    return entryOwnership + ":" + resumeOwnership
+                        + ":" + recoveryOwnership + ":" + String(stored)
+                }
+            }
+
+            actor ComputedCancellationCaller {
+                func run(_ target: ComputedCancellationTarget) async -> String {
+                    let before = inspectComputedCancellationOwnership(self)
+                    var outcome = "missed"
+                    do {
+                        _ = try await target.cancellingValue
+                    } catch is CancellationError {
+                        outcome = "cancelled"
+                    } catch {
+                        outcome = "other"
+                    }
+                    let afterCancellation =
+                        inspectComputedCancellationOwnership(self)
+                    let recovered = await target.recover()
+                    let afterRecovery =
+                        inspectComputedCancellationOwnership(self)
+                    return before + "|" + outcome + "|" + afterCancellation
+                        + "|" + recovered + "|" + afterRecovery
+                }
+            }
+
+            func runComputedCancellationProbe() async -> String {
+                let target = ComputedCancellationTarget()
+                let caller = ComputedCancellationCaller()
+                let task = Task { await caller.run(target) }
+                await awaitComputedCancellationSuspension()
+                task.cancel()
+                await resumeComputedCancellationMessage()
+                return await task.value
+            }
+
+            await runComputedCancellationProbe()
+            """)
+        let symbol = try #require(
+            interpreter.globals.lookup("ComputedCancellationTarget")?
+                .typeSymbol)
+        let getter = try #require(
+            symbol.computedProperties["cancellingValue"])
+
+        #expect(result.stringValue
+            == "owned|cancelled|owned|owned:owned:owned:2|owned")
+        #expect(getter.isAsync)
+        #expect(getter.isThrowing)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+
+        do {
+            _ = try await Interpreter().runAsync(source: """
+                actor AsyncComputedProbe {
+                    var value: Int { get async { 1 } }
+                }
+                let probe = AsyncComputedProbe()
+                probe.value
+                """)
+            Issue.record(
+                "async actor computed property executed through eager entry")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "requires an awaited suspending entry"))
+        }
+    }
+
+    @Test
     func actorComputedSetterRequiresOwnedSynchronousEntry() async throws {
         let interpreter = Interpreter()
         interpreter.globals.define(

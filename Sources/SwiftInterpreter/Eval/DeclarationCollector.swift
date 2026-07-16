@@ -739,7 +739,9 @@ extension Interpreter {
                     declarationID: binding.id,
                     isNonisolated: varDecl.modifiers.contains {
                         $0.name.text == "nonisolated"
-                    }
+                    },
+                    isAsync: accessors.isGetterAsync,
+                    isThrowing: accessors.isGetterThrowing
                 )
                 if isStaticDecl {
                     symbol.staticComputedProperties[name] = computed
@@ -1014,7 +1016,9 @@ extension Interpreter {
                             isBuilder: hasBuilderAttribute || returnsView,
                             setter: accessors.setter,
                             typeAnnotation: binding.typeAnnotation?.type,
-                            declarationID: binding.id
+                            declarationID: binding.id,
+                            isAsync: accessors.isGetterAsync,
+                            isThrowing: accessors.isGetterThrowing
                         )
                         continue
                     }
@@ -1023,7 +1027,9 @@ extension Interpreter {
                         isBuilder: hasBuilderAttribute || returnsView,
                         setter: accessors.setter,
                         typeAnnotation: binding.typeAnnotation?.type,
-                        declarationID: binding.id
+                        declarationID: binding.id,
+                        isAsync: accessors.isGetterAsync,
+                        isThrowing: accessors.isGetterThrowing
                     )
                 } else if isStaticDecl {
                     let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
@@ -1273,18 +1279,27 @@ extension Interpreter {
     /// nil ⇒ no getter (willSet/didSet observers only): treat as stored.
     func parseAccessors(
         of accessorBlock: AccessorBlockSyntax
-    ) -> (getter: CodeBlockItemListSyntax, setter: ComputedProperty.Setter?)? {
+    ) -> (
+        getter: CodeBlockItemListSyntax,
+        setter: ComputedProperty.Setter?,
+        isGetterAsync: Bool,
+        isGetterThrowing: Bool
+    )? {
         switch accessorBlock.accessors {
         case .getter(let items):
-            return (items, nil)
+            return (items, nil, false, false)
         case .accessors(let list):
             var getter: CodeBlockItemListSyntax?
             var setter: ComputedProperty.Setter?
+            var isGetterAsync = false
+            var isGetterThrowing = false
             for accessor in list {
                 guard let body = accessor.body?.statements else { continue }
                 switch accessor.accessorSpecifier.tokenKind {
                 case .keyword(.get):
                     getter = body
+                    isGetterAsync = accessor.effectSpecifiers?.asyncSpecifier != nil
+                    isGetterThrowing = accessor.effectSpecifiers?.throwsClause != nil
                 case .keyword(.set):
                     setter = .init(body: body, parameterName: accessor.parameters?.name.text ?? "newValue")
                 default:
@@ -1292,7 +1307,7 @@ extension Interpreter {
                 }
             }
             guard let getter else { return nil }
-            return (getter, setter)
+            return (getter, setter, isGetterAsync, isGetterThrowing)
         }
     }
 

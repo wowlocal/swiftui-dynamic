@@ -400,14 +400,16 @@ extension Interpreter {
     ) async throws -> RuntimeValue {
         if case .instance(let instance) = base {
             let canonical = instance.symbol.canonicalPropertyName(name)
-            if let computed = instance.symbol.computedProperties[canonical],
-               let executor = try resolvedExecutor(
-                    for: computed, on: instance) {
-                return try await evaluateComputedSuspending(
-                    computed,
-                    selfValue: .instance(instance),
-                    name: canonical,
-                    executor: executor)
+            if let computed = instance.symbol.computedProperties[canonical] {
+                let executor = try resolvedExecutor(
+                    for: computed, on: instance)
+                if computed.isAsync || executor != nil {
+                    return try await evaluateComputedSuspending(
+                        computed,
+                        selfValue: .instance(instance),
+                        name: canonical,
+                        executor: executor)
+                }
             }
         }
 
@@ -424,7 +426,7 @@ extension Interpreter {
         _ computed: ComputedProperty,
         selfValue: RuntimeValue,
         name: String,
-        executor: RuntimeExecutorKind
+        executor: RuntimeExecutorKind?
     ) async throws -> RuntimeValue {
         let suspendedCallerActor = suspendCallerActorForExecutorHop(
             to: executor)
@@ -453,11 +455,15 @@ extension Interpreter {
         _ computed: ComputedProperty,
         selfValue: RuntimeValue,
         name: String,
-        executor: RuntimeExecutorKind
+        executor: RuntimeExecutorKind?
     ) async throws -> RuntimeValue {
         let actorOwnership = try await enterActorInvocation(
             executor: executor)
         defer { leaveActorInvocation(actorOwnership) }
+        if computed.isAsync {
+            return try await evaluateComputedBodySuspending(
+                computed, selfValue: selfValue, name: name)
+        }
         return try evaluateComputed(
             computed, selfValue: selfValue, name: name)
     }

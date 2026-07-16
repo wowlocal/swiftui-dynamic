@@ -754,6 +754,52 @@ extension Interpreter {
             operation)
     }
 
+    private func withComputedPropertyContextSuspending<T>(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String,
+        _ operation: (Environment) async throws -> T
+    ) async throws -> T {
+        let calleeExecutor: RuntimeExecutorKind?
+        if case .instance(let instance) = selfValue {
+            calleeExecutor = try resolvedExecutor(for: computed, on: instance)
+        } else {
+            calleeExecutor = nil
+        }
+
+        let previousExecutor = evaluationTaskContext.currentExecutor
+        if let calleeExecutor {
+            evaluationTaskContext.currentExecutor = calleeExecutor
+            lexicalExecutorFrames.append(calleeExecutor)
+        }
+        defer {
+            if calleeExecutor != nil {
+                lexicalExecutorFrames.removeLast()
+            }
+            evaluationTaskContext.currentExecutor = previousExecutor
+        }
+        try requireSynchronousActorInvocationAccess(to: calleeExecutor)
+
+        callDepth += 1
+        defer { callDepth -= 1 }
+        guard callDepth < callDepthLimit else {
+            throw RuntimeError(
+                message: "call depth exceeded evaluating '\(name)' "
+                    + "(possible infinite recursion)",
+                fatal: true)
+        }
+
+        var pushedLexicalOwner = false
+        if let declarationID = computed.declarationID,
+           let owner = declLexicalOwners[declarationID] {
+            lexicalOwnerFrames.append(owner)
+            pushedLexicalOwner = true
+        }
+        defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
+
+        return try await operation(selfEnvironment(selfValue))
+    }
+
     private func withUserSubscriptContext<T>(
         _ member: StructSymbol.SubscriptMember,
         selfValue: RuntimeValue,
@@ -779,7 +825,13 @@ extension Interpreter {
         selfValue: RuntimeValue,
         name: String
     ) throws -> RuntimeValue {
-        try withComputedPropertyContext(
+        if computed.isAsync && evaluationTaskContext.isAsyncSession {
+            throw RuntimeError(
+                message: "async computed property '\(name)' requires an "
+                    + "awaited suspending entry",
+                fatal: true)
+        }
+        return try withComputedPropertyContext(
             computed, selfValue: selfValue, name: name
         ) { env in
             if computed.isBuilder {
@@ -796,6 +848,36 @@ extension Interpreter {
                 // Keep contextual markers lazy. Receiver operations that
                 // require the concrete type (notably user subscripts) resolve
                 // this value against the annotation at their dispatch boundary.
+                return value
+            default:
+                throw RuntimeError(message:
+                    "control flow escaped computed property '\(name)'")
+            }
+        }
+    }
+
+    func evaluateComputedBodySuspending(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String
+    ) async throws -> RuntimeValue {
+        try await withComputedPropertyContextSuspending(
+            computed, selfValue: selfValue, name: name
+        ) { env in
+            guard !computed.isBuilder else {
+                throw RuntimeError(
+                    message: "async result-builder computed property "
+                        + "'\(name)' is not supported",
+                    fatal: true)
+            }
+            let result = try await executeBlockSuspending(
+                computed.accessor, in: env)
+            switch result {
+            case .normal(let value), .returnValue(let value):
+                if let typeName = computed.typeAnnotation?.trimmedDescription,
+                   RuntimeOptionalValue.wrappedType(in: typeName) != nil {
+                    return try resolveAnnotated(value, typeName: typeName)
+                }
                 return value
             default:
                 throw RuntimeError(message:

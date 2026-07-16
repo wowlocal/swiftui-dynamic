@@ -15,6 +15,11 @@ public struct ComputedProperty {
     }
 
     public let accessor: CodeBlockItemListSyntax
+    /// Effect specifiers belong to the getter, not to the property binding.
+    /// Preserve them independently so the async evaluator can choose a
+    /// suspension-aware accessor entry instead of eagerly executing the body.
+    public let isAsync: Bool
+    public let isThrowing: Bool
     public let isBuilder: Bool
     public let setter: Setter?
     /// Explicit `nonisolated` belongs to the accessor declaration. Actor
@@ -32,9 +37,13 @@ public struct ComputedProperty {
         accessor: CodeBlockItemListSyntax, isBuilder: Bool,
         setter: Setter? = nil, typeAnnotation: TypeSyntax? = nil,
         declarationID: SyntaxIdentifier? = nil,
-        isNonisolated: Bool = false
+        isNonisolated: Bool = false,
+        isAsync: Bool = false,
+        isThrowing: Bool = false
     ) {
         self.accessor = accessor
+        self.isAsync = isAsync
+        self.isThrowing = isThrowing
         self.isBuilder = isBuilder
         self.setter = setter
         self.typeAnnotation = typeAnnotation
