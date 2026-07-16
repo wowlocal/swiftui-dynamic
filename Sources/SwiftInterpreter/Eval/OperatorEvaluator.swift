@@ -577,7 +577,7 @@ extension Interpreter {
                     return
                 }
                 if let computed = instance.symbol.computedProperties[name] {
-                    guard let setter = computed.setter else {
+                    guard computed.setter != nil else {
                         if interpreter.assumesCompiledImports {
                             // A get-only assignment can't compile natively —
                             // the setter lives somewhere the merge didn't
@@ -586,9 +586,11 @@ extension Interpreter {
                         }
                         throw EvalMessage(text: "cannot assign to get-only property '\(name)'")
                     }
-                    let env = interpreter.selfEnvironment(.instance(instance))
-                    env.define(setter.parameterName, value)
-                    _ = try interpreter.executeBlock(setter.body, in: env)
+                    try interpreter.assignComputed(
+                        computed,
+                        selfValue: .instance(instance),
+                        name: name,
+                        value: value)
                     return
                 }
                 if let superName = instance.symbol.superclassName,

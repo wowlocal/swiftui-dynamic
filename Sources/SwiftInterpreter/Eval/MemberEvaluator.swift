@@ -722,6 +722,24 @@ extension Interpreter {
         }
     }
 
+    func assignComputed(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String,
+        value: RuntimeValue
+    ) throws {
+        guard let setter = computed.setter else {
+            throw EvalMessage(text:
+                "cannot assign to get-only property '\(name)'")
+        }
+        try withComputedPropertyContext(
+            computed, selfValue: selfValue, name: name
+        ) { env in
+            env.define(setter.parameterName, value)
+            _ = try executeBlock(setter.body, in: env)
+        }
+    }
+
     func groupViews(_ views: [RuntimeValue]) throws -> RuntimeValue {
         if views.count == 1 { return views[0] }
         guard let registry else {
@@ -1396,15 +1414,17 @@ extension Interpreter {
                 // accessors (Observation's access/withMutation idiom:
                 // `$store.sortType` where sortType wraps _sortType).
                 if let computed = projection.model.symbol.computedProperties[name],
-                   let setter = computed.setter {
+                   computed.setter != nil {
                     let model = projection.model
                     let seed = try evaluateComputed(computed, selfValue: .instance(model), name: name)
                     let box = Box(seed)
                     box.onChange = { [weak self] in
                         guard let self else { return }
-                        let env = self.selfEnvironment(.instance(model))
-                        env.define(setter.parameterName, box.value)
-                        _ = try? self.executeBlock(setter.body, in: env)
+                        try? self.assignComputed(
+                            computed,
+                            selfValue: .instance(model),
+                            name: name,
+                            value: box.value)
                     }
                     return .native(BindingStub(box: box))
                 }

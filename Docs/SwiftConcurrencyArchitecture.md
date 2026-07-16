@@ -267,7 +267,9 @@ actor `let` storage and explicitly nonisolated storage remain directly
 readable, so neither is over-guarded. An externally awaited synchronous
 computed-property getter enters through the same actor mailbox for its complete
 accessor segment; explicit `nonisolated` accessor metadata remains outside that
-entry.
+entry. A synchronous computed setter does not synthesize an external hop:
+native Swift rejects external mutation even with `await`, so the shared
+accessor context requires the caller to already own the receiver actor.
 
 This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
@@ -276,7 +278,7 @@ complete actor isolation. Remaining actor work includes:
 - complete native evidence for cross-actor executor hops and every failure or
   cancellation exit;
 - replayable mailbox/reentrancy stress;
-- complete computed-property setter and subscript confinement;
+- complete actor-subscript confinement;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
 
@@ -915,9 +917,11 @@ a host callback or dynamically constructed call from bypassing isolation.
 Externally awaited synchronous computed-property getters now acquire the exact
 receiver actor and execute through a common accessor context; unawaited dynamic
 entry fails closed, and explicit `nonisolated` metadata avoids over-isolation.
-Computed setters still need native parity, while subscripts, isolated
-parameters, and failure/cancellation coverage remain open and must not be
-inferred from this stored-property/getter and successful-resume subset.
+Computed setters use that common context but require an already-owned actor
+segment; external mutation is rejected by native/compiler preflight rather than
+turned into a setter hop. Subscripts, isolated parameters, and
+failure/cancellation coverage remain open and must not be inferred from this
+stored-property/accessor and successful-resume subset.
 
 ### 6.12 Actor reentrancy
 
@@ -940,9 +944,11 @@ after the task has regained the actor mailbox. The controlled same-source
 `actor-reentrancy` fixture proves successful host-suspension interleaving and
 resume ownership. The `actor-computed-property` fixture separately proves that
 an externally awaited synchronous getter owns the receiver actor for its whole
-accessor segment. Failure, cancellation, computed setters/subscripts,
-isolated-parameter dispatch, arbitrary global actors, and replayable mailbox
-stress remain open M5 work.
+accessor segment. The `actor-computed-setter` fixture proves legal setter
+execution inside an already-owned actor method, while a diagnostic fixture
+proves that external mutation cannot be made into a hop with `await`. Failure,
+cancellation, actor subscripts, isolated-parameter dispatch, arbitrary global
+actors, and replayable mailbox stress remain open M5 work.
 
 ### 6.13 Cancellation
 

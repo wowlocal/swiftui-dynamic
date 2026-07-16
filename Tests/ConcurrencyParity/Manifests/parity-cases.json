@@ -110,6 +110,18 @@
     "notes": "Exact output is owned:1|owned:2|unowned|2 in all 20 Swift 6.3.3 runs. Sequential awaits establish both isolated mutations; no FIFO between independent messages, physical-thread, or parallelism claim is made."
   },
   {
+    "id": "actor-computed-setter",
+    "fixture": "Fixtures/actor-computed-setter.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorComputedSetterProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A synchronous computed setter invoked from an actor-isolated method executes inside that method's actor-owned executor segment and may mutate actor-isolated storage.",
+    "notes": "Exact output is owned:7|owned:11 in all 20 Swift 6.3.3 runs. Sequential awaited method calls establish both assignments; no external setter hop, physical-thread behavior, or independent-message order is asserted."
+  },
+  {
     "id": "actor-reentrancy",
     "fixture": "Fixtures/actor-reentrancy.swift",
     "mode": "runtime",
@@ -1281,6 +1293,18 @@
     "diagnosticLine": 6,
     "nativeFact": "A synchronous nonisolated function cannot read actor-isolated mutable state without an actor hop.",
     "notes": "Milestone 0 records the compiler fact; interpreter preflight comparison belongs to Milestone 7."
+  },
+  {
+    "id": "actor-computed-setter-diagnostic",
+    "fixture": "Fixtures/actor-computed-setter-diagnostic.swift",
+    "mode": "diagnostic",
+    "assertion": "diagnostic",
+    "repetitions": 1,
+    "timeoutSeconds": 15,
+    "diagnosticContains": ["actor-isolated property", "can not be mutated from a nonisolated context"],
+    "diagnosticLine": 9,
+    "nativeFact": "An actor-isolated computed property cannot be mutated from outside the actor, and writing await before the assignment does not create a legal setter hop.",
+    "notes": "The compiler also reports that the await contains no async operation and recommends an isolated method. Runtime setter execution is therefore confined to an already-owned actor segment."
   },
   {
     "id": "throwing-property-missing-try-diagnostic",
