@@ -10,6 +10,33 @@ only the narrow SwiftUI-magic semantic primitives allowed by `AGENTS.md`, and
 use stub types (`InterpretedView`) for protocol conformance. See README.md for
 what already works.
 
+## RUN THE APP — R3 function climb, in a worktree (user directive 2026-07-16)
+
+The loop's goal is now **running the app**: the interpreted FoodTruck must
+FUNCTION — mutations re-render identically to the compiled twin, and
+`swift run DynamicSwiftUIDemo --project
+Examples/FoodTruckBuildingASwiftUIMultiplatformApp` launches an interactive
+window a person can use. Climb R3 per `Scripts/foodtruck-r3-spec.md`
+(model-API mutation parity, six scenarios, R2 floors carry over and never
+widen). R2 residue (socialfeed 16.9%, content twin-side sidebar, Charts
+forecast) stays on the queue but only blocks when a scenario's screen needs
+it. North star: R3 scenarios green, then R4.
+
+**Worktree protocol (Codex owns the MAIN tree for concurrency work —
+never build, test, or edit in the main checkout):**
+- The loop lane lives in `.claude/worktrees/lane-foodtruck-run`, branch
+  `worktree-lane-foodtruck-run`.
+- Iteration START: `git merge main` inside the worktree (absorb Codex's
+  committed progress; their UNCOMMITTED main-tree files are theirs alone).
+- All work, builds, captures, and `Scripts/gate.sh` run INSIDE the worktree.
+- Iteration CLOSE: commit on the lane branch (never `.claude/*.local.md`),
+  then merge the lane branch into main: `git -C <main-checkout> merge
+  --no-ff worktree-lane-foodtruck-run`. Git refuses if the merge would
+  touch one of Codex's dirty files — in that case leave the branch
+  unmerged, note it in `.claude/claims.md`, and continue; NEVER stash,
+  checkout, or commit Codex's in-flight files to force a merge through.
+- The auto-push daemon publishes main after each merged iteration.
+
 ## PRIMARY TARGET: Food Truck — pixel-perfect, fully functional (user directive 2026-07-11)
 
 Apple's WWDC sample at `Examples/FoodTruckBuildingASwiftUIMultiplatformApp`
