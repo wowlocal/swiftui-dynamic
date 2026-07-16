@@ -309,9 +309,17 @@ This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
 complete actor isolation. Remaining actor work includes:
 
-- replayable mailbox/reentrancy stress;
-- complete `nonisolated`, isolated-parameter, and global-actor semantics;
+- complete defaulted/optional isolated-parameter and arbitrary global-actor
+  semantics;
 - compile-time restrictions on access.
+
+Mailbox/reentrancy stress is now replayable and covered: an exact same-source
+fixture anchors Swift's terminal invariants, while a 64-seed interpreter board
+varies fanout, repeated rounds, pre-entry yielding, and post-barrier resume
+yields. It checks actor ownership after every resumed segment, exactly one
+mutation per message, complete child collection, and empty task, actor, scope,
+group, host-operation, and scheduler registries. It deliberately makes no FIFO,
+child-order, physical-thread, or cross-actor-parallelism claim.
 
 These rules belong to the concurrency runtime and semantic preflight, not the
 ordinary class member dispatcher.
@@ -1019,8 +1027,11 @@ followed by callee release and caller restoration. The
 executor selection share one mapping: the required explicit actor argument is
 resolved before a hop, its mailbox is acquired for the complete synchronous
 body, and an already-owned same-actor call stays synchronous. Eager unowned
-entry and malformed dynamic values fail closed. Defaulted/optional isolated
-parameters, arbitrary global actors, and replayable mailbox stress remain open
+entry and malformed dynamic values fail closed. `actor-mailbox-stress` proves
+the commutative native terminal invariant across repeated mailbox rounds, and a
+64-seed replayable board varies fanout plus suspension placement while checking
+ownership, mutation totals, child collection, and complete runtime draining.
+Defaulted/optional isolated parameters and arbitrary global actors remain open
 M5 work.
 
 ### 6.13 Cancellation
@@ -1806,13 +1817,13 @@ Each milestone is independently gated through
   complete.
 
 M5 is intentionally decomposed, and its slices are ordered so that no flip to
-fail-closed rejection lands before the replacement runtime exists. The entry
-slice installs actor identity/storage and serial executor hops for the
-measured demand shapes — `@MainActor` isolation and user-declared global
-actors of the FoodTruck StoreActor shape — while valid actor declarations
-keep executing through the documented class-like compatibility path. The
-second slice adds reentrancy/resume ownership, isolated parameters, and
-arbitrary global actors. The final slice flips each actor feature to
+fail-closed rejection lands before the replacement runtime exists. The covered
+entry slice installs actor identity/storage, serial executor hops, and
+replayable mailbox stress for the measured demand shapes — `@MainActor`
+isolation and user-declared global actors of the FoodTruck StoreActor shape —
+while valid actor declarations keep executing through the documented
+class-like compatibility path. The second slice completes isolated-parameter
+forms and arbitrary global actors. The final slice flips each actor feature to
 fail-closed diagnosis as its replacement lands; a global up-front rejection
 is forbidden while FoodTruckCheck, ProjectCheck, and suite ratchets execute
 through the compatibility path, because board ratchets may never decrease.
@@ -1954,13 +1965,14 @@ Proof:
 
 ### Milestone 5: actor support and executor architecture
 
-Slice order (2026-07-16 demand cycle): first actor identity/storage and serial
-executor hops scoped to the measured demand shapes (`@MainActor` isolation and
-user-declared global actors of the FoodTruck StoreActor shape); then
-reentrancy/resume ownership, isolated parameters, and arbitrary global actors;
-then per-feature fail-closed flips of the class-like compatibility path. A
-feature fails closed only once its actor-runtime replacement lands — never as
-an up-front global rejection — because board ratchets may never decrease.
+Slice order (2026-07-16 demand cycle): the covered first slice supplies actor
+identity/storage, serial executor hops, and replayable mailbox stress for the
+measured demand shapes (`@MainActor` isolation and user-declared global actors
+of the FoodTruck StoreActor shape); the active second slice completes
+isolated-parameter forms and arbitrary global actors; the final slice applies
+per-feature fail-closed flips to the class-like compatibility path. A feature
+fails closed only once its actor-runtime replacement lands — never as an
+up-front global rejection — because board ratchets may never decrease.
 
 Deliverables:
 

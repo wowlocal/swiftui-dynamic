@@ -352,7 +352,6 @@ struct ConcurrencyMethodologyTests {
         #expect(Set(matrix.executionPlan.currentTail.requirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.currentTail.requirementRefs == [
-            "M5/actor-identity-storage-and-serial-executor",
             "M5/actor-reentrancy-and-isolated-dispatch",
             "M5/actor-declaration-safety-boundary",
         ])

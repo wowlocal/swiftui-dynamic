@@ -158,6 +158,18 @@
     "notes": "Exact output is owned:owned:interleaved:owned:3 in all 20 Swift 6.3.3 runs. A controlled gate establishes every asserted edge; no FIFO, task-start order, physical thread, or unrelated scheduling order is asserted."
   },
   {
+    "id": "actor-mailbox-stress",
+    "fixture": "Fixtures/actor-mailbox-stress.swift",
+    "mode": "runtime",
+    "assertion": "stress",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorMailboxStressProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Round barriers force multiple actor messages to suspend and re-enter one actor; every resumed segment retains actor ownership, every message mutates exactly once, and all rounds and children drain.",
+    "notes": "Eight children execute four barrier rounds with two additional in-actor yields per message. Exact terminal output is 32:4:0:0:8 in all 20 Swift 6.3.3 runs; only commutative counts and ownership invariants are asserted, not child order, FIFO, or physical threads."
+  },
+  {
     "id": "actor-cross-actor-failure",
     "fixture": "Fixtures/actor-cross-actor-failure.swift",
     "mode": "runtime",

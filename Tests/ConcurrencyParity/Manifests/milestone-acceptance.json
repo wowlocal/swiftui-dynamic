@@ -13,7 +13,6 @@
       "state": "active",
       "milestoneIDs": ["M5"],
       "requirementRefs": [
-        "M5/actor-identity-storage-and-serial-executor",
         "M5/actor-reentrancy-and-isolated-dispatch",
         "M5/actor-declaration-safety-boundary"
       ]
@@ -657,8 +656,8 @@
       "title": "Actor support and executor architecture",
       "status": "partial",
       "dependsOn": ["M4", "M7"],
-      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, depth-counted mailbox ownership for synchronous and async actor-function plus externally awaited synchronous computed-getter and subscript-getter segments, throwing computed-getter failure cleanup, async-throwing computed/subscript-getter success/source-error/cancellation reacquisition cleanup with caller restoration, actor computed-property and subscript-setter confinement to already-owned segments, controlled suspension release/reacquisition and actor reentrancy, cross-actor throwing and cancellation-observing function hops with caller restoration, required explicit source-actor isolated-parameter dispatch, explicit waitingForActor handoff/cleanup, and mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions are covered.",
-      "ledgerRemainingWork": "Active demand cycle (2026-07-16): add arbitrary global actors, defaulted and optional isolated-parameter forms, and replayable mailbox stress, then finish per-feature fail-closed flips with no up-front global rejection; physical workers remain M9.",
+      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, depth-counted mailbox ownership for synchronous and async actor-function plus externally awaited synchronous computed-getter and subscript-getter segments, throwing computed-getter failure cleanup, async-throwing computed/subscript-getter success/source-error/cancellation reacquisition cleanup with caller restoration, actor computed-property and subscript-setter confinement to already-owned segments, controlled suspension release/reacquisition and actor reentrancy, cross-actor throwing and cancellation-observing function hops with caller restoration, required explicit source-actor isolated-parameter dispatch, explicit waitingForActor handoff/cleanup, replayable seeded mailbox stress with complete runtime draining, and mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions are covered.",
+      "ledgerRemainingWork": "Active demand cycle (2026-07-16): add arbitrary global actors plus defaulted and optional isolated-parameter forms, then finish per-feature fail-closed flips with no up-front global rejection; physical workers remain M9.",
       "requirements": [
         {
           "id": "logical-executor-identity",
@@ -696,7 +695,7 @@
         },
         {
           "id": "actor-identity-storage-and-serial-executor",
-          "status": "open",
+          "status": "covered",
           "owners": ["runtime"],
           "coverage": ["success", "isolation", "executor", "lifetime"],
           "dependsOnRequirements": ["M4/structured-stress-and-leak-plateau"],
@@ -704,6 +703,7 @@
             "actor-isolated-entry",
             "custom-global-actor-isolation",
             "actor-serial-segment",
+            "actor-mailbox-stress",
             "actor-computed-property",
             "actor-computed-property-failure",
             "actor-computed-property-cancellation",
@@ -732,10 +732,36 @@
             "ActorRuntimeTests/actorSubscriptGetterAcquiresExecutorAndRejectsUnawaitedEntry",
             "ActorRuntimeTests/asyncActorSubscriptCancellationRestoresCallerAndReleasesTarget",
             "ActorRuntimeTests/asyncActorSubscriptSuccessAndSourceErrorBalanceExecutors",
-            "ActorRuntimeTests/actorSubscriptSetterRequiresOwnedSynchronousEntry"
+            "ActorRuntimeTests/actorSubscriptSetterRequiresOwnedSynchronousEntry",
+            "ActorMailboxStressTests/configuredBoardPreservesOwnershipAndDrainsEveryEdge",
+            "ActorMailboxStressTests/failureDiagnosticContainsExactReplayCommand"
           ],
-          "gapEvidenceIDs": ["actor-identity-storage-serial-executor"],
-          "notes": "Entry slice of the 2026-07-16 demand cycle. Source actor declarations retain their nominal actor kind, each instance receives a distinct runtime ID backed by a non-owning record, final release removes that record, and a collected user-declared global actor resolves through its canonical static shared identity. Synchronous and async actor-isolated functions plus externally awaited synchronous computed-property and subscript getters acquire depth-counted mailbox leases before changing logical executor; computed and subscript getters retain their declared async/throwing effects, a throwing computed getter releases the target on failure, and async-throwing computed/subscript getters reacquire their target before normal return, source-thrown error, or cancellation observation, then release it and restore their caller before subsequent caller work; computed-property and subscript setters require an already-owned actor segment because Swift rejects external mutation even when spelled with await. Canonical host/task/clock/group waits release the complete nested segment, and resumption queues on the same actor before source evaluation continues. Competing source tasks record waitingForActor, receive direct ownership handoff, and cannot release while an actor edge remains. Mutable stored-property funnels require ownership, while ordinary immutable let and explicitly nonisolated storage remain readable under the native Swift 6 rule. The exact same-source actor-serial-segment, actor-computed-property, actor-computed-property-failure, actor-computed-property-cancellation, actor-computed-property-async-exits, actor-computed-setter, actor-subscript-getter, actor-subscript-cancellation, actor-subscript-async-exits, actor-subscript-setter, controlled actor-reentrancy, cross-actor throwing-function, and cross-actor cancellation cases are native/interpreter GREEN in 20 repetitions without FIFO, task-start, physical-thread, or cross-actor-parallelism claims. The requirement stays open for replayable mailbox stress coverage. FoodTruckCheck, ProjectCheck, and suite ratchets must not regress."
+          "evidenceByCoverage": {
+            "success": [
+              "case:actor-isolated-entry",
+              "case:custom-global-actor-isolation",
+              "case:actor-serial-segment",
+              "case:actor-mailbox-stress"
+            ],
+            "isolation": [
+              "case:actor-isolated-entry",
+              "case:actor-serial-segment",
+              "case:actor-mailbox-stress",
+              "test:ActorRuntimeTests/actorMutableStorageRequiresOwnershipWhileAllowedStorageRemainsReadable"
+            ],
+            "executor": [
+              "case:concurrent-executor-hop",
+              "case:actor-reentrancy",
+              "case:actor-mailbox-stress",
+              "test:ActorRuntimeTests/actorMailboxSuspendsHandsOffAndReleasesRuntimeEdges"
+            ],
+            "lifetime": [
+              "test:ActorRuntimeTests/actorInstancesOwnDistinctRuntimeIdentitiesAndReleaseRecords",
+              "test:ActorMailboxStressTests/configuredBoardPreservesOwnershipAndDrainsEveryEdge"
+            ]
+          },
+          "gapEvidenceIDs": [],
+          "notes": "The entry slice of the 2026-07-16 demand cycle is covered. Source actor declarations retain their nominal actor kind, each instance receives a distinct runtime ID backed by a non-owning record, final release removes that record, and a collected user-declared global actor resolves through its canonical static shared identity. Synchronous and async actor-isolated functions plus externally awaited synchronous computed-property and subscript getters acquire depth-counted mailbox leases before changing logical executor; computed and subscript getters retain their declared async/throwing effects, a throwing computed getter releases the target on failure, and async-throwing computed/subscript getters reacquire their target before normal return, source-thrown error, or cancellation observation, then release it and restore their caller before subsequent caller work; computed-property and subscript setters require an already-owned actor segment because Swift rejects external mutation even when spelled with await. Canonical host/task/clock/group waits release the complete nested segment, and resumption queues on the same actor before source evaluation continues. Competing source tasks record waitingForActor, receive direct ownership handoff, and cannot release while an actor edge remains. Mutable stored-property funnels require ownership, while ordinary immutable let and explicitly nonisolated storage remain readable under the native Swift 6 rule. Exact same-source actor cases are native/interpreter GREEN in 20 repetitions without FIFO, task-start, physical-thread, or cross-actor-parallelism claims. A 64-seed replayable mailbox board varies fanout, rounds, pre-entry yield, and in-segment resume yields while proving exact mutation totals, actor ownership after every resume, complete child collection, and empty task/actor/group/scope/host-operation/scheduler registries. FoodTruckCheck, ProjectCheck, and suite ratchets must not regress."
         },
         {
           "id": "actor-reentrancy-and-isolated-dispatch",
@@ -752,15 +778,20 @@
             "actor-cross-actor-cancellation",
             "actor-isolated-parameter"
           ],
-          "evidenceCaseIDs": ["concurrent-executor-hop"],
+          "evidenceCaseIDs": [
+            "concurrent-executor-hop",
+            "actor-mailbox-stress"
+          ],
           "testNames": [
             "ActorRuntimeTests/actorSuspensionReleasesAndRestoresCompleteNestedSegment",
             "ActorRuntimeTests/crossActorFailureRestoresCallerAndReleasesCallee",
             "ActorRuntimeTests/crossActorCancellationRestoresCallerAndReleasesCallee",
-            "ActorRuntimeTests/isolatedParameterSelectsArgumentActorAndRejectsUnawaitedEntry"
+            "ActorRuntimeTests/isolatedParameterSelectsArgumentActorAndRejectsUnawaitedEntry",
+            "ActorMailboxStressTests/configuredBoardPreservesOwnershipAndDrainsEveryEdge",
+            "ActorMailboxStressTests/failureDiagnosticContainsExactReplayCommand"
           ],
           "gapEvidenceIDs": ["actor-reentrancy-isolated-dispatch"],
-          "notes": "Controlled same-source parity proves that an async actor message owns its synchronous prefix, releases the complete nested segment at a host suspension, permits a second message to mutate isolated state, and reacquires the same actor before resuming. A second exact case proves a cross-actor throwing-function hop: the callee owns its segment, releases it on error, the caller is restored before catch handling, and a later callee message retains both mutations. Gated function, async-computed-getter, and async-subscript-getter cases cancel the source task while the callee is suspended, then prove callee reacquisition before cancellation observation, balanced release, caller restoration before catch, and subsequent callee progress. Separate source-gated async computed/subscript cases prove the same balanced target/caller transition on normal return and source-thrown error. Required explicit source-actor isolated parameters now preserve syntax metadata, select their executor from the bound argument before function entry, allow already-owned synchronous entry, and reject unawaited cross-actor entry. The shared runtime path balances task, clock, host, group, accessor, and explicit executor-hop suspensions. The second slice remains open for arbitrary global actors, defaulted and optional isolated-parameter forms, and replayable mailbox stress."
+          "notes": "Controlled same-source parity proves that an async actor message owns its synchronous prefix, releases the complete nested segment at a host suspension, permits a second message to mutate isolated state, and reacquires the same actor before resuming. A second exact case proves a cross-actor throwing-function hop: the callee owns its segment, releases it on error, the caller is restored before catch handling, and a later callee message retains both mutations. Gated function, async-computed-getter, and async-subscript-getter cases cancel the source task while the callee is suspended, then prove callee reacquisition before cancellation observation, balanced release, caller restoration before catch, and subsequent callee progress. Separate source-gated async computed/subscript cases prove the same balanced target/caller transition on normal return and source-thrown error. Required explicit source-actor isolated parameters now preserve syntax metadata, select their executor from the bound argument before function entry, allow already-owned synchronous entry, and reject unawaited cross-actor entry. The shared runtime path balances task, clock, host, group, accessor, and explicit executor-hop suspensions. A native-anchored exact fixture plus a 64-seed replayable stress board cover mailbox fanout, repeated rounds, suspension/reacquisition, invariant mutation totals, full child collection, and empty runtime registries without claiming FIFO or physical threads. The second slice remains open for arbitrary global actors plus defaulted and optional isolated-parameter forms."
         }
       ]
     },
