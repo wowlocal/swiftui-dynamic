@@ -1819,5 +1819,17 @@
     "interpreterProjection": "string",
     "nativeFact": "When a mutating AsyncIterator.next() throws a typed source error after two successful suspending results, for try await terminates without delivering an element for the throwing call and the enclosing case-specific catch handles that exact error.",
     "notes": "Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 2:3:caught. Count and sum record only the two successful elements; the case-specific catch proves source-error identity without expanding this sequence test into associated-value catch-pattern support. Physical threads, unrelated scheduling, cancellation, early exit, and host-backed sequences are not asserted."
+  },
+  {
+    "id": "protocol-async-sequence-cancellation",
+    "fixture": "Fixtures/protocol-async-sequence-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling a task while a user AsyncIterator.next() is suspended does not automatically terminate for-await iteration. Cancellation remains cooperative: the iterator resumes, observes its task's request, may return an element that the loop consumes, and the task may complete successfully while remaining marked cancelled.",
+    "notes": "A MainActor gate forces cancel() after next() enters and before it resumes. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 1:7:true:true. The iterator chooses value 7 only when it observes cancellation, then returns nil on its next call. No physical-thread or unrelated ready-task order is asserted; cancellable streams are a separate M6 question."
   }
 ]

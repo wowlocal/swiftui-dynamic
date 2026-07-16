@@ -48,8 +48,9 @@ complete depth-counted segment across canonical runtime waits before queuing
 the same task to reacquire it on resume. There is still no general runnable-
 executor queue or continuation registry. M6 has begun with protocol-driven
 `for await` over interpreted witnesses, including suspending mutating iterator
-copy-out and typed source-error propagation; cancellation/early-exit paths,
-host-backed sequences, streams, and continuations remain open. The remaining
+copy-out, typed source-error propagation, and cooperative user-iterator
+cancellation; early-exit paths, host-backed sequences, cancellable streams,
+and continuations remain open. The remaining
 Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1348,16 +1349,21 @@ The evaluator implements `for await` in terms of:
 The current M6 slices implement the protocol lowering for finite interpreted
 sequences. The runtime evaluates the sequence once, calls
 `makeAsyncIterator()` once, repeatedly invokes suspending `next()`, unwraps
-exactly one optional layer, and stops requesting elements after `nil`,
-`break`, or `return`. A value-type iterator uses the same suspension-aware
+exactly one optional layer, and stops requesting elements after `nil`. A
+value-type iterator uses the same suspension-aware
 mutating-method copy-in/copy-out kernel as an explicit
 `await iterator.next()` call; direct witness dispatch may not discard its
 state. A typed error from `next()` exits the loop and propagates through the
 ordinary source-error path without delivering an element for that call.
+Cancellation of the consuming task does not itself end a general protocol
+iteration: after a controlled suspension the iterator may resume, observe the
+request, return an element, and later return `nil`, while the successful task
+and its handle remain marked cancelled. This is cooperative iterator behavior,
+not evidence for `AsyncStream` consumer termination.
 Compiler preflight owns conformance legality. Runtime dispatch remains
 value-based so protocol-extension witnesses and generated host methods can use
-the same path once their focused evidence lands. Cancellation, early-exit/
-defer, host bridging, stream registries, and continuation ownership
+the same path once their focused evidence lands. Early-exit/defer, host
+bridging, cancellable stream registries, and continuation ownership
 are not inherited from this success claim.
 
 ### 6.19 Host gateway runtime
@@ -1926,9 +1932,10 @@ Each milestone is independently gated through
   identity/storage and serial hops, reentrancy/isolated dispatch, and the
   per-feature fail-closed boundary are covered; the milestone is provisional
   while its broad M4/M7 dependencies remain partial;
-- the M6 demand slice is active and partial. Finite success and typed source
-  failure for protocol `for await` over interpreted witnesses are covered;
-  cancellation/early-exit and host-bridged iteration, `AsyncStream`, and
+- the M6 demand slice is active and partial. Finite success, typed source
+  failure, and cooperative user-iterator cancellation for protocol `for await`
+  over interpreted witnesses are covered; early-exit and host-bridged
+  iteration, cancellable `AsyncStream` consumers, and
   checked continuations resuming on cooperative-default and
   MainActor executors require executor-owned resume from the covered M5
   identity/storage slice, not complete custom-executor scheduling;
@@ -2124,8 +2131,9 @@ demand slice covers protocol `for await` iteration,
 cooperative-default and MainActor executors, including host-bridged async
 sequences of the StoreKit update-stream shape, before the remaining surface.
 The finite interpreted-witness success and typed-error paths are covered;
-every remaining item in this paragraph stays in the active requirement rather
-than being inferred from those first slices.
+cooperative cancellation of a consuming task while `next()` is suspended is
+also characterized. Every remaining item in this paragraph stays in the active
+requirement rather than being inferred from those first slices.
 
 Deliverables:
 

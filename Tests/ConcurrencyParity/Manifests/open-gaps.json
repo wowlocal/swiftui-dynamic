@@ -11,7 +11,7 @@
     "requirementRef": "M6/protocol-iteration-streams-and-continuations",
     "kind": "coverage-gap",
     "expectedObservation": "Protocol AsyncSequence iteration, streams, checked and unsafe continuations, cancellation, and cleanup have native parity.",
-    "currentObservation": "Finite for-await over an interpreted AsyncSequence now has exact same-source success and typed-source-failure parity through ordinary makeAsyncIterator/next witness dispatch, including a suspending mutating value-type iterator and cleanup. Cancellation, early exit, protocol-extension defaults, host-bridged sequences, AsyncStream/AsyncThrowingStream, and continuation ownership remain open. The four active-SDK public continuation entry points are generated and native-typechecked with explicit MainActor isolation but intentionally have no runtime route yet."
+    "currentObservation": "Finite for-await over an interpreted AsyncSequence now has exact same-source success, typed-source-failure, and cooperative user-iterator cancellation parity through ordinary makeAsyncIterator/next witness dispatch, including a suspending mutating value-type iterator and cleanup. Early exit, protocol-extension defaults, host-bridged sequences, AsyncStream/AsyncThrowingStream (including cancellable consumers), and continuation ownership remain open. The four active-SDK public continuation entry points are generated and native-typechecked with explicit MainActor isolation but intentionally have no runtime route yet."
   },
   {
     "id": "generated-concurrency-signatures-and-preflight",
