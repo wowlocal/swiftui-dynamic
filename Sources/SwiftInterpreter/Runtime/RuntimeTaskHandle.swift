@@ -79,6 +79,8 @@ public final class RuntimeTaskHandle {
         let taskLocalCount: Int
         let cancellationHandlerCount: Int
         let cancellationHandlerInvocationCount: Int
+        let priorityEscalationHandlerCount: Int
+        let priorityEscalationHandlerInvocationCount: Int
         var nextCancellationSequence: UInt64
 
         init(
@@ -106,6 +108,10 @@ public final class RuntimeTaskHandle {
             cancellationHandlerCount = record.activeCancellationHandlerCount
             cancellationHandlerInvocationCount =
                 record.cancellationHandlerInvocationCount
+            priorityEscalationHandlerCount =
+                record.activePriorityEscalationHandlerCount
+            priorityEscalationHandlerInvocationCount =
+                record.priorityEscalationHandlerInvocationCount
             self.nextCancellationSequence = nextCancellationSequence
         }
 
@@ -200,6 +206,14 @@ public final class RuntimeTaskHandle {
     var cancellationHandlerInvocationCount: Int {
         activeRecord?.cancellationHandlerInvocationCount
             ?? released.cancellationHandlerInvocationCount
+    }
+    var priorityEscalationHandlerCount: Int {
+        activeRecord?.activePriorityEscalationHandlerCount
+            ?? released.priorityEscalationHandlerCount
+    }
+    var priorityEscalationHandlerInvocationCount: Int {
+        activeRecord?.priorityEscalationHandlerInvocationCount
+            ?? released.priorityEscalationHandlerInvocationCount
     }
 
     public convenience init() {

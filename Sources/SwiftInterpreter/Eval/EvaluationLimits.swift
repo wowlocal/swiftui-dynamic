@@ -62,6 +62,8 @@ extension Interpreter {
             throw InterpreterSessionAbort()
         }
         try concurrencyRuntime.throwCancellationHandlerFailure(for: taskID)
+        try concurrencyRuntime.throwPriorityEscalationHandlerFailure(
+            for: taskID)
         guard isSourceTaskCancellationRequested() else { return }
         guard concurrencyRuntime.requiresSessionAbort(taskID) else { return }
         concurrencyRuntime.observeCancellation(taskID)

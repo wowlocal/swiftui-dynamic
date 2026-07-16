@@ -758,6 +758,258 @@ struct AsyncExecutionTests {
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
+    @Test func taskPriorityEscalationHandlersFollowScopedDonationAndCleanUp()
+    async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent(
+                "task-priority-escalation-handler.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nstartTaskPriorityEscalationHandlerProbe()\n"
+        let interpreter = Interpreter()
+        var events: [String] = []
+        interpreter.globals.define(
+            "parityYield",
+            .hostFunction(HostFunction(
+                name: "parityYield",
+                asyncInvoke: { arguments, _ in
+                    await Task.yield()
+                    return arguments.positional(0) ?? .nilValue
+                })))
+        interpreter.globals.define(
+            "parityRecordPriorityEscalationEvent",
+            .hostFunction(HostFunction(
+                name: "parityRecordPriorityEscalationEvent"
+            ) { arguments, _ in
+                events.append(arguments.positional(0)?.stringValue ?? "?")
+                return .void
+            }))
+        interpreter.globals.define(
+            "parityPriorityEscalationEvents",
+            .hostFunction(HostFunction(
+                name: "parityPriorityEscalationEvents"
+            ) { _, _ in
+                .native(events.sorted().joined(separator: ","))
+            }))
+
+        let value = try await interpreter.runAsync(source: source)
+        guard case .instance(let recorder) = value else {
+            Issue.record("expected a priority-escalation handler recorder")
+            return
+        }
+
+        func handle(_ property: String) throws -> RuntimeTaskHandle {
+            let value = try #require(
+                recorder.box(for: property)?.value.unwrappedOptionalOrSelf)
+            return try #require(value.hostPayload as? RuntimeTaskHandle)
+        }
+
+        let active = try handle("activeTask")
+        let activeWaiter = try handle("activeWaiter")
+        let activeFinalWaiter = try handle("activeFinalWaiter")
+        let throwing = try handle("errorTask")
+        let errorWaiter = try handle("errorWaiter")
+        let cancelled = try handle("cancellationTask")
+        let cancellationWaiter = try handle("cancellationWaiter")
+        let replay = try handle("replayTask")
+        let replayFirstWaiter = try handle("replayFirstWaiter")
+        let replayFinalWaiter = try handle("replayFinalWaiter")
+
+        #expect(active.basePriority == .background)
+        #expect(active.effectivePriority == .high)
+        #expect(active.priorityEscalationHistory[activeWaiter.id] == .low)
+        #expect(active.priorityEscalationHistory[activeFinalWaiter.id] == .high)
+        #expect(active.priorityEscalationHandlerInvocationCount == 2)
+        #expect(active.priorityEscalationHandlerCount == 0)
+        #expect(throwing.priorityEscalationHistory[errorWaiter.id] == .high)
+        #expect(throwing.priorityEscalationHandlerInvocationCount == 0)
+        #expect(throwing.priorityEscalationHandlerCount == 0)
+        #expect(cancelled.priorityEscalationHistory[cancellationWaiter.id]
+            == .high)
+        #expect(cancelled.priorityEscalationHandlerInvocationCount == 0)
+        #expect(cancelled.priorityEscalationHandlerCount == 0)
+        #expect(replay.priorityEscalationHistory[replayFirstWaiter.id] == .low)
+        #expect(replay.priorityEscalationHistory[replayFinalWaiter.id] == .high)
+        #expect(replay.priorityEscalationHandlerInvocationCount == 1)
+        #expect(replay.priorityEscalationHandlerCount == 0)
+
+        #expect(recorder.box(for: "activeScopedPriority")?.value.intValue
+            == Int(TaskPriority.low.rawValue))
+        #expect(recorder.box(for: "activePriority")?.value.intValue
+            == Int(TaskPriority.high.rawValue))
+        #expect(recorder.box(for: "exactError")?.value.boolValue == true)
+        #expect(recorder.box(for: "errorPriority")?.value.intValue
+            == Int(TaskPriority.high.rawValue))
+        #expect(recorder.box(for: "exactCancellation")?.value.boolValue
+            == true)
+        #expect(recorder.box(for: "cancellationPriority")?.value.intValue
+            == Int(TaskPriority.high.rawValue))
+        #expect(recorder.box(for: "replayWasNotDelivered")?.value.boolValue
+            == true)
+        #expect(recorder.box(for: "replayPriority")?.value.intValue
+            == Int(TaskPriority.high.rawValue))
+        #expect(events.sorted() == [
+            "inner:9>17", "outer:9>17", "replay:17>25",
+        ])
+
+        #expect(active.state == .succeeded)
+        #expect(throwing.state == .succeeded)
+        #expect(cancelled.state == .succeeded)
+        #expect(replay.state == .succeeded)
+        #expect(cancelled.isCancelled)
+        #expect(cancelled.cancellation.isObserved)
+        #expect([
+            activeWaiter, activeFinalWaiter, errorWaiter,
+            cancellationWaiter, replayFirstWaiter, replayFinalWaiter,
+        ].allSatisfy { $0.state == .succeeded })
+        #expect(interpreter.concurrencyRuntime.records.isEmpty)
+        #expect(interpreter.concurrencyRuntime.structuredScopes.isEmpty)
+        #expect(interpreter.concurrencyRuntime.taskGroups.isEmpty)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func isolatedPriorityEscalationWrapperRequiresExplicitNil()
+    async {
+        let sources = [
+            """
+            await _isolatedParameter_withTaskPriorityEscalationHandler(
+                operation: { 1 },
+                onPriorityEscalated: { _, _ in })
+            """,
+            """
+            await _isolatedParameter_withTaskPriorityEscalationHandler(
+                operation: { 1 },
+                onPriorityEscalated: { _, _ in },
+                isolation: "not-an-actor")
+            """,
+        ]
+        for source in sources {
+            let interpreter = Interpreter()
+            do {
+                _ = try await interpreter.runAsync(source: source)
+                Issue.record("unsupported isolation was accepted")
+            } catch let error as RuntimeError {
+                #expect(error.message.contains("requires explicit nil"))
+            } catch {
+                Issue.record("unexpected isolation diagnostic: \(error)")
+            }
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        }
+    }
+
+    @Test func priorityEscalationHandlerAcceptsTrailingClosureSyntax()
+    async throws {
+        let interpreter = Interpreter()
+        let value = try await interpreter.runAsync(source: """
+        await withTaskPriorityEscalationHandler(operation: {
+            return 7
+        }) { _, _ in }
+        """)
+
+        #expect(value.intValue == 7)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func priorityEscalationHandlerFailureBelongsToTargetAndCleansUp()
+    async throws {
+        let interpreter = Interpreter()
+        var operationStarted = false
+        var operationReleased = false
+        var handlerCalls: [String] = []
+        interpreter.globals.define(
+            "markPriorityHandlerFailureOperationStarted",
+            .hostFunction(HostFunction(
+                name: "markPriorityHandlerFailureOperationStarted"
+            ) { _, _ in
+                operationStarted = true
+                return .void
+            }))
+        interpreter.globals.define(
+            "priorityHandlerFailureOperationIsReleased",
+            .hostFunction(HostFunction(
+                name: "priorityHandlerFailureOperationIsReleased"
+            ) { _, _ in
+                .bool(operationReleased)
+            }))
+        interpreter.globals.define(
+            "awaitPriorityHandlerFailureOperationStart",
+            .hostFunction(HostFunction(
+                name: "awaitPriorityHandlerFailureOperationStart",
+                asyncInvoke: { _, _ in
+                    while !operationStarted { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "releasePriorityHandlerFailureOperation",
+            .hostFunction(HostFunction(
+                name: "releasePriorityHandlerFailureOperation"
+            ) { _, _ in
+                operationReleased = true
+                return .void
+            }))
+        interpreter.globals.define(
+            "failPriorityEscalationHandler",
+            .hostFunction(HostFunction(
+                name: "failPriorityEscalationHandler"
+            ) { arguments, _ in
+                let label = arguments.positional(0)?.stringValue ?? "missing"
+                handlerCalls.append(label)
+                throw RuntimeError(message: "priority-handler-\(label)")
+            }))
+
+        _ = try await interpreter.runAsync(source: """
+        let priorityHandlerFailureTarget = Task(priority: .background) {
+            try await withTaskPriorityEscalationHandler(operation: {
+                try await withTaskPriorityEscalationHandler(operation: {
+                    () async throws -> String in
+                    markPriorityHandlerFailureOperationStarted()
+                    while !priorityHandlerFailureOperationIsReleased() {
+                        await Task.yield()
+                    }
+                    return "unexpected"
+                }, onPriorityEscalated: { _, _ in
+                    failPriorityEscalationHandler("first")
+                })
+            }, onPriorityEscalated: { _, _ in
+                failPriorityEscalationHandler("second")
+            })
+        }
+        await awaitPriorityHandlerFailureOperationStart()
+        let priorityHandlerFailureWaiter = Task(priority: .high) {
+            releasePriorityHandlerFailureOperation()
+            return await priorityHandlerFailureTarget.result
+        }
+        await priorityHandlerFailureWaiter.value
+        """)
+
+        guard case .host(let targetPayload)? = interpreter.globals.lookup(
+                  "priorityHandlerFailureTarget"),
+              let target = targetPayload as? RuntimeTaskHandle,
+              case .host(let waiterPayload)? = interpreter.globals.lookup(
+                  "priorityHandlerFailureWaiter"),
+              let waiter = waiterPayload as? RuntimeTaskHandle else {
+            Issue.record("expected retained priority-handler failure tasks")
+            return
+        }
+        #expect(handlerCalls == ["first", "second"])
+        #expect(target.state == .failed)
+        #expect(target.failureDescription?.contains("priority-handler-first")
+            == true)
+        #expect(target.failureDescription?.contains("priority-handler-second")
+            == false)
+        #expect(target.priorityEscalationHandlerInvocationCount == 2)
+        #expect(target.priorityEscalationHandlerCount == 0)
+        #expect(waiter.state == .succeeded)
+        #expect(waiter.failureDescription == nil)
+        #expect(interpreter.concurrencyRuntime.records.isEmpty)
+        #expect(interpreter.concurrencyRuntime.structuredScopes.isEmpty)
+        #expect(interpreter.concurrencyRuntime.taskGroups.isEmpty)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func taskLocalStorageIsTaskOwnedInheritedAndCleaned() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

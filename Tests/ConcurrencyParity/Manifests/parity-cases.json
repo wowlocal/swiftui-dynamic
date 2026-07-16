@@ -1431,5 +1431,17 @@
     "interpreterProjection": "string",
     "nativeFact": "The synchronous and asynchronous withUnsafeCurrentTask overloads pass the current task identity inline. The capability reports effective and base priority, cancel() immediately updates both capability and Task cancellation views, identity survives suspension, and both overloads rethrow the operation's exact source error.",
     "notes": "Apple Swift 6.3.3 strict compilation selects both active macOS declarations. Exact output is deterministic because the probe compares effective priority with Task.currentPriority, equal-identity hashes only with each other, and observes only explicit base-priority raw values; it does not claim scheduling order or physical threads. This is the deterministic same-source adapter for pinned swiftlang test/Concurrency/Runtime/async_task_withUnsafeCurrentTask.swift, whose pointer-regex oracle covers only the synchronous overload."
+  },
+  {
+    "id": "task-priority-escalation-handler",
+    "fixture": "Fixtures/task-priority-escalation-handler.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskPriorityEscalationHandlerProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A priority increase that occurs while an operation is in scope invokes every active nested priority-escalation handler with the exact old and new effective priorities. Registration does not replay an earlier increase, while a later in-scope increase is delivered. The operation observes the new priority when it resumes. The operation's exact source error and CancellationError propagate through the scope, and handlers are removed before a later escalation after success, failure, or cancellation exit.",
+    "notes": "Apple Swift 6.3.3 strict compilation selects both public macOS 26 declarations; the underscored source-callable wrapper is exercised with explicit nil isolation. MainActor handshakes force each high-priority waiter to register only after the low-priority operation or post-scope continuation is ready. Handler events are sorted because relative order between simultaneously active nested callbacks is deliberately unspecified; physical threads and unrelated task order are not asserted."
   }
 ]

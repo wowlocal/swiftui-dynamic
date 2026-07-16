@@ -7147,6 +7147,7 @@
       "returnType" : "Builtin.NativeObject?"
     },
     {
+      "adapterIntrinsic" : "withTaskPriorityEscalationHandler",
       "attributes" : [
         "@abi(func withTaskPriorityEscalationHandler<T, E>(operation: () async throws(E) -> T, onPriorityEscalated handler: @Sendable (_Concurrency.TaskPriority, _Concurrency.TaskPriority) -> Swift.Void, isolation: isolated (any _Concurrency.Actor)?) async throws(E) -> T where E : Swift.Error)",
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)"
@@ -9026,6 +9027,7 @@
       "returnType" : "GroupResult"
     },
     {
+      "adapterIntrinsic" : "withTaskPriorityEscalationHandler",
       "attributes" : [
         "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
         "@_alwaysEmitIntoClient"
@@ -9480,7 +9482,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 119,
+    "adapterRoutedDeclarationCount" : 121,
     "declarationCount" : 171,
     "declarationsByDomain" : {
       "selected-nominal-member" : 9,

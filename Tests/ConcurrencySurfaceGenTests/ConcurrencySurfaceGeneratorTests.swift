@@ -11,12 +11,16 @@ struct ConcurrencySurfaceGeneratorTests {
             interfaceSource: Self.syntheticInterface)
 
         #expect(inventory.topLevelFunctionDispatch == [
+            "_isolatedParameter_withTaskPriorityEscalationHandler":
+                "withTaskPriorityEscalationHandler",
             "async": "unstructuredTask",
             "asyncDetached": "detachedTask",
             "detach": "detachedTask",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
             "withTaskGroup": "withTaskGroup",
+            "withTaskPriorityEscalationHandler":
+                "withTaskPriorityEscalationHandler",
             "withThrowingDiscardingTaskGroup":
                 "withThrowingDiscardingTaskGroup",
             "withThrowingTaskGroup": "withThrowingTaskGroup",
@@ -30,6 +34,26 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(cancellationHandler.throwsKind == .rethrowing)
         #expect(cancellationHandler.parameters.contains {
             $0.label == "onCancel" && $0.isSendableFunction
+        })
+        let priorityHandler = try #require(
+            inventory.topLevelFunctionDeclarations[
+                "withTaskPriorityEscalationHandler"]?.first)
+        #expect(priorityHandler.isAsync)
+        #expect(priorityHandler.throwsKind == .throwing)
+        #expect(priorityHandler.thrownErrorType == "E")
+        #expect(priorityHandler.parameters.contains {
+            $0.label == "operation" && $0.type.contains("throws(E)")
+        })
+        #expect(priorityHandler.parameters.contains {
+            $0.label == "onPriorityEscalated" && $0.isSendableFunction
+                && $0.type.contains("TaskPriority, TaskPriority")
+        })
+        let isolatedPriorityHandler = try #require(
+            inventory.topLevelFunctionDeclarations[
+                "_isolatedParameter_withTaskPriorityEscalationHandler"]?.first)
+        #expect(isolatedPriorityHandler.parameters.contains {
+            $0.label == "isolation" && $0.isIsolated
+                && $0.defaultValue == "#isolation"
         })
 
         let withTaskGroup = try #require(
@@ -333,7 +357,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 171)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 119)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 121)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 49,
             "task-static-member": 25,
@@ -360,6 +384,14 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.domain == "top-level-function" && $0.name == "withTaskGroup"
                 && $0.adapterIntrinsic == "withTaskGroup"
         })
+        #expect(capabilities.declarations.filter {
+            $0.domain == "top-level-function"
+                && [
+                    "_isolatedParameter_withTaskPriorityEscalationHandler",
+                    "withTaskPriorityEscalationHandler",
+                ].contains($0.name)
+                && $0.adapterIntrinsic == "withTaskPriorityEscalationHandler"
+        }.count == 2)
         #expect(capabilities.declarations.filter {
             $0.domain == "top-level-function" && $0.name == "async"
                 && $0.adapterIntrinsic == "unstructuredTask"
@@ -430,8 +462,10 @@ struct ConcurrencySurfaceGeneratorTests {
         let inventory = try ConcurrencySurfaceGenerator.inventory(
             interfaceSource: interfaceSource)
         #expect(Set(inventory.topLevelFunctionDispatch.keys) == [
+            "_isolatedParameter_withTaskPriorityEscalationHandler",
             "async", "asyncDetached", "detach", "withDiscardingTaskGroup",
             "withTaskCancellationHandler", "withTaskGroup",
+            "withTaskPriorityEscalationHandler",
             "withThrowingDiscardingTaskGroup",
             "withThrowingTaskGroup", "withUnsafeCurrentTask",
         ])
@@ -657,6 +691,16 @@ struct ConcurrencySurfaceGeneratorTests {
         operation: () async throws -> Result,
         onCancel handler: @Sendable () -> Void
     ) async rethrows -> Result { fatalError() }
+    public func _isolatedParameter_withTaskPriorityEscalationHandler<T, E>(
+        operation: () async throws(E) -> T,
+        onPriorityEscalated handler: @Sendable (TaskPriority, TaskPriority) -> Void,
+        isolation: isolated (any Actor)? = #isolation
+    ) async throws(E) -> T where E: Error { fatalError() }
+    nonisolated(nonsending)
+    public func withTaskPriorityEscalationHandler<T, E>(
+        operation: nonisolated(nonsending) () async throws(E) -> T,
+        onPriorityEscalated handler: @Sendable (TaskPriority, TaskPriority) -> Void
+    ) async throws(E) -> T where E: Error { fatalError() }
     public func withUnsafeCurrentTask<Result>(
         body: (UnsafeCurrentTask?) throws -> Result
     ) rethrows -> Result { fatalError() }

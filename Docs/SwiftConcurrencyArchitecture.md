@@ -920,6 +920,32 @@ effective value. Dependency edges are removed when the wait exits and must not
 retain completed records. Escalation is modeled monotonically for a task's
 lifetime; de-escalation is not invented without a separate native guarantee.
 
+A task-priority escalation handler is a dynamically scoped registration on
+the target task record, not a separate task kind or name-specific gateway. Its
+runtime contract is:
+
+- registration observes only future strict increases; an earlier donation is
+  never replayed;
+- on each strict increase, the runtime captures the previous effective value,
+  updates the target record and live evaluator context, and then invokes every
+  registration active for that dynamic extent with the exact old/new pair;
+- an operation that resumes after delivery observes the new effective
+  priority, and transitive donation proceeds from that updated value;
+- every registration is removed with structured cleanup on value, source
+  error, cancellation, or interpreter failure;
+- a legal source handler is nonthrowing; an interpreter-only callback failure
+  is retained on the target record and surfaced at its next safe point rather
+  than being swallowed by the donating task.
+
+Relative order between nested handlers, callback-versus-operation scheduling,
+physical thread identity, and unrelated ready-task order are not semantic
+claims. Both active SDK spellings route through this one construct. Until M5
+owns arbitrary actors and isolated resume executors, the isolated-parameter
+wrapper accepts only an explicitly supplied `nil`; omitted `#isolation` and a
+non-`nil` actor fail closed. The `nonisolated(nonsending)` spelling likewise
+retains a known divergence for actor/executor shapes outside the evidenced
+cooperative subset.
+
 Tests assert priority values and inheritance. They do not assert that a
 higher-priority task always executes first unless Swift guarantees it.
 

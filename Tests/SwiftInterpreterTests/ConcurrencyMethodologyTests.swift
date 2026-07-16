@@ -1302,20 +1302,22 @@ struct ConcurrencyMethodologyTests {
         ]
         let testingHookID =
             "swift-concurrency-api-v1:75560cb6e0a7a099f0a8150723dc13a0cc65e7c2e76faec35eb7fa38cd1d6805"
-        let priorityEscalationWrapperID =
+        let routedSourceWrapperID =
             "swift-concurrency-api-v1:4761cd66b86d6ff1f8185aee2e85480eff7a80c9ff76821cd244747b11637c50"
         let underscoreRows = inventory.declarations.filter {
             $0.domain == "top-level-function" && $0.name.hasPrefix("_")
         }
         let expectedIDs = abiIDs.union([
-            testingHookID, priorityEscalationWrapperID,
+            testingHookID, routedSourceWrapperID,
         ])
 
         #expect(underscoreRows.count == 28,
             "the active SDK underscore-prefixed top-level denominator changed")
         #expect(Set(underscoreRows.map(\.id)) == expectedIDs)
-        #expect(underscoreRows.allSatisfy { $0.adapterIntrinsic == nil },
-            "underscore-prefixed rows must not acquire a runtime adapter silently")
+        #expect(underscoreRows.filter {
+            abiIDs.contains($0.id) || $0.id == testingHookID
+        }.allSatisfy { $0.adapterIntrinsic == nil },
+        "compiler/runtime ABI rows must remain unrouted")
 
         let abiRows = underscoreRows.filter { abiIDs.contains($0.id) }
         #expect(abiRows.count == 26)
@@ -1349,17 +1351,63 @@ struct ConcurrencyMethodologyTests {
         #expect(!abiIDs.contains(hookClaim.id),
             "the public testing hook must not be hidden as compiler ABI")
 
-        let priorityEscalationWrapper = try #require(underscoreRows.first {
-            $0.id == priorityEscalationWrapperID
+        #expect(underscoreRows.contains { $0.id == routedSourceWrapperID },
+            "source-callable underscore wrappers must remain in the denominator")
+        #expect(status.defaultInterfaceClaim.implementationStatus == .unreviewed)
+        #expect(status.defaultInterfaceClaim.verificationStatus == .none)
+    }
+
+    @Test func priorityEscalationHandlersHaveExplicitReviewedDispositions()
+    throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let priorityEscalationWrapperID =
+            "swift-concurrency-api-v1:4761cd66b86d6ff1f8185aee2e85480eff7a80c9ff76821cd244747b11637c50"
+        let priorityEscalationID =
+            "swift-concurrency-api-v1:d4007c426222ed20d7f662c79a68edc150bd24165630f580e47b238f1d8c825d"
+        let priorityEscalationRows = inventory.declarations.filter {
+            [priorityEscalationWrapperID, priorityEscalationID].contains($0.id)
+        }
+        #expect(priorityEscalationRows.count == 2)
+        #expect(priorityEscalationRows.allSatisfy {
+            $0.adapterIntrinsic == "withTaskPriorityEscalationHandler"
         })
+        let priorityEscalation = try #require(
+            priorityEscalationRows.first { $0.id == priorityEscalationID })
+        #expect(priorityEscalation.declaration
+            .contains("nonisolated(nonsending)"))
+        #expect(priorityEscalation.declaration.contains("async throws(E)"))
+        let priorityEscalationWrapper = try #require(
+            priorityEscalationRows.first {
+                $0.id == priorityEscalationWrapperID
+            })
         #expect(priorityEscalationWrapper.name
             == "_isolatedParameter_withTaskPriorityEscalationHandler")
         #expect(priorityEscalationWrapper.declaration.contains("@abi(func"))
-        #expect(!status.interfaceOverrides.contains {
-            $0.id == priorityEscalationWrapperID
-        }, "the newly exposed source-callable wrapper remains visibly unreviewed")
-        #expect(status.defaultInterfaceClaim.implementationStatus == .unreviewed)
-        #expect(status.defaultInterfaceClaim.verificationStatus == .none)
+        #expect(priorityEscalationWrapper.declaration
+            .contains("isolation: isolated"))
+        let priorityEscalationClaims = status.interfaceOverrides.filter {
+            [priorityEscalationWrapperID, priorityEscalationID].contains($0.id)
+        }
+        #expect(priorityEscalationClaims.count == 2)
+        #expect(priorityEscalationClaims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef
+                    == "M7/generated-signatures-and-preflight"
+                && $0.evidenceCaseIDs
+                    .contains("task-priority-escalation-handler")
+        })
     }
 
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "b092b530de9564cdd6d3a28d079910a1e8cd86dca5b25aea0d5031a11999d2bb",
+  "inventorySHA256": "a3c9f545021d6b3afb2121bb60fce40470489842e2d7039198229857d60d311a",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -2413,6 +2413,46 @@
         "generated-concurrency-signatures-and-preflight"
       ],
       "notes": "hash(into:) is inventoried separately from hashValue, but source Hasher inout mutation is not exposed by the capability adapter and receives the generated fail-closed diagnostic."
+    },
+    {
+      "id": "swift-concurrency-api-v1:4761cd66b86d6ff1f8185aee2e85480eff7a80c9ff76821cd244747b11637c50",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "task-priority-escalation-handler"
+      ],
+      "testNames": [
+      "ConcurrencySurfaceGeneratorTests/syntheticInterfacePreservesOverloadsEffectsAndIsolation",
+      "AsyncExecutionTests/taskPriorityEscalationHandlersFollowScopedDonationAndCleanUp",
+      "AsyncExecutionTests/isolatedPriorityEscalationWrapperRequiresExplicitNil",
+      "AsyncExecutionTests/priorityEscalationHandlerFailureBelongsToTargetAndCleansUp",
+      "ConcurrencyMethodologyTests/priorityEscalationHandlersHaveExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+    "notes": "The isolated-parameter wrapper shares the generated priority-escalation intrinsic for the explicitly supplied nil-isolation subset. Its same-source Swift 6 lane covers explicit-nil selection, exact typed-error propagation, and scope cleanup; active nested delivery, no replay, repeated strict increases, and cancellation are exercised through the public spelling on the same common adapter. Omitted #isolation and non-nil actor isolation fail closed until arbitrary actor executors and isolated resumption ownership exist, so the complete declaration remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d4007c426222ed20d7f662c79a68edc150bd24165630f580e47b238f1d8c825d",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "task-priority-escalation-handler"
+      ],
+      "testNames": [
+      "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+      "AsyncExecutionTests/taskPriorityEscalationHandlersFollowScopedDonationAndCleanUp",
+      "AsyncExecutionTests/priorityEscalationHandlerAcceptsTrailingClosureSyntax",
+      "AsyncExecutionTests/priorityEscalationHandlerFailureBelongsToTargetAndCleansUp",
+      "ConcurrencyMethodologyTests/priorityEscalationHandlersHaveExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The generated nonisolated(nonsending) spelling routes to one construct-level priority-escalation scope. The evidenced cooperative subset matches Swift for monotonic donation, no registration replay, every active nested handler with exact old/new values, operation-visible effective priority, typed source failure, cancellation, and defer-based cleanup. Arbitrary actor/executor behavior of nonisolated(nonsending) operations is not yet modeled, so the complete declaration remains known-divergence with verification none."
     },
     {
       "id": "swift-concurrency-api-v1:12802b7fc89d3a829975702ab13bb49374878be460e6ae40ce29a6089fd42a98",

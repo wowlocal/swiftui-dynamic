@@ -64,12 +64,16 @@ struct TaskGroupSurfaceTests {
         #expect(discarding["next"] == nil)
         #expect(discarding["waitForAll"] == nil)
         #expect(GeneratedConcurrencySurface.topLevelFunctionDispatch == [
+            "_isolatedParameter_withTaskPriorityEscalationHandler":
+                .withTaskPriorityEscalationHandler,
             "async": .unstructuredTask,
             "asyncDetached": .detachedTask,
             "detach": .detachedTask,
             "withDiscardingTaskGroup": .withDiscardingTaskGroup,
             "withTaskCancellationHandler": .withTaskCancellationHandler,
             "withTaskGroup": .withTaskGroup,
+            "withTaskPriorityEscalationHandler":
+                .withTaskPriorityEscalationHandler,
             "withThrowingDiscardingTaskGroup":
                 .withThrowingDiscardingTaskGroup,
             "withThrowingTaskGroup": .withThrowingTaskGroup,

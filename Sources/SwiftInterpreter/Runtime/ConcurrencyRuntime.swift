@@ -64,6 +64,10 @@ struct RuntimeCancellationHandlerID: Hashable, Sendable {
     let rawValue: UInt64
 }
 
+struct RuntimePriorityEscalationHandlerID: Hashable, Sendable {
+    let rawValue: UInt64
+}
+
 /// Logical source-task priority. The native value drives today's cooperative
 /// task, while keeping it on the runtime record/context gives later schedulers
 /// and priority escalation one stable source of truth.
@@ -316,6 +320,26 @@ private final class RuntimeCancellationHandlerRegistration {
     }
 }
 
+/// One dynamically-scoped source priority-escalation handler. Priority
+/// donation updates the target task before invoking every active registration;
+/// adding a registration never replays an escalation that happened earlier.
+private final class RuntimePriorityEscalationHandlerRegistration {
+    let id: RuntimePriorityEscalationHandlerID
+    let invoke: @MainActor (
+        RuntimeTaskPriority, RuntimeTaskPriority
+    ) throws -> Void
+
+    init(
+        id: RuntimePriorityEscalationHandlerID,
+        invoke: @escaping @MainActor (
+            RuntimeTaskPriority, RuntimeTaskPriority
+        ) throws -> Void
+    ) {
+        self.id = id
+        self.invoke = invoke
+    }
+}
+
 /// Native execution resource retained only while a runtime task is active.
 /// Keeping this as a reference object makes ownership independently testable:
 /// a completed source handle must not retain either this driver or its task.
@@ -359,6 +383,14 @@ final class RuntimeTaskRecord {
     }
     var cancellationHandlerInvocationCount = 0
     var cancellationHandlerFailure: Error?
+    fileprivate var priorityEscalationHandlers: [
+        RuntimePriorityEscalationHandlerRegistration
+    ] = []
+    var activePriorityEscalationHandlerCount: Int {
+        priorityEscalationHandlers.count
+    }
+    var priorityEscalationHandlerInvocationCount = 0
+    var priorityEscalationHandlerFailure: Error?
     var waiters: Set<RuntimeTaskID> = []
     var waitingOnTasks: Set<RuntimeTaskID> = []
     var priorityEscalationHistory: [
@@ -498,6 +530,7 @@ final class CooperativeConcurrencyRuntime {
     private var nextTaskGroupID: UInt64 = 1
     private var nextHostOperationID: UInt64 = 1
     private var nextCancellationHandlerID: UInt64 = 1
+    private var nextPriorityEscalationHandlerID: UInt64 = 1
     private var nextEventSequence: UInt64 = 1
     private(set) var records: [RuntimeTaskID: RuntimeTaskRecord] = [:]
     private(set) var structuredScopes: [
@@ -937,6 +970,42 @@ final class CooperativeConcurrencyRuntime {
         throw failure
     }
 
+    func addPriorityEscalationHandler(
+        to taskID: RuntimeTaskID,
+        invoke: @escaping @MainActor (
+            RuntimeTaskPriority, RuntimeTaskPriority
+        ) throws -> Void
+    ) -> RuntimePriorityEscalationHandlerID {
+        guard let record = records[taskID], !record.state.isCompleted else {
+            preconditionFailure(
+                "cannot register a priority escalation handler on inactive "
+                    + "task \(taskID)")
+        }
+        let id = RuntimePriorityEscalationHandlerID(
+            rawValue: nextPriorityEscalationHandlerID)
+        nextPriorityEscalationHandlerID += 1
+        record.priorityEscalationHandlers.append(
+            RuntimePriorityEscalationHandlerRegistration(
+                id: id, invoke: invoke))
+        return id
+    }
+
+    func removePriorityEscalationHandler(
+        _ handlerID: RuntimePriorityEscalationHandlerID,
+        from taskID: RuntimeTaskID
+    ) {
+        guard let record = records[taskID] else { return }
+        record.priorityEscalationHandlers.removeAll { $0.id == handlerID }
+    }
+
+    func throwPriorityEscalationHandlerFailure(
+        for taskID: RuntimeTaskID
+    ) throws {
+        guard let failure = records[taskID]?
+                .priorityEscalationHandlerFailure else { return }
+        throw failure
+    }
+
     func completeCancellation(_ record: RuntimeTaskRecord) {
         guard !record.state.isCompleted else { return }
         record.cancellation.observe(sequence: takeEventSequence())
@@ -979,6 +1048,7 @@ final class CooperativeConcurrencyRuntime {
         guard let record = records[id] else { return }
         clock.cancelSleep(task: id)
         record.cancellationHandlers.removeAll(keepingCapacity: false)
+        record.priorityEscalationHandlers.removeAll(keepingCapacity: false)
         for waiterID in record.waiters {
             records[waiterID]?.waitingOnTasks.remove(id)
         }
@@ -1169,9 +1239,31 @@ final class CooperativeConcurrencyRuntime {
               !target.state.isCompleted,
               target.effectivePriority < priority else { return }
 
+        let previousPriority = target.effectivePriority
         target.effectivePriority = priority
         target.priorityEscalationHistory[donorID] = priority
         target.evaluationContext?.priority = priority
+
+        // Swift exposes each strict effective-priority increase to every
+        // handler active on the target task. Snapshot the dynamic stack so a
+        // callback cannot perturb this increase's delivery set. Reverse order
+        // matches today's native traversal, but no source guarantee relies on
+        // relative handler order.
+        let registrations = Array(
+            target.priorityEscalationHandlers.reversed())
+        for registration in registrations {
+            target.priorityEscalationHandlerInvocationCount += 1
+            do {
+                try registration.invoke(previousPriority, priority)
+            } catch {
+                // Legal Swift handlers are nonthrowing. Preserve the first
+                // interpreter failure defensively and surface it from the
+                // target task rather than swallowing it in the donating task.
+                if target.priorityEscalationHandlerFailure == nil {
+                    target.priorityEscalationHandlerFailure = error
+                }
+            }
+        }
 
         // If the escalated task is itself suspended on another task, Swift's
         // priority donation follows that dependency transitively.

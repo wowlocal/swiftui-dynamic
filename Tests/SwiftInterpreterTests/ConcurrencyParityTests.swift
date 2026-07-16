@@ -382,6 +382,7 @@ private enum ConcurrencyParityHarness {
         var taskValueWaiterCount = 0
         var registeredTaskValueSource: RuntimeTaskHandle?
         var sleepStarted = false
+        var priorityEscalationEvents: [String] = []
         var taskLocalStorageByTask: [
             RuntimeTaskID: RuntimeTaskLocalStorage
         ] = [:]
@@ -395,6 +396,22 @@ private enum ConcurrencyParityHarness {
                 return arguments.positional(0) ?? .nilValue
             }
         )))
+        interpreter.globals.define(
+            "parityRecordPriorityEscalationEvent",
+            .hostFunction(HostFunction(
+                name: "parityRecordPriorityEscalationEvent"
+            ) { arguments, _ in
+                priorityEscalationEvents.append(
+                    arguments.positional(0)?.stringValue ?? "?")
+                return .void
+            }))
+        interpreter.globals.define(
+            "parityPriorityEscalationEvents",
+            .hostFunction(HostFunction(
+                name: "parityPriorityEscalationEvents"
+            ) { _, _ in
+                .native(priorityEscalationEvents.sorted().joined(separator: ","))
+            }))
         interpreter.globals.define(
             "parityCurrentExecutorLane",
             .hostFunction(HostFunction(

@@ -158,7 +158,7 @@
       "title": "Task runtime",
       "status": "complete",
       "dependsOn": ["M1"],
-      "ledgerEvidence": "Task outcomes, cancellation request versus observation, post-completion cancellation, completed-handle session/driver release, waiter and handle lifetimes, detached and top-level policy, priority donation, task-local inheritance/unwind, and leased `UnsafeCurrentTask` identity/state have native parity and focused ownership proof.",
+      "ledgerEvidence": "Task outcomes, cancellation request versus observation, post-completion cancellation, completed-handle session/driver release, waiter and handle lifetimes, detached and top-level policy, priority donation and scoped escalation-handler delivery, task-local inheritance/unwind, and leased `UnsafeCurrentTask` identity/state have native parity and focused ownership proof.",
       "ledgerRemainingWork": "None; M3 may proceed.",
       "requirements": [
         {
@@ -197,23 +197,29 @@
           "id": "priority-and-task-locals",
           "status": "covered",
           "owners": ["runtime"],
-          "coverage": ["success", "cleanup", "inheritance"],
+          "coverage": ["success", "failure", "cancellation", "cleanup", "inheritance"],
           "ownedCaseIDs": [
             "task-priority-inheritance",
             "task-priority-escalation",
+            "task-priority-escalation-handler",
             "task-priority-transitive-escalation",
             "task-local-declaration",
             "task-local-inheritance",
             "task-local-unwind",
             "task-local-implicit-optional-default"
           ],
-          "testNames": [],
+          "testNames": [
+            "AsyncExecutionTests/taskPriorityEscalationHandlersFollowScopedDonationAndCleanUp",
+            "AsyncExecutionTests/priorityEscalationHandlerFailureBelongsToTargetAndCleansUp"
+          ],
           "evidenceByCoverage": {
-            "success": ["case:task-priority-inheritance", "case:task-local-declaration"],
-            "cleanup": ["case:task-local-unwind"],
+            "success": ["case:task-priority-inheritance", "case:task-priority-escalation-handler", "case:task-local-declaration"],
+            "failure": ["case:task-priority-escalation-handler"],
+            "cancellation": ["case:task-priority-escalation-handler"],
+            "cleanup": ["case:task-priority-escalation-handler", "case:task-local-unwind"],
             "inheritance": ["case:task-priority-transitive-escalation", "case:task-local-inheritance"]
           },
-          "notes": "Initial inheritance, priority donation, declaration identity, scoped binding, and unwind are covered."
+          "notes": "Initial inheritance, transitive priority donation, dynamically scoped priority-escalation handler delivery and cleanup, declaration identity, scoped binding, and unwind are covered."
         },
         {
           "id": "unsafe-current-task-capability",
@@ -736,8 +742,8 @@
       "title": "Compiler-backed concurrency checking",
       "status": "partial",
       "dependsOn": ["M0"],
-      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 163/171 reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 65 known divergences, 26 excluded compiler ABI, one deferred, and 8 unreviewed.",
-      "ledgerRemainingWork": "Review the remaining eight generated source-facing top-level rows and add target-aware build manifests before M5 or M8 closure.",
+      "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, both macOS 26 task-priority-escalation handler declarations for their evidenced cooperative and explicit-`nil` subsets, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 165/171 reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 67 known divergences, 26 excluded compiler ABI, one deferred, and 6 unreviewed.",
+      "ledgerRemainingWork": "Review the remaining six generated source-facing top-level rows and add target-aware build manifests before M5 or M8 closure.",
       "requirements": [
         {
           "id": "native-diagnostic-oracles",
@@ -782,6 +788,7 @@
             "task-cancellation-handler-pre-cancelled",
             "task-cancellation-handler-nested",
             "task-cancellation-handler-scope-exit",
+            "task-priority-escalation-handler",
             "task-group-executor-preference-nil-add",
             "task-group-executor-preference-nil-add-unless-cancelled",
             "task-group-immediate-add",
@@ -835,6 +842,10 @@
             "TaskGroupSurfaceTests/topLevelAsyncFailsClosedInSynchronousCompatibility",
             "TaskGroupSurfaceTests/topLevelDetachedAliasesUseCanonicalDetachedRuntime",
             "TaskGroupSurfaceTests/topLevelDetachedAliasesFailClosedInSynchronousCompatibility",
+            "AsyncExecutionTests/taskPriorityEscalationHandlersFollowScopedDonationAndCleanUp",
+            "AsyncExecutionTests/isolatedPriorityEscalationWrapperRequiresExplicitNil",
+            "AsyncExecutionTests/priorityEscalationHandlerAcceptsTrailingClosureSyntax",
+            "AsyncExecutionTests/priorityEscalationHandlerFailureBelongsToTargetAndCleansUp",
             "ConcurrencyMethodologyTests/taskInstanceGeneratedSurfaceHasExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/taskStaticGeneratedSurfaceHasExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/taskImmediateHasExplicitReviewedDispositions",
@@ -843,6 +854,7 @@
             "ConcurrencyMethodologyTests/topLevelDetachedAliasesHaveExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/topLevelCancellationHandlersHaveExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/compilerABITopLevelFunctionsHaveExplicitExclusions",
+            "ConcurrencyMethodologyTests/priorityEscalationHandlersHaveExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/taskGroupStatePropertiesHaveExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/taskGroupCancelAllHasExplicitReviewedDispositions",
             "ConcurrencyMethodologyTests/taskGroupWaitForAllHasExplicitReviewedDispositions",
@@ -874,7 +886,7 @@
             "UnsafeCurrentTaskRuntimeTests/everyGeneratedUnroutedMemberHasExplicitDiagnostic"
           ],
           "gapEvidenceIDs": ["generated-concurrency-signatures-and-preflight"],
-          "notes": "Active-SDK top-level function, Task static/instance, selected-nominal, task-group, and nested ordinary/throwing group-iterator declaration slices are generated with an explicit incomplete-scope denominator and stale checks. A compiler-backed conditional filter selects active declarations before inventory walkers run and fails closed when the build configuration cannot answer a condition; this exposes the four conditional Task static `immediate`/`immediateDetached` declarations and two additional top-level task-priority-escalation handler declarations. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified callables/properties, and fail-closed nominal declarations before interpreter mutation. Exact member effects and enclosing attributes are retained from SwiftSyntax, and SHA-pinned swiftlang modules continue to anchor cross-module and task-group behavior. The generic selected-nominal walker now accounts for all nine active UnsafeCurrentTask rows; six generated routes share one leased RuntimeTaskID capability, while hash(into:), escalatePriority(to:), and unownedTaskExecutor fail closed. Both withUnsafeCurrentTask overloads have same-source Swift 6 parity for synchronous/asynchronous detached-task identity, suspension, priority, cancellation, exact rethrow, hash consistency, and cleanup. Focused runtime tests separately cover nil outside a runtime task, root and host-callback identity, cancellation-observation accounting, lease invalidation, and ownership release. All 36 generated Task instance/static rows retain explicit dispositions. Same-source Swift 6 evidence covers all four immediate overloads for their explicit-nil inherited-MainActor subset. The shared runtime models start policy independently from context inheritance; non-nil TaskExecutor preferences fail closed, and arbitrary actor/executor behavior remains a recorded divergence. The deprecated top-level task aliases, cancellation handlers, four task-group scope rows, and seventy-seven task-group plus iterator rows retain their authored dispositions. Twenty-six exact underscore-prefixed compiler/runtime ABI hooks remain excluded, while _swift_createJobForTestingOnly remains deferred to M9. Current accounting is 163 of 171 generated rows reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 65 known divergences, 26 excluded compiler ABI, one deferred, and 8 unreviewed. The remaining eight source-facing top-level rows and target-aware project build manifests remain open."
+          "notes": "Active-SDK top-level function, Task static/instance, selected-nominal, task-group, and nested ordinary/throwing group-iterator declaration slices are generated with an explicit incomplete-scope denominator and stale checks. A compiler-backed conditional filter selects active declarations before inventory walkers run and fails closed when the build configuration cannot answer a condition; this exposes the four conditional Task static `immediate`/`immediateDetached` declarations and two additional top-level task-priority-escalation handler declarations. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified callables/properties, and fail-closed nominal declarations before interpreter mutation. Exact member effects and enclosing attributes are retained from SwiftSyntax, and SHA-pinned swiftlang modules continue to anchor cross-module and task-group behavior. The generic selected-nominal walker now accounts for all nine active UnsafeCurrentTask rows; six generated routes share one leased RuntimeTaskID capability, while hash(into:), escalatePriority(to:), and unownedTaskExecutor fail closed. Both withUnsafeCurrentTask overloads have same-source Swift 6 parity for synchronous/asynchronous detached-task identity, suspension, priority, cancellation, exact rethrow, hash consistency, and cleanup. Focused runtime tests separately cover nil outside a runtime task, root and host-callback identity, cancellation-observation accounting, lease invalidation, and ownership release. All 36 generated Task instance/static rows retain explicit dispositions. Same-source Swift 6 evidence covers all four immediate overloads for their explicit-nil inherited-MainActor subset. The shared runtime models start policy independently from context inheritance; non-nil TaskExecutor preferences fail closed, and arbitrary actor/executor behavior remains a recorded divergence. The deprecated top-level task aliases, cancellation handlers, both task-priority-escalation handler declarations, four task-group scope rows, and seventy-seven task-group plus iterator rows retain their authored dispositions. The priority handler scope delivers every strict in-scope donation to all active nested handlers, does not replay prior donations, preserves exact old/new values and operation outcomes, and removes registrations on success, failure, and cancellation; arbitrary actor isolation remains fail-closed. Twenty-six exact underscore-prefixed compiler/runtime ABI hooks remain excluded, while _swift_createJobForTestingOnly remains deferred to M9. Current accounting is 165 of 171 generated rows reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 67 known divergences, 26 excluded compiler ABI, one deferred, and 6 unreviewed. The remaining six source-facing top-level rows and target-aware project build manifests remain open."
         }
       ]
     },

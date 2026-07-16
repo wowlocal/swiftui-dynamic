@@ -54,12 +54,12 @@ evidence that remains covered.
 |---|---|---|---|
 | M0 native parity infrastructure | complete | Same-source runtime and diagnostic oracles; compiler/SDK fingerprinting; bounded fresh-process repetitions and process-tree cleanup; exact shard/repetition/digest receipts; negative controls; durable source-bound gate receipts. | None |
 | M1 task-owned evaluator context | complete | Task-owned evaluator contexts, cancellation isolation, async-initializer ownership, and detached host re-entry have native parity and focused ownership coverage. | None; M2 may proceed. |
-| M2 task runtime | complete | Task outcomes, cancellation request versus observation, post-completion cancellation, completed-handle session/driver release, waiter and handle lifetimes, detached and top-level policy, priority donation, task-local inheritance/unwind, and leased `UnsafeCurrentTask` identity/state have native parity and focused ownership proof. | None; M3 may proceed. |
+| M2 task runtime | complete | Task outcomes, cancellation request versus observation, post-completion cancellation, completed-handle session/driver release, waiter and handle lifetimes, detached and top-level policy, priority donation and scoped escalation-handler delivery, task-local inheritance/unwind, and leased `UnsafeCurrentTask` identity/state have native parity and focused ownership proof. | None; M3 may proceed. |
 | M3 suspension and clocks | complete | Runtime-owned task waits, host suspension, cancellable sleep, yield progress, cancellation-handler timing and cleanup through both the modern and deprecated public overloads, and seeded replayable cancellation-race exploration have native parity and focused runtime coverage. | None; M4 may proceed. |
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all four public group-scope declarations for their evidenced default-isolation subsets, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, all four canonical `addTask(priority:operation:)`, all four canonical `addTaskUnlessCancelled(priority:operation:)`, all eight named add declarations without executor preference for their evidenced nonisolated subsets with task-owned names preserved, all eight `addTask` executor-preference declarations for their explicit-nil nonisolated subsets with non-nil preferences rejected by a shared guard and arbitrary-actor executor divergences recorded, all eight `addTaskUnlessCancelled` executor-preference declarations for active explicit-nil acceptance and post-cancellation rejection without child creation, with the shared non-nil guard and arbitrary-actor executor divergences recorded, and all eight `addImmediateTask`/`addImmediateTaskUnlessCancelled` declarations for their explicit-nil inherited-MainActor subsets with synchronous-prefix execution, Task.name, join, and cancellation-before-preference-validation evidence while non-nil preference and arbitrary-actor divergences remain recorded, all four ordinary/throwing group `next()` declarations, both deprecated `spawn()`, both deprecated `async()`, both deprecated conditional `add()` aliases, both deprecated `asyncUnlessCancelled()` aliases, and both deprecated `spawnUnlessCancelled()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition. | All currently generated task-group declarations have explicit dispositions. Cover repeated-wait/new-work behavior, implement non-nil TaskExecutor preference resumption and arbitrary-actor operation executors, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 163/171 reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 65 known divergences, 26 excluded compiler ABI, one deferred, and 8 unreviewed. | Review the remaining eight generated source-facing top-level rows and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, both macOS 26 task-priority-escalation handler declarations for their evidenced cooperative and explicit-`nil` subsets, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 165/171 reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 67 known divergences, 26 excluded compiler ABI, one deferred, and 6 unreviewed. | Review the remaining six generated source-facing top-level rows and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made, and the source-callable _swift_createJobForTestingOnly hook is explicitly deferred with the executor-job runtime. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
@@ -5197,7 +5197,72 @@ Six generated member routes (`==`, `basePriority`, `cancel`, `hashValue`,
 `runtime-supported`/`native-parity`. `hash(into:)`,
 `escalatePriority(to:)`, and `unownedTaskExecutor` remain generated but
 unrouted and have explicit focused diagnostics; the interpreter does not
-approximate executor preference or priority escalation. Current accounting is
+approximate executor preference or capability-driven priority mutation.
+Current accounting is
 163/171 reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 65 known
 divergences, 26 excluded compiler ABI, one deferred, and eight unreviewed
 top-level rows.
+
+### M7 task-priority escalation-handler routes
+
+This iteration reviews the two macOS 26 source-callable declarations
+`withTaskPriorityEscalationHandler` and
+`_isolatedParameter_withTaskPriorityEscalationHandler`. The semantic question
+was scoped narrowly: does a strict priority donation invoke every handler
+active on the target task with the exact old/new values, without replaying an
+increase that predates registration; does the operation resume at the donated
+priority; and do value, typed-error, and cancellation exits remove the handler
+before any later donation?
+
+The committed `task-priority-escalation-handler.swift` fixture has SHA-256
+`dc6ff8dab03edfb9800e1de829568393d3057b89301265c12d08ac29e6a01e64`.
+Apple Swift 6.3.3 compiled it in Swift 6 mode with complete strict concurrency
+and warnings as errors. Twenty native executions produced exactly:
+
+```text
+active:17:25|error:true:25|cancel:true:25|replay:true:25|events:inner:9>17,outer:9>17,replay:17>25
+```
+
+The handshakes force a background operation to receive a low donation while
+two nested handlers are active, then a high donation only after their success
+scope exits. Separate lanes donate only after typed-error and cancellation
+scope exit. The replay lane first donates low before registration and then
+donates high inside the scope. Handler events are sorted because Swift does not
+guarantee relative nested-handler order or callback-versus-operation
+scheduling; no physical-thread or unrelated ready-task order is claimed.
+
+Before the runtime change, the isolated interpreter run reached its evaluation
+budget because both generated declarations were known metadata but had no
+runtime route, so no callback could release the controlled operation. The
+final no-replay lane was added to strengthen the native oracle before the
+production mechanism was implemented. The repair maps both source spellings
+to one generated `withTaskPriorityEscalationHandler` intrinsic. Runtime task
+records own a dynamic registration stack. Each strict donation captures the
+old value, updates the record and live evaluator context, invokes a snapshot of
+all active registrations, and only then propagates transitively. Registration
+does not inspect prior donation history, and `defer` removes it on every exit.
+The isolated wrapper accepts only explicit `isolation: nil`; omitted
+`#isolation` and non-`nil` actors fail closed until M5 owns actor isolation and
+resume executors.
+
+The focused runtime test inspects all retained task handles after release. It
+pins two active nested invocations, zero post-success/error/cancellation
+invocations, one non-replayed-then-active invocation, exact donation histories,
+observed cancellation, and empty task/scope/group/scheduler ownership. A
+separate negative test pins the isolation guard. An interpreter-only defensive
+test makes both active callbacks fail: delivery continues to every handler,
+the first failure belongs to the target rather than the donating waiter, and
+all registrations and runtime ownership still drain. A source-shape test pins
+Swift's ordinary unlabeled trailing-handler syntax. Generator and surface tests
+pin both active signatures and their shared route. The final differential
+shard passed all twenty fresh-process interpreter repetitions in 12.19 seconds;
+the nine focused generator/surface/runtime checks passed in 4.62 seconds while
+that shard was running.
+
+Both complete declarations remain `known-divergence`/`none`, because arbitrary
+actor/executor behavior is outside the evidenced cooperative and explicit-nil
+subsets. Accounting is now 165/171 reviewed: 51 runtime-supported, 20
+diagnosed-unsupported, 67 known divergences, 26 excluded compiler ABI, one
+deferred, and six unreviewed. A full repository gate is deliberately reserved
+for the coherent M7 closeout batch; this iteration claims only the focused
+checks above.

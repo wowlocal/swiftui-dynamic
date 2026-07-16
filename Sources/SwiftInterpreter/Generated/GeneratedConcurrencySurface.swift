@@ -10,6 +10,7 @@ enum RuntimeConcurrencyFunctionIntrinsic: String, Sendable {
     case withDiscardingTaskGroup
     case withTaskCancellationHandler
     case withTaskGroup
+    case withTaskPriorityEscalationHandler
     case withThrowingDiscardingTaskGroup
     case withThrowingTaskGroup
 }
@@ -113,12 +114,14 @@ enum GeneratedConcurrencySurface {
     static let topLevelFunctionDispatch: [
         String: RuntimeConcurrencyFunctionIntrinsic
     ] = [
+        "_isolatedParameter_withTaskPriorityEscalationHandler": .withTaskPriorityEscalationHandler,
         "async": .unstructuredTask,
         "asyncDetached": .detachedTask,
         "detach": .detachedTask,
         "withDiscardingTaskGroup": .withDiscardingTaskGroup,
         "withTaskCancellationHandler": .withTaskCancellationHandler,
         "withTaskGroup": .withTaskGroup,
+        "withTaskPriorityEscalationHandler": .withTaskPriorityEscalationHandler,
         "withThrowingDiscardingTaskGroup": .withThrowingDiscardingTaskGroup,
         "withThrowingTaskGroup": .withThrowingTaskGroup,
         "withUnsafeCurrentTask": .withCurrentTaskCapability,

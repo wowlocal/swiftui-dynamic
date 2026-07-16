@@ -1,5 +1,32 @@
 import Foundation
 
+private final class PriorityEscalationEventStorage: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [String] = []
+
+    func record(_ event: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        events.append(event)
+    }
+
+    func snapshot() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return events.sorted().joined(separator: ",")
+    }
+}
+
+private let priorityEscalationEventStorage = PriorityEscalationEventStorage()
+
+nonisolated func parityRecordPriorityEscalationEvent(_ event: String) {
+    priorityEscalationEventStorage.record(event)
+}
+
+nonisolated func parityPriorityEscalationEvents() -> String {
+    priorityEscalationEventStorage.snapshot()
+}
+
 nonisolated func parityCurrentExecutorLane() -> String {
     Thread.isMainThread ? "main" : "worker"
 }
