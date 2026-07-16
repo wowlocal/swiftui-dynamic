@@ -264,7 +264,10 @@ declaration's canonical `static shared` actor and enters that same logical
 identity. Mutable stored-property read/write funnels require the matching
 runtime-task lease. Native Swift 6 probes establish that ordinary immutable
 actor `let` storage and explicitly nonisolated storage remain directly
-readable, so neither is over-guarded.
+readable, so neither is over-guarded. An externally awaited synchronous
+computed-property getter enters through the same actor mailbox for its complete
+accessor segment; explicit `nonisolated` accessor metadata remains outside that
+entry.
 
 This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
@@ -273,7 +276,7 @@ complete actor isolation. Remaining actor work includes:
 - complete native evidence for cross-actor executor hops and every failure or
   cancellation exit;
 - replayable mailbox/reentrancy stress;
-- complete computed-property and subscript confinement;
+- complete computed-property setter and subscript confinement;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
 
@@ -909,9 +912,12 @@ task owns its lease. Ordinary immutable `let` reads and explicit
 `nonisolated(unsafe)` storage follow the verified compiler rule. The
 compiler-preflight layer diagnoses illegal source, while runtime checks prevent
 a host callback or dynamically constructed call from bypassing isolation.
-Computed properties, subscripts, isolated parameters, and failure/cancellation
-coverage remain open and must not be inferred from this stored-property and
-successful-resume subset.
+Externally awaited synchronous computed-property getters now acquire the exact
+receiver actor and execute through a common accessor context; unawaited dynamic
+entry fails closed, and explicit `nonisolated` metadata avoids over-isolation.
+Computed setters still need native parity, while subscripts, isolated
+parameters, and failure/cancellation coverage remain open and must not be
+inferred from this stored-property/getter and successful-resume subset.
 
 ### 6.12 Actor reentrancy
 
@@ -932,8 +938,11 @@ depth-counted leases. A balanced runtime suspension token parks the entire
 nested segment, makes the actor available, and restores the same depth only
 after the task has regained the actor mailbox. The controlled same-source
 `actor-reentrancy` fixture proves successful host-suspension interleaving and
-resume ownership. Failure, cancellation, isolated-parameter dispatch, arbitrary
-global actors, and replayable mailbox stress remain open M5 work.
+resume ownership. The `actor-computed-property` fixture separately proves that
+an externally awaited synchronous getter owns the receiver actor for its whole
+accessor segment. Failure, cancellation, computed setters/subscripts,
+isolated-parameter dispatch, arbitrary global actors, and replayable mailbox
+stress remain open M5 work.
 
 ### 6.13 Cancellation
 

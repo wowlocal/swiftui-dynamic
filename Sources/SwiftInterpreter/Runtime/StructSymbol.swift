@@ -17,6 +17,10 @@ public struct ComputedProperty {
     public let accessor: CodeBlockItemListSyntax
     public let isBuilder: Bool
     public let setter: Setter?
+    /// Explicit `nonisolated` belongs to the accessor declaration. Actor
+    /// receivers use this bit to distinguish a direct, caller-executor read
+    /// from the default actor-isolated computed-property entry.
+    public let isNonisolated: Bool
     /// The declared result type supplies contextual type information to
     /// implicit-member returns such as `var manager: Manager { .shared }`.
     public let typeAnnotation: TypeSyntax?
@@ -27,13 +31,15 @@ public struct ComputedProperty {
     public init(
         accessor: CodeBlockItemListSyntax, isBuilder: Bool,
         setter: Setter? = nil, typeAnnotation: TypeSyntax? = nil,
-        declarationID: SyntaxIdentifier? = nil
+        declarationID: SyntaxIdentifier? = nil,
+        isNonisolated: Bool = false
     ) {
         self.accessor = accessor
         self.isBuilder = isBuilder
         self.setter = setter
         self.typeAnnotation = typeAnnotation
         self.declarationID = declarationID
+        self.isNonisolated = isNonisolated
     }
 }
 

@@ -252,6 +252,78 @@ struct ActorRuntimeTests {
         }
     }
 
+    @Test
+    func actorComputedPropertyAcquiresExecutorAndRejectsUnawaitedEntry()
+        async throws
+    {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "inspectComputedOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectComputedOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+            actor ComputedProbe {
+                var stored = 0
+
+                var next: String {
+                    let ownership = inspectComputedOwnership(self)
+                    guard ownership == "owned" else { return ownership }
+                    stored += 1
+                    return ownership + ":" + String(stored)
+                }
+
+                nonisolated var label: String { "free" }
+            }
+
+            func runComputedProbe() async -> String {
+                let probe = ComputedProbe()
+                let first = await probe.next
+                let second = await probe.next
+                return first + "|" + second + "|" + probe.label
+            }
+
+            await runComputedProbe()
+            """)
+        let symbol = try #require(
+            interpreter.globals.lookup("ComputedProbe")?.typeSymbol)
+
+        #expect(result.stringValue == "owned:1|owned:2|free")
+        #expect(symbol.computedProperties["next"]?.isNonisolated == false)
+        #expect(symbol.computedProperties["label"]?.isNonisolated == true)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+
+        do {
+            _ = try await Interpreter().runAsync(source: """
+                actor ComputedProbe {
+                    var value: Int { 1 }
+                }
+                let probe = ComputedProbe()
+                probe.value
+                """)
+            Issue.record(
+                "actor computed property entered synchronously without ownership")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "cross-actor synchronous call requires an awaited "
+                    + "actor-executor entry"))
+        }
+    }
+
     private static func instance(from value: RuntimeValue?) -> Instance? {
         guard case .instance(let instance)? = value else { return nil }
         return instance

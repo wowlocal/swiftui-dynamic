@@ -327,6 +327,19 @@ extension Interpreter {
         node: some SyntaxProtocol,
         env: Environment
     ) async throws -> RuntimeValue {
+        if case .instance(let instance) = base {
+            let canonical = instance.symbol.canonicalPropertyName(name)
+            if let computed = instance.symbol.computedProperties[canonical],
+               let executor = try resolvedExecutor(
+                    for: computed, on: instance) {
+                return try await evaluateComputedSuspending(
+                    computed,
+                    selfValue: .instance(instance),
+                    name: canonical,
+                    executor: executor)
+            }
+        }
+
         let eager = try accessMember(
             name,
             on: base,
@@ -334,6 +347,48 @@ extension Interpreter {
             env: env,
             deferringAsyncHostProperty: true)
         return try await resolvePendingHostPropertyRead(eager, node: node).value
+    }
+
+    private func evaluateComputedSuspending(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String,
+        executor: RuntimeExecutorKind
+    ) async throws -> RuntimeValue {
+        let suspendedCallerActor = suspendCallerActorForExecutorHop(
+            to: executor)
+        do {
+            let result = try await evaluateComputedOnExecutorSuspending(
+                computed,
+                selfValue: selfValue,
+                name: name,
+                executor: executor)
+            if let suspendedCallerActor {
+                await concurrencyRuntime.resumeActorExecutor(
+                    suspendedCallerActor)
+            }
+            return result
+        } catch {
+            let failure = error
+            if let suspendedCallerActor {
+                await concurrencyRuntime.resumeActorExecutor(
+                    suspendedCallerActor)
+            }
+            throw failure
+        }
+    }
+
+    private func evaluateComputedOnExecutorSuspending(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String,
+        executor: RuntimeExecutorKind
+    ) async throws -> RuntimeValue {
+        let actorOwnership = try await enterActorInvocation(
+            executor: executor)
+        defer { leaveActorInvocation(actorOwnership) }
+        return try evaluateComputed(
+            computed, selfValue: selfValue, name: name)
     }
 
     private func resolvePendingHostPropertyRead(

@@ -34,6 +34,29 @@ extension Interpreter {
         return nil
     }
 
+    /// A source actor's instance computed property is isolated to that exact
+    /// actor unless the declaration is explicitly `nonisolated`. Accessor
+    /// execution shares the same executor capability as an isolated method;
+    /// it is not ordinary class-member evaluation.
+    func resolvedExecutor(
+        for computed: ComputedProperty,
+        on instance: Instance
+    ) throws -> RuntimeExecutorKind? {
+        guard instance.symbol.isActor,
+              !computed.isNonisolated,
+              !instance.isInitializing,
+              !evaluationTaskContext.initializingInstances.contains(
+                ObjectIdentifier(instance)) else {
+            return nil
+        }
+        guard let actorID = instance.actorID else {
+            throw RuntimeError(
+                message: "actor computed property requires a runtime actor ID",
+                fatal: true)
+        }
+        return .actor(actorID)
+    }
+
     /// Enter the source actor selected for a suspending invocation. Both sync
     /// and async declarations own a depth-counted mailbox segment; canonical
     /// runtime waits release the complete segment and restore it before the

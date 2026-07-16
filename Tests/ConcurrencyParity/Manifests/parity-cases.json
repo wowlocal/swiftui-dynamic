@@ -98,6 +98,18 @@
     "notes": "Exact output is owned:owned:2 in all 20 Swift 6.3.3 runs. Both ownership results are identical, so the assertion makes no FIFO, task-start-order, physical-thread, or cross-actor parallelism claim."
   },
   {
+    "id": "actor-computed-property",
+    "fixture": "Fixtures/actor-computed-property.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorComputedPropertyProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An externally awaited synchronous actor computed-property getter executes under that actor's isolation for the complete accessor segment, while an explicit nonisolated computed getter does not enter the actor.",
+    "notes": "Exact output is owned:1|owned:2|unowned|2 in all 20 Swift 6.3.3 runs. Sequential awaits establish both isolated mutations; no FIFO between independent messages, physical-thread, or parallelism claim is made."
+  },
+  {
     "id": "actor-reentrancy",
     "fixture": "Fixtures/actor-reentrancy.swift",
     "mode": "runtime",

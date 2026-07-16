@@ -650,12 +650,38 @@ extension Interpreter {
         _ = try executeBlock(setter.body, in: env)
     }
 
-    func evaluateComputed(_ computed: ComputedProperty, selfValue: RuntimeValue, name: String) throws -> RuntimeValue {
+    private func withComputedPropertyContext<T>(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String,
+        _ operation: (Environment) throws -> T
+    ) throws -> T {
+        let calleeExecutor: RuntimeExecutorKind?
+        if case .instance(let instance) = selfValue {
+            calleeExecutor = try resolvedExecutor(
+                for: computed, on: instance)
+        } else {
+            calleeExecutor = nil
+        }
+        let previousExecutor = evaluationTaskContext.currentExecutor
+        if let calleeExecutor {
+            evaluationTaskContext.currentExecutor = calleeExecutor
+            lexicalExecutorFrames.append(calleeExecutor)
+        }
+        defer {
+            if calleeExecutor != nil {
+                lexicalExecutorFrames.removeLast()
+            }
+            evaluationTaskContext.currentExecutor = previousExecutor
+        }
+        try requireSynchronousActorInvocationAccess(to: calleeExecutor)
+
         callDepth += 1
         defer { callDepth -= 1 }
         guard callDepth < callDepthLimit else {
             throw RuntimeError(message: "call depth exceeded evaluating '\(name)' (possible infinite recursion)", fatal: true)
         }
+
         var pushedLexicalOwner = false
         if let id = computed.declarationID, let owner = declLexicalOwners[id] {
             lexicalOwnerFrames.append(owner)
@@ -663,22 +689,36 @@ extension Interpreter {
         }
         defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
         let env = selfEnvironment(selfValue)
-        if computed.isBuilder {
-            let views = try collectBuilderViews(computed.accessor, in: env)
-            return try groupViews(views)
-        }
-        let result = try executeBlock(computed.accessor, in: env)
-        switch result {
-        case .normal(let value), .returnValue(let value):
-            if let typeName = computed.typeAnnotation?.trimmedDescription,
-               RuntimeOptionalValue.wrappedType(in: typeName) != nil {
-                return try resolveAnnotated(value, typeName: typeName)
+        return try operation(env)
+    }
+
+    func evaluateComputed(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String
+    ) throws -> RuntimeValue {
+        try withComputedPropertyContext(
+            computed, selfValue: selfValue, name: name
+        ) { env in
+            if computed.isBuilder {
+                let views = try collectBuilderViews(computed.accessor, in: env)
+                return try groupViews(views)
             }
-            // Keep contextual markers lazy. Receiver operations that require
-            // the concrete type (notably user subscripts) resolve this value
-            // against the annotation at their dispatch boundary.
-            return value
-        default: throw RuntimeError(message: "control flow escaped computed property '\(name)'")
+            let result = try executeBlock(computed.accessor, in: env)
+            switch result {
+            case .normal(let value), .returnValue(let value):
+                if let typeName = computed.typeAnnotation?.trimmedDescription,
+                   RuntimeOptionalValue.wrappedType(in: typeName) != nil {
+                    return try resolveAnnotated(value, typeName: typeName)
+                }
+                // Keep contextual markers lazy. Receiver operations that
+                // require the concrete type (notably user subscripts) resolve
+                // this value against the annotation at their dispatch boundary.
+                return value
+            default:
+                throw RuntimeError(message:
+                    "control flow escaped computed property '\(name)'")
+            }
         }
     }
 

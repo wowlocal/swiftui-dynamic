@@ -731,7 +731,10 @@ extension Interpreter {
                     isBuilder: hasBuilderAttribute || returnsView,
                     setter: accessors.setter,
                     typeAnnotation: binding.typeAnnotation?.type,
-                    declarationID: binding.id
+                    declarationID: binding.id,
+                    isNonisolated: varDecl.modifiers.contains {
+                        $0.name.text == "nonisolated"
+                    }
                 )
                 if isStaticDecl {
                     symbol.staticComputedProperties[name] = computed
