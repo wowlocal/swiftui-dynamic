@@ -1335,3 +1335,25 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   SpeedBench holds a 9,426× geometric mean (interpolation loop 875×).
   **GATE GREEN: suite 651/139; corpus 678/680; live 5/5; parity 345/0/0;
   R1 9/9.**
+- 2026-07-16 R3 BOOTSTRAP (run-the-app resume, first worktree iteration):
+  the interp side of the function-parity protocol exists and the FIRST
+  BOARD IS AT FLOORS. FoodTruckCheck gained `--scenario <name|all>`
+  (with --capture): six scenario declarations mirror the twin's
+  runScenarios exactly — same model-API mutations, same capture ids
+  (order-steps splits into two staged fresh-model scenarios interp-side;
+  same post-states, same ids). Scripts/foodtruck-r3.sh runs both sides
+  and prints the AE board. First board (10 captures, zero render
+  diagnostics): donut-view-after-rename 0.000% and
+  card-donuts-after-popularity 0.000% — interpreted updateDonut and the
+  bulk-complete popularity re-sort are PIXEL-IDENTICAL post-mutation;
+  donuts-after-rename 0.463%, donuts-after-popularity/detail-donuts
+  0.437%, orders-after-complete 7.506%, orders-after-preparing 7.450%,
+  orders-after-steps 8.327%, detail-orders 7.452%, detail-truck 12.012%
+  — every scenario lands AT its screen's R2 floor, so the mutations
+  produce the same pixel deltas as compiled; the residuals are the KNOWN
+  static classes (orders table chrome, truck Charts card), not function
+  gaps. Changed-guard verified manually both sides (donuts pre-vs-post:
+  twin 777px, interp 693px — mutation visibly renders, not absorbed);
+  encoding the guard + floors into the board script is the next
+  instrument class, then burn the orders/truck residue where R3 and R2
+  share a root. These floors are the R3 ratchet baseline — down only.

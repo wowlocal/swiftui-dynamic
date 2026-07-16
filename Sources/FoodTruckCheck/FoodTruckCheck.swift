@@ -42,10 +42,12 @@ struct FoodTruckCheckMain {
 
         var screenFilter: String?
         var captureDirectory: String?
+        var scenarioFilter: String?
         var iterator = CommandLine.arguments.dropFirst().makeIterator()
         while let argument = iterator.next() {
             if argument == "--screen" { screenFilter = iterator.next() }
             if argument == "--capture" { captureDirectory = iterator.next() }
+            if argument == "--scenario" { scenarioFilter = iterator.next() }
         }
 
         // The app + Kit sources; Widgets/ is out of scope (extension process).
@@ -185,6 +187,201 @@ struct FoodTruckCheckMain {
 
             let screenSize = NSSize(width: 1000, height: 650)
             let cardSize = NSSize(width: 400, height: 300)
+
+            // ── R3 scenarios (Scripts/foodtruck-r3-spec.md): mutate through
+            // the model's OWN public API, re-capture. Declarations, mutation
+            // calls, and capture ids mirror the twin's runScenarios exactly.
+            if let scenarioFilter {
+                struct ScenarioCapture {
+                    let id: String
+                    let content: String
+                    let size: NSSize
+                }
+                struct Scenario {
+                    let name: String
+                    let declaration: String
+                    let captures: [ScenarioCapture]
+                }
+
+                func scenarioApp(_ content: String) -> String {
+                    """
+
+                    @main
+                    struct __FTProbeApp: App {
+                        var body: some Scene {
+                            WindowGroup {
+                                \(content)
+                            }
+                        }
+                    }
+                    """
+                }
+
+                let scenarios: [Scenario] = [
+                    Scenario(
+                        name: "donut-rename",
+                        declaration: """
+
+                        final class __FTScenario {
+                            let model: FoodTruckModel
+                            let renamedID: Donut.ID
+                            init() {
+                                let model = FoodTruckModel()
+                                var donut = model.donuts[0]
+                                let id = donut.id
+                                donut.name = "Parity Deluxe"
+                                model.updateDonut(id: id, to: donut)
+                                self.model = model
+                                self.renamedID = id
+                            }
+                        }
+                        let __scenario = __FTScenario()
+                        """,
+                        captures: [
+                            ScenarioCapture(
+                                id: "donuts-after-rename",
+                                content: "DonutGallery(model: __scenario.model)",
+                                size: NSSize(width: 1000, height: 650)),
+                            ScenarioCapture(
+                                id: "donut-view-after-rename",
+                                content: "DonutView(donut: __scenario.model.donut(id: __scenario.renamedID)).padding(10).background(Color.white)",
+                                size: NSSize(width: 400, height: 300)),
+                        ]),
+                    Scenario(
+                        name: "order-completes",
+                        declaration: """
+
+                        final class __FTScenario {
+                            let model: FoodTruckModel
+                            init() {
+                                let model = FoodTruckModel()
+                                if let first = model.orders.first(where: { !$0.isComplete }) {
+                                    model.markOrderAsCompleted(id: first.id)
+                                }
+                                self.model = model
+                            }
+                        }
+                        let __scenario = __FTScenario()
+                        """,
+                        captures: [
+                            ScenarioCapture(
+                                id: "orders-after-complete",
+                                content: "OrdersView(model: __scenario.model)",
+                                size: NSSize(width: 1000, height: 650)),
+                        ]),
+                    Scenario(
+                        name: "order-steps-preparing",
+                        declaration: """
+
+                        final class __FTScenario {
+                            let model: FoodTruckModel
+                            init() {
+                                let model = FoodTruckModel()
+                                if let first = model.orders.first(where: { !$0.isComplete }) {
+                                    let binding = model.orderBinding(for: first.id)
+                                    binding.wrappedValue.markAsPreparing()
+                                }
+                                self.model = model
+                            }
+                        }
+                        let __scenario = __FTScenario()
+                        """,
+                        captures: [
+                            ScenarioCapture(
+                                id: "orders-after-preparing",
+                                content: "OrdersView(model: __scenario.model)",
+                                size: NSSize(width: 1000, height: 650)),
+                        ]),
+                    Scenario(
+                        name: "order-steps",
+                        declaration: """
+
+                        final class __FTScenario {
+                            let model: FoodTruckModel
+                            init() {
+                                let model = FoodTruckModel()
+                                if let first = model.orders.first(where: { !$0.isComplete }) {
+                                    let binding = model.orderBinding(for: first.id)
+                                    binding.wrappedValue.markAsPreparing()
+                                    binding.wrappedValue.markAsComplete()
+                                }
+                                self.model = model
+                            }
+                        }
+                        let __scenario = __FTScenario()
+                        """,
+                        captures: [
+                            ScenarioCapture(
+                                id: "orders-after-steps",
+                                content: "OrdersView(model: __scenario.model)",
+                                size: NSSize(width: 1000, height: 650)),
+                        ]),
+                    Scenario(
+                        name: "popularity-moves",
+                        declaration: """
+
+                        final class __FTScenario {
+                            let model: FoodTruckModel
+                            init() {
+                                let model = FoodTruckModel()
+                                for order in model.orders where !order.isComplete {
+                                    model.markOrderAsCompleted(id: order.id)
+                                }
+                                self.model = model
+                            }
+                        }
+                        let __scenario = __FTScenario()
+                        """,
+                        captures: [
+                            ScenarioCapture(
+                                id: "donuts-after-popularity",
+                                content: "DonutGallery(model: __scenario.model)",
+                                size: NSSize(width: 1000, height: 650)),
+                            ScenarioCapture(
+                                id: "card-donuts-after-popularity",
+                                content: "TruckDonutsCard(donuts: Array(__scenario.model.donuts(sortedBy: .popularity(.month)).prefix(15))).padding(10).background(Color.white)",
+                                size: NSSize(width: 400, height: 300)),
+                        ]),
+                    Scenario(
+                        name: "nav-selection",
+                        declaration: """
+
+                        final class __FTScenario {
+                            let model: FoodTruckModel
+                            init() {
+                                self.model = FoodTruckModel()
+                            }
+                        }
+                        let __scenario = __FTScenario()
+                        """,
+                        captures: [
+                            ScenarioCapture(
+                                id: "detail-truck",
+                                content: "DetailColumn(selection: .constant(.truck), model: __scenario.model)",
+                                size: NSSize(width: 1000, height: 650)),
+                            ScenarioCapture(
+                                id: "detail-orders",
+                                content: "DetailColumn(selection: .constant(.orders), model: __scenario.model)",
+                                size: NSSize(width: 1000, height: 650)),
+                            ScenarioCapture(
+                                id: "detail-donuts",
+                                content: "DetailColumn(selection: .constant(.donuts), model: __scenario.model)",
+                                size: NSSize(width: 1000, height: 650)),
+                        ]),
+                ]
+
+                for scenario in scenarios {
+                    if scenarioFilter != "all", scenario.name != scenarioFilter { continue }
+                    for capture in scenario.captures {
+                        capturePNG(
+                            capture.id,
+                            source: probeMergeBase + scenario.declaration + scenarioApp(capture.content),
+                            size: capture.size)
+                    }
+                }
+                return
+            }
+
             // Ids and wrappers mirror the twin EXACTLY (main.swift there).
             capturePNG("content", source: fullMerge, size: screenSize)
             capturePNG("truck", source: probeMergeBase + probeApp(
