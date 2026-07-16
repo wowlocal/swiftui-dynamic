@@ -8,6 +8,10 @@ import Foundation
 import SwiftUI
 import SwiftInterpreter
 
+/// Entitlement-gated service types that fail closed (documented
+/// allowlist — see the quarantine comment at the dispatch site).
+let environmentalServiceTypes: Set<String> = ["WeatherService"]
+
 /// Mutable host objects interpreted code constructs and configures —
 /// backed by the real Foundation types. Shared by both registries.
 final class DateFormatterBox {
@@ -1162,6 +1166,24 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     }
     if let marker = value as? HostTypeMarker, marker.name == "Date", name == "now" {
         return .native(Date())
+    }
+    // LOOP.md scope quarantine + AGENTS.md documented allowlist:
+    // entitlement-gated services FAIL CLOSED. A swiftinterface cannot
+    // express that these calls throw without an entitlement, and absorbing
+    // lets junk overwrite app state — FoodTruck's forecast .task replaced
+    // the placeholder with EMPTY entries, blanking the chart; headless
+    // native throws and the app's own catch keeps the sample data.
+    if let marker = value as? HostTypeMarker, environmentalServiceTypes.contains(marker.name) {
+        if name == "shared" {
+            return .native(HostTypeMarker(name: marker.name))
+        }
+        let serviceName = marker.name
+        return .hostFunction(HostFunction(name: name) { _, _ in
+            throw InterpretedThrow(value: .native(NSError(
+                domain: serviceName, code: 1,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "\(serviceName).\(name) requires an entitlement (environmental — headless native throws)"])))
+        })
     }
     if let marker = value as? HostTypeMarker, marker.name == "Task",
        name == "sleep" || name == "yield" {
