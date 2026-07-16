@@ -230,6 +230,18 @@
     "notes": "Exact output is owned|cancelled|owned|owned:owned:owned:2|owned in all 20 Swift 6.3.3 runs. An explicit gate establishes cancellation after getter suspension and before resume; no FIFO, physical-thread, or unrelated scheduling order is asserted."
   },
   {
+    "id": "actor-subscript-async-exits",
+    "fixture": "Fixtures/actor-subscript-async-exits.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorSubscriptAsyncExitsProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "After a controlled suspension, an async-throwing subscript getter reacquires its target actor before either returning a value or throwing a source error; each exit releases the target and restores the caller actor before subsequent source work.",
+    "notes": "Exact output is owned|value:1|owned|owned:owned:owned:2|owned||owned|caught|owned|owned:owned:owned:2|owned in all 20 Swift 6.3.3 runs. Separate source-owned gates force each suspension and the two runs are awaited sequentially; no FIFO, physical-thread, or unrelated scheduling order is asserted."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",

@@ -840,6 +840,112 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func asyncActorSubscriptSuccessAndSourceErrorBalanceExecutors()
+        async throws
+    {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "inspectSubscriptExitOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectSubscriptExitOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+        interpreter.globals.define(
+            "yieldSubscriptExit",
+            .hostFunction(HostFunction(
+                name: "yieldSubscriptExit",
+                asyncInvoke: { _, _ in
+                    await Task.yield()
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+            enum SubscriptExitFailure: Error {
+                case boom
+            }
+
+            actor SubscriptExitTarget {
+                var stored = 0
+                var entryOwnership = "unset"
+                var resumeOwnership = "unset"
+
+                subscript(_ shouldThrow: Bool) -> Int {
+                    get async throws {
+                        entryOwnership = inspectSubscriptExitOwnership(self)
+                        stored += 1
+                        await yieldSubscriptExit()
+                        resumeOwnership = inspectSubscriptExitOwnership(self)
+                        if shouldThrow { throw SubscriptExitFailure.boom }
+                        return stored
+                    }
+                }
+
+                func snapshot() -> String {
+                    entryOwnership + ":" + resumeOwnership + ":"
+                        + inspectSubscriptExitOwnership(self) + ":"
+                        + String(stored)
+                }
+            }
+
+            actor SubscriptExitCaller {
+                func succeed(_ target: SubscriptExitTarget) async -> String {
+                    do {
+                        let value = try await target[false]
+                        return "value:" + String(value) + ":"
+                            + inspectSubscriptExitOwnership(self)
+                    } catch {
+                        return "unexpected"
+                    }
+                }
+
+                func fail(_ target: SubscriptExitTarget) async -> String {
+                    var outcome = "missed"
+                    do {
+                        _ = try await target[true]
+                    } catch SubscriptExitFailure.boom {
+                        outcome = "caught"
+                    } catch {
+                        outcome = "other"
+                    }
+                    return outcome + ":"
+                        + inspectSubscriptExitOwnership(self)
+                }
+            }
+
+            func runSubscriptExitProbe() async -> String {
+                let target = SubscriptExitTarget()
+                let caller = SubscriptExitCaller()
+                let success = await caller.succeed(target)
+                let failure = await caller.fail(target)
+                let snapshot = await target.snapshot()
+                return success + "|" + failure + "|" + snapshot
+            }
+
+            await runSubscriptExitProbe()
+            """)
+        let symbol = try #require(
+            interpreter.globals.lookup("SubscriptExitTarget")?.typeSymbol)
+        let getter = try #require(symbol.subscripts.first)
+
+        #expect(result.stringValue
+            == "value:1:owned|caught:owned|owned:owned:owned:2")
+        #expect(getter.isAsync)
+        #expect(getter.isThrowing)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func actorSubscriptSetterRequiresOwnedSynchronousEntry() async throws {
         let interpreter = Interpreter()
         interpreter.globals.define(
