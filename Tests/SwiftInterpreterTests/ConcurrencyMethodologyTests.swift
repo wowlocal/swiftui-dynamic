@@ -2750,6 +2750,79 @@ struct ConcurrencyMethodologyTests {
         #expect(duplicate.standardError.contains("expected exactly one summary marker"))
     }
 
+    @Test func focusedParityValidatorRequiresTheExactManifestRepetitionTotal() throws {
+        let manifestURL = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests/parity-cases.json")
+        let cases = try JSONDecoder().decode(
+            [AcceptanceParityCase].self, from: Data(contentsOf: manifestURL))
+        let runtimeCases = cases.filter { $0.mode == "runtime" }
+        let parityCase = try #require(runtimeCases.first {
+            $0.id == "protocol-async-sequence-cancellation"
+        })
+        let caseIndex = try #require(runtimeCases.firstIndex {
+            $0.id == parityCase.id
+        })
+        let total = max(1, parityCase.repetitions)
+        let workerCount = min(4, total)
+        let base = total / workerCount
+        let extra = total % workerCount
+        let markers = try (0 ..< workerCount).map { workerIndex in
+            let repetitions = base + (workerIndex < extra ? 1 : 0)
+            let payload: [String: Any] = [
+                "version": 1,
+                "shardIndex": caseIndex,
+                "shardCount": runtimeCases.count,
+                "selectedCount": 1,
+                "completedCount": 1,
+                "selectedIDs": [parityCase.id],
+                "completedIDs": [parityCase.id],
+                "selectedRepetitionsByCase": [parityCase.id: repetitions],
+                "completedRepetitionsByCase": [parityCase.id: repetitions],
+                "nativeObservationSHA256ByCase": [
+                    parityCase.id: String(repeating: "0", count: 64),
+                ],
+            ]
+            let data = try JSONSerialization.data(
+                withJSONObject: payload, options: [.sortedKeys])
+            return try "@@concurrency-parity-summary "
+                + #require(String(data: data, encoding: .utf8)) + "\n"
+        }
+
+        let accepted = try runFocusedParityValidator(
+            manifestURL: manifestURL,
+            caseID: parityCase.id,
+            logs: markers)
+        #expect(accepted.status == 0,
+            Comment(rawValue: accepted.standardError))
+        #expect(accepted.standardOutput.contains(
+            "\"completedRepetitions\":\(total)"))
+
+        var incomplete = markers
+        incomplete[0] = try mutateMarker(markers[0]) { payload in
+            for key in [
+                "selectedRepetitionsByCase",
+                "completedRepetitionsByCase",
+            ] {
+                var repetitions = payload[key] as? [String: Any] ?? [:]
+                repetitions[parityCase.id] = base - 1
+                payload[key] = repetitions
+            }
+        } + "\n"
+        let rejectedTotal = try runFocusedParityValidator(
+            manifestURL: manifestURL,
+            caseID: parityCase.id,
+            logs: incomplete)
+        #expect(rejectedTotal.status != 0)
+        #expect(rejectedTotal.standardError.contains("completed"))
+
+        let duplicate = try runFocusedParityValidator(
+            manifestURL: manifestURL,
+            caseID: parityCase.id,
+            logs: [markers[0] + markers[0]])
+        #expect(duplicate.status != 0)
+        #expect(duplicate.standardError.contains("expected one summary marker"))
+    }
+
     @Test func gateReceiptContractIsSourceBoundAndActionable() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(
@@ -3044,6 +3117,60 @@ struct ConcurrencyMethodologyTests {
             manifestURL.path,
         ] + logURLs.map(\.path)
         process.currentDirectoryURL = Self.packageRoot
+        let stdoutURL = directory.appendingPathComponent("stdout.log")
+        let stderrURL = directory.appendingPathComponent("stderr.log")
+        try Data().write(to: stdoutURL)
+        try Data().write(to: stderrURL)
+        let stdout = try FileHandle(forWritingTo: stdoutURL)
+        let stderr = try FileHandle(forWritingTo: stderrURL)
+        process.standardOutput = stdout
+        process.standardError = stderr
+        do {
+            try process.run()
+        } catch {
+            try? stdout.close()
+            try? stderr.close()
+            throw error
+        }
+        process.waitUntilExit()
+        try stdout.close()
+        try stderr.close()
+        return ValidatorProcessResult(
+            status: process.terminationStatus,
+            standardOutput: String(
+                decoding: try Data(contentsOf: stdoutURL), as: UTF8.self),
+            standardError: String(
+                decoding: try Data(contentsOf: stderrURL), as: UTF8.self),
+        )
+    }
+
+    private func runFocusedParityValidator(
+        manifestURL: URL,
+        caseID: String,
+        logs: [String]
+    ) throws -> ValidatorProcessResult {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "dynamic-swift-focused-parity-validator-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let logURLs = try logs.enumerated().map { index, contents in
+            let url = directory.appendingPathComponent("worker-\(index).log")
+            try contents.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ruby")
+        process.arguments = [
+            Self.packageRoot.appendingPathComponent(
+                "Scripts/validate-focused-parity-summaries.rb").path,
+            manifestURL.path,
+            caseID,
+        ] + logURLs.map(\.path)
+        process.currentDirectoryURL = Self.packageRoot
         let stdout = Pipe()
         let stderr = Pipe()
         process.standardOutput = stdout
@@ -3054,13 +3181,10 @@ struct ConcurrencyMethodologyTests {
             status: process.terminationStatus,
             standardOutput: String(
                 decoding: stdout.fileHandleForReading.readDataToEndOfFile(),
-                as: UTF8.self,
-            ),
+                as: UTF8.self),
             standardError: String(
                 decoding: stderr.fileHandleForReading.readDataToEndOfFile(),
-                as: UTF8.self,
-            ),
-        )
+                as: UTF8.self))
     }
 
     private func runCapabilityValidator(

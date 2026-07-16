@@ -126,6 +126,8 @@ private enum ConcurrencyParityHarness {
         "DYNAMIC_SWIFT_PARITY_CHILD_CASE_ID"
     private static let childOutputEnvironmentVariable =
         "DYNAMIC_SWIFT_PARITY_CHILD_OUTPUT_PATH"
+    private static let focusedRepetitionsEnvironmentVariable =
+        "DYNAMIC_SWIFT_PARITY_FOCUSED_REPETITIONS"
     private static let shardSummaryPrefix = "@@concurrency-parity-summary "
 
     static let packageRoot: URL = {
@@ -196,6 +198,36 @@ private enum ConcurrencyParityHarness {
         }
     }
 
+    static func effectiveRepetitionCount(
+        manifestCount: Int,
+        overrideValue: String?
+    ) throws -> Int {
+        let boundedManifestCount = max(1, manifestCount)
+        guard let overrideValue else { return boundedManifestCount }
+        guard let overrideCount = Int(overrideValue),
+              overrideCount > 0,
+              overrideCount <= boundedManifestCount else {
+            throw RuntimeError(message:
+                "focused parity repetitions must be in 1..."
+                    + "\(boundedManifestCount), got '\(overrideValue)'")
+        }
+        return overrideCount
+    }
+
+    static func focusedRepetitionCount(
+        for parityCase: ConcurrencyParityCase
+    ) throws -> Int {
+        try effectiveRepetitionCount(
+            manifestCount: parityCase.repetitions,
+            overrideValue: ProcessInfo.processInfo.environment[
+                focusedRepetitionsEnvironmentVariable])
+    }
+
+    static var hasFocusedRepetitionOverride: Bool {
+        ProcessInfo.processInfo.environment[
+            focusedRepetitionsEnvironmentVariable] != nil
+    }
+
     static func fingerprint() throws -> ConcurrencyToolchainFingerprint {
         let xcrun = URL(fileURLWithPath: "/usr/bin/xcrun")
         let swiftc = try successful(
@@ -218,7 +250,8 @@ private enum ConcurrencyParityHarness {
     }
 
     static func nativeOutputs(
-        for parityCase: ConcurrencyParityCase
+        for parityCase: ConcurrencyParityCase,
+        repetitions: Int? = nil
     ) throws -> [String] {
         let directory = try makeTemporaryDirectory(for: parityCase.id)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -241,7 +274,7 @@ private enum ConcurrencyParityHarness {
         _ = try successful(compile, operation: "compile \(parityCase.id)")
 
         var outputs: [String] = []
-        let repetitionCount = max(1, parityCase.repetitions)
+        let repetitionCount = max(1, repetitions ?? parityCase.repetitions)
         for repetition in 0..<repetitionCount {
             let execution = run(
                 binary, [], timeout: parityCase.timeoutSeconds)
@@ -1069,13 +1102,12 @@ private enum ConcurrencyParityHarness {
 
     static func emitShardReceipt(
         shard: ConcurrencyParityShard,
+        selectedRepetitionsByCase: [String: Int],
         completedIDs: [String],
         completedRepetitionsByCase: [String: Int],
         nativeObservationSHA256ByCase: [String: String]
     ) {
         let selectedIDs = shard.cases.map(\.id)
-        let selectedRepetitionsByCase = Dictionary(uniqueKeysWithValues:
-            shard.cases.map { ($0.id, max(1, $0.repetitions)) })
         let receipt = ConcurrencyParityShardReceipt(
             version: 1,
             shardIndex: shard.index,
@@ -1344,23 +1376,36 @@ struct ConcurrencyParityTests {
         #expect(!allCases.isEmpty)
         let shard = try ConcurrencyParityHarness.runtimeShard(
             from: allCases)
+        if ConcurrencyParityHarness.hasFocusedRepetitionOverride,
+           shard.cases.count != 1 {
+            throw RuntimeError(message:
+                "focused parity repetition override requires exactly one case")
+        }
+        let selectedRepetitionsByCase = try Dictionary(uniqueKeysWithValues:
+            shard.cases.map { parityCase in
+                (parityCase.id, try ConcurrencyParityHarness
+                    .focusedRepetitionCount(for: parityCase))
+            })
         var completedIDs: [String] = []
         var completedRepetitionsByCase: [String: Int] = [:]
         var nativeObservationSHA256ByCase: [String: String] = [:]
         defer {
             ConcurrencyParityHarness.emitShardReceipt(
                 shard: shard,
+                selectedRepetitionsByCase: selectedRepetitionsByCase,
                 completedIDs: completedIDs,
                 completedRepetitionsByCase: completedRepetitionsByCase,
                 nativeObservationSHA256ByCase: nativeObservationSHA256ByCase)
         }
 
         for parityCase in shard.cases {
+            let expectedRepetitions = try #require(
+                selectedRepetitionsByCase[parityCase.id])
             let native = try ConcurrencyParityHarness.nativeOutputs(
-                for: parityCase)
+                for: parityCase, repetitions: expectedRepetitions)
             let interpreted = try ConcurrencyParityHarness
-                .interpretedObservations(for: parityCase)
-            let expectedRepetitions = max(1, parityCase.repetitions)
+                .interpretedObservations(
+                    for: parityCase, repetitions: expectedRepetitions)
             guard native.count == expectedRepetitions,
                   interpreted.count == expectedRepetitions else {
                 throw RuntimeError(message:
@@ -1511,6 +1556,25 @@ struct ConcurrencyParityTests {
             selectedIDs.append(contentsOf: shard.map(\.id))
         }
         #expect(selectedIDs.sorted() == cases.map(\.id).sorted())
+    }
+
+    @Test func focusedRepetitionOverrideIsBoundedByTheManifest() throws {
+        #expect(try ConcurrencyParityHarness.effectiveRepetitionCount(
+            manifestCount: 20, overrideValue: nil) == 20)
+        #expect(try ConcurrencyParityHarness.effectiveRepetitionCount(
+            manifestCount: 20, overrideValue: "5") == 5)
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.effectiveRepetitionCount(
+                manifestCount: 20, overrideValue: "0")
+        }
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.effectiveRepetitionCount(
+                manifestCount: 20, overrideValue: "21")
+        }
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.effectiveRepetitionCount(
+                manifestCount: 20, overrideValue: "not-a-number")
+        }
     }
 
     @Test
