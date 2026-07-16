@@ -46,12 +46,19 @@ final class TaskBoundEvalContext: EvalContext {
         let operationID = interpreter.concurrencyRuntime.beginHostOperation(
             for: taskID)
         activeHostOperationID = operationID
-        defer {
+        do {
+            let result = try await operation()
             activeHostOperationID = nil
-            interpreter.concurrencyRuntime.endHostOperation(
+            await interpreter.concurrencyRuntime.endHostOperation(
                 operationID, for: taskID)
+            return result
+        } catch {
+            let failure = error
+            activeHostOperationID = nil
+            await interpreter.concurrencyRuntime.endHostOperation(
+                operationID, for: taskID)
+            throw failure
         }
-        return try await operation()
     }
 
     private func callback<T>(_ operation: () throws -> T) throws -> T {
@@ -59,7 +66,8 @@ final class TaskBoundEvalContext: EvalContext {
               let taskID = evaluationContext.runtimeTaskID else {
             return try bound(operation)
         }
-        interpreter.concurrencyRuntime.resumeHostOperationForCallback(
+        try interpreter.concurrencyRuntime
+            .resumeHostOperationForSynchronousCallback(
             operationID, taskID: taskID)
         defer {
             interpreter.concurrencyRuntime.suspendHostOperationAfterCallback(
@@ -75,13 +83,19 @@ final class TaskBoundEvalContext: EvalContext {
               let taskID = evaluationContext.runtimeTaskID else {
             return try await bound(operation)
         }
-        interpreter.concurrencyRuntime.resumeHostOperationForCallback(
+        await interpreter.concurrencyRuntime.resumeHostOperationForCallback(
             operationID, taskID: taskID)
-        defer {
+        do {
+            let result = try await bound(operation)
             interpreter.concurrencyRuntime.suspendHostOperationAfterCallback(
                 operationID, taskID: taskID)
+            return result
+        } catch {
+            let failure = error
+            interpreter.concurrencyRuntime.suspendHostOperationAfterCallback(
+                operationID, taskID: taskID)
+            throw failure
         }
-        return try await bound(operation)
     }
 
     func callClosure(

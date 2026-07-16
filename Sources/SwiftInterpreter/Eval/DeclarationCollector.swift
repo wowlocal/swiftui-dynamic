@@ -1195,8 +1195,6 @@ extension Interpreter {
         closure.isExplicitlyNonisolated = node.modifiers.contains {
             $0.trimmedDescription == "nonisolated"
         }
-        closure.isAsyncFunction =
-            node.signature.effectSpecifiers?.asyncSpecifier != nil
         closure.executorPreference = functionExecutorPreference(
             node, lexicalOwner: lexicalOwner)
         if !isAnyNonisolated {

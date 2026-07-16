@@ -19,6 +19,30 @@ private final class PriorityEscalationEventStorage: @unchecked Sendable {
 
 private let priorityEscalationEventStorage = PriorityEscalationEventStorage()
 
+private actor ActorReentrancyGate {
+    private var suspended = false
+    private var isOpen = false
+
+    func suspendUntilOpen() async {
+        suspended = true
+        while !isOpen {
+            await Task.yield()
+        }
+    }
+
+    func waitUntilSuspended() async {
+        while !suspended {
+            await Task.yield()
+        }
+    }
+
+    func open() {
+        isOpen = true
+    }
+}
+
+private let actorReentrancyGate = ActorReentrancyGate()
+
 nonisolated func parityRecordPriorityEscalationEvent(_ event: String) {
     priorityEscalationEventStorage.record(event)
 }
@@ -57,6 +81,18 @@ func parityActorSegmentOwnership(
     guard let isolation else { return "unowned" }
     return (isolation as AnyObject) === (expected as AnyObject)
         ? "owned" : "other"
+}
+
+nonisolated func paritySuspendActorMessage() async {
+    await actorReentrancyGate.suspendUntilOpen()
+}
+
+nonisolated func parityAwaitActorMessageSuspension() async {
+    await actorReentrancyGate.waitUntilSuspended()
+}
+
+nonisolated func parityResumeActorMessage() async {
+    await actorReentrancyGate.open()
 }
 
 @MainActor

@@ -2,7 +2,6 @@ extension Interpreter {
     enum RuntimeActorInvocationOwnership {
         case none
         case mailbox(RuntimeActorExecutorLease)
-        case asyncCompatibility(RuntimeActorID)
     }
 
     /// Resolve declaration isolation at invocation, after every source type
@@ -35,12 +34,11 @@ extension Interpreter {
         return nil
     }
 
-    /// Enter the source actor selected for a suspending invocation. A
-    /// synchronous declaration owns the mailbox until its body returns. Async
-    /// declarations remain on an explicit compatibility frame until the next
-    /// slice can release at each suspension and reacquire before resumption.
+    /// Enter the source actor selected for a suspending invocation. Both sync
+    /// and async declarations own a depth-counted mailbox segment; canonical
+    /// runtime waits release the complete segment and restore it before the
+    /// evaluator continues.
     func enterActorInvocation(
-        closure: ClosureValue,
         executor: RuntimeExecutorKind?
     ) async throws -> RuntimeActorInvocationOwnership {
         guard evaluationTaskContext.isAsyncSession,
@@ -52,11 +50,6 @@ extension Interpreter {
                 message: "actor-isolated invocation requires a runtime task",
                 fatal: true)
         }
-        if closure.isAsyncFunction {
-            evaluationTaskContext.unownedAsyncActorCompatibilityFrames.append(
-                actorID)
-            return .asyncCompatibility(actorID)
-        }
         return .mailbox(try await concurrencyRuntime.acquireActorExecutor(
             actorID, for: taskID))
     }
@@ -67,19 +60,28 @@ extension Interpreter {
             break
         case .mailbox(let lease):
             concurrencyRuntime.releaseActorExecutor(lease)
-        case .asyncCompatibility(let actorID):
-            precondition(
-                evaluationTaskContext.unownedAsyncActorCompatibilityFrames.last
-                    == actorID,
-                "async actor compatibility frames left out of order")
-            evaluationTaskContext.unownedAsyncActorCompatibilityFrames.removeLast()
         }
     }
 
+    /// An awaited hop from actor A to a different explicit executor cannot
+    /// retain A while entering the callee. Park A's complete nested segment;
+    /// the caller restores it after the callee has released its own executor.
+    func suspendCallerActorForExecutorHop(
+        to calleeExecutor: RuntimeExecutorKind?
+    ) -> RuntimeActorExecutorSuspension? {
+        guard evaluationTaskContext.isAsyncSession,
+              let calleeExecutor,
+              calleeExecutor != evaluationTaskContext.currentExecutor,
+              evaluationTaskContext.currentExecutor.actorID != nil,
+              let taskID = evaluationTaskContext.runtimeTaskID else {
+            return nil
+        }
+        return concurrencyRuntime.suspendOwnedActorExecutor(for: taskID)
+    }
+
     /// A non-suspending evaluator entry may execute actor-isolated code only
-    /// when the current source task already owns that actor (or is inside the
-    /// explicit async compatibility frame). Cross-actor entry must use the
-    /// suspending path so it can wait for the mailbox.
+    /// when the current source task already owns that actor. Cross-actor entry
+    /// must use the suspending path so it can wait for the mailbox.
     func requireSynchronousActorInvocationAccess(
         to executor: RuntimeExecutorKind?
     ) throws {
@@ -88,8 +90,6 @@ extension Interpreter {
         guard let taskID = evaluationTaskContext.runtimeTaskID,
               evaluationTaskContext.currentExecutor.actorID == actorID,
               concurrencyRuntime.actors[actorID]?.executorOwnerTaskID == taskID
-                || evaluationTaskContext
-                    .unownedAsyncActorCompatibilityFrames.contains(actorID)
         else {
             throw RuntimeError(
                 message: "cross-actor synchronous call requires an awaited "
@@ -117,8 +117,6 @@ extension Interpreter {
               evaluationTaskContext.currentExecutor.actorID == actorID,
               let taskID = evaluationTaskContext.runtimeTaskID,
               concurrencyRuntime.actors[actorID]?.executorOwnerTaskID == taskID
-                || evaluationTaskContext
-                    .unownedAsyncActorCompatibilityFrames.contains(actorID)
         else {
             throw RuntimeError(
                 message: "actor-isolated mutable property "

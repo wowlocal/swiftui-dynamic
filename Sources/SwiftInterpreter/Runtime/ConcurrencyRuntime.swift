@@ -552,13 +552,13 @@ final class RuntimeTaskGroupRecord {
 /// Stable runtime identity for one source actor instance. The source reference
 /// graph owns the instance and its property boxes; the runtime record remains
 /// non-owning so registering an executor cannot extend source actor lifetime.
-/// The mailbox serializes source-task entry into synchronous actor segments;
+/// The mailbox serializes source-task entry into actor execution segments;
 /// it is deliberately independent from the physical MainActor host on which
 /// the cooperative evaluator currently runs.
 final class RuntimeActorRecord {
     let id: RuntimeActorID
     weak var instance: Instance?
-    /// Runtime-task identity that currently owns this actor's synchronous
+    /// Runtime-task identity that currently owns this actor's non-suspending
     /// execution segment. Keeping it on the actor record prevents the
     /// physical MainActor host from being mistaken for source-actor ownership.
     fileprivate(set) var executorOwnerTaskID: RuntimeTaskID?
@@ -578,15 +578,38 @@ struct RuntimeActorExecutorLease: Equatable {
     let taskID: RuntimeTaskID
 }
 
+/// Complete depth-counted actor segment parked while one source task is
+/// suspended. Nested same-actor invocations contribute one depth apiece; the
+/// whole segment is released together and restored before source evaluation
+/// resumes so outstanding invocation leases remain balanced.
+struct RuntimeActorExecutorSuspension: Equatable {
+    let actorID: RuntimeActorID
+    let taskID: RuntimeTaskID
+    let depth: Int
+}
+
+/// Balanced runtime wait plus any actor segment released by that wait. The
+/// low-level task state transition and executor ownership move together so a
+/// new suspension kind cannot accidentally park a task while retaining an
+/// actor.
+struct RuntimeTaskSuspensionLease: Equatable {
+    let taskID: RuntimeTaskID
+    let reason: RuntimeSuspension
+    let actorExecutor: RuntimeActorExecutorSuspension?
+}
+
 private final class RuntimeActorMailboxWaiter {
     let taskID: RuntimeTaskID
+    let ownerDepth: Int
     let continuation: CheckedContinuation<Void, Never>
 
     init(
         taskID: RuntimeTaskID,
+        ownerDepth: Int = 1,
         continuation: CheckedContinuation<Void, Never>
     ) {
         self.taskID = taskID
+        self.ownerDepth = ownerDepth
         self.continuation = continuation
     }
 }
@@ -612,6 +635,9 @@ final class CooperativeConcurrencyRuntime {
         RuntimeTaskGroupID: RuntimeTaskGroupRecord
     ] = [:]
     private(set) var hostOperations: [HostOperationID: RuntimeTaskID] = [:]
+    private var hostOperationSuspensions: [
+        HostOperationID: RuntimeTaskSuspensionLease
+    ] = [:]
     private(set) var actors: [RuntimeActorID: RuntimeActorRecord] = [:]
 
     init(clock: any RuntimeClock = ContinuousRuntimeClock()) {
@@ -644,7 +670,7 @@ final class CooperativeConcurrencyRuntime {
         actors.removeValue(forKey: id)
     }
 
-    /// Acquire one source actor's mutually-exclusive synchronous executor
+    /// Acquire one source actor's mutually-exclusive executor
     /// segment. Re-entry by the same source task is depth-counted; competing
     /// source tasks become explicit runtime waiters instead of relying on the
     /// evaluator's incidental physical MainActor serialization.
@@ -712,15 +738,123 @@ final class CooperativeConcurrencyRuntime {
             return
         }
 
-        guard !actor.mailbox.isEmpty else {
-            actor.executorOwnerTaskID = nil
-            actor.executorOwnerDepth = 0
+        actor.executorOwnerTaskID = nil
+        actor.executorOwnerDepth = 0
+        handOffActorExecutor(actor)
+    }
+
+    /// Release every nested lease held by one source task at a real
+    /// suspension boundary. At most one actor may be owned by a task: an
+    /// awaited cross-executor call releases its caller before acquiring its
+    /// callee.
+    func suspendOwnedActorExecutor(
+        for taskID: RuntimeTaskID
+    ) -> RuntimeActorExecutorSuspension? {
+        let owned = actors.values.filter { $0.executorOwnerTaskID == taskID }
+        precondition(
+            owned.count <= 1,
+            "runtime task \(taskID) owns multiple actor executors")
+        guard let actor = owned.first else { return nil }
+        precondition(
+            actor.executorOwnerDepth > 0,
+            "actor \(actor.id) has an owner without positive depth")
+        let suspension = RuntimeActorExecutorSuspension(
+            actorID: actor.id,
+            taskID: taskID,
+            depth: actor.executorOwnerDepth)
+        actor.executorOwnerTaskID = nil
+        actor.executorOwnerDepth = 0
+        handOffActorExecutor(actor)
+        return suspension
+    }
+
+    /// Requeue a suspended actor continuation and restore its complete nested
+    /// depth before the evaluator may execute another source instruction.
+    /// Resumption is not a fresh source message and therefore cannot be
+    /// rejected by the admission bound that applies to newly-entering calls.
+    func resumeActorExecutor(
+        _ suspension: RuntimeActorExecutorSuspension
+    ) async {
+        guard let actor = actors[suspension.actorID], actor.instance != nil else {
+            preconditionFailure(
+                "cannot resume released actor executor \(suspension.actorID)")
+        }
+        guard let task = records[suspension.taskID], task.state == .running else {
+            preconditionFailure(
+                "actor executor resume requires a running runtime task")
+        }
+        precondition(
+            suspension.depth > 0,
+            "actor executor suspension must retain positive depth")
+        precondition(
+            actor.executorOwnerTaskID != suspension.taskID,
+            "runtime task \(suspension.taskID) resumed an actor it already owns")
+
+        if actor.executorOwnerTaskID == nil {
+            actor.executorOwnerTaskID = suspension.taskID
+            actor.executorOwnerDepth = suspension.depth
             return
         }
+
+        precondition(
+            !actor.mailbox.contains { $0.taskID == suspension.taskID },
+            "runtime task \(suspension.taskID) queued twice for actor "
+                + "\(suspension.actorID)")
+        let reason = RuntimeSuspension.waitingForActor(suspension.actorID)
+        suspend(suspension.taskID, for: reason)
+        await withCheckedContinuation { continuation in
+            actor.mailbox.append(RuntimeActorMailboxWaiter(
+                taskID: suspension.taskID,
+                ownerDepth: suspension.depth,
+                continuation: continuation))
+        }
+        precondition(
+            actor.executorOwnerTaskID == suspension.taskID
+                && actor.executorOwnerDepth == suspension.depth,
+            "actor \(suspension.actorID) resumed \(suspension.taskID) "
+                + "without restoring ownership")
+    }
+
+    /// Synchronous host re-entry cannot wait for a contended actor without
+    /// blocking the cooperative runtime. It may resume only when ownership is
+    /// immediately available; otherwise the callback fails closed and leaves
+    /// the original host wait intact.
+    private func resumeActorExecutorImmediately(
+        _ suspension: RuntimeActorExecutorSuspension
+    ) throws {
+        guard let actor = actors[suspension.actorID], actor.instance != nil else {
+            throw RuntimeError(
+                message: "cannot resume released actor executor "
+                    + "\(suspension.actorID)",
+                fatal: true)
+        }
+        guard let task = records[suspension.taskID], task.state == .running,
+              suspension.depth > 0 else {
+            throw RuntimeError(
+                message: "synchronous actor resume requires a running task "
+                    + "and positive ownership depth",
+                fatal: true)
+        }
+        guard actor.executorOwnerTaskID == nil else {
+            throw RuntimeError(
+                message: "synchronous host callback cannot resume on busy "
+                    + "actor executor \(suspension.actorID)",
+                fatal: true)
+        }
+        actor.executorOwnerTaskID = suspension.taskID
+        actor.executorOwnerDepth = suspension.depth
+    }
+
+    private func handOffActorExecutor(_ actor: RuntimeActorRecord) {
+        guard !actor.mailbox.isEmpty else { return }
+        precondition(
+            actor.executorOwnerTaskID == nil
+                && actor.executorOwnerDepth == 0,
+            "actor \(actor.id) cannot hand off while owned")
         let waiter = actor.mailbox.removeFirst()
         actor.executorOwnerTaskID = waiter.taskID
-        actor.executorOwnerDepth = 1
-        resume(waiter.taskID, from: .waitingForActor(lease.actorID))
+        actor.executorOwnerDepth = waiter.ownerDepth
+        resume(waiter.taskID, from: .waitingForActor(actor.id))
         waiter.continuation.resume()
     }
 
@@ -886,16 +1020,14 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             suspension != nil,
             "task group has an undelivered result but no active child")
-        defer {
-            endWaitingForTaskGroup(
-                waiterID, on: group, from: suspension)
-        }
         let childID = await withCheckedContinuation { continuation in
             precondition(
                 group.nextWaiter == nil,
                 "task group cannot have multiple next waiters")
             group.nextWaiter = continuation
         }
+        await endWaitingForTaskGroup(
+            waiterID, on: group, from: suspension)
         guard let outcome = records[childID]?.outcome else {
             preconditionFailure(
                 "completed task-group child \(childID) has no outcome")
@@ -922,7 +1054,7 @@ final class CooperativeConcurrencyRuntime {
     func beginWaitingForTaskGroup(
         _ waiterID: RuntimeTaskID,
         on group: RuntimeTaskGroupRecord
-    ) -> RuntimeSuspension? {
+    ) -> RuntimeTaskSuspensionLease? {
         guard taskGroups[group.id] === group,
               group.ownerTaskID == waiterID else {
             preconditionFailure(
@@ -939,21 +1071,20 @@ final class CooperativeConcurrencyRuntime {
             beginWaiting(waiterID, on: child)
         }
         let suspension = RuntimeSuspension.waitingForGroup(group.id)
-        suspend(waiterID, for: suspension)
-        return suspension
+        return beginTaskSuspension(waiterID, for: suspension)
     }
 
     func endWaitingForTaskGroup(
         _ waiterID: RuntimeTaskID,
         on group: RuntimeTaskGroupRecord,
-        from suspension: RuntimeSuspension?
-    ) {
+        from suspension: RuntimeTaskSuspensionLease?
+    ) async {
         guard let suspension else { return }
-        resume(waiterID, from: suspension)
         for childID in group.childTaskIDs {
             guard let child = records[childID] else { continue }
             endWaiting(waiterID, on: child)
         }
+        await endTaskSuspension(suspension)
     }
 
     func closeTaskGroup(_ group: RuntimeTaskGroupRecord) {
@@ -1213,6 +1344,9 @@ final class CooperativeConcurrencyRuntime {
             !hostOperations.values.contains(id),
             "cannot release runtime task \(id) with an active host operation")
         precondition(
+            !hostOperationSuspensions.values.contains { $0.taskID == id },
+            "cannot release runtime task \(id) with a parked host suspension")
+        precondition(
             records[id]?.structuredScopes.isEmpty != false,
             "cannot release runtime task \(id) with an active structured scope")
         precondition(
@@ -1269,32 +1403,112 @@ final class CooperativeConcurrencyRuntime {
         record.state = .running
     }
 
+    /// Canonical semantic suspension entry. Actor ownership is released only
+    /// after the task is durably represented as waiting, so another actor
+    /// message can never observe two running owners.
+    func beginTaskSuspension(
+        _ id: RuntimeTaskID,
+        for reason: RuntimeSuspension
+    ) -> RuntimeTaskSuspensionLease {
+        suspend(id, for: reason)
+        return RuntimeTaskSuspensionLease(
+            taskID: id,
+            reason: reason,
+            actorExecutor: suspendOwnedActorExecutor(for: id))
+    }
+
+    /// Canonical semantic resume. The runtime task becomes runnable, then
+    /// waits for its former actor if necessary; source evaluation returns from
+    /// this function only after executor ownership has been restored.
+    func endTaskSuspension(
+        _ lease: RuntimeTaskSuspensionLease
+    ) async {
+        resume(lease.taskID, from: lease.reason)
+        if let actorExecutor = lease.actorExecutor {
+            await resumeActorExecutor(actorExecutor)
+        }
+    }
+
+    /// Synchronous host callbacks use the same balanced wait token but cannot
+    /// enqueue and await an actor. Failure restores the task's original wait
+    /// state so the host operation remains internally consistent.
+    private func endTaskSuspensionImmediately(
+        _ lease: RuntimeTaskSuspensionLease
+    ) throws {
+        resume(lease.taskID, from: lease.reason)
+        do {
+            if let actorExecutor = lease.actorExecutor {
+                try resumeActorExecutorImmediately(actorExecutor)
+            }
+        } catch {
+            suspend(lease.taskID, for: lease.reason)
+            throw error
+        }
+    }
+
     func beginHostOperation(for taskID: RuntimeTaskID) -> HostOperationID {
         let operationID = HostOperationID(rawValue: nextHostOperationID)
         nextHostOperationID += 1
         precondition(
             hostOperations.updateValue(taskID, forKey: operationID) == nil,
             "duplicate host operation ID \(operationID)")
-        suspend(taskID, for: .awaitingHost(operationID))
+        let suspension = beginTaskSuspension(
+            taskID, for: .awaitingHost(operationID))
+        precondition(
+            hostOperationSuspensions.updateValue(
+                suspension, forKey: operationID) == nil,
+            "duplicate host-operation suspension \(operationID)")
         return operationID
     }
 
     func endHostOperation(
         _ operationID: HostOperationID, for taskID: RuntimeTaskID
-    ) {
+    ) async {
         precondition(
             hostOperations.removeValue(forKey: operationID) == taskID,
             "host operation \(operationID) has the wrong runtime task")
-        resume(taskID, from: .awaitingHost(operationID))
+        guard let suspension = hostOperationSuspensions.removeValue(
+            forKey: operationID) else {
+            preconditionFailure(
+                "host operation \(operationID) lost its suspension")
+        }
+        await endTaskSuspension(suspension)
     }
 
     func resumeHostOperationForCallback(
         _ operationID: HostOperationID, taskID: RuntimeTaskID
-    ) {
+    ) async {
         precondition(
             hostOperations[operationID] == taskID,
             "cannot re-enter inactive host operation \(operationID)")
-        resume(taskID, from: .awaitingHost(operationID))
+        guard let suspension = hostOperationSuspensions.removeValue(
+            forKey: operationID) else {
+            preconditionFailure(
+                "host operation \(operationID) lost its suspension")
+        }
+        await endTaskSuspension(suspension)
+    }
+
+    func resumeHostOperationForSynchronousCallback(
+        _ operationID: HostOperationID, taskID: RuntimeTaskID
+    ) throws {
+        precondition(
+            hostOperations[operationID] == taskID,
+            "cannot re-enter inactive host operation \(operationID)")
+        guard let suspension = hostOperationSuspensions.removeValue(
+            forKey: operationID) else {
+            preconditionFailure(
+                "host operation \(operationID) lost its suspension")
+        }
+        do {
+            try endTaskSuspensionImmediately(suspension)
+        } catch {
+            precondition(
+                hostOperationSuspensions.updateValue(
+                    suspension, forKey: operationID) == nil,
+                "host operation \(operationID) restored twice")
+            throw error
+        }
     }
 
     func suspendHostOperationAfterCallback(
@@ -1303,12 +1517,24 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             hostOperations[operationID] == taskID,
             "cannot leave inactive host operation \(operationID)")
-        suspend(taskID, for: .awaitingHost(operationID))
+        let suspension = beginTaskSuspension(
+            taskID, for: .awaitingHost(operationID))
+        precondition(
+            hostOperationSuspensions.updateValue(
+                suspension, forKey: operationID) == nil,
+            "host operation \(operationID) suspended twice")
     }
 
     var activeRecordCount: Int { records.count }
     var activeActorCount: Int { actors.count }
-    var activeHostOperationCount: Int { hostOperations.count }
+    var activeHostOperationCount: Int {
+        precondition(
+            hostOperationSuspensions.allSatisfy { operationID, lease in
+                hostOperations[operationID] == lease.taskID
+            },
+            "parked host suspension has no matching active operation")
+        return hostOperations.count
+    }
     var activeStructuredScopeCount: Int { structuredScopes.count }
     var activeTaskGroupCount: Int { taskGroups.count }
 

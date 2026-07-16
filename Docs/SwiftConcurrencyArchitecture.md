@@ -43,9 +43,10 @@ reasons, async-let scopes, and the currently covered task-group semantics.
 This is a strong migration base, but it is not yet the full target concurrency
 runtime. Source execution is still driven by native Swift tasks/continuations,
 the interpreter still combines program/session/heap responsibilities. A
-runtime-owned mailbox now serializes complete synchronous actor-function
-segments, but there is no general runnable-executor queue, suspension-aware
-actor ownership, continuation registry, or protocol-level async-sequence
+runtime-owned mailbox now serializes actor-function segments and releases a
+complete depth-counted segment across canonical runtime waits before queuing
+the same task to reacquire it on resume. There is still no general runnable-
+executor queue, continuation registry, or protocol-level async-sequence
 runtime. The remaining Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -246,15 +247,18 @@ deallocate. The snapshot retains the typed immutable outcome and a separate
 cancellation state, so later reads remain stable and late source `cancel()`
 updates the handle flag without changing its terminal outcome.
 
-### 4.5 Actors have runtime identity and a synchronous mailbox foundation
+### 4.5 Actors have runtime identity and a suspension-aware mailbox foundation
 
 Actor declarations retain reference semantics and their nominal actor kind.
 Each source actor instance now receives a distinct runtime actor ID with a
-non-owning lifetime record. A synchronous isolated function acquires a
-depth-counted lease on that actor record before entering its logical executor;
-a competing source task records `.waitingForActor`, and release hands ownership
-to one waiter before resuming it. An explicit `nonisolated` method inherits its
-caller instead. A function
+non-owning lifetime record. Synchronous and async isolated functions acquire a
+depth-counted lease on that actor record before entering its logical executor.
+A canonical host, task, clock, or group wait parks the complete nested segment,
+hands ownership to another waiter, and queues the suspended task on that actor
+before source evaluation resumes. A competing source task records
+`.waitingForActor`; explicit executor hops park the caller actor before entering
+a different actor. An explicit `nonisolated` method inherits its caller instead.
+A function
 annotated with a collected user-defined global actor lazily resolves the
 declaration's canonical `static shared` actor and enters that same logical
 identity. Mutable stored-property read/write funnels require the matching
@@ -262,13 +266,13 @@ runtime-task lease. Native Swift 6 probes establish that ordinary immutable
 actor `let` storage and explicitly nonisolated storage remain directly
 readable, so neither is over-guarded.
 
-This establishes non-suspending actor segments, not complete actor isolation.
-Async actor functions still use an explicit compatibility frame until the
-runtime can release ownership at suspension and reacquire it before resume.
-Remaining actor work includes:
+This establishes runtime-owned synchronous prefixes plus controlled
+release/interleaving/reacquisition for async actor messages. It is not yet
+complete actor isolation. Remaining actor work includes:
 
-- suspension-producing executor hops for async cross-actor operations;
-- reentrancy at suspension points;
+- complete native evidence for cross-actor executor hops and every failure or
+  cancellation exit;
+- replayable mailbox/reentrancy stress;
 - complete computed-property and subscript confinement;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
@@ -770,11 +774,12 @@ callee executor for the dynamic call extent before restoring the caller. Host
 bridges read that explicit context. Source actor instances additionally own a
 stable logical actor ID, isolated instance-method closures select its executor
 identity, and user-declared global-actor attributes resolve lazily through the
-declared type's canonical `static shared` actor. Synchronous actor functions
-also acquire a runtime-owned mailbox lease, so their complete non-suspending
-segments serialize independently of the physical MainActor host. This partial
-M5 phase is not yet a general executor scheduler: async actor suspension and
-resume do not release/reacquire that lease.
+declared type's canonical `static shared` actor. Synchronous and async actor
+functions acquire a runtime-owned mailbox lease, so their non-suspending
+segments serialize independently of the physical MainActor host. Canonical
+runtime waits release the complete nested segment and reacquire it before the
+evaluator returns from suspension. This partial M5 phase is not yet a general
+executor scheduler or arbitrary-executor implementation.
 
 Executor rules include:
 
@@ -904,8 +909,9 @@ task owns its lease. Ordinary immutable `let` reads and explicit
 `nonisolated(unsafe)` storage follow the verified compiler rule. The
 compiler-preflight layer diagnoses illegal source, while runtime checks prevent
 a host callback or dynamically constructed call from bypassing isolation.
-Computed properties, subscripts, and async resume ownership remain open and
-must not be inferred from this stored-property subset.
+Computed properties, subscripts, isolated parameters, and failure/cancellation
+coverage remain open and must not be inferred from this stored-property and
+successful-resume subset.
 
 ### 6.12 Actor reentrancy
 
@@ -921,12 +927,13 @@ When an actor-isolated method suspends:
 Tests must never assume actor state is unchanged across `await` unless the
 program establishes that invariant itself.
 
-The current runtime implements only the non-suspending special case: a
-synchronous actor function holds one depth-counted lease through return or
-throw. An async actor function is marked by an explicit compatibility frame so
-existing project behavior is not silently presented as mailbox ownership.
-Replacing that frame with release-at-suspension and reacquisition-before-resume
-is the next M5 slice.
+The current runtime represents both synchronous and async actor invocations as
+depth-counted leases. A balanced runtime suspension token parks the entire
+nested segment, makes the actor available, and restores the same depth only
+after the task has regained the actor mailbox. The controlled same-source
+`actor-reentrancy` fixture proves successful host-suspension interleaving and
+resume ownership. Failure, cancellation, isolated-parameter dispatch, arbitrary
+global actors, and replayable mailbox stress remain open M5 work.
 
 ### 6.13 Cancellation
 

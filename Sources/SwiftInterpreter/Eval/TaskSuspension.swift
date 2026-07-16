@@ -20,9 +20,10 @@ extension Interpreter {
             throw RuntimeError(message: "Task.yield requires an async runtime task")
         }
         let suspension = RuntimeSuspension.yielding
-        concurrencyRuntime.suspend(taskID, for: suspension)
-        defer { concurrencyRuntime.resume(taskID, from: suspension) }
+        let lease = concurrencyRuntime.beginTaskSuspension(
+            taskID, for: suspension)
         await Task.yield()
+        await concurrencyRuntime.endTaskSuspension(lease)
     }
 
     func sourceTaskSleepFunction() -> HostFunction {
@@ -56,16 +57,23 @@ extension Interpreter {
         }
         let deadline = runtimeClock.now.advanced(by: duration)
         let suspension = RuntimeSuspension.sleeping(until: deadline)
-        concurrencyRuntime.suspend(taskID, for: suspension)
-        defer { concurrencyRuntime.resume(taskID, from: suspension) }
+        let lease = concurrencyRuntime.beginTaskSuspension(
+            taskID, for: suspension)
+        var sleepFailure: Error?
         do {
             try await runtimeClock.sleep(
                 task: taskID, until: deadline, tolerance: nil)
-        } catch is CancellationError {
+        } catch {
+            sleepFailure = error
+        }
+        await concurrencyRuntime.endTaskSuspension(lease)
+        if sleepFailure is CancellationError {
             concurrencyRuntime.observeCancellation(taskID)
             if propagatesCancellation {
                 throw CancellationError()
             }
+        } else if let sleepFailure {
+            throw sleepFailure
         }
     }
 

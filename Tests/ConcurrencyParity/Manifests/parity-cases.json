@@ -98,6 +98,18 @@
     "notes": "Exact output is owned:owned:2 in all 20 Swift 6.3.3 runs. Both ownership results are identical, so the assertion makes no FIFO, task-start-order, physical-thread, or cross-actor parallelism claim."
   },
   {
+    "id": "actor-reentrancy",
+    "fixture": "Fixtures/actor-reentrancy.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorReentrancyProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An async actor message owns the actor before suspension, releases it so another message can mutate isolated state, and reacquires the same actor before resuming.",
+    "notes": "Exact output is owned:owned:interleaved:owned:3 in all 20 Swift 6.3.3 runs. A controlled gate establishes every asserted edge; no FIFO, task-start order, physical thread, or unrelated scheduling order is asserted."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",
