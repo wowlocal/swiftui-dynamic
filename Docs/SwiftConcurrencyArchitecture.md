@@ -1068,6 +1068,11 @@ task, and then releases the owner. Swift retains that mailbox message: the
 cancelled task receives ownership, enters the method, and observes its request.
 The runtime therefore keeps `waitingForActor` independent from cancellation;
 handoff removes the queue edge, and source observation remains cooperative.
+An unchanged pinned swiftlang runtime test also proves that an ordinary actor
+deinitializer runs after the final source reference is released following an
+isolated method entry. This is lifetime evidence only: executor-scheduled or
+globally isolated deinitializers require a separate native question and must
+not inherit that claim.
 The per-feature fail-closed safety boundary remains open M5 work.
 
 ### 6.13 Cancellation

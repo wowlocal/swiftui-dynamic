@@ -3810,8 +3810,8 @@ The upstream harness now pins `swiftlang/swift` at
 Its reproducible sparse-checkout script inventories all 134 Swift sources in
 `test/Concurrency/Runtime`, assigns every file an explicit `direct`,
 `diagnostic`, `needs-adapter`, or `unsupported` reason, and copies only
-manifest-selected fixtures byte-for-byte. The current inventory is 8 direct,
-4 diagnostic, 115 needs-adapter, and 7 unsupported.
+manifest-selected fixtures byte-for-byte. The current inventory is 13 direct,
+4 diagnostic, 110 needs-adapter, and 7 unsupported.
 
 Native Swift compiles every selected concurrency fixture in Swift 6 strict
 concurrency mode. The interpreter receives the same source plus only a generic
@@ -6429,3 +6429,40 @@ The focused post-fix board passed 26 compiler-preflight tests, four
 target-manifest integration tests, and 38 methodology/accounting tests. The
 single incremental build precedes parallel read-only bundle and native-oracle
 runs; multiple SwiftPM processes never contend for the same `.build` lock.
+
+### M5 pinned swiftlang ordinary actor deinitializer
+
+This characterization admits the unchanged upstream
+`test/Concurrency/Runtime/executor_deinit1.swift` fixture from
+`swiftlang/swift` release `swift-6.3.3-RELEASE`, commit `064859e4…`. Its
+checked-in bytes have SHA-256
+`92336e92a42088e9d6834c52776690f7a3d95b9129f054efa13b6744165c6635`.
+The semantic question is deliberately narrow: after an actor has completed an
+externally awaited isolated method, does releasing its final source reference
+still run its ordinary `deinit`?
+
+Apple Swift 6.3.3 (`swiftlang-6.3.3.1.3`) compiled the unchanged file against
+SDK 26.5 for `arm64-apple-macosx26.0` with Swift 6, complete strict concurrency,
+warnings as errors, and parse-as-library. Twenty bounded native executions
+printed exactly `called deinit`. The same unchanged file, plus only the
+harness's generic detected-`@main` invocation, passed native/interpreter
+FileCheck. This proves final-release execution of an ordinary actor
+deinitializer after isolated entry. It does not establish which physical
+thread runs teardown, globally isolated or `isolated deinit` scheduling,
+custom-executor teardown, or ordering against unrelated tasks.
+
+This is an already-GREEN characterization: source-class lifetime already
+routes final `Instance` release through the common idempotent deinitializer
+path and then releases the actor record, so no production runtime changed and
+no RED was fabricated. The pinned concurrency intake is now 13 direct / 4
+diagnostic / 110 needs-adapter / 7 unsupported across all 134 inventoried
+runtime files. The actor declaration safety boundary remains open for the
+separate custom-executor and isolated-deinitializer forms.
+
+The iteration also removes a verification bottleneck without changing an
+oracle. The 23 executable upstream fixtures are now independent parameterized
+test cases. Native compilation/process execution is nonisolated and can use
+the prebuilt Swift Testing worker pool; only interpreter execution returns to
+MainActor. On the same build, the complete board fell from 23.03 seconds in one
+serialized test to 5.24 seconds with four workers (4.4×), while all 23 fixtures
+and their original assertions remained GREEN.

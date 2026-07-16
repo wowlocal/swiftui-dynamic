@@ -266,6 +266,20 @@
       "timeoutSeconds": 5
     },
     {
+      "id": "concurrency-actor-deinitializer",
+      "fixture": "Fixtures/Concurrency/Runtime/executor_deinit1.swift",
+      "upstreamPath": "test/Concurrency/Runtime/executor_deinit1.swift",
+      "sha256": "92336e92a42088e9d6834c52776690f7a3d95b9129f054efa13b6744165c6635",
+      "assertion": "file-check",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-parse-as-library"
+      ],
+      "timeoutSeconds": 5
+    },
+    {
       "id": "concurrency-task-group-inout-capture-diagnostic",
       "fixture": "Fixtures/Concurrency/taskgroup_cancelAll_from_child.swift",
       "upstreamPath": "test/Concurrency/taskgroup_cancelAll_from_child.swift",

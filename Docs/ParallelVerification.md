@@ -79,6 +79,12 @@ state.
   selections, or a union different from the runtime manifest. Interpreted
   repetitions run in bounded fresh child processes, so a source deadlock is a
   case timeout and process-global state cannot leak into the next observation.
+- The official swiftlang executable allowlist is a parameterized Swift Testing
+  test with one argument per SHA-pinned fixture. Native compilation and process
+  execution are explicitly nonisolated, while only the interpreter half hops
+  back to MainActor. The ordinary prebuilt test worker pool can therefore
+  distribute native compilers concurrently without making interpreter state
+  nonisolated or hiding all fixtures inside one serialized test body.
 
 Do not shard before filtering or limiting: doing so changes which cases a
 bounded run covers. Do not let worker processes update a shared verification
@@ -110,6 +116,8 @@ Reference measurements on 2026-07-14:
 
 - the full concurrency/test stage fell from 103 seconds with lock-serialized
   `swift test` children to 41 seconds with four direct prebuilt helpers;
+- the 23-case official swiftlang executable board fell from 23.03 seconds in
+  one serialized test to 5.24 seconds with four prebuilt Swift Testing workers;
 - generated API parity fell from 1.54 seconds to 0.67 seconds with four
   workers;
 - a forced 680-project corpus fell from 624 seconds sequential to 195 seconds

@@ -5,7 +5,7 @@ import Testing
 @testable import SwiftInterpreter
 
 private struct SwiftUpstreamManifest: Decodable {
-    struct Case: Decodable {
+    struct Case: Decodable, Sendable {
         let id: String
         let fixture: String
         let upstreamPath: String
@@ -26,7 +26,7 @@ private struct SwiftUpstreamManifest: Decodable {
         let purpose: String
     }
 
-    enum Assertion: String, Decodable {
+    enum Assertion: String, Decodable, Sendable {
         case exact
         case fileCheck = "file-check"
         case fileCheckUnordered = "file-check-unordered"
@@ -80,12 +80,12 @@ private struct SwiftUpstreamParityError: Error, CustomStringConvertible {
 /// official Swift repository. The native compiler remains the semantic
 /// oracle; the same source is then executed by the tree-walking interpreter.
 private enum SwiftUpstreamParityHarness {
-    static let packageRoot = URL(fileURLWithPath: #filePath)
+    nonisolated static let packageRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
-    static let corpusRoot = packageRoot
+    nonisolated static let corpusRoot = packageRoot
         .appendingPathComponent("Tests/SwiftUpstream", isDirectory: true)
 
     static func loadManifest() throws -> SwiftUpstreamManifest {
@@ -100,7 +100,7 @@ private enum SwiftUpstreamParityHarness {
             SwiftUpstreamInventory.self, from: Data(contentsOf: url))
     }
 
-    static func source(
+    nonisolated static func source(
         for parityCase: SwiftUpstreamManifest.Case
     ) throws -> String {
         try verifiedSource(
@@ -118,7 +118,7 @@ private enum SwiftUpstreamParityHarness {
             identity: support.id)
     }
 
-    private static func verifiedSource(
+    nonisolated private static func verifiedSource(
         fixture: String,
         expectedSHA256: String?,
         identity: String
@@ -141,7 +141,7 @@ private enum SwiftUpstreamParityHarness {
         return source
     }
 
-    static func nativeOutput(
+    nonisolated static func nativeOutput(
         for parityCase: SwiftUpstreamManifest.Case
     ) throws -> String {
         let fixture = corpusRoot.appendingPathComponent(parityCase.fixture)
@@ -240,7 +240,7 @@ private enum SwiftUpstreamParityHarness {
         return String(source[range])
     }
 
-    private static func run(
+    nonisolated private static func run(
         _ executable: URL,
         _ arguments: [String],
         timeout: TimeInterval
@@ -315,14 +315,37 @@ private enum SwiftUpstreamParityHarness {
     }
 }
 
-@Suite("Official Swift interpreter-test parity", .serialized)
+private nonisolated func listSwiftUpstreamExecutableCaseIDs() -> [String] {
+    let manifest = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Tests/SwiftUpstream/manifest.json")
+    guard let data = try? Data(contentsOf: manifest),
+          let object = try? JSONSerialization.jsonObject(with: data),
+          let root = object as? [String: Any],
+          let cases = root["cases"] as? [[String: Any]] else {
+        return []
+    }
+    return cases.compactMap { entry in
+        guard entry["assertion"] as? String != "diagnostic" else {
+            return nil
+        }
+        return entry["id"] as? String
+    }
+}
+
+private nonisolated let swiftUpstreamExecutableCaseIDs =
+    listSwiftUpstreamExecutableCaseIDs()
+
+@Suite("Official Swift interpreter-test parity")
 struct SwiftUpstreamParityTests {
-    @Test func importedExecutableTestsMatchNativeSwift() async throws {
+    @Test func importedManifestPinsEverySelectedFixture() throws {
         let manifest = try SwiftUpstreamParityHarness.loadManifest()
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
         #expect(manifest.revision == "swift-6.3.3-RELEASE")
         #expect(manifest.commit == "064859e41d68596f486c5d724401cb370f260409")
-        #expect(manifest.cases.count == 25)
+        #expect(manifest.cases.count == 26)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
@@ -339,61 +362,72 @@ struct SwiftUpstreamParityTests {
         let executableCases = manifest.cases.filter {
             $0.assertion != .diagnostic
         }
-        #expect(executableCases.count == 22)
-        for parityCase in executableCases {
-            do {
-                let source = try SwiftUpstreamParityHarness.source(
-                    for: parityCase)
-                let native = try SwiftUpstreamParityHarness.nativeOutput(
-                    for: parityCase)
-                let interpreted = try await SwiftUpstreamParityHarness
-                    .interpretedOutput(for: parityCase)
-                switch parityCase.assertion ?? .exact {
-                case .exact:
-                    if interpreted != native {
-                        let details = "\(parityCase.id) "
-                            + "(\(parityCase.upstreamPath)) differed: "
-                            + "native=\(String(reflecting: native)), "
-                            + "interpreted=\(String(reflecting: interpreted))"
-                        Issue.record(Comment(rawValue: details))
-                    }
-                case .fileCheck:
-                    for (runtime, output) in [
-                        ("native", native),
-                        ("interpreter", interpreted),
-                    ] {
-                        let problems = try SwiftUpstreamFileCheck.violations(
-                            source: source, output: output)
-                        for problem in problems {
-                            Issue.record(Comment(rawValue:
-                                "\(parityCase.id) "
-                                    + "(\(parityCase.upstreamPath)) "
-                                    + "\(runtime): \(problem); output="
-                                    + String(reflecting: output)))
-                        }
-                    }
-                case .fileCheckUnordered:
-                    for (runtime, output) in [
-                        ("native", native),
-                        ("interpreter", interpreted),
-                    ] {
-                        let problems = try SwiftUpstreamFileCheck
-                            .unorderedViolations(
-                                source: source, output: output)
-                        for problem in problems {
-                            Issue.record(Comment(rawValue:
-                                "\(parityCase.id) "
-                                    + "(\(parityCase.upstreamPath)) "
-                                    + "\(runtime): \(problem); output="
-                                    + String(reflecting: output)))
-                        }
-                    }
-                case .diagnostic:
-                    Issue.record("diagnostic case entered the executable runner")
+        #expect(executableCases.count == 23)
+        #expect(swiftUpstreamExecutableCaseIDs
+            == executableCases.map(\.id))
+    }
+
+    /// Each unchanged upstream executable is one independently schedulable
+    /// test case. Native compilation can therefore use Swift Testing's worker
+    /// pool instead of serializing the entire allowlist inside one test body.
+    @Test(arguments: swiftUpstreamExecutableCaseIDs)
+    nonisolated func importedExecutableTestsMatchNativeSwift(
+        caseID: String
+    ) async throws {
+        let parityCase = try await MainActor.run {
+            let manifest = try SwiftUpstreamParityHarness.loadManifest()
+            return try #require(manifest.cases.first {
+                $0.id == caseID && $0.assertion != .diagnostic
+            })
+        }
+        let source = try SwiftUpstreamParityHarness.source(for: parityCase)
+        let native = try SwiftUpstreamParityHarness.nativeOutput(
+            for: parityCase)
+        let interpreted = try await SwiftUpstreamParityHarness
+            .interpretedOutput(for: parityCase)
+        try await MainActor.run {
+            switch parityCase.assertion ?? .exact {
+            case .exact:
+                if interpreted != native {
+                    let details = "\(parityCase.id) "
+                        + "(\(parityCase.upstreamPath)) differed: "
+                        + "native=\(String(reflecting: native)), "
+                        + "interpreted=\(String(reflecting: interpreted))"
+                    Issue.record(Comment(rawValue: details))
                 }
-            } catch {
+            case .fileCheck:
+                for (runtime, output) in [
+                    ("native", native),
+                    ("interpreter", interpreted),
+                ] {
+                    let problems = try SwiftUpstreamFileCheck.violations(
+                        source: source, output: output)
+                    for problem in problems {
+                        Issue.record(Comment(rawValue:
+                            "\(parityCase.id) "
+                                + "(\(parityCase.upstreamPath)) "
+                                + "\(runtime): \(problem); output="
+                                + String(reflecting: output)))
+                    }
+                }
+            case .fileCheckUnordered:
+                for (runtime, output) in [
+                    ("native", native),
+                    ("interpreter", interpreted),
+                ] {
+                    let problems = try SwiftUpstreamFileCheck
+                        .unorderedViolations(source: source, output: output)
+                    for problem in problems {
+                        Issue.record(Comment(rawValue:
+                            "\(parityCase.id) "
+                                + "(\(parityCase.upstreamPath)) "
+                                + "\(runtime): \(problem); output="
+                                + String(reflecting: output)))
+                    }
+                }
+            case .diagnostic:
                 Issue.record(
-                    "\(parityCase.id) (\(parityCase.upstreamPath)): \(error)")
+                    "diagnostic case entered the executable runner")
             }
         }
     }

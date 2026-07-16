@@ -6,8 +6,8 @@
   "scope" : "test/Concurrency/Runtime",
   "summary" : {
     "diagnostic" : 4,
-    "direct" : 12,
-    "needsAdapter" : 111,
+    "direct" : 13,
+    "needsAdapter" : 110,
     "total" : 134,
     "unsupported" : 7
   },
@@ -589,8 +589,9 @@
       "upstreamPath" : "test/Concurrency/Runtime/exclusivity_custom_executors.swift"
     },
     {
-      "classification" : "needs-adapter",
-      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "classification" : "direct",
+      "reason" : "Selected unchanged for native/interpreter differential execution.",
+      "selectedCaseID" : "concurrency-actor-deinitializer",
       "upstreamPath" : "test/Concurrency/Runtime/executor_deinit1.swift"
     },
     {
