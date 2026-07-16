@@ -542,6 +542,121 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func asyncActorComputedPropertySuccessAndSourceErrorBalanceExecutors()
+        async throws
+    {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "inspectComputedExitOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectComputedExitOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+        interpreter.globals.define(
+            "yieldComputedExit",
+            .hostFunction(HostFunction(
+                name: "yieldComputedExit",
+                asyncInvoke: { _, _ in
+                    await Task.yield()
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+            enum ComputedExitFailure: Error {
+                case boom
+            }
+
+            actor ComputedExitTarget {
+                let shouldThrow: Bool
+                var stored = 0
+                var entryOwnership = "unset"
+                var resumeOwnership = "unset"
+
+                init(shouldThrow: Bool) {
+                    self.shouldThrow = shouldThrow
+                }
+
+                var value: Int {
+                    get async throws {
+                        entryOwnership = inspectComputedExitOwnership(self)
+                        stored += 1
+                        await yieldComputedExit()
+                        resumeOwnership = inspectComputedExitOwnership(self)
+                        if shouldThrow { throw ComputedExitFailure.boom }
+                        return stored
+                    }
+                }
+
+                func snapshot() -> String {
+                    entryOwnership + ":" + resumeOwnership + ":"
+                        + inspectComputedExitOwnership(self) + ":"
+                        + String(stored)
+                }
+            }
+
+            actor ComputedExitCaller {
+                func succeed(_ target: ComputedExitTarget) async -> String {
+                    do {
+                        let value = try await target.value
+                        return "value:" + String(value) + ":"
+                            + inspectComputedExitOwnership(self)
+                    } catch {
+                        return "unexpected"
+                    }
+                }
+
+                func fail(_ target: ComputedExitTarget) async -> String {
+                    var outcome = "missed"
+                    do {
+                        _ = try await target.value
+                    } catch ComputedExitFailure.boom {
+                        outcome = "caught"
+                    } catch {
+                        outcome = "other"
+                    }
+                    return outcome + ":"
+                        + inspectComputedExitOwnership(self)
+                }
+            }
+
+            func runComputedExitProbe() async -> String {
+                let successTarget = ComputedExitTarget(shouldThrow: false)
+                let failureTarget = ComputedExitTarget(shouldThrow: true)
+                let caller = ComputedExitCaller()
+                let success = await caller.succeed(successTarget)
+                let successSnapshot = await successTarget.snapshot()
+                let failure = await caller.fail(failureTarget)
+                let failureSnapshot = await failureTarget.snapshot()
+                return success + "|" + successSnapshot + "||"
+                    + failure + "|" + failureSnapshot
+            }
+
+            await runComputedExitProbe()
+            """)
+        let symbol = try #require(
+            interpreter.globals.lookup("ComputedExitTarget")?.typeSymbol)
+        let getter = try #require(symbol.computedProperties["value"])
+
+        #expect(result.stringValue
+            == "value:1:owned|owned:owned:owned:1"
+                + "||caught:owned|owned:owned:owned:1")
+        #expect(getter.isAsync)
+        #expect(getter.isThrowing)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func actorComputedSetterRequiresOwnedSynchronousEntry() async throws {
         let interpreter = Interpreter()
         interpreter.globals.define(

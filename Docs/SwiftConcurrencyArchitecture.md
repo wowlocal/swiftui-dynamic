@@ -288,8 +288,11 @@ awaited async actor getter executes through a suspension-aware accessor context
 rather than the eager member evaluator. If cancellation is requested while
 that getter is suspended, the task first reacquires the receiver actor, then
 observes cancellation and balances receiver release plus caller-actor
-restoration before source `catch` handling. Canonical async sessions reject an
-eager entry into an async getter instead of silently running it synchronously.
+restoration before source `catch` handling. Normal return and a typed
+source-thrown error after controlled suspension use the same
+reacquire-before-exit path and restore the caller before its next source
+statement or catch handling. Canonical async sessions reject an eager entry
+into an async getter instead of silently running it synchronously.
 
 Subscript getter declarations likewise retain their `async` and `throws`
 effects. Awaited user-subscript dispatch selects the same suspension-aware
@@ -306,7 +309,6 @@ This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
 complete actor isolation. Remaining actor work includes:
 
-- complete native evidence for remaining unproven accessor exits;
 - replayable mailbox/reentrancy stress;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
@@ -959,13 +961,11 @@ target lease on failure and restores a parked caller actor before source catch
 handling. An async-throwing computed getter preserves its declared effects,
 uses the suspension-aware statement evaluator, reacquires its target mailbox
 before cancellation observation, and then performs the same balanced target
-release and caller restoration. A cancelled async-throwing subscript getter
-follows the same reacquire-before-observation and balanced unwind path. Normal
-return and typed source-error exits from that subscript likewise reacquire the
-target after suspension, then release it and restore the caller before source
-continuation or catch handling. Defaulted and optional isolated-parameter forms
-plus remaining unproven accessor exits stay open and must not be inferred from
-this subset.
+release and caller restoration. Its normal-return and typed source-error paths
+perform the same reacquire and balanced exit after suspension. An
+async-throwing subscript getter follows those same paths for cancellation,
+normal return, and typed source error. Defaulted and optional isolated-parameter
+forms remain open and must not be inferred from this subset.
 
 ### 6.12 Actor reentrancy
 
@@ -994,7 +994,10 @@ catch handling and later target work.
 `actor-computed-property-cancellation` uses a controlled gate to prove that an
 async-throwing getter releases the target actor while suspended, reacquires it
 before observing cancellation, then releases it and restores the parked caller
-before catch handling and later target work. The `actor-computed-setter` fixture
+before catch handling and later target work.
+`actor-computed-property-async-exits` uses separate source-owned gates to prove
+the same target reacquisition, balanced release, and caller restoration on
+normal return and typed source-thrown error. The `actor-computed-setter` fixture
 proves legal setter execution inside an already-owned actor method, while a
 diagnostic fixture proves that external mutation cannot be made into a hop
 with `await`. The
@@ -1017,8 +1020,8 @@ executor selection share one mapping: the required explicit actor argument is
 resolved before a hop, its mailbox is acquired for the complete synchronous
 body, and an already-owned same-actor call stays synchronous. Eager unowned
 entry and malformed dynamic values fail closed. Defaulted/optional isolated
-parameters, remaining unproven accessor exits, arbitrary global actors, and
-replayable mailbox stress remain open M5 work.
+parameters, arbitrary global actors, and replayable mailbox stress remain open
+M5 work.
 
 ### 6.13 Cancellation
 
