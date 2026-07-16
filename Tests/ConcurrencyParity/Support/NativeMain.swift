@@ -31,6 +31,12 @@ nonisolated func parityCurrentExecutorLane() -> String {
     Thread.isMainThread ? "main" : "worker"
 }
 
+func parityCurrentIsolationKind(
+    isolation: isolated (any Actor)? = #isolation
+) -> String {
+    isolation == nil ? "none" : "actor"
+}
+
 @MainActor
 func parityYield(_ value: String) async -> String {
     await Task.yield()

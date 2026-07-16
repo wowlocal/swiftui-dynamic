@@ -68,6 +68,9 @@ extension Interpreter {
     ) throws -> Instance {
         let instance = Instance(
             symbol: symbol, lifecycleOwner: symbol.isClass ? self : nil)
+        if symbol.isActor {
+            instance.actorID = concurrencyRuntime.registerActor(instance)
+        }
         let notifying = Set(symbol.notifyingPropertyNames)
         for property in inheritedStoredProperties(of: symbol) {
             // Optional-typed properties without initializers are nil.

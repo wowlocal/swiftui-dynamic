@@ -28,6 +28,16 @@ public struct RuntimeTaskID: Hashable, Sendable, CustomStringConvertible {
     public var description: String { "task-\(rawValue)" }
 }
 
+public struct RuntimeActorID: Hashable, Sendable, CustomStringConvertible {
+    public let rawValue: UInt64
+
+    public init(rawValue: UInt64) {
+        self.rawValue = rawValue
+    }
+
+    public var description: String { "actor-\(rawValue)" }
+}
+
 public struct RuntimeStructuredScopeID: Hashable, Sendable,
     CustomStringConvertible {
     public let rawValue: UInt64
@@ -219,12 +229,27 @@ public enum RuntimeTaskKind: String, Sendable {
 /// Logical source executor. During the cooperative phase every interpreter
 /// instruction is still physically hosted by the native MainActor, but source
 /// executor identity remains distinct and follows Swift's hop rules.
-public enum RuntimeExecutorKind: String, Hashable, Sendable {
+public enum RuntimeExecutorKind: Hashable, Sendable, CustomStringConvertible {
     case cooperativeDefault
     case mainActor
     case detached
+    case actor(RuntimeActorID)
 
     public var isMainActor: Bool { self == .mainActor }
+
+    public var actorID: RuntimeActorID? {
+        guard case .actor(let id) = self else { return nil }
+        return id
+    }
+
+    public var description: String {
+        switch self {
+        case .cooperativeDefault: "cooperativeDefault"
+        case .mainActor: "mainActor"
+        case .detached: "detached"
+        case .actor(let id): "actor(\(id))"
+        }
+    }
 }
 
 extension RuntimeTaskKind {
@@ -522,10 +547,25 @@ final class RuntimeTaskGroupRecord {
     }
 }
 
+/// Stable runtime identity for one source actor instance. The source reference
+/// graph owns the instance and its property boxes; the runtime record remains
+/// non-owning so registering an executor cannot extend source actor lifetime.
+/// Later mailbox slices attach queued task IDs to this same identity.
+final class RuntimeActorRecord {
+    let id: RuntimeActorID
+    weak var instance: Instance?
+
+    init(id: RuntimeActorID, instance: Instance) {
+        self.id = id
+        self.instance = instance
+    }
+}
+
 final class CooperativeConcurrencyRuntime {
     let clock: any RuntimeClock
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
+    private var nextActorID: UInt64 = 1
     private var nextStructuredScopeID: UInt64 = 1
     private var nextTaskGroupID: UInt64 = 1
     private var nextHostOperationID: UInt64 = 1
@@ -540,6 +580,7 @@ final class CooperativeConcurrencyRuntime {
         RuntimeTaskGroupID: RuntimeTaskGroupRecord
     ] = [:]
     private(set) var hostOperations: [HostOperationID: RuntimeTaskID] = [:]
+    private(set) var actors: [RuntimeActorID: RuntimeActorRecord] = [:]
 
     init(clock: any RuntimeClock = ContinuousRuntimeClock()) {
         self.clock = clock
@@ -549,6 +590,23 @@ final class CooperativeConcurrencyRuntime {
         let id = RuntimeSessionID(rawValue: nextSessionID)
         nextSessionID += 1
         return id
+    }
+
+    func registerActor(_ instance: Instance) -> RuntimeActorID {
+        precondition(instance.symbol.isActor, "only actor instances may register")
+        precondition(instance.actorID == nil, "actor instance registered twice")
+        let id = RuntimeActorID(rawValue: nextActorID)
+        nextActorID += 1
+        let record = RuntimeActorRecord(id: id, instance: instance)
+        precondition(
+            actors.updateValue(record, forKey: id) == nil,
+            "duplicate runtime actor ID \(id)")
+        return id
+    }
+
+    func releaseActor(_ id: RuntimeActorID) {
+        guard actors[id] != nil else { return }
+        actors.removeValue(forKey: id)
     }
 
     func createTask(
@@ -1128,6 +1186,7 @@ final class CooperativeConcurrencyRuntime {
     }
 
     var activeRecordCount: Int { records.count }
+    var activeActorCount: Int { actors.count }
     var activeHostOperationCount: Int { hostOperations.count }
     var activeStructuredScopeCount: Int { structuredScopes.count }
     var activeTaskGroupCount: Int { taskGroups.count }

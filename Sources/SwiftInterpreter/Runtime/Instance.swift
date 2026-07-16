@@ -22,6 +22,10 @@ public final class ChangeSignal {
 @MainActor
 public final class Instance: CustomStringConvertible {
     public let symbol: StructSymbol
+    /// Present only for source actors. The ID selects the logical actor
+    /// executor independently of the host object's memory address and is the
+    /// future key for storage confinement and mailbox state.
+    public internal(set) var actorID: RuntimeActorID?
     /// Fired when a notifying (@Published / @Observable-tracked) property mutates.
     public let changeSignal = ChangeSignal()
     /// Plain stored properties. `@Binding` properties live here too, but their
@@ -51,8 +55,12 @@ public final class Instance: CustomStringConvertible {
     }
 
     isolated deinit {
-        guard symbol.isClass, !didRunDeinitializer else { return }
-        lifecycleOwner?.runDeinitializer(on: self)
+        if symbol.isClass, !didRunDeinitializer {
+            lifecycleOwner?.runDeinitializer(on: self)
+        }
+        if let actorID {
+            lifecycleOwner?.concurrencyRuntime.releaseActor(actorID)
+        }
     }
 
     public func box(for name: String) -> Box? {

@@ -122,6 +122,11 @@ public final class StructSymbol {
     /// struct storage envelopes copy at language boundaries and detach nested
     /// values lazily through composed lvalues.
     public internal(set) var isClass = false
+    /// Declared with `actor`. Actors retain reference identity like classes
+    /// and receive a distinct runtime actor identity. Isolated method entry
+    /// uses its logical executor; storage confinement and mailboxes remain a
+    /// later runtime slice.
+    public internal(set) var isActor = false
     /// Declared `deinit` body. Source-class `Instance` values use host ARC;
     /// their final release delegates back to the interpreter to run this body.
     /// Explicit lifecycle cleanup remains supported and is idempotent.

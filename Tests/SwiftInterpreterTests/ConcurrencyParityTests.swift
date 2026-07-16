@@ -420,6 +420,13 @@ private enum ConcurrencyParityHarness {
                 .native(context.sourceExecutor.isMainActor ? "main" : "worker")
             }))
         interpreter.globals.define(
+            "parityCurrentIsolationKind",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationKind"
+            ) { _, context in
+                .native(context.sourceExecutor.actorID == nil ? "none" : "actor")
+            }))
+        interpreter.globals.define(
             "parityRecordHostGatewayEvent",
             .hostFunction(HostFunction(
                 name: "parityRecordHostGatewayEvent"

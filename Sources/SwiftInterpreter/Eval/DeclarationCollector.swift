@@ -464,24 +464,27 @@ extension Interpreter {
             memberBlock: node.memberBlock, attributes: node.attributes))
     }
 
-    /// `actor Store { … }` — collected as a reference-typed class. Isolation
-    /// is not enforced: methods run synchronously on the caller (documented
-    /// divergence — the interpreter is single-threaded anyway).
+    /// Actors share the nominal-member collector with classes but retain their
+    /// language kind. Instance allocation assigns the runtime actor identity;
+    /// isolated member closures then enter that actor's logical executor.
     private func collectActor(_ node: ActorDeclSyntax) throws {
         registerTypeSymbol(try makeClassLikeSymbol(
             name: node.name.text, inheritanceClause: node.inheritanceClause,
-            memberBlock: node.memberBlock, attributes: node.attributes))
+            memberBlock: node.memberBlock, attributes: node.attributes,
+            isActor: true))
     }
 
     func makeClassLikeSymbol(
         name: String,
         inheritanceClause: InheritanceClauseSyntax?,
         memberBlock: MemberBlockSyntax,
-        attributes: AttributeListSyntax
+        attributes: AttributeListSyntax,
+        isActor: Bool = false
     ) throws -> StructSymbol {
         let inherited = inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
         let symbol = StructSymbol(name: name, conformsToView: inherited.contains("View"))
         symbol.isClass = true
+        symbol.isActor = isActor
         symbol.conformances = inherited
         // A superclass, if present, is first in the clause; protocols follow.
         if let first = inherited.first, !Self.knownProtocols.contains(first),
@@ -593,7 +596,8 @@ extension Interpreter {
             } else if let nestedActor = member.decl.as(ActorDeclSyntax.self) {
                 let nestedSymbol = try makeClassLikeSymbol(
                     name: nestedActor.name.text, inheritanceClause: nestedActor.inheritanceClause,
-                    memberBlock: nestedActor.memberBlock, attributes: nestedActor.attributes)
+                    memberBlock: nestedActor.memberBlock,
+                    attributes: nestedActor.attributes, isActor: true)
                 registerNestedType(nestedSymbol, in: symbol)
             }
         }
@@ -1177,11 +1181,23 @@ extension Interpreter {
             .joined()
         closure.sourceFunctionName =
             "\(node.name.text)(\(parameterLabels))"
+        let isAnyNonisolated = node.modifiers.contains {
+            $0.name.text == "nonisolated"
+        }
         closure.isExplicitlyNonisolated = node.modifiers.contains {
             $0.trimmedDescription == "nonisolated"
         }
         closure.executorPreference = functionExecutorPreference(
             node, lexicalOwner: lexicalOwner)
+        if closure.executorPreference == nil,
+           !isAnyNonisolated,
+           let owner = lexicalOwner as? StructSymbol,
+           owner.isActor,
+           let selfBox = captured.box(for: "self", before: globals),
+           case .instance(let actor) = selfBox.value,
+           let actorID = actor.actorID {
+            closure.executorPreference = .actor(actorID)
+        }
         return closure
     }
 

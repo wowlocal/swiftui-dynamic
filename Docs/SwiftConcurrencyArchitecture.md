@@ -244,16 +244,21 @@ deallocate. The snapshot retains the typed immutable outcome and a separate
 cancellation state, so later reads remain stable and late source `cancel()`
 updates the handle flag without changing its terminal outcome.
 
-### 4.5 Actors are currently class-like
+### 4.5 Actors have runtime identity but no mailbox yet
 
-Actor declarations presently provide reference semantics but not isolation.
-Real actor behavior requires:
+Actor declarations retain reference semantics and their nominal actor kind.
+Each source actor instance now receives a distinct runtime actor ID with a
+non-owning lifetime record. An isolated instance-method closure enters that
+actor's logical executor for its dynamic call extent and restores the caller;
+an explicit `nonisolated` method inherits its caller instead. This is identity
+and entry-hop infrastructure, not complete actor isolation. Real actor behavior
+still requires:
 
 - isolated storage;
 - a serial executor;
-- executor hops for cross-actor operations;
+- suspension-producing executor hops for cross-actor operations;
 - reentrancy at suspension points;
-- `nonisolated` and global-actor semantics;
+- complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
 
 These rules belong to the concurrency runtime and semantic preflight, not the
@@ -746,13 +751,15 @@ An executor owns a queue of runnable task IDs. In the first implementation all
 queues may be drained on the native main actor, but their logical ownership and
 serialization remain distinct.
 
-The incremental foundation may establish identity before queues: every runtime
+The incremental foundation establishes identity before queues: every runtime
 task records its initial executor preference, every task-owned evaluation
 context carries the current executor, and a declaration-level hop installs its
 callee executor for the dynamic call extent before restoring the caller. Host
-bridges read that explicit context. This identity-only phase is partial M5: it
-is sufficient to prevent the physical hosting actor from leaking into source
-observations, but it is not actor serialization or executor scheduling.
+bridges read that explicit context. Source actor instances additionally own a
+stable logical actor ID, and isolated instance-method closures select its
+executor identity. This partial M5 phase prevents the physical hosting actor
+from leaking into source observations, but it is not actor serialization or
+executor scheduling.
 
 Executor rules include:
 
@@ -852,6 +859,14 @@ struct RuntimeActorRecord {
     var lifecycle: RuntimeActorLifecycle
 }
 ```
+
+The incremental runtime currently allocates a distinct `RuntimeActorID` for
+each source actor instance and keeps only a weak instance reference in its
+record. The source reference graph still owns the instance and property boxes;
+final release removes the runtime record. Mailbox state and an executor-owned
+storage capability will attach to this identity in the next sub-slice. Until
+then, the ID and isolated entry hop must not be described as storage
+confinement or serial execution.
 
 The actor instance remains a reference value, but its stored properties are
 executor-confined. Member resolution must identify whether a declaration is:
