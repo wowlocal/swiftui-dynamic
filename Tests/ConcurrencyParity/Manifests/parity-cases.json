@@ -194,6 +194,18 @@
     "notes": "Exact output is owned:2|owned:5|5 in all 20 Swift 6.3.3 runs. Sequential external awaits establish both isolated mutations without asserting physical threads or independent-message ordering."
   },
   {
+    "id": "actor-computed-property-failure",
+    "fixture": "Fixtures/actor-computed-property-failure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorComputedPropertyFailureProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A cross-actor awaited throwing computed getter owns the target actor until failure, releases it on throw, and restores the caller actor before catch handling and subsequent target work.",
+    "notes": "Exact output is owned|caught|owned|owned:owned:2|owned in all 20 Swift 6.3.3 runs. The observation proves caller/target ownership and retained target mutations without asserting FIFO, physical threads, or unrelated scheduling order."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",

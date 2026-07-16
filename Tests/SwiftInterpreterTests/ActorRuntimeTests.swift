@@ -325,6 +325,85 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func crossActorComputedPropertyFailureRestoresCallerAndReleasesTarget()
+        async throws
+    {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "inspectComputedFailureOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectComputedFailureOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+            enum ComputedFailure: Error { case boom }
+
+            actor ComputedFailureTarget {
+                var stored = 0
+                var failureOwnership = "unset"
+
+                var failingValue: Int {
+                    get throws {
+                        failureOwnership = inspectComputedFailureOwnership(self)
+                        stored += 1
+                        throw ComputedFailure.boom
+                    }
+                }
+
+                func recover() -> String {
+                    let recoveryOwnership = inspectComputedFailureOwnership(self)
+                    stored += 1
+                    return failureOwnership + ":" + recoveryOwnership
+                        + ":" + String(stored)
+                }
+            }
+
+            actor ComputedFailureCaller {
+                func run(_ target: ComputedFailureTarget) async -> String {
+                    let before = inspectComputedFailureOwnership(self)
+                    var outcome = "missed"
+                    do {
+                        _ = try await target.failingValue
+                    } catch ComputedFailure.boom {
+                        outcome = "caught"
+                    } catch {
+                        outcome = "other"
+                    }
+                    let afterFailure = inspectComputedFailureOwnership(self)
+                    let recovered = await target.recover()
+                    let afterRecovery = inspectComputedFailureOwnership(self)
+                    return before + "|" + outcome + "|" + afterFailure
+                        + "|" + recovered + "|" + afterRecovery
+                }
+            }
+
+            func runComputedFailureProbe() async -> String {
+                let target = ComputedFailureTarget()
+                let caller = ComputedFailureCaller()
+                return await caller.run(target)
+            }
+
+            await runComputedFailureProbe()
+            """)
+
+        #expect(result.stringValue
+            == "owned|caught|owned|owned:owned:2|owned")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test
     func actorComputedSetterRequiresOwnedSynchronousEntry() async throws {
         let interpreter = Interpreter()
         interpreter.globals.define(
