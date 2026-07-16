@@ -2696,7 +2696,7 @@
       "gapEvidenceIDs": [
         "actor-declaration-safety-boundary"
       ],
-      "notes": "Synchronous and async actor functions, externally awaited synchronous computed-property and subscript getters, computed-property and subscript setters invoked inside an already-owned actor segment, and mutable stored-property access now require the canonical async source task to own the matching mailbox lease; compiler preflight rejects external setter mutation even with await, canonical waits release and restore actor leases, and cross-actor throwing functions balance callee/caller ownership on error. Isolated parameters, remaining accessor failure/cancellation, stress, and remaining actor forms still require per-feature boundary flips; the 2026-07-16 demand re-plan forbids an up-front global rejection."
+      "notes": "Synchronous and async actor functions, externally awaited synchronous computed-property and subscript getters, computed-property and subscript setters invoked inside an already-owned actor segment, and mutable stored-property access now require the canonical async source task to own the matching mailbox lease; compiler preflight rejects external setter mutation even with await, canonical waits release and restore actor leases, and cross-actor throwing and cancellation-observing functions balance callee/caller ownership before catch handling. Isolated parameters, remaining effectful-accessor failure/cancellation, stress, and remaining actor forms still require per-feature boundary flips; the 2026-07-16 demand re-plan forbids an up-front global rejection."
     },
     {
       "id": "actor-identity-storage-and-serial-executor",
@@ -2708,7 +2708,7 @@
       "gapEvidenceIDs": [
         "actor-identity-storage-serial-executor"
       ],
-      "notes": "Distinct source-actor runtime identity, weak record cleanup, canonical user-declared global-actor mapping, synchronous and async actor-function plus externally awaited synchronous computed-property and subscript-getter mailbox leases, computed-property and subscript-setter confinement to already-owned segments, suspension-aware release/reacquisition, waitingForActor handoff, controlled reentrancy, cross-actor throwing-function release/restoration, and mutable stored-property confinement are implemented with native parity and focused ownership evidence in the acceptance requirement. This catalog capability remains a known divergence until remaining accessor failure/cancellation and stress coverage close the entry slice."
+      "notes": "Distinct source-actor runtime identity, weak record cleanup, canonical user-declared global-actor mapping, synchronous and async actor-function plus externally awaited synchronous computed-property and subscript-getter mailbox leases, computed-property and subscript-setter confinement to already-owned segments, suspension-aware release/reacquisition, waitingForActor handoff, controlled reentrancy, cross-actor throwing and cancellation-observing function release/restoration, and mutable stored-property confinement are implemented with native parity and focused ownership evidence in the acceptance requirement. This catalog capability remains a known divergence until remaining effectful-accessor failure/cancellation and stress coverage close the entry slice."
     },
     {
       "id": "actor-reentrancy-and-isolated-dispatch",
@@ -2720,7 +2720,7 @@
       "gapEvidenceIDs": [
         "actor-reentrancy-isolated-dispatch"
       ],
-      "notes": "Controlled same-source parity covers async actor release-at-suspension, interleaving by a second message, and executor-owned resume reacquisition through the serial mailbox. Cross-actor throwing-function parity covers callee ownership/release and caller restoration before catch handling. Isolated-parameter dispatch, arbitrary global actors, remaining accessor failure/cancellation paths, and replayable mailbox stress remain the second slice of the 2026-07-16 demand cycle."
+      "notes": "Controlled same-source parity covers async actor release-at-suspension, interleaving by a second message, and executor-owned resume reacquisition through the serial mailbox. Cross-actor throwing and gated cancellation parity cover callee ownership/release and caller restoration before catch handling. Isolated-parameter dispatch, arbitrary global actors, remaining effectful-accessor failure/cancellation paths, and replayable mailbox stress remain the second slice of the 2026-07-16 demand cycle."
     },
     {
       "id": "compiler-backed-concurrency-diagnostics",

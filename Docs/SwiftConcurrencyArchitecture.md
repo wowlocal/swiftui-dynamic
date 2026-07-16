@@ -278,14 +278,16 @@ already-owned actor segment. Native Swift rejects external subscript mutation
 even when it is prefixed with `await`; no setter hop is synthesized. A
 cross-actor throwing-function call parks the caller actor, owns the callee for
 its throwing segment, releases the callee on error, and restores the caller
-before source `catch` handling continues.
+before source `catch` handling continues. If cancellation is requested while
+that callee is suspended, the task reacquires the callee before observing
+cancellation, then performs the same balanced callee release and caller
+restoration before typed catch handling.
 
 This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
 complete actor isolation. Remaining actor work includes:
 
-- complete native evidence for effectful-accessor failure and cancellation
-  exits;
+- complete native evidence for effectful-accessor failure/cancellation exits;
 - replayable mailbox/reentrancy stress;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
@@ -960,9 +962,11 @@ getter segment and explicit-nonisolated exception. The
 `actor-subscript-setter` fixture plus its compiler-diagnostic twin prove legal
 already-owned execution and reject an invented external hop. The
 `actor-cross-actor-failure` fixture proves callee release and caller restoration
-around a throwing function hop. Effectful-accessor failure, cancellation,
-isolated-parameter dispatch, arbitrary global actors, and replayable mailbox
-stress remain open M5 work.
+around a throwing function hop. `actor-cross-actor-cancellation` uses a
+controlled gate to prove callee reacquisition before cancellation observation,
+followed by callee release and caller restoration. Effectful-accessor failure/
+cancellation, isolated-parameter dispatch, arbitrary global actors, and
+replayable mailbox stress remain open M5 work.
 
 ### 6.13 Cancellation
 

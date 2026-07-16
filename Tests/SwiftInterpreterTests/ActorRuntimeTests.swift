@@ -626,6 +626,113 @@ struct ActorRuntimeTests {
         #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
     }
 
+    @Test
+    func crossActorCancellationRestoresCallerAndReleasesCallee() async throws {
+        let interpreter = Interpreter()
+        var actorMessageSuspended = false
+        var actorMessageMayResume = false
+        interpreter.globals.define(
+            "inspectCancellationOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectCancellationOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+        interpreter.globals.define(
+            "suspendCancellationMessage",
+            .hostFunction(HostFunction(
+                name: "suspendCancellationMessage",
+                asyncInvoke: { _, _ in
+                    actorMessageSuspended = true
+                    while !actorMessageMayResume { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "awaitCancellationMessageSuspension",
+            .hostFunction(HostFunction(
+                name: "awaitCancellationMessageSuspension",
+                asyncInvoke: { _, _ in
+                    while !actorMessageSuspended { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "resumeCancellationMessage",
+            .hostFunction(HostFunction(
+                name: "resumeCancellationMessage",
+                asyncInvoke: { _, _ in
+                    actorMessageMayResume = true
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+            actor CancellationTarget {
+                var stored = 0
+                var entryOwnership = "unset"
+                var resumeOwnership = "unset"
+
+                func cancellationPoint() async throws {
+                    entryOwnership = inspectCancellationOwnership(self)
+                    stored += 1
+                    await suspendCancellationMessage()
+                    resumeOwnership = inspectCancellationOwnership(self)
+                    try Task.checkCancellation()
+                }
+
+                func recover() -> String {
+                    let recoveryOwnership = inspectCancellationOwnership(self)
+                    stored += 1
+                    return entryOwnership + ":" + resumeOwnership
+                        + ":" + recoveryOwnership + ":" + String(stored)
+                }
+            }
+
+            actor CancellationCaller {
+                func run(_ target: CancellationTarget) async -> String {
+                    let before = inspectCancellationOwnership(self)
+                    var outcome = "missed"
+                    do {
+                        try await target.cancellationPoint()
+                    } catch is CancellationError {
+                        outcome = "cancelled"
+                    } catch {
+                        outcome = "other"
+                    }
+                    let afterCancellation = inspectCancellationOwnership(self)
+                    let recovered = await target.recover()
+                    let afterRecovery = inspectCancellationOwnership(self)
+                    return before + "|" + outcome + "|" + afterCancellation
+                        + "|" + recovered + "|" + afterRecovery
+                }
+            }
+
+            func runCancellationProbe() async -> String {
+                let target = CancellationTarget()
+                let caller = CancellationCaller()
+                let task = Task { await caller.run(target) }
+                await awaitCancellationMessageSuspension()
+                task.cancel()
+                await resumeCancellationMessage()
+                return await task.value
+            }
+
+            await runCancellationProbe()
+            """)
+
+        #expect(result.stringValue
+            == "owned|cancelled|owned|owned:owned:owned:2|owned")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
     private static func instance(from value: RuntimeValue?) -> Instance? {
         guard case .instance(let instance)? = value else { return nil }
         return instance

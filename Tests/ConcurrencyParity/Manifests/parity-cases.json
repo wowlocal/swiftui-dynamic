@@ -170,6 +170,18 @@
     "notes": "Exact output is owned|caught|owned|owned:owned:2|owned in all 20 Swift 6.3.3 runs. The observation proves caller/callee actor-segment ownership and retained target mutations without asserting FIFO, physical threads, or unrelated scheduling order."
   },
   {
+    "id": "actor-cross-actor-cancellation",
+    "fixture": "Fixtures/actor-cross-actor-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorCrossActorCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A cancelled task reacquires the callee actor after controlled suspension before observing cancellation, then releases that actor and restores its caller actor before catch handling and subsequent cross-actor work.",
+    "notes": "Exact output is owned|cancelled|owned|owned:owned:owned:2|owned in all 20 Swift 6.3.3 runs. Explicit gates establish cancellation after suspension and before resume; no FIFO, physical-thread, or unrelated scheduling order is asserted."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",
