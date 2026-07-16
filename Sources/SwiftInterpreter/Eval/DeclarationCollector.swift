@@ -530,6 +530,22 @@ extension Interpreter {
                 declLexicalOwners[initDecl.id] = symbol
                 symbol.initializers.append(initDecl)
             } else if let deinitDecl = member.decl.as(DeinitializerDeclSyntax.self) {
+                let attributeNames = deinitDecl.attributes.compactMap {
+                    $0.as(AttributeSyntax.self)?.attributeName
+                        .trimmedDescription.split(separator: ".").last
+                        .map(String.init)
+                }
+                if attributeNames.contains("MainActor") {
+                    let located = error(
+                        deinitDecl,
+                        "@MainActor deinitializer requires executor-owned "
+                            + "teardown, which is not supported yet")
+                    throw RuntimeError(
+                        message: located.message,
+                        line: located.line,
+                        column: located.column,
+                        fatal: true)
+                }
                 symbol.deinitBody = deinitDecl.body
             } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
                 // Member typealiases resolve like nested types (bare name

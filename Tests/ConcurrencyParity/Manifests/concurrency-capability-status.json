@@ -2692,7 +2692,11 @@
       "verificationStatus": "none",
       "requirementRef": "M5/actor-declaration-safety-boundary",
       "evidenceCaseIDs": [],
-      "testNames": [],
+      "testNames": [
+        "SwiftUpstreamParityTests/mainActorDeinitializerFailsClosedAgainstPinnedOracle",
+        "ARCSemanticsTests/explicitMainActorDeinitializerFailsClosedDuringCollection",
+        "ARCSemanticsTests/ordinaryActorDeinitializerRemainsSupported"
+      ],
       "gapEvidenceIDs": [
         "actor-declaration-safety-boundary"
       ],

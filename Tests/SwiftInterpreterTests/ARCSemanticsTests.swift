@@ -296,6 +296,40 @@ private func evaluateARC(
 
 @Suite("ARC semantics")
 struct ARCSemanticsTests {
+    @Test
+    func explicitMainActorDeinitializerFailsClosedDuringCollection() throws {
+        do {
+            _ = try Interpreter().run(source: """
+                final class MainOwned {
+                    @MainActor deinit {}
+                }
+                MainOwned()
+                """)
+            Issue.record("@MainActor deinitializer was silently admitted")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.line == 2)
+            #expect(error.message.contains("@MainActor deinitializer"))
+            #expect(error.message.contains("executor-owned teardown"))
+        }
+    }
+
+    @Test func ordinaryActorDeinitializerRemainsSupported() throws {
+        let result = try Interpreter().run(source: """
+            var events: [String] = []
+            actor Worker {
+                deinit { events.append("ordinary") }
+            }
+            do {
+                let worker = Worker()
+                _ = worker
+            }
+            events.joined(separator: ",")
+            """)
+
+        #expect(result.stringValue == "ordinary")
+    }
+
     @Test func weakCaptureAliasBuildsAWeakRuntimeSlot() throws {
         let result = try Interpreter().run(source: interpretedARCPrelude + #"""
 

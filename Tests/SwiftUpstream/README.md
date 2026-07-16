@@ -12,7 +12,10 @@ machine-readable intake inventory for the concurrency runtime suite:
 
 `SwiftUpstreamParityTests` compiles and runs every fixture with the active
 native `swiftc`, runs the exact same file through `SwiftInterpreter`, and
-checks both results against the fixture's oracle. Executable fixtures are
+checks the manifest-selected assertion. Most executable cases require both
+runtimes to satisfy the fixture oracle; native-positive forms whose executor
+semantics are not implemented require a precise interpreter diagnostic rather
+than silently claiming parity. Executable fixtures are
 parameterized as independent test cases: native compilation is allowed to run
 on the test worker pool, while interpreted execution remains MainActor-owned.
 The original interpreter
@@ -33,7 +36,7 @@ a test reaches it only after native Swift 6 compilation and deterministic
 interpreter review. The inventory makes unsupported cases visible without
 pretending that an unexecuted upstream test passes.
 
-The current concurrency allowlist contains thirteen unchanged runtime fixtures.
+The current concurrency allowlist contains fourteen unchanged runtime fixtures.
 `async_taskgroup_is_empty.swift` is the first fixture whose admission is backed
 by dispatch generated from the active SDK's `_Concurrency.swiftinterface`; it
 also exercises the SDK's deprecated `TaskGroup.async` compatibility spelling.
@@ -53,6 +56,12 @@ iteration, with result sums that do not depend on child scheduling order.
 `executor_deinit1.swift` independently proves that an ordinary source actor's
 deinitializer still runs after its last reference is released following an
 isolated method entry; it does not claim isolated-deinitializer scheduling.
+`isolated_deinit_main_sync.swift` proves that native Swift accepts and runs an
+explicit `@MainActor deinit` when release already occurs on MainActor. The
+interpreter deliberately rejects that declaration because its synchronous ARC
+path cannot yet guarantee executor-owned teardown for every release. This is a
+native-positive, interpreter-negative safety boundary, not an executor-parity
+claim.
 
 Every allowlisted fixture has a manifest SHA-256, so a local edit fails before
 native/interpreted comparison instead of silently weakening the pinned oracle.

@@ -14,6 +14,7 @@ private struct SwiftUpstreamManifest: Decodable {
         let compilerArguments: [String]?
         let diagnosticContains: [String]?
         let diagnosticLines: [Int]?
+        let interpreterDiagnosticContains: [String]?
         let timeoutSeconds: TimeInterval?
     }
 
@@ -31,6 +32,7 @@ private struct SwiftUpstreamManifest: Decodable {
         case fileCheck = "file-check"
         case fileCheckUnordered = "file-check-unordered"
         case diagnostic
+        case interpreterDiagnostic = "interpreter-diagnostic"
     }
 
     let repository: String
@@ -328,7 +330,9 @@ private nonisolated func listSwiftUpstreamExecutableCaseIDs() -> [String] {
         return []
     }
     return cases.compactMap { entry in
-        guard entry["assertion"] as? String != "diagnostic" else {
+        if let assertion = entry["assertion"] as? String,
+           assertion == "diagnostic"
+                || assertion == "interpreter-diagnostic" {
             return nil
         }
         return entry["id"] as? String
@@ -345,7 +349,7 @@ struct SwiftUpstreamParityTests {
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
         #expect(manifest.revision == "swift-6.3.3-RELEASE")
         #expect(manifest.commit == "064859e41d68596f486c5d724401cb370f260409")
-        #expect(manifest.cases.count == 26)
+        #expect(manifest.cases.count == 27)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
@@ -361,8 +365,12 @@ struct SwiftUpstreamParityTests {
 
         let executableCases = manifest.cases.filter {
             $0.assertion != .diagnostic
+                && $0.assertion != .interpreterDiagnostic
         }
         #expect(executableCases.count == 23)
+        #expect(manifest.cases.count {
+            $0.assertion == .interpreterDiagnostic
+        } == 1)
         #expect(swiftUpstreamExecutableCaseIDs
             == executableCases.map(\.id))
     }
@@ -428,6 +436,37 @@ struct SwiftUpstreamParityTests {
             case .diagnostic:
                 Issue.record(
                     "diagnostic case entered the executable runner")
+            case .interpreterDiagnostic:
+                Issue.record(
+                    "interpreter-diagnostic case entered the parity runner")
+            }
+        }
+    }
+
+    @Test
+    func mainActorDeinitializerFailsClosedAgainstPinnedOracle() async throws {
+        let manifest = try SwiftUpstreamParityHarness.loadManifest()
+        let parityCase = try #require(manifest.cases.first {
+            $0.id == "concurrency-main-actor-deinitializer"
+                && $0.assertion == .interpreterDiagnostic
+        })
+        let source = try SwiftUpstreamParityHarness.source(for: parityCase)
+        let native = try SwiftUpstreamParityHarness.nativeOutput(
+            for: parityCase)
+        #expect(try SwiftUpstreamFileCheck.violations(
+            source: source, output: native).isEmpty,
+            Comment(rawValue: native))
+
+        do {
+            let output = try await SwiftUpstreamParityHarness
+                .interpretedOutput(for: parityCase)
+            Issue.record(Comment(rawValue:
+                "isolated deinitializer unexpectedly ran: "
+                    + String(reflecting: output)))
+        } catch let error as RuntimeError {
+            for fragment in parityCase.interpreterDiagnosticContains ?? [] {
+                #expect(error.message.contains(fragment),
+                    Comment(rawValue: error.description))
             }
         }
     }
@@ -624,13 +663,23 @@ struct SwiftUpstreamParityTests {
         #expect(directByPath == selectedByPath)
         #expect(inventory.summary.direct == concurrencyCases.count)
         #expect(concurrencyCases.allSatisfy { parityCase in
-            (parityCase.assertion == .fileCheck
-                || parityCase.assertion == .fileCheckUnordered)
-                && parityCase.compilerArguments == [
+            switch parityCase.assertion {
+            case .fileCheck, .fileCheckUnordered:
+                parityCase.compilerArguments == [
                     "-swift-version", "6",
                     "-strict-concurrency=complete",
                     "-parse-as-library",
                 ]
+            case .interpreterDiagnostic:
+                parityCase.compilerArguments == [
+                    "-swift-version", "6",
+                    "-strict-concurrency=complete",
+                    "-warnings-as-errors",
+                    "-default-isolation", "MainActor",
+                ] && parityCase.interpreterDiagnosticContains?.isEmpty == false
+            case .exact, .diagnostic, nil:
+                false
+            }
         })
     }
 

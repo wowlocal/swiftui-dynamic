@@ -3810,8 +3810,11 @@ The upstream harness now pins `swiftlang/swift` at
 Its reproducible sparse-checkout script inventories all 134 Swift sources in
 `test/Concurrency/Runtime`, assigns every file an explicit `direct`,
 `diagnostic`, `needs-adapter`, or `unsupported` reason, and copies only
-manifest-selected fixtures byte-for-byte. The current inventory is 13 direct,
-4 diagnostic, 110 needs-adapter, and 7 unsupported.
+manifest-selected fixtures byte-for-byte. The current inventory is 14 direct,
+4 diagnostic, 109 needs-adapter, and 7 unsupported. A direct fixture means it
+is selected for differential execution; the `interpreter-diagnostic` assertion
+is a native-positive fail-closed boundary and is not counted as behavioral
+parity.
 
 Native Swift compiles every selected concurrency fixture in Swift 6 strict
 concurrency mode. The interpreter receives the same source plus only a generic
@@ -6454,8 +6457,8 @@ custom-executor teardown, or ordering against unrelated tasks.
 This is an already-GREEN characterization: source-class lifetime already
 routes final `Instance` release through the common idempotent deinitializer
 path and then releases the actor record, so no production runtime changed and
-no RED was fabricated. The pinned concurrency intake is now 13 direct / 4
-diagnostic / 110 needs-adapter / 7 unsupported across all 134 inventoried
+no RED was fabricated. At that point the pinned concurrency intake was 13
+direct / 4 diagnostic / 110 needs-adapter / 7 unsupported across all 134 inventoried
 runtime files. The actor declaration safety boundary remains open for the
 separate custom-executor and isolated-deinitializer forms.
 
@@ -6466,3 +6469,39 @@ the prebuilt Swift Testing worker pool; only interpreter execution returns to
 MainActor. On the same build, the complete board fell from 23.03 seconds in one
 serialized test to 5.24 seconds with four workers (4.4×), while all 23 fixtures
 and their original assertions remained GREEN.
+
+### M5 pinned swiftlang MainActor deinitializer boundary
+
+The next characterization admits the unchanged upstream
+`test/Concurrency/Runtime/isolated_deinit_main_sync.swift` fixture from the
+same Swift release and commit. Its checked-in bytes have SHA-256
+`f5bdf3c356f9ed9093e9673b58c218fdca49bd08298848b70083e4ed21d6af2c`.
+The semantic question is narrow: when final release already occurs on
+MainActor, does Swift accept an explicit `@MainActor deinit` and run it before
+the following statement?
+
+Apple Swift 6.3.3 (`swiftlang-6.3.3.1.3`) compiled the unchanged source against
+SDK 26.5 for `arm64-apple-macosx26.0` with Swift 6, complete strict concurrency,
+warnings as errors, and MainActor default isolation. Twenty bounded native
+executions printed exactly `isDead = false`, `DEINIT`, `isDead = true`; the
+concatenated output SHA-256 was
+`a4a1c51d0716fe4132004fa0e907d048e373620c2554be91d6a2ec082beaa47e`.
+This establishes the already-owned fast path only. It does not prove that an
+off-executor final release may execute the body inline.
+
+The captured interpreter RED did exactly that: it silently printed the same
+three lines even though its synchronous `Instance` release path cannot schedule
+executor-owned teardown. Declaration collection now recognizes the final
+component of an explicit `@MainActor` deinitializer attribute and raises the
+located fatal diagnostic `@MainActor deinitializer requires executor-owned
+teardown, which is not supported yet`. The shared member collector covers
+class and actor declarations without recognizing fixture or type names.
+`ARCSemanticsTests/ordinaryActorDeinitializerRemainsSupported` prevents this
+boundary from rejecting Swift's ordinary nonisolated actor deinitializer.
+
+The manifest assertion is deliberately `interpreter-diagnostic`: native Swift
+must compile, run, and satisfy the unchanged FileCheck oracle, while the
+interpreter must fail closed with both required message fragments. The intake
+is now 14 direct / 4 diagnostic / 109 needs-adapter / 7 unsupported across all
+134 runtime files. The M5 boundary remains open for `isolated deinit`, arbitrary
+global-actor deinitializer attributes, and custom-executor teardown.

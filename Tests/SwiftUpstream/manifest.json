@@ -280,6 +280,26 @@
       "timeoutSeconds": 5
     },
     {
+      "id": "concurrency-main-actor-deinitializer",
+      "fixture": "Fixtures/Concurrency/Runtime/isolated_deinit_main_sync.swift",
+      "upstreamPath": "test/Concurrency/Runtime/isolated_deinit_main_sync.swift",
+      "sha256": "f5bdf3c356f9ed9093e9673b58c218fdca49bd08298848b70083e4ed21d6af2c",
+      "assertion": "interpreter-diagnostic",
+      "compilerArguments": [
+        "-swift-version",
+        "6",
+        "-strict-concurrency=complete",
+        "-warnings-as-errors",
+        "-default-isolation",
+        "MainActor"
+      ],
+      "interpreterDiagnosticContains": [
+        "@MainActor deinitializer",
+        "executor-owned teardown"
+      ],
+      "timeoutSeconds": 5
+    },
+    {
       "id": "concurrency-task-group-inout-capture-diagnostic",
       "fixture": "Fixtures/Concurrency/taskgroup_cancelAll_from_child.swift",
       "upstreamPath": "test/Concurrency/taskgroup_cancelAll_from_child.swift",

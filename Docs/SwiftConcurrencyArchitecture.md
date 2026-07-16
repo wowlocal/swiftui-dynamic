@@ -1073,6 +1073,17 @@ deinitializer runs after the final source reference is released following an
 isolated method entry. This is lifetime evidence only: executor-scheduled or
 globally isolated deinitializers require a separate native question and must
 not inherit that claim.
+The unchanged pinned `isolated_deinit_main_sync.swift` fixture answers the
+narrow next question: an explicitly `@MainActor` deinitializer runs
+synchronously when its final release already owns MainActor. That legal fast
+path does not justify the interpreter's previous behavior, because source ARC
+may release the same value from another executor and `Instance` teardown is
+currently synchronous. Declaration collection therefore fails closed on an
+explicit `@MainActor deinit` before its body can be stored or executed. An
+ordinary actor deinitializer remains nonisolated and supported. General
+executor-scheduled teardown, the `isolated deinit` modifier, arbitrary global
+actor attributes, and custom actor executors remain separate safety-boundary
+questions.
 The per-feature fail-closed safety boundary remains open M5 work.
 
 ### 6.13 Cancellation
