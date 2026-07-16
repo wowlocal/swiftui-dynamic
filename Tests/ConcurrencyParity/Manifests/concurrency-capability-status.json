@@ -2688,28 +2688,34 @@
     },
     {
       "id": "actor-declaration-safety-boundary",
-      "implementationStatus": "known-divergence",
-      "verificationStatus": "none",
+      "implementationStatus": "runtime-supported",
+      "verificationStatus": "native-parity",
       "requirementRef": "M5/actor-declaration-safety-boundary",
       "evidenceCaseIDs": [
         "actor-global-actor-deinitializer",
         "actor-isolated-deinitializer"
       ],
       "testNames": [
-        "SwiftUpstreamParityTests/mainActorDeinitializerFailsClosedAgainstPinnedOracle",
-        "ARCSemanticsTests/explicitMainActorDeinitializerFailsClosedDuringCollection",
+        "SwiftUpstreamParityTests/mainActorDeinitializerMatchesPinnedOracle",
+        "ARCSemanticsTests/explicitMainActorDeinitializerRunsOnFinalRelease",
         "ARCSemanticsTests/ordinaryActorDeinitializerRemainsSupported",
-        "ARCSemanticsTests/isolatedDeinitializerFailsClosedDuringCollection",
+        "ARCSemanticsTests/isolatedMainActorDeinitializerRunsOnFinalRelease",
+        "ARCSemanticsTests/mainActorTypealiasDeinitializerRunsOnFinalRelease",
+        "ARCSemanticsTests/isolatedSourceActorDeinitializerFailsClosedAtInstantiation",
+        "ARCSemanticsTests/executorOwnedDeinitializerDeclarationsDoNotRejectUnusedTypes",
         "ARCSemanticsTests/explicitNonisolatedActorDeinitializerRemainsSupported",
         "ARCSemanticsTests/explicitUserGlobalActorDeinitializerFailsClosedAfterResolution",
         "ARCSemanticsTests/globalActorTypealiasDeinitializerFailsClosedAfterResolution",
         "ARCSemanticsTests/qualifiedNestedGlobalActorDeinitializerFailsClosedAfterResolution",
-        "ARCSemanticsTests/enclosingGlobalActorKeepsOrdinaryDeinitializerSupported"
+        "ARCSemanticsTests/enclosingGlobalActorKeepsOrdinaryDeinitializerSupported",
+        "SwiftUpstreamParityTests/customActorExecutorFailsClosedAgainstPinnedOracle",
+        "ActorRuntimeTests/customExecutorActorFailsClosedOnlyAtIsolatedEntry",
+        "ActorRuntimeTests/protocolDefaultCustomExecutorFailsClosedAtIsolatedEntry",
+        "ActorRuntimeTests/customExecutorActorStorageFailsClosedInLegacySyncSession",
+        "ActorRuntimeTests/nonActorUnownedExecutorPropertyRemainsAnOrdinaryMember"
       ],
-      "gapEvidenceIDs": [
-        "actor-declaration-safety-boundary"
-      ],
-      "notes": "Synchronous actor initialization is characterized as lexically nonisolated while seeding a newly registered actor, followed by mailbox-owned isolated entry and final actor-record cleanup. Task-local bindings remain task-owned through actor entry, suspension/reacquisition, and scope restoration while each actor segment owns its mailbox. Cancelling an already queued cross-actor call preserves its waitingForActor edge; mailbox handoff still enters the method with ownership and the request remains available for cooperative observation. Synchronous and async actor functions, externally awaited synchronous computed-property and subscript getters, async computed/subscript getters, computed-property and subscript setters invoked inside an already-owned actor segment, explicit plus defaulted/optional source-actor, MainActor, custom-global-actor, and nil isolated parameters, and mutable stored-property access now require the canonical async source task to own the matching mailbox lease when an actor is selected; compiler preflight rejects external setter mutation even with await, canonical waits release and restore actor leases, cross-actor throwing/cancellation-observing functions plus successful, source-throwing, or cancelled async computed/subscript getters balance target/caller ownership before subsequent caller work, and replayable seeded mailbox stress proves complete runtime draining. Explicit isolated, MainActor, and user-global-actor deinitializers fail closed until executor-owned teardown exists; the user-global-actor lookup is declaration-order- and alias-independent, while an ordinary deinitializer remains nonisolated even when its enclosing class carries that actor. Custom-executor actor forms still require an explicit disposition; the 2026-07-16 demand re-plan forbids an up-front global rejection."
+      "gapEvidenceIDs": [],
+      "notes": "The demand-scoped actor safety boundary is implemented. Actor initialization, functions, accessors, isolated parameters, task-local propagation, queued cancellation, storage confinement, and reentrancy route through runtime actor identity and mailbox ownership. Explicit MainActor deinitializers and isolated deinitializers on MainActor nominals execute through the host Instance's real MainActor-owned teardown capability with exact native parity. Isolated source-actor and explicit user-global-actor teardown fail closed at first construction, while ordinary and explicit nonisolated teardown remain supported. The pinned swiftlang custom_executors.swift oracle proves that unownedExecutor changes isolated dispatch. Direct computed, direct stored, and protocol-extension-default custom-executor forms are classified after nominal resolution and fail closed only at isolated entry; nonisolated members and initialization remain available, and non-actor same-name properties remain ordinary. Full custom-executor scheduling and physical parallelism are not claimed."
     },
     {
       "id": "actor-identity-storage-and-serial-executor",

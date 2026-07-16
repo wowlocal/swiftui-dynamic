@@ -687,6 +687,33 @@ extension Interpreter {
     /// Suspension-aware call-site resolution. Ordinary calls still use the
     /// mature synchronous evaluator; this path is entered only beneath await
     /// (or when an argument itself suspends).
+    func invokeMutatingInstanceMethodSuspending(
+        named name: String,
+        on current: RuntimeValue,
+        arguments: CallArguments,
+        node: some SyntaxProtocol
+    ) async throws -> (result: RuntimeValue, receiver: RuntimeValue)? {
+        guard case .instance(let receiver) = current,
+              !receiver.symbol.isClass else { return nil }
+        let mutating = mutatingInstanceMethods(named: name, on: receiver)
+        guard !mutating.isEmpty,
+              let method = chooseFunction(from: mutating, for: arguments)
+                ?? mutating.first,
+              let body = method.body,
+              case .instance(let working) = current.copiedForValueSemantics()
+        else { return nil }
+
+        let selfEnvironment = selfEnvironment(.instance(working))
+        let closure = makeFunctionClosure(
+            method, body: body, captured: selfEnvironment)
+        let result = try await callWithArgumentsSuspending(
+            closure, args: arguments, node: Syntax(node))
+        let finalSelf = selfEnvironment.lookup("self") ?? .instance(working)
+        return (
+            result,
+            try resolveAnnotated(finalSelf, typeName: receiver.symbol.name))
+    }
+
     func evaluateCallSuspending(
         _ call: FunctionCallExprSyntax,
         in env: Environment,
@@ -707,19 +734,16 @@ extension Interpreter {
                 let mutating = mutatingInstanceMethods(named: name, on: receiver)
                 if !mutating.isEmpty {
                     let args = try await collectArgumentsSuspending(of: call, in: env)
-                    if let method = chooseFunction(from: mutating, for: args) ?? mutating.first,
-                       let body = method.body,
-                       case .instance(let working) = current.copiedForValueSemantics() {
-                        let selfEnv = selfEnvironment(.instance(working))
-                        let closure = makeFunctionClosure(
-                            method, body: body, captured: selfEnv)
-                        let result = try await callWithArgumentsSuspending(
-                            closure, args: args, node: Syntax(call))
-                        let finalSelf = selfEnv.lookup("self") ?? .instance(working)
-                        let resolved = try resolveAnnotated(
-                            finalSelf, typeName: receiver.symbol.name)
-                        try relocating(call) { try target.writeOwned(resolved, self) }
-                        return result
+                    if let invocation = try await
+                        invokeMutatingInstanceMethodSuspending(
+                            named: name,
+                            on: current,
+                            arguments: args,
+                            node: call) {
+                        try relocating(call) {
+                            try target.writeOwned(invocation.receiver, self)
+                        }
+                        return invocation.result
                     }
                 }
             }

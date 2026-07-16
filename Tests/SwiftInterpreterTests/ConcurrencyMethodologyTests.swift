@@ -346,23 +346,24 @@ struct ConcurrencyMethodologyTests {
         })
         #expect(requirementRefs.contains(
             matrix.externalCapabilityAccounting.ownerRequirementRef))
-        #expect(matrix.executionPlan.currentTail.id == "actor-runtime-demand-cycle")
+        #expect(matrix.executionPlan.currentTail.id
+            == "async-sequence-continuation-demand-slice")
         #expect(matrix.executionPlan.currentTail.state == "active")
-        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M5"])
+        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M6"])
         #expect(Set(matrix.executionPlan.currentTail.requirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.currentTail.requirementRefs == [
-            "M5/actor-declaration-safety-boundary",
+            "M6/protocol-iteration-streams-and-continuations",
         ])
         #expect(matrix.executionPlan.nextMajorCycle.id
-            == "async-sequence-continuation-demand-slice")
+            == "swiftui-lifecycle-demand-cycle")
         #expect(matrix.executionPlan.nextMajorCycle.state
-            == "queued-behind-actor-runtime-demand-cycle")
-        #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M6")
+            == "queued-behind-async-sequence-continuation-demand-slice")
+        #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M8")
         #expect(Set(matrix.executionPlan.nextMajorCycle.entryRequirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.nextMajorCycle.entryRequirementRefs
-            == ["M6/protocol-iteration-streams-and-continuations"])
+            == ["M8/view-owned-async-lifecycle"])
         let requirementStatuses = Dictionary(uniqueKeysWithValues:
             matrix.milestones.flatMap { milestone in
                 milestone.requirements.map {
@@ -392,11 +393,12 @@ struct ConcurrencyMethodologyTests {
                 requirementMilestone[$0]
                     == matrix.executionPlan.nextMajorCycle.milestoneID
             })
-        let nextCycleMilestone = try #require(matrix.milestones.first {
-            $0.id == matrix.executionPlan.nextMajorCycle.milestoneID
-        })
-        #expect(Set(nextCycleMilestone.dependsOn).isSuperset(of:
-            Set(matrix.executionPlan.currentTail.milestoneIDs)))
+        #expect(matrix.executionPlan.currentTail.requirementRefs
+            .allSatisfy { reference in
+                requirementDependencies[reference, default: []].allSatisfy {
+                    requirementStatuses[$0] == .covered
+                }
+            }, "scheduled demand cycles require covered requirement dependencies")
         let openGapIDs = Set(openGaps.map(\.id))
         #expect(openGapIDs.count == openGaps.count)
         #expect(openGaps.allSatisfy {
@@ -451,12 +453,18 @@ struct ConcurrencyMethodologyTests {
             let openRequirements = milestone.requirements.filter {
                 $0.status == .open
             }
-            if milestone.status == .complete {
+            if milestone.status == .complete
+                || milestone.status == .provisional
+            {
                 #expect(milestone.requirements.allSatisfy { $0.status == .covered },
-                        "\(milestone.id) is complete without complete coverage")
+                        "\(milestone.id) closed its scoped work without complete coverage")
             }
-            if milestone.status == .provisional
-                || milestone.status == .partial
+            if milestone.status == .provisional {
+                #expect(milestone.dependsOn.contains {
+                    milestonesByID[$0]?.status != .complete
+                }, "a provisional milestone needs an incomplete broad dependency")
+            }
+            if milestone.status == .partial
                 || milestone.status == .notStarted
             {
                 #expect(!openRequirements.isEmpty,

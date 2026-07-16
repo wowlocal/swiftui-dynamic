@@ -131,13 +131,14 @@ status is undefined. Do not infer a calendar promise from fixture counts.
 
 At the end of an iteration, record requirements opened/closed, newly discovered
 gaps, gate duration, and dependency changes. Forecast only dependency-ready
-work and give a range when discovery risk is material. The current bounded
-closeout tail is M4's repeated-wait/new-work and executor-divergent task-group
-surface plus M7's explicitly incomplete generated inventory denominator. The
-M7 target-aware project-manifest boundary itself is covered. The next major
-runtime cycle is M5 actor/executor architecture. Dependency-ready actor
-characterization may proceed, but M5 cannot close until M4 and M7 are covered;
-M6 remains gated on M5 resume ownership.
+work and give a range when discovery risk is material. The demand-scoped M5
+actor cycle is covered and provisional: every scoped requirement has
+executable evidence, while its broad M4 and M7 dependencies retain explicitly
+owned partial-surface gaps. A provisional milestone may therefore close its
+own scoped requirements without claiming those broader dependencies complete.
+The active runtime cycle is M6 protocol iteration, streams, and continuations;
+its executor-owned resume prerequisite is the covered M5 identity/storage
+requirement. M8 view-owned async lifecycle is the queued next demand cycle.
 
 ## Process and liveness isolation
 

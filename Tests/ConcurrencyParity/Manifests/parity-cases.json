@@ -113,17 +113,13 @@
     "id": "actor-isolated-deinitializer",
     "fixture": "Fixtures/actor-isolated-deinitializer.swift",
     "mode": "runtime",
-    "assertion": "interpreter-diagnostic",
+    "assertion": "exact",
     "repetitions": 20,
     "timeoutSeconds": 5,
     "interpreterEntry": "await actorIsolatedDeinitializerProbe()",
     "interpreterProjection": "string",
-    "interpreterDiagnosticContains": [
-      "isolated deinitializer",
-      "executor-owned teardown"
-    ],
     "nativeFact": "An explicit isolated deinitializer on a MainActor-isolated class inherits that executor and runs before the next MainActor statement when final release already occurs there.",
-    "notes": "Native exact output is deinit in all repetitions. This proves only the already-owned synchronous fast path. The interpreter must fail closed because its general source ARC path cannot schedule executor-owned teardown; ordinary and explicit nonisolated deinitializers remain supported."
+    "notes": "Exact output is deinit in all repetitions. The interpreter's host Instance lifetime is MainActor-owned, so this covers the same already-owned synchronous fast path without claiming source-actor or user-global-actor teardown scheduling."
   },
   {
     "id": "actor-global-actor-deinitializer",
@@ -1799,5 +1795,41 @@
     "interpreterProjection": "string",
     "nativeFact": "For both supplied bare unqualified direct global async function values with plain explicit nonisolated declarations, one also @concurrent, extractIsolation returns nil. It only inspects each function value: neither supplied operation is invoked.",
     "notes": "Apple Swift 6.3.3 strict-concurrency compilation selects the active deprecated variadic-generic declaration. Twenty bounded native runs produce one exact observation. The fixture deliberately places uses in deprecated contexts; the shared NativeMain call site may still emit the expected deprecation warning. MainActor and arbitrary actor identities, unannotated functions under configurable default isolation, qualified or parenthesized references, local aliases, function-value conversions, member references, closure expressions, synchronous functions, and the replacement closure.isolation property remain outside this bare-unqualified-direct-global-async-declaration subset. No scheduling, suspension, executor-hop, or physical-thread behavior is asserted because extractIsolation is synchronous metadata inspection."
+  },
+  {
+    "id": "protocol-async-sequence-iteration",
+    "fixture": "Fixtures/protocol-async-sequence-iteration.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceIterationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Protocol for-await iteration obtains a user-defined AsyncSequence iterator and repeatedly awaits its mutating next() operation until nil. Each nonnil element is delivered exactly once; a real Task.yield suspension inside next() does not duplicate, skip, or terminate iteration.",
+    "notes": "Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 3:6. Count and a commutative sum avoid any scheduler-order claim; physical threads, unrelated ready-task order, throwing iteration, cancellation, early exit, and host-backed sequences are outside this first M6 success slice."
+  },
+  {
+    "id": "protocol-async-sequence-throwing",
+    "fixture": "Fixtures/protocol-async-sequence-throwing.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceThrowingProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "When a mutating AsyncIterator.next() throws a typed source error after two successful suspending results, for try await terminates without delivering an element for the throwing call and the enclosing case-specific catch handles that exact error.",
+    "notes": "Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 2:3:caught. Count and sum record only the two successful elements; the case-specific catch proves source-error identity without expanding this sequence test into associated-value catch-pattern support. Physical threads, unrelated scheduling, cancellation, early exit, and host-backed sequences are not asserted."
+  },
+  {
+    "id": "protocol-async-sequence-cancellation",
+    "fixture": "Fixtures/protocol-async-sequence-cancellation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceCancellationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling a task while a user AsyncIterator.next() is suspended does not automatically terminate for-await iteration. Cancellation remains cooperative: the iterator resumes, observes its task's request, may return an element that the loop consumes, and the task may complete successfully while remaining marked cancelled.",
+    "notes": "A MainActor gate forces cancel() after next() enters and before it resumes. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 1:7:true:true. The iterator chooses value 7 only when it observes cancellation, then returns nil on its next call. No physical-thread or unrelated ready-task order is asserted; cancellable streams are a separate M6 question."
   }
 ]

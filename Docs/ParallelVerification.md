@@ -91,6 +91,24 @@ bounded run covers. Do not let worker processes update a shared verification
 cache. When adding a new parallel board, emit counters whose summed `total`
 can be checked against the coordinator's original count.
 
+## Fast iteration loop
+
+Do not run the closing gate after every edit. Build the test bundle once, then
+run focused selections directly without re-entering SwiftPM:
+
+```sh
+swift build --build-tests
+Scripts/run-prebuilt-tests.sh --no-parallel --filter 'ARCSemanticsTests'
+Scripts/run-prebuilt-tests.sh --parallel --num-workers 6 \
+  --filter 'SwiftUpstreamParityTests'
+```
+
+Independent read-only selections may run concurrently because they do not
+contend for the SwiftPM workspace lock; suites that intentionally share an
+external fixture still need their documented isolation. Rebuild once after
+production or test source changes. Use the full source-bound gate only at an
+integration or milestone boundary.
+
 ## Gate stages and resource budget
 
 The gate intentionally uses stages instead of launching every possible worker
@@ -107,10 +125,13 @@ forced 680-project sweep took 624 seconds and reached 7.30 GB RSS. Process
 shards shorten each worker's lifetime, but their heaps overlap; CPU count alone
 must never be treated as a safe memory budget.
 
-The default global budget is `min(logicalCPU, 8)`. The test stage splits it in
-half between SwiftPM workers and concurrency-parity processes. Corpus and API
-parity each receive half while running together. Live receives at most four
-workers. A check also caps `--jobs` to its selected item count.
+The default global budget is `min(logicalCPU, 8)`. The test stage gives one
+quarter to ordinary Swift Testing workers and the remainder to
+concurrency-parity processes. The latter is now the long lane: 135 cases own
+2,662 fresh-process repetitions, while adding ordinary test workers stops
+helping much earlier. Corpus and API parity each receive half while running
+together. Live receives at most four workers. A check also caps `--jobs` to its
+selected item count.
 
 Reference measurements on 2026-07-14:
 
@@ -126,6 +147,16 @@ Reference measurements on 2026-07-14:
   445.68 CPU seconds. That near-1:1 ratio is evidence of an indivisible tail,
   not a reason to allocate more live workers.
 
+The runtime manifest subsequently grew from the early benchmark to 135 cases
+and 2,662 isolated repetitions. A 2026-07-17 closing receipt showed the
+four-shard parity lane still running long after the ordinary test worker pool
+had exited. The default test-stage split was therefore changed from 4+4 to
+2 ordinary workers + 6 parity shards on the eight-worker budget, without
+raising peak process count. Closing gates from separate worktrees should not
+overlap on one host: CPU contention lengthens both receipts and makes their
+stage timings useless. Lane iterations use focused prebuilt tests; the primary
+worktree runs the one full gate after integration.
+
 Treat these as comparison points, not permanent thresholds; corpus contents
 and toolchain versions change.
 
@@ -134,8 +165,8 @@ All allocations can be overridden:
 | Variable | Controls | Default |
 | --- | --- | --- |
 | `GATE_JOBS` | Base budget used by the formulas | `min(logicalCPU, 8)` |
-| `GATE_TEST_WORKERS` | Swift Testing `--num-workers` for tests other than the long parity test | half the base budget |
-| `GATE_PARITY_TEST_WORKERS` | Processes partitioning concurrency parity fixtures | remaining half |
+| `GATE_TEST_WORKERS` | Swift Testing `--num-workers` for tests other than the long parity test | one quarter of the base budget, at least one |
+| `GATE_PARITY_TEST_WORKERS` | Processes partitioning concurrency parity fixtures | the remaining test-stage budget |
 | `GATE_EVAL_WORKERS` | Workers per `ProjectCheck` and `ParityCheck` while those boards overlap | half the base budget |
 | `GATE_LIVE_WORKERS` | LiveCheck processes in its isolated stage | `min(base, 4)` |
 | `GATE_BUILD_TIMEOUT_SECONDS` | Whole build-stage deadline | `1800` |

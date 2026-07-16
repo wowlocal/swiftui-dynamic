@@ -46,8 +46,12 @@ the interpreter still combines program/session/heap responsibilities. A
 runtime-owned mailbox now serializes actor-function segments and releases a
 complete depth-counted segment across canonical runtime waits before queuing
 the same task to reacquire it on resume. There is still no general runnable-
-executor queue, continuation registry, or protocol-level async-sequence
-runtime. The remaining Task API work is a
+executor queue or continuation registry. M6 has begun with protocol-driven
+`for await` over interpreted witnesses, including suspending mutating iterator
+copy-out, typed source-error propagation, and cooperative user-iterator
+cancellation; early-exit paths, host-backed sequences, cancellable streams,
+and continuations remain open. The remaining
+Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
 name-dispatched Task API surface.
@@ -227,7 +231,7 @@ resume point or executor queue:
 
 - actor executor hops;
 - continuations;
-- general async sequences/streams;
+- stream producer/consumer suspension and continuation-backed sequences;
 - runtime-controlled scheduling and replay.
 
 The target evaluator must represent suspension as a first-class execution
@@ -1076,25 +1080,52 @@ not inherit that claim.
 The unchanged pinned `isolated_deinit_main_sync.swift` fixture answers the
 narrow next question: an explicitly `@MainActor` deinitializer runs
 synchronously when its final release already owns MainActor. That legal fast
-path does not justify the interpreter's previous behavior, because source ARC
-may release the same value from another executor and `Instance` teardown is
-currently synchronous. Declaration collection therefore fails closed on an
-explicit `@MainActor deinit` before its body can be stored or executed. An
-ordinary actor deinitializer remains nonisolated and supported. General
-executor-scheduled teardown is still unavailable. A repository-owned
-same-source probe now establishes that `isolated deinit` on a MainActor class
-inherits that executor and may use the already-owned synchronous fast path.
-The interpreter previously discarded this modifier and ran the body inline;
-declaration collection now fails closed before storing it. Explicit
+path is available to the interpreter for a structural reason: the host
+`Instance` representation is itself `@MainActor`, and its host
+`isolated deinit` is scheduled by Swift before it calls back into the source
+deinitializer runner. The collector therefore records `.mainActor` executor
+metadata for an explicit `@MainActor deinit` and for `isolated deinit` on a
+MainActor nominal. The common runner applies that metadata to both the dynamic
+and lexical source executor while executing the body, restores the caller,
+and then continues superclass teardown. The unchanged upstream FileCheck and
+the repository-owned same-source probe both have exact parity for this
+MainActor-owned path. Ordinary deinitializers remain nonisolated, including on
+actor-annotated enclosing types.
+
+This support is intentionally capability-based rather than syntax-wide.
+`isolated deinit` on a source actor still needs that instance's mailbox, and
+an explicit user-global-actor deinitializer needs its canonical source actor;
+the MainActor-owned host lifetime provides neither capability. Those forms are
+classified after forward declarations, qualified nested types, and aliases
+resolve, and their owning nominal fails closed at first construction. Explicit
 `nonisolated deinit` remains supported. A second repository-owned same-source
 probe establishes the corresponding already-owned fast path for an explicit
 user-declared global-actor deinitializer. The interpreter now resolves
 forward declarations, qualified nested types, and typealiases before deciding
-whether an explicit deinitializer attribute names `@globalActor`, then fails
-closed before its body can run. An actor annotation on the enclosing class
-alone does not change Swift's ordinary nonisolated-deinitializer rule. Custom
-actor executors remain the separate safety-boundary question.
-The per-feature fail-closed safety boundary remains open M5 work.
+whether an explicit deinitializer attribute names `@globalActor`, then marks
+the owning nominal so construction fails before its body can ever run. An
+actor annotation on the enclosing class
+alone does not change Swift's ordinary nonisolated-deinitializer rule.
+
+The unchanged pinned swiftlang `custom_executors.swift` fixture establishes
+that a source actor's `unownedExecutor` changes isolated dispatch: Swift asks
+for the property on every isolated entry, and the method runs on the returned
+serial executor rather than the actor's default executor. The interpreter's
+cooperative actor mailbox is therefore not an equivalent fallback. After
+extensions and protocol refinements are resolved, actor symbols are marked
+when `unownedExecutor` is supplied directly as computed or stored state, or by
+a protocol-extension default. Declaration and initialization remain legal;
+the common isolated method, accessor, isolated-parameter, global-actor, and
+stored-property entry paths fail closed before running source-isolated code.
+Nonisolated members remain available, and a same-named non-actor property is
+ordinary. This preserves real projects that collect a custom-executor actor
+without silently pretending its isolated work uses Swift's chosen executor.
+Full custom serial-executor scheduling remains unsupported and is not confused
+with logical actor mailbox ownership or M9 physical parallelism.
+
+That disposition closes the demand-scoped per-feature M5 safety boundary. M5
+is provisional rather than complete while its broad M4 and M7 prerequisite
+milestones retain explicitly owned partial-surface gaps.
 
 ### 6.13 Cancellation
 
@@ -1314,6 +1345,26 @@ The evaluator implements `for await` in terms of:
 - producer continuations;
 - cancellation and termination callbacks;
 - a documented buffering policy.
+
+The current M6 slices implement the protocol lowering for finite interpreted
+sequences. The runtime evaluates the sequence once, calls
+`makeAsyncIterator()` once, repeatedly invokes suspending `next()`, unwraps
+exactly one optional layer, and stops requesting elements after `nil`. A
+value-type iterator uses the same suspension-aware
+mutating-method copy-in/copy-out kernel as an explicit
+`await iterator.next()` call; direct witness dispatch may not discard its
+state. A typed error from `next()` exits the loop and propagates through the
+ordinary source-error path without delivering an element for that call.
+Cancellation of the consuming task does not itself end a general protocol
+iteration: after a controlled suspension the iterator may resume, observe the
+request, return an element, and later return `nil`, while the successful task
+and its handle remain marked cancelled. This is cooperative iterator behavior,
+not evidence for `AsyncStream` consumer termination.
+Compiler preflight owns conformance legality. Runtime dispatch remains
+value-based so protocol-extension witnesses and generated host methods can use
+the same path once their focused evidence lands. Early-exit/defer, host
+bridging, cancellable stream registries, and continuation ownership
+are not inherited from this success claim.
 
 ### 6.19 Host gateway runtime
 
@@ -1877,20 +1928,24 @@ Each milestone is independently gated through
   arbitrary-actor operation executors) are demand-deferred — they reopen only
   when a real interpreted program fails on a cited declaration — so M4 stays
   partial by design;
-- M5 actor/executor architecture is the active cycle, ordered by measured
-  demand (see below): actor identity/storage and serial hops first, then
-  reentrancy/isolated dispatch, then the per-feature fail-closed boundary;
-- the M6 demand slice (protocol `for await` iteration, `AsyncStream`, checked
-  continuations resuming on cooperative-default/MainActor executors) requires
-  executor-owned resume from the M5 identity/storage slice, not full M5
-  closure;
+- M5 actor/executor architecture has closed its demand-scoped cycle: actor
+  identity/storage and serial hops, reentrancy/isolated dispatch, and the
+  per-feature fail-closed boundary are covered; the milestone is provisional
+  while its broad M4/M7 dependencies remain partial;
+- the M6 demand slice is active and partial. Finite success, typed source
+  failure, and cooperative user-iterator cancellation for protocol `for await`
+  over interpreted witnesses are covered; early-exit and host-bridged
+  iteration, cancellable `AsyncStream` consumers, and
+  checked continuations resuming on cooperative-default and
+  MainActor executors require executor-owned resume from the covered M5
+  identity/storage slice, not complete custom-executor scheduling;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
   the M6 slice; and
 - M9 remains deferred until the ownership/isolation/lifecycle prerequisites are
   complete.
 
-M5 is intentionally decomposed, and its slices are ordered so that no flip to
+M5 was intentionally decomposed, and its slices were ordered so that no flip to
 fail-closed rejection lands before the replacement runtime exists. The covered
 entry slice installs actor identity/storage, serial executor hops, and
 replayable mailbox stress for the measured demand shapes — `@MainActor`
@@ -1898,10 +1953,10 @@ isolation and user-declared global actors of the FoodTruck StoreActor shape —
 while valid actor declarations keep executing through the documented
 class-like compatibility path. The second slice now covers arbitrary
 struct-/enum-backed global-actor capabilities and defaulted isolated dispatch.
-The active final slice flips each actor feature to
-fail-closed diagnosis as its replacement lands; a global up-front rejection
-is forbidden while FoodTruckCheck, ProjectCheck, and suite ratchets execute
-through the compatibility path, because board ratchets may never decrease.
+The final slice flipped each remaining actor feature to fail-closed diagnosis
+as its replacement landed. Custom-executor declarations are collected, but
+their isolated entry fails explicitly; a global up-front rejection remains
+forbidden because corpus and application ratchets may never decrease.
 
 A dependency-ready characterization may land before an earlier partial
 milestone closes. It must not claim guarantees supplied by an open dependency,
@@ -2075,6 +2130,10 @@ demand slice covers protocol `for await` iteration,
 `AsyncStream`/`AsyncThrowingStream`, and checked continuations resuming on
 cooperative-default and MainActor executors, including host-bridged async
 sequences of the StoreKit update-stream shape, before the remaining surface.
+The finite interpreted-witness success and typed-error paths are covered;
+cooperative cancellation of a consuming task while `next()` is suspended is
+also characterized. Every remaining item in this paragraph stays in the active
+requirement rather than being inferred from those first slices.
 
 Deliverables:
 

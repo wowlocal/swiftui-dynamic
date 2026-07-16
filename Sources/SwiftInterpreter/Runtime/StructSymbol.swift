@@ -153,10 +153,24 @@ public final class StructSymbol {
     /// uses its logical executor; storage confinement and mailboxes remain a
     /// later runtime slice.
     public internal(set) var isActor = false
+    /// A source-defined `unownedExecutor` replaces Swift's default actor
+    /// executor. The cooperative mailbox cannot stand in for that capability;
+    /// isolated entry fails closed until custom serial executors are modeled.
+    public internal(set) var requiresCustomExecutorDispatch = false
     /// Declared `deinit` body. Source-class `Instance` values use host ARC;
     /// their final release delegates back to the interpreter to run this body.
     /// Explicit lifecycle cleanup remains supported and is idempotent.
     public internal(set) var deinitBody: CodeBlockSyntax?
+    /// Executor that owns a deinitializer the runtime can execute faithfully.
+    /// `Instance` itself is MainActor-isolated, so MainActor teardown already
+    /// has a real host-executor capability; source-actor and user-global-actor
+    /// teardown stay rejected until their executor capabilities can be owned.
+    public internal(set) var deinitializerExecutor: RuntimeExecutorKind?
+    /// Constructing this nominal would create a lifetime whose final release
+    /// requires executor-owned teardown. Collection stays legal so unrelated
+    /// project types do not fail up front; the common instance seed rejects
+    /// the first actual construction until that teardown can be scheduled.
+    public internal(set) var executorOwnedDeinitializerError: RuntimeError?
     public internal(set) var conformsToObservableObject = false
     public internal(set) var observableViaMacro = false
     public struct StaticProperty {

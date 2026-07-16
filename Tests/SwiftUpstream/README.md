@@ -36,7 +36,7 @@ a test reaches it only after native Swift 6 compilation and deterministic
 interpreter review. The inventory makes unsupported cases visible without
 pretending that an unexecuted upstream test passes.
 
-The current concurrency allowlist contains fourteen unchanged runtime fixtures.
+The current concurrency allowlist contains fifteen unchanged runtime fixtures.
 `async_taskgroup_is_empty.swift` is the first fixture whose admission is backed
 by dispatch generated from the active SDK's `_Concurrency.swiftinterface`; it
 also exercises the SDK's deprecated `TaskGroup.async` compatibility spelling.
@@ -58,10 +58,18 @@ deinitializer still runs after its last reference is released following an
 isolated method entry; it does not claim isolated-deinitializer scheduling.
 `isolated_deinit_main_sync.swift` proves that native Swift accepts and runs an
 explicit `@MainActor deinit` when release already occurs on MainActor. The
-interpreter deliberately rejects that declaration because its synchronous ARC
-path cannot yet guarantee executor-owned teardown for every release. This is a
-native-positive, interpreter-negative safety boundary, not an executor-parity
-claim.
+interpreter now satisfies the same unchanged FileCheck oracle: its host
+`Instance` lifetime has a real MainActor-owned isolated deinitializer, and the
+source body runs with logical MainActor metadata before superclass teardown.
+Source-actor and user-global-actor teardown remain separate fail-closed
+boundaries; no custom-executor or physical-worker claim follows from this case.
+`custom_executors.swift` proves that an actor's source-defined
+`unownedExecutor` selects a different serial executor for isolated entry. The
+interpreter deliberately rejects isolated entry for such an actor because its
+cooperative mailbox cannot substitute for the source-selected executor.
+Declaration, initialization, and nonisolated access remain available; this is
+also a native-positive, interpreter-negative safety boundary rather than a
+custom-executor support claim.
 
 Every allowlisted fixture has a manifest SHA-256, so a local edit fails before
 native/interpreted comparison instead of silently weakening the pinned oracle.

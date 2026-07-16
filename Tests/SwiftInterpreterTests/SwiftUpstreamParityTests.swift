@@ -349,7 +349,7 @@ struct SwiftUpstreamParityTests {
         #expect(manifest.repository == "https://github.com/swiftlang/swift.git")
         #expect(manifest.revision == "swift-6.3.3-RELEASE")
         #expect(manifest.commit == "064859e41d68596f486c5d724401cb370f260409")
-        #expect(manifest.cases.count == 27)
+        #expect(manifest.cases.count == 28)
         #expect(Set(manifest.cases.map(\.id)).count == manifest.cases.count)
         #expect(Set(manifest.cases.map(\.upstreamPath)).count
             == manifest.cases.count)
@@ -367,7 +367,7 @@ struct SwiftUpstreamParityTests {
             $0.assertion != .diagnostic
                 && $0.assertion != .interpreterDiagnostic
         }
-        #expect(executableCases.count == 23)
+        #expect(executableCases.count == 24)
         #expect(manifest.cases.count {
             $0.assertion == .interpreterDiagnostic
         } == 1)
@@ -444,10 +444,31 @@ struct SwiftUpstreamParityTests {
     }
 
     @Test
-    func mainActorDeinitializerFailsClosedAgainstPinnedOracle() async throws {
+    func mainActorDeinitializerMatchesPinnedOracle() async throws {
         let manifest = try SwiftUpstreamParityHarness.loadManifest()
         let parityCase = try #require(manifest.cases.first {
             $0.id == "concurrency-main-actor-deinitializer"
+                && $0.assertion == .fileCheck
+        })
+        let source = try SwiftUpstreamParityHarness.source(for: parityCase)
+        let native = try SwiftUpstreamParityHarness.nativeOutput(
+            for: parityCase)
+        #expect(try SwiftUpstreamFileCheck.violations(
+            source: source, output: native).isEmpty,
+            Comment(rawValue: native))
+
+        let interpreted = try await SwiftUpstreamParityHarness
+            .interpretedOutput(for: parityCase)
+        #expect(try SwiftUpstreamFileCheck.violations(
+            source: source, output: interpreted).isEmpty,
+            Comment(rawValue: interpreted))
+    }
+
+    @Test
+    func customActorExecutorFailsClosedAgainstPinnedOracle() async throws {
+        let manifest = try SwiftUpstreamParityHarness.loadManifest()
+        let parityCase = try #require(manifest.cases.first {
+            $0.id == "concurrency-custom-actor-executor"
                 && $0.assertion == .interpreterDiagnostic
         })
         let source = try SwiftUpstreamParityHarness.source(for: parityCase)
@@ -461,7 +482,7 @@ struct SwiftUpstreamParityTests {
             let output = try await SwiftUpstreamParityHarness
                 .interpretedOutput(for: parityCase)
             Issue.record(Comment(rawValue:
-                "isolated deinitializer unexpectedly ran: "
+                "custom actor executor unexpectedly ran: "
                     + String(reflecting: output)))
         } catch let error as RuntimeError {
             for fragment in parityCase.interpreterDiagnosticContains ?? [] {
@@ -669,14 +690,23 @@ struct SwiftUpstreamParityTests {
                     "-swift-version", "6",
                     "-strict-concurrency=complete",
                     "-parse-as-library",
-                ]
-            case .interpreterDiagnostic:
-                parityCase.compilerArguments == [
+                ] || parityCase.compilerArguments == [
                     "-swift-version", "6",
                     "-strict-concurrency=complete",
                     "-warnings-as-errors",
                     "-default-isolation", "MainActor",
-                ] && parityCase.interpreterDiagnosticContains?.isEmpty == false
+                ]
+            case .interpreterDiagnostic:
+                (parityCase.compilerArguments == [
+                    "-swift-version", "6",
+                    "-strict-concurrency=complete",
+                    "-parse-as-library",
+                ] || parityCase.compilerArguments == [
+                    "-swift-version", "6",
+                    "-strict-concurrency=complete",
+                    "-warnings-as-errors",
+                    "-default-isolation", "MainActor",
+                ]) && parityCase.interpreterDiagnosticContains?.isEmpty == false
             case .exact, .diagnostic, nil:
                 false
             }
