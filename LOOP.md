@@ -1512,3 +1512,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   suite/live/parity and all lane pins are green. Close-merge DEFERRED
   per worktree protocol until the upstream class lands its
   implementation and the floor recovers.
+- 2026-07-17 socialfeed FlowLayout class (worktree iteration 8):
+  **17.155% → 10.789%** — the tag pills flow. Three interpreter
+  semantics gaps, bisected with PLACE/SIZEQ traces and distilled
+  probes, every fix core/shared-tier: (1) LOCAL FUNCTIONS HOIST —
+  FlowResult's for-loop calls finalizeRow/addToRow declared AFTER it;
+  executeBlock now binds function decls up front (closures capture the
+  environment OBJECT, so later vars resolve at call time). (2) stdlib
+  `zip` — `for (index, subview) in zip(subviews.indices, subviews)`
+  silently absorbed to zero iterations; a zip builtin pairs runtime
+  sequences (arrays/ranges/strings) as unlabeled tuples. (3) the
+  native factory now bridges CGFloat/Float into .double as its own doc
+  comment promised — ViewSpacing.distance returned a host CGFloat that
+  `'+' cannot combine 95.5 and 8.0` refused (the error that named the
+  class). Plus the Layout gateway grew its documented ViewSpacing face
+  (LayoutSubviewBox.spacing, ViewSpacing() ctor,
+  distance(to:along:)). Remaining socialfeed residue: donut/city pill
+  thumbnails (placeholder squares), post avatar circles. Pins:
+  InterpreterScopeAndSequenceTests (hoisting + self-mutation, zip
+  tuples, nested-row build). Upstream corpus floor still 674/680
+  (isolated-deinit staging) — close-merge remains deferred.

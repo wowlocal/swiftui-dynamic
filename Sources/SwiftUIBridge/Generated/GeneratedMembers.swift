@@ -472,7 +472,7 @@ extension GeneratedMembers {
         registerProperty(&t, "var Double.floatingPointClass: FloatingPointClassification { get }", get: { base in
             (base as? Double).map { generatedMemberResult($0.floatingPointClass) }
         })
-        registerProperty(&t, "var Double.nextDown: Self { get }", get: { base in
+        registerProperty(&t, "var Double.nextDown: Double { get }", get: { base in
             (base as? Double).map { generatedMemberResult($0.nextDown) }
         })
         registerProperty(&t, "var IndexPath.count: Int { get }", get: { base in
@@ -529,7 +529,7 @@ extension GeneratedMembers {
         registerProperty(&t, "var IndexSet.startIndex: IndexSet.Index { get }", get: { base in
             (base as? IndexSet).map { generatedMemberResult($0.startIndex) }
         })
-        registerProperty(&t, "var Int.bigEndian: Self { get }", get: { base in
+        registerProperty(&t, "var Int.bigEndian: Int { get }", get: { base in
             (base as? Int).map { generatedMemberResult($0.bigEndian) }
         })
         registerProperty(&t, "var Int.bitWidth: Int { get }", get: { base in
@@ -538,7 +538,7 @@ extension GeneratedMembers {
         registerProperty(&t, "var Int.description: String { get }", get: { base in
             (base as? Int).map { generatedMemberResult($0.description) }
         })
-        registerProperty(&t, "var Int.littleEndian: Self { get }", get: { base in
+        registerProperty(&t, "var Int.littleEndian: Int { get }", get: { base in
             (base as? Int).map { generatedMemberResult($0.littleEndian) }
         })
         registerProperty(&t, "var Locale.alternateQuotationBeginDelimiter: String? { get }", get: { base in

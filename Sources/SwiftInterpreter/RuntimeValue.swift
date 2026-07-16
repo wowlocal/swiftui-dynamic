@@ -96,6 +96,8 @@ public enum RuntimeValue {
     public static func native(_ value: Any) -> RuntimeValue {
         if let i = value as? Int { return .int(i) }
         if let d = value as? Double { return .double(d) }
+        if let g = value as? CGFloat { return .double(Double(g)) }
+        if let f = value as? Float { return .double(Double(f)) }
         if let b = value as? Bool { return .bool(b) }
         if let string = value as? String { return .string(string) }
         if let array = value as? [RuntimeValue] { return .array(array) }

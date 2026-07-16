@@ -547,6 +547,8 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                 height: try Coerce.cgFloat(args.labeled("height") ?? .native(0))
             ))
         }
+    case "ViewSpacing":
+        return HostFunction(name: name) { _, _ in .native(ViewSpacing()) }
     case "UnitPoint":
         return HostFunction(name: name) { args, _ in
             .native(UnitPoint(

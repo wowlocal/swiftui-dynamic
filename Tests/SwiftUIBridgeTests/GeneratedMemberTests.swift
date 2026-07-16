@@ -466,6 +466,9 @@ import SwiftInterpreter
             "DateComponents": dateComponents,
             "DateInterval": DateInterval(start: seedDate, duration: 3_600),
             "Decimal": Decimal(string: "12.5")!,
+            // Protocol-receiver carriers (the stdlib sweep's numeric surface).
+            "Int": 42,
+            "Double": 3.5,
             "IndexPath": IndexPath(indexes: [1, 3, 5]),
             "IndexSet": IndexSet(integersIn: 1..<6),
             "Locale": Locale(identifier: "en_US"),

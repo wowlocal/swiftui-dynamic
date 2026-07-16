@@ -17,6 +17,17 @@ extension Interpreter {
     func executeBlock(_ items: CodeBlockItemListSyntax, in env: Environment) throws -> StatementResult {
         var last: RuntimeValue = .void
         var deferredBodies: [CodeBlockItemListSyntax] = []
+        // Local functions HOIST: a call may precede the declaration in the
+        // same scope (FoodTruck's FlowLayout declares finalizeRow/addToRow
+        // after the loop that calls them). Bind them up front — the closure
+        // captures the environment OBJECT, so later `var`s still resolve at
+        // call time through the live scope chain.
+        for item in items {
+            if case .decl(let decl) = item.item,
+               let funcDecl = decl.as(FunctionDeclSyntax.self) {
+                try defineFunction(funcDecl, in: env)
+            }
+        }
         // Interpreted `defer` bodies run LIFO on every exit path (normal,
         // return/break/continue, interpreted throw). Like real Swift, a
         // defer body itself cannot redirect control flow outward.

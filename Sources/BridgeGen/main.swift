@@ -1116,9 +1116,14 @@ func processMemberProperty(_ typeName: String, _ variable: VariableDeclSyntax, g
     let name = pattern.identifier.text
     guard !name.hasPrefix("_") else { return }
     memberPropertyTotal += 1
-    guard let rawType = binding.typeAnnotation?.type.trimmedDescription else {
+    guard var rawType = binding.typeAnnotation?.type.trimmedDescription else {
         memberBlockers["untyped property", default: 0] += 1
         return
+    }
+    if normalize(rawType) == "Self", currentSelfCarrier != nil {
+        // Protocol-receiver expansion: Self-typed properties contract as
+        // the concrete carrier (Int.bigEndian: Int).
+        rawType = typeName
     }
     if rawType.contains("some ") {
         memberBlockers["opaque property", default: 0] += 1
@@ -1706,6 +1711,8 @@ let seedIndexSet = IndexSet([1, 2, 3, 9])
 let seedDecimal = Decimal(string: "3.14159")!
 let seedIndexPath = IndexPath(indexes: [1, 3])
 let seedPersonName = PersonNameComponents(givenName: "Ada", familyName: "Lovelace")
+let seedInt = 42
+let seedDouble = 3.5
 """
 
 let seedReceivers: [String: String] = [
@@ -1716,6 +1723,8 @@ let seedReceivers: [String: String] = [
     "URLRequest": "seedRequest", "CharacterSet": "seedCharset", "IndexSet": "seedIndexSet",
     "Decimal": "seedDecimal", "IndexPath": "seedIndexPath",
     "PersonNameComponents": "seedPersonName",
+    // Protocol-receiver carriers (the stdlib sweep's Int/Double surface).
+    "Int": "seedInt", "Double": "seedDouble",
 ]
 
 func probeArgument(for tag: String) -> String? {
