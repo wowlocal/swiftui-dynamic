@@ -1058,7 +1058,11 @@ while explicit nil remains nil. The
 `actor-arbitrary-global-actor-isolation` fixture proves the corresponding
 canonical capability and mailbox ownership for both struct- and enum-backed
 global actors whose `shared` values have distinct source-actor types. The
-per-feature fail-closed safety boundary remains open M5 work.
+`actor-task-local-propagation` fixture proves that actor entry changes only
+the task's required executor: the same task-owned local map remains visible
+inside the actor, survives release/reacquisition across suspension, and is
+restored at dynamic-scope exit while each source segment owns the mailbox.
+The per-feature fail-closed safety boundary remains open M5 work.
 
 ### 6.13 Cancellation
 
@@ -1131,6 +1135,11 @@ detached creation starts from an empty map unless a separately verified task
 kind says otherwise. Dynamic binding restoration uses structured cleanup so
 throwing and cancelled exits cannot strand the replacement value. Completed
 task contexts clear their maps together with the rest of their dynamic state.
+An actor hop does not create a task or copy its task-local map. It changes the
+current task's logical executor, releases that actor lease at suspension, and
+reacquires the lease before continuing with the same map. The committed actor
+task-local fixture pins the binding before and after that transition plus
+scope restoration and task/actor cleanup.
 
 A source `@TaskLocal` declaration is keyed by declaration identity, never by
 its textual member name. Host integrations may use explicitly namespaced

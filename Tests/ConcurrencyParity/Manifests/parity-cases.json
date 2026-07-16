@@ -110,6 +110,18 @@
     "notes": "Exact output is none:owned:5 in all 20 Swift 6.3.3 runs. The fixture proves initialization isolation, retained state, and post-initialization mailbox ownership without asserting physical threads or unrelated message order."
   },
   {
+    "id": "actor-task-local-propagation",
+    "fixture": "Fixtures/actor-task-local-propagation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorTaskLocalPropagationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A task-local dynamic binding follows the calling task across an actor hop and remains visible after the actor-isolated method suspends and reacquires its executor.",
+    "notes": "Exact output is default:owned|bound:owned|bound:owned>bound:owned|default:owned in all 20 Swift 6.3.3 runs. The fixture proves task-local restoration and mailbox ownership without asserting FIFO, physical threads, or independent-message order."
+  },
+  {
     "id": "actor-serial-segment",
     "fixture": "Fixtures/actor-serial-segment.swift",
     "mode": "runtime",

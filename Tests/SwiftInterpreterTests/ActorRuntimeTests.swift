@@ -150,6 +150,80 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func actorHopPreservesTaskLocalStorageAcrossSuspension() async throws {
+        struct Observation {
+            let taskID: RuntimeTaskID
+            let taskKind: RuntimeTaskKind
+            let actorID: RuntimeActorID
+            let taskLocalCount: Int
+            let ownsActor: Bool
+        }
+
+        let interpreter = Interpreter()
+        var observations: [Observation] = []
+        var retainedStorage: RuntimeTaskLocalStorage?
+        var recordStorageMatched = true
+        interpreter.globals.define(
+            "parityActorSegmentOwnership",
+            .hostFunction(HostFunction(
+                name: "parityActorSegmentOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      let record = interpreter.concurrencyRuntime
+                        .records[taskID] else {
+                    return .native("unowned")
+                }
+                let storage = interpreter.evaluationTaskContext.taskLocals
+                retainedStorage = storage
+                recordStorageMatched = recordStorageMatched
+                    && record.taskLocals === storage
+                let ownsActor = context.sourceExecutor.actorID == actorID
+                    && interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID
+                observations.append(Observation(
+                    taskID: taskID,
+                    taskKind: record.kind,
+                    actorID: actorID,
+                    taskLocalCount: storage.count,
+                    ownsActor: ownsActor))
+                return .native(ownsActor ? "owned" : "unowned")
+            }))
+
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("actor-task-local-propagation.swift")
+        let declarations = try String(contentsOf: fixture, encoding: .utf8)
+        let result = try await interpreter.runAsync(source:
+            declarations + "\nawait actorTaskLocalPropagationProbe()\n")
+        let taskLocal = try #require(
+            interpreter.enumSymbols["ParityActorTaskLocal"]?
+                .taskLocalProperties["value"])
+
+        #expect(result.stringValue
+            == "default:owned|bound:owned|bound:owned>bound:owned|default:owned")
+        #expect(observations.count == 5)
+        #expect(Set(observations.map(\.taskID)).count == 1)
+        #expect(Set(observations.map(\.actorID)).count == 1)
+        #expect(observations.allSatisfy { $0.taskKind == .root })
+        #expect(observations.map(\.taskLocalCount) == [0, 1, 1, 1, 0])
+        #expect(observations.allSatisfy { $0.ownsActor })
+        #expect(recordStorageMatched)
+        #expect(taskLocal.cachedDefault?.stringValue == "default")
+        #expect(retainedStorage?.isEmpty == true)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test
     func actorMailboxSuspendsHandsOffAndReleasesRuntimeEdges() async throws {
         let interpreter = Interpreter()
         _ = try interpreter.run(source: "actor MailboxProbe {}")
