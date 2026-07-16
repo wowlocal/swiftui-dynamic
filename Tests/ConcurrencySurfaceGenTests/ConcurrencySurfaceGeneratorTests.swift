@@ -16,6 +16,7 @@ struct ConcurrencySurfaceGeneratorTests {
             "async": "unstructuredTask",
             "asyncDetached": "detachedTask",
             "detach": "detachedTask",
+            "extractIsolation": "extractIsolation",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
             "withTaskExecutorPreference": "withTaskExecutorPreference",
@@ -69,6 +70,18 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.label == "isolation" && $0.isIsolated
                 && $0.defaultValue == "#isolation"
         })
+        let extractIsolation = try #require(
+            inventory.topLevelFunctionDeclarations["extractIsolation"]?.first)
+        #expect(!extractIsolation.isAsync)
+        #expect(extractIsolation.throwsKind == .nonThrowing)
+        #expect(extractIsolation.returnType == "(any Actor)?")
+        #expect(extractIsolation.parameters.count == 1)
+        #expect(extractIsolation.parameters.first?.label == nil)
+        #expect(extractIsolation.parameters.first?.name == "fn")
+        #expect(extractIsolation.parameters.first?.type.contains(
+            "@isolated(any)") == true)
+        #expect(extractIsolation.parameters.first?.type.contains(
+            "repeat each Arg") == true)
 
         let withTaskGroup = try #require(
             inventory.topLevelFunctionDeclarations["withTaskGroup"]?.first)
@@ -371,7 +384,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 171)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 122)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 123)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 49,
             "task-static-member": 25,
@@ -419,6 +432,11 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.domain == "top-level-function"
                 && $0.name == "withTaskExecutorPreference"
                 && $0.adapterIntrinsic == "withTaskExecutorPreference"
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "top-level-function"
+                && $0.name == "extractIsolation"
+                && $0.adapterIntrinsic == "extractIsolation"
         })
         #expect(capabilities.declarations.contains {
             $0.domain == "top-level-function"
@@ -482,7 +500,8 @@ struct ConcurrencySurfaceGeneratorTests {
             interfaceSource: interfaceSource)
         #expect(Set(inventory.topLevelFunctionDispatch.keys) == [
             "_isolatedParameter_withTaskPriorityEscalationHandler",
-            "async", "asyncDetached", "detach", "withDiscardingTaskGroup",
+            "async", "asyncDetached", "detach", "extractIsolation",
+            "withDiscardingTaskGroup",
             "withTaskCancellationHandler", "withTaskExecutorPreference",
             "withTaskGroup",
             "withTaskPriorityEscalationHandler",
@@ -711,6 +730,10 @@ struct ConcurrencySurfaceGeneratorTests {
         operation: () async throws -> Result,
         onCancel handler: @Sendable () -> Void
     ) async rethrows -> Result { fatalError() }
+    public func extractIsolation<each Arg, Result>(
+        _ fn: @escaping @isolated(any)
+            (repeat each Arg) async throws -> Result
+    ) -> (any Actor)? { fatalError() }
     public func withTaskExecutorPreference<T, Failure>(
         _ taskExecutor: (any TaskExecutor)?,
         isolation: isolated (any Actor)? = #isolation,

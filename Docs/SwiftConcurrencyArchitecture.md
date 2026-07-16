@@ -787,14 +787,18 @@ The committed incremental subset is deliberately narrow:
 - the unlabeled task-executor argument is explicitly `nil`;
 - `isolation:` is present and explicitly `nil` rather than omitted as
   `#isolation`;
-- `operation:` is a named function with a plain explicit `nonisolated`
-  modifier.
+- `operation:` is a bare, unqualified identifier reference to a global `async`
+  function declaration with a plain explicit `nonisolated` modifier and no
+  declaration-level executor preference; `@concurrent` is outside this subset.
 
 Plain explicit nonisolation is tracked as independent closure metadata. A nil
 `ClosureValue.executorPreference` is not sufficient proof: it also represents
-custom actor kinds whose identity is not modeled yet. Closure expressions,
-actor-isolated functions, and `nonisolated(nonsending)` functions therefore
-fail closed in this subset instead of being reclassified from dynamic caller
+custom actor kinds whose identity is not modeled yet. Call-site provenance
+separately proves the bare, unqualified global declaration boundary, so
+qualified or parenthesized references, local aliases, annotated conversions,
+member references, closure expressions, `@concurrent`/actor-isolated
+functions, and `nonisolated(nonsending)` functions fail closed instead of
+reusing stale declaration metadata or being reclassified from dynamic caller
 state.
 
 Native `withTaskExecutorPreference(nil)` inherits an ambient custom preference;
@@ -811,6 +815,32 @@ scope returns. They also cover suspension, native high-priority raw value,
 name, task-local state, exact success/failure, and cleanup. Non-nil task
 executors, ambient-preference inheritance, omitted or non-nil isolation,
 arbitrary actors, and resume-executor behavior remain M5 work.
+
+#### `extractIsolation` reflects function-value metadata
+
+`extractIsolation` is synchronous reflection over a function value. It never
+invokes the supplied operation, creates a source task, suspends, or changes the
+current executor. The incremental M7 subset accepts only a bare, unqualified
+identifier reference to a global `async` function declaration carrying a plain
+explicit `nonisolated` modifier, including a function that also carries
+`@concurrent`, and returns `nil`.
+
+This result comes from declaration provenance, not from a nil executor
+preference or the executor on which the function value is inspected. Implicitly
+nonisolated declarations, synchronous functions, qualified or parenthesized
+references, local aliases, closure expressions, annotated function-value
+conversions, member references, `nonisolated(nonsending)`, and
+MainActor/custom-actor functions therefore fail closed until their value-level
+isolation identity is modeled. The runtime must not infer an actor from the
+current executor, a receiver, captured `self`, or declaration metadata that
+survived a conversion.
+
+The complete M5 model attaches canonical function-value isolation metadata at
+formation and conversion boundaries, conceptually distinguishing
+`nonisolated`, `actor(capability)`, and `unknown`. Both `extractIsolation` and
+the replacement closure `.isolation` property consume that shared metadata.
+An actor capability must identify the exact source actor instance without
+retaining an evaluator task or borrowing dynamic caller state.
 
 ### 6.11 Actor storage
 

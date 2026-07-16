@@ -1461,10 +1461,77 @@ struct ConcurrencyMethodologyTests {
         #expect(claim.gapEvidenceIDs
             == ["generated-concurrency-signatures-and-preflight"])
         #expect(claim.notes.contains("no ambient custom TaskExecutor"))
+        #expect(claim.notes.contains(
+            "bare unqualified direct global async operation"))
         #expect(claim.notes.contains("plain explicit nonisolated"))
+        #expect(claim.notes.contains(
+            "no declaration-level executor preference"))
         #expect(claim.notes.contains("inherits an ambient custom executor"))
+        #expect(claim.notes.contains(
+            "local aliases or function-value conversions"))
+        #expect(claim.notes.contains("@concurrent"))
         #expect(claim.notes.contains("nonisolated(nonsending)"))
         #expect(claim.notes.contains("closure-expression operations"))
+    }
+
+    @Test func extractIsolationHasExplicitReviewedDisposition() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let expectedID =
+            "swift-concurrency-api-v1:c8849676233060c2f6364bb847db1bac6c2b6ddcae80a6da3269d3adda052bb8"
+        let row = try #require(inventory.declarations.first {
+            $0.id == expectedID
+        })
+
+        #expect(row.domain == "top-level-function")
+        #expect(row.name == "extractIsolation")
+        #expect(row.adapterIntrinsic == "extractIsolation")
+        #expect(row.declaration.contains(
+            "extractIsolation<each Arg, Result>"))
+        #expect(row.declaration.contains(
+            "_ fn: @escaping @isolated(any)"))
+        #expect(row.declaration.contains(
+            "(repeat each Arg) async throws -> Result"))
+        #expect(row.declaration.contains(
+            "-> (any _Concurrency.Actor)?"))
+        #expect(row.declaration.contains(
+            "Use `.isolation` on @isolated(any) closure values instead."))
+
+        let claim = try #require(status.interfaceOverrides.first {
+            $0.id == expectedID
+        })
+        #expect(claim.implementationStatus == .knownDivergence)
+        #expect(claim.verificationStatus == .none)
+        #expect(claim.requirementRef
+            == "M7/generated-signatures-and-preflight")
+        #expect(claim.evidenceCaseIDs == ["extract-isolation-nonisolated"])
+        #expect(claim.testNames.contains(
+            "AsyncExecutionTests/extractIsolationReflectsExplicitNonisolatedWithoutTaskOrCall"))
+        #expect(claim.testNames.contains(
+            "AsyncExecutionTests/extractIsolationUnsupportedProvenanceFailsClosed"))
+        #expect(claim.gapEvidenceIDs
+            == ["generated-concurrency-signatures-and-preflight"])
+        #expect(claim.notes.contains("synchronous metadata inspection"))
+        #expect(claim.notes.contains(
+            "bare unqualified direct global async function declarations"))
+        #expect(claim.notes.contains("plain explicit nonisolated"))
+        #expect(claim.notes.contains("without invoking the operation"))
+        #expect(claim.notes.contains("MainActor"))
+        #expect(claim.notes.contains("local aliases"))
+        #expect(claim.notes.contains("qualified or parenthesized references"))
+        #expect(claim.notes.contains("function-value conversions"))
+        #expect(claim.notes.contains("member references"))
+        #expect(claim.notes.contains("known divergence"))
     }
 
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {

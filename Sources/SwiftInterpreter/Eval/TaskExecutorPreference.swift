@@ -40,17 +40,24 @@ extension Interpreter {
                 "withTaskExecutorPreference(isolation:) currently requires "
                     + "explicit nil")
         }
-        guard let operation = arguments.closure(labeled: "operation")
-                ?? arguments.lastUnlabeledClosure else {
+        guard let operationArgument = arguments.arguments.first(where: {
+                $0.label == "operation" && $0.value.closureValue != nil
+            }) ?? arguments.arguments.last(where: {
+                $0.label == nil && $0.value.closureValue != nil
+            }),
+              let operation = operationArgument.value.closureValue else {
             throw RuntimeError(message:
                 "withTaskExecutorPreference needs an operation closure")
         }
-        guard operation.functionDeclID != nil,
+        guard operationArgument.sourceProvenance
+                == .directGlobalAsyncFunctionDeclaration,
               operation.isExplicitlyNonisolated,
               operation.executorPreference == nil else {
             throw RuntimeError(message:
-                "withTaskExecutorPreference currently requires an operation "
-                    + "function explicitly declared nonisolated")
+                "withTaskExecutorPreference currently requires a bare "
+                    + "unqualified direct global operation function "
+                    + "explicitly declared nonisolated and async with no "
+                    + "executor preference")
         }
 
         // In the supported subset there is no ambient custom TaskExecutor and

@@ -1,15 +1,34 @@
 /// Evaluated call arguments in source order: labeled args first, then the
 /// trailing closure (label nil) and any additional trailing closures (labeled).
+enum CallArgumentSourceProvenance: Equatable {
+    case unknown
+    case directGlobalAsyncFunctionDeclaration
+}
+
 public struct CallArguments {
     public struct Argument {
         public let label: String?
         public let value: RuntimeValue
         public let isTrailing: Bool
+        let sourceProvenance: CallArgumentSourceProvenance
 
         public init(label: String?, value: RuntimeValue, isTrailing: Bool = false) {
             self.label = label
             self.value = value
             self.isTrailing = isTrailing
+            sourceProvenance = .unknown
+        }
+
+        init(
+            label: String?,
+            value: RuntimeValue,
+            isTrailing: Bool = false,
+            sourceProvenance: CallArgumentSourceProvenance
+        ) {
+            self.label = label
+            self.value = value
+            self.isTrailing = isTrailing
+            self.sourceProvenance = sourceProvenance
         }
     }
 

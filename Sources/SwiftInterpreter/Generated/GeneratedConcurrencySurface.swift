@@ -5,6 +5,7 @@
 
 enum RuntimeConcurrencyFunctionIntrinsic: String, Sendable {
     case detachedTask
+    case extractIsolation
     case unstructuredTask
     case withCurrentTaskCapability
     case withDiscardingTaskGroup
@@ -119,6 +120,7 @@ enum GeneratedConcurrencySurface {
         "async": .unstructuredTask,
         "asyncDetached": .detachedTask,
         "detach": .detachedTask,
+        "extractIsolation": .extractIsolation,
         "withDiscardingTaskGroup": .withDiscardingTaskGroup,
         "withTaskCancellationHandler": .withTaskCancellationHandler,
         "withTaskExecutorPreference": .withTaskExecutorPreference,

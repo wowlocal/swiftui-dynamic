@@ -5,7 +5,12 @@ extension Interpreter {
     func collectArguments(of call: FunctionCallExprSyntax, in env: Environment) throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
         for labeled in call.arguments {
-            arguments.append(.init(label: labeled.label?.text, value: try evaluate(labeled.expression, in: env)))
+            let value = try evaluate(labeled.expression, in: env)
+            arguments.append(.init(
+                label: labeled.label?.text,
+                value: value,
+                sourceProvenance: callArgumentSourceProvenance(
+                    of: labeled.expression, value: value, in: env)))
         }
         if let trailing = call.trailingClosure {
             arguments.append(.init(
@@ -19,6 +24,27 @@ extension Interpreter {
                 isTrailing: true))
         }
         return CallArguments(arguments: arguments)
+    }
+
+    /// Proves the narrow bare/unqualified declaration boundary used by
+    /// metadata-sensitive concurrency intrinsics. A qualified reference,
+    /// local alias, or conversion is deliberately unknown until function
+    /// values carry isolation identity themselves.
+    func callArgumentSourceProvenance(
+        of expression: ExprSyntax,
+        value: RuntimeValue,
+        in env: Environment
+    ) -> CallArgumentSourceProvenance {
+        guard let functionID = value.closureValue?.functionDeclID,
+              let reference = expression.as(DeclReferenceExprSyntax.self),
+              env.box(for: reference.baseName.text, before: globals) == nil,
+              globalFunctionOverloads[reference.baseName.text]?.contains(where: {
+                $0.id == functionID
+                    && $0.signature.effectSpecifiers?.asyncSpecifier != nil
+              }) == true else {
+            return .unknown
+        }
+        return .directGlobalAsyncFunctionDeclaration
     }
 
     /// A host-extension init fits only when labels align AND every

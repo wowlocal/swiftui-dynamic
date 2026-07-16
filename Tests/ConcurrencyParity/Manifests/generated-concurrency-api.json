@@ -8472,6 +8472,7 @@
       "returnType" : "_Concurrency.Task<Success, any Swift.Error>"
     },
     {
+      "adapterIntrinsic" : "extractIsolation",
       "attributes" : [
         "@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)",
         "@available(*, deprecated, message: \"Use `.isolation` on @isolated(any) closure values instead.\")",
@@ -9483,7 +9484,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 122,
+    "adapterRoutedDeclarationCount" : 123,
     "declarationCount" : 171,
     "declarationsByDomain" : {
       "selected-nominal-member" : 9,

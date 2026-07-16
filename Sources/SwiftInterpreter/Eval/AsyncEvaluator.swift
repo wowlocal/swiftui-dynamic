@@ -484,9 +484,12 @@ extension Interpreter {
     ) async throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
         for labeled in call.arguments {
+            let value = try await evaluateSuspending(labeled.expression, in: env)
             arguments.append(.init(
                 label: labeled.label?.text,
-                value: try await evaluateSuspending(labeled.expression, in: env)))
+                value: value,
+                sourceProvenance: callArgumentSourceProvenance(
+                    of: labeled.expression, value: value, in: env)))
         }
         if let trailing = call.trailingClosure {
             arguments.append(.init(

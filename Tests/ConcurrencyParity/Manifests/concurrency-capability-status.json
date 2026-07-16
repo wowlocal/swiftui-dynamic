@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "61fa2bfe0b763ba7c9b4284669f7b8b0c7d85ad600b9ef40cab773c6cacd7b3a",
+  "inventorySHA256": "64708f3cb2371213ee77d7fb76a7171d89dfd258b9fd0e6850a39cc14b7ebc18",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -2489,7 +2489,28 @@
       "gapEvidenceIDs": [
         "generated-concurrency-signatures-and-preflight"
       ],
-      "notes": "The generated declaration routes to a same-task dynamic scope for the evidenced subset with no ambient custom TaskExecutor, an explicit nil executor argument, explicit nil isolation, and a named operation function carrying a plain explicit nonisolated modifier with no detail. Across a forced suspension, the operation retains RuntimeTaskID, name, effective priority, task-local bindings, and cancellation, propagates exact values and source errors, and creates no child task or copied context. Native nil inherits an ambient custom executor preference rather than clearing it; custom executors, ambient-preference inheritance, omitted or non-nil isolation, actor-isolated operations, nonisolated(nonsending), and closure-expression operations remain unsupported. Those shapes fail closed, so the complete declaration remains a known divergence with verification none."
+      "notes": "The generated declaration routes to a same-task dynamic scope for the evidenced subset with no ambient custom TaskExecutor, an explicit nil executor argument, explicit nil isolation, and a bare unqualified direct global async operation function carrying a plain explicit nonisolated modifier with no detail and no declaration-level executor preference. Across a forced suspension, the operation retains RuntimeTaskID, name, effective priority, task-local bindings, and cancellation, propagates exact values and source errors, and creates no child task or copied context. Native nil inherits an ambient custom executor preference rather than clearing it; custom executors, ambient-preference inheritance, omitted or non-nil isolation, qualified or parenthesized references, local aliases or function-value conversions, @concurrent or actor-isolated operations, nonisolated(nonsending), and closure-expression operations remain unsupported. Those shapes fail closed, so the complete declaration remains a known divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:c8849676233060c2f6364bb847db1bac6c2b6ddcae80a6da3269d3adda052bb8",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "extract-isolation-nonisolated"
+      ],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/syntheticInterfacePreservesOverloadsEffectsAndIsolation",
+        "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+        "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+        "AsyncExecutionTests/extractIsolationReflectsExplicitNonisolatedWithoutTaskOrCall",
+        "AsyncExecutionTests/extractIsolationUnsupportedProvenanceFailsClosed",
+        "ConcurrencyMethodologyTests/extractIsolationHasExplicitReviewedDisposition"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The generated declaration routes to synchronous metadata inspection for bare unqualified direct global async function declarations carrying plain explicit nonisolated provenance, including an @concurrent nonisolated function. The adapter returns nil without invoking the operation, creating a task, or mutating executor state; focused tests prove no retained task, scope, group, or scheduler ownership. MainActor and custom-actor identity, implicit nonisolation, synchronous functions, qualified or parenthesized references, local aliases, closure expressions, function-value conversions, member references, and nonisolated(nonsending) remain fail-closed M5 work. Because the full declaration's actor identity and conversion semantics are not modeled, it remains a known divergence with verification none."
     }
   ],
   "semanticCapabilities": [

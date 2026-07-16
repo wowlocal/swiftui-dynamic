@@ -1453,7 +1453,19 @@
     "timeoutSeconds": 5,
     "interpreterEntry": "await taskExecutorPreferenceNilProbe()",
     "interpreterProjection": "string",
-    "nativeFact": "With no ambient custom TaskExecutor, withTaskExecutorPreference(nil, isolation: nil) invokes an explicitly nonisolated operation function in the same task. The operation observes the detached task's name, native high-priority raw value, task-local binding, and cancellation state across a forced yield; identity, name, priority, task local, and cancellation remain stable after scope exit. Cancelling the current task inside the operation is visible to the caller after return, while successful values and the exact typed source error propagate.",
-    "notes": "Apple Swift 6.3.3 compiled the same source in Swift 6 strict-concurrency mode with warnings as errors, and twenty bounded native runs produced one exact observation. Only the explicit-nil task-executor and isolation subset without an ambient custom preference and with a plain explicitly nonisolated operation function is asserted. Native nil inherits an ambient custom preference rather than clearing it. Custom executor scheduling and inheritance, nonisolated(nonsending), closure-expression operations, arbitrary actor isolation, resume executors, physical threads, and unrelated task order remain outside this case."
+    "nativeFact": "With no ambient custom TaskExecutor, withTaskExecutorPreference(nil, isolation: nil) invokes each supplied bare unqualified global async operation function, whose declaration carries a plain explicit nonisolated modifier and no executor preference, in the same task. The success operation observes its detached task's name, native high-priority raw value, task-local binding, and cancellation state across a forced yield; identity, name, priority, task local, and cancellation remain stable after scope exit. Cancelling the current task inside the cancellation operation is visible to the caller after return, while successful values and the exact typed source error propagate.",
+    "notes": "Apple Swift 6.3.3 compiled the same source in Swift 6 strict-concurrency mode with warnings as errors, and twenty bounded native runs produced one exact observation. Only the explicit-nil task-executor and isolation subset without an ambient custom preference and with the supplied bare unqualified global async operation functions, whose declarations carry a plain explicit nonisolated modifier and no executor preference, is asserted. Native nil inherits an ambient custom preference rather than clearing it. @concurrent operations, qualified or parenthesized references, custom executor scheduling and inheritance, nonisolated(nonsending), closure-expression operations, arbitrary actor isolation, resume executors, physical threads, and unrelated task order remain outside this case."
+  },
+  {
+    "id": "extract-isolation-nonisolated",
+    "fixture": "Fixtures/extract-isolation-nonisolated.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "extractIsolationNonisolatedProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "For both supplied bare unqualified direct global async function values with plain explicit nonisolated declarations, one also @concurrent, extractIsolation returns nil. It only inspects each function value: neither supplied operation is invoked.",
+    "notes": "Apple Swift 6.3.3 strict-concurrency compilation selects the active deprecated variadic-generic declaration. Twenty bounded native runs produce one exact observation. The fixture deliberately places uses in deprecated contexts; the shared NativeMain call site may still emit the expected deprecation warning. MainActor and arbitrary actor identities, unannotated functions under configurable default isolation, qualified or parenthesized references, local aliases, function-value conversions, member references, closure expressions, synchronous functions, and the replacement closure.isolation property remain outside this bare-unqualified-direct-global-async-declaration subset. No scheduling, suspension, executor-hop, or physical-thread behavior is asserted because extractIsolation is synchronous metadata inspection."
   }
 ]

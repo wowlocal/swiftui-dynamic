@@ -1108,6 +1108,42 @@ struct AsyncExecutionTests {
             ),
             (
                 source: """
+                nonisolated
+                func aliasedPreferenceOperation() async -> Int { 1 }
+                let convertedPreferenceOperation:
+                    @MainActor () async -> Int = aliasedPreferenceOperation
+                await withTaskExecutorPreference(
+                    nil,
+                    isolation: nil,
+                    operation: convertedPreferenceOperation)
+                """,
+                expected: "direct global operation function"
+            ),
+            (
+                source: """
+                @concurrent
+                nonisolated
+                func concurrentPreferenceOperation() async -> Int { 1 }
+                await withTaskExecutorPreference(
+                    nil,
+                    isolation: nil,
+                    operation: concurrentPreferenceOperation)
+                """,
+                expected: "direct global operation function"
+            ),
+            (
+                source: """
+                nonisolated
+                func parenthesizedPreferenceOperation() async -> Int { 1 }
+                await withTaskExecutorPreference(
+                    nil,
+                    isolation: nil,
+                    operation: (parenthesizedPreferenceOperation))
+                """,
+                expected: "direct global operation function"
+            ),
+            (
+                source: """
                 await withTaskExecutorPreference(
                     isolation: nil, operation: { 1 })
                 """,
@@ -1155,6 +1191,136 @@ struct AsyncExecutionTests {
         }
         #expect(interpreter.concurrencyRuntime.records.isEmpty)
         #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func extractIsolationReflectsExplicitNonisolatedWithoutTaskOrCall()
+    throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("extract-isolation-nonisolated.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nextractIsolationNonisolatedProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try interpreter.run(source: source)
+
+        #expect(value.stringValue == "plain:true|concurrent:true")
+        #expect(interpreter.concurrencyRuntime.records.isEmpty)
+        #expect(interpreter.concurrencyRuntime.structuredScopes.isEmpty)
+        #expect(interpreter.concurrencyRuntime.taskGroups.isEmpty)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func extractIsolationUnsupportedProvenanceFailsClosed() {
+        let cases = [
+            (
+                source: """
+                func implicitOperation() async -> Int { 1 }
+                extractIsolation(implicitOperation)
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                @MainActor func mainOperation() async -> Int { 1 }
+                extractIsolation(mainOperation)
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                @globalActor actor ExtractProbeActor {
+                    static let shared = ExtractProbeActor()
+                }
+                @ExtractProbeActor
+                func customActorOperation() async -> Int { 1 }
+                extractIsolation(customActorOperation)
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                nonisolated(nonsending)
+                func nonsendingOperation() async -> Int { 1 }
+                extractIsolation(nonsendingOperation)
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                extractIsolation { () async -> Int in 1 }
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                nonisolated func aliasedOperation() async -> Int { 1 }
+                let alias = aliasedOperation
+                extractIsolation(alias)
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                nonisolated func convertedOperation() async -> Int { 1 }
+                let converted: @MainActor () async -> Int = convertedOperation
+                extractIsolation(converted)
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                struct ExtractIsolationWorker {
+                    nonisolated func operation() async -> Int { 1 }
+                }
+                let worker = ExtractIsolationWorker()
+                extractIsolation(worker.operation)
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                nonisolated func synchronousOperation() -> Int { 1 }
+                extractIsolation(synchronousOperation)
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: """
+                nonisolated func parenthesizedOperation() async -> Int { 1 }
+                extractIsolation((parenthesizedOperation))
+                """,
+                expected: "direct global function declaration"
+            ),
+            (
+                source: "extractIsolation(1)",
+                expected: "requires exactly one async function value"
+            ),
+            (
+                source: """
+                nonisolated func validOperation() async -> Int { 1 }
+                extractIsolation(validOperation, extra: 1)
+                """,
+                expected: "requires exactly one async function value"
+            ),
+        ]
+
+        for testCase in cases {
+            let interpreter = Interpreter()
+            do {
+                _ = try interpreter.run(source: testCase.source)
+                Issue.record("unsupported extractIsolation shape was accepted")
+            } catch let error as RuntimeError {
+                #expect(error.message.contains(testCase.expected))
+            } catch {
+                Issue.record("unexpected extractIsolation diagnostic: \(error)")
+            }
+            #expect(interpreter.concurrencyRuntime.records.isEmpty)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
     }
 
     @Test func taskLocalStorageIsTaskOwnedInheritedAndCleaned() async throws {

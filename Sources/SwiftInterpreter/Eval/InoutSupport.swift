@@ -35,7 +35,11 @@ extension CallArguments {
     func unwrappingInoutSlots() -> CallArguments {
         guard arguments.contains(where: { $0.value.inoutSlot != nil }) else { return self }
         return CallArguments(arguments: arguments.map {
-            Argument(label: $0.label, value: $0.value.unwrappingInoutSlot, isTrailing: $0.isTrailing)
+            Argument(
+                label: $0.label,
+                value: $0.value.unwrappingInoutSlot,
+                isTrailing: $0.isTrailing,
+                sourceProvenance: $0.sourceProvenance)
         })
     }
 }
