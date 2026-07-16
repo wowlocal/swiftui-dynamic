@@ -1638,28 +1638,76 @@ evidence for global runtime cleanup.
 
 Each milestone is independently gated through
 `Tests/ConcurrencyParity/Manifests/milestone-acceptance.json`. Its
-`executionPlan` records the current tail and next major cycle explicitly:
+`executionPlan` records the active cycle and the queued next cycle explicitly:
 
 - M0 through M3 are the completed task-runtime foundation;
-- M4 and M7 form the bounded Task API/compiler-surface closeout tail;
-- M5 actor/executor architecture is the next major runtime cycle; it may admit
-  dependency-ready characterization, but cannot close before M4 and M7;
-- M6 requires executor/resume ownership from M5;
-- M8 may characterize host entry incrementally, but view-owned async lifecycle
-  closure requires M2, M5, and M7; and
+- M4 and M7 closed their bounded Task API/compiler-surface disposition work on
+  2026-07-16: every generated declaration carries an authored disposition and
+  the target-aware escape boundary is covered. The remaining M4 semantics
+  (repeated-wait/new-work cycles, non-nil TaskExecutor preferences,
+  arbitrary-actor operation executors) are demand-deferred — they reopen only
+  when a real interpreted program fails on a cited declaration — so M4 stays
+  partial by design;
+- M5 actor/executor architecture is the active cycle, ordered by measured
+  demand (see below): actor identity/storage and serial hops first, then
+  reentrancy/isolated dispatch, then the per-feature fail-closed boundary;
+- the M6 demand slice (protocol `for await` iteration, `AsyncStream`, checked
+  continuations resuming on cooperative-default/MainActor executors) requires
+  executor-owned resume from the M5 identity/storage slice, not full M5
+  closure;
+- M8 view-owned async lifecycle has only covered prerequisites left
+  (M2 driver release, M5 logical executor identity, M7 preflight) and follows
+  the M6 slice; and
 - M9 remains deferred until the ownership/isolation/lifecycle prerequisites are
   complete.
 
-M5 is intentionally decomposed. Its entry slice makes actor declarations fail
-closed instead of executing with class-like semantics. The next slice installs
-actor identity/storage and serial executor queues; only then do isolated
-dispatch, reentrancy/resume ownership, arbitrary global actors, and mailbox
-stress become closable work.
+M5 is intentionally decomposed, and its slices are ordered so that no flip to
+fail-closed rejection lands before the replacement runtime exists. The entry
+slice installs actor identity/storage and serial executor hops for the
+measured demand shapes — `@MainActor` isolation and user-declared global
+actors of the FoodTruck StoreActor shape — while valid actor declarations
+keep executing through the documented class-like compatibility path. The
+second slice adds reentrancy/resume ownership, isolated parameters, and
+arbitrary global actors. The final slice flips each actor feature to
+fail-closed diagnosis as its replacement lands; a global up-front rejection
+is forbidden while FoodTruckCheck, ProjectCheck, and suite ratchets execute
+through the compatibility path, because board ratchets may never decrease.
 
 A dependency-ready characterization may land before an earlier partial
 milestone closes. It must not claim guarantees supplied by an open dependency,
 and unexplained failures still block all dependent work. The executable matrix,
 not chronological prose, determines what may close.
+
+### Demand-ordered scheduling
+
+Measured 2026-07-16 across the 669-project `External/` corpus and the
+FoodTruck primary target (source grep; corpus counts are projects using the
+construct at least once):
+
+| Construct | Corpus projects | FoodTruck |
+| --- | --- | --- |
+| `Task {}` | 41 | 13 uses |
+| `Task.sleep` | 41 | yes |
+| `.task {}` modifier | 30 | 4 uses |
+| `Task.detached` | 12 | 1 use |
+| `actor` declarations | 9 | `@globalActor StoreActor` |
+| `@MainActor` | 5 | 17 uses |
+| `withCheckedContinuation` family | 2 | 0 |
+| `withTaskGroup` family | 2 | 0 |
+| `for await` | 2 | StoreKit update streams |
+| `async let` | 1 | 0 |
+| `AsyncStream` | 1 | 0 |
+| `@TaskLocal` | 1 | 0 |
+| `withTaskExecutorPreference` | 0 | 0 |
+
+Scheduling rule: work is selected from the `executionPlan` active cycle in
+its listed `requirementRefs` order, not from interface enumeration order.
+Surface work on constructs with zero measured demand is not schedulable; it
+reopens only when a real interpreted program (corpus, FoodTruck, LiveCheck,
+TestCheck) fails on a cited declaration. FoodTruck function parity — `.task`
+view lifecycle, `@MainActor` model mutation, StoreActor-shaped global actors,
+and `for await` over host-bridged async sequences — outranks completeness of
+rarely used API families.
 
 ### Milestone 0: native parity infrastructure
 
@@ -1762,6 +1810,14 @@ Proof:
 
 ### Milestone 5: actor support and executor architecture
 
+Slice order (2026-07-16 demand cycle): first actor identity/storage and serial
+executor hops scoped to the measured demand shapes (`@MainActor` isolation and
+user-declared global actors of the FoodTruck StoreActor shape); then
+reentrancy/resume ownership, isolated parameters, and arbitrary global actors;
+then per-feature fail-closed flips of the class-like compatibility path. A
+feature fails closed only once its actor-runtime replacement lands — never as
+an up-front global rejection — because board ratchets may never decrease.
+
 Deliverables:
 
 - actor storage and IDs;
@@ -1780,6 +1836,13 @@ Proof:
 - scheduler-order accidents are not asserted.
 
 ### Milestone 6: async sequences and continuations
+
+Entry gate (2026-07-16 demand re-plan): executor-owned resume from the M5
+identity/storage slice — full M5 reentrancy closure is not required. The
+demand slice covers protocol `for await` iteration,
+`AsyncStream`/`AsyncThrowingStream`, and checked continuations resuming on
+cooperative-default and MainActor executors, including host-bridged async
+sequences of the StoreKit update-stream shape, before the remaining surface.
 
 Deliverables:
 
@@ -2004,9 +2067,16 @@ the agent to read, not something that must be copied into the GOAL field.
 Docs/SwiftConcurrencyArchitecture.md.
 
 Перед началом полностью прочитай документ и
-Docs/ConcurrencyVerificationMethodology.md. Выбери самый ранний открытый
-requirement, чьи dependency уже выполнены, и двигайся небольшими проверяемыми
-изменениями.
+Docs/ConcurrencyVerificationMethodology.md. Выбери следующий открытый
+requirement из executionPlan.currentTail в
+Tests/ConcurrencyParity/Manifests/milestone-acceptance.json — в порядке его
+requirementRefs, при выполненных dependency; когда активный цикл закрыт,
+переходи к entryRequirementRefs из nextMajorCycle. Порядок работ задаёт
+demand-ordered scheduling из раздела 14, а не порядок перечисления
+swiftinterface. Не бери demand-deferred остаток M4 (executor-preference,
+repeated-wait, arbitrary-actor executors) без цитируемого отказа реального
+приложения (corpus/FoodTruck/LiveCheck/TestCheck). Двигайся небольшими
+проверяемыми изменениями.
 
 Для каждого изменения семантики обязательно:
 1. Сформулируй один точный семантический вопрос.
@@ -2064,8 +2134,14 @@ Before the first change:
    contracts, and existing async tests referenced by that document.
 4. Record swiftc version/path, SDK, target, and strict-concurrency flags.
 5. Run the existing targeted async tests to establish the starting baseline.
-6. Select the earliest open acceptance requirement whose dependency edges are
-   satisfied. Do not skip architectural prerequisites to add later API surface.
+6. Select the next open acceptance requirement from the executionPlan active
+   cycle in milestone-acceptance.json (its requirementRefs order; fall back to
+   the nextMajorCycle entry refs when the cycle closes), with satisfied
+   dependency edges. Do not skip architectural prerequisites to add later API
+   surface, and do not schedule demand-deferred surface remainders (the
+   zero-demand M4 executor-preference/repeated-wait semantics) unless a real
+   interpreted program failure cites them; section 14 demand ordering, not
+   interface enumeration order, decides what is next.
 
 Mandatory native parity loop for every behavior:
 1. State one precise Swift semantic question.
@@ -2163,7 +2239,8 @@ Verification:
   it closes.
 
 Completion:
-- Continue with the smallest dependency-ready open acceptance requirement.
+- Continue with the next dependency-ready open acceptance requirement in the
+  executionPlan active-cycle order.
 - A feature is not complete until it has a compiled native fixture, a written
   guarantee, a differential test, general implementation, cancellation/error
   coverage where applicable, green gates, and an updated parity status.

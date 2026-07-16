@@ -346,24 +346,25 @@ struct ConcurrencyMethodologyTests {
         })
         #expect(requirementRefs.contains(
             matrix.externalCapabilityAccounting.ownerRequirementRef))
-        #expect(matrix.executionPlan.currentTail.id == "task-api-closeout")
-        #expect(matrix.executionPlan.currentTail.state == "active-closeout")
-        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M4", "M7"])
+        #expect(matrix.executionPlan.currentTail.id == "actor-runtime-demand-cycle")
+        #expect(matrix.executionPlan.currentTail.state == "active")
+        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M5"])
         #expect(Set(matrix.executionPlan.currentTail.requirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.currentTail.requirementRefs == [
-            "M4/remaining-task-group-surface",
-            "M7/generated-signatures-and-preflight",
+            "M5/actor-identity-storage-and-serial-executor",
+            "M5/actor-reentrancy-and-isolated-dispatch",
+            "M5/actor-declaration-safety-boundary",
         ])
         #expect(matrix.executionPlan.nextMajorCycle.id
-            == "actor-executor-architecture")
+            == "async-sequence-continuation-demand-slice")
         #expect(matrix.executionPlan.nextMajorCycle.state
-            == "queued-behind-task-api-closeout")
-        #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M5")
+            == "queued-behind-actor-runtime-demand-cycle")
+        #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M6")
         #expect(Set(matrix.executionPlan.nextMajorCycle.entryRequirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.nextMajorCycle.entryRequirementRefs
-            == ["M5/actor-declaration-safety-boundary"])
+            == ["M6/protocol-iteration-streams-and-continuations"])
         let requirementStatuses = Dictionary(uniqueKeysWithValues:
             matrix.milestones.flatMap { milestone in
                 milestone.requirements.map {

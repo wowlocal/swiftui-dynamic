@@ -2524,7 +2524,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withCheckedContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor; M6 depends on M5 reentrancy and resume ownership."
+      "notes": "The public withCheckedContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor; M6 depends on the M5 identity/storage slice for executor-owned resume (2026-07-16 demand re-plan)."
     },
     {
       "id": "swift-concurrency-api-v1:ace6ad5d810bcf9eda3b3214d498b783a36385621bc9361241fba14afb9f1e39",
@@ -2538,7 +2538,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withCheckedThrowingContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor while preserving the source error; M6 depends on M5 reentrancy and resume ownership."
+      "notes": "The public withCheckedThrowingContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor while preserving the source error; M6 depends on the M5 identity/storage slice for executor-owned resume (2026-07-16 demand re-plan)."
     },
     {
       "id": "swift-concurrency-api-v1:1c6b71ba2592eb2a5841edbe5c173bf0dcc5801237920669367ca47a9797fcc3",
@@ -2552,7 +2552,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withUnsafeContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor; M6 depends on M5 reentrancy and resume ownership."
+      "notes": "The public withUnsafeContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor; M6 depends on the M5 identity/storage slice for executor-owned resume (2026-07-16 demand re-plan)."
     },
     {
       "id": "swift-concurrency-api-v1:16b269f49b82c403312e3cbfde1b6db496f06dc96b32e22d8a0ede15a94167d7",
@@ -2566,7 +2566,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withUnsafeThrowingContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor while preserving the source error; M6 depends on M5 reentrancy and resume ownership."
+      "notes": "The public withUnsafeThrowingContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor while preserving the source error; M6 depends on the M5 identity/storage slice for executor-owned resume (2026-07-16 demand re-plan)."
     }
   ],
   "semanticCapabilities": [
@@ -2696,7 +2696,7 @@
       "gapEvidenceIDs": [
         "actor-declaration-safety-boundary"
       ],
-      "notes": "Valid actor declarations can still enter class-like execution; the next cycle begins by making unsupported actor semantics fail closed."
+      "notes": "Valid actor declarations can still enter class-like execution; per the 2026-07-16 demand re-plan each actor feature flips to fail-closed diagnosis together with or after its actor-runtime replacement, with no up-front global rejection."
     },
     {
       "id": "actor-identity-storage-and-serial-executor",
@@ -2708,7 +2708,7 @@
       "gapEvidenceIDs": [
         "actor-identity-storage-serial-executor"
       ],
-      "notes": "Actor-owned identity/storage and serial mailbox/executor queues are not implemented."
+      "notes": "Actor-owned identity/storage and serial mailbox/executor queues are not implemented; this is the entry slice of the 2026-07-16 demand cycle, scoped first to MainActor isolation and user-declared global actors of the FoodTruck StoreActor shape."
     },
     {
       "id": "actor-reentrancy-and-isolated-dispatch",
@@ -2720,7 +2720,7 @@
       "gapEvidenceIDs": [
         "actor-reentrancy-isolated-dispatch"
       ],
-      "notes": "Actor reentrancy/resume ownership, isolated dispatch, arbitrary global actors, and mailbox stress are not implemented."
+      "notes": "Actor reentrancy/resume ownership, isolated dispatch, arbitrary global actors, and mailbox stress are not implemented; queued as the second slice of the 2026-07-16 demand cycle, behind identity/storage."
     },
     {
       "id": "compiler-backed-concurrency-diagnostics",
@@ -2760,7 +2760,7 @@
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "Protocol iteration, streams, and continuation ownership wait for M5 executor/resume ownership."
+      "notes": "Protocol iteration, streams, and continuation ownership wait for executor-owned resume from the M5 identity/storage slice; the 2026-07-16 demand slice then covers protocol for-await iteration, AsyncStream/AsyncThrowingStream, and checked continuations resuming on cooperative-default and MainActor executors."
     },
     {
       "id": "swiftui-view-owned-async-lifecycle",

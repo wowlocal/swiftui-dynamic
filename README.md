@@ -81,16 +81,21 @@ The machine-readable source of truth is
 with the detailed design in
 [`Docs/SwiftConcurrencyArchitecture.md`](Docs/SwiftConcurrencyArchitecture.md).
 
-- **Current closeout — M4 + M7:** finish the generated Task/task-group API
-  dispositions, structured-capability escape boundary, and compiler-derived
-  declaration surface.
-- **Next major cycle — M5 actor support and executor architecture:** first make
-  unsupported actor execution fail closed; then add actor identity and owned
-  storage, serial mailbox/executor queues, isolated entry hops, suspension-safe
-  reentrancy, isolated parameters, and global actors.
-- **Following cycles:** M6 async sequences and continuations, M8 SwiftUI-owned
-  async lifecycle, and finally optional M9 physical parallelism/custom
-  executors after ownership and isolation are stable.
+- **Active cycle — M5 actor runtime (demand-ordered, 2026-07-16):** actor
+  identity/storage and serial executor hops first, scoped to the measured
+  demand shapes (`@MainActor` isolation and user-declared global actors of
+  the FoodTruck StoreActor shape); then reentrancy/resume ownership, isolated
+  parameters, and arbitrary global actors; then per-feature fail-closed flips
+  of the class-like compatibility path — never a global up-front rejection
+  while corpus/FoodTruck ratchets run through it.
+- **Queued demand slice — M6 async sequences and continuations:** protocol
+  `for await` iteration, `AsyncStream`, and checked continuations resuming on
+  cooperative-default/MainActor executors, gated on the M5 identity/storage
+  slice rather than full M5 closure; M8 view-owned `.task` lifecycle follows.
+- **Demand-deferred:** the remaining M4 executor-preference/repeated-wait
+  surface has zero measured corpus/FoodTruck demand and reopens only on a
+  cited real-program failure; optional M9 physical parallelism stays deferred
+  until ownership and isolation are stable.
 
 Actor support is complete only when every M5 requirement and its M4/M7
 dependencies are covered; parsing an `actor` declaration or running it through

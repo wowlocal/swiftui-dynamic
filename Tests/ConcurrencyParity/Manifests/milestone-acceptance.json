@@ -9,20 +9,21 @@
   },
   "executionPlan": {
     "currentTail": {
-      "id": "task-api-closeout",
-      "state": "active-closeout",
-      "milestoneIDs": ["M4", "M7"],
+      "id": "actor-runtime-demand-cycle",
+      "state": "active",
+      "milestoneIDs": ["M5"],
       "requirementRefs": [
-        "M4/remaining-task-group-surface",
-        "M7/generated-signatures-and-preflight"
+        "M5/actor-identity-storage-and-serial-executor",
+        "M5/actor-reentrancy-and-isolated-dispatch",
+        "M5/actor-declaration-safety-boundary"
       ]
     },
     "nextMajorCycle": {
-      "id": "actor-executor-architecture",
-      "state": "queued-behind-task-api-closeout",
-      "milestoneID": "M5",
+      "id": "async-sequence-continuation-demand-slice",
+      "state": "queued-behind-actor-runtime-demand-cycle",
+      "milestoneID": "M6",
       "entryRequirementRefs": [
-        "M5/actor-declaration-safety-boundary"
+        "M6/protocol-iteration-streams-and-continuations"
       ]
     }
   },
@@ -369,7 +370,7 @@
       "status": "partial",
       "dependsOn": ["M3", "M7"],
       "ledgerEvidence": "Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all four public group-scope declarations for their evidenced default-isolation subsets, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, all four canonical `addTask(priority:operation:)`, all four canonical `addTaskUnlessCancelled(priority:operation:)`, all eight named add declarations without executor preference for their evidenced nonisolated subsets with task-owned names preserved, all eight `addTask` executor-preference declarations for their explicit-nil nonisolated subsets with non-nil preferences rejected by a shared guard and arbitrary-actor executor divergences recorded, all eight `addTaskUnlessCancelled` executor-preference declarations for active explicit-nil acceptance and post-cancellation rejection without child creation, with the shared non-nil guard and arbitrary-actor executor divergences recorded, and all eight `addImmediateTask`/`addImmediateTaskUnlessCancelled` declarations for their explicit-nil inherited-MainActor subsets with synchronous-prefix execution, Task.name, join, and cancellation-before-preference-validation evidence while non-nil preference and arbitrary-actor divergences remain recorded, all four ordinary/throwing group `next()` declarations, both deprecated `spawn()`, both deprecated `async()`, both deprecated conditional `add()` aliases, both deprecated `asyncUnlessCancelled()` aliases, and both deprecated `spawnUnlessCancelled()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition.",
-      "ledgerRemainingWork": "All currently generated task-group declarations have explicit dispositions and the target-aware escaped-capability boundary is covered. Cover repeated-wait/new-work behavior, implement non-nil TaskExecutor preference resumption and arbitrary-actor operation executors; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence.",
+      "ledgerRemainingWork": "All currently generated task-group declarations have explicit dispositions and the target-aware escaped-capability boundary is covered. The remaining repeated-wait/new-work, non-nil TaskExecutor preference, and arbitrary-actor operation-executor semantics are demand-deferred (2026-07-16): they reopen only on a cited real-program failure; positive claims still require executable evidence and negative/deferred claims still require owned gap or deferral evidence.",
       "requirements": [
         {
           "id": "async-let-values-and-cleanup",
@@ -574,7 +575,7 @@
             "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
           ],
           "gapEvidenceIDs": ["remaining-generated-task-group-surface"],
-          "notes": "The generated active-interface inventory now retains every task-group overload plus the nested ordinary/throwing Iterator next/cancel surface, including async, throws/rethrows, isolation, function-type isolation, Sendable, actor, modifier, and default-value metadata; active-SDK staleness and synthetic edge cases are tested. Strict Swift 6 SIL selects all four public group-scope declarations, whose default-isolation subsets have same-source success, failure, cancellation, join, drain, and cleanup evidence. Same-source parity covers isEmpty/isCancelled and cancelAll on all four group kinds, the supported nonisolated subsets of all four canonical addTask(priority:operation:) and all four canonical addTaskUnlessCancelled(priority:operation:) rows, deprecated spawn and async alias pairs, deprecated async add, asyncUnlessCancelled, and throwing spawnUnlessCancelled aliases with pre-cancel true/value/error and post-cancel false/empty behavior, explicit ordinary/throwing makeAsyncIterator creation, the shared exactly-once stream, terminal state after nil/error/cancel, value-semantic iterator copies, cancellation, default next, and explicit-MainActor next, all four group next declarations including protocol-witness selection of both disfavored ABI overloads, default and explicit-MainActor nonthrowing/throwing waitForAll behavior, and ThrowingTaskGroup.nextResult empty/success/failure/cancellation result projection with single consumption. A strict native probe selects all eight named add/addUnless rows and observes every supplied value through Task.name; the shared runtime task record now preserves task-owned names for the supported nonisolated subsets, while those complete rows stay divergent only because arbitrary @isolated(any) operation executors are not modeled. A second strict Swift 6 probe selects the eight named and unnamed addTask executor-preference rows across all four group kinds; their explicit-nil nonisolated subset has same-source parity, including Task.name preservation, while a native CountingTaskExecutor proves non-nil preferences are observable and the shared runtime guard now rejects them instead of silently ignoring them. A third strict probe selects all eight named and unnamed addTaskUnlessCancelled executor-preference rows. Active explicit-nil calls return true and run their children with Task.name preserved; after cancelAll, explicit-nil calls return false without creating a child. The shared guard rejects active non-nil preferences, but cancellation wins before preference validation, matching Swift's false result without enqueueing. These complete executor-preference rows remain known divergences because both non-nil TaskExecutor scheduling and arbitrary @isolated(any) operation executors are unsupported. A fourth strict Swift 6 probe selects all eight immediate group declarations across all four group kinds. In the explicit-nil inherited-MainActor subset, each operation starts synchronously before its add call returns, resumes after a forced suspension, preserves Task.name, and is joined at scope exit; active conditional calls return true, while calls after cancelAll return false without creating a child and before executor-preference validation. The interpreter now matches those causal guarantees without claiming sibling finish order or physical threads, registers ownership before inline completion, and rejects active non-nil preferences. Native CountingTaskExecutor evidence shows preference-driven resumption remains observable, and arbitrary @isolated(any) operation executors remain unsupported, so all eight complete rows retain known-divergence dispositions. Pinned swiftlang start-immediately inputs provide semantic and compile provenance only: their task-group executor block is disabled and therefore does not replace the local runtime oracle. Other unchanged swiftlang inputs independently prove MainActor-isolated group use, pending next suspension and drain, recovery after a throwing next, ordinary/throwing groups drained through the interpreter's direct async-iteration path, deprecated spawn iteration, the ordinary async alias state transition, addTaskUnlessCancelled rejection after owner cancellation, and ordinary spawnUnlessCancelled before/after cancelAll contrasted with unconditional spawn. All seventy-seven currently generated task-group and iterator rows have reviewed dispositions. Repeated waits/new work, arbitrary actor executors, task-executor preference scheduling, and the escaped-capability boundary remain open."
+          "notes": "The generated active-interface inventory now retains every task-group overload plus the nested ordinary/throwing Iterator next/cancel surface, including async, throws/rethrows, isolation, function-type isolation, Sendable, actor, modifier, and default-value metadata; active-SDK staleness and synthetic edge cases are tested. Strict Swift 6 SIL selects all four public group-scope declarations, whose default-isolation subsets have same-source success, failure, cancellation, join, drain, and cleanup evidence. Same-source parity covers isEmpty/isCancelled and cancelAll on all four group kinds, the supported nonisolated subsets of all four canonical addTask(priority:operation:) and all four canonical addTaskUnlessCancelled(priority:operation:) rows, deprecated spawn and async alias pairs, deprecated async add, asyncUnlessCancelled, and throwing spawnUnlessCancelled aliases with pre-cancel true/value/error and post-cancel false/empty behavior, explicit ordinary/throwing makeAsyncIterator creation, the shared exactly-once stream, terminal state after nil/error/cancel, value-semantic iterator copies, cancellation, default next, and explicit-MainActor next, all four group next declarations including protocol-witness selection of both disfavored ABI overloads, default and explicit-MainActor nonthrowing/throwing waitForAll behavior, and ThrowingTaskGroup.nextResult empty/success/failure/cancellation result projection with single consumption. A strict native probe selects all eight named add/addUnless rows and observes every supplied value through Task.name; the shared runtime task record now preserves task-owned names for the supported nonisolated subsets, while those complete rows stay divergent only because arbitrary @isolated(any) operation executors are not modeled. A second strict Swift 6 probe selects the eight named and unnamed addTask executor-preference rows across all four group kinds; their explicit-nil nonisolated subset has same-source parity, including Task.name preservation, while a native CountingTaskExecutor proves non-nil preferences are observable and the shared runtime guard now rejects them instead of silently ignoring them. A third strict probe selects all eight named and unnamed addTaskUnlessCancelled executor-preference rows. Active explicit-nil calls return true and run their children with Task.name preserved; after cancelAll, explicit-nil calls return false without creating a child. The shared guard rejects active non-nil preferences, but cancellation wins before preference validation, matching Swift's false result without enqueueing. These complete executor-preference rows remain known divergences because both non-nil TaskExecutor scheduling and arbitrary @isolated(any) operation executors are unsupported. A fourth strict Swift 6 probe selects all eight immediate group declarations across all four group kinds. In the explicit-nil inherited-MainActor subset, each operation starts synchronously before its add call returns, resumes after a forced suspension, preserves Task.name, and is joined at scope exit; active conditional calls return true, while calls after cancelAll return false without creating a child and before executor-preference validation. The interpreter now matches those causal guarantees without claiming sibling finish order or physical threads, registers ownership before inline completion, and rejects active non-nil preferences. Native CountingTaskExecutor evidence shows preference-driven resumption remains observable, and arbitrary @isolated(any) operation executors remain unsupported, so all eight complete rows retain known-divergence dispositions. Pinned swiftlang start-immediately inputs provide semantic and compile provenance only: their task-group executor block is disabled and therefore does not replace the local runtime oracle. Other unchanged swiftlang inputs independently prove MainActor-isolated group use, pending next suspension and drain, recovery after a throwing next, ordinary/throwing groups drained through the interpreter's direct async-iteration path, deprecated spawn iteration, the ordinary async alias state transition, addTaskUnlessCancelled rejection after owner cancellation, and ordinary spawnUnlessCancelled before/after cancelAll contrasted with unconditional spawn. All seventy-seven currently generated task-group and iterator rows have reviewed dispositions. Repeated waits/new work, arbitrary actor executors, task-executor preference scheduling, and the escaped-capability boundary remain open. Demand deferral (2026-07-16): the remaining repeated-wait/new-work, non-nil TaskExecutor preference, and arbitrary-actor operation-executor semantics have zero measured demand across the 669-project corpus and FoodTruck, are excluded from the execution plan, and reopen only when a real interpreted program (corpus, FoodTruck, LiveCheck, or TestCheck) fails on a cited declaration; see the demand-ordered plan in Docs/SwiftConcurrencyArchitecture.md section 14."
         },
         {
           "id": "group-escape-legality",
@@ -657,7 +658,7 @@
       "status": "partial",
       "dependsOn": ["M4", "M7"],
       "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered.",
-      "ledgerRemainingWork": "Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9.",
+      "ledgerRemainingWork": "Active demand cycle (2026-07-16): first actor identity/storage and serial executor hops scoped to MainActor and user-declared global actors (FoodTruck StoreActor shape), then reentrancy/resume ownership, isolated parameters, arbitrary global actors, and mailbox stress, then per-feature fail-closed flips of the class-like compatibility path with no up-front global rejection; physical workers remain M9.",
       "requirements": [
         {
           "id": "logical-executor-identity",
@@ -679,31 +680,26 @@
           "status": "open",
           "owners": ["runtime", "compiler"],
           "coverage": ["diagnostic", "isolation"],
-          "dependsOnRequirements": [
-            "M7/generated-signatures-and-preflight"
-          ],
+          "dependsOnRequirements": ["M5/actor-identity-storage-and-serial-executor", "M7/generated-signatures-and-preflight"],
           "ownedCaseIDs": [],
           "evidenceCaseIDs": ["actor-isolation-diagnostic"],
           "testNames": [
             "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
           ],
           "gapEvidenceIDs": ["actor-declaration-safety-boundary"],
-          "notes": "First cycle slice: valid actor declarations must not execute with class-like semantics; reject unsupported actor execution until actor-owned identity/storage and executor dispatch are installed."
+          "notes": "Final slice of the 2026-07-16 demand cycle: each actor semantic feature flips from the documented class-like compatibility path to fail-closed diagnosis together with or after its actor-runtime replacement. A global up-front rejection of valid actor declarations is forbidden while corpus and FoodTruck ratchets execute through the compatibility path. The boundary closes when every demand-scoped actor feature routes through the actor runtime and remaining unsupported actor forms are explicitly diagnosed instead of silently absorbed."
         },
         {
           "id": "actor-identity-storage-and-serial-executor",
           "status": "open",
           "owners": ["runtime"],
           "coverage": ["success", "isolation", "executor", "lifetime"],
-          "dependsOnRequirements": [
-            "M4/structured-stress-and-leak-plateau",
-            "M5/actor-declaration-safety-boundary"
-          ],
+          "dependsOnRequirements": ["M4/structured-stress-and-leak-plateau"],
           "ownedCaseIDs": [],
           "evidenceCaseIDs": ["concurrent-executor-hop"],
           "testNames": [],
           "gapEvidenceIDs": ["actor-identity-storage-serial-executor"],
-          "notes": "Add actor IDs, actor-owned storage, serial mailbox/executor queues, lifetime cleanup, and isolated entry hops."
+          "notes": "Entry slice of the 2026-07-16 demand cycle: add actor IDs, actor-owned storage, serial mailbox/executor queues, lifetime cleanup, and isolated entry hops. First evidence is scoped to the measured demand shapes: @MainActor-isolated classes and members, and user-declared global actors of the FoodTruck StoreActor shape (@globalActor actor with a static shared instance, isolated async members, and cross-actor awaits). Each actor feature keeps executing through the documented class-like compatibility path until its actor-runtime replacement lands; FoodTruckCheck, ProjectCheck, and suite ratchets must not regress."
         },
         {
           "id": "actor-reentrancy-and-isolated-dispatch",
@@ -718,7 +714,7 @@
           "evidenceCaseIDs": ["concurrent-executor-hop"],
           "testNames": [],
           "gapEvidenceIDs": ["actor-reentrancy-isolated-dispatch"],
-          "notes": "Add suspension-safe actor reentrancy/resume ownership, isolated parameters, arbitrary global actors, and replayable mailbox stress."
+          "notes": "Second slice of the 2026-07-16 demand cycle, queued behind identity/storage: add suspension-safe actor reentrancy/resume ownership, isolated parameters, arbitrary global actors, and replayable mailbox stress."
         }
       ]
     },
@@ -728,14 +724,14 @@
       "status": "not-started",
       "dependsOn": ["M5"],
       "ledgerEvidence": "No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. All four active-SDK public continuation entry points are generated with exact effects/isolation metadata and explicitly deferred without runtime routes; a strict Swift 6 native probe selects their explicit-MainActor forms.",
-      "ledgerRemainingWork": "Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage.",
+      "ledgerRemainingWork": "Requires the M5 actor identity/storage slice for executor-owned resume; the demand slice then covers protocol for-await iteration, AsyncStream/AsyncThrowingStream, and checked continuations resuming on cooperative-default and MainActor executors, followed by cancellation, cleanup, and the remaining continuation and stream surface.",
       "requirements": [
         {
           "id": "protocol-iteration-streams-and-continuations",
           "status": "open",
           "owners": ["runtime", "compiler"],
           "coverage": ["success", "failure", "cancellation", "cleanup", "lifetime"],
-          "dependsOnRequirements": ["M5/actor-reentrancy-and-isolated-dispatch"],
+          "dependsOnRequirements": ["M5/actor-identity-storage-and-serial-executor"],
           "ownedCaseIDs": [],
           "evidenceCaseIDs": [
             "task-group-iteration",
@@ -745,7 +741,7 @@
             "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership"
           ],
           "gapEvidenceIDs": ["async-sequence-continuation-runtime"],
-          "notes": "Group-specific iteration is M4 evidence and does not count as protocol-level AsyncSequence or continuation support. The four generated public continuation entry points have a strict native signature/isolation probe but no adapter route or runtime claim; continuation ownership remains gated on M5 resume executors."
+          "notes": "Group-specific iteration is M4 evidence and does not count as protocol-level AsyncSequence or continuation support. The four generated public continuation entry points have a strict native signature/isolation probe but no adapter route or runtime claim; continuation ownership is gated on the M5 identity/storage slice for executor-owned resume, not on full reentrancy. The 2026-07-16 demand slice orders first coverage as protocol for-await iteration, AsyncStream/AsyncThrowingStream, and checked continuations resuming on cooperative-default and MainActor executors, including host-bridged async sequences of the StoreKit update-stream shape; arbitrary-actor and custom-executor resume follows the M5 reentrancy slice."
         }
       ]
     },
@@ -965,16 +961,12 @@
           "status": "open",
           "owners": ["generator", "runtime", "integration"],
           "coverage": ["cancellation", "cleanup", "lifetime", "isolation", "surface"],
-          "dependsOnRequirements": [
-            "M2/completed-handle-driver-release",
-            "M5/actor-reentrancy-and-isolated-dispatch",
-            "M7/generated-signatures-and-preflight"
-          ],
+          "dependsOnRequirements": ["M2/completed-handle-driver-release", "M5/logical-executor-identity", "M7/generated-signatures-and-preflight"],
           "ownedCaseIDs": [],
           "evidenceCaseIDs": ["host-callback-task-runtime"],
           "testNames": [],
           "gapEvidenceIDs": ["view-owned-async-lifecycle-runtime"],
-          "notes": "Generate ordinary modifier exposure; keep only interface-inexpressible lifecycle ownership/cancellation as documented reusable SwiftUI magic."
+          "notes": "Generate ordinary modifier exposure; keep only interface-inexpressible lifecycle ownership/cancellation as documented reusable SwiftUI magic. Measured demand (2026-07-16): the .task modifier appears in 30 of 669 corpus projects and four times in FoodTruck, so this requirement follows the M6 demand slice; its executor prerequisite is the covered MainActor logical identity, not the M5 reentrancy slice."
         }
       ]
     },
