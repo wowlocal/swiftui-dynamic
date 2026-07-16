@@ -621,15 +621,42 @@ extension Interpreter {
     func runUserSubscriptGetter(
         _ symbol: StructSymbol, selfValue: RuntimeValue, args: CallArguments
     ) throws -> RuntimeValue {
-        guard let member = symbol.subscripts.first(where: { $0.parameters.count == args.arguments.count })
-            ?? symbol.subscripts.first else {
+        let member = try userSubscriptMember(
+            in: symbol, argumentCount: args.arguments.count)
+        return try runUserSubscriptGetter(
+            member,
+            symbolName: symbol.name,
+            selfValue: selfValue,
+            args: args)
+    }
+
+    func userSubscriptMember(
+        in symbol: StructSymbol, argumentCount: Int
+    ) throws -> StructSymbol.SubscriptMember {
+        guard let member = symbol.subscripts.first(where: {
+            $0.parameters.count == argumentCount
+        }) ?? symbol.subscripts.first else {
             throw RuntimeError(message: "'\(symbol.name)' has no subscript")
         }
-        let env = selfEnvironment(selfValue)
-        let closure = ClosureValue(
-            parameters: member.parameters, body: member.getter, captured: env,
-            returnTypeName: member.resultTypeName)
-        return try callWithArguments(closure, args: args, node: nil)
+        return member
+    }
+
+    func runUserSubscriptGetter(
+        _ member: StructSymbol.SubscriptMember,
+        symbolName: String,
+        selfValue: RuntimeValue,
+        args: CallArguments
+    ) throws -> RuntimeValue {
+        try withUserSubscriptContext(
+            member, selfValue: selfValue, symbolName: symbolName
+        ) { env in
+            let closure = ClosureValue(
+                parameters: member.parameters,
+                body: member.getter,
+                captured: env,
+                returnTypeName: member.resultTypeName)
+            return try callWithArguments(closure, args: args, node: nil)
+        }
     }
 
     func runUserSubscriptSetter(
@@ -650,19 +677,13 @@ extension Interpreter {
         _ = try executeBlock(setter.body, in: env)
     }
 
-    private func withComputedPropertyContext<T>(
-        _ computed: ComputedProperty,
+    private func withAccessorContext<T>(
+        declarationID: SyntaxIdentifier?,
+        executor calleeExecutor: RuntimeExecutorKind?,
         selfValue: RuntimeValue,
         name: String,
         _ operation: (Environment) throws -> T
     ) throws -> T {
-        let calleeExecutor: RuntimeExecutorKind?
-        if case .instance(let instance) = selfValue {
-            calleeExecutor = try resolvedExecutor(
-                for: computed, on: instance)
-        } else {
-            calleeExecutor = nil
-        }
         let previousExecutor = evaluationTaskContext.currentExecutor
         if let calleeExecutor {
             evaluationTaskContext.currentExecutor = calleeExecutor
@@ -683,13 +704,53 @@ extension Interpreter {
         }
 
         var pushedLexicalOwner = false
-        if let id = computed.declarationID, let owner = declLexicalOwners[id] {
+        if let declarationID, let owner = declLexicalOwners[declarationID] {
             lexicalOwnerFrames.append(owner)
             pushedLexicalOwner = true
         }
         defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
         let env = selfEnvironment(selfValue)
         return try operation(env)
+    }
+
+    private func withComputedPropertyContext<T>(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String,
+        _ operation: (Environment) throws -> T
+    ) throws -> T {
+        let executor: RuntimeExecutorKind?
+        if case .instance(let instance) = selfValue {
+            executor = try resolvedExecutor(for: computed, on: instance)
+        } else {
+            executor = nil
+        }
+        return try withAccessorContext(
+            declarationID: computed.declarationID,
+            executor: executor,
+            selfValue: selfValue,
+            name: name,
+            operation)
+    }
+
+    private func withUserSubscriptContext<T>(
+        _ member: StructSymbol.SubscriptMember,
+        selfValue: RuntimeValue,
+        symbolName: String,
+        _ operation: (Environment) throws -> T
+    ) throws -> T {
+        let executor: RuntimeExecutorKind?
+        if case .instance(let instance) = selfValue {
+            executor = try resolvedExecutor(for: member, on: instance)
+        } else {
+            executor = nil
+        }
+        return try withAccessorContext(
+            declarationID: member.declarationID,
+            executor: executor,
+            selfValue: selfValue,
+            name: "\(symbolName).subscript",
+            operation)
     }
 
     func evaluateComputed(

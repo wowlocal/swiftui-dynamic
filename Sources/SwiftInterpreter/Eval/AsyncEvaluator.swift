@@ -243,6 +243,77 @@ extension Interpreter {
                 }
             }
 
+        case .subscriptCallExpr:
+            if forceInvocation {
+                try tick(expression)
+                let call = expression.cast(SubscriptCallExprSyntax.self)
+                let base = try await evaluateSuspending(
+                    call.calledExpression,
+                    in: env,
+                    forceInvocation: true)
+
+                let actorReceiver: (
+                    instance: Instance,
+                    selfValue: RuntimeValue,
+                    liftsResult: Bool
+                )?
+                switch base.optionalState {
+                case .some(let wrapped, _):
+                    if case .instance(let instance) = wrapped,
+                       instance.symbol.isActor {
+                        actorReceiver = (instance, wrapped, true)
+                    } else {
+                        actorReceiver = nil
+                    }
+                case .none:
+                    actorReceiver = nil
+                case .notOptional:
+                    if case .instance(let instance) = base,
+                       instance.symbol.isActor {
+                        actorReceiver = (instance, base, false)
+                    } else {
+                        actorReceiver = nil
+                    }
+                }
+
+                if let actorReceiver,
+                   !actorReceiver.instance.symbol.subscripts.isEmpty {
+                    let member = try userSubscriptMember(
+                        in: actorReceiver.instance.symbol,
+                        argumentCount: call.arguments.count)
+                    if let executor = try resolvedExecutor(
+                        for: member, on: actorReceiver.instance) {
+                        var arguments: [CallArguments.Argument] = []
+                        for argument in call.arguments {
+                            arguments.append(.init(
+                                label: argument.label?.text,
+                                value: try await evaluateSuspending(
+                                    argument.expression, in: env)))
+                        }
+                        let result = try await evaluateUserSubscriptGetterSuspending(
+                            member,
+                            symbolName: actorReceiver.instance.symbol.name,
+                            selfValue: actorReceiver.selfValue,
+                            args: CallArguments(arguments: arguments),
+                            executor: executor)
+                        return actorReceiver.liftsResult
+                            ? result.liftedToOptional() : result
+                    }
+                }
+
+                // The base has already been evaluated exactly once. Rebind it
+                // into the mature eager subscript evaluator; any suspension in
+                // an index expression is lowered before that evaluator runs.
+                let child = Environment(parent: env)
+                let name = temporaryName()
+                child.define(name, base)
+                let replacement = ExprSyntax(
+                    DeclReferenceExprSyntax(baseName: .identifier(name)))
+                let rewritten = call.with(\.calledExpression, replacement)
+                return try await evaluateLoweredSuspensions(
+                    ExprSyntax(rewritten), in: child)
+            }
+
         case .declReferenceExpr:
             if forceInvocation {
                 let reference = expression.cast(DeclReferenceExprSyntax.self)
@@ -389,6 +460,53 @@ extension Interpreter {
         defer { leaveActorInvocation(actorOwnership) }
         return try evaluateComputed(
             computed, selfValue: selfValue, name: name)
+    }
+
+    private func evaluateUserSubscriptGetterSuspending(
+        _ member: StructSymbol.SubscriptMember,
+        symbolName: String,
+        selfValue: RuntimeValue,
+        args: CallArguments,
+        executor: RuntimeExecutorKind
+    ) async throws -> RuntimeValue {
+        let suspendedCallerActor = suspendCallerActorForExecutorHop(
+            to: executor)
+        do {
+            let result = try await evaluateUserSubscriptGetterOnExecutorSuspending(
+                member,
+                symbolName: symbolName,
+                selfValue: selfValue,
+                args: args,
+                executor: executor)
+            if let suspendedCallerActor {
+                await concurrencyRuntime.resumeActorExecutor(
+                    suspendedCallerActor)
+            }
+            return result
+        } catch {
+            let failure = error
+            if let suspendedCallerActor {
+                await concurrencyRuntime.resumeActorExecutor(
+                    suspendedCallerActor)
+            }
+            throw failure
+        }
+    }
+
+    private func evaluateUserSubscriptGetterOnExecutorSuspending(
+        _ member: StructSymbol.SubscriptMember,
+        symbolName: String,
+        selfValue: RuntimeValue,
+        args: CallArguments,
+        executor: RuntimeExecutorKind
+    ) async throws -> RuntimeValue {
+        let actorOwnership = try await enterActorInvocation(executor: executor)
+        defer { leaveActorInvocation(actorOwnership) }
+        return try runUserSubscriptGetter(
+            member,
+            symbolName: symbolName,
+            selfValue: selfValue,
+            args: args)
     }
 
     private func resolvePendingHostPropertyRead(

@@ -396,6 +396,91 @@ struct ActorRuntimeTests {
         }
     }
 
+    @Test
+    func actorSubscriptGetterAcquiresExecutorAndRejectsUnawaitedEntry()
+        async throws
+    {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "inspectSubscriptOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectSubscriptOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+            actor SubscriptProbe {
+                var stored = 0
+
+                subscript(_ increment: Int) -> String {
+                    let ownership = inspectSubscriptOwnership(self)
+                    guard ownership == "owned" else { return ownership }
+                    stored += increment
+                    return ownership + ":" + String(stored)
+                }
+
+                nonisolated subscript(direct first: Int, _ second: Int) -> String {
+                    inspectSubscriptOwnership(self)
+                }
+
+                func current() -> Int { stored }
+            }
+
+            func runSubscriptProbe() async -> String {
+                let probe = SubscriptProbe()
+                let isolated = await probe[2]
+                let direct = probe[direct: 0, 0]
+                let final = await probe.current()
+                return isolated + "|" + direct + "|" + String(final)
+            }
+
+            await runSubscriptProbe()
+            """)
+        let symbol = try #require(
+            interpreter.globals.lookup("SubscriptProbe")?.typeSymbol)
+        let isolated = try #require(symbol.subscripts.first {
+            $0.parameters.count == 1
+        })
+        let nonisolated = try #require(symbol.subscripts.first {
+            $0.parameters.count == 2
+        })
+
+        #expect(result.stringValue == "owned:2|unowned|2")
+        #expect(!isolated.isNonisolated)
+        #expect(nonisolated.isNonisolated)
+        #expect(isolated.declarationID != nil)
+        #expect(nonisolated.declarationID != nil)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+
+        do {
+            _ = try await Interpreter().runAsync(source: """
+                actor SubscriptProbe {
+                    subscript(_ index: Int) -> Int { index }
+                }
+                let probe = SubscriptProbe()
+                probe[0]
+                """)
+            Issue.record(
+                "actor subscript getter entered synchronously without ownership")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "cross-actor synchronous call requires an awaited "
+                    + "actor-executor entry"))
+        }
+    }
+
     private static func instance(from value: RuntimeValue?) -> Instance? {
         guard case .instance(let instance)? = value else { return nil }
         return instance

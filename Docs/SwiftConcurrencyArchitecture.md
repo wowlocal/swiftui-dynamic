@@ -269,7 +269,10 @@ computed-property getter enters through the same actor mailbox for its complete
 accessor segment; explicit `nonisolated` accessor metadata remains outside that
 entry. A synchronous computed setter does not synthesize an external hop:
 native Swift rejects external mutation even with `await`, so the shared
-accessor context requires the caller to already own the receiver actor.
+accessor context requires the caller to already own the receiver actor. An
+externally awaited synchronous subscript getter uses that same mailbox and
+accessor context after evaluating its base once and its indices before the hop;
+an explicit `nonisolated` subscript stays on the caller executor.
 
 This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
@@ -278,7 +281,7 @@ complete actor isolation. Remaining actor work includes:
 - complete native evidence for cross-actor executor hops and every failure or
   cancellation exit;
 - replayable mailbox/reentrancy stress;
-- complete actor-subscript confinement;
+- complete actor-subscript setter legality and confinement;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
 
@@ -946,9 +949,11 @@ resume ownership. The `actor-computed-property` fixture separately proves that
 an externally awaited synchronous getter owns the receiver actor for its whole
 accessor segment. The `actor-computed-setter` fixture proves legal setter
 execution inside an already-owned actor method, while a diagnostic fixture
-proves that external mutation cannot be made into a hop with `await`. Failure,
-cancellation, actor subscripts, isolated-parameter dispatch, arbitrary global
-actors, and replayable mailbox stress remain open M5 work.
+proves that external mutation cannot be made into a hop with `await`. The
+`actor-subscript-getter` fixture proves the corresponding externally awaited
+getter segment and explicit-nonisolated exception. Failure, cancellation,
+actor-subscript setters, isolated-parameter dispatch, arbitrary global actors,
+and replayable mailbox stress remain open M5 work.
 
 ### 6.13 Cancellation
 

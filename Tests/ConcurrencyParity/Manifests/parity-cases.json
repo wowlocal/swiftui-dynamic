@@ -122,6 +122,18 @@
     "notes": "Exact output is owned:7|owned:11 in all 20 Swift 6.3.3 runs. Sequential awaited method calls establish both assignments; no external setter hop, physical-thread behavior, or independent-message order is asserted."
   },
   {
+    "id": "actor-subscript-getter",
+    "fixture": "Fixtures/actor-subscript-getter.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorSubscriptGetterProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Each externally awaited synchronous actor subscript getter executes inside the receiver actor's executor segment, while an explicitly nonisolated subscript remains on the caller executor.",
+    "notes": "Exact output is owned:1|owned:3|unowned|3 in all 20 Swift 6.3.3 runs. Sequential awaits establish both isolated mutations; no FIFO, physical-thread, independent-message ordering, or setter behavior is asserted."
+  },
+  {
     "id": "actor-reentrancy",
     "fixture": "Fixtures/actor-reentrancy.swift",
     "mode": "runtime",

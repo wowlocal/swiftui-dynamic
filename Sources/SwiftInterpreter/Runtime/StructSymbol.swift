@@ -183,6 +183,28 @@ public final class StructSymbol {
         public let getter: CodeBlockItemListSyntax
         public let setter: ComputedProperty.Setter?
         public let resultTypeName: String?
+        /// Actor subscripts are isolated by default. An explicit
+        /// `nonisolated` modifier keeps both accessors on the caller executor.
+        public let isNonisolated: Bool
+        /// The declaration identifies its nominal lexical owner without
+        /// retaining the syntax tree through a separate closure object.
+        public let declarationID: SyntaxIdentifier?
+
+        public init(
+            parameters: [ClosureValue.Parameter],
+            getter: CodeBlockItemListSyntax,
+            setter: ComputedProperty.Setter?,
+            resultTypeName: String?,
+            isNonisolated: Bool = false,
+            declarationID: SyntaxIdentifier? = nil
+        ) {
+            self.parameters = parameters
+            self.getter = getter
+            self.setter = setter
+            self.resultTypeName = resultTypeName
+            self.isNonisolated = isNonisolated
+            self.declarationID = declarationID
+        }
     }
 
     /// Custom-property-wrapper STATICS (`@UserDefault("key", defaultValue:

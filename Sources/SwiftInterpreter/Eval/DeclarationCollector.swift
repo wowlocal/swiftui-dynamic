@@ -551,6 +551,7 @@ extension Interpreter {
             } else if let subscriptDecl = member.decl.as(SubscriptDeclSyntax.self),
                       let accessorBlock = subscriptDecl.accessorBlock,
                       let accessors = parseAccessors(of: accessorBlock) {
+                declLexicalOwners[subscriptDecl.id] = symbol
                 let parameters = subscriptDecl.parameterClause.parameters.map { param in
                     ClosureValue.Parameter(
                         name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
@@ -562,7 +563,11 @@ extension Interpreter {
                 symbol.subscripts.append(.init(
                     parameters: parameters, getter: accessors.getter,
                     setter: accessors.setter,
-                    resultTypeName: subscriptDecl.returnClause.type.trimmedDescription))
+                    resultTypeName: subscriptDecl.returnClause.type.trimmedDescription,
+                    isNonisolated: subscriptDecl.modifiers.contains {
+                        $0.name.text == "nonisolated"
+                    },
+                    declarationID: subscriptDecl.id))
             } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
                 if Self.tracedIdentifier == nestedEnum.name.text {
                     Swift.print("   ⌗ nestedEnum \(symbol.name).\(nestedEnum.name.text) bareTaken=\(enumSymbols[nestedEnum.name.text] != nil)")

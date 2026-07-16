@@ -57,6 +57,29 @@ extension Interpreter {
         return .actor(actorID)
     }
 
+    /// A source actor's synchronous subscript getter follows the same
+    /// receiver-isolation rule as an instance computed property. The caller's
+    /// suspending expression path owns mailbox acquisition; eager access may
+    /// only proceed when the current task already owns the actor.
+    func resolvedExecutor(
+        for subscriptMember: StructSymbol.SubscriptMember,
+        on instance: Instance
+    ) throws -> RuntimeExecutorKind? {
+        guard instance.symbol.isActor,
+              !subscriptMember.isNonisolated,
+              !instance.isInitializing,
+              !evaluationTaskContext.initializingInstances.contains(
+                ObjectIdentifier(instance)) else {
+            return nil
+        }
+        guard let actorID = instance.actorID else {
+            throw RuntimeError(
+                message: "actor subscript requires a runtime actor ID",
+                fatal: true)
+        }
+        return .actor(actorID)
+    }
+
     /// Enter the source actor selected for a suspending invocation. Both sync
     /// and async declarations own a depth-counted mailbox segment; canonical
     /// runtime waits release the complete segment and restore it before the
