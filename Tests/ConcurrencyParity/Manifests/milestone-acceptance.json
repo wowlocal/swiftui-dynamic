@@ -14,7 +14,6 @@
       "milestoneIDs": ["M4", "M7"],
       "requirementRefs": [
         "M4/remaining-task-group-surface",
-        "M4/group-escape-legality",
         "M7/generated-signatures-and-preflight"
       ]
     },
@@ -370,7 +369,7 @@
       "status": "partial",
       "dependsOn": ["M3", "M7"],
       "ledgerEvidence": "Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all four public group-scope declarations for their evidenced default-isolation subsets, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, all four canonical `addTask(priority:operation:)`, all four canonical `addTaskUnlessCancelled(priority:operation:)`, all eight named add declarations without executor preference for their evidenced nonisolated subsets with task-owned names preserved, all eight `addTask` executor-preference declarations for their explicit-nil nonisolated subsets with non-nil preferences rejected by a shared guard and arbitrary-actor executor divergences recorded, all eight `addTaskUnlessCancelled` executor-preference declarations for active explicit-nil acceptance and post-cancellation rejection without child creation, with the shared non-nil guard and arbitrary-actor executor divergences recorded, and all eight `addImmediateTask`/`addImmediateTaskUnlessCancelled` declarations for their explicit-nil inherited-MainActor subsets with synchronous-prefix execution, Task.name, join, and cancellation-before-preference-validation evidence while non-nil preference and arbitrary-actor divergences remain recorded, all four ordinary/throwing group `next()` declarations, both deprecated `spawn()`, both deprecated `async()`, both deprecated conditional `add()` aliases, both deprecated `asyncUnlessCancelled()` aliases, and both deprecated `spawnUnlessCancelled()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition.",
-      "ledgerRemainingWork": "All currently generated task-group declarations have explicit dispositions. Cover repeated-wait/new-work behavior, implement non-nil TaskExecutor preference resumption and arbitrary-actor operation executors, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence.",
+      "ledgerRemainingWork": "All currently generated task-group declarations have explicit dispositions and the target-aware escaped-capability boundary is covered. Cover repeated-wait/new-work behavior, implement non-nil TaskExecutor preference resumption and arbitrary-actor operation executors; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence.",
       "requirements": [
         {
           "id": "async-let-values-and-cleanup",
@@ -579,17 +578,28 @@
         },
         {
           "id": "group-escape-legality",
-          "status": "open",
-          "owners": ["compiler"],
+          "status": "covered",
+          "owners": ["compiler", "integration"],
           "coverage": ["diagnostic", "lifetime"],
-          "dependsOnRequirements": ["M7/generated-signatures-and-preflight"],
+          "dependsOnRequirements": [],
           "ownedCaseIDs": [],
           "testNames": [
             "SwiftUpstreamParityTests/importedDiagnosticsMatchProductionCompilerPreflight",
-            "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation"
+            "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation",
+            "TargetAwareProjectManifestTests/requiredRenderRejectsPinnedTaskGroupEscapeBeforeTopLevelMutation",
+            "AsyncExecutionTests/completedStructuredTaskGroupGraphDeallocatesAfterJoin"
           ],
-          "gapEvidenceIDs": ["group-escape-project-preflight-boundary"],
-          "notes": "The unchanged pinned swiftlang fixture proves native inout TaskGroup capture diagnostics through the production preflight engine, while runtime lifetime checks remain covered separately. Synthetic callable, property, and nominal type contracts now fail closed; close the requirement when target-aware real-project manifests carry the same boundary."
+          "gapEvidenceIDs": [],
+          "evidenceByCoverage": {
+            "diagnostic": [
+              "test:SwiftUpstreamParityTests/importedDiagnosticsMatchProductionCompilerPreflight",
+              "test:TargetAwareProjectManifestTests/requiredRenderRejectsPinnedTaskGroupEscapeBeforeTopLevelMutation"
+            ],
+            "lifetime": [
+              "test:AsyncExecutionTests/completedStructuredTaskGroupGraphDeallocatesAfterJoin"
+            ]
+          },
+          "notes": "The unchanged SHA-pinned swiftlang fixture proves native non-Sendable and mutable-inout TaskGroup capture diagnostics. The production target-aware project entry checks the original multi-file target before interpreter mutation, preserves exact source locations, and rejects that fixture while runtime lifetime evidence separately proves the joined structured graph is released."
         },
         {
           "id": "structured-stress-and-leak-plateau",
@@ -745,7 +755,7 @@
       "status": "partial",
       "dependsOn": ["M0"],
       "ledgerEvidence": "The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, both macOS 26 task-priority-escalation handler declarations for their evidenced cooperative and explicit-`nil` subsets, the `withTaskExecutorPreference` declaration for its explicit-`nil`, no-ambient-custom-executor, bare-unqualified-direct-global-async-nil-operation-executor-preference-explicitly-nonisolated-operation subset, the `extractIsolation` declaration for synchronous non-invoking reflection of bare unqualified direct global async plain-explicit-nonisolated declarations including `@concurrent` while aliases, conversions, member references, and actor identity fail closed, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, all four public checked/unsafe continuation entry points explicitly deferred to M6 behind M5 resume ownership, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 171/171 reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 69 known divergences, 26 excluded compiler ABI, five deferred, and zero unreviewed.",
-      "ledgerRemainingWork": "Add target-aware build manifests before M5 or M8 closure; every declaration in the current generated active-SDK denominator now has an explicit disposition.",
+      "ledgerRemainingWork": "Target-aware project manifests are covered. Keep M7 partial while the generated inventory scope is explicitly incomplete and known-divergent or deferred declarations retain owned gap dispositions.",
       "requirements": [
         {
           "id": "native-diagnostic-oracles",
@@ -775,7 +785,7 @@
         {
           "id": "generated-signatures-and-preflight",
           "status": "open",
-          "owners": ["generator", "compiler", "runtime"],
+          "owners": ["generator", "compiler", "runtime", "integration"],
           "coverage": ["diagnostic", "isolation", "surface"],
           "ownedCaseIDs": [
             "throwing-property-missing-try-diagnostic",
@@ -827,6 +837,12 @@
             "SwiftUpstreamParityTests/importedSupportModulePreservesStaticPropertyMainActorIsolation",
             "SwiftUpstreamParityTests/importedSupportModulePreservesMainActorTypeIsolation",
             "CompilerPreflightTests/cacheKeyInvalidatesOnSourceToolchainSDKTargetAndManifest",
+            "CompilerPreflightTests/legacyAdditionalArgumentsStillApplyToHostAndClient",
+            "CompilerPreflightTests/structuredTargetArgumentsStayOutOfGeneratedHostModule",
+            "TargetAwareProjectManifestTests/explicitIOSSimulatorTargetSelectsConditionsAndMembership",
+            "TargetAwareProjectManifestTests/unrecordedCompilerConditionalFailsClosedBeforeMutation",
+            "TargetAwareProjectManifestTests/requiredRenderRejectsPinnedTaskGroupEscapeBeforeTopLevelMutation",
+            "TargetAwareProjectManifestTests/manifestFingerprintBindsTargetPathsAndExactSourceBytes",
             "CompilerPreflightTests/timeoutTerminatesCompilerDescendantProcessTree",
             "CompilerPreflightTests/diagnosticsOnlyModeRetainsErrorsAndAllowsEditorRecovery",
             "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation",
@@ -901,7 +917,22 @@
             "UnsafeCurrentTaskRuntimeTests/everyGeneratedUnroutedMemberHasExplicitDiagnostic"
           ],
           "gapEvidenceIDs": ["generated-concurrency-signatures-and-preflight"],
-          "notes": "Active-SDK top-level function, Task static/instance, selected-nominal, task-group, and nested ordinary/throwing group-iterator declaration slices are generated with an explicit incomplete-scope denominator and stale checks. A compiler-backed conditional filter selects active declarations before inventory walkers run and fails closed when the build configuration cannot answer a condition; this exposes the four conditional Task static `immediate`/`Task.immediateDetached` declarations and two additional top-level task-priority-escalation handler declarations. Production preflight composes registry-bound host modules, SDK re-exports, multi-file projects, typed synthetic top-level functions, receiver-qualified callables/properties, and fail-closed nominal declarations before interpreter mutation. Exact member effects and enclosing attributes are retained from SwiftSyntax, and SHA-pinned swiftlang modules continue to anchor cross-module and task-group behavior. The generic selected-nominal walker now accounts for all nine active UnsafeCurrentTask rows; six generated routes share one leased RuntimeTaskID capability, while hash(into:), escalatePriority(to:), and unownedTaskExecutor fail closed. Both withUnsafeCurrentTask overloads have same-source Swift 6 parity for synchronous/asynchronous detached-task identity, suspension, priority, cancellation, exact rethrow, hash consistency, and cleanup. Focused runtime tests separately cover nil outside a runtime task, root and host-callback identity, cancellation-observation accounting, lease invalidation, and ownership release. All 36 generated Task instance/static rows retain explicit dispositions. Same-source Swift 6 evidence covers all four immediate overloads for their explicit-nil inherited-MainActor subset. The shared runtime models start policy independently from context inheritance; non-nil TaskExecutor preferences fail closed, and arbitrary actor/executor behavior remains a recorded divergence. The deprecated top-level task aliases, cancellation handlers, both task-priority-escalation handler declarations, four task-group scope rows, and seventy-seven task-group plus iterator rows retain their authored dispositions. The priority handler scope delivers every strict in-scope donation to all active nested handlers, does not replay prior donations, preserves exact old/new values and operation outcomes, and removes registrations on success, failure, and cancellation; arbitrary actor isolation remains fail-closed. The generated `withTaskExecutorPreference` route now has exact same-source Swift 6 evidence for a dynamic same-task scope with no ambient custom TaskExecutor, explicit nil executor and isolation arguments, and a bare unqualified direct global async operation function carrying a plain explicit nonisolated modifier and no declaration-level executor preference. Identity, effective priority, name, task locals, cancellation, success, typed source failure, suspension, and cleanup are preserved without creating a task or mutating executor state. Native nil inherits an ambient custom preference rather than clearing it, and custom executors, omitted or non-nil isolation, qualified or parenthesized references, local aliases or function-value conversions, @concurrent or actor-isolated operations, and closure-expression operations remain fail-closed M5 work. The generated `extractIsolation` route now has exact same-source Swift 6 evidence for synchronous inspection of bare unqualified direct global async function declarations with plain explicit `nonisolated` provenance, including `@concurrent`; the adapter returns nil without invoking the operation, creating a task, or mutating executor state, and focused tests prove no retained task, scope, group, or scheduler ownership. MainActor/custom-actor identity, implicit nonisolation, synchronous functions, qualified or parenthesized references, local aliases, closure expressions, function-value conversions, member references, and `nonisolated(nonsending)` remain fail-closed M5 work. All four public checked/unsafe continuation entry points retain their generated async, throwing, sending, and isolated-parameter metadata and have a strict native Swift 6 explicit-MainActor probe. They remain unrouted and explicitly deferred to M6 because required resume-executor ownership depends on M5. Twenty-six exact underscore-prefixed compiler/runtime ABI hooks remain excluded, while _swift_createJobForTestingOnly remains deferred to M9. Current accounting is 171 of 171 generated rows reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 69 known divergences, 26 excluded compiler ABI, five deferred, and zero unreviewed. Target-aware project build manifests remain open."
+          "evidenceByCoverage": {
+            "diagnostic": [
+              "test:CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation",
+              "test:TargetAwareProjectManifestTests/requiredRenderRejectsPinnedTaskGroupEscapeBeforeTopLevelMutation"
+            ],
+            "isolation": [
+              "test:CompilerPreflightTests/structuredTargetArgumentsStayOutOfGeneratedHostModule",
+              "test:TargetAwareProjectManifestTests/explicitIOSSimulatorTargetSelectsConditionsAndMembership"
+            ],
+            "surface": [
+              "test:ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+              "test:TargetAwareProjectManifestTests/manifestFingerprintBindsTargetPathsAndExactSourceBytes",
+              "test:TargetAwareProjectManifestTests/unrecordedCompilerConditionalFailsClosedBeforeMutation"
+            ]
+          },
+          "notes": "Active-SDK top-level function, Task static/instance, selected-nominal, task-group, and nested ordinary/throwing group-iterator declaration slices are generated with an explicit denominator and stale checks. Production preflight composes registry-bound host modules, SDK re-exports, typed synthetic declarations, and original multi-file target sources before interpreter mutation. The immutable target manifest fingerprints canonical project root, exact ordered source membership and bytes, compiler/toolchain identity, SDK, target triple, language and concurrency modes, default isolation, defines, search paths, feature flags, exact importability, and compiler-validated conditional answers. The same manifest drives interpreter `#if`; unrecorded compiler-owned and versioned-import predicates fail closed before top-level execution. Native iOS-simulator and Catalyst probes causally cover platform, architecture, environment, defines, importability, effective Swift/compiler versions, StrictConcurrency and other compiler predicates, default isolation, deployment floor, and excluded sibling files. Legacy compiler arguments remain host-and-client compatible while structured target-only flags cannot leak into generated host modules. All 171 generated rows retain reviewed supported, diagnosed, divergent, excluded, or deferred dispositions; continuation runtime work remains owned by M6 and physical executor jobs by M9 rather than being claimed here."
         }
       ]
     },

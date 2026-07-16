@@ -1,6 +1,128 @@
 import Foundation
 import SwiftSyntax
 
+/// Per-interpreter conditional-compilation identity. Target-aware project
+/// callers derive this from the same build target used by compiler preflight;
+/// legacy callers retain the historical iOS + DEBUG canvas.
+public struct InterpreterBuildConfiguration: Sendable, Equatable {
+    public let platformName: String
+    public let targetEnvironment: String?
+    public let architecture: String?
+    public let activeCompilationConditions: Set<String>
+    public let swiftLanguageVersion: CompilerPreflightSwiftLanguageVersion
+    public let swiftConditionalCompilationVersion:
+        CompilerPreflightVersion?
+    public let compilerVersion: CompilerPreflightVersion?
+    public let defaultIsolation: CompilerPreflightDefaultIsolation
+    public let appleSDK: CompilerPreflightAppleSDK?
+    /// `nil` preserves the legacy platform heuristic. A target manifest always
+    /// supplies a complete set (which may be empty), making `canImport` exact.
+    public let authoritativeImportableModules: Set<String>?
+    public let authoritativeVersionedImportQueries: [String: Bool]?
+    /// `nil` preserves legacy best-effort behavior. Target-aware construction
+    /// always supplies a dictionary (possibly empty), so unrecorded
+    /// compiler-owned predicates can be rejected before execution.
+    public let authoritativeConditionalCompilationQueries: [String: Bool]?
+
+    public init(
+        platformName: String = "iOS",
+        targetEnvironment: String? = nil,
+        architecture: String? = nil,
+        activeCompilationConditions: Set<String> = ["DEBUG"],
+        swiftLanguageVersion: CompilerPreflightSwiftLanguageVersion = .swift6,
+        swiftConditionalCompilationVersion: CompilerPreflightVersion? = nil,
+        compilerVersion: CompilerPreflightVersion? = nil,
+        defaultIsolation: CompilerPreflightDefaultIsolation = .nonisolated,
+        appleSDK: CompilerPreflightAppleSDK? = nil,
+        authoritativeImportableModules: Set<String>? = nil,
+        authoritativeVersionedImportQueries: [String: Bool]? = nil,
+        authoritativeConditionalCompilationQueries: [String: Bool]? = nil
+    ) {
+        self.platformName = platformName
+        self.targetEnvironment = targetEnvironment
+        self.architecture = architecture
+        self.activeCompilationConditions = activeCompilationConditions
+        self.swiftLanguageVersion = swiftLanguageVersion
+        self.swiftConditionalCompilationVersion =
+            swiftConditionalCompilationVersion
+        self.compilerVersion = compilerVersion
+        self.defaultIsolation = defaultIsolation
+        self.appleSDK = appleSDK
+        self.authoritativeImportableModules = authoritativeImportableModules
+        self.authoritativeVersionedImportQueries =
+            authoritativeVersionedImportQueries
+        self.authoritativeConditionalCompilationQueries =
+            authoritativeConditionalCompilationQueries
+    }
+
+    public init(buildTarget: CompilerPreflightBuildTarget) {
+        self.init(
+            platformName: buildTarget.sdk.platformName,
+            targetEnvironment: buildTarget.sdk.targetEnvironment,
+            architecture: buildTarget.architecture,
+            activeCompilationConditions:
+                Set(buildTarget.activeCompilationConditions),
+            swiftLanguageVersion: buildTarget.swiftLanguageVersion,
+            swiftConditionalCompilationVersion:
+                buildTarget.swiftConditionalCompilationVersion,
+            compilerVersion: buildTarget.compilerVersion,
+            defaultIsolation: buildTarget.defaultIsolation,
+            appleSDK: buildTarget.sdk,
+            authoritativeImportableModules:
+                Set(buildTarget.importableModules),
+            authoritativeVersionedImportQueries: Dictionary(
+                uniqueKeysWithValues: buildTarget.versionedImportQueries.map {
+                    ($0.identity, $0.isImportable)
+                }),
+            authoritativeConditionalCompilationQueries: Dictionary(
+                uniqueKeysWithValues:
+                    buildTarget.conditionalCompilationQueries.map {
+                        ($0.identity, $0.isActive)
+                    }))
+    }
+
+    func canImport(_ moduleName: String) -> Bool {
+        if let authoritativeImportableModules {
+            return authoritativeImportableModules.contains(moduleName)
+        }
+        switch appleSDK {
+        case .macOS:
+            return !["UIKit", "WatchKit"].contains(moduleName)
+        case .watchOS, .watchOSSimulator:
+            return !["AppKit", "Cocoa", "UIKit"].contains(moduleName)
+        case .iOS, .iOSSimulator, .macCatalyst, .tvOS, .tvOSSimulator,
+             .visionOS, .visionOSSimulator:
+            return !["AppKit", "Cocoa", "WatchKit"].contains(moduleName)
+        case nil:
+            if platformName == "macOS" {
+                return !["UIKit", "WatchKit"].contains(moduleName)
+            }
+            return !["AppKit", "Cocoa"].contains(moduleName)
+        }
+    }
+
+    func canImport(
+        _ moduleName: String,
+        versionKind: String,
+        version: String
+    ) -> Bool {
+        guard let authoritativeVersionedImportQueries else {
+            return canImport(moduleName)
+        }
+        let identity = moduleName + "\u{0}" + versionKind + "\u{0}" + version
+        return authoritativeVersionedImportQueries[identity] ?? false
+    }
+
+    func conditionalCompilationQuery(
+        predicate: String,
+        argument: String
+    ) -> Bool? {
+        authoritativeConditionalCompilationQueries?[
+            predicate + "\u{0}" + argument
+        ]
+    }
+}
+
 /// The public facade: parse → fold operators → collect declarations → evaluate.
 ///
 /// A tree-walking interpreter over SwiftSyntax ASTs. It implements no
@@ -14,6 +136,7 @@ public final class Interpreter {
     public var registry: HostRegistry?
     public let compilerPreflight: SwiftCompilerPreflight?
     public let compilerPreflightMode: CompilerPreflightMode
+    public let buildConfiguration: InterpreterBuildConfiguration
     public internal(set) var lastCompilerPreflightResult:
         CompilerPreflightResult?
     /// Struct symbols in declaration order (used to pick the root View).
@@ -26,10 +149,9 @@ public final class Interpreter {
     /// keyed by the extended host type's name.
     var hostExtensionSymbols: [String: StructSymbol] = [:]
     var assumesCompiledImports = false
-    /// Which `#if os(...)` platform the interpretation compiles as. The
-    /// corpus doctrine is iOS (587 iPhone-shaped samples); the FoodTruck
-    /// PRIMARY TARGET interprets as macOS to match its native twin
-    /// pixel-for-pixel.
+    /// Legacy default captured by interpreters constructed without an
+    /// explicit `InterpreterBuildConfiguration`. Target-manifest callers use
+    /// immutable per-instance build identity instead.
     public static var interpretsAsPlatform = "iOS"
     /// RNG_TRACE diagnostics only.
     public static var rngDrawCount = 0
@@ -486,10 +608,16 @@ public final class Interpreter {
         return try body()
     }
 
-    public init(registry: HostRegistry? = nil) {
+    public init(
+        registry: HostRegistry? = nil,
+        buildConfiguration: InterpreterBuildConfiguration? = nil
+    ) {
         self.registry = registry
         compilerPreflight = nil
         compilerPreflightMode = .disabled
+        self.buildConfiguration = buildConfiguration
+            ?? InterpreterBuildConfiguration(
+                platformName: Self.interpretsAsPlatform)
         runtimeClock = ContinuousRuntimeClock()
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
@@ -498,11 +626,15 @@ public final class Interpreter {
     public init(
         registry: HostRegistry? = nil,
         compilerPreflight: SwiftCompilerPreflight,
-        compilerPreflightMode: CompilerPreflightMode = .required
+        compilerPreflightMode: CompilerPreflightMode = .required,
+        buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
         self.registry = registry
         self.compilerPreflight = compilerPreflight
         self.compilerPreflightMode = compilerPreflightMode
+        self.buildConfiguration = buildConfiguration
+            ?? InterpreterBuildConfiguration(
+                platformName: Self.interpretsAsPlatform)
         runtimeClock = ContinuousRuntimeClock()
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
@@ -510,11 +642,15 @@ public final class Interpreter {
 
     public init(
         registry: HostRegistry? = nil,
-        runtimeClock: any RuntimeClock
+        runtimeClock: any RuntimeClock,
+        buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
         self.registry = registry
         compilerPreflight = nil
         compilerPreflightMode = .disabled
+        self.buildConfiguration = buildConfiguration
+            ?? InterpreterBuildConfiguration(
+                platformName: Self.interpretsAsPlatform)
         self.runtimeClock = runtimeClock
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
@@ -524,11 +660,15 @@ public final class Interpreter {
         registry: HostRegistry? = nil,
         runtimeClock: any RuntimeClock,
         compilerPreflight: SwiftCompilerPreflight,
-        compilerPreflightMode: CompilerPreflightMode = .required
+        compilerPreflightMode: CompilerPreflightMode = .required,
+        buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
         self.registry = registry
         self.compilerPreflight = compilerPreflight
         self.compilerPreflightMode = compilerPreflightMode
+        self.buildConfiguration = buildConfiguration
+            ?? InterpreterBuildConfiguration(
+                platformName: Self.interpretsAsPlatform)
         self.runtimeClock = runtimeClock
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()

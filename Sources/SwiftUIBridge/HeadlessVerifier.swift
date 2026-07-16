@@ -88,7 +88,10 @@ public enum HeadlessVerifier {
                 throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: [:])
-            interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+            interpreter.injectEnvironmentValues(
+                into: instance,
+                values: InterpretedEnvironment.defaults(
+                    platformName: interpreter.buildConfiguration.platformName))
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             renderTree = {
                 LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
@@ -170,7 +173,10 @@ public enum HeadlessVerifier {
         actions += node.actions.values
         if let instance = node.instance {
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
-            interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+            interpreter.injectEnvironmentValues(
+                into: instance,
+                values: InterpretedEnvironment.defaults(
+                    platformName: interpreter.buildConfiguration.platformName))
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             let body = try { LiveModelStore.refreshQueries(into: instance, interpreter: interpreter); return try TraceRegistry.node(interpreter.evaluateBody(of: instance)) }()
             count += try deepRender(interpreter, body, actions: &actions, environment: environment, depth: depth + 1)

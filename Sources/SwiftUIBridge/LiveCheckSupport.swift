@@ -96,7 +96,11 @@ public enum LiveCheckSupport {
             if case .instance(let instance) = value {
                 lastRootSymbol = "app:" + instance.symbol.name
                 try interpreter.injectEnvironmentObjects(into: instance, models: [:])
-                interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+                interpreter.injectEnvironmentValues(
+                    into: instance,
+                    values: InterpretedEnvironment.defaults(
+                        platformName:
+                            interpreter.buildConfiguration.platformName))
                 LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
                 renderRoot = {
                     LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
@@ -129,7 +133,10 @@ public enum LiveCheckSupport {
                 throw RuntimeError(message: "could not instantiate '\(symbol.name)'")
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: [:])
-            interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+            interpreter.injectEnvironmentValues(
+                into: instance,
+                values: InterpretedEnvironment.defaults(
+                    platformName: interpreter.buildConfiguration.platformName))
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             renderRoot = {
                 LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
@@ -290,7 +297,10 @@ public enum LiveCheckSupport {
                 print("   ⊙ \(instance.symbol.name) vm=\(vmID)")
             }
             try interpreter.injectEnvironmentObjects(into: instance, models: environment)
-            interpreter.injectEnvironmentValues(into: instance, values: InterpretedEnvironment.defaults())
+            interpreter.injectEnvironmentValues(
+                into: instance,
+                values: InterpretedEnvironment.defaults(
+                    platformName: interpreter.buildConfiguration.platformName))
             LiveModelStore.refreshQueries(into: instance, interpreter: interpreter)
             let body = try TraceRegistry.node(interpreter.evaluateBody(of: instance))
             try collect(interpreter, body, into: &strings, lifecycle: &lifecycle,

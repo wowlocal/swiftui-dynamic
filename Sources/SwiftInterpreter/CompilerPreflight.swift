@@ -13,6 +13,500 @@ public enum CompilerPreflightMode: String, Sendable {
     case required
 }
 
+/// An Apple SDK selected by a target build manifest. The raw value is its
+/// stable manifest identity; use `xcrunIdentifier` for tool invocation.
+public enum CompilerPreflightAppleSDK: String, Sendable, CaseIterable {
+    case macOS = "macosx"
+    case iOS = "iphoneos"
+    case iOSSimulator = "iphonesimulator"
+    /// Mac Catalyst is an iOS destination compiled against the macOS SDK.
+    case macCatalyst = "maccatalyst"
+    case tvOS = "appletvos"
+    case tvOSSimulator = "appletvsimulator"
+    case watchOS = "watchos"
+    case watchOSSimulator = "watchsimulator"
+    case visionOS = "xros"
+    case visionOSSimulator = "xrsimulator"
+
+    /// Spelling accepted by Swift's `#if os(...)` predicate.
+    public var platformName: String {
+        switch self {
+        case .macOS: "macOS"
+        case .iOS, .iOSSimulator, .macCatalyst: "iOS"
+        case .tvOS, .tvOSSimulator: "tvOS"
+        case .watchOS, .watchOSSimulator: "watchOS"
+        case .visionOS, .visionOSSimulator: "visionOS"
+        }
+    }
+
+    /// Spelling embedded in an Apple target triple.
+    var targetPlatformName: String {
+        switch self {
+        case .macOS: "macosx"
+        case .iOS, .iOSSimulator, .macCatalyst: "ios"
+        case .tvOS, .tvOSSimulator: "tvos"
+        case .watchOS, .watchOSSimulator: "watchos"
+        case .visionOS, .visionOSSimulator: "xros"
+        }
+    }
+
+    /// Spelling accepted by Swift's `#if targetEnvironment(...)` predicate.
+    public var targetEnvironment: String? {
+        switch self {
+        case .iOSSimulator, .tvOSSimulator, .watchOSSimulator,
+             .visionOSSimulator:
+            "simulator"
+        case .macCatalyst:
+            "macCatalyst"
+        case .macOS, .iOS, .tvOS, .watchOS, .visionOS:
+            nil
+        }
+    }
+
+    /// SDK identifier accepted by `xcrun --sdk`. Catalyst intentionally uses
+    /// the macOS SDK while retaining an iOS/macabi destination triple.
+    public var xcrunIdentifier: String {
+        self == .macCatalyst ? "macosx" : rawValue
+    }
+
+    var targetTripleSuffix: String {
+        switch self {
+        case .iOSSimulator, .tvOSSimulator, .watchOSSimulator,
+             .visionOSSimulator:
+            "-simulator"
+        case .macCatalyst:
+            "-macabi"
+        case .macOS, .iOS, .tvOS, .watchOS, .visionOS:
+            ""
+        }
+    }
+}
+
+public struct CompilerPreflightVersion: Sendable, Equatable, Comparable,
+    CustomStringConvertible
+{
+    public let major: UInt
+    public let minor: UInt
+    public let patch: UInt
+
+    /// Integer components cannot represent a malformed negative version, so
+    /// callers constructing manifests from decoded input do not cross a
+    /// process-crashing precondition boundary.
+    public init(_ major: UInt, _ minor: UInt = 0, _ patch: UInt = 0) {
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+    }
+
+    public init(parsing value: String) throws {
+        let components = value.split(
+            separator: ".", omittingEmptySubsequences: false)
+        guard (1...3).contains(components.count) else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "compiler version '\(value)' is invalid")
+        }
+        var numbers: [UInt] = []
+        for component in components {
+            guard !component.isEmpty,
+                  component.allSatisfy({ $0.isASCII && $0.isNumber }),
+                  let number = UInt(component)
+            else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "compiler version '\(value)' is invalid")
+            }
+            numbers.append(number)
+        }
+        self.init(
+            numbers[0],
+            numbers.count > 1 ? numbers[1] : 0,
+            numbers.count > 2 ? numbers[2] : 0)
+    }
+
+    public var description: String { "\(major).\(minor).\(patch)" }
+
+    public static func < (
+        lhs: CompilerPreflightVersion,
+        rhs: CompilerPreflightVersion
+    ) -> Bool {
+        if lhs.major != rhs.major { return lhs.major < rhs.major }
+        if lhs.minor != rhs.minor { return lhs.minor < rhs.minor }
+        return lhs.patch < rhs.patch
+    }
+
+    func satisfies(_ rawPredicate: String) -> Bool {
+        let predicate = rawPredicate.replacingOccurrences(of: " ", with: "")
+        // Swift conditional-compilation version predicates support only these
+        // two operators. Native preflight diagnoses every other spelling.
+        let operators = [">=", "<"]
+        guard let operation = operators.first(where: predicate.hasPrefix),
+              let required = try? CompilerPreflightVersion(
+                  parsing: String(predicate.dropFirst(operation.count)))
+        else { return false }
+        switch operation {
+        case ">=": return self >= required
+        case "<": return self < required
+        default: return false
+        }
+    }
+
+    var nextPatch: CompilerPreflightVersion? {
+        guard patch < UInt.max else { return nil }
+        return CompilerPreflightVersion(major, minor, patch + 1)
+    }
+}
+
+public enum CompilerPreflightSwiftLanguageVersion: String, Sendable {
+    case swift4 = "4"
+    case swift4_2 = "4.2"
+    case swift5 = "5"
+    case swift6 = "6"
+}
+
+public enum CompilerPreflightStrictConcurrency: String, Sendable {
+    case minimal
+    case targeted
+    case complete
+}
+
+public enum CompilerPreflightDefaultIsolation: String, Sendable {
+    case nonisolated
+    case mainActor = "MainActor"
+}
+
+/// One version-qualified `canImport` answer established by the selected real
+/// compiler. Module version comparison has compiler-specific behavior (for
+/// example, an absent user version can make `_version:` advisory), so the
+/// manifest records the result and the client-module preflight verifies it in
+/// the same source/import context instead of reimplementing that policy in the
+/// interpreter.
+public struct CompilerPreflightVersionedImportQuery: Sendable, Equatable,
+    Hashable
+{
+    public enum VersionKind: String, Sendable {
+        case user = "_version"
+        case underlying = "_underlyingVersion"
+    }
+
+    public let moduleName: String
+    public let versionKind: VersionKind
+    public let version: String
+    public let isImportable: Bool
+
+    public init(
+        moduleName: String,
+        versionKind: VersionKind,
+        version: String,
+        isImportable: Bool
+    ) throws {
+        guard isValidCompilerModulePath(moduleName) else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "versioned import module '\(moduleName)' is invalid")
+        }
+        guard isValidCompilerImportVersion(version) else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "versioned import value '\(version)' is invalid")
+        }
+        self.moduleName = moduleName
+        self.versionKind = versionKind
+        self.version = version
+        self.isImportable = isImportable
+    }
+
+    var identity: String {
+        moduleName + "\u{0}" + versionKind.rawValue + "\u{0}" + version
+    }
+
+    var sourceCondition: String {
+        "canImport(\(moduleName), \(versionKind.rawValue): \(version))"
+    }
+}
+
+/// One single-identifier conditional-compilation predicate whose answer is
+/// owned by the selected compiler rather than reimplemented by the
+/// interpreter. The client-module preflight verifies every recorded answer in
+/// the same target context before interpretation starts.
+public struct CompilerPreflightConditionalCompilationQuery: Sendable,
+    Equatable, Hashable
+{
+    public enum Predicate: String, Sendable, CaseIterable {
+        case hasFeature
+        case hasAttribute
+        case objectFormat
+        case endian = "_endian"
+        case runtime = "_runtime"
+    }
+
+    public let predicate: Predicate
+    public let argument: String
+    public let isActive: Bool
+
+    public init(
+        predicate: Predicate,
+        argument: String,
+        isActive: Bool
+    ) throws {
+        guard isValidCompilerIdentifier(argument) else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "conditional-compilation argument '\(argument)' is invalid")
+        }
+        self.predicate = predicate
+        self.argument = argument
+        self.isActive = isActive
+    }
+
+    var identity: String {
+        predicate.rawValue + "\u{0}" + argument
+    }
+
+    var sourceCondition: String {
+        "\(predicate.rawValue)(\(argument))"
+    }
+}
+
+/// The concurrency-preflight and conditional-compilation identity for one
+/// Swift target. Driver actions, output/source paths, package access policy,
+/// and resource rules remain build-system/project-manifest responsibilities.
+public struct CompilerPreflightBuildTarget: Sendable, Equatable {
+    public let moduleName: String
+    public let sdk: CompilerPreflightAppleSDK
+    public let architecture: String
+    public let deploymentTarget: String
+    public let compilerVersion: CompilerPreflightVersion
+    /// Effective version observed by source `#if swift(...)`. This is
+    /// intentionally distinct from `-swift-version`: Swift 6.3 in Swift 5
+    /// mode reports 5.10, not 5.0. `activeApple` verifies this boundary with
+    /// the selected real compiler before accepting the target.
+    public let swiftConditionalCompilationVersion: CompilerPreflightVersion
+    public let swiftLanguageVersion: CompilerPreflightSwiftLanguageVersion
+    public let strictConcurrency: CompilerPreflightStrictConcurrency
+    public let defaultIsolation: CompilerPreflightDefaultIsolation
+    /// Complete module set used to answer source `#if canImport(...)` while
+    /// interpreting this target. Build-system adapters must include both SDK
+    /// modules and dependency products; this is authoritative, not a hint.
+    public let importableModules: [String]
+    /// Complete set of version-qualified `canImport` predicates used by this
+    /// target's sources. An unrecorded query fails closed before execution.
+    public let versionedImportQueries:
+        [CompilerPreflightVersionedImportQuery]
+    /// Exact compiler-owned answers for conditional predicates that cannot be
+    /// derived safely from the manifest fields above. Source that uses one of
+    /// these predicate families without a recorded answer fails closed before
+    /// interpreter mutation.
+    public let conditionalCompilationQueries:
+        [CompilerPreflightConditionalCompilationQuery]
+    public let activeCompilationConditions: [String]
+    public let importSearchPaths: [String]
+    public let frameworkSearchPaths: [String]
+    public let upcomingFeatures: [String]
+    public let experimentalFeatures: [String]
+
+    public init(
+        moduleName: String,
+        sdk: CompilerPreflightAppleSDK,
+        architecture: String,
+        deploymentTarget: String,
+        compilerVersion: CompilerPreflightVersion,
+        swiftConditionalCompilationVersion: CompilerPreflightVersion,
+        importableModules: [String],
+        versionedImportQueries:
+            [CompilerPreflightVersionedImportQuery] = [],
+        conditionalCompilationQueries:
+            [CompilerPreflightConditionalCompilationQuery] = [],
+        swiftLanguageVersion: CompilerPreflightSwiftLanguageVersion = .swift6,
+        strictConcurrency: CompilerPreflightStrictConcurrency = .complete,
+        defaultIsolation: CompilerPreflightDefaultIsolation = .nonisolated,
+        activeCompilationConditions: [String] = [],
+        importSearchPaths: [String] = [],
+        frameworkSearchPaths: [String] = [],
+        upcomingFeatures: [String] = [],
+        experimentalFeatures: [String] = []
+    ) throws {
+        guard isValidCompilerModuleName(moduleName) else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "target module name '\(moduleName)' is not a Swift identifier")
+        }
+        guard isValidTargetArchitecture(architecture) else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "target architecture '\(architecture)' is invalid")
+        }
+        guard isValidDeploymentTarget(deploymentTarget) else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "deployment target '\(deploymentTarget)' is invalid")
+        }
+        for condition in activeCompilationConditions {
+            guard isValidCompilerIdentifier(condition) else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "active compilation condition '\(condition)' is invalid")
+            }
+        }
+        for module in importableModules {
+            guard isValidCompilerModulePath(module) else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "importable module '\(module)' is invalid")
+            }
+        }
+        let importableModuleSet = Set(importableModules)
+        var versionedImportIdentities: Set<String> = []
+        for query in versionedImportQueries {
+            guard versionedImportIdentities.insert(query.identity).inserted
+            else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "versioned import query '\(query.sourceCondition)' is "
+                        + "duplicated")
+            }
+            guard !query.isImportable
+                    || importableModuleSet.contains(query.moduleName)
+            else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "true versioned import query '\(query.sourceCondition)' "
+                        + "requires unversioned module membership")
+            }
+        }
+        var conditionalQueryIdentities: Set<String> = []
+        for query in conditionalCompilationQueries {
+            guard conditionalQueryIdentities.insert(query.identity).inserted
+            else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "conditional-compilation query "
+                        + "'\(query.sourceCondition)' is duplicated")
+            }
+        }
+        for feature in upcomingFeatures + experimentalFeatures {
+            guard isValidCompilerIdentifier(feature) else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "compiler feature '\(feature)' is invalid")
+            }
+        }
+        for path in importSearchPaths + frameworkSearchPaths {
+            guard isAbsoluteNormalizedCompilerSearchPath(path) else {
+                throw CompilerPreflightError.invalidConfiguration(
+                    "compiler search path '\(path)' must be absolute and "
+                        + "lexically normalized")
+            }
+        }
+
+        self.moduleName = moduleName
+        self.sdk = sdk
+        self.architecture = architecture
+        self.deploymentTarget = deploymentTarget
+        self.compilerVersion = compilerVersion
+        self.swiftConditionalCompilationVersion =
+            swiftConditionalCompilationVersion
+        self.swiftLanguageVersion = swiftLanguageVersion
+        self.strictConcurrency = strictConcurrency
+        self.defaultIsolation = defaultIsolation
+        self.importableModules = Array(Set(importableModules)).sorted()
+        self.versionedImportQueries = versionedImportQueries.sorted {
+            $0.identity < $1.identity
+        }
+        self.conditionalCompilationQueries =
+            conditionalCompilationQueries.sorted {
+                $0.identity < $1.identity
+            }
+        self.activeCompilationConditions = Array(
+            Set(activeCompilationConditions)
+        ).sorted()
+        self.importSearchPaths = importSearchPaths
+        self.frameworkSearchPaths = frameworkSearchPaths
+        self.upcomingFeatures = upcomingFeatures
+        self.experimentalFeatures = experimentalFeatures
+    }
+
+    /// Exact target passed to both the generated host-module build and client
+    /// typecheck. Simulator identity is part of the triple rather than an
+    /// unrelated compiler define.
+    public var targetTriple: String {
+        "\(architecture)-apple-" + sdk.targetPlatformName
+            + deploymentTarget + sdk.targetTripleSuffix
+    }
+
+    /// Validated target-only arguments. Common language, concurrency, SDK,
+    /// and target flags are emitted separately so these never leak into the
+    /// generated host declaration module.
+    public var clientCompilerArguments: [String] {
+        var arguments = ["-default-isolation", defaultIsolation.rawValue]
+        for condition in activeCompilationConditions {
+            arguments += ["-D", condition]
+        }
+        for path in importSearchPaths {
+            arguments += ["-I", path]
+        }
+        for path in frameworkSearchPaths {
+            arguments += ["-F", path]
+        }
+        for feature in upcomingFeatures {
+            arguments += ["-enable-upcoming-feature", feature]
+        }
+        for feature in experimentalFeatures {
+            arguments += ["-enable-experimental-feature", feature]
+        }
+        return arguments
+    }
+
+    var clientConditionalCompilationValidationSource: String? {
+        guard !versionedImportQueries.isEmpty
+                || !conditionalCompilationQueries.isEmpty
+        else { return nil }
+        var source = "// Generated build-target conditional validation.\n"
+        for (index, query) in versionedImportQueries.enumerated() {
+            source += "#if \(query.sourceCondition)\n"
+            if !query.isImportable {
+                source += "#error(\"manifest versioned import query \(index) "
+                    + "was unexpectedly true\")\n"
+            }
+            source += "#else\n"
+            if query.isImportable {
+                source += "#error(\"manifest versioned import query \(index) "
+                    + "was unexpectedly false\")\n"
+            }
+            source += "#endif\n"
+        }
+        for (index, query) in conditionalCompilationQueries.enumerated() {
+            source += "#if \(query.sourceCondition)\n"
+            if !query.isActive {
+                source += "#error(\"manifest conditional query \(index) "
+                    + "was unexpectedly true\")\n"
+            }
+            source += "#else\n"
+            if query.isActive {
+                source += "#error(\"manifest conditional query \(index) "
+                    + "was unexpectedly false\")\n"
+            }
+            source += "#endif\n"
+        }
+        return source
+    }
+
+    /// Stable semantic identity used by project manifests and compiler-result
+    /// caches. Search-path order is retained because it changes module lookup.
+    public var fingerprint: String {
+        compilerPreflightDigest([
+            "compiler-preflight-build-target-v2",
+            moduleName,
+            sdk.rawValue,
+            architecture,
+            deploymentTarget,
+            compilerVersion.description,
+            swiftConditionalCompilationVersion.description,
+            swiftLanguageVersion.rawValue,
+            strictConcurrency.rawValue,
+            defaultIsolation.rawValue,
+            importableModules.joined(separator: "\u{0}"),
+            versionedImportQueries.map {
+                $0.identity + "\u{0}" + String($0.isImportable)
+            }.joined(separator: "\u{1}"),
+            conditionalCompilationQueries.map {
+                $0.identity + "\u{0}" + String($0.isActive)
+            }.joined(separator: "\u{1}"),
+            activeCompilationConditions.joined(separator: "\u{0}"),
+            importSearchPaths.joined(separator: "\u{0}"),
+            frameworkSearchPaths.joined(separator: "\u{0}"),
+            upcomingFeatures.joined(separator: "\u{0}"),
+            experimentalFeatures.joined(separator: "\u{0}"),
+        ])
+    }
+}
+
 /// Immutable source for a generated declaration module imported by compiler
 /// preflight. The module is compiled once per engine; only its serialized
 /// public declarations participate in checking user source.
@@ -270,7 +764,20 @@ public struct CompilerPreflightConfiguration: Sendable, Equatable {
     public let sdkVersion: String
     public let targetTriple: String
     public let deploymentTarget: String
+    public let moduleName: String
+    public let swiftLanguageVersion: CompilerPreflightSwiftLanguageVersion
+    public let strictConcurrency: CompilerPreflightStrictConcurrency
     public let gatewayManifestSHA256: String
+    /// Effective arguments applied only to the user target typecheck. Driver
+    /// actions and the common SDK/target/language policy are not represented
+    /// here.
+    public let clientCompilerArguments: [String]
+    /// Optional generated source compiled only with the user module. Target
+    /// manifests use it to prove conditional answers that depend on the
+    /// module's complete source/import set.
+    public let clientValidationSource: String?
+    /// Source-compatible view of caller-supplied arguments from the legacy
+    /// macOS factory. New build-target callers use validated structured fields.
     public let additionalCompilerArguments: [String]
     public let timeoutSeconds: TimeInterval
 
@@ -281,7 +788,12 @@ public struct CompilerPreflightConfiguration: Sendable, Equatable {
         sdkVersion: String,
         targetTriple: String,
         deploymentTarget: String,
+        moduleName: String = "main",
+        swiftLanguageVersion: CompilerPreflightSwiftLanguageVersion = .swift6,
+        strictConcurrency: CompilerPreflightStrictConcurrency = .complete,
         gatewayManifestSHA256: String,
+        clientCompilerArguments: [String] = [],
+        clientValidationSource: String? = nil,
         additionalCompilerArguments: [String] = [],
         timeoutSeconds: TimeInterval = 10
     ) {
@@ -291,7 +803,13 @@ public struct CompilerPreflightConfiguration: Sendable, Equatable {
         self.sdkVersion = sdkVersion
         self.targetTriple = targetTriple
         self.deploymentTarget = deploymentTarget
+        self.moduleName = moduleName
+        self.swiftLanguageVersion = swiftLanguageVersion
+        self.strictConcurrency = strictConcurrency
         self.gatewayManifestSHA256 = gatewayManifestSHA256
+        self.clientCompilerArguments = clientCompilerArguments
+            + additionalCompilerArguments
+        self.clientValidationSource = clientValidationSource
         self.additionalCompilerArguments = additionalCompilerArguments
         self.timeoutSeconds = timeoutSeconds
     }
@@ -299,15 +817,19 @@ public struct CompilerPreflightConfiguration: Sendable, Equatable {
     /// Stable identity for every input that can change native type checking.
     public var fingerprint: String {
         compilerPreflightDigest([
-            "compiler-preflight-configuration-v1",
+            "compiler-preflight-configuration-v2",
             swiftCompilerPath,
             compilerVersion,
             sdkPath,
             sdkVersion,
             targetTriple,
             deploymentTarget,
+            moduleName,
+            swiftLanguageVersion.rawValue,
+            strictConcurrency.rawValue,
             gatewayManifestSHA256,
-            additionalCompilerArguments.joined(separator: "\u{0}"),
+            clientCompilerArguments.joined(separator: "\u{0}"),
+            clientValidationSource ?? "",
         ])
     }
 }
@@ -496,8 +1018,10 @@ final class CompilerPreflightHostModuleBuild {
             let moduleURL = modules.appendingPathComponent(
                 module.moduleName + ".swiftmodule")
             let arguments = [
-                "-swift-version", "6",
-                "-strict-concurrency=complete",
+                "-swift-version",
+                configuration.swiftLanguageVersion.rawValue,
+                "-strict-concurrency="
+                    + configuration.strictConcurrency.rawValue,
                 "-sdk", configuration.sdkPath,
                 "-target", configuration.targetTriple,
                 "-module-cache-path", moduleCache.path,
@@ -647,6 +1171,183 @@ public final class SwiftCompilerPreflight {
             timeoutSeconds: timeoutSeconds)
     }
 
+    /// Discover the active Apple toolchain and the SDK selected by one build
+    /// target. Compiler declarations and runtime gateways are composed from
+    /// the same registry identity.
+    public static func activeApple(
+        buildTarget: CompilerPreflightBuildTarget,
+        registry: HostRegistry? = nil,
+        timeoutSeconds: TimeInterval = 10
+    ) throws -> SwiftCompilerPreflight {
+        let hostModule = try CompilerPreflightHostModule.composing(
+            base: registry?.compilerPreflightHostModule,
+            syntheticTypes:
+                registry?.compilerPreflightSyntheticTypes ?? [],
+            syntheticSignatures:
+                registry?.compilerPreflightSyntheticSignatures ?? [])
+        if hostModule?.moduleName == buildTarget.moduleName {
+            throw CompilerPreflightError.invalidConfiguration(
+                "target module '\(buildTarget.moduleName)' conflicts with "
+                    + "the compiler-preflight host module")
+        }
+        return try activeApple(
+            buildTarget: buildTarget,
+            gatewayManifestSHA256: hostModule?.manifestSHA256
+                ?? emptyGatewayManifestSHA256,
+            hostModule: hostModule,
+            timeoutSeconds: timeoutSeconds)
+    }
+
+    private static func activeApple(
+        buildTarget: CompilerPreflightBuildTarget,
+        gatewayManifestSHA256: String,
+        hostModule: CompilerPreflightHostModule?,
+        timeoutSeconds: TimeInterval
+    ) throws -> SwiftCompilerPreflight {
+        #if os(macOS)
+        let xcrun = "/usr/bin/xcrun"
+        let swiftc = try requiredOutput(
+            executable: xcrun,
+            arguments: ["--find", "swiftc"],
+            timeoutSeconds: timeoutSeconds,
+            operation: "locate swiftc")
+        let version = try requiredOutput(
+            executable: swiftc,
+            arguments: ["--version"],
+            timeoutSeconds: timeoutSeconds,
+            operation: "read swiftc version")
+        guard let discoveredCompilerVersion = compilerPreflightSwiftVersion(
+            in: version
+        ) else {
+            throw CompilerPreflightError.invalidToolchainOutput(version)
+        }
+        guard discoveredCompilerVersion == buildTarget.compilerVersion else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "target requires Swift \(buildTarget.compilerVersion), but "
+                    + "the active compiler is Swift "
+                    + discoveredCompilerVersion.description)
+        }
+        let sdkPath = try requiredOutput(
+            executable: xcrun,
+            arguments: [
+                "--show-sdk-path", "--sdk", buildTarget.sdk.xcrunIdentifier,
+            ],
+            timeoutSeconds: timeoutSeconds,
+            operation: "locate \(buildTarget.sdk.xcrunIdentifier) SDK")
+        let sdkVersion = try requiredOutput(
+            executable: xcrun,
+            arguments: [
+                "--show-sdk-version", "--sdk",
+                buildTarget.sdk.xcrunIdentifier,
+            ],
+            timeoutSeconds: timeoutSeconds,
+            operation: "read \(buildTarget.sdk.xcrunIdentifier) SDK version")
+        let targetData = try requiredOutput(
+            executable: swiftc,
+            arguments: [
+                "-print-target-info",
+                "-sdk", sdkPath,
+                "-target", buildTarget.targetTriple,
+            ],
+            timeoutSeconds: timeoutSeconds,
+            operation: "validate compiler target \(buildTarget.targetTriple)")
+        struct TargetInfo: Decodable {
+            struct Target: Decodable { let triple: String }
+            let target: Target
+        }
+        guard let targetInfoData = targetData.data(using: .utf8),
+              let resolvedTarget = try? JSONDecoder().decode(
+                TargetInfo.self, from: targetInfoData).target.triple,
+              resolvedTarget == buildTarget.targetTriple else {
+            throw CompilerPreflightError.invalidToolchainOutput(targetData)
+        }
+        try validateSwiftConditionalCompilationVersion(
+            swiftCompilerPath: swiftc,
+            sdkPath: sdkPath,
+            buildTarget: buildTarget,
+            timeoutSeconds: timeoutSeconds)
+        let configuration = CompilerPreflightConfiguration(
+            swiftCompilerPath: swiftc,
+            compilerVersion: version.replacingOccurrences(
+                of: "\n", with: " | "),
+            sdkPath: sdkPath,
+            sdkVersion: sdkVersion,
+            targetTriple: buildTarget.targetTriple,
+            deploymentTarget: buildTarget.deploymentTarget,
+            moduleName: buildTarget.moduleName,
+            swiftLanguageVersion: buildTarget.swiftLanguageVersion,
+            strictConcurrency: buildTarget.strictConcurrency,
+            gatewayManifestSHA256: gatewayManifestSHA256,
+            clientCompilerArguments:
+                buildTarget.clientCompilerArguments,
+            clientValidationSource:
+                buildTarget.clientConditionalCompilationValidationSource,
+            timeoutSeconds: timeoutSeconds)
+        if let hostModule {
+            return try SwiftCompilerPreflight(
+                configuration: configuration, hostModule: hostModule)
+        }
+        return SwiftCompilerPreflight(configuration: configuration)
+        #else
+        throw CompilerPreflightError.unsupportedPlatform
+        #endif
+    }
+
+    private static func validateSwiftConditionalCompilationVersion(
+        swiftCompilerPath: String,
+        sdkPath: String,
+        buildTarget: CompilerPreflightBuildTarget,
+        timeoutSeconds: TimeInterval
+    ) throws {
+        #if os(macOS)
+        guard let upperBound =
+            buildTarget.swiftConditionalCompilationVersion.nextPatch
+        else {
+            throw CompilerPreflightError.invalidConfiguration(
+                "Swift conditional-compilation version cannot be bounded")
+        }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "dynamic-swift-version-probe-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appendingPathComponent("VersionProbe.swift")
+        let expected = buildTarget.swiftConditionalCompilationVersion
+        let source = """
+        #if swift(>=\(expected)) && swift(<\(upperBound))
+        #else
+        #error("manifest Swift conditional-compilation version mismatch")
+        #endif
+        """
+        try source.write(to: sourceURL, atomically: true, encoding: .utf8)
+        var arguments = [
+            "-swift-version", buildTarget.swiftLanguageVersion.rawValue,
+            "-sdk", sdkPath,
+            "-target", buildTarget.targetTriple,
+            "-module-name", buildTarget.moduleName,
+            "-typecheck",
+        ]
+        arguments += buildTarget.clientCompilerArguments
+        arguments.append(sourceURL.path)
+        let output = try executeProcess(
+            executable: swiftCompilerPath,
+            arguments: arguments,
+            timeoutSeconds: timeoutSeconds)
+        guard output.exitStatus == 0 else {
+            let diagnostics = (output.standardError + "\n"
+                + output.standardOutput).trimmingCharacters(
+                    in: .whitespacesAndNewlines)
+            throw CompilerPreflightError.invalidConfiguration(
+                "target records #if swift as \(expected), but the selected "
+                    + "compiler/language mode disagrees: \(diagnostics)")
+        }
+        #else
+        throw CompilerPreflightError.unsupportedPlatform
+        #endif
+    }
+
     private static func activeMacOS(
         gatewayManifestSHA256: String,
         hostModule: CompilerPreflightHostModule?,
@@ -696,6 +1397,9 @@ public final class SwiftCompilerPreflight {
             sdkVersion: sdkVersion,
             targetTriple: target,
             deploymentTarget: deploymentTarget(in: target),
+            moduleName: "main",
+            swiftLanguageVersion: .swift6,
+            strictConcurrency: .complete,
             gatewayManifestSHA256: gatewayManifestSHA256,
             additionalCompilerArguments: additionalCompilerArguments,
             timeoutSeconds: timeoutSeconds)
@@ -729,13 +1433,18 @@ public final class SwiftCompilerPreflight {
             throw CompilerPreflightError.invalidConfiguration(
                 "compiler preflight requires at least one source file")
         }
-        let normalizedSources = sources.map {
+        var normalizedSources = try sources.map {
             CompilerPreflightSource(
-                fileName: sanitizedFileName($0.fileName),
+                fileName: try validatedLogicalFileName($0.fileName),
                 source: $0.source)
         }
+        if let validationSource = configuration.clientValidationSource {
+            normalizedSources.append(CompilerPreflightSource(
+                fileName: "__DynamicSwiftBuildTargetValidation.swift",
+                source: validationSource))
+        }
         var keyComponents = [
-            "compiler-preflight-result-v2",
+            "compiler-preflight-result-v3",
             configuration.fingerprint,
             String(normalizedSources.count),
         ]
@@ -790,11 +1499,11 @@ public final class SwiftCompilerPreflight {
         var sourceURLs: [URL] = []
         var logicalFileNamesByPath: [String: String] = [:]
         for (index, source) in sources.enumerated() {
-            var physicalFileName = source.fileName
+            var physicalFileName = safePhysicalFileName(source.fileName)
             var discriminator = index + 1
             while usedPhysicalFileNames.contains(physicalFileName) {
                 physicalFileName = String(
-                    format: "%04d-%@", discriminator, source.fileName)
+                    format: "%04d-%@", discriminator, physicalFileName)
                 discriminator += 1
             }
             usedPhysicalFileNames.insert(physicalFileName)
@@ -815,8 +1524,8 @@ public final class SwiftCompilerPreflight {
         }
 
         var arguments = [
-            "-swift-version", "6",
-            "-strict-concurrency=complete",
+            "-swift-version", configuration.swiftLanguageVersion.rawValue,
+            "-strict-concurrency=" + configuration.strictConcurrency.rawValue,
             "-diagnostic-style", "llvm",
             "-sdk", configuration.sdkPath,
             "-target", configuration.targetTriple,
@@ -826,7 +1535,8 @@ public final class SwiftCompilerPreflight {
         if let moduleImport {
             arguments += ["-I", moduleImport.searchPath]
         }
-        arguments += configuration.additionalCompilerArguments
+        arguments += ["-module-name", configuration.moduleName]
+        arguments += configuration.clientCompilerArguments
         arguments += sourceURLs.map(\.path)
         let output = try executeProcess(
             executable: configuration.swiftCompilerPath,
@@ -927,6 +1637,27 @@ extension Interpreter {
             compilerPreflightMode: mode)
     }
 
+    /// Construct a target-aware interpreter whose native compiler identity,
+    /// runtime gateways, and interpreted conditional compilation all come
+    /// from the same build target and registry.
+    public static func withActiveCompilerPreflight(
+        registry: HostRegistry? = nil,
+        buildTarget: CompilerPreflightBuildTarget,
+        mode: CompilerPreflightMode = .required,
+        timeoutSeconds: TimeInterval = 10
+    ) throws -> Interpreter {
+        let preflight = try SwiftCompilerPreflight.activeApple(
+            buildTarget: buildTarget,
+            registry: registry,
+            timeoutSeconds: timeoutSeconds)
+        return Interpreter(
+            registry: registry,
+            compilerPreflight: preflight,
+            compilerPreflightMode: mode,
+            buildConfiguration:
+                InterpreterBuildConfiguration(buildTarget: buildTarget))
+    }
+
     /// Run the configured engine directly regardless of execution mode.
     @discardableResult
     public func preflight(
@@ -1002,12 +1733,30 @@ private func compilerPreflightDigest(_ components: [String]) -> String {
     }.joined()
 }
 
-private func sanitizedFileName(_ fileName: String) -> String {
+private func validatedLogicalFileName(_ fileName: String) throws -> String {
+    if fileName.isEmpty { return "input.swift" }
+    guard !fileName.hasPrefix("/"), !fileName.contains("\\"),
+          !fileName.utf8.contains(0) else {
+        throw CompilerPreflightError.invalidConfiguration(
+            "source filename '\(fileName)' must be a safe relative path")
+    }
+    let components = fileName.split(
+        separator: "/", omittingEmptySubsequences: false)
+    guard !components.isEmpty,
+          components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." })
+    else {
+        throw CompilerPreflightError.invalidConfiguration(
+            "source filename '\(fileName)' must be a safe relative path")
+    }
+    return fileName
+}
+
+private func safePhysicalFileName(_ fileName: String) -> String {
     let candidate = URL(fileURLWithPath: fileName).lastPathComponent
     return candidate.isEmpty ? "input.swift" : candidate
 }
 
-private func isValidCompilerModuleName(_ name: String) -> Bool {
+private func isValidCompilerIdentifier(_ name: String) -> Bool {
     guard let first = name.first,
           first == "_" || first.isASCII && first.isLetter else {
         return false
@@ -1015,6 +1764,64 @@ private func isValidCompilerModuleName(_ name: String) -> Bool {
     return name.dropFirst().allSatisfy {
         $0 == "_" || $0.isASCII && ($0.isLetter || $0.isNumber)
     }
+}
+
+private func isValidCompilerModuleName(_ name: String) -> Bool {
+    isValidCompilerIdentifier(name)
+}
+
+private func isValidCompilerModulePath(_ name: String) -> Bool {
+    let components = name.split(
+        separator: ".", omittingEmptySubsequences: false)
+    return !components.isEmpty && components.allSatisfy {
+        isValidCompilerIdentifier(String($0))
+    }
+}
+
+private func isValidCompilerImportVersion(_ version: String) -> Bool {
+    let components = version.split(
+        separator: ".", omittingEmptySubsequences: false)
+    return (1...5).contains(components.count)
+        && components.allSatisfy {
+            !$0.isEmpty
+                && $0.allSatisfy { $0.isASCII && $0.isNumber }
+                && UInt($0) != nil
+        }
+}
+
+private func isAbsoluteNormalizedCompilerSearchPath(_ path: String) -> Bool {
+    guard !path.isEmpty, path.hasPrefix("/"), !path.utf8.contains(0) else {
+        return false
+    }
+    return URL(fileURLWithPath: path).standardizedFileURL.path == path
+}
+
+private func compilerPreflightSwiftVersion(
+    in output: String
+) -> CompilerPreflightVersion? {
+    guard let markerRange = output.range(of: "Swift version ") else {
+        return nil
+    }
+    let suffix = output[markerRange.upperBound...]
+    let token = suffix.prefix { character in
+        character.isASCII && (character.isNumber || character == ".")
+    }
+    return try? CompilerPreflightVersion(parsing: String(token))
+}
+
+private func isValidTargetArchitecture(_ architecture: String) -> Bool {
+    !architecture.isEmpty && architecture.allSatisfy {
+        $0 == "_" || $0.isASCII && ($0.isLetter || $0.isNumber)
+    }
+}
+
+private func isValidDeploymentTarget(_ deploymentTarget: String) -> Bool {
+    let components = deploymentTarget.split(
+        separator: ".", omittingEmptySubsequences: false)
+    return (1...3).contains(components.count)
+        && components.allSatisfy {
+            !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isNumber }
+        }
 }
 
 private func swiftStringLiteral(_ value: String) -> String {

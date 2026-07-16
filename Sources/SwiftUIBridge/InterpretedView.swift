@@ -32,7 +32,11 @@ public struct EnvironmentValuesStub {
 /// `@Environment(\.key)` values for interpreted views. Headless harnesses use
 /// these defaults; InterpretedView overrides with real environment reads.
 public enum InterpretedEnvironment {
-    public static func defaults() -> [String: RuntimeValue] {
+    public static func defaults(
+        platformName: String? = nil
+    ) -> [String: RuntimeValue] {
+        let effectivePlatform = platformName
+            ?? Interpreter.interpretsAsPlatform
         var values: [String: RuntimeValue] = [
             "colorScheme": .implicitMember("light"),
             "dismiss": .hostFunction(HostFunction(name: "dismiss") { _, _ in .void }),
@@ -51,7 +55,7 @@ public enum InterpretedEnvironment {
             // (compact/regular) for the corpus, regular/regular for macOS
             // targets (the FoodTruck twin).
             "horizontalSizeClass": .implicitMember(
-                Interpreter.interpretsAsPlatform == "macOS" ? "regular" : "compact"),
+                effectivePlatform == "macOS" ? "regular" : "compact"),
             "verticalSizeClass": .implicitMember("regular"),
             "dynamicTypeSize": .implicitMember("large"),
             "scenePhase": .implicitMember("active"),
@@ -143,7 +147,8 @@ public struct InterpretedView: View {
             RenderDiagnostics.record(wrapped, in: instance.symbol.name)
             return AnyView(errorLabel(wrapped.description))
         }
-        var environmentValues = InterpretedEnvironment.defaults()
+        var environmentValues = InterpretedEnvironment.defaults(
+            platformName: interpreter.buildConfiguration.platformName)
         environmentValues["colorScheme"] = .implicitMember(colorScheme == .dark ? "dark" : "light")
         let dismissAction = dismiss
         environmentValues["dismiss"] = .hostFunction(HostFunction(name: "dismiss") { _, _ in

@@ -1178,6 +1178,37 @@ keyed by:
 - target platform and deployment version;
 - generated gateway manifest hash.
 
+Real-project entry points additionally use one immutable target manifest as the
+shared semantic identity of native checking and interpretation. The manifest
+contains the canonical project root, exact ordered target source membership and
+bytes, module name, SDK, exact target triple and deployment floor, compiler and
+effective `#if swift` versions, language/strict-concurrency/default-isolation
+modes, defines, normalized import/framework search paths, feature flags, and
+authoritative import/conditional-compilation answers. Directory walking is not
+part of this contract: files from sibling targets must never enter preflight or
+the interpreter accidentally.
+
+The native side typechecks the original files as one module. A separate merged
+source is only a derived runtime projection; stripping imports or adding file
+markers there must not change the material checked by `swiftc`. The project
+root is propagated independently for resource lookup and participates in the
+manifest fingerprint.
+
+Conditional compilation uses two ownership rules:
+
+- fields such as platform, architecture, target environment, defines, compiler
+  version, and exact unversioned module membership are evaluated directly from
+  the immutable target identity;
+- compiler-owned predicates such as `hasFeature`, `hasAttribute`,
+  `objectFormat`, `_endian`, `_runtime`, and version-qualified `canImport` have
+  explicit answers that are verified by a hidden source in the same native
+  client module.
+
+An unrecorded compiler-owned predicate is a target-manifest error, not `false`.
+The interpreter validates the complete syntax tree and fails before declaration
+collection or top-level mutation, preventing native preflight from accepting
+one branch while interpreted execution silently selects another.
+
 Preflight should cover, through native diagnostics:
 
 - missing `await`;

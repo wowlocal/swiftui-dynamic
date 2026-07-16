@@ -353,7 +353,6 @@ struct ConcurrencyMethodologyTests {
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.currentTail.requirementRefs == [
             "M4/remaining-task-group-surface",
-            "M4/group-escape-legality",
             "M7/generated-signatures-and-preflight",
         ])
         #expect(matrix.executionPlan.nextMajorCycle.id

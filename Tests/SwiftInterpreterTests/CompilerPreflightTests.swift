@@ -769,6 +769,69 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func legacyAdditionalArgumentsStillApplyToHostAndClient() throws {
+        let registry = try PreflightHostRegistry(moduleSource: """
+        #if !LEGACY_HOST
+        #error("legacy host compiler argument was lost")
+        #endif
+        public func mainActorFunction() {}
+        """)
+        let preflight = try SwiftCompilerPreflight.activeMacOS(
+            registry: registry,
+            additionalCompilerArguments: ["-D", "LEGACY_HOST"])
+        let result = try preflight.preflight(source: """
+        #if !LEGACY_HOST
+        #error("legacy client compiler argument was lost")
+        #endif
+        mainActorFunction()
+        """)
+
+        #expect(result.succeeded, Comment(rawValue: result.standardError))
+        #expect(preflight.configuration.additionalCompilerArguments
+            == ["-D", "LEGACY_HOST"])
+        #expect(preflight.hostModuleCompilationCount == 1)
+    }
+
+    @Test
+    func structuredTargetArgumentsStayOutOfGeneratedHostModule() throws {
+        let registry = try PreflightHostRegistry(moduleSource: """
+        #if TARGET_DEBUG
+        #error("target-only define leaked into the host module")
+        #endif
+        public func mainActorFunction() {}
+        """)
+        let target = try CompilerPreflightBuildTarget(
+            moduleName: "TargetArgumentClient",
+            sdk: .iOSSimulator,
+            architecture: "arm64",
+            deploymentTarget: "18.0",
+            compilerVersion: CompilerPreflightVersion(6, 3, 3),
+            swiftConditionalCompilationVersion:
+                CompilerPreflightVersion(6, 3, 3),
+            importableModules: [],
+            defaultIsolation: .mainActor,
+            activeCompilationConditions: ["TARGET_DEBUG"])
+        let preflight = try SwiftCompilerPreflight.activeApple(
+            buildTarget: target,
+            registry: registry)
+        let result = try preflight.preflight(source: """
+        nonisolated func callHostDefaultIsolation() {
+            mainActorFunction()
+        }
+        #if !TARGET_DEBUG
+        #error("target-only define did not reach the client")
+        #endif
+        """)
+
+        #expect(result.succeeded, Comment(rawValue: result.standardError))
+        #expect(preflight.configuration.additionalCompilerArguments.isEmpty)
+        #expect(preflight.configuration.clientCompilerArguments == [
+            "-default-isolation", "MainActor", "-D", "TARGET_DEBUG",
+        ])
+        #expect(preflight.hostModuleCompilationCount == 1)
+    }
+
+    @Test
     func invalidHostModuleFailsBeforeCheckingUserSource() throws {
         let invalidName = CompilerPreflightHostModule(
             moduleName: "invalid-module",
@@ -808,6 +871,11 @@ struct CompilerPreflightTests {
             compilerVersion: String = "Swift A",
             sdkVersion: String = "SDK A",
             target: String = "arm64-apple-macosx15.0",
+            moduleName: String = "Fixture",
+            languageVersion: CompilerPreflightSwiftLanguageVersion = .swift6,
+            strictConcurrency: CompilerPreflightStrictConcurrency = .complete,
+            clientArguments: [String] = [],
+            clientValidationSource: String? = nil,
             manifest: String = String(repeating: "a", count: 64)
         ) -> SwiftCompilerPreflight {
             let configuration = CompilerPreflightConfiguration(
@@ -818,7 +886,12 @@ struct CompilerPreflightTests {
                 targetTriple: target,
                 deploymentTarget: target.split(separator: "x").last
                     .map(String.init) ?? "15.0",
-                gatewayManifestSHA256: manifest)
+                moduleName: moduleName,
+                swiftLanguageVersion: languageVersion,
+                strictConcurrency: strictConcurrency,
+                gatewayManifestSHA256: manifest,
+                clientCompilerArguments: clientArguments,
+                clientValidationSource: clientValidationSource)
             return SwiftCompilerPreflight(
                 configuration: configuration,
                 cache: cache,
@@ -849,14 +922,27 @@ struct CompilerPreflightTests {
             .preflight(source: "let value = 1")
         let targetChanged = try engine(target: "x86_64-apple-macosx15.0")
             .preflight(source: "let value = 1")
+        let moduleChanged = try engine(moduleName: "OtherFixture")
+            .preflight(source: "let value = 1")
+        let languageChanged = try engine(languageVersion: .swift5)
+            .preflight(source: "let value = 1")
+        let strictChanged = try engine(strictConcurrency: .targeted)
+            .preflight(source: "let value = 1")
+        let clientArgumentsChanged = try engine(
+            clientArguments: ["-D", "FEATURE"]
+        ).preflight(source: "let value = 1")
+        let clientValidationChanged = try engine(
+            clientValidationSource: "let validation = true"
+        ).preflight(source: "let value = 1")
         let manifestChanged = try engine(
             manifest: String(repeating: "b", count: 64)
         ).preflight(source: "let value = 1")
 
-        #expect(invocationCount == 6)
+        #expect(invocationCount == 11)
         let keys = [
             first, sourceChanged, compilerChanged, sdkChanged, targetChanged,
-            manifestChanged,
+            moduleChanged, languageChanged, strictChanged,
+            clientArgumentsChanged, clientValidationChanged, manifestChanged,
         ].map(\.cacheKey)
         #expect(Set(keys).count == keys.count)
     }

@@ -132,11 +132,12 @@ status is undefined. Do not infer a calendar promise from fixture counts.
 At the end of an iteration, record requirements opened/closed, newly discovered
 gaps, gate duration, and dependency changes. Forecast only dependency-ready
 work and give a range when discovery risk is material. The current bounded
-closeout tail is M4's generated Task/task-group surface disposition and M7's
-remaining synthetic-declaration and build-manifest coverage. The next major
+closeout tail is M4's repeated-wait/new-work and executor-divergent task-group
+surface plus M7's explicitly incomplete generated inventory denominator. The
+M7 target-aware project-manifest boundary itself is covered. The next major
 runtime cycle is M5 actor/executor architecture. Dependency-ready actor
-characterization may proceed, but M5 cannot close until both M4 and M7 are
-covered; M6 remains gated on M5 resume ownership.
+characterization may proceed, but M5 cannot close until M4 and M7 are covered;
+M6 remains gated on M5 resume ownership.
 
 ## Process and liveness isolation
 

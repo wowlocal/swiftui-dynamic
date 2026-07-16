@@ -249,10 +249,82 @@ extension Interpreter {
 
     // MARK: - Conditional compilation
 
-    /// `#if` conditions under the harness's identity (interpretsAsPlatform,
-    /// iOS-shaped by default). os(<platform>)/DEBUG/swift(…) hold;
-    /// canImport(_) holds for the platform's REAL module set;
-    /// targetEnvironment(simulator) and anything unknown don't (documented).
+    /// Target-aware execution must never guess a compiler-owned conditional
+    /// answer. Validate the whole syntax tree before declaration collection or
+    /// top-level mutation; legacy source-only callers retain their historical
+    /// best-effort behavior.
+    func validateTargetConditionalCompilationQueries(
+        in file: SourceFileSyntax
+    ) throws {
+        guard let conditionalAnswers =
+                buildConfiguration.authoritativeConditionalCompilationQueries,
+              let versionedImportAnswers =
+                buildConfiguration.authoritativeVersionedImportQueries
+        else { return }
+
+        let directlyInterpretedPredicates: Set<String> = [
+            "os", "arch", "canImport", "swift", "compiler",
+            "targetEnvironment",
+        ]
+        var pending = [Syntax(file)]
+        while let syntax = pending.popLast() {
+            if let clause = syntax.as(IfConfigClauseSyntax.self),
+               let condition = clause.condition {
+                var conditionNodes = [Syntax(condition)]
+                while let conditionNode = conditionNodes.popLast() {
+                    if let call = conditionNode.as(
+                        FunctionCallExprSyntax.self),
+                       let callee = call.calledExpression.as(
+                        DeclReferenceExprSyntax.self) {
+                        let predicate = callee.baseName.text
+                        if predicate == "canImport", call.arguments.count == 2,
+                           let versionArgument = call.arguments.last,
+                           let versionKind = versionArgument.label?.text,
+                           versionKind == "_version"
+                            || versionKind == "_underlyingVersion" {
+                            let module = call.arguments.first?.expression
+                                .trimmedDescription ?? ""
+                            let version = versionArgument.expression
+                                .trimmedDescription
+                            let identity = module + "\u{0}" + versionKind
+                                + "\u{0}" + version
+                            guard versionedImportAnswers[identity] != nil else {
+                                throw error(
+                                    call,
+                                    "target manifest has no authoritative "
+                                        + "answer for "
+                                        + call.trimmedDescription)
+                            }
+                        } else if !directlyInterpretedPredicates.contains(
+                            predicate) {
+                            let argument = call.arguments.count == 1
+                                && call.arguments.first?.label == nil
+                                ? call.arguments.first?.expression
+                                    .trimmedDescription ?? ""
+                                : ""
+                            let identity = predicate + "\u{0}" + argument
+                            guard conditionalAnswers[identity] != nil else {
+                                throw error(
+                                    call,
+                                    "target manifest has no authoritative "
+                                        + "answer for "
+                                        + call.trimmedDescription)
+                            }
+                        }
+                    }
+                    conditionNodes.append(contentsOf:
+                        conditionNode.children(viewMode: .sourceAccurate))
+                }
+            }
+            pending.append(contentsOf:
+                syntax.children(viewMode: .sourceAccurate))
+        }
+    }
+
+    /// `#if` conditions under this interpreter's immutable build identity.
+    /// Legacy construction remains iOS-shaped with DEBUG enabled; project
+    /// construction derives platform, environment, architecture, and active
+    /// conditions from the compiler-preflight build target.
     func ifConfigConditionHolds(_ condition: ExprSyntax?) -> Bool {
         guard let condition else { return true } // #else
         if let paren = condition.as(TupleExprSyntax.self), paren.elements.count == 1,
@@ -260,25 +332,46 @@ extension Interpreter {
             return ifConfigConditionHolds(only.expression)
         }
         if let ref = condition.as(DeclReferenceExprSyntax.self) {
-            return ref.baseName.text == "DEBUG"
+            return buildConfiguration.activeCompilationConditions.contains(
+                ref.baseName.text)
         }
         if let call = condition.as(FunctionCallExprSyntax.self),
            let callee = call.calledExpression.as(DeclReferenceExprSyntax.self) {
             let argument = call.arguments.first?.expression.trimmedDescription ?? ""
             switch callee.baseName.text {
-            case "os": return argument == Interpreter.interpretsAsPlatform
+            case "os":
+                return argument == buildConfiguration.platformName
+            case "arch":
+                return argument == buildConfiguration.architecture
             case "canImport":
-                // Platform truth, not blanket truth: the compiled macOS app
-                // has no UIKit, so `#if canImport(UIKit)` must take #else
-                // (FoodTruck's card fills read 12/255 off through the UIKit
-                // branch). The iOS canvas mirrors: no AppKit.
-                if Interpreter.interpretsAsPlatform == "macOS" {
-                    return !["UIKit", "WatchKit"].contains(argument)
+                if call.arguments.count == 2,
+                   let versionArgument = call.arguments.last,
+                   let versionKind = versionArgument.label?.text,
+                   versionKind == "_version"
+                        || versionKind == "_underlyingVersion" {
+                    return buildConfiguration.canImport(
+                        argument,
+                        versionKind: versionKind,
+                        version: versionArgument.expression
+                            .trimmedDescription)
                 }
-                return !["AppKit", "Cocoa"].contains(argument)
-            case "swift", "compiler": return true
-            case "targetEnvironment": return false
-            default: return false
+                if call.arguments.count != 1,
+                   buildConfiguration.authoritativeImportableModules != nil {
+                    return false
+                }
+                return buildConfiguration.canImport(argument)
+            case "swift":
+                return buildConfiguration.swiftConditionalCompilationVersion?
+                    .satisfies(argument) ?? true
+            case "compiler":
+                return buildConfiguration.compilerVersion?
+                    .satisfies(argument) ?? true
+            case "targetEnvironment":
+                return argument == buildConfiguration.targetEnvironment
+            default:
+                return buildConfiguration.conditionalCompilationQuery(
+                    predicate: callee.baseName.text,
+                    argument: argument) ?? false
             }
         }
         if let prefix = condition.as(PrefixOperatorExprSyntax.self), prefix.operator.text == "!" {

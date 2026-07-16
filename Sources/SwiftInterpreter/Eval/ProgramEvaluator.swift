@@ -119,6 +119,7 @@ extension Interpreter {
         source: String, lazyTopLevelGlobals: Bool
     ) async throws -> RuntimeValue {
         let file = try parse(source: source)
+        try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: file)
@@ -250,6 +251,7 @@ extension Interpreter {
             source: source,
             sources: compilerPreflightSources)
         let file = try parse(source: source)
+        try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved
         // identifier there is an unmerged import, never a typo.
