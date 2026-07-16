@@ -382,6 +382,8 @@ private enum ConcurrencyParityHarness {
         var taskValueWaiterCount = 0
         var registeredTaskValueSource: RuntimeTaskHandle?
         var sleepStarted = false
+        var actorMessageSuspended = false
+        var actorMessageMayResume = false
         var priorityEscalationEvents: [String] = []
         var taskLocalStorageByTask: [
             RuntimeTaskID: RuntimeTaskLocalStorage
@@ -454,6 +456,35 @@ private enum ConcurrencyParityHarness {
                     .executorOwnerTaskID
                 return .native(owner == taskID ? "owned" : "unowned")
             }))
+        interpreter.globals.define(
+            "paritySuspendActorMessage",
+            .hostFunction(HostFunction(
+                name: "paritySuspendActorMessage",
+                asyncInvoke: { _, _ in
+                    actorMessageSuspended = true
+                    while !actorMessageMayResume {
+                        await Task.yield()
+                    }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "parityAwaitActorMessageSuspension",
+            .hostFunction(HostFunction(
+                name: "parityAwaitActorMessageSuspension",
+                asyncInvoke: { _, _ in
+                    while !actorMessageSuspended {
+                        await Task.yield()
+                    }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "parityResumeActorMessage",
+            .hostFunction(HostFunction(
+                name: "parityResumeActorMessage",
+                asyncInvoke: { _, _ in
+                    actorMessageMayResume = true
+                    return .void
+                })))
         interpreter.globals.define(
             "parityRecordHostGatewayEvent",
             .hostFunction(HostFunction(

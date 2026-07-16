@@ -423,15 +423,13 @@ extension Interpreter {
 
         let suspension = concurrencyRuntime.beginWaitingForTaskGroup(
             ownerTaskID, on: group.record)
-        defer {
-            concurrencyRuntime.endWaitingForTaskGroup(
-                ownerTaskID,
-                on: group.record,
-                from: suspension)
-        }
         for child in group.childHandles {
             await child.wait()
         }
+        await concurrencyRuntime.endWaitingForTaskGroup(
+            ownerTaskID,
+            on: group.record,
+            from: suspension)
         return group.childHandles.compactMap(\.outcome)
     }
 

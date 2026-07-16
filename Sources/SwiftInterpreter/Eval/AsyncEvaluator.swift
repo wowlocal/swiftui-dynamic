@@ -755,8 +755,37 @@ extension Interpreter {
         _ closure: ClosureValue, args: CallArguments, node: Syntax?
     ) async throws -> RuntimeValue {
         let calleeExecutor = try resolvedExecutor(for: closure)
+        let suspendedCallerActor = suspendCallerActorForExecutorHop(
+            to: calleeExecutor)
+        do {
+            let result = try await callWithArgumentsOnExecutorSuspending(
+                closure,
+                args: args,
+                node: node,
+                calleeExecutor: calleeExecutor)
+            if let suspendedCallerActor {
+                await concurrencyRuntime.resumeActorExecutor(
+                    suspendedCallerActor)
+            }
+            return result
+        } catch {
+            let failure = error
+            if let suspendedCallerActor {
+                await concurrencyRuntime.resumeActorExecutor(
+                    suspendedCallerActor)
+            }
+            throw failure
+        }
+    }
+
+    private func callWithArgumentsOnExecutorSuspending(
+        _ closure: ClosureValue,
+        args: CallArguments,
+        node: Syntax?,
+        calleeExecutor: RuntimeExecutorKind?
+    ) async throws -> RuntimeValue {
         let actorOwnership = try await enterActorInvocation(
-            closure: closure, executor: calleeExecutor)
+            executor: calleeExecutor)
         defer { leaveActorInvocation(actorOwnership) }
         callDepth += 1
         defer { callDepth -= 1 }

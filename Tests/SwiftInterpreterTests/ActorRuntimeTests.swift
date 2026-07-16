@@ -158,6 +158,59 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func actorSuspensionReleasesAndRestoresCompleteNestedSegment()
+        async throws
+    {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: "actor SuspensionProbe {}")
+        let actorSymbol = try #require(
+            interpreter.globals.lookup("SuspensionProbe")?.typeSymbol)
+        var actorValue: RuntimeValue? = try interpreter.instantiateRoot(
+            actorSymbol)
+        var actor: Instance? = try #require(Self.instance(from: actorValue))
+        let actorID = try #require(actor?.actorID)
+        let runtime = interpreter.concurrencyRuntime
+        let task = runtime.createTask(
+            sessionID: runtime.createSession(),
+            kind: .unstructured,
+            parent: nil,
+            priority: .medium,
+            executorPreference: .actor(actorID),
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: "suspended-owner")
+        #expect(runtime.begin(task))
+
+        let outer = try await runtime.acquireActorExecutor(
+            actorID, for: task.id)
+        let nested = try await runtime.acquireActorExecutor(
+            actorID, for: task.id)
+        let suspension = runtime.beginTaskSuspension(
+            task.id, for: .yielding)
+
+        #expect(task.state == .waiting)
+        #expect(task.suspension == .yielding)
+        #expect(task.suspensionHistory == [.yielding])
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == nil)
+
+        await runtime.endTaskSuspension(suspension)
+        #expect(task.state == .running)
+        #expect(task.suspension == nil)
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == task.id)
+
+        runtime.releaseActorExecutor(nested)
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == task.id)
+        runtime.releaseActorExecutor(outer)
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == nil)
+
+        runtime.succeed(task, with: .void)
+        runtime.release(task.id)
+        actorValue = nil
+        actor = nil
+        #expect(runtime.activeRecordCount == 0)
+        #expect(runtime.activeActorCount == 0)
+    }
+
+    @Test
     func actorMutableStorageRequiresOwnershipWhileAllowedStorageRemainsReadable()
         async throws
     {

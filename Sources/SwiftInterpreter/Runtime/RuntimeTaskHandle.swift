@@ -319,23 +319,20 @@ public final class RuntimeTaskHandle {
                 .native("task completed without an outcome"),
                 failureType: "RuntimeTaskInvariant")
         }
-        let suspension: RuntimeSuspension?
+        let suspension: RuntimeTaskSuspensionLease?
         if let waiter, !record.state.isCompleted {
             runtime.beginWaiting(waiter, on: record)
             let reason = RuntimeSuspension.awaitingTask(record.id)
-            runtime.suspend(waiter, for: reason)
-            suspension = reason
+            suspension = runtime.beginTaskSuspension(waiter, for: reason)
         } else {
             suspension = nil
         }
-        defer {
-            if let waiter, let suspension {
-                runtime.resume(waiter, from: suspension)
-                runtime.endWaiting(waiter, on: record)
-            }
-        }
         if let task = record.nativeDriver?.task {
             await task.value
+        }
+        if let waiter, let suspension {
+            runtime.endWaiting(waiter, on: record)
+            await runtime.endTaskSuspension(suspension)
         }
         return record.outcome ?? .failure(
             .native("task completed without an outcome"),

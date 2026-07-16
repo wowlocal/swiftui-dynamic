@@ -57,7 +57,7 @@ evidence that remains covered.
 | M2 task runtime | complete | Task outcomes, cancellation request versus observation, post-completion cancellation, completed-handle session/driver release, waiter and handle lifetimes, detached and top-level policy, priority donation and scoped escalation-handler delivery, task-local inheritance/unwind, and leased `UnsafeCurrentTask` identity/state have native parity and focused ownership proof. | None; M3 may proceed. |
 | M3 suspension and clocks | complete | Runtime-owned task waits, host suspension, cancellable sleep, yield progress, cancellation-handler timing and cleanup through both the modern and deprecated public overloads, and seeded replayable cancellation-race exploration have native parity and focused runtime coverage. | None; M4 may proceed. |
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all four public group-scope declarations for their evidenced default-isolation subsets, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, all four canonical `addTask(priority:operation:)`, all four canonical `addTaskUnlessCancelled(priority:operation:)`, all eight named add declarations without executor preference for their evidenced nonisolated subsets with task-owned names preserved, all eight `addTask` executor-preference declarations for their explicit-nil nonisolated subsets with non-nil preferences rejected by a shared guard and arbitrary-actor executor divergences recorded, all eight `addTaskUnlessCancelled` executor-preference declarations for active explicit-nil acceptance and post-cancellation rejection without child creation, with the shared non-nil guard and arbitrary-actor executor divergences recorded, and all eight `addImmediateTask`/`addImmediateTaskUnlessCancelled` declarations for their explicit-nil inherited-MainActor subsets with synchronous-prefix execution, Task.name, join, and cancellation-before-preference-validation evidence while non-nil preference and arbitrary-actor divergences remain recorded, all four ordinary/throwing group `next()` declarations, both deprecated `spawn()`, both deprecated `async()`, both deprecated conditional `add()` aliases, both deprecated `asyncUnlessCancelled()` aliases, and both deprecated `spawnUnlessCancelled()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition. | All currently generated task-group declarations have explicit dispositions and the target-aware escaped-capability boundary is covered. The remaining repeated-wait/new-work, non-nil TaskExecutor preference, and arbitrary-actor operation-executor semantics are demand-deferred (2026-07-16): they reopen only on a cited real-program failure; positive claims still require executable evidence and negative/deferred claims still require owned gap or deferral evidence. |
-| M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, depth-counted mailbox ownership for synchronous actor-function segments, explicit waitingForActor suspension/handoff/cleanup, and mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions are covered. | Active demand cycle (2026-07-16): replace the explicit async-actor compatibility frame with release-at-suspension and executor-owned resume/reacquisition, complete computed-property/subscript storage coverage, isolated parameters, arbitrary global actors, failure/cancellation paths, and mailbox stress, then finish per-feature fail-closed flips with no up-front global rejection; physical workers remain M9. |
+| M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, depth-counted mailbox ownership for synchronous and async actor-function segments, controlled suspension release/reacquisition and actor reentrancy, explicit waitingForActor handoff/cleanup, and mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions are covered. | Active demand cycle (2026-07-16): add cross-actor hop parity, complete computed-property/subscript storage coverage, isolated parameters, arbitrary global actors, actor failure/cancellation paths, and replayable mailbox stress, then finish per-feature fail-closed flips with no up-front global rejection; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. All four active-SDK public continuation entry points are generated with exact effects/isolation metadata and explicitly deferred without runtime routes; a strict Swift 6 native probe selects their explicit-MainActor forms. | Requires the M5 actor identity/storage slice for executor-owned resume; the demand slice then covers protocol for-await iteration, AsyncStream/AsyncThrowingStream, and checked continuations resuming on cooperative-default and MainActor executors, followed by cancellation, cleanup, and the remaining continuation and stream surface. |
 | M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, both macOS 26 task-priority-escalation handler declarations for their evidenced cooperative and explicit-`nil` subsets, the `withTaskExecutorPreference` declaration for its explicit-`nil`, no-ambient-custom-executor, bare-unqualified-direct-global-async-nil-operation-executor-preference-explicitly-nonisolated-operation subset, the `extractIsolation` declaration for synchronous non-invoking reflection of bare unqualified direct global async plain-explicit-nonisolated declarations including `@concurrent` while aliases, conversions, member references, and actor identity fail closed, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, all four public checked/unsafe continuation entry points explicitly deferred to M6 behind M5 resume ownership, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 171/171 reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 69 known divergences, 26 excluded compiler ABI, five deferred, and zero unreviewed. | Target-aware project manifests are covered. Keep M7 partial while the generated inventory scope is explicitly incomplete and known-divergent or deferred declarations retain owned gap dispositions. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
@@ -76,6 +76,7 @@ evidence that remains covered.
 | `actor-isolated-entry` | exact | An actor-isolated instance method sees its exact actor through `#isolation`, while an explicit `nonisolated` method sees no actor | Native/interpreter parity in 20 repetitions: `actor:none`; actor identity is logical and does not claim physical worker execution |
 | `custom-global-actor-isolation` | exact | A function annotated with a user-defined global actor uses that declaration's canonical `static shared` actor identity, while an explicit `nonisolated` function sees none | Native/interpreter parity in 20 repetitions: `same:none`; declaration order and repeated resolution preserve the same runtime actor ID |
 | `actor-serial-segment` | exact | Two concurrent calls to a synchronous actor-isolated method each own one mutually exclusive actor-executor segment and retain both mutations | Native/interpreter parity in 20 repetitions: `owned:owned:2`; the runtime records mailbox ownership explicitly and the assertion makes no FIFO, start-order, physical-thread, or cross-actor-parallelism claim |
+| `actor-reentrancy` | exact | An async actor message owns its synchronous prefix, releases the actor at a controlled suspension so a second message can mutate isolated state, and reacquires the same actor before resuming | Native/interpreter parity in 20 repetitions: `owned:owned:interleaved:owned:3`; the gate establishes every asserted edge without a FIFO, task-start, physical-thread, or unrelated scheduling claim |
 | `task-owned-evaluator-context` | predicate / event multiset | 100 sibling MainActor tasks preserve their own local index and lexical nested type across a forced yield; completion order is unspecified | Native parity in 20 native and 20 interpreter repetitions; each source task also has a distinct, explicitly cleaned evaluator context |
 | `task-context-cancellation` | exact invariant | A task cancelled only after entering a cancellable suspension completes as cancelled; an interleaved sibling resolves its extension-scoped nested type and returns `beta` | Native/interpreter parity in 20 repetitions; no start-order assumption because the cancellation uses an explicit started barrier |
 | `detached-host-context-reentry` | exact | `Task.detached` does not inherit a TaskLocal value; explicit capture/rebind preserves it inside an async callback | Native/interpreter parity in 20 repetitions; the interpreter host checks exact `EvaluationTaskContext` ID equality after detached re-entry |
@@ -2919,7 +2920,7 @@ ID and record. This closes custom global-actor identity mapping only; it does
 not claim actor-owned storage checks, mailbox serialization, reentrancy, or
 physical worker execution.
 
-### Synchronous actor mailbox and mutable stored-property confinement
+### Actor mailbox, controlled reentrancy, and stored-property confinement
 
 The next native question is deliberately smaller than full actor reentrancy:
 does each concurrent call to a synchronous actor-isolated method own one
@@ -2956,26 +2957,51 @@ is rejected outside the actor; the runtime guard follows that distinction.
 Cross-actor synchronous calls in canonical async sessions also fail closed
 unless the source task owns the actor.
 
-The same-source differential is now GREEN as `owned:owned:2` in all 20
-repetitions with the unchanged native digest. White-box coverage proves queue
-suspension, ownership handoff, state restoration, complete task/actor edge
-cleanup, the mutable-storage rejection, and the immutable/nonisolated
-exceptions. `ActorRuntimeTests` passes all 4 tests and
-`AsyncExecutionTests` passes all 86. The new 20-repetition differential ran in
-parallel with those focused suites from one prebuilt bundle; its longest
-worker completed in 11.85 seconds. A second parallel board kept both
-neighboring actor parity cases, declaration tests, and SwiftUI actor tests
-green in 12.68 seconds wall time. Focused `FoodTruckCheck --screen socialFeed`
-and `--screen salesHistory` runs each passed 1/1; both screens reach
-`StoreActor.shared`, so the explicit async compatibility boundary preserves
-the measured application shape while reentrancy remains open.
+The same-source differential is GREEN as `owned:owned:2` in all 20 repetitions
+with the unchanged native digest. White-box coverage proves queue suspension,
+ownership handoff, state restoration, complete task/actor edge cleanup, the
+mutable-storage rejection, and the immutable/nonisolated exceptions.
 
-This does not close M5. Async actor functions retain an explicit compatibility
-frame rather than pretending to hold a mailbox across suspension. Release at
-`await`, executor-owned resume/reacquisition, computed-property and subscript
-coverage, isolated parameters, arbitrary global actors, failure/cancellation
-paths, and replayable mailbox stress remain open. No physical parallelism is
-claimed.
+The next semantic question is actor reentrancy across a causally controlled
+suspension. `actor-reentrancy.swift` starts one async actor message, waits until
+that message has written `1` and entered a host gate, completes a second actor
+message that writes `2`, then opens the gate. The first message must observe
+the interleaved mutation, regain ownership before touching actor state, and
+write `3`. Twenty bounded strict Apple Swift 6.3.3 runs returned exactly
+`owned:owned:interleaved:owned:3`. The gate establishes every compared edge;
+FIFO, child start order, physical thread, and unrelated ready-task order remain
+unasserted.
+
+Before the production change, the same interpreted source was captured as
+`unowned:unowned:interleaved:owned:3`: the compatibility frame happened to
+permit interleaving but supplied no mailbox ownership before or after the
+wait. A `RuntimeTaskSuspensionLease` now pairs every canonical task-state wait
+with the complete depth-counted actor segment owned by that task. Host, task-
+value/async-let, clock/yield, and task-group waits release that segment only
+after recording the task as waiting; wake-up restores the task to runnable,
+queues it on the actor when necessary, and returns to the evaluator only after
+the same nested depth is owned again. Explicit cross-executor calls similarly
+park their caller actor before acquiring a different callee executor. Async
+actor functions therefore use the same mailbox ownership as synchronous ones;
+the unowned compatibility frame has been removed.
+
+The promoted fresh-process differential is GREEN as
+`owned:owned:interleaved:owned:3` in 20 repetitions, with native-observation
+digest `3124ca05275c1a09307543bdc5d023a28b82566675ad9ac279e9f4ea49e8436f`.
+A focused runtime test additionally proves
+that a nested depth-two segment becomes completely unowned during suspension,
+is restored before continuation, unwinds one lease at a time, and leaves no
+task or actor edge. The post-fix board passed `ActorRuntimeTests` 5/5,
+`AsyncExecutionTests` 86/86, host suspension 1/1, SwiftUI actor execution 2/2,
+TaskObservatory 1/1, and methodology/accounting 38/38. The three neighboring
+actor parity cases stayed GREEN in parallel, and FoodTruck `socialFeed` plus
+`salesHistory` each passed 1/1. The full milestone gate remains deferred while
+M5 is open.
+
+This closes the successful controlled-reentrancy gap, not M5:
+cross-actor hop parity, computed-property/subscript confinement, isolated
+parameters, arbitrary global actors, failure/cancellation paths, and replayable
+mailbox stress remain open. No physical parallelism is claimed.
 
 ## Official Swift upstream intake
 
