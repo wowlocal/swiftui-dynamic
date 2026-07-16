@@ -276,6 +276,7 @@ public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
     case awaitingTask(RuntimeTaskID)
     case awaitingHost(HostOperationID)
     case waitingForGroup(RuntimeTaskGroupID)
+    case waitingForActor(RuntimeActorID)
     case yielding
     case sleeping(until: RuntimeInstant)
 
@@ -284,6 +285,7 @@ public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
         case .awaitingTask(let taskID): "awaitingTask(\(taskID))"
         case .awaitingHost(let operationID): "awaitingHost(\(operationID))"
         case .waitingForGroup(let groupID): "waitingForGroup(\(groupID))"
+        case .waitingForActor(let actorID): "waitingForActor(\(actorID))"
         case .yielding: "yielding"
         case .sleeping(let deadline): "sleeping(until: \(deadline))"
         }
@@ -550,10 +552,20 @@ final class RuntimeTaskGroupRecord {
 /// Stable runtime identity for one source actor instance. The source reference
 /// graph owns the instance and its property boxes; the runtime record remains
 /// non-owning so registering an executor cannot extend source actor lifetime.
-/// Later mailbox slices attach queued task IDs to this same identity.
+/// The mailbox serializes source-task entry into synchronous actor segments;
+/// it is deliberately independent from the physical MainActor host on which
+/// the cooperative evaluator currently runs.
 final class RuntimeActorRecord {
     let id: RuntimeActorID
     weak var instance: Instance?
+    /// Runtime-task identity that currently owns this actor's synchronous
+    /// execution segment. Keeping it on the actor record prevents the
+    /// physical MainActor host from being mistaken for source-actor ownership.
+    fileprivate(set) var executorOwnerTaskID: RuntimeTaskID?
+    fileprivate var executorOwnerDepth = 0
+    fileprivate var mailbox: [RuntimeActorMailboxWaiter] = []
+
+    var mailboxTaskIDs: [RuntimeTaskID] { mailbox.map(\.taskID) }
 
     init(id: RuntimeActorID, instance: Instance) {
         self.id = id
@@ -561,7 +573,27 @@ final class RuntimeActorRecord {
     }
 }
 
+struct RuntimeActorExecutorLease: Equatable {
+    let actorID: RuntimeActorID
+    let taskID: RuntimeTaskID
+}
+
+private final class RuntimeActorMailboxWaiter {
+    let taskID: RuntimeTaskID
+    let continuation: CheckedContinuation<Void, Never>
+
+    init(
+        taskID: RuntimeTaskID,
+        continuation: CheckedContinuation<Void, Never>
+    ) {
+        self.taskID = taskID
+        self.continuation = continuation
+    }
+}
+
 final class CooperativeConcurrencyRuntime {
+    private static let maximumActorMailboxWaiters = 1_024
+
     let clock: any RuntimeClock
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
@@ -605,8 +637,91 @@ final class CooperativeConcurrencyRuntime {
     }
 
     func releaseActor(_ id: RuntimeActorID) {
-        guard actors[id] != nil else { return }
+        guard let record = actors[id] else { return }
+        precondition(
+            record.executorOwnerTaskID == nil && record.mailbox.isEmpty,
+            "cannot release actor \(id) while its executor is active")
         actors.removeValue(forKey: id)
+    }
+
+    /// Acquire one source actor's mutually-exclusive synchronous executor
+    /// segment. Re-entry by the same source task is depth-counted; competing
+    /// source tasks become explicit runtime waiters instead of relying on the
+    /// evaluator's incidental physical MainActor serialization.
+    func acquireActorExecutor(
+        _ actorID: RuntimeActorID,
+        for taskID: RuntimeTaskID
+    ) async throws -> RuntimeActorExecutorLease {
+        guard let actor = actors[actorID], actor.instance != nil else {
+            throw RuntimeError(
+                message: "cannot enter released actor executor \(actorID)",
+                fatal: true)
+        }
+        guard let task = records[taskID], task.state == .running else {
+            throw RuntimeError(
+                message: "actor executor entry requires a running runtime task",
+                fatal: true)
+        }
+
+        if actor.executorOwnerTaskID == nil {
+            actor.executorOwnerTaskID = taskID
+            actor.executorOwnerDepth = 1
+            return RuntimeActorExecutorLease(actorID: actorID, taskID: taskID)
+        }
+        if actor.executorOwnerTaskID == taskID {
+            actor.executorOwnerDepth += 1
+            return RuntimeActorExecutorLease(actorID: actorID, taskID: taskID)
+        }
+        guard actor.mailbox.count < Self.maximumActorMailboxWaiters else {
+            throw RuntimeError(
+                message: "actor executor mailbox exceeded "
+                    + "\(Self.maximumActorMailboxWaiters) waiters",
+                fatal: true)
+        }
+        precondition(
+            !actor.mailbox.contains { $0.taskID == taskID },
+            "runtime task \(taskID) queued twice for actor \(actorID)")
+
+        let reason = RuntimeSuspension.waitingForActor(actorID)
+        suspend(taskID, for: reason)
+        await withCheckedContinuation { continuation in
+            actor.mailbox.append(RuntimeActorMailboxWaiter(
+                taskID: taskID, continuation: continuation))
+        }
+        precondition(
+            actor.executorOwnerTaskID == taskID
+                && actor.executorOwnerDepth == 1,
+            "actor \(actorID) resumed \(taskID) without ownership")
+        return RuntimeActorExecutorLease(actorID: actorID, taskID: taskID)
+    }
+
+    /// Release a depth-counted segment and hand ownership directly to one
+    /// waiter. FIFO is an internal deterministic scheduling policy, not a
+    /// source-level ordering guarantee exposed by this runtime slice.
+    func releaseActorExecutor(_ lease: RuntimeActorExecutorLease) {
+        guard let actor = actors[lease.actorID] else {
+            preconditionFailure(
+                "cannot release missing actor executor \(lease.actorID)")
+        }
+        precondition(
+            actor.executorOwnerTaskID == lease.taskID
+                && actor.executorOwnerDepth > 0,
+            "runtime task \(lease.taskID) does not own actor \(lease.actorID)")
+        if actor.executorOwnerDepth > 1 {
+            actor.executorOwnerDepth -= 1
+            return
+        }
+
+        guard !actor.mailbox.isEmpty else {
+            actor.executorOwnerTaskID = nil
+            actor.executorOwnerDepth = 0
+            return
+        }
+        let waiter = actor.mailbox.removeFirst()
+        actor.executorOwnerTaskID = waiter.taskID
+        actor.executorOwnerDepth = 1
+        resume(waiter.taskID, from: .waitingForActor(lease.actorID))
+        waiter.continuation.resume()
     }
 
     func createTask(
@@ -1103,6 +1218,12 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             records[id]?.ownedTaskGroups.isEmpty != false,
             "cannot release runtime task \(id) with an active task group")
+        precondition(
+            !actors.values.contains {
+                $0.executorOwnerTaskID == id
+                    || $0.mailbox.contains { $0.taskID == id }
+            },
+            "cannot release runtime task \(id) with an actor-executor edge")
         guard let record = records[id] else { return }
         clock.cancelSleep(task: id)
         record.cancellationHandlers.removeAll(keepingCapacity: false)

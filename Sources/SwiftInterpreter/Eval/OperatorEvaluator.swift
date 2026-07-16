@@ -384,6 +384,8 @@ extension Interpreter {
             case .box(let box):
                 return try interpreter.force(box)
             case .instanceProperty(let instance, let name):
+                try interpreter.requireActorStoredPropertyAccess(
+                    instance, property: name)
                 if let box = instance.box(for: name) { return try box.load() }
                 if let computed = instance.symbol.computedProperties[name] {
                     return try interpreter.evaluateComputed(computed, selfValue: .instance(instance), name: name)
@@ -508,6 +510,8 @@ extension Interpreter {
                 } ?? value
                 box.value = stored(resolved)
             case .instanceProperty(let instance, let name):
+                try interpreter.requireActorStoredPropertyAccess(
+                    instance, property: name)
                 if Interpreter.traceStateCells,
                    name == (ProcessInfo.processInfo.environment["INTERP_TRACE_PROP"] ?? "statusesState") {
                     Swift.print("   ✍ \(instance.symbol.name)(\(UInt(bitPattern: ObjectIdentifier(instance).hashValue) % 100000)).\(name) = \(value.stringified.prefix(50))")

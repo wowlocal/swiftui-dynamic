@@ -46,6 +46,19 @@ func parityCurrentIsolationMatches(
         ? "same" : "other"
 }
 
+/// Native actor isolation implies ownership of one mutually-exclusive
+/// executor segment until this synchronous function returns. The interpreter
+/// twin additionally requires an explicit runtime mailbox lease instead of
+/// treating its physical MainActor host as proof of source-actor ownership.
+func parityActorSegmentOwnership(
+    _ expected: any Actor,
+    isolation: isolated (any Actor)? = #isolation
+) -> String {
+    guard let isolation else { return "unowned" }
+    return (isolation as AnyObject) === (expected as AnyObject)
+        ? "owned" : "other"
+}
+
 @MainActor
 func parityYield(_ value: String) async -> String {
     await Task.yield()

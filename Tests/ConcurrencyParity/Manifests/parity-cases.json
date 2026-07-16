@@ -86,6 +86,18 @@
     "notes": "Exact output is same:none in all 20 Swift 6.3.3 runs. Actor identity is compared directly; no physical thread or independent scheduling order is asserted."
   },
   {
+    "id": "actor-serial-segment",
+    "fixture": "Fixtures/actor-serial-segment.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorSerialSegmentProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A synchronous actor-isolated method executes as one mutually exclusive actor-executor segment, so two concurrent calls each own the actor and both mutations are retained.",
+    "notes": "Exact output is owned:owned:2 in all 20 Swift 6.3.3 runs. Both ownership results are identical, so the assertion makes no FIFO, task-start-order, physical-thread, or cross-actor parallelism claim."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",

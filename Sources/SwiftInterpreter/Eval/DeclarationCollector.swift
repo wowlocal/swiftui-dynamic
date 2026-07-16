@@ -684,7 +684,11 @@ extension Interpreter {
                         wrapper: .none,
                         initializer: nil,
                         typeAnnotation: elementType,
-                        isBuilderClosure: false
+                        isBuilderClosure: false,
+                        isMutable: varDecl.bindingSpecifier.text == "var",
+                        isNonisolated: varDecl.modifiers.contains {
+                            $0.name.text == "nonisolated"
+                        }
                     ))
                 }
                 continue
@@ -771,7 +775,11 @@ extension Interpreter {
                     wrapper: wrapper,
                     initializer: binding.initializer?.value ?? queryDefault ?? stateLikeDefault,
                     typeAnnotation: binding.typeAnnotation?.type ?? syntheticAnnotation,
-                    isBuilderClosure: hasBuilderAttribute
+                    isBuilderClosure: hasBuilderAttribute,
+                    isMutable: varDecl.bindingSpecifier.text == "var",
+                    isNonisolated: varDecl.modifiers.contains {
+                        $0.name.text == "nonisolated"
+                    }
                 )
                 stored.referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
                 stored.isLazy = varDecl.modifiers.contains { $0.name.text == "lazy" }
@@ -1187,6 +1195,8 @@ extension Interpreter {
         closure.isExplicitlyNonisolated = node.modifiers.contains {
             $0.trimmedDescription == "nonisolated"
         }
+        closure.isAsyncFunction =
+            node.signature.effectSpecifiers?.asyncSpecifier != nil
         closure.executorPreference = functionExecutorPreference(
             node, lexicalOwner: lexicalOwner)
         if !isAnyNonisolated {

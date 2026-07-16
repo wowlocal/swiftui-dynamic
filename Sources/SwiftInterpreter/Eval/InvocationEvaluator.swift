@@ -692,10 +692,11 @@ extension Interpreter {
     }
 
     func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {
+        let calleeExecutor = try resolvedExecutor(for: closure)
+        try requireSynchronousActorInvocationAccess(to: calleeExecutor)
         callDepth += 1
         defer { callDepth -= 1 }
         let previousExecutor = evaluationTaskContext.currentExecutor
-        let calleeExecutor = try resolvedExecutor(for: closure)
         if let executor = calleeExecutor {
             evaluationTaskContext.currentExecutor = executor
         }

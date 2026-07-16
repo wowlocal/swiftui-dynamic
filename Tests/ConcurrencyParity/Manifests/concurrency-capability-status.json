@@ -2696,7 +2696,7 @@
       "gapEvidenceIDs": [
         "actor-declaration-safety-boundary"
       ],
-      "notes": "Valid actor declarations can still enter class-like execution; per the 2026-07-16 demand re-plan each actor feature flips to fail-closed diagnosis together with or after its actor-runtime replacement, with no up-front global rejection."
+      "notes": "Synchronous actor functions and mutable stored-property access now fail closed unless the canonical async source task owns the matching mailbox lease (or is inside the explicitly tracked async compatibility frame). Async suspension/reacquisition and remaining actor forms still require per-feature boundary flips; the 2026-07-16 demand re-plan forbids an up-front global rejection."
     },
     {
       "id": "actor-identity-storage-and-serial-executor",
@@ -2708,7 +2708,7 @@
       "gapEvidenceIDs": [
         "actor-identity-storage-serial-executor"
       ],
-      "notes": "Distinct source-actor runtime identity, weak record cleanup, logical isolated instance-method entry, and canonical user-declared global-actor mapping through static shared are implemented, but actor-owned storage enforcement and serial mailbox/executor queues are not; this remains the entry slice of the 2026-07-16 demand cycle, scoped first to MainActor isolation and user-declared global actors of the FoodTruck StoreActor shape."
+      "notes": "Distinct source-actor runtime identity, weak record cleanup, canonical user-declared global-actor mapping, synchronous actor-function mailbox leases, waitingForActor handoff, and mutable stored-property confinement are implemented with native parity and focused ownership evidence in the acceptance requirement. This catalog capability remains a known divergence until async actor functions release at suspension and reacquire on resume and computed-property/subscript, failure/cancellation, and stress coverage close the entry slice."
     },
     {
       "id": "actor-reentrancy-and-isolated-dispatch",
@@ -2720,7 +2720,7 @@
       "gapEvidenceIDs": [
         "actor-reentrancy-isolated-dispatch"
       ],
-      "notes": "Actor reentrancy/resume ownership, isolated dispatch, arbitrary global actors, and mailbox stress are not implemented; queued as the second slice of the 2026-07-16 demand cycle, behind identity/storage."
+      "notes": "Complete synchronous actor-function segments now use the serial mailbox, but async actor functions still lack release-at-suspension and resume reacquisition. Isolated-parameter dispatch, arbitrary global actors, failure/cancellation paths, and replayable mailbox stress remain the second slice of the 2026-07-16 demand cycle."
     },
     {
       "id": "compiler-backed-concurrency-diagnostics",

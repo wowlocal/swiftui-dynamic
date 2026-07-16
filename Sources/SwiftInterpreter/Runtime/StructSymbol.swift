@@ -63,6 +63,13 @@ public final class StructSymbol {
         /// `@ViewBuilder var content: Content` — memberwise init takes a
         /// trailing closure and stores the BUILT view.
         public let isBuilderClosure: Bool
+        /// Mutable actor storage is confined to an owned executor segment.
+        /// Immutable actor `let` storage remains directly readable, matching
+        /// the Swift 6 compiler rule established by the native probe.
+        public let isMutable: Bool
+        /// Includes `nonisolated(unsafe)`: the compiler, rather than the actor
+        /// mailbox, owns the safety contract for explicitly nonisolated data.
+        public let isNonisolated: Bool
         /// `weak`/`unowned` are policies of the property's storage edge. The
         /// payload remains an ordinary class RuntimeValue everywhere else.
         public var referenceOwnership: ReferenceOwnership = .strong
@@ -79,6 +86,10 @@ public final class StructSymbol {
         /// Function-typed or @ViewBuilder: what a trailing closure can fill.
         public var acceptsTrailingClosure: Bool {
             isBuilderClosure || (typeAnnotation?.trimmedDescription.contains("->") ?? false)
+        }
+
+        public var requiresActorExecutor: Bool {
+            isMutable && !isNonisolated
         }
     }
 

@@ -42,9 +42,11 @@ reasons, async-let scopes, and the currently covered task-group semantics.
 
 This is a strong migration base, but it is not yet the full target concurrency
 runtime. Source execution is still driven by native Swift tasks/continuations,
-the interpreter still combines program/session/heap responsibilities, and
-there is no runtime-owned executor queue, actor storage, continuation registry,
-or protocol-level async-sequence runtime. The remaining Task API work is a
+the interpreter still combines program/session/heap responsibilities. A
+runtime-owned mailbox now serializes complete synchronous actor-function
+segments, but there is no general runnable-executor queue, suspension-aware
+actor ownership, continuation registry, or protocol-level async-sequence
+runtime. The remaining Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
 name-dispatched Task API surface.
@@ -244,22 +246,30 @@ deallocate. The snapshot retains the typed immutable outcome and a separate
 cancellation state, so later reads remain stable and late source `cancel()`
 updates the handle flag without changing its terminal outcome.
 
-### 4.5 Actors have runtime identity but no mailbox yet
+### 4.5 Actors have runtime identity and a synchronous mailbox foundation
 
 Actor declarations retain reference semantics and their nominal actor kind.
 Each source actor instance now receives a distinct runtime actor ID with a
-non-owning lifetime record. An isolated instance-method closure enters that
-actor's logical executor for its dynamic call extent and restores the caller;
-an explicit `nonisolated` method inherits its caller instead. A function
+non-owning lifetime record. A synchronous isolated function acquires a
+depth-counted lease on that actor record before entering its logical executor;
+a competing source task records `.waitingForActor`, and release hands ownership
+to one waiter before resuming it. An explicit `nonisolated` method inherits its
+caller instead. A function
 annotated with a collected user-defined global actor lazily resolves the
 declaration's canonical `static shared` actor and enters that same logical
-identity. This is identity and entry-hop infrastructure, not complete actor
-isolation. Real actor behavior still requires:
+identity. Mutable stored-property read/write funnels require the matching
+runtime-task lease. Native Swift 6 probes establish that ordinary immutable
+actor `let` storage and explicitly nonisolated storage remain directly
+readable, so neither is over-guarded.
 
-- isolated storage;
-- a serial executor;
-- suspension-producing executor hops for cross-actor operations;
+This establishes non-suspending actor segments, not complete actor isolation.
+Async actor functions still use an explicit compatibility frame until the
+runtime can release ownership at suspension and reacquire it before resume.
+Remaining actor work includes:
+
+- suspension-producing executor hops for async cross-actor operations;
 - reentrancy at suspension points;
+- complete computed-property and subscript confinement;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
 
@@ -753,16 +763,18 @@ An executor owns a queue of runnable task IDs. In the first implementation all
 queues may be drained on the native main actor, but their logical ownership and
 serialization remain distinct.
 
-The incremental foundation establishes identity before queues: every runtime
+The incremental foundation establishes identity before general queues: every runtime
 task records its initial executor preference, every task-owned evaluation
 context carries the current executor, and a declaration-level hop installs its
 callee executor for the dynamic call extent before restoring the caller. Host
 bridges read that explicit context. Source actor instances additionally own a
 stable logical actor ID, isolated instance-method closures select its executor
 identity, and user-declared global-actor attributes resolve lazily through the
-declared type's canonical `static shared` actor. This partial M5 phase prevents
-the physical hosting actor from leaking into source observations, but it is
-not actor serialization or executor scheduling.
+declared type's canonical `static shared` actor. Synchronous actor functions
+also acquire a runtime-owned mailbox lease, so their complete non-suspending
+segments serialize independently of the physical MainActor host. This partial
+M5 phase is not yet a general executor scheduler: async actor suspension and
+resume do not release/reacquire that lease.
 
 Executor rules include:
 
@@ -857,9 +869,10 @@ retaining an evaluator task or borrowing dynamic caller state.
 ```swift
 struct RuntimeActorRecord {
     let id: RuntimeActorID
-    let instance: InstanceID
-    let executor: RuntimeExecutorID
-    var lifecycle: RuntimeActorLifecycle
+    weak var instance: Instance?
+    var executorOwnerTaskID: RuntimeTaskID?
+    var executorOwnerDepth: Int
+    var mailbox: [RuntimeActorMailboxWaiter]
 }
 ```
 
@@ -869,9 +882,11 @@ record. The source reference graph still owns the instance and property boxes;
 final release removes the runtime record. A collected user-defined global actor
 uses the runtime ID of its lazily evaluated `static shared` actor, so global-
 actor and direct instance isolation share one canonical executor capability.
-Mailbox state and an executor-owned storage capability will attach to this
-identity in the next sub-slice. Until then, the ID and isolated entry hop must
-not be described as storage confinement or serial execution.
+The actor record now owns a bounded mailbox and a depth-counted source-task
+lease. Acquisition changes a competing task from `.running` to `.waiting` with
+`.waitingForActor(actorID)`; release either clears ownership or transfers it to
+one waiter, restores that task to `.running`, and resumes its continuation.
+Actor and task teardown assert that no ownership or queue edge remains.
 
 The actor instance remains a reference value, but its stored properties are
 executor-confined. Member resolution must identify whether a declaration is:
@@ -882,8 +897,15 @@ executor-confined. Member resolution must identify whether a declaration is:
 - callable through an `isolated` parameter;
 - immutable and safe to read without a hop under a verified Swift rule.
 
-The compiler-preflight layer diagnoses illegal source. Runtime checks prevent a
-host callback or dynamically constructed call from bypassing isolation.
+The current property metadata records mutability and explicit nonisolation.
+Every common mutable stored-property read/write/projection funnel checks that
+the current logical executor matches the actor and that the canonical runtime
+task owns its lease. Ordinary immutable `let` reads and explicit
+`nonisolated(unsafe)` storage follow the verified compiler rule. The
+compiler-preflight layer diagnoses illegal source, while runtime checks prevent
+a host callback or dynamically constructed call from bypassing isolation.
+Computed properties, subscripts, and async resume ownership remain open and
+must not be inferred from this stored-property subset.
 
 ### 6.12 Actor reentrancy
 
@@ -898,6 +920,13 @@ When an actor-isolated method suspends:
 
 Tests must never assume actor state is unchanged across `await` unless the
 program establishes that invariant itself.
+
+The current runtime implements only the non-suspending special case: a
+synchronous actor function holds one depth-counted lease through return or
+throw. An async actor function is marked by an explicit compatibility frame so
+existing project behavior is not silently presented as mailbox ownership.
+Replacing that frame with release-at-suspension and reacquisition-before-resume
+is the next M5 slice.
 
 ### 6.13 Cancellation
 

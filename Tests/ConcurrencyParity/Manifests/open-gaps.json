@@ -11,21 +11,21 @@
     "requirementRef": "M5/actor-declaration-safety-boundary",
     "kind": "coverage-gap",
     "expectedObservation": "Each actor semantic feature fails closed together with or after its actor-runtime replacement landing; remaining unsupported actor forms are explicitly diagnosed, and no valid actor declaration silently runs class-like semantics once its replacement exists.",
-    "currentObservation": "Valid interpreted actor declarations execute through the documented class-like compatibility path without actor-owned storage or executor semantics; per the 2026-07-16 demand re-plan the fail-closed flips are staged per feature behind the identity/storage slice instead of landing as an up-front global rejection."
+    "currentObservation": "Synchronous actor-isolated functions now enter through a runtime-owned mailbox lease, cross-actor synchronous calls in canonical async sessions fail closed unless the source task already owns that actor, and mutable stored-property funnels require the matching lease. Async actor functions still use an explicit compatibility frame until suspension-aware release/reacquisition lands; per the 2026-07-16 demand re-plan the remaining fail-closed flips stay staged per feature instead of landing as an up-front global rejection."
   },
   {
     "id": "actor-identity-storage-serial-executor",
     "requirementRef": "M5/actor-identity-storage-and-serial-executor",
     "kind": "coverage-gap",
     "expectedObservation": "Actors have distinct identity, actor-owned storage, serial mailbox/executor queues, isolated entry hops, and bounded lifetime cleanup.",
-    "currentObservation": "Source actor declarations retain their actor kind, instances receive distinct runtime IDs with weak-record lifetime cleanup, isolated instance methods enter the matching logical actor executor before restoring their caller, and user-declared global-actor function isolation resolves through the canonical static shared actor; explicit nonisolated methods stay on the caller executor. Actor-owned storage enforcement and serial mailbox/executor queues are still absent. The 2026-07-16 demand re-plan keeps those as the remainder of the M5 entry slice, scoped first to MainActor-isolated types and user-declared global actors of the FoodTruck StoreActor shape."
+    "currentObservation": "Source actor declarations retain their actor kind, instances receive distinct runtime IDs with weak-record lifetime cleanup, and user-declared global-actor function isolation resolves through the canonical static shared actor. Synchronous actor-isolated functions acquire depth-counted mailbox leases; competing source tasks record waitingForActor suspension, receive direct ownership handoff, and release every task/actor edge. Mutable stored-property reads and writes require ownership, while ordinary immutable let and explicitly nonisolated storage follow the Swift 6 compiler rules. Async actor functions still use an explicit compatibility frame: release at suspension, executor-owned resume/reacquisition, computed-property/subscript coverage, and broader failure/stress evidence remain open."
   },
   {
     "id": "actor-reentrancy-isolated-dispatch",
     "requirementRef": "M5/actor-reentrancy-and-isolated-dispatch",
     "kind": "coverage-gap",
     "expectedObservation": "Actor suspension/resume is reentrant without concurrent isolated execution; isolated parameters, arbitrary global actors, failure paths, and replayable stress are covered.",
-    "currentObservation": "There is no actor resume-ownership model, isolated actor dispatch, arbitrary global-actor runtime, or mailbox/reentrancy stress board. Queued as the second slice of the 2026-07-16 demand cycle, behind identity/storage."
+    "currentObservation": "A deterministic runtime mailbox now serializes complete synchronous actor-function segments, but async actor functions do not yet release ownership at suspension or reacquire before resumption. Isolated-parameter dispatch, arbitrary global actors, failure/cancellation paths, and a replayable mailbox/reentrancy stress board remain the second slice of the 2026-07-16 demand cycle."
   },
   {
     "id": "async-sequence-continuation-runtime",

@@ -88,6 +88,117 @@ struct ActorRuntimeTests {
         #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
     }
 
+    @Test
+    func actorMailboxSuspendsHandsOffAndReleasesRuntimeEdges() async throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: "actor MailboxProbe {}")
+        let actorSymbol = try #require(
+            interpreter.globals.lookup("MailboxProbe")?.typeSymbol)
+        var actorValue: RuntimeValue? = try interpreter.instantiateRoot(
+            actorSymbol)
+        var actor: Instance? = try #require(Self.instance(from: actorValue))
+        let actorID = try #require(actor?.actorID)
+        let runtime = interpreter.concurrencyRuntime
+        let session = runtime.createSession()
+        let first = runtime.createTask(
+            sessionID: session,
+            kind: .unstructured,
+            parent: nil,
+            priority: .medium,
+            executorPreference: .actor(actorID),
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: "first")
+        let second = runtime.createTask(
+            sessionID: session,
+            kind: .unstructured,
+            parent: nil,
+            priority: .medium,
+            executorPreference: .actor(actorID),
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: "second")
+        #expect(runtime.begin(first))
+        #expect(runtime.begin(second))
+
+        let firstLease = try await runtime.acquireActorExecutor(
+            actorID, for: first.id)
+        let secondAcquisition = Task { @MainActor in
+            try await runtime.acquireActorExecutor(actorID, for: second.id)
+        }
+        for _ in 0..<1_000 {
+            if runtime.actors[actorID]?.mailboxTaskIDs == [second.id] {
+                break
+            }
+            await Task.yield()
+        }
+
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == first.id)
+        #expect(runtime.actors[actorID]?.mailboxTaskIDs == [second.id])
+        #expect(second.state == .waiting)
+        #expect(second.suspension == .waitingForActor(actorID))
+
+        runtime.releaseActorExecutor(firstLease)
+        let secondLease = try await secondAcquisition.value
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == second.id)
+        #expect(runtime.actors[actorID]?.mailboxTaskIDs.isEmpty == true)
+        #expect(second.state == .running)
+        #expect(second.suspension == nil)
+        #expect(second.suspensionHistory == [.waitingForActor(actorID)])
+
+        runtime.releaseActorExecutor(secondLease)
+        runtime.succeed(first, with: .void)
+        runtime.succeed(second, with: .void)
+        runtime.release(first.id)
+        runtime.release(second.id)
+        #expect(runtime.actors[actorID]?.executorOwnerTaskID == nil)
+        #expect(runtime.activeRecordCount == 0)
+
+        actorValue = nil
+        actor = nil
+        #expect(runtime.activeActorCount == 0)
+    }
+
+    @Test
+    func actorMutableStorageRequiresOwnershipWhileAllowedStorageRemainsReadable()
+        async throws
+    {
+        let allowedInterpreter = Interpreter()
+        let allowed = try await allowedInterpreter.runAsync(source: """
+            actor StorageProbe {
+                var mutable = 1
+                let immutable = 2
+                nonisolated(unsafe) var unsafeValue = 3
+            }
+            let probe = StorageProbe()
+            String(probe.immutable) + ":" + String(probe.unsafeValue)
+            """)
+        let symbol = try #require(
+            allowedInterpreter.globals.lookup("StorageProbe")?.typeSymbol)
+
+        #expect(allowed.stringValue == "2:3")
+        #expect(symbol.storedProperty(named: "mutable")?
+            .requiresActorExecutor == true)
+        #expect(symbol.storedProperty(named: "immutable")?
+            .requiresActorExecutor == false)
+        #expect(symbol.storedProperty(named: "unsafeValue")?
+            .requiresActorExecutor == false)
+
+        do {
+            _ = try await Interpreter().runAsync(source: """
+                actor StorageProbe {
+                    var mutable = 1
+                }
+                let probe = StorageProbe()
+                probe.mutable
+                """)
+            Issue.record(
+                "mutable actor storage was readable without executor ownership")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "StorageProbe.mutable' accessed without owning its executor"))
+        }
+    }
+
     private static func instance(from value: RuntimeValue?) -> Instance? {
         guard case .instance(let instance)? = value else { return nil }
         return instance

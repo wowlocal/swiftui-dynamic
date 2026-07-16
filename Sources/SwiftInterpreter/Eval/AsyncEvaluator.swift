@@ -754,10 +754,13 @@ extension Interpreter {
     func callWithArgumentsSuspending(
         _ closure: ClosureValue, args: CallArguments, node: Syntax?
     ) async throws -> RuntimeValue {
+        let calleeExecutor = try resolvedExecutor(for: closure)
+        let actorOwnership = try await enterActorInvocation(
+            closure: closure, executor: calleeExecutor)
+        defer { leaveActorInvocation(actorOwnership) }
         callDepth += 1
         defer { callDepth -= 1 }
         let previousExecutor = evaluationTaskContext.currentExecutor
-        let calleeExecutor = try resolvedExecutor(for: closure)
         if let executor = calleeExecutor {
             evaluationTaskContext.currentExecutor = executor
         }

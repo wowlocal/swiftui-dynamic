@@ -105,6 +105,11 @@ public final class ClosureValue {
     /// kinds the incremental runtime cannot identify yet, so it is not proof
     /// of nonisolation.
     public var isExplicitlyNonisolated = false
+    /// Whether the wrapped source function declaration is `async`. Synchronous
+    /// actor functions own one mailbox segment for their complete invocation;
+    /// async functions use the compatibility path until suspension-aware actor
+    /// segment release/reacquisition lands in the next M5 slice.
+    public internal(set) var isAsyncFunction = false
     /// Statically proven lexical executor inherited by a source closure
     /// expression. This must not be inferred from the dynamic executor on
     /// which a nonisolated factory happened to run. APIs whose parameters

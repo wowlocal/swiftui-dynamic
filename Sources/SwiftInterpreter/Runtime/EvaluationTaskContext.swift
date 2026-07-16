@@ -44,6 +44,11 @@ final class EvaluationTaskContext {
     /// dynamically on MainActor without making closures formed in its body
     /// MainActor-isolated.
     var lexicalExecutorFrames: [RuntimeExecutorKind?] = []
+    /// Async actor functions predate mailbox segment release/reacquisition.
+    /// Their explicit frames keep existing storage behavior visible and
+    /// bounded while synchronous actor functions use real mailbox leases.
+    /// This compatibility state is removed by the actor-reentrancy slice.
+    var unownedAsyncActorCompatibilityFrames: [RuntimeActorID] = []
     var expectedAnnotationStack: [String] = []
     var enclosingReturnAnnotations: [String?] = []
     var viewIdentitySalts: [String] = []
@@ -89,6 +94,7 @@ final class EvaluationTaskContext {
             && callStackNames.isEmpty
             && lexicalOwnerFrames.isEmpty
             && lexicalExecutorFrames.isEmpty
+            && unownedAsyncActorCompatibilityFrames.isEmpty
             && expectedAnnotationStack.isEmpty
             && enclosingReturnAnnotations.isEmpty
             && viewIdentitySalts.isEmpty
@@ -122,6 +128,7 @@ final class EvaluationTaskContext {
         callStackNames.removeAll(keepingCapacity: false)
         lexicalOwnerFrames.removeAll(keepingCapacity: false)
         lexicalExecutorFrames.removeAll(keepingCapacity: false)
+        unownedAsyncActorCompatibilityFrames.removeAll(keepingCapacity: false)
         expectedAnnotationStack.removeAll(keepingCapacity: false)
         enclosingReturnAnnotations.removeAll(keepingCapacity: false)
         viewIdentitySalts.removeAll(keepingCapacity: false)

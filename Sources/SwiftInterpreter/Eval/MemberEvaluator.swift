@@ -50,6 +50,8 @@ extension Interpreter {
     func instanceProjection(
         _ propertyName: String, on instance: Instance, node: some SyntaxProtocol
     ) throws -> RuntimeValue {
+        try requireActorStoredPropertyAccess(
+            instance, property: propertyName)
         // `$searchText` on a @Published property (inside the model) is
         // the Combine publisher projection — an inert pipeline.
         if let property = instance.symbol.storedProperty(named: propertyName),
@@ -272,6 +274,9 @@ extension Interpreter {
         if name == "objectWillChange", instance.symbol.isClass {
             let signal = instance.changeSignal
             return .native(ObjectWillChangePublisher(fire: { signal.fire() }))
+        }
+        if instance.box(for: name) != nil {
+            try requireActorStoredPropertyAccess(instance, property: name)
         }
         if let box = instance.box(for: name),
            case .host(let any) = box.value, let seed = any as? LazyMemberSeed {

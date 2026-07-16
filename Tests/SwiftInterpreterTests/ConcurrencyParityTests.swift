@@ -439,6 +439,22 @@ private enum ConcurrencyParityHarness {
                 return .native(actualID == expectedID ? "same" : "other")
             }))
         interpreter.globals.define(
+            "parityActorSegmentOwnership",
+            .hostFunction(HostFunction(
+                name: "parityActorSegmentOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID else {
+                    return .native("unowned")
+                }
+                let owner = interpreter.concurrencyRuntime.actors[actorID]?
+                    .executorOwnerTaskID
+                return .native(owner == taskID ? "owned" : "unowned")
+            }))
+        interpreter.globals.define(
             "parityRecordHostGatewayEvent",
             .hostFunction(HostFunction(
                 name: "parityRecordHostGatewayEvent"
