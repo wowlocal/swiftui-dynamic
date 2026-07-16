@@ -138,6 +138,18 @@ public protocol EvalContext: AnyObject {
         name: String?,
         priority: RuntimeTaskPriority?
     ) throws -> RuntimeValue
+    /// Canonical source task creation where context inheritance, operation
+    /// executor, and launch timing remain orthogonal. Generated immediate APIs
+    /// use this entry; ordinary compatibility constructors keep older overloads.
+    func spawnUnstructuredTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        contextInheritance: RuntimeTaskContextInheritance,
+        startPolicy: RuntimeTaskStartPolicy,
+        operationExecutor: RuntimeExecutorKind,
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue
     /// Read and scope a runtime task-local value while preserving the source
     /// task identity across synchronous and asynchronous host callbacks.
     func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue?
@@ -237,6 +249,32 @@ extension EvalContext {
         throw RuntimeError(message:
             "Task.detached creation requires a task-aware "
                 + "evaluation context")
+    }
+
+    public func spawnUnstructuredTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        contextInheritance: RuntimeTaskContextInheritance,
+        startPolicy: RuntimeTaskStartPolicy,
+        operationExecutor: RuntimeExecutorKind,
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        guard startPolicy == .enqueued else {
+            throw RuntimeError(message:
+                "immediate task creation requires a task-aware "
+                    + "evaluation context")
+        }
+        switch contextInheritance {
+        case .inherited:
+            return try spawnBackgroundTask(
+                closure, arguments: arguments, name: name,
+                priority: priority)
+        case .detached:
+            return try spawnDetachedTask(
+                closure, arguments: arguments, name: name,
+                priority: priority)
+        }
     }
 
     public func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue? {

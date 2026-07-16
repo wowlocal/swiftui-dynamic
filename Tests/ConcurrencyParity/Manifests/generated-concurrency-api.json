@@ -5348,6 +5348,378 @@
       "returnType" : "_Concurrency.Task<Success, any Swift.Error>"
     },
     {
+      "adapterIntrinsic" : "immediate",
+      "attributes" : [
+        "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
+        "@discardableResult",
+        "@_alwaysEmitIntoClient"
+      ],
+      "container" : "Task",
+      "declaration" : "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n  @discardableResult\n  @_alwaysEmitIntoClient public static func immediate(name: Swift.String? = nil, priority: _Concurrency.TaskPriority? = nil, executorPreference taskExecutor: consuming (any _Concurrency.TaskExecutor)? = nil, @_implicitSelfCapture @_inheritActorContext(always) operation: sending @escaping @isolated(any) () async -> Success) -> _Concurrency.Task<Success, Swift.Never>",
+      "domain" : "task-static-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:4e24728354412bd22e0c5685fea624ea5ea6aad2b4989b68180c674a4fa9aa35",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "immediate",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "name",
+          "modifiers" : [
+
+          ],
+          "name" : "name",
+          "sendableFunction" : false,
+          "type" : "Swift.String?"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "priority",
+          "modifiers" : [
+
+          ],
+          "name" : "priority",
+          "sendableFunction" : false,
+          "type" : "_Concurrency.TaskPriority?"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "executorPreference",
+          "modifiers" : [
+
+          ],
+          "name" : "taskExecutor",
+          "sendableFunction" : false,
+          "type" : "consuming (any _Concurrency.TaskExecutor)?"
+        },
+        {
+          "attributes" : [
+            "@_implicitSelfCapture",
+            "@_inheritActorContext(always)"
+          ],
+          "inheritsActorContext" : true,
+          "isolated" : false,
+          "isolatedFunctionType" : true,
+          "label" : "operation",
+          "modifiers" : [
+
+          ],
+          "name" : "operation",
+          "sendableFunction" : false,
+          "type" : "sending @escaping @isolated(any) () async -> Success"
+        }
+      ],
+      "returnType" : "_Concurrency.Task<Success, Swift.Never>"
+    },
+    {
+      "adapterIntrinsic" : "immediate",
+      "attributes" : [
+        "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
+        "@discardableResult",
+        "@_alwaysEmitIntoClient"
+      ],
+      "container" : "Task",
+      "declaration" : "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n  @discardableResult\n  @_alwaysEmitIntoClient public static func immediate(name: Swift.String? = nil, priority: _Concurrency.TaskPriority? = nil, executorPreference taskExecutor: consuming (any _Concurrency.TaskExecutor)? = nil, @_implicitSelfCapture @_inheritActorContext(always) operation: sending @escaping @isolated(any) () async throws -> Success) -> _Concurrency.Task<Success, any Swift.Error>",
+      "domain" : "task-static-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:021dc3b0bb2762c3122c3d9c0e07b72064ba03e8d7380d5ed12ab97b1ba35b32",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "immediate",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "name",
+          "modifiers" : [
+
+          ],
+          "name" : "name",
+          "sendableFunction" : false,
+          "type" : "Swift.String?"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "priority",
+          "modifiers" : [
+
+          ],
+          "name" : "priority",
+          "sendableFunction" : false,
+          "type" : "_Concurrency.TaskPriority?"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "executorPreference",
+          "modifiers" : [
+
+          ],
+          "name" : "taskExecutor",
+          "sendableFunction" : false,
+          "type" : "consuming (any _Concurrency.TaskExecutor)?"
+        },
+        {
+          "attributes" : [
+            "@_implicitSelfCapture",
+            "@_inheritActorContext(always)"
+          ],
+          "inheritsActorContext" : true,
+          "isolated" : false,
+          "isolatedFunctionType" : true,
+          "label" : "operation",
+          "modifiers" : [
+
+          ],
+          "name" : "operation",
+          "sendableFunction" : false,
+          "type" : "sending @escaping @isolated(any) () async throws -> Success"
+        }
+      ],
+      "returnType" : "_Concurrency.Task<Success, any Swift.Error>"
+    },
+    {
+      "adapterIntrinsic" : "immediateDetached",
+      "attributes" : [
+        "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
+        "@discardableResult",
+        "@_alwaysEmitIntoClient"
+      ],
+      "container" : "Task",
+      "declaration" : "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n  @discardableResult\n  @_alwaysEmitIntoClient public static func immediateDetached(name: Swift.String? = nil, priority: _Concurrency.TaskPriority? = nil, executorPreference taskExecutor: consuming (any _Concurrency.TaskExecutor)? = nil, @_implicitSelfCapture @_inheritActorContext(always) operation: sending @escaping @isolated(any) () async -> Success) -> _Concurrency.Task<Success, Swift.Never>",
+      "domain" : "task-static-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:d487a795b81ef9c139c1f0e58bfa42a6f70ebe8ded2fda7c8095d063b07820e5",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "immediateDetached",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "name",
+          "modifiers" : [
+
+          ],
+          "name" : "name",
+          "sendableFunction" : false,
+          "type" : "Swift.String?"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "priority",
+          "modifiers" : [
+
+          ],
+          "name" : "priority",
+          "sendableFunction" : false,
+          "type" : "_Concurrency.TaskPriority?"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "executorPreference",
+          "modifiers" : [
+
+          ],
+          "name" : "taskExecutor",
+          "sendableFunction" : false,
+          "type" : "consuming (any _Concurrency.TaskExecutor)?"
+        },
+        {
+          "attributes" : [
+            "@_implicitSelfCapture",
+            "@_inheritActorContext(always)"
+          ],
+          "inheritsActorContext" : true,
+          "isolated" : false,
+          "isolatedFunctionType" : true,
+          "label" : "operation",
+          "modifiers" : [
+
+          ],
+          "name" : "operation",
+          "sendableFunction" : false,
+          "type" : "sending @escaping @isolated(any) () async -> Success"
+        }
+      ],
+      "returnType" : "_Concurrency.Task<Success, Swift.Never>"
+    },
+    {
+      "adapterIntrinsic" : "immediateDetached",
+      "attributes" : [
+        "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
+        "@discardableResult",
+        "@_alwaysEmitIntoClient"
+      ],
+      "container" : "Task",
+      "declaration" : "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n  @discardableResult\n  @_alwaysEmitIntoClient public static func immediateDetached(name: Swift.String? = nil, priority: _Concurrency.TaskPriority? = nil, executorPreference taskExecutor: consuming (any _Concurrency.TaskExecutor)? = nil, @_implicitSelfCapture @_inheritActorContext(always) operation: sending @escaping @isolated(any) () async throws -> Success) -> _Concurrency.Task<Success, any Swift.Error>",
+      "domain" : "task-static-member",
+      "effects" : {
+        "async" : false,
+        "throwsKind" : "nonThrowing"
+      },
+      "id" : "swift-concurrency-api-v1:e04b79e2b727826f1f84cc6409fa0c935c9b25352504275cabd568c3d3d6a1e3",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public",
+        "static"
+      ],
+      "name" : "immediateDetached",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "name",
+          "modifiers" : [
+
+          ],
+          "name" : "name",
+          "sendableFunction" : false,
+          "type" : "Swift.String?"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "priority",
+          "modifiers" : [
+
+          ],
+          "name" : "priority",
+          "sendableFunction" : false,
+          "type" : "_Concurrency.TaskPriority?"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "nil",
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "executorPreference",
+          "modifiers" : [
+
+          ],
+          "name" : "taskExecutor",
+          "sendableFunction" : false,
+          "type" : "consuming (any _Concurrency.TaskExecutor)?"
+        },
+        {
+          "attributes" : [
+            "@_implicitSelfCapture",
+            "@_inheritActorContext(always)"
+          ],
+          "inheritsActorContext" : true,
+          "isolated" : false,
+          "isolatedFunctionType" : true,
+          "label" : "operation",
+          "modifiers" : [
+
+          ],
+          "name" : "operation",
+          "sendableFunction" : false,
+          "type" : "sending @escaping @isolated(any) () async throws -> Success"
+        }
+      ],
+      "returnType" : "_Concurrency.Task<Success, any Swift.Error>"
+    },
+    {
       "adapterIntrinsic" : "isCancelled",
       "attributes" : [
 
@@ -6478,6 +6850,79 @@
 
       ],
       "returnType" : "Builtin.NativeObject?"
+    },
+    {
+      "attributes" : [
+        "@abi(func withTaskPriorityEscalationHandler<T, E>(operation: () async throws(E) -> T, onPriorityEscalated handler: @Sendable (_Concurrency.TaskPriority, _Concurrency.TaskPriority) -> Swift.Void, isolation: isolated (any _Concurrency.Actor)?) async throws(E) -> T where E : Swift.Error)",
+        "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)"
+      ],
+      "container" : "_Concurrency",
+      "declaration" : "@abi(func withTaskPriorityEscalationHandler<T, E>(operation: () async throws(E) -> T, onPriorityEscalated handler: @Sendable (_Concurrency.TaskPriority, _Concurrency.TaskPriority) -> Swift.Void, isolation: isolated (any _Concurrency.Actor)?) async throws(E) -> T where E : Swift.Error)\n@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\npublic func _isolatedParameter_withTaskPriorityEscalationHandler<T, E>(operation: () async throws(E) -> T, onPriorityEscalated handler: @Sendable (_Concurrency.TaskPriority, _Concurrency.TaskPriority) -> Swift.Void, isolation: isolated (any _Concurrency.Actor)? = #isolation) async throws(E) -> T where E : Swift.Error",
+      "domain" : "top-level-function",
+      "effects" : {
+        "async" : true,
+        "thrownErrorType" : "E",
+        "throwsKind" : "throwing"
+      },
+      "id" : "swift-concurrency-api-v1:4761cd66b86d6ff1f8185aee2e85480eff7a80c9ff76821cd244747b11637c50",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : false
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "public"
+      ],
+      "name" : "_isolatedParameter_withTaskPriorityEscalationHandler",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "operation",
+          "modifiers" : [
+
+          ],
+          "name" : "operation",
+          "sendableFunction" : false,
+          "type" : "() async throws(E) -> T"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "onPriorityEscalated",
+          "modifiers" : [
+
+          ],
+          "name" : "handler",
+          "sendableFunction" : true,
+          "type" : "@Sendable (_Concurrency.TaskPriority, _Concurrency.TaskPriority) -> Swift.Void"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "defaultValue" : "#isolation",
+          "inheritsActorContext" : false,
+          "isolated" : true,
+          "isolatedFunctionType" : false,
+          "label" : "isolation",
+          "modifiers" : [
+
+          ],
+          "name" : "isolation",
+          "sendableFunction" : false,
+          "type" : "isolated (any _Concurrency.Actor)?"
+        }
+      ],
+      "returnType" : "T"
     },
     {
       "attributes" : [
@@ -8286,6 +8731,64 @@
       "returnType" : "GroupResult"
     },
     {
+      "attributes" : [
+        "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)",
+        "@_alwaysEmitIntoClient"
+      ],
+      "container" : "_Concurrency",
+      "declaration" : "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)\n@_alwaysEmitIntoClient nonisolated(nonsending) public func withTaskPriorityEscalationHandler<T, E>(operation: nonisolated(nonsending) () async throws(E) -> T, onPriorityEscalated handler: @Sendable (_Concurrency.TaskPriority, _Concurrency.TaskPriority) -> Swift.Void) async throws(E) -> T where E : Swift.Error",
+      "domain" : "top-level-function",
+      "effects" : {
+        "async" : true,
+        "thrownErrorType" : "E",
+        "throwsKind" : "throwing"
+      },
+      "id" : "swift-concurrency-api-v1:d4007c426222ed20d7f662c79a68edc150bd24165630f580e47b238f1d8c825d",
+      "isolation" : {
+        "mutating" : false,
+        "nonisolated" : true
+      },
+      "kind" : "function",
+      "modifiers" : [
+        "nonisolated(nonsending)",
+        "public"
+      ],
+      "name" : "withTaskPriorityEscalationHandler",
+      "parameters" : [
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "operation",
+          "modifiers" : [
+
+          ],
+          "name" : "operation",
+          "sendableFunction" : false,
+          "type" : "nonisolated(nonsending) () async throws(E) -> T"
+        },
+        {
+          "attributes" : [
+
+          ],
+          "inheritsActorContext" : false,
+          "isolated" : false,
+          "isolatedFunctionType" : false,
+          "label" : "onPriorityEscalated",
+          "modifiers" : [
+
+          ],
+          "name" : "handler",
+          "sendableFunction" : true,
+          "type" : "@Sendable (_Concurrency.TaskPriority, _Concurrency.TaskPriority) -> Swift.Void"
+        }
+      ],
+      "returnType" : "T"
+    },
+    {
       "adapterIntrinsic" : "withThrowingDiscardingTaskGroup",
       "attributes" : [
         "@available(macOS 14.0, iOS 17.0, watchOS 10.0, tvOS 17.0, *)",
@@ -8657,14 +9160,15 @@
       "public nominal types and members outside the selected Task/task-group families",
       "Task and other public initializers",
       "protocol requirements, type aliases, subscripts, and associated types",
-      "nested declarations outside the selected task-group iterators and conditional-compilation declarations not reached by the current walker",
+      "nested declarations outside the selected task-group iterators",
       "availability evaluation and non-identifier variable bindings",
       "enclosing extension attributes, conformances, generic constraints, and duplicate declarations collapsed by canonical declaration text"
     ],
-    "id" : "top-level-functions-and-task-family-members-v2",
+    "id" : "top-level-functions-and-task-family-members-v3",
     "included" : [
       "public top-level function overloads",
       "public static and instance Task function/variable declarations",
+      "declarations selected by active compiler conditional-compilation regions",
       "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
       "public function/variable declarations on directly nested TaskGroup.Iterator and ThrowingTaskGroup.Iterator types"
     ]
@@ -8678,14 +9182,14 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 107,
-    "declarationCount" : 156,
+    "adapterRoutedDeclarationCount" : 111,
+    "declarationCount" : 162,
     "declarationsByDomain" : {
       "task-group-iterator-member" : 6,
       "task-group-member" : 71,
       "task-instance-member" : 11,
-      "task-static-member" : 21,
-      "top-level-function" : 47
+      "task-static-member" : 25,
+      "top-level-function" : 49
     }
   }
 }

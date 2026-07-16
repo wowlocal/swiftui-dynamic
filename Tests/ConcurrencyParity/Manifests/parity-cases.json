@@ -1323,6 +1323,10 @@
       "ordinary-unless-after:true",
       "ordinary-unless-finish",
       "ordinary-unless-rejected:false",
+      "ordinary-cancelled-prefix:true",
+      "ordinary-cancelled-check:caught",
+      "ordinary-cancelled-after",
+      "ordinary-cancelled-resumed:true",
       "throwing-add-start:throwing-add",
       "throwing-add-after",
       "throwing-add-finish",
@@ -1351,6 +1355,9 @@
       ["ordinary-unless-start:ordinary-unless", "ordinary-unless-after:true"],
       ["ordinary-unless-after:true", "ordinary-unless-finish"],
       ["ordinary-unless-after:true", "ordinary-unless-rejected:false"],
+      ["ordinary-cancelled-prefix:true", "ordinary-cancelled-check:caught"],
+      ["ordinary-cancelled-check:caught", "ordinary-cancelled-after"],
+      ["ordinary-cancelled-after", "ordinary-cancelled-resumed:true"],
       ["throwing-add-start:throwing-add", "throwing-add-after"],
       ["throwing-add-after", "throwing-add-finish"],
       ["throwing-unless-start:throwing-unless", "throwing-unless-after:true"],
@@ -1367,7 +1374,50 @@
       ["throwing-discarding-unless-after:true", "throwing-discarding-unless-finish"],
       ["throwing-discarding-unless-after:true", "throwing-discarding-unless-rejected:false"]
     ],
-    "nativeFact": "Every addImmediateTask and active addImmediateTaskUnlessCancelled operation begins synchronously on its inherited actor before the adding call returns; after a forced suspension the caller continues and opens the child gate. Active conditional calls return true, post-cancel calls return false without running their operation, Task.name is installed before the synchronous prefix, and scope exit joins every accepted child.",
-    "notes": "Apple Swift 6.3.3 strict SIL selects all eight macOS 26 declarations: each unconditional symbol once and each conditional symbol for active and post-cancel calls. Required-event multiplicity makes a rejected closure observable, while finish order between independent accepted children is deliberately unspecified. The pinned swiftlang startImmediately tests independently describe the synchronous prefix and preferred-executor resume contract, but their task-executor runtime block is disabled upstream; this same-source fixture supplies the active executable oracle for all four group kinds with an explicit nil preference."
+    "nativeFact": "Every addImmediateTask and active addImmediateTaskUnlessCancelled operation begins synchronously on its inherited actor before the adding call returns; after a forced suspension the caller continues and opens the child gate. Active conditional calls return true, post-cancel conditional calls return false without running their operation, while an unconditional child added after cancelAll observes Task.isCancelled and Task.checkCancellation in its synchronous prefix and after resumption. Task.name is installed before the prefix, and scope exit joins every accepted child.",
+    "notes": "Apple Swift 6.3.3 strict SIL selects all eight macOS 26 declarations, including both active and post-cancellation construction paths. Required-event multiplicity makes a rejected closure observable, while finish order between independent accepted children is deliberately unspecified. The pinned swiftlang startImmediately tests independently describe the synchronous prefix and preferred-executor resume contract, but their task-executor runtime block is disabled upstream; this same-source fixture supplies the active executable oracle for all four group kinds with an explicit nil preference."
+  },
+  {
+    "id": "task-immediate",
+    "fixture": "Fixtures/task-immediate.swift",
+    "mode": "runtime",
+    "assertion": "partial-order",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await taskImmediateProbe()",
+    "interpreterProjection": "string",
+    "requiredEvents": [
+      "ordinary-start:ordinary:parent:17",
+      "ordinary-after",
+      "ordinary-finish",
+      "detached-start:detached:default:9",
+      "detached-after",
+      "detached-finish",
+      "ordinary-throwing-start:ordinary-throwing:parent:25",
+      "ordinary-throwing-after",
+      "ordinary-throwing-finish",
+      "ordinary-throwing-error",
+      "detached-throwing-start:detached-throwing:default:21",
+      "detached-throwing-after",
+      "detached-throwing-finish",
+      "detached-throwing-error",
+      "values:11:33"
+    ],
+    "precedes": [
+      ["ordinary-start:ordinary:parent:17", "ordinary-after"],
+      ["ordinary-after", "ordinary-finish"],
+      ["detached-start:detached:default:9", "detached-after"],
+      ["detached-after", "detached-finish"],
+      ["ordinary-throwing-start:ordinary-throwing:parent:25", "ordinary-throwing-after"],
+      ["ordinary-throwing-after", "ordinary-throwing-finish"],
+      ["ordinary-throwing-finish", "ordinary-throwing-error"],
+      ["detached-throwing-start:detached-throwing:default:21", "detached-throwing-after"],
+      ["detached-throwing-after", "detached-throwing-finish"],
+      ["detached-throwing-finish", "detached-throwing-error"],
+      ["ordinary-finish", "values:11:33"],
+      ["detached-finish", "values:11:33"]
+    ],
+      "nativeFact": "All four Task.immediate and Task.immediateDetached overload families synchronously enter a same-actor operation before construction returns, stop at a real suspension, install name and explicit priority before that prefix, and preserve values and exact source failures through handle waits. Task.immediate copies task-local context while Task.immediateDetached clears it; detached context inheritance is independent from the shared immediate-start policy.",
+    "notes": "Apple Swift 6.3.3 strict compilation and SIL select each of the four macOS 26 declarations once. The MainActor gates establish start < after < finish without asserting finish order between independent tasks. Explicit nil executor preferences delimit the supported subset; arbitrary operation actors and nonnil TaskExecutor preferences remain recorded divergences. Twenty native fresh runs produced two allowed sibling-finish distributions."
   }
 ]

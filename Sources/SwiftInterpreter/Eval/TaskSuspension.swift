@@ -49,6 +49,11 @@ extension Interpreter {
         guard let taskID = evaluationTaskContext.runtimeTaskID else {
             throw RuntimeError(message: "Task.sleep requires an async runtime task")
         }
+        if isSourceTaskCancellationRequested() {
+            observeSourceCancellation()
+            if propagatesCancellation { throw CancellationError() }
+            return
+        }
         let deadline = runtimeClock.now.advanced(by: duration)
         let suspension = RuntimeSuspension.sleeping(until: deadline)
         concurrencyRuntime.suspend(taskID, for: suspension)

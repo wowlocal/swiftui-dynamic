@@ -39,6 +39,11 @@ final class EvaluationTaskContext {
 
     var callStackNames: [String] = []
     var lexicalOwnerFrames: [AnyObject] = []
+    /// Static executor context of the currently evaluated source declaration.
+    /// A `nil` frame is intentional: a plain/nonisolated declaration may run
+    /// dynamically on MainActor without making closures formed in its body
+    /// MainActor-isolated.
+    var lexicalExecutorFrames: [RuntimeExecutorKind?] = []
     var expectedAnnotationStack: [String] = []
     var enclosingReturnAnnotations: [String?] = []
     var viewIdentitySalts: [String] = []
@@ -83,6 +88,7 @@ final class EvaluationTaskContext {
             && dependencyInFlight.isEmpty
             && callStackNames.isEmpty
             && lexicalOwnerFrames.isEmpty
+            && lexicalExecutorFrames.isEmpty
             && expectedAnnotationStack.isEmpty
             && enclosingReturnAnnotations.isEmpty
             && viewIdentitySalts.isEmpty
@@ -115,6 +121,7 @@ final class EvaluationTaskContext {
         dependencyInFlight.removeAll(keepingCapacity: false)
         callStackNames.removeAll(keepingCapacity: false)
         lexicalOwnerFrames.removeAll(keepingCapacity: false)
+        lexicalExecutorFrames.removeAll(keepingCapacity: false)
         expectedAnnotationStack.removeAll(keepingCapacity: false)
         enclosingReturnAnnotations.removeAll(keepingCapacity: false)
         viewIdentitySalts.removeAll(keepingCapacity: false)

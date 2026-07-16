@@ -109,7 +109,7 @@ extension Interpreter {
             let startsImmediately = intrinsic == .addImmediateTask
                 || intrinsic == .addImmediateTaskUnlessCancelled
             return .hostFunction(HostFunction(name: name) {
-                [weak self, weak group] arguments, _ in
+                [weak self, weak group] arguments, context in
                 guard let self, let group else {
                     throw RuntimeError(message:
                         "task group was released before \(name)")
@@ -134,12 +134,22 @@ extension Interpreter {
                 try RuntimeTaskExecutorPreference.requireSupportedNil(
                     arguments.labeled("executorPreference"),
                     api: "\(group.kind.sourceTypeName).\(name)")
+                let api = "\(group.kind.sourceTypeName).\(name)"
+                let operationExecutor: RuntimeExecutorKind?
+                if startsImmediately {
+                    operationExecutor = try RuntimeImmediateOperationExecutor
+                        .supportedExecutor(
+                            operation: operation, context: context, api: api)
+                } else {
+                    operationExecutor = nil
+                }
                 _ = try spawnTaskGroupChild(
                     operation: operation,
                     in: group,
                     name: taskName,
                     priority: priority,
-                    startsImmediately: startsImmediately)
+                    startPolicy: startsImmediately ? .immediate : .enqueued,
+                    operationExecutor: operationExecutor)
                 if skipsCancelledGroup {
                     return .native(true)
                 }

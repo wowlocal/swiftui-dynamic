@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "cee8604a387b0942e8948185fe882cd9eefde6c8670482039296aa574d3d4bc9",
+  "inventorySHA256": "b5d3c18c60de73109c7387dc7f5a358052e3a6f97da9c84b7699265783e2e0a9",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -2001,7 +2001,11 @@
       ],
       "testNames": [
         "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension",
+        "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure",
+        "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation",
         "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors",
         "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
       ],
       "gapEvidenceIDs": [
@@ -2019,7 +2023,11 @@
       ],
       "testNames": [
         "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension",
+        "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure",
+        "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation",
         "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors",
         "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference",
         "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
       ],
@@ -2038,7 +2046,11 @@
       ],
       "testNames": [
         "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension",
+        "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure",
+        "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation",
         "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors",
         "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
       ],
       "gapEvidenceIDs": [
@@ -2056,7 +2068,11 @@
       ],
       "testNames": [
         "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension",
+        "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure",
+        "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation",
         "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors",
         "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference",
         "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
       ],
@@ -2075,7 +2091,11 @@
       ],
       "testNames": [
         "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension",
+        "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure",
+        "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation",
         "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors",
         "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
       ],
       "gapEvidenceIDs": [
@@ -2093,7 +2113,11 @@
       ],
       "testNames": [
         "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension",
+        "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure",
+        "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation",
         "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors",
         "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference",
         "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
       ],
@@ -2112,7 +2136,11 @@
       ],
       "testNames": [
         "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension",
+        "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure",
+        "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation",
         "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors",
         "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
       ],
       "gapEvidenceIDs": [
@@ -2130,7 +2158,11 @@
       ],
       "testNames": [
         "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension",
+        "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure",
+        "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation",
         "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed",
+        "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors",
         "TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference",
         "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions"
       ],
@@ -2150,6 +2182,98 @@
       ],
       "gapEvidenceIDs": [],
       "notes": "Real Swift 6 preflight proves _swift_createJobForTestingOnly is source-callable and returns ExecutorJob, so it is not hidden as compiler ABI. Creating and scheduling executor jobs belongs to the intentionally deferred M9 parallel executor runtime."
+    },
+    {
+      "id": "swift-concurrency-api-v1:4e24728354412bd22e0c5685fea624ea5ea6aad2b4989b68180c674a4fa9aa35",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "task-immediate"
+      ],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/conditionalDeclarationsFollowInjectedCompilerConfiguration",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsRunTheirPrefixBeforeConstructionReturns",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsUseDistinctRuntimeInheritanceAndCleanUp",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsPreserveOperationExecutorAcrossSuspension",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsRejectUnsupportedOperationExecutors",
+        "GeneratedTaskSurfaceTests/nonNilImmediateTaskExecutorPreferencesFailClosed",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsDoNotUseSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/taskImmediateHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The nonthrowing Task.immediate explicit-nil inherited-MainActor subset has same-source parity for synchronous prefix entry, forced-suspension resumption, inherited task-local context and priority, Task.name, and value delivery. Focused runtime inspection separately verifies unstructured creator lineage, the inherited MainActor executor, and cleanup. Non-nil TaskExecutor preferences and unsupported operation executors fail closed. Arbitrary @isolated(any) operation executors and preference-driven resumption remain unmodeled, so the complete declaration remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:021dc3b0bb2762c3122c3d9c0e07b72064ba03e8d7380d5ed12ab97b1ba35b32",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "task-immediate"
+      ],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/conditionalDeclarationsFollowInjectedCompilerConfiguration",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsRunTheirPrefixBeforeConstructionReturns",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsUseDistinctRuntimeInheritanceAndCleanUp",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsPreserveOperationExecutorAcrossSuspension",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsRejectUnsupportedOperationExecutors",
+        "GeneratedTaskSurfaceTests/nonNilImmediateTaskExecutorPreferencesFailClosed",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsDoNotUseSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/taskImmediateHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The throwing Task.immediate explicit-nil inherited-MainActor subset has same-source parity for synchronous prefix entry, forced-suspension resumption, inherited task-local context and explicit priority, Task.name, and exact source-failure delivery. Focused runtime inspection separately verifies unstructured creator lineage, the inherited MainActor executor, and cleanup. Non-nil TaskExecutor preferences and unsupported operation executors fail closed. Arbitrary @isolated(any) operation executors and preference-driven resumption remain unmodeled, so the complete declaration remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:d487a795b81ef9c139c1f0e58bfa42a6f70ebe8ded2fda7c8095d063b07820e5",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "task-immediate"
+      ],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/conditionalDeclarationsFollowInjectedCompilerConfiguration",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsRunTheirPrefixBeforeConstructionReturns",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsUseDistinctRuntimeInheritanceAndCleanUp",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsPreserveOperationExecutorAcrossSuspension",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsRejectUnsupportedOperationExecutors",
+        "GeneratedTaskSurfaceTests/nonNilImmediateTaskExecutorPreferencesFailClosed",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsDoNotUseSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/taskImmediateHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The nonthrowing Task.immediateDetached explicit-nil inherited-MainActor subset has same-source parity for synchronous prefix entry, forced-suspension resumption, cleared task-local context, explicit priority, Task.name, and value delivery. Focused runtime inspection separately verifies parentless lineage, the inherited MainActor executor, and cleanup. Context detachment is modeled independently from immediate launch. Non-nil TaskExecutor preferences and unsupported operation executors fail closed; arbitrary @isolated(any) operation executors and preference-driven resumption remain unmodeled, so the complete declaration remains known-divergence with verification none."
+    },
+    {
+      "id": "swift-concurrency-api-v1:e04b79e2b727826f1f84cc6409fa0c935c9b25352504275cabd568c3d3d6a1e3",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "task-immediate"
+      ],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/conditionalDeclarationsFollowInjectedCompilerConfiguration",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsRunTheirPrefixBeforeConstructionReturns",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsUseDistinctRuntimeInheritanceAndCleanUp",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsPreserveOperationExecutorAcrossSuspension",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsRejectUnsupportedOperationExecutors",
+        "GeneratedTaskSurfaceTests/nonNilImmediateTaskExecutorPreferencesFailClosed",
+        "GeneratedTaskSurfaceTests/immediateTaskKindsDoNotUseSynchronousCompatibility",
+        "ConcurrencyMethodologyTests/taskImmediateHasExplicitReviewedDispositions"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The throwing Task.immediateDetached explicit-nil inherited-MainActor subset has same-source parity for synchronous prefix entry, forced-suspension resumption, cleared task-local context, explicit priority, Task.name, and exact source-failure delivery. Focused runtime inspection separately verifies parentless lineage, the inherited MainActor executor, and cleanup. Context detachment is modeled independently from immediate launch. Non-nil TaskExecutor preferences and unsupported operation executors fail closed; arbitrary @isolated(any) operation executors and preference-driven resumption remain unmodeled, so the complete declaration remains known-divergence with verification none."
     }
   ],
   "semanticCapabilities": [

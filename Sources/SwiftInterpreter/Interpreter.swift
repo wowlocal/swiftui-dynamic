@@ -386,6 +386,18 @@ public final class Interpreter {
         get { evaluationTaskContext.lexicalOwnerFrames }
         set { evaluationTaskContext.lexicalOwnerFrames = newValue }
     }
+    /// The statically proven actor context for a closure expression. Source
+    /// top-level execution is MainActor-owned; an explicit `nil` frame means
+    /// the active declaration has no actor isolation even if it was invoked
+    /// dynamically by a MainActor caller.
+    var lexicalExecutorFrames: [RuntimeExecutorKind?] {
+        get { evaluationTaskContext.lexicalExecutorFrames }
+        set { evaluationTaskContext.lexicalExecutorFrames = newValue }
+    }
+    var currentLexicalExecutor: RuntimeExecutorKind? {
+        guard !lexicalExecutorFrames.isEmpty else { return .mainActor }
+        return lexicalExecutorFrames[lexicalExecutorFrames.count - 1]
+    }
 
     /// Bare nested-type lookup with LEXICAL scoping: the running method's
     /// declaring type wins over the runtime self's (a protocol-extension

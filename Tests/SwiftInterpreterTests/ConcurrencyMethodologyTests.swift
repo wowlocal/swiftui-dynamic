@@ -943,7 +943,7 @@ struct ConcurrencyMethodologyTests {
             taskStaticIDs.contains($0.id)
         }
 
-        #expect(taskStaticIDs.count == 21,
+        #expect(taskStaticIDs.count == 25,
             "the active SDK Task-static denominator changed")
         #expect(Set(taskStaticClaims.map(\.id)) == taskStaticIDs,
             "every Task-static overload needs an authored disposition")
@@ -964,6 +964,85 @@ struct ConcurrencyMethodologyTests {
             == "M7/generated-signatures-and-preflight")
         #expect(nameClaim.evidenceCaseIDs == ["task-name"])
         #expect(nameClaim.gapEvidenceIDs.isEmpty)
+    }
+
+    @Test func taskImmediateHasExplicitReviewedDispositions() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let names: Set<String> = ["immediate", "immediateDetached"]
+        let rows = inventory.declarations.filter {
+            $0.domain == "task-static-member" && names.contains($0.name)
+        }
+        let expectedIDs: Set<String> = [
+            "swift-concurrency-api-v1:021dc3b0bb2762c3122c3d9c0e07b72064ba03e8d7380d5ed12ab97b1ba35b32",
+            "swift-concurrency-api-v1:4e24728354412bd22e0c5685fea624ea5ea6aad2b4989b68180c674a4fa9aa35",
+            "swift-concurrency-api-v1:d487a795b81ef9c139c1f0e58bfa42a6f70ebe8ded2fda7c8095d063b07820e5",
+            "swift-concurrency-api-v1:e04b79e2b727826f1f84cc6409fa0c935c9b25352504275cabd568c3d3d6a1e3",
+        ]
+        let ids = Set(rows.map(\.id))
+        let claims = status.interfaceOverrides.filter { ids.contains($0.id) }
+
+        #expect(rows.count == 4,
+            "the active SDK Task.immediate denominator changed")
+        #expect(ids == expectedIDs,
+            "the active SDK Task.immediate identities changed")
+        #expect(Dictionary(grouping: rows, by: \.name).mapValues(\.count) == [
+            "immediate": 2,
+            "immediateDetached": 2,
+        ])
+        #expect(rows.count {
+            $0.declaration.contains("() async throws -> Success")
+        } == 2)
+        #expect(rows.allSatisfy {
+            $0.adapterIntrinsic == $0.name
+                && $0.declaration.contains(
+                    "@available(macOS 26.0, iOS 26.0, watchOS 26.0, tvOS 26.0, visionOS 26.0, *)")
+                && $0.declaration.contains("name: Swift.String? = nil")
+                && $0.declaration.contains(
+                    "priority: _Concurrency.TaskPriority? = nil")
+                && $0.declaration.contains(
+                    "executorPreference taskExecutor: consuming (any _Concurrency.TaskExecutor)? = nil")
+                && $0.declaration.contains("@_implicitSelfCapture")
+                && $0.declaration.contains(
+                    "@_inheritActorContext(always) operation: sending @escaping @isolated(any)")
+        }, "Task.immediate interface shape changed")
+        #expect(Set(claims.map(\.id)) == ids,
+            "all Task.immediate rows need an authored disposition")
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .knownDivergence
+                && $0.verificationStatus == .none
+                && $0.requirementRef
+                    == "M7/generated-signatures-and-preflight"
+                && $0.evidenceCaseIDs == ["task-immediate"]
+                && $0.testNames.contains(
+                    "GeneratedTaskSurfaceTests/immediateTaskKindsRunTheirPrefixBeforeConstructionReturns")
+                && $0.testNames.contains(
+                    "GeneratedTaskSurfaceTests/immediateTaskKindsUseDistinctRuntimeInheritanceAndCleanUp")
+                && $0.testNames.contains(
+                    "GeneratedTaskSurfaceTests/immediateTaskKindsPreserveOperationExecutorAcrossSuspension")
+                && $0.testNames.contains(
+                    "GeneratedTaskSurfaceTests/immediateTaskKindsRejectUnsupportedOperationExecutors")
+                && $0.testNames.contains(
+                    "GeneratedTaskSurfaceTests/nonNilImmediateTaskExecutorPreferencesFailClosed")
+                && $0.testNames.contains(
+                    "GeneratedTaskSurfaceTests/immediateTaskKindsDoNotUseSynchronousCompatibility")
+                && $0.gapEvidenceIDs
+                    == ["generated-concurrency-signatures-and-preflight"]
+                && $0.notes.contains("explicit-nil")
+                && $0.notes.contains("MainActor")
+                && $0.notes.contains("TaskExecutor")
+                && $0.notes.contains("@isolated(any)")
+        }, "Task.immediate rows must retain executor and actor gaps")
     }
 
     @Test func topLevelAsyncHasExplicitReviewedDispositions() throws {
@@ -1223,16 +1302,20 @@ struct ConcurrencyMethodologyTests {
         ]
         let testingHookID =
             "swift-concurrency-api-v1:75560cb6e0a7a099f0a8150723dc13a0cc65e7c2e76faec35eb7fa38cd1d6805"
+        let priorityEscalationWrapperID =
+            "swift-concurrency-api-v1:4761cd66b86d6ff1f8185aee2e85480eff7a80c9ff76821cd244747b11637c50"
         let underscoreRows = inventory.declarations.filter {
             $0.domain == "top-level-function" && $0.name.hasPrefix("_")
         }
-        let expectedIDs = abiIDs.union([testingHookID])
+        let expectedIDs = abiIDs.union([
+            testingHookID, priorityEscalationWrapperID,
+        ])
 
-        #expect(underscoreRows.count == 27,
+        #expect(underscoreRows.count == 28,
             "the active SDK underscore-prefixed top-level denominator changed")
         #expect(Set(underscoreRows.map(\.id)) == expectedIDs)
         #expect(underscoreRows.allSatisfy { $0.adapterIntrinsic == nil },
-            "compiler/testing hooks must not acquire a runtime adapter silently")
+            "underscore-prefixed rows must not acquire a runtime adapter silently")
 
         let abiRows = underscoreRows.filter { abiIDs.contains($0.id) }
         #expect(abiRows.count == 26)
@@ -1265,6 +1348,18 @@ struct ConcurrencyMethodologyTests {
         #expect(hookClaim.requirementRef == "M9/parallel-runtime-and-sanitizers")
         #expect(!abiIDs.contains(hookClaim.id),
             "the public testing hook must not be hidden as compiler ABI")
+
+        let priorityEscalationWrapper = try #require(underscoreRows.first {
+            $0.id == priorityEscalationWrapperID
+        })
+        #expect(priorityEscalationWrapper.name
+            == "_isolatedParameter_withTaskPriorityEscalationHandler")
+        #expect(priorityEscalationWrapper.declaration.contains("@abi(func"))
+        #expect(!status.interfaceOverrides.contains {
+            $0.id == priorityEscalationWrapperID
+        }, "the newly exposed source-callable wrapper remains visibly unreviewed")
+        #expect(status.defaultInterfaceClaim.implementationStatus == .unreviewed)
+        #expect(status.defaultInterfaceClaim.verificationStatus == .none)
     }
 
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {
@@ -1906,7 +2001,15 @@ struct ConcurrencyMethodologyTests {
                 && $0.testNames.contains(
                     "TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns")
                 && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension")
+                && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure")
+                && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation")
+                && $0.testNames.contains(
                     "TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed")
+                && $0.testNames.contains(
+                    "TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors")
                 && $0.testNames.contains(
                     "ConcurrencyMethodologyTests/taskGroupImmediateAddHasExplicitReviewedDispositions")
                 && $0.gapEvidenceIDs

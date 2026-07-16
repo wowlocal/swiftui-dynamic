@@ -1,5 +1,6 @@
 import ConcurrencySurfaceGenCore
 import Foundation
+import SwiftIfConfig
 import Testing
 
 @Suite("Concurrency surface generator")
@@ -121,6 +122,8 @@ struct ConcurrencySurfaceGeneratorTests {
             "checkCancellation": "checkCancellation",
             "currentPriority": "currentPriority",
             "detached": "detached",
+            "immediate": "immediate",
+            "immediateDetached": "immediateDetached",
             "isCancelled": "isCancelled",
             "name": "name",
             "sleep": "sleep",
@@ -174,6 +177,68 @@ struct ConcurrencySurfaceGeneratorTests {
     }
 
     @Test
+    func conditionalDeclarationsFollowInjectedCompilerConfiguration() throws {
+        let activeConfiguration = StaticBuildConfiguration(
+            features: ["AlwaysInheritActorContext"],
+            languageVersion: VersionTuple(5, 10),
+            compilerVersion: VersionTuple(6, 3, 3))
+        let active = try ConcurrencySurfaceGenerator.inventory(
+            interfaceSource: Self.syntheticInterface,
+            configuration: activeConfiguration)
+
+        #expect(active.taskStaticMemberDeclarations["immediate"]?.count == 2)
+        #expect(active.taskStaticMemberDeclarations["immediateDetached"]?.count
+            == 2)
+        #expect(!active.knownTaskStaticMembers.contains(
+            "inactiveConditionalProbe"))
+        let immediate = try #require(
+            active.taskStaticMemberDeclarations["immediate"]?.first)
+        #expect(immediate.parameters.contains { parameter in
+            parameter.label == "executorPreference"
+                && parameter.name == "taskExecutor"
+                && parameter.type.hasPrefix("consuming ")
+                && parameter.defaultValue == "nil"
+        })
+        #expect(immediate.parameters.contains { parameter in
+            parameter.name == "operation"
+                && parameter.inheritsActorContext
+                && parameter.hasIsolatedFunctionType
+                && parameter.attributes.contains("@_implicitSelfCapture")
+        })
+
+        let inactiveConfiguration = StaticBuildConfiguration(
+            languageVersion: VersionTuple(5, 10),
+            compilerVersion: VersionTuple(6, 3, 3))
+        let inactive = try ConcurrencySurfaceGenerator.inventory(
+            interfaceSource: Self.syntheticInterface,
+            configuration: inactiveConfiguration)
+        #expect(inactive.taskStaticMemberDeclarations["immediate"] == nil)
+        #expect(inactive.taskStaticMemberDeclarations["immediateDetached"]
+            == nil)
+        #expect(inactive.knownTaskStaticMembers.contains(
+            "inactiveConditionalProbe"))
+    }
+
+    @Test
+    func conditionalCompilationFailsClosedWhenConfigurationCannotAnswer() {
+        let source = Self.syntheticInterface + """
+
+            #if canImport(DefinitelyUnavailableConcurrencySurfaceModule)
+            public func conditionallyImportedProbe() {}
+            #endif
+            """
+        let staticConfiguration = StaticBuildConfiguration(
+            languageVersion: VersionTuple(5, 10),
+            compilerVersion: VersionTuple(6, 3, 3))
+
+        #expect(throws: ConcurrencySurfaceGenerationError.self) {
+            try ConcurrencySurfaceGenerator.inventory(
+                interfaceSource: source,
+                configuration: staticConfiguration)
+        }
+    }
+
+    @Test
     func checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects() throws {
         let interfacePath = try ConcurrencySurfaceGenerator.activeInterfacePath()
         let interfaceSource = try String(
@@ -210,20 +275,23 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.source.targetTriple.contains("apple-macosx"))
         #expect(!capabilities.scope.complete)
         #expect(capabilities.scope.id
-            == "top-level-functions-and-task-family-members-v2")
+            == "top-level-functions-and-task-family-members-v3")
         #expect(!capabilities.scope.adapterRouteIsSupportEvidence)
         #expect(!capabilities.scope.excluded.isEmpty)
         #expect(capabilities.scope.included.contains {
             $0.contains("TaskGroup.Iterator")
         })
+        #expect(capabilities.scope.included.contains {
+            $0.contains("active compiler conditional-compilation")
+        })
         #expect(capabilities.scope.excluded.contains {
             $0.contains("nested declarations outside")
         })
-        #expect(capabilities.summary.declarationCount == 156)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 107)
+        #expect(capabilities.summary.declarationCount == 162)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 111)
         #expect(capabilities.summary.declarationsByDomain == [
-            "top-level-function": 47,
-            "task-static-member": 21,
+            "top-level-function": 49,
+            "task-static-member": 25,
             "task-instance-member": 11,
             "task-group-member": 71,
             "task-group-iterator-member": 6,
@@ -268,6 +336,11 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.domain == "task-static-member" && $0.name == "name"
                 && $0.adapterIntrinsic == "name"
         })
+        #expect(capabilities.declarations.filter {
+            $0.domain == "task-static-member"
+                && ["immediate", "immediateDetached"].contains($0.name)
+                && $0.adapterIntrinsic == $0.name
+        }.count == 4)
         #expect(capabilities.declarations.contains {
             $0.domain == "task-static-member" && $0.name == "basePriority"
                 && $0.adapterIntrinsic == nil
@@ -405,6 +478,22 @@ struct ConcurrencySurfaceGeneratorTests {
                 $0.name == "operation" && $0.hasIsolatedFunctionType
             }
         } == true)
+        for name in ["immediate", "immediateDetached"] {
+            let declarations = try #require(taskStatics[name])
+            #expect(declarations.count == 2)
+            #expect(declarations.allSatisfy { declaration in
+                declaration.parameters.contains {
+                    $0.label == "executorPreference"
+                        && $0.name == "taskExecutor"
+                        && $0.type.hasPrefix("consuming ")
+                        && $0.defaultValue == "nil"
+                } && declaration.parameters.contains {
+                    $0.name == "operation"
+                        && $0.inheritsActorContext
+                        && $0.hasIsolatedFunctionType
+                }
+            })
+        }
         #expect(taskStatics["name"]?.contains {
             $0.kind == .variable && $0.returnType == "Swift.String?"
                 && !$0.isAsync && !$0.isThrowing
@@ -682,6 +771,46 @@ struct ConcurrencySurfaceGeneratorTests {
         public static func detached(
             operation: @escaping @isolated(any) () async -> Success
         ) -> Task<Success, Never> { fatalError() }
+    }
+    extension Task where Failure == any Error {
+        #if compiler(>=5.3)
+        #if $AlwaysInheritActorContext
+        public static func immediate(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_implicitSelfCapture @_inheritActorContext(always)
+            operation: sending @escaping @isolated(any) () async throws -> Success
+        ) -> Task<Success, any Error> { fatalError() }
+        public static func immediateDetached(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_implicitSelfCapture @_inheritActorContext(always)
+            operation: sending @escaping @isolated(any) () async throws -> Success
+        ) -> Task<Success, any Error> { fatalError() }
+        #else
+        public static func inactiveConditionalProbe() {}
+        #endif
+        #endif
+    }
+    extension Task where Failure == Never {
+        #if compiler(>=5.3) && $AlwaysInheritActorContext
+        public static func immediate(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_implicitSelfCapture @_inheritActorContext(always)
+            operation: sending @escaping @isolated(any) () async -> Success
+        ) -> Task<Success, Never> { fatalError() }
+        public static func immediateDetached(
+            name: String? = nil,
+            priority: TaskPriority? = nil,
+            executorPreference taskExecutor: consuming (any TaskExecutor)? = nil,
+            @_implicitSelfCapture @_inheritActorContext(always)
+            operation: sending @escaping @isolated(any) () async -> Success
+        ) -> Task<Success, Never> { fatalError() }
+        #endif
     }
     """
 }

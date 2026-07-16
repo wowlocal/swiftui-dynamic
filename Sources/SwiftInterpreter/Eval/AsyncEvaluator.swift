@@ -758,6 +758,10 @@ extension Interpreter {
             evaluationTaskContext.currentExecutor = executor
         }
         defer { evaluationTaskContext.currentExecutor = previousExecutor }
+        lexicalExecutorFrames.append(
+            closure.functionDeclID == nil
+                ? closure.lexicalExecutor : closure.executorPreference)
+        defer { lexicalExecutorFrames.removeLast() }
         var insertedFrame: ExtensionFrame?
         if let frame = closure.extensionFrame,
            activeExtensionFrames.insert(frame).inserted {

@@ -174,6 +174,27 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func spawnUnstructuredTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        contextInheritance: RuntimeTaskContextInheritance,
+        startPolicy: RuntimeTaskStartPolicy,
+        operationExecutor: RuntimeExecutorKind,
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        try bound {
+            try interpreter.spawnUnstructuredTask(
+                closure,
+                arguments: arguments,
+                contextInheritance: contextInheritance,
+                startPolicy: startPolicy,
+                operationExecutor: operationExecutor,
+                name: name,
+                priority: priority)
+        }
+    }
+
     func taskLocalValue(for key: RuntimeTaskLocalKey) -> RuntimeValue? {
         bound { interpreter.taskLocalValue(for: key) }
     }
@@ -443,6 +464,31 @@ extension Interpreter: EvalContext {
             name: name, priority: priority)
     }
 
+    public func spawnUnstructuredTask(
+        _ closure: ClosureValue,
+        arguments: [RuntimeValue],
+        contextInheritance: RuntimeTaskContextInheritance,
+        startPolicy: RuntimeTaskStartPolicy,
+        operationExecutor: RuntimeExecutorKind,
+        name: String?,
+        priority: RuntimeTaskPriority?
+    ) throws -> RuntimeValue {
+        guard evaluationTaskContext.isAsyncSession else {
+            throw RuntimeError(message:
+                "immediate task creation requires runAsync")
+        }
+        let kind: RuntimeTaskKind = contextInheritance == .detached
+            ? .detached : .unstructured
+        return try spawnRuntimeTask(
+            kind: kind,
+            closure: closure,
+            arguments: arguments,
+            name: name,
+            priority: priority,
+            startPolicy: startPolicy,
+            operationExecutor: operationExecutor)
+    }
+
     func spawnAsyncLetTask(
         initializer: ExprSyntax,
         in environment: Environment,
@@ -477,7 +523,8 @@ extension Interpreter: EvalContext {
         in group: RuntimeTaskGroup,
         name: String?,
         priority: RuntimeTaskPriority?,
-        startsImmediately: Bool = false
+        startPolicy: RuntimeTaskStartPolicy = .enqueued,
+        operationExecutor: RuntimeExecutorKind? = nil
     ) throws -> RuntimeTaskHandle {
         guard evaluationTaskContext.isAsyncSession else {
             throw RuntimeError(message:
@@ -487,7 +534,8 @@ extension Interpreter: EvalContext {
             ownerTaskID: evaluationTaskContext.runtimeTaskID)
 
         let pending = makePendingRuntimeTask(
-            kind: .groupChild, explicitPriority: priority, name: name)
+            kind: .groupChild, explicitPriority: priority, name: name,
+            operationExecutor: operationExecutor)
         let discardsResult = group.kind.discardsResults
         for source in group.newChildCancellationSources {
             pending.handle.cancel(source: source)
@@ -502,7 +550,7 @@ extension Interpreter: EvalContext {
             try launchRuntimeTask(
                 pending,
                 sessionOwned: false,
-                startsImmediately: startsImmediately,
+                startPolicy: startPolicy,
                 body: { [weak self] in
                     guard let self else {
                         throw RuntimeError(message:
@@ -533,7 +581,8 @@ extension Interpreter: EvalContext {
     private func makePendingRuntimeTask(
         kind: RuntimeTaskKind,
         explicitPriority: RuntimeTaskPriority?,
-        name: String? = nil
+        name: String? = nil,
+        operationExecutor: RuntimeExecutorKind? = nil
     ) -> PendingRuntimeTask {
         let sessionID = evaluationTaskContext.runtimeSessionID
             ?? concurrencyRuntime.createSession()
@@ -543,17 +592,21 @@ extension Interpreter: EvalContext {
             ? RuntimeTaskLocalStorage()
             : evaluationTaskContext.taskLocals.inheritedCopy()
         let executorPreference: RuntimeExecutorKind
-        switch kind {
-        case .detached:
-            executorPreference = .detached
-        case .asyncLet, .groupChild:
-            // The currently supported nonisolated structured-child surface
-            // begins on Swift's cooperative executor. Any actor-isolated call
-            // made by the operation performs its own declaration-level hop
-            // for that dynamic call extent.
-            executorPreference = .cooperativeDefault
-        case .root, .unstructured, .hostCallback, .swiftUITask:
-            executorPreference = evaluationTaskContext.currentExecutor
+        if let operationExecutor {
+            executorPreference = operationExecutor
+        } else {
+            switch kind {
+            case .detached:
+                executorPreference = .detached
+            case .asyncLet, .groupChild:
+                // The currently supported nonisolated structured-child surface
+                // begins on Swift's cooperative executor. Any actor-isolated call
+                // made by the operation performs its own declaration-level hop
+                // for that dynamic call extent.
+                executorPreference = .cooperativeDefault
+            case .root, .unstructured, .hostCallback, .swiftUITask:
+                executorPreference = evaluationTaskContext.currentExecutor
+            }
         }
         let record = concurrencyRuntime.createTask(
             sessionID: sessionID,
@@ -578,10 +631,13 @@ extension Interpreter: EvalContext {
         closure: ClosureValue,
         arguments: [RuntimeValue],
         name: String?,
-        priority explicitPriority: RuntimeTaskPriority?
+        priority explicitPriority: RuntimeTaskPriority?,
+        startPolicy: RuntimeTaskStartPolicy = .enqueued,
+        operationExecutor: RuntimeExecutorKind? = nil
     ) throws -> RuntimeValue {
         let pending = makePendingRuntimeTask(
-            kind: kind, explicitPriority: explicitPriority, name: name)
+            kind: kind, explicitPriority: explicitPriority, name: name,
+            operationExecutor: operationExecutor)
         let handle = pending.handle
         let arguments = arguments
 
@@ -614,7 +670,7 @@ extension Interpreter: EvalContext {
 
         do {
             try launchRuntimeTask(
-                pending, sessionOwned: true,
+                pending, sessionOwned: true, startPolicy: startPolicy,
                 body: { [weak self] in
                     guard let self else {
                         throw RuntimeError(message:
@@ -633,7 +689,7 @@ extension Interpreter: EvalContext {
     private func launchRuntimeTask(
         _ pending: PendingRuntimeTask,
         sessionOwned: Bool,
-        startsImmediately: Bool = false,
+        startPolicy: RuntimeTaskStartPolicy = .enqueued,
         body: @escaping @MainActor @Sendable () async throws -> RuntimeValue
     ) throws {
         guard concurrencyRuntime.activeRecordCount <= scheduledTaskLimit else {
@@ -658,7 +714,7 @@ extension Interpreter: EvalContext {
                 // Ordinary task construction never runs inline. Swift 6's
                 // immediate task APIs deliberately run this prefix on the
                 // caller until the first real suspension instead.
-                if !startsImmediately {
+                if startPolicy == .enqueued {
                     await Task.yield()
                 }
                 guard let self, let handle else { return }
@@ -684,14 +740,20 @@ extension Interpreter: EvalContext {
             }
         }
         let task: Task<Void, Never>
-        if startsImmediately {
+        if startPolicy == .immediate {
             guard #available(macOS 26.0, iOS 26.0, *) else {
                 throw RuntimeError(message:
                     "immediate task creation requires macOS or iOS 26")
             }
-            task = Task.immediate(
-                priority: pending.priority.nativePriority,
-                operation: operation)
+            if record.kind == .detached {
+                task = Task.immediateDetached(
+                    priority: pending.priority.nativePriority,
+                    operation: operation)
+            } else {
+                task = Task.immediate(
+                    priority: pending.priority.nativePriority,
+                    operation: operation)
+            }
         } else if record.kind == .detached {
             task = Task.detached(
                 priority: pending.priority.nativePriority, operation: operation)

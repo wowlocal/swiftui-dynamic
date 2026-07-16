@@ -1,11 +1,13 @@
 import CryptoKit
 import Foundation
+import SwiftIfConfig
 import SwiftParser
 import SwiftSyntax
 
 public enum ConcurrencySurfaceGenerationError: Error,
     CustomStringConvertible, Equatable {
     case commandFailed(String)
+    case conditionalCompilationDiagnostics([String])
     case interfaceNotFound(String)
     case missingIntrinsics([String])
     case missingFunctions([String])
@@ -17,6 +19,9 @@ public enum ConcurrencySurfaceGenerationError: Error,
         switch self {
         case .commandFailed(let command):
             "command failed: \(command)"
+        case .conditionalCompilationDiagnostics(let diagnostics):
+            "could not determine active conditional-compilation regions: "
+                + diagnostics.joined(separator: "; ")
         case .interfaceNotFound(let root):
             "could not locate _Concurrency.swiftinterface below \(root)"
         case .missingIntrinsics(let names):
@@ -211,14 +216,221 @@ public enum ConcurrencySurfaceGenerator {
     ]
     private static let supportedTaskStaticIntrinsics: Set<String> = [
         "checkCancellation", "currentPriority", "detached", "isCancelled",
-        "name", "sleep", "yield",
+        "immediate", "immediateDetached", "name", "sleep", "yield",
     ]
+    /// Conditional/availability-gated API may legitimately be absent from an
+    /// older active toolchain. Core routes remain a generator invariant; an
+    /// optional route is emitted whenever the configured interface exposes it.
+    private static let requiredTaskStaticIntrinsics =
+        supportedTaskStaticIntrinsics.subtracting([
+            "immediate", "immediateDetached",
+        ])
     private static let supportedTaskInstanceIntrinsics: Set<String> = [
         "cancel", "isCancelled", "result", "value",
     ]
     private static let supportedTaskGroupIteratorIntrinsics: Set<String> = [
         "cancel", "next",
     ]
+
+    /// Answers conditional-compilation questions with the compiler that will
+    /// consume the interface. The interface emitter's version is metadata,
+    /// but `$Feature`, `hasFeature`, target, and import checks are properties
+    /// of the active consumer compiler and its module flags.
+    private final class ActiveCompilerBuildConfiguration: BuildConfiguration {
+        let languageVersion: VersionTuple
+        let compilerVersion: VersionTuple
+        let targetPointerBitWidth: Int
+        let targetAtomicBitWidths: [Int]
+        let endianness: Endianness
+
+        private let compilerArguments: [String]
+        private var conditionCache: [String: Bool] = [:]
+
+        init(interfaceSource: String) throws {
+            let moduleFlags = ConcurrencySurfaceGenerator.interfaceHeaderValue(
+                "swift-module-flags", in: interfaceSource)
+                .split(whereSeparator: { $0.isWhitespace }).map(String.init)
+            let consumerVersion = try ConcurrencySurfaceGenerator.command(
+                "/usr/bin/xcrun", ["swiftc", "--version"])
+            guard let compilerVersion = Self.version(
+                matching: #"(?:Apple )?Swift version ([0-9]+(?:\.[0-9]+)*)"#,
+                in: consumerVersion)
+            else {
+                throw ConcurrencySurfaceGenerationError.commandFailed(
+                    "could not parse xcrun swiftc --version: "
+                        + consumerVersion)
+            }
+            self.compilerVersion = compilerVersion
+
+            let swiftMode = Self.value(after: "-swift-version", in: moduleFlags)
+                ?? "5"
+            let emitterDescription =
+                ConcurrencySurfaceGenerator.interfaceHeaderValue(
+                    "swift-compiler-version", in: interfaceSource)
+            self.languageVersion = Self.version(
+                matching: #"effective-([0-9]+(?:\.[0-9]+)*)"#,
+                in: emitterDescription)
+                ?? VersionTuple(parsing: swiftMode)
+                ?? VersionTuple(5)
+
+            let target = Self.value(after: "-target", in: moduleFlags) ?? ""
+            let architecture = target.split(separator: "-").first.map(String.init)
+                ?? ""
+            self.targetPointerBitWidth = [
+                "arm64", "arm64e", "x86_64", "powerpc64", "s390x",
+            ].contains(architecture) ? 64 : 32
+            self.targetAtomicBitWidths = targetPointerBitWidth == 64
+                ? [8, 16, 32, 64, 128] : [8, 16, 32, 64]
+            self.endianness = ["powerpc", "powerpc64", "s390x"]
+                .contains(architecture) ? .big : .little
+
+            var arguments = [
+                "swiftc", "-frontend", "-typecheck", "-dump-ast",
+            ]
+            let pairedFlags = Set([
+                "-D", "-disable-upcoming-feature",
+                "-enable-experimental-feature", "-enable-upcoming-feature",
+                "-swift-version", "-target", "-target-variant",
+            ])
+            var index = moduleFlags.startIndex
+            while index < moduleFlags.endIndex {
+                let flag = moduleFlags[index]
+                if pairedFlags.contains(flag),
+                   moduleFlags.indices.contains(index + 1) {
+                    arguments.append(flag)
+                    arguments.append(moduleFlags[index + 1])
+                    index += 2
+                    continue
+                }
+                if [
+                    "-disable-objc-interop", "-enable-objc-interop",
+                    "-parse-stdlib",
+                ].contains(flag) {
+                    arguments.append(flag)
+                }
+                index += 1
+            }
+            let sdk = try ConcurrencySurfaceGenerator.command(
+                "/usr/bin/xcrun", ["--show-sdk-path", "--sdk", "macosx"])
+            arguments.append(contentsOf: ["-sdk", sdk, "-"])
+            self.compilerArguments = arguments
+        }
+
+        func isCustomConditionSet(name: String) throws -> Bool {
+            try evaluate(name)
+        }
+
+        func hasFeature(name: String) throws -> Bool {
+            try evaluate("hasFeature(\(name))")
+        }
+
+        func hasAttribute(name: String) throws -> Bool {
+            try evaluate("hasAttribute(\(name))")
+        }
+
+        func canImport(
+            importPath: [(TokenSyntax, String)],
+            version: CanImportVersion
+        ) throws -> Bool {
+            let path = importPath.map(\.1).joined(separator: ".")
+            let suffix: String
+            switch version {
+            case .unversioned:
+                suffix = ""
+            case .version(let version):
+                suffix = ", _version: \(version)"
+            case .underlyingVersion(let version):
+                suffix = ", _underlyingVersion: \(version)"
+            }
+            return try evaluate("canImport(\(path)\(suffix))")
+        }
+
+        func isActiveTargetOS(name: String) throws -> Bool {
+            try evaluate("os(\(name))")
+        }
+
+        func isActiveTargetArchitecture(name: String) throws -> Bool {
+            try evaluate("arch(\(name))")
+        }
+
+        func isActiveTargetEnvironment(name: String) throws -> Bool {
+            try evaluate("targetEnvironment(\(name))")
+        }
+
+        func isActiveTargetRuntime(name: String) throws -> Bool {
+            try evaluate("_runtime(\(name))")
+        }
+
+        func isActiveTargetPointerAuthentication(name: String) throws -> Bool {
+            try evaluate("_ptrauth(\(name))")
+        }
+
+        func isActiveTargetObjectFormat(name: String) throws -> Bool {
+            try evaluate("objectFormat(\(name))")
+        }
+
+        private func evaluate(_ condition: String) throws -> Bool {
+            if let cached = conditionCache[condition] { return cached }
+            let marker = "__ConcurrencySurfaceConditionalProbe"
+            let source = """
+                #if \(condition)
+                struct \(marker) {}
+                #endif
+                """
+            let output = try Self.compilerOutput(
+                arguments: compilerArguments, source: source)
+            let active = output.contains("\"\(marker)\"")
+            conditionCache[condition] = active
+            return active
+        }
+
+        private static func compilerOutput(
+            arguments: [String], source: String
+        ) throws -> String {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+            process.arguments = arguments
+            let input = Pipe()
+            let output = Pipe()
+            let error = Pipe()
+            process.standardInput = input
+            process.standardOutput = output
+            process.standardError = error
+            try process.run()
+            input.fileHandleForWriting.write(Data(source.utf8))
+            try input.fileHandleForWriting.close()
+            process.waitUntilExit()
+            let stdout = output.fileHandleForReading.readDataToEndOfFile()
+            let stderr = error.fileHandleForReading.readDataToEndOfFile()
+            guard process.terminationStatus == 0 else {
+                let detail = String(decoding: stderr, as: UTF8.self)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                throw ConcurrencySurfaceGenerationError.commandFailed(
+                    (["/usr/bin/xcrun"] + arguments).joined(separator: " ")
+                        + (detail.isEmpty ? "" : ": \(detail)"))
+            }
+            return String(decoding: stdout, as: UTF8.self)
+        }
+
+        private static func value(
+            after flag: String, in arguments: [String]
+        ) -> String? {
+            guard let index = arguments.firstIndex(of: flag),
+                  arguments.indices.contains(index + 1) else { return nil }
+            return arguments[index + 1]
+        }
+
+        private static func version(
+            matching pattern: String, in text: String
+        ) -> VersionTuple? {
+            guard let expression = try? NSRegularExpression(pattern: pattern),
+                  let match = expression.firstMatch(
+                    in: text, range: NSRange(text.startIndex..., in: text)),
+                  let range = Range(match.range(at: 1), in: text)
+            else { return nil }
+            return VersionTuple(parsing: String(text[range]))
+        }
+    }
     /// Maps interface-owned source names onto reusable runtime semantics.
     /// Several deprecated spellings can deliberately share one intrinsic;
     /// generated dispatch must not turn each spelling into a new runtime path.
@@ -266,7 +478,33 @@ public enum ConcurrencySurfaceGenerator {
     public static func inventory(
         interfaceSource: String
     ) throws -> ConcurrencySurfaceInventory {
-        let syntax = Parser.parse(source: interfaceSource)
+        try inventory(
+            interfaceSource: interfaceSource,
+            configuration: ActiveCompilerBuildConfiguration(
+                interfaceSource: interfaceSource))
+    }
+
+    /// Inventories only declarations selected by the supplied compiler build
+    /// configuration. Keeping this overload injectable makes branch selection
+    /// deterministic in tests while production delegates every atomic `#if`
+    /// query to the active Swift compiler.
+    public static func inventory(
+        interfaceSource: String,
+        configuration: some BuildConfiguration
+    ) throws -> ConcurrencySurfaceInventory {
+        let parsed = Parser.parse(source: interfaceSource)
+        let configured = parsed.removingInactive(in: configuration)
+        guard configured.diagnostics.isEmpty else {
+            throw ConcurrencySurfaceGenerationError
+                .conditionalCompilationDiagnostics(
+                    configured.diagnostics.map(\.debugDescription))
+        }
+        guard let syntax = configured.result.as(SourceFileSyntax.self) else {
+            throw ConcurrencySurfaceGenerationError
+                .conditionalCompilationDiagnostics([
+                    "configured syntax root is not a source file",
+                ])
+        }
         let taskGroupTypeSet = Set(taskGroupTypes)
         let taskGroupIteratorTypeSet = Set(taskGroupIteratorTypes)
         let globalActorNames = globalActors(in: syntax)
@@ -379,7 +617,7 @@ public enum ConcurrencySurfaceGenerator {
             throw ConcurrencySurfaceGenerationError.missingFunctions(
                 missingFunctions)
         }
-        let missingTaskIntrinsics = supportedTaskStaticIntrinsics
+        let missingTaskIntrinsics = requiredTaskStaticIntrinsics
             .subtracting(taskStaticDispatch.values).sorted()
         guard missingTaskIntrinsics.isEmpty else {
             throw ConcurrencySurfaceGenerationError.missingTaskIntrinsics(
@@ -970,13 +1208,14 @@ public enum ConcurrencySurfaceGenerator {
                 targetTriple: targetTriple,
             ),
             scope: GeneratedCapabilityScope(
-                id: "top-level-functions-and-task-family-members-v2",
+                id: "top-level-functions-and-task-family-members-v3",
                 complete: false,
                 accountingUnit:
                 "public declaration row after canonical-text deduplication",
                 included: [
                     "public top-level function overloads",
                     "public static and instance Task function/variable declarations",
+                    "declarations selected by active compiler conditional-compilation regions",
                     "public function/variable declarations on DiscardingTaskGroup, TaskGroup, ThrowingDiscardingTaskGroup, and ThrowingTaskGroup",
                     "public function/variable declarations on directly nested TaskGroup.Iterator and ThrowingTaskGroup.Iterator types",
                 ],
@@ -984,7 +1223,7 @@ public enum ConcurrencySurfaceGenerator {
                     "public nominal types and members outside the selected Task/task-group families",
                     "Task and other public initializers",
                     "protocol requirements, type aliases, subscripts, and associated types",
-                    "nested declarations outside the selected task-group iterators and conditional-compilation declarations not reached by the current walker",
+                    "nested declarations outside the selected task-group iterators",
                     "availability evaluation and non-identifier variable bindings",
                     "enclosing extension attributes, conformances, generic constraints, and duplicate declarations collapsed by canonical declaration text",
                 ],
@@ -1014,13 +1253,19 @@ public enum ConcurrencySurfaceGenerator {
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
         let output = Pipe()
+        let error = Pipe()
         process.standardOutput = output
-        process.standardError = FileHandle.standardError
+        process.standardError = error
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
+            let detail = String(
+                decoding: error.fileHandleForReading.readDataToEndOfFile(),
+                as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             throw ConcurrencySurfaceGenerationError.commandFailed(
-                ([executable] + arguments).joined(separator: " "))
+                ([executable] + arguments).joined(separator: " ")
+                    + (detail.isEmpty ? "" : ": \(detail)"))
         }
         return String(
             decoding: output.fileHandleForReading.readDataToEndOfFile(),

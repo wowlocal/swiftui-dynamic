@@ -1010,10 +1010,16 @@ extension Interpreter {
                             arguments: [],
                             priority: priority)
                     })
+                case .immediate:
+                    return sourceImmediateTaskMember(
+                        name: name, contextInheritance: .inherited)
+                case .immediateDetached:
+                    return sourceImmediateTaskMember(
+                        name: name, contextInheritance: .detached)
                 case .currentPriority:
                     return .native(evaluationTaskContext.priority)
                 case .isCancelled:
-                    let isCancelled = Task.isCancelled
+                    let isCancelled = isSourceTaskCancellationRequested()
                     if isCancelled { observeSourceCancellation() }
                     return .native(isCancelled)
                 case .name:
@@ -1025,7 +1031,7 @@ extension Interpreter {
                         wrappedTypeName: "String")
                 case .checkCancellation:
                     return .hostFunction(HostFunction(name: name) { _, _ in
-                        try Task.checkCancellation()
+                        try self.checkSourceTaskCancellation()
                         return .void
                     })
                 case .sleep:
@@ -1491,6 +1497,37 @@ extension Interpreter {
         default:
             throw error(node, "cannot access member '\(name)' on \(baseValue.stringified)")
         }
+    }
+
+    private func sourceImmediateTaskMember(
+        name: String,
+        contextInheritance: RuntimeTaskContextInheritance
+    ) -> RuntimeValue {
+        .hostFunction(HostFunction(name: name) { arguments, context in
+            let api = "Task.\(name)"
+            try RuntimeTaskExecutorPreference.requireSupportedNil(
+                arguments.labeled("executorPreference"), api: api)
+            guard let operation = arguments.closure(labeled: "operation")
+                    ?? arguments.firstUnlabeledClosure else {
+                throw RuntimeError(message:
+                    "\(api) needs an operation closure")
+            }
+            let priority = try RuntimeTaskPriority.sourceValue(
+                arguments.labeled("priority"))
+            let taskName = try RuntimeTaskName.sourceValue(
+                arguments.labeled("name"))
+            let operationExecutor = try RuntimeImmediateOperationExecutor
+                .supportedExecutor(
+                    operation: operation, context: context, api: api)
+            return try context.spawnUnstructuredTask(
+                operation,
+                arguments: [],
+                contextInheritance: contextInheritance,
+                startPolicy: .immediate,
+                operationExecutor: operationExecutor,
+                name: taskName,
+                priority: priority)
+        })
     }
 
     /// Static property initializers reference bare sibling statics

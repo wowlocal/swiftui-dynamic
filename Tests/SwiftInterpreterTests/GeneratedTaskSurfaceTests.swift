@@ -8,12 +8,13 @@ struct GeneratedTaskSurfaceTests {
     func activeInterfaceMetadataDrivesTaskStaticDispatch() throws {
         #expect(Set(GeneratedConcurrencySurface.taskStaticDispatch.keys) == [
             "checkCancellation", "currentPriority", "detached",
-            "isCancelled", "name", "sleep", "yield",
+            "immediate", "immediateDetached", "isCancelled", "name",
+            "sleep", "yield",
         ])
         #expect(GeneratedConcurrencySurface.knownTaskStaticMembers.contains(
             "basePriority"))
         #expect(GeneratedConcurrencySurface.taskStaticMemberDeclarations
-            .values.reduce(0) { $0 + $1.count } == 21)
+            .values.reduce(0) { $0 + $1.count } == 25)
         let staticDetached = try #require(
             GeneratedConcurrencySurface.taskStaticMemberDeclarations["detached"])
         #expect(staticDetached.count == 4)
@@ -43,6 +44,23 @@ struct GeneratedTaskSurfaceTests {
                 $0.name == "operation" && $0.hasIsolatedFunctionType
             }
         })
+        for name in ["immediate", "immediateDetached"] {
+            let declarations = try #require(
+                GeneratedConcurrencySurface.taskStaticMemberDeclarations[name])
+            #expect(declarations.count == 2)
+            #expect(declarations.allSatisfy { declaration in
+                declaration.parameters.contains {
+                    $0.label == "executorPreference"
+                        && $0.name == "taskExecutor"
+                        && $0.type.hasPrefix("consuming ")
+                        && $0.defaultValue == "nil"
+                } && declaration.parameters.contains {
+                    $0.name == "operation"
+                        && $0.inheritsActorContext
+                        && $0.hasIsolatedFunctionType
+                }
+            })
+        }
 
         #expect(Set(GeneratedConcurrencySurface.taskInstanceDispatch.keys) == [
             "cancel", "isCancelled", "result", "value",
@@ -123,6 +141,282 @@ struct GeneratedTaskSurfaceTests {
             #expect(String(describing: error).contains(
                 "Task.detached(executorPreference:) is declared by the active "
                     + "_Concurrency.swiftinterface but is not supported yet"))
+        }
+    }
+
+    @Test
+    @MainActor
+    func immediateTaskKindsRunTheirPrefixBeforeConstructionReturns()
+        async throws {
+        let result = try await Interpreter().runAsync(source: """
+        var events: [String] = []
+        let ordinary = Task.immediate(
+            name: "ordinary", executorPreference: nil
+        ) {
+            events.append("ordinary-start:" + (Task.name ?? "nil"))
+            await Task.yield()
+            events.append("ordinary-finish")
+            return 11
+        }
+        events.append("ordinary-after")
+        let detached = Task.immediateDetached(
+            name: "detached", executorPreference: nil
+        ) {
+            events.append("detached-start:" + (Task.name ?? "nil"))
+            await Task.yield()
+            events.append("detached-finish")
+            return 22
+        }
+        events.append("detached-after")
+        let ordinaryValue = await ordinary.value
+        let detachedValue = await detached.value
+        return events.joined(separator: "|")
+            + ":\\(ordinaryValue):\\(detachedValue)"
+        """)
+        let output = try #require(result.stringValue)
+        let ordinaryStart = try #require(
+            output.range(of: "ordinary-start:ordinary"))
+        let ordinaryAfter = try #require(
+            output.range(of: "ordinary-after"))
+        let detachedStart = try #require(
+            output.range(of: "detached-start:detached"))
+        let detachedAfter = try #require(
+            output.range(of: "detached-after"))
+        #expect(ordinaryStart.lowerBound < ordinaryAfter.lowerBound)
+        #expect(detachedStart.lowerBound < detachedAfter.lowerBound)
+        #expect(output.hasSuffix(":11:22"))
+    }
+
+    @Test
+    @MainActor
+    func immediateTaskKindsUseDistinctRuntimeInheritanceAndCleanUp()
+        async throws {
+        struct Snapshot {
+            let kind: RuntimeTaskKind
+            let parent: RuntimeTaskID?
+            let taskLocalCount: Int
+            let executor: RuntimeExecutorKind
+            let callbackExecutor: RuntimeExecutorKind
+        }
+
+        let interpreter = Interpreter()
+        var snapshots: [Snapshot] = []
+        interpreter.globals.define(
+            "inspectImmediateRuntimeTask",
+            .hostFunction(HostFunction(
+                name: "inspectImmediateRuntimeTask"
+            ) { _, context in
+                guard let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      let record = interpreter.concurrencyRuntime.records[taskID]
+                else {
+                    throw RuntimeError(message:
+                        "immediate operation lost its runtime task")
+                }
+                snapshots.append(Snapshot(
+                    kind: record.kind,
+                    parent: record.parent,
+                    taskLocalCount: record.taskLocals.count,
+                    executor: record.executorPreference,
+                    callbackExecutor: context.sourceExecutor))
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        enum ImmediateRuntimeLocal {
+            @TaskLocal static var value = "default"
+        }
+        return await ImmediateRuntimeLocal.$value.withValue("parent") {
+            let ordinary = Task.immediate(executorPreference: nil) {
+                inspectImmediateRuntimeTask()
+                return ImmediateRuntimeLocal.value
+            }
+            let detached = Task.immediateDetached(executorPreference: nil) {
+                inspectImmediateRuntimeTask()
+                return ImmediateRuntimeLocal.value
+            }
+            return (await ordinary.value) + ":" + (await detached.value)
+        }
+        """)
+
+        #expect(result.stringValue == "parent:default")
+        #expect(snapshots.count == 2)
+        #expect(snapshots[0].kind == .unstructured)
+        #expect(snapshots[0].parent != nil)
+        #expect(snapshots[0].taskLocalCount == 1)
+        #expect(snapshots[0].executor == .mainActor)
+        #expect(snapshots[0].callbackExecutor == .mainActor)
+        #expect(snapshots[1].kind == .detached)
+        #expect(snapshots[1].parent == nil)
+        #expect(snapshots[1].taskLocalCount == 0)
+        #expect(snapshots[1].executor == .mainActor)
+        #expect(snapshots[1].callbackExecutor == .mainActor)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    @MainActor
+    func immediateTaskKindsPreserveOperationExecutorAcrossSuspension()
+        async throws {
+        struct Snapshot {
+            let phase: String
+            let kind: RuntimeTaskKind
+            let recordExecutor: RuntimeExecutorKind
+            let callbackExecutor: RuntimeExecutorKind
+        }
+
+        let interpreter = Interpreter()
+        var snapshots: [Snapshot] = []
+        interpreter.globals.define(
+            "inspectImmediateExecutor",
+            .hostFunction(HostFunction(name: "inspectImmediateExecutor") {
+                arguments, context in
+                guard let phase = arguments.positional(0)?.stringValue,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      let record = interpreter.concurrencyRuntime.records[taskID]
+                else {
+                    throw RuntimeError(message:
+                        "immediate operation lost its executor context")
+                }
+                snapshots.append(Snapshot(
+                    phase: phase,
+                    kind: record.kind,
+                    recordExecutor: record.executorPreference,
+                    callbackExecutor: context.sourceExecutor))
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        func immediateExecutorProbe() async -> Int {
+            let ordinary = Task.immediate(executorPreference: nil) {
+                inspectImmediateExecutor("ordinary-before")
+                await Task.yield()
+                inspectImmediateExecutor("ordinary-after")
+                return 11
+            }
+            let detached = Task.immediateDetached(executorPreference: nil) {
+                inspectImmediateExecutor("detached-before")
+                await Task.yield()
+                inspectImmediateExecutor("detached-after")
+                return 22
+            }
+            return await ordinary.value + detached.value
+        }
+        return await immediateExecutorProbe()
+        """)
+
+        #expect(result.intValue == 33)
+        #expect(Set(snapshots.map(\.phase)) == [
+            "ordinary-before", "ordinary-after",
+            "detached-before", "detached-after",
+        ])
+        #expect(snapshots.filter { $0.phase.hasPrefix("ordinary") }
+            .allSatisfy { $0.kind == .unstructured })
+        #expect(snapshots.filter { $0.phase.hasPrefix("detached") }
+            .allSatisfy { $0.kind == .detached })
+        #expect(snapshots.allSatisfy {
+            $0.recordExecutor == .mainActor
+                && $0.callbackExecutor == .mainActor
+        })
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test
+    @MainActor
+    func immediateTaskKindsRejectUnsupportedOperationExecutors() async {
+        for api in ["immediate", "immediateDetached"] {
+            for source in [
+                """
+                func operation() async -> Int { 1 }
+                let task = Task.\(api)(
+                    executorPreference: nil, operation: operation
+                )
+                return await task.value
+                """,
+                """
+                @concurrent
+                nonisolated func operation() async -> Int { 1 }
+                let task = Task.\(api)(
+                    executorPreference: nil, operation: operation
+                )
+                return await task.value
+                """,
+                """
+                @concurrent
+                nonisolated func construct() async -> Int {
+                    let task = Task.\(api)(executorPreference: nil) { 1 }
+                    return await task.value
+                }
+                return await construct()
+                """,
+                """
+                nonisolated func operationFactory() -> () async -> Int {
+                    { 1 }
+                }
+                @MainActor
+                func construct() async -> Int {
+                    let operation = operationFactory()
+                    let task = Task.\(api)(
+                        executorPreference: nil, operation: operation
+                    )
+                    return await task.value
+                }
+                return await construct()
+                """,
+            ] {
+                do {
+                    _ = try await Interpreter().runAsync(source: source)
+                    Issue.record(
+                        "Task.\(api) accepted an unsupported operation executor")
+                } catch {
+                    #expect(String(describing: error).contains(
+                        "Task.\(api) currently requires a MainActor-inherited "
+                            + "operation invoked from MainActor"))
+                }
+            }
+        }
+    }
+
+    @Test
+    @MainActor
+    func nonNilImmediateTaskExecutorPreferencesFailClosed() async {
+        for api in ["immediate", "immediateDetached"] {
+            do {
+                _ = try await Interpreter().runAsync(source: """
+                final class ProbeTaskExecutor: TaskExecutor {
+                    func enqueue(_ job: consuming ExecutorJob) {
+                        globalConcurrentExecutor.enqueue(job)
+                    }
+                }
+                let executor = ProbeTaskExecutor()
+                let task = Task.\(api)(executorPreference: executor) { 1 }
+                return await task.value
+                """)
+                Issue.record(
+                    "Task.\(api) silently ignored a nonnil executor preference")
+            } catch {
+                #expect(String(describing: error).contains(
+                    "Task.\(api)(executorPreference:) is not supported yet"))
+            }
+        }
+    }
+
+    @Test
+    @MainActor
+    func immediateTaskKindsDoNotUseSynchronousCompatibility() {
+        for api in ["immediate", "immediateDetached"] {
+            do {
+                _ = try Interpreter().run(source: """
+                Task.\(api)(executorPreference: nil) { 1 }
+                """)
+                Issue.record(
+                    "Task.\(api) used synchronous compatibility")
+            } catch {
+                #expect(String(describing: error).contains(
+                    "immediate task creation requires runAsync"))
+            }
         }
     }
 

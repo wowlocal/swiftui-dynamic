@@ -62,14 +62,34 @@ extension Interpreter {
             throw InterpreterSessionAbort()
         }
         try concurrencyRuntime.throwCancellationHandlerFailure(for: taskID)
-        guard Task.isCancelled else { return }
+        guard isSourceTaskCancellationRequested() else { return }
         guard concurrencyRuntime.requiresSessionAbort(taskID) else { return }
         concurrencyRuntime.observeCancellation(taskID)
         throw InterpreterSessionAbort()
     }
 
+    /// Swift can make cancellation visible before a native driver exists.
+    /// `Task.immediate` is the important case: a pre-cancelled group child
+    /// executes its synchronous prefix before the constructor returns, so the
+    /// logical runtime record is the source of truth until `attach` can forward
+    /// that request to the native task.
+    func isSourceTaskCancellationRequested() -> Bool {
+        if Task.isCancelled { return true }
+        guard let taskID = evaluationTaskContext.runtimeTaskID else {
+            return false
+        }
+        return concurrencyRuntime.records[taskID]?.cancellation.isRequested
+            == true
+    }
+
+    func checkSourceTaskCancellation() throws {
+        guard isSourceTaskCancellationRequested() else { return }
+        observeSourceCancellation()
+        throw CancellationError()
+    }
+
     func observeSourceCancellation() {
-        guard Task.isCancelled,
+        guard isSourceTaskCancellationRequested(),
               let taskID = evaluationTaskContext.runtimeTaskID else { return }
         concurrencyRuntime.observeCancellation(
             taskID, inferredSource: .inherited)

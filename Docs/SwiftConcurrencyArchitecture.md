@@ -563,6 +563,70 @@ enum RuntimeTaskKind {
 }
 ```
 
+Task context inheritance, the operation executor, and task start policy are
+separate semantic axes:
+
+```swift
+enum RuntimeTaskContextInheritance {
+    case inherited
+    case detached
+}
+
+enum RuntimeTaskStartPolicy {
+    case enqueued
+    case immediate
+}
+
+struct RuntimeTaskLaunchSemantics {
+    let contextInheritance: RuntimeTaskContextInheritance
+    let operationExecutor: RuntimeExecutorKind
+    let startPolicy: RuntimeTaskStartPolicy
+}
+```
+
+Context inheritance determines creation lineage and task-local state; it does
+not turn an unstructured task into a structured cancellation child. The
+operation executor comes from the closure's actor isolation and is not derived
+from detached versus inherited lineage. Start policy determines only when
+execution begins. An enqueued task begins through the executor queue. An
+immediate task runs the operation's synchronous prefix on its selected actor
+before the constructor returns, then follows the ordinary suspension and
+resumption machinery after the first real suspension.
+
+These axes must compose rather than be inferred from an API spelling.
+`Task.immediate` is inherited context plus the operation's executor plus
+immediate start. `Task.immediateDetached` changes only the first component to
+detached context; its `_inheritActorContext(always)` operation retains its own
+actor. The runtime creates and registers the task record before either launch.
+Its native driving task uses `Task.immediateDetached` for the detached
+combination; implementing that form with native `Task.immediate` would
+accidentally inherit native task-local context even if the logical record were
+marked detached. Both forms otherwise share outcome publication, waiters,
+cleanup, name, priority, and source-handle behavior.
+
+The operation executor is lexical metadata, not a snapshot of the executor on
+which a closure expression happened to be evaluated. A plain nonisolated
+factory invoked by a `MainActor` caller still forms a nonisolated closure.
+Dynamic caller inheritance would silently misclassify it as `MainActor`, so
+the evaluator carries a task-owned stack of statically known declaration
+executors, stores that proof on closure expressions, and fails closed when the
+lexical actor is unknown.
+
+Immediate launch also makes the logical cancellation record authoritative
+before a native driver can be attached. A task-group child may inherit
+`cancelAll()` before `Task.immediate` starts its synchronous prefix, while the
+native task handle is not returned until that prefix suspends or completes.
+`Task.isCancelled`, `Task.checkCancellation()`, cancellable-suspension
+prechecks, and cancellation handlers consult the logical record during that
+interval. Attachment then forwards the recorded request to the native driver.
+
+Until arbitrary executor queues and actor-resumption ownership are supplied by
+M5, the ledgered incremental implementation claims only an explicit-`nil`
+`TaskExecutor` preference with an operation inherited from `MainActor`.
+Non-`nil` preferences and arbitrary `@isolated(any)` operation actors fail
+closed; they must not be approximated by discarding the preference or running
+on the interpreter's physical hosting actor.
+
 The source-level task value refers to `RuntimeTaskID`; it does not directly
 expose or own the native Swift task used to drive the runtime.
 

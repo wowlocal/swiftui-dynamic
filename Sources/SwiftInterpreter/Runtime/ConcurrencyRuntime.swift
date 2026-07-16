@@ -153,6 +153,55 @@ enum RuntimeTaskExecutorPreference {
     }
 }
 
+/// Resolves the actor inherited by an immediate-operation closure without
+/// conflating it with task lineage. The current incremental runtime can make
+/// the native synchronous-prefix guarantee only when caller and operation are
+/// both MainActor-isolated; every other legal Swift shape remains fail-closed.
+enum RuntimeImmediateOperationExecutor {
+    static func supportedExecutor(
+        operation: ClosureValue,
+        context: EvalContext,
+        api: String
+    ) throws -> RuntimeExecutorKind {
+        let operationExecutor: RuntimeExecutorKind?
+        if let declaredExecutor = operation.executorPreference {
+            operationExecutor = declaredExecutor
+        } else if operation.functionDeclID != nil {
+            // A source function without one of the executor annotations
+            // modeled by ClosureValue may be nonisolated or belong to an
+            // arbitrary actor. Do not reinterpret unknown isolation as
+            // caller inheritance.
+            operationExecutor = nil
+        } else {
+            // Closure expressions carry a statically derived lexical actor.
+            // `nil` means unknown/nonisolated, not "use the dynamic caller".
+            operationExecutor = operation.lexicalExecutor
+        }
+        guard context.sourceExecutor == .mainActor,
+              let operationExecutor,
+              operationExecutor == .mainActor else {
+            throw RuntimeError(message:
+                "\(api) currently requires a MainActor-inherited "
+                    + "operation invoked from MainActor")
+        }
+        return operationExecutor
+    }
+}
+
+/// Context inheritance, operation executor, and launch timing are independent
+/// source semantics. In particular, `Task.immediateDetached` clears task
+/// context while retaining both the inherited operation actor and immediate
+/// start; none of these dimensions is inferred from another.
+public enum RuntimeTaskContextInheritance: Sendable, Equatable {
+    case inherited
+    case detached
+}
+
+public enum RuntimeTaskStartPolicy: Sendable, Equatable {
+    case enqueued
+    case immediate
+}
+
 public enum RuntimeTaskKind: String, Sendable {
     case root
     case unstructured

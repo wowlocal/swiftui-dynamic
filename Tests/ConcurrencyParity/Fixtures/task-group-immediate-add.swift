@@ -65,6 +65,28 @@ func taskGroupImmediateAddProbe() async throws -> String {
             recorder.record("\(unlessGate)-finish")
         }
         recorder.record("\(unlessGate)-rejected:\(rejected)")
+
+        let cancelledGate = "ordinary-cancelled"
+        group.addImmediateTask(
+            name: cancelledGate,
+            priority: nil,
+            executorPreference: nil
+        ) {
+            recorder.record(
+                "\(cancelledGate)-prefix:\(Task.isCancelled)")
+            do {
+                try Task.checkCancellation()
+                recorder.record("\(cancelledGate)-check:missed")
+            } catch is CancellationError {
+                recorder.record("\(cancelledGate)-check:caught")
+            } catch {
+                recorder.record("\(cancelledGate)-check:wrong-error")
+            }
+            await Task.yield()
+            recorder.record(
+                "\(cancelledGate)-resumed:\(Task.isCancelled)")
+        }
+        recorder.record("\(cancelledGate)-after")
     }
 
     await withThrowingTaskGroup(of: Void.self) { group in

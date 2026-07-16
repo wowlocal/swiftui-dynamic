@@ -59,7 +59,7 @@ evidence that remains covered.
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all four public group-scope declarations for their evidenced default-isolation subsets, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, all four canonical `addTask(priority:operation:)`, all four canonical `addTaskUnlessCancelled(priority:operation:)`, all eight named add declarations without executor preference for their evidenced nonisolated subsets with task-owned names preserved, all eight `addTask` executor-preference declarations for their explicit-nil nonisolated subsets with non-nil preferences rejected by a shared guard and arbitrary-actor executor divergences recorded, all eight `addTaskUnlessCancelled` executor-preference declarations for active explicit-nil acceptance and post-cancellation rejection without child creation, with the shared non-nil guard and arbitrary-actor executor divergences recorded, and all eight `addImmediateTask`/`addImmediateTaskUnlessCancelled` declarations for their explicit-nil inherited-MainActor subsets with synchronous-prefix execution, Task.name, join, and cancellation-before-preference-validation evidence while non-nil preference and arbitrary-actor divergences remain recorded, all four ordinary/throwing group `next()` declarations, both deprecated `spawn()`, both deprecated `async()`, both deprecated conditional `add()` aliases, both deprecated `asyncUnlessCancelled()` aliases, and both deprecated `spawnUnlessCancelled()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition. | All currently generated task-group declarations have explicit dispositions. Cover repeated-wait/new-work behavior, implement non-nil TaskExecutor preference resumption and arbitrary-actor operation executors, and finish the M7-backed escaped-capability boundary; positive claims require executable evidence and negative/deferred claims require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | partial | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, and detached-task lane identity are covered. | Next major cycle: add actor identity/storage, serial executor queues, isolated hops, reentrancy/resume ownership, isolated parameters, arbitrary global actors, and stress; physical workers remain M9. |
 | M6 async sequences/continuations | not-started | No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. | Requires M5 actor/executor resume ownership, then protocol iteration, streams, continuations, cancellation, and cleanup coverage. |
-| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, generated active-SDK top-level/Task/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 32 currently generated Task instance/static rows including native-parity `Task.name`, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 148/156 reviewed: 43 runtime-supported, 17 diagnosed-unsupported, 61 known divergences, 26 excluded compiler ABI, one deferred, and 8 unreviewed. | Review the remaining eight generated source-facing top-level rows, extend the inventory walker to expose the active-interface conditional Task static `immediate`/`immediateDetached` declarations that are currently absent from the denominator, and add target-aware build manifests before M5 or M8 closure. |
+| M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 152/162 reviewed: 43 runtime-supported, 17 diagnosed-unsupported, 65 known divergences, 26 excluded compiler ABI, one deferred, and 10 unreviewed. | Review the remaining ten generated source-facing top-level rows and add target-aware build manifests before M5 or M8 closure. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made, and the source-callable _swift_createJobForTestingOnly hook is explicitly deferred with the executor-job runtime. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
 
@@ -90,7 +90,8 @@ evidence that remains covered.
 | `task-group-named-add` | exact | All eight named `addTask`/`addTaskUnlessCancelled` overloads assign the supplied name to accepted children across ordinary, throwing, discarding, and throwing-discarding groups | Native/interpreter parity in 20 repetitions; every conditional add is accepted, scope exit joins the children, and sorted output avoids a scheduler-order assertion |
 | `task-group-executor-preference-nil-add` | exact | All eight named and unnamed `addTask` executor-preference overloads across ordinary, throwing, discarding, and throwing-discarding groups accept an explicit `nil` preference, run their children, preserve optional task names, and join at scope exit | Native/interpreter parity in 20 repetitions: `discarding-named:discarding-name\|discarding-unnamed:nil\|ordinary-named:ordinary-name\|ordinary-unnamed:nil\|throwing-discarding-named:throwing-discarding-name\|throwing-discarding-unnamed:nil\|throwing-named:throwing-name\|throwing-unnamed:nil`; sorted output avoids a scheduling-order claim |
 | `task-group-executor-preference-nil-add-unless-cancelled` | exact | All eight named and unnamed `addTaskUnlessCancelled` executor-preference overloads accept active explicit-`nil` calls, preserve optional child names, and reject post-`cancelAll` calls without child creation | Native/interpreter parity in 20 repetitions; decisions are `true,true,false,false` for every group kind, sorted child values avoid a scheduler-order claim, and no priority or physical-executor claim is made |
-| `task-group-immediate-add` | partial order | Across ordinary, throwing, discarding, and throwing-discarding groups, every `addImmediateTask` and active `addImmediateTaskUnlessCancelled` operation starts synchronously on its inherited actor before the adding call returns; after its forced suspension the caller advances, active conditional calls return `true`, post-cancellation conditional calls return `false` without child creation, `Task.name` is installed for the synchronous prefix, and scope exit joins every accepted child | Native/interpreter parity in 20 repetitions; the assertion checks the causal `start < after < finish` edges for each accepted child and the active/post-cancel conditional decisions, but deliberately leaves independent-child finish order unspecified |
+| `task-group-immediate-add` | partial order | Across ordinary, throwing, discarding, and throwing-discarding groups, every `addImmediateTask` and active `addImmediateTaskUnlessCancelled` operation starts synchronously on its inherited actor before the adding call returns; after its forced suspension the caller advances, active conditional calls return `true`, and post-cancellation conditional calls return `false` without child creation. An unconditional child added after `cancelAll()` observes `Task.isCancelled == true` and `Task.checkCancellation()` in its synchronous prefix and remains cancelled after resumption; `Task.name` is installed before entry, and scope exit joins every accepted child | Native/interpreter parity in 20 repetitions; the assertion checks the causal `start < after < finish` edges, active/post-cancel conditional decisions, and `cancelled-prefix:true < check:caught < after < resumed:true`, but deliberately leaves independent-child finish order unspecified |
+| `task-immediate` | partial order | Both throwing and nonthrowing `Task.immediate` and `Task.immediateDetached` synchronously enter a same-actor operation before construction returns, suspend at a real await, and preserve names, explicit priorities, values, and exact source failures; ordinary immediate tasks inherit task-local context while immediate-detached tasks clear it | Native/interpreter parity in 20 repetitions; each operation satisfies `start < after < finish`, ordinary rows observe the parent task-local value, detached rows observe its default, and finish order between independent tasks is deliberately unspecified; focused runtime inspection separately pins creator versus parentless lineage |
 | `task-name` | exact | `Task.name` is the immutable optional name supplied at ordinary, detached, or task-group child creation; omitted and explicit-`nil` names do not inherit and an empty string remains distinct from `nil` | Native/interpreter parity in 20 repetitions: `nil\|ordinary\|optional\|nil\|parent/nil\|detached\|empty\|group,nil`; awaited handles and sorted group values avoid any scheduler-order assertion |
 | `top-level-async` | exact | Both deprecated global `async(priority:operation:)` overloads create ordinary unstructured task handles; the operation may outlive its creating function and projects success or source failure | Native/interpreter parity in 20 repetitions: `value:nil\|17\|boom`; an explicit MainActor gate records utility priority before handle-await donation, and no sibling start order is asserted |
 | `top-level-detached-aliases` | exact | Both overloads of the deprecated global `asyncDetached` and `detach` spellings create detached task handles with cleared task-local storage, unnamed task metadata, explicit priorities, successful values, and source failures in the supported nonisolated subset | Native/interpreter parity in 20 repetitions: `asyncDetached:nil:17:default\|detach:nil:9:default\|asyncDetached-boom\|detach-boom`; both children record entry before release, so handle-await donation and scheduler order are outside the observation |
@@ -5005,19 +5006,32 @@ scope exit joins every accepted child. The oracle makes no claim about
 independent-child finish order, priority scheduling, physical threads,
 arbitrary actors, or non-`nil` executor-preference execution.
 
+An unconditional `addImmediateTask` remains accepted after `cancelAll()`. Its
+synchronous prefix observes `Task.isCancelled == true`,
+`Task.checkCancellation()` throws `CancellationError`, and cancellation is
+still visible after a forced suspension. This distinguishes unconditional add
+semantics from the conditional member's post-cancellation `false` result.
+
+That supported actor subset is checked at the runtime boundary rather than
+assumed from the call site. The operation must inherit `MainActor` and the add
+must be invoked from `MainActor`; explicitly nonisolated operations and
+MainActor-looking closure literals created inside a lexically nonisolated
+factory fail closed instead of being launched on the wrong executor.
+
 The same-source `task-group-immediate-add.swift` fixture has source SHA-256
-`e338169bd53dfe3e3d620474f7bea1540849723051cc8d15e7172294a749792b`.
+`e9bed7b55c8459d7eba0548889d902bf82e8a68e2ba00356f776c08a66afd457`.
 Apple Swift 6.3.3 compiled it for macOS 26 with Swift 6 complete strict
-concurrency and warnings as errors. SILGen contains exactly one reference to
-the canonical unconditional declaration and exactly two references to the
-conditional declaration for each group kind: one active call and one
-post-cancellation call. All twenty native executions satisfied the same
-partial order. For each unconditional child the checked edges are
+concurrency and warnings as errors. SILGen selects all eight declarations,
+including the active and post-cancellation conditional paths, plus the second
+ordinary unconditional call that probes pre-attached cancellation. All twenty
+native executions satisfied the same partial order. For each ordinary active
+unconditional child the checked edges are
 `start < after < finish`; for each active conditional child they are
 `start < after:true < finish`; and the post-cancellation decision is
-`rejected:false` with no rejected-child event. Required-event multiplicity
-makes an accidentally executed rejected closure observable while leaving
-unrelated finish order unconstrained.
+`rejected:false` with no rejected-child event. The pre-cancelled unconditional
+child satisfies `prefix:true < check:caught < after < resumed:true`. Required
+event multiplicity makes an accidentally executed rejected closure observable
+while leaving unrelated finish order unconstrained.
 
 Two tests pinned to swiftlang commit
 `064859e41d68596f486c5d724401cb370f260409` provide independent semantic and
@@ -5041,31 +5055,118 @@ ownership; launch failure rolls that transaction back. Immediate launch skips
 the ordinary task's mandatory initial yield, while the existing task-owned
 context, outcome publication, cleanup, name, priority, and group-join paths
 remain shared. Conditional cancellation is checked before executor-preference
-validation, and the common preference guard still fails closed for an active
-non-`nil` `TaskExecutor` instead of silently discarding native behavior.
+validation. Existing group cancellation sources are attached to a new child
+record before immediate native launch, so its inline prefix cannot race ahead
+of cancellation propagation. The common preference guard still fails closed
+for an active non-`nil` `TaskExecutor` instead of silently discarding native
+behavior.
 
 `TaskGroupSurfaceTests/immediateTaskGroupChildCompletesBeforeAddReturns`
 proves that a no-suspension immediate child mutates state and completes before
 the add call returns while already present in both ownership graphs.
+`TaskGroupSurfaceTests/immediateTaskGroupChildPreservesExecutorAcrossSuspension`
+inspects both the task record and callback context before and after a forced
+suspension and pins the supported MainActor operation executor across resume.
+`TaskGroupSurfaceTests/synchronouslyThrowingImmediateGroupChildPublishesFailure`
+pins the other inline-completion edge: a throwing child publishes its exact
+source failure into the already registered group outcome, and `group.next()`
+observes it rather than hanging or losing the result.
+`TaskGroupSurfaceTests/preCancelledUnconditionalImmediateChildObservesCancellation`
+proves that an unconditional immediate child created after `cancelAll()` sees
+cancellation through `Task.isCancelled` and `Task.checkCancellation()` before
+construction returns and still sees it after resumption.
+`TaskGroupSurfaceTests/immediateTaskGroupChildRejectsUnsupportedOperationExecutors`
+proves that all four group kinds and both immediate member forms enforce the
+MainActor-operation/MainActor-invocation subset and reject unsupported
+operation-executor combinations.
 `TaskGroupSurfaceTests/nonNilImmediateTaskGroupExecutorPreferenceFailsClosed`
 proves that an active non-`nil` preference is rejected, and
 `TaskGroupSurfaceTests/cancelledImmediateConditionalAddSkipsExecutorPreference`
 proves that a cancelled conditional call returns `false` before touching such
-a preference. The final isolated differential completed all twenty
-fresh-process interpreter repetitions and satisfied the native partial order
-with observation digest
-`96cae586d31b1646509bdb3be058168603adb8c37245325fa17ec532e2a7f168`.
+a preference. The updated isolated differential completed all twenty
+fresh-process interpreter repetitions and satisfied the expanded native
+partial order, including the pre-cancelled unconditional child.
 
 All eight declarations remain `known-divergence`/`none`, not full-support
 claims: native non-`nil` `TaskExecutor` resumption and arbitrary
 `@isolated(any)` operation executors still require the M5 executor
-architecture. Within the explicitly incomplete generated denominator,
-accounting is now 148/156 reviewed: 43 runtime-supported, 17
-diagnosed-unsupported, 61 known divergences, 26 excluded compiler ABI, one
-deferred, and eight unreviewed top-level rows. That denominator is not the
-whole active `_Concurrency` surface: the generator currently misses the
-conditionally compiled static `Task.immediate`/`Task.immediateDetached`
-declarations. Exposing and reviewing those rows, the eight generated
-top-level rows, and target-aware build manifests remains M7 work; repeated
-wait/new-work behavior and the escaped task-group capability boundary remain
-M4 work.
+architecture. The compiler-backed conditional filter added by the following
+iteration expands the active denominator to 162 rows and exposes six active
+declarations: four static Task-immediate rows and two additional top-level
+priority-escalation rows. After reviewing the Task-immediate rows, accounting
+is 152/162 reviewed: 43 runtime-supported, 17 diagnosed-unsupported, 65 known
+divergences, 26 excluded compiler ABI, one deferred, and ten unreviewed
+top-level rows. Reviewing those ten rows and adding target-aware build
+manifests remains M7 work; repeated wait/new-work behavior and the escaped
+task-group capability boundary remain M4 work.
+
+### M7 conditional `Task.immediate` creation
+
+This four-row iteration is a GAP CLOSURE for the throwing and nonthrowing
+`Task.immediate` and `Task.immediateDetached` declarations selected by the
+active Apple SDK. The generator now asks the active compiler to evaluate
+`swiftinterface` conditional-compilation predicates, removes inactive branches
+before the existing declaration walkers run, and fails closed when compiler
+configuration diagnostics prevent a reliable selection. This general change
+also exposes two active top-level priority-escalation declarations; they remain
+unreviewed rather than being hidden by the previous walker limitation. The
+generated Task instance/static denominator is therefore 36 rows and the whole
+generated concurrency denominator is 162.
+
+The same-source `task-immediate.swift` fixture has source SHA-256
+`9c384ab8de788a992ebde85f6cec5e9af0b461d622bb6afae96d67f83d09fe6d`.
+Apple Swift 6.3.3 compiled it in Swift 6 mode with complete strict concurrency
+and warnings as errors. Each of the four declarations has one call site. All
+twenty native and twenty fresh-process interpreter executions satisfied the
+same partial order: every synchronous prefix records `start` before the
+constructor-side `after`, the forced gate suspension places `finish` after
+`after`, successful handles return `11` and `33`, and throwing handles project
+their exact source errors. Names and explicit raw priorities are visible in
+the prefix. `Task.immediate` observes the parent task-local value, whereas
+`Task.immediateDetached` observes its declaration default. Independent finish
+order is not asserted. No native-observation digest is pinned: repeated
+accepted batches produced different digests when that independent finish order
+changed, while all required events and causal edges continued to pass.
+
+The isolated pre-fix run supplied the expected RED: construction recorded only
+the caller-side `ordinary-after|detached-after` events and produced no task
+values because the generated declarations had no runtime route. The repair
+does not encode either API as a separate scheduling system. Task context
+inheritance, operation executor, and task start policy are orthogonal runtime
+inputs. `Task.immediate` combines inherited unstructured context, the
+operation's inherited MainActor, and immediate start; `Task.immediateDetached`
+changes only the context dimension to detached while retaining that operation
+actor and start policy. Both records are created before launch, both use the
+common outcome, waiter, cleanup, name, and priority paths, and the detached form is launched
+through native `Task.immediateDetached` so native context is not accidentally
+inherited through `Task.immediate`.
+
+`GeneratedTaskSurfaceTests/immediateTaskKindsRunTheirPrefixBeforeConstructionReturns`
+pins the synchronous prefix and handle values;
+`GeneratedTaskSurfaceTests/immediateTaskKindsUseDistinctRuntimeInheritanceAndCleanUp`
+pins unstructured-versus-detached lineage, task-local inheritance, and registry
+cleanup, including the inherited MainActor executor on both task kinds.
+`GeneratedTaskSurfaceTests/immediateTaskKindsPreserveOperationExecutorAcrossSuspension`
+inspects the runtime record and callback executor before and after `Task.yield()`
+for both forms and pins MainActor ownership across resumption.
+`GeneratedTaskSurfaceTests/immediateTaskKindsRejectUnsupportedOperationExecutors`
+proves that a non-MainActor caller, an explicitly nonisolated operation, or an
+operation closure returned by a lexically nonisolated factory fails closed. A
+separate Apple Swift 6.3.3 typecheck with complete strict concurrency and
+warnings as errors confirms that these nonisolated shapes are native-legal, so
+their rejection is an explicit recorded divergence rather than a compiler
+diagnostic.
+The non-`nil`
+preference and synchronous-compatibility tests ensure that unsupported
+execution cannot silently fall back. Generator tests inject
+active and inactive compiler configurations and verify that an unanswerable
+condition fails closed.
+
+All four declarations remain `known-divergence`/`none`, not full-declaration
+support claims. The evidenced runtime subset uses an explicit `nil`
+`TaskExecutor` preference and an operation inherited from `MainActor`. Native
+non-`nil` executor-preference resumption and arbitrary `@isolated(any)`
+operation actors require the M5 executor architecture and currently fail
+closed. Current accounting is 152/162 reviewed: 43 runtime-supported, 17
+diagnosed-unsupported, 65 known divergences, 26 excluded compiler ABI, one
+deferred, and ten unreviewed top-level rows.

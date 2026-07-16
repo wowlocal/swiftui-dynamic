@@ -225,7 +225,7 @@ struct TaskGroupSurfaceTests {
             "inspectImmediateTaskGroupMembership",
             .hostFunction(HostFunction(
                 name: "inspectImmediateTaskGroupMembership"
-            ) { _, _ in
+            ) { _, context in
                 guard let childID = interpreter.evaluationTaskContext
                         .runtimeTaskID,
                       let child = interpreter.concurrencyRuntime
@@ -234,10 +234,12 @@ struct TaskGroupSurfaceTests {
                       let group = interpreter.concurrencyRuntime
                         .taskGroups[groupID],
                       group.childTaskIDs.contains(childID),
-                      group.structuredScope.childTaskIDs.contains(childID)
+                      group.structuredScope.childTaskIDs.contains(childID),
+                      child.executorPreference == .mainActor,
+                      context.sourceExecutor == .mainActor
                 else {
                     throw RuntimeError(message:
-                        "immediate child started before group ownership")
+                        "immediate child lost ownership or operation actor")
                 }
                 observedMembershipBeforeSourceEntry = true
                 return .void
@@ -279,6 +281,139 @@ struct TaskGroupSurfaceTests {
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func immediateTaskGroupChildPreservesExecutorAcrossSuspension()
+            async throws {
+        let interpreter = Interpreter()
+        var phases: [String] = []
+        interpreter.globals.define(
+            "inspectImmediateGroupExecutor",
+            .hostFunction(HostFunction(
+                name: "inspectImmediateGroupExecutor"
+            ) { arguments, context in
+                guard let phase = arguments.positional(0)?.stringValue,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      let record = interpreter.concurrencyRuntime.records[taskID],
+                      record.kind == .groupChild,
+                      record.executorPreference == .mainActor,
+                      context.sourceExecutor == .mainActor
+                else {
+                    throw RuntimeError(message:
+                        "immediate group child lost its operation executor")
+                }
+                phases.append(phase)
+                return .void
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+        @MainActor
+        func immediateGroupExecutorProbe() async -> Int {
+            return await withTaskGroup(of: Int.self) { group in
+                group.addImmediateTask(executorPreference: nil) {
+                    inspectImmediateGroupExecutor("before")
+                    await Task.yield()
+                    inspectImmediateGroupExecutor("after")
+                    return 7
+                }
+                return await group.next() ?? -1
+            }
+        }
+        return await immediateGroupExecutorProbe()
+        """)
+
+        #expect(result.intValue == 7)
+        #expect(phases == ["before", "after"])
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func synchronouslyThrowingImmediateGroupChildPublishesFailure()
+            async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        enum ImmediateGroupFailure: Error { case boom }
+
+        @MainActor
+        func immediateGroupFailureProbe() async -> String {
+            return await withThrowingTaskGroup(of: Int.self) { group in
+                group.addImmediateTask(executorPreference: nil) {
+                    throw ImmediateGroupFailure.boom
+                }
+                do {
+                    _ = try await group.next()
+                    return "missed"
+                } catch ImmediateGroupFailure.boom {
+                    return "boom"
+                } catch {
+                    return "wrong-error"
+                }
+            }
+        }
+        return await immediateGroupFailureProbe()
+        """)
+
+        #expect(result.stringValue == "boom")
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+    }
+
+    @Test func immediateTaskGroupChildRejectsUnsupportedOperationExecutors()
+            async {
+        for member in ["addImmediateTask", "addImmediateTaskUnlessCancelled"] {
+            for source in [
+                """
+                @concurrent
+                nonisolated func operation() async -> Int { 1 }
+                return await withTaskGroup(of: Int.self) { group in
+                    group.\(member)(
+                        executorPreference: nil, operation: operation
+                    )
+                    return await group.next() ?? -1
+                }
+                """,
+                """
+                @concurrent
+                nonisolated func construct() async -> Int {
+                    return await withTaskGroup(of: Int.self) { group in
+                        group.\(member)(executorPreference: nil) { 1 }
+                        return await group.next() ?? -1
+                    }
+                }
+                return await construct()
+                """,
+                """
+                nonisolated func operationFactory() -> () async -> Int {
+                    { 1 }
+                }
+                @MainActor
+                func construct() async -> Int {
+                    let operation = operationFactory()
+                    return await withTaskGroup(of: Int.self) { group in
+                        group.\(member)(
+                            executorPreference: nil, operation: operation
+                        )
+                        return await group.next() ?? -1
+                    }
+                }
+                return await construct()
+                """,
+            ] {
+                do {
+                    _ = try await Interpreter().runAsync(source: source)
+                    Issue.record(
+                        "TaskGroup.\(member) accepted an unsupported operation executor")
+                } catch {
+                    #expect(String(describing: error).contains(
+                        "TaskGroup.\(member) currently requires a "
+                            + "MainActor-inherited operation invoked from "
+                            + "MainActor"))
+                }
+            }
+        }
     }
 
     @Test func nonNilImmediateTaskGroupExecutorPreferenceFailsClosed() async {
@@ -323,6 +458,35 @@ struct TaskGroupSurfaceTests {
         """)
 
         #expect(result.intValue == 0)
+    }
+
+    @Test func preCancelledUnconditionalImmediateChildObservesCancellation()
+            async throws {
+        let interpreter = Interpreter()
+        let result = try await interpreter.runAsync(source: """
+        await withTaskGroup(of: String.self) { group in
+            group.cancelAll()
+            group.addImmediateTask(executorPreference: nil) {
+                let prefix = Task.isCancelled
+                let check: String
+                do {
+                    try Task.checkCancellation()
+                    check = "missed"
+                } catch is CancellationError {
+                    check = "caught"
+                }
+                await Task.yield()
+                return String(prefix) + ":" + check + ":"
+                    + String(Task.isCancelled)
+            }
+            return await group.next() ?? "missing"
+        }
+        """)
+
+        #expect(result.stringValue == "true:caught:true")
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
     }
 
     @Test func cancelledConditionalAddSkipsExecutorPreference() async throws {

@@ -656,6 +656,7 @@ extension Interpreter {
         let value = ClosureValue(
             parameters: parameters, body: closure.statements,
             captured: captured)
+        value.lexicalExecutor = currentLexicalExecutor
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
         // only the value environment lets same-named nested types resolve in
@@ -672,6 +673,10 @@ extension Interpreter {
             evaluationTaskContext.currentExecutor = executor
         }
         defer { evaluationTaskContext.currentExecutor = previousExecutor }
+        lexicalExecutorFrames.append(
+            closure.functionDeclID == nil
+                ? closure.lexicalExecutor : closure.executorPreference)
+        defer { lexicalExecutorFrames.removeLast() }
         var insertedFrame: ExtensionFrame?
         if let frame = closure.extensionFrame, activeExtensionFrames.insert(frame).inserted {
             insertedFrame = frame

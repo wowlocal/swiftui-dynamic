@@ -30,6 +30,7 @@ let package = Package(
         .target(
             name: "ConcurrencySurfaceGenCore",
             dependencies: [
+                .product(name: "SwiftIfConfig", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ]
@@ -114,7 +115,10 @@ let package = Package(
         ),
         .testTarget(
             name: "ConcurrencySurfaceGenTests",
-            dependencies: ["ConcurrencySurfaceGenCore"]
+            dependencies: [
+                "ConcurrencySurfaceGenCore",
+                .product(name: "SwiftIfConfig", package: "swift-syntax"),
+            ]
         ),
         .testTarget(
             name: "SwiftInterpreterTests",
