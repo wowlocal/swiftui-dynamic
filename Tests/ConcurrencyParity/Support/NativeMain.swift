@@ -37,6 +37,15 @@ func parityCurrentIsolationKind(
     isolation == nil ? "none" : "actor"
 }
 
+func parityCurrentIsolationMatches(
+    _ expected: any Actor,
+    isolation: isolated (any Actor)? = #isolation
+) -> String {
+    guard let isolation else { return "none" }
+    return (isolation as AnyObject) === (expected as AnyObject)
+        ? "same" : "other"
+}
+
 @MainActor
 func parityYield(_ value: String) async -> String {
     await Task.yield()

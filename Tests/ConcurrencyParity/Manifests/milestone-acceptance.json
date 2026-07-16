@@ -657,8 +657,8 @@
       "title": "Actor support and executor architecture",
       "status": "partial",
       "dependsOn": ["M4", "M7"],
-      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, and isolated instance-method entry with caller restoration are covered.",
-      "ledgerRemainingWork": "Active demand cycle (2026-07-16): complete actor-owned storage enforcement, serial mailbox/executor queues, and user-declared global-actor mapping (FoodTruck StoreActor shape), then reentrancy/resume ownership, isolated parameters, arbitrary global actors, and mailbox stress, then per-feature fail-closed flips of the class-like compatibility path with no up-front global rejection; physical workers remain M9.",
+      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, isolated instance-method entry with caller restoration, and canonical user-declared global-actor mapping through static shared are covered.",
+      "ledgerRemainingWork": "Active demand cycle (2026-07-16): complete actor-owned storage enforcement and serial mailbox/executor queues for actor and global-actor hops (FoodTruck StoreActor shape), then reentrancy/resume ownership, isolated parameters, arbitrary global actors, and mailbox stress, then per-feature fail-closed flips of the class-like compatibility path with no up-front global rejection; physical workers remain M9.",
       "requirements": [
         {
           "id": "logical-executor-identity",
@@ -696,14 +696,16 @@
           "coverage": ["success", "isolation", "executor", "lifetime"],
           "dependsOnRequirements": ["M4/structured-stress-and-leak-plateau"],
           "ownedCaseIDs": [
-            "actor-isolated-entry"
+            "actor-isolated-entry",
+            "custom-global-actor-isolation"
           ],
           "evidenceCaseIDs": ["concurrent-executor-hop"],
           "testNames": [
+            "ActorRuntimeTests/globalActorIsolationResolvesCanonicalSharedIdentity",
             "ActorRuntimeTests/actorInstancesOwnDistinctRuntimeIdentitiesAndReleaseRecords"
           ],
           "gapEvidenceIDs": ["actor-identity-storage-serial-executor"],
-          "notes": "Entry slice of the 2026-07-16 demand cycle. Source actor declarations now retain their nominal actor kind, each instance receives a distinct runtime ID backed by a non-owning record, final release removes that record, and an isolated instance method enters the matching logical actor executor before restoring its caller; explicit nonisolated methods stay on the caller executor. Actor-owned storage enforcement, serial mailbox/executor queues, and user-declared global-actor mapping remain open. First full-slice evidence stays scoped to the measured demand shapes: @MainActor-isolated classes and members, and user-declared global actors of the FoodTruck StoreActor shape (@globalActor actor with a static shared instance, isolated async members, and cross-actor awaits). Each actor feature keeps executing through the documented class-like compatibility path until its actor-runtime replacement lands; FoodTruckCheck, ProjectCheck, and suite ratchets must not regress."
+          "notes": "Entry slice of the 2026-07-16 demand cycle. Source actor declarations retain their nominal actor kind, each instance receives a distinct runtime ID backed by a non-owning record, final release removes that record, and an isolated instance method enters the matching logical actor executor before restoring its caller; explicit nonisolated methods stay on the caller executor. A function annotated with a collected user-declared global actor now lazily resolves that declaration's canonical static shared actor and uses the same runtime ID, preserving declaration-order independence. Actor-owned storage enforcement and serial mailbox/executor queues remain open. First full-slice evidence stays scoped to the measured demand shapes: @MainActor-isolated classes and members, and user-declared global actors of the FoodTruck StoreActor shape (@globalActor actor with a static shared instance, isolated async members, and cross-actor awaits). Each actor feature keeps executing through the documented class-like compatibility path until its actor-runtime replacement lands; FoodTruckCheck, ProjectCheck, and suite ratchets must not regress."
         },
         {
           "id": "actor-reentrancy-and-isolated-dispatch",

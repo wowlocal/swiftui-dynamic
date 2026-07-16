@@ -4,6 +4,45 @@ import Testing
 @Suite("Actor runtime")
 struct ActorRuntimeTests {
     @Test
+    func globalActorIsolationResolvesCanonicalSharedIdentity() throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+            @globalActor
+            actor ProbeGlobalActor {
+                static let shared = ProbeGlobalActor()
+            }
+
+            @ProbeGlobalActor
+            func isolatedOperation() {}
+            """)
+
+        guard case .closure(let operation)? =
+                interpreter.globals.lookup("isolatedOperation") else {
+            Issue.record("missing collected global-actor operation")
+            return
+        }
+        guard case .instance(let shared)? = try interpreter.staticMember(
+            "shared",
+            of: try #require(
+                interpreter.globals.lookup("ProbeGlobalActor")?.typeSymbol)
+        ) else {
+            Issue.record("global actor shared did not produce an actor instance")
+            return
+        }
+        let sharedID = try #require(shared.actorID)
+
+        #expect(operation.globalActorAttributeCandidates.contains(
+            "ProbeGlobalActor"))
+        #expect(try interpreter.resolvedExecutor(for: operation)
+            == .actor(sharedID))
+        #expect(try interpreter.resolvedExecutor(for: operation)
+            == .actor(sharedID))
+        #expect(interpreter.concurrencyRuntime.actors[sharedID]?.instance
+            === shared)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 1)
+    }
+
+    @Test
     func actorInstancesOwnDistinctRuntimeIdentitiesAndReleaseRecords() throws {
         let interpreter = Interpreter()
         _ = try interpreter.run(source: """

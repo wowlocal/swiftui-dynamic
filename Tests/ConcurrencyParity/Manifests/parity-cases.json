@@ -74,6 +74,18 @@
     "notes": "Exact output is actor:none in all 20 Swift 6.3.3 runs. The wrapper observes isolation identity only; no scheduler order or physical thread is asserted."
   },
   {
+    "id": "custom-global-actor-isolation",
+    "fixture": "Fixtures/custom-global-actor-isolation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await customGlobalActorIsolationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A function annotated with a user-declared global actor executes isolated to that declaration's canonical static shared actor, while an explicitly nonisolated function has no current actor isolation.",
+    "notes": "Exact output is same:none in all 20 Swift 6.3.3 runs. Actor identity is compared directly; no physical thread or independent scheduling order is asserted."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",

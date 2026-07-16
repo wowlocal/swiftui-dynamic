@@ -250,9 +250,11 @@ Actor declarations retain reference semantics and their nominal actor kind.
 Each source actor instance now receives a distinct runtime actor ID with a
 non-owning lifetime record. An isolated instance-method closure enters that
 actor's logical executor for its dynamic call extent and restores the caller;
-an explicit `nonisolated` method inherits its caller instead. This is identity
-and entry-hop infrastructure, not complete actor isolation. Real actor behavior
-still requires:
+an explicit `nonisolated` method inherits its caller instead. A function
+annotated with a collected user-defined global actor lazily resolves the
+declaration's canonical `static shared` actor and enters that same logical
+identity. This is identity and entry-hop infrastructure, not complete actor
+isolation. Real actor behavior still requires:
 
 - isolated storage;
 - a serial executor;
@@ -756,10 +758,11 @@ task records its initial executor preference, every task-owned evaluation
 context carries the current executor, and a declaration-level hop installs its
 callee executor for the dynamic call extent before restoring the caller. Host
 bridges read that explicit context. Source actor instances additionally own a
-stable logical actor ID, and isolated instance-method closures select its
-executor identity. This partial M5 phase prevents the physical hosting actor
-from leaking into source observations, but it is not actor serialization or
-executor scheduling.
+stable logical actor ID, isolated instance-method closures select its executor
+identity, and user-declared global-actor attributes resolve lazily through the
+declared type's canonical `static shared` actor. This partial M5 phase prevents
+the physical hosting actor from leaking into source observations, but it is
+not actor serialization or executor scheduling.
 
 Executor rules include:
 
@@ -863,10 +866,12 @@ struct RuntimeActorRecord {
 The incremental runtime currently allocates a distinct `RuntimeActorID` for
 each source actor instance and keeps only a weak instance reference in its
 record. The source reference graph still owns the instance and property boxes;
-final release removes the runtime record. Mailbox state and an executor-owned
-storage capability will attach to this identity in the next sub-slice. Until
-then, the ID and isolated entry hop must not be described as storage
-confinement or serial execution.
+final release removes the runtime record. A collected user-defined global actor
+uses the runtime ID of its lazily evaluated `static shared` actor, so global-
+actor and direct instance isolation share one canonical executor capability.
+Mailbox state and an executor-owned storage capability will attach to this
+identity in the next sub-slice. Until then, the ID and isolated entry hop must
+not be described as storage confinement or serial execution.
 
 The actor instance remains a reference value, but its stored properties are
 executor-confined. Member resolution must identify whether a declaration is:

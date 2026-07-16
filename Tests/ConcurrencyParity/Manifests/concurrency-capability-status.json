@@ -2708,7 +2708,7 @@
       "gapEvidenceIDs": [
         "actor-identity-storage-serial-executor"
       ],
-      "notes": "Distinct source-actor runtime identity, weak record cleanup, and logical isolated instance-method entry are implemented, but actor-owned storage enforcement, serial mailbox/executor queues, and user-declared global-actor mapping are not; this remains the entry slice of the 2026-07-16 demand cycle, scoped first to MainActor isolation and user-declared global actors of the FoodTruck StoreActor shape."
+      "notes": "Distinct source-actor runtime identity, weak record cleanup, logical isolated instance-method entry, and canonical user-declared global-actor mapping through static shared are implemented, but actor-owned storage enforcement and serial mailbox/executor queues are not; this remains the entry slice of the 2026-07-16 demand cycle, scoped first to MainActor isolation and user-declared global actors of the FoodTruck StoreActor shape."
     },
     {
       "id": "actor-reentrancy-and-isolated-dispatch",

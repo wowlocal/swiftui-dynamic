@@ -427,6 +427,18 @@ private enum ConcurrencyParityHarness {
                 .native(context.sourceExecutor.actorID == nil ? "none" : "actor")
             }))
         interpreter.globals.define(
+            "parityCurrentIsolationMatches",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationMatches"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let expectedID = expected.actorID,
+                      let actualID = context.sourceExecutor.actorID else {
+                    return .native("none")
+                }
+                return .native(actualID == expectedID ? "same" : "other")
+            }))
+        interpreter.globals.define(
             "parityRecordHostGatewayEvent",
             .hostFunction(HostFunction(
                 name: "parityRecordHostGatewayEvent"

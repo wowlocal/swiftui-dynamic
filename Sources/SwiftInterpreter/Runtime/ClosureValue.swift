@@ -89,9 +89,16 @@ public final class ClosureValue {
     /// Native spelling of `#function` for a source function declaration,
     /// including its external argument labels.
     public var sourceFunctionName: String?
-    /// A declaration-level source executor hop. `nil` inherits the caller's
-    /// current source executor; task creation supplies its own initial value.
+    /// A declaration-level source executor hop whose identity is available at
+    /// closure formation. `nil` inherits the caller unless lazy global-actor
+    /// metadata below resolves an executor at invocation.
     public var executorPreference: RuntimeExecutorKind?
+    /// Attribute type names that may denote a user-declared global actor.
+    /// Resolution is intentionally lazy: Swift declarations are order
+    /// independent, and the global actor's canonical `shared` instance may
+    /// not exist until its first invocation. Only a collected type marked
+    /// `@globalActor` is accepted; arbitrary attributes remain inert here.
+    public internal(set) var globalActorAttributeCandidates: [String] = []
     /// True only when a source function declaration carries a plain explicit
     /// `nonisolated` modifier with no detail argument. This is intentionally
     /// separate from a nil executor preference: nil also represents actor

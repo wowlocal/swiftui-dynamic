@@ -1189,6 +1189,11 @@ extension Interpreter {
         }
         closure.executorPreference = functionExecutorPreference(
             node, lexicalOwner: lexicalOwner)
+        if !isAnyNonisolated {
+            closure.globalActorAttributeCandidates =
+                functionAttributeNames(node)
+                + lexicalAttributeNames(of: lexicalOwner)
+        }
         if closure.executorPreference == nil,
            !isAnyNonisolated,
            let owner = lexicalOwner as? StructSymbol,
@@ -1205,15 +1210,13 @@ extension Interpreter {
     /// current parity board. `@concurrent` always selects the cooperative
     /// default executor. A `nonisolated` declaration suppresses its lexical
     /// owner's global actor; synchronous nonisolated calls then run inline on
-    /// their caller's executor. Other actor kinds remain explicit M5 work.
+    /// their caller's executor. User-declared global actors are resolved
+    /// lazily from `globalActorAttributeCandidates` at invocation.
     private func functionExecutorPreference(
         _ node: FunctionDeclSyntax,
         lexicalOwner: AnyObject?
     ) -> RuntimeExecutorKind? {
-        let attributes = node.attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-                .split(separator: ".").last.map(String.init)
-        }
+        let attributes = functionAttributeNames(node)
         if attributes.contains("concurrent") {
             return .cooperativeDefault
         }
@@ -1228,6 +1231,25 @@ extension Interpreter {
             return .mainActor
         }
         return nil
+    }
+
+    private func functionAttributeNames(
+        _ node: FunctionDeclSyntax
+    ) -> [String] {
+        node.attributes.compactMap {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+                .split(separator: ".").last.map(String.init)
+        }
+    }
+
+    private func lexicalAttributeNames(of owner: AnyObject?) -> [String] {
+        if let symbol = owner as? StructSymbol {
+            return symbol.attributeNames
+        }
+        if let symbol = owner as? EnumSymbol {
+            return symbol.attributeNames
+        }
+        return []
     }
 
     // MARK: - Helpers
