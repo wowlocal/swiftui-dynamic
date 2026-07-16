@@ -1380,3 +1380,49 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   Details Menu label icon, Status header sort chevron. Pins:
   NumericFormattedAndTableWidthTests (host-native formatted() parity +
   width spec round-trip).
+- 2026-07-16 FROZEN CLOCK lands (worktree iteration 3): the R2/R3 boards
+  are now deterministic across runs and days. FOODTRUCK_FROZEN_NOW
+  (epoch seconds; boards pin 1784228400) freezes `Date.now` on BOTH
+  sides through the SAME env-gated shim: the twin's sync.sh generates
+  HarnessFrozenClock.swift into each target (module-scoped shadowing —
+  the Kit is its own module; precedent: the ActivityKit sed), and
+  FoodTruckCheck appends the identical extension to its merges. The
+  interpreter needed the underlying SEMANTIC: program extensions now
+  SHADOW imported statics (`extension Date { static var now }` beats
+  Foundation's) on both the qualified member path (MemberEvaluator
+  hostFunction arm — extension statics before readHostMember) and the
+  annotation path (resolveAnnotated — hoisted extension static/method
+  arms above the builtin marker arms), matching compiled Swift's
+  same-module rule. Board: orders 2.953%→0.777%, orders-after-complete
+  2.965%→0.777%, orders-after-preparing 3.057%→0.869%, detail-orders
+  3.015%→0.777%, orders-after-steps 4.141%→2.995% (its extra residue is
+  a distinct status-render class); all other rows hold, R1 9/9,
+  AE=0 rows stay 0.000%. foodtruck-r3.sh id loop fixed for zsh (unquoted
+  vars do not word-split). Remaining orders residue: Details Menu icon +
+  Status sort chevron + the after-steps status class; biggest board row
+  is now detail-truck/truck 11.9% (Swift Charts forecast). Pins:
+  InterpretedStaticShadowingTests (qualified + annotation shadowing,
+  env-gated frozen value).
+- 2026-07-16 Swift Charts executes (worktree iteration 4): the Chart/
+  ChartContent result builders run through a new magic-tier gateway
+  (ChartsBridge — documented per AGENTS.md: result-builder execution +
+  `.value` PlottableValue factory glue; everything downstream is REAL
+  Charts). AreaMark/LineMark/BarMark/RectangleMark build as real marks
+  erased to AnyChartContent; mark modifiers (foregroundStyle/opacity/
+  interpolationMethod/cornerRadius/mask/annotation) apply on the erased
+  content, with @ChartContentBuilder method returns and chart ForEach
+  passing mark ARRAYS through makeGroup/the ForEach gateway; chartYScale
+  bridges; custom chartXAxis/chartYAxis builders record a named
+  diagnostic and render DEFAULT axes. Shared coercion:
+  `.linearGradient(colors:startPoint:endPoint:)` resolves to a real
+  LinearGradient in the style funnel (was the thrown error painting the
+  forecast card red). PIN-verified: an interpreted @ChartContentBuilder
+  method renders a REAL area chart (pixel-sampled), gradient factory
+  coerces. Board: truck holds 11.889% — the forecast card body remains
+  BLANK because `@State private var forecast = placeholderForecast`
+  (static-seeded state) resolves empty entries; that data class + the
+  `.indigo.shadow(.drop(…))` style shape + custom axis DSL are the
+  staked next classes. Notable false lead pinned in memory: making
+  [AnyChartContent] an isViewValue routed mark arrays into the STRICT
+  view-modifier retry — reverted; marks are content, not views. Pins:
+  InterpretedChartTests.

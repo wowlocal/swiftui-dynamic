@@ -1350,16 +1350,20 @@ extension Interpreter {
                 default: return global
                 }
             }
+            // Program extensions SHADOW imported statics — `extension Date {
+            // static var now }` wins over Foundation's own, exactly like a
+            // same-module declaration beats an import in compiled Swift
+            // (the FoodTruck frozen-clock harness rides this).
+            if let symbol = hostExtensionSymbols[function.name],
+               let value = try staticMember(name, of: symbol) {
+                return value
+            }
             if let value = try readHostMember(
                 name,
                 on: HostTypeMarker(
                     name: function.name,
                     genericArguments: function.genericArguments),
                 deferringAsyncProperty: deferringAsyncHostProperty) {
-                return value
-            }
-            if let symbol = hostExtensionSymbols[function.name],
-               let value = try staticMember(name, of: symbol) {
                 return value
             }
             // The program EXTENDS this host type: mint a TYPED marker so the
@@ -1595,6 +1599,14 @@ extension Interpreter {
             if !extensionCandidates.isEmpty,
                let value = try hostExtensionMember(
                    name, candidates: extensionCandidates, selfValue: baseValue) {
+                return value
+            }
+            // Program extensions SHADOW imported statics — `extension Date {
+            // static var now }` wins over Foundation's own, exactly like a
+            // same-module declaration beats an import in compiled Swift.
+            if let marker = any as? HostTypeMarker,
+               let hostSymbol = hostExtensionSymbols[marker.name],
+               let value = try staticMember(name, of: hostSymbol) {
                 return value
             }
             // The bridge gets first refusal on host natives (GeometryProxy,

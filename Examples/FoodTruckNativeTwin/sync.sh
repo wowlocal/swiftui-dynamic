@@ -21,4 +21,25 @@ rm -f Sources/FoodTruckNativeTwin/App/App.swift
 # the sample's own gate no longer compiles for macOS. Narrow it to iOS.
 sed -i '' 's/#if canImport(ActivityKit)/#if os(iOS)/' \
     Sources/FoodTruckNativeTwin/App/Orders/OrderDetailView.swift
+# Harness frozen clock (R2/R3 determinism, LOOP.md): FOODTRUCK_FROZEN_NOW
+# pins `Date.now` on BOTH sides. Shadowing is module-scoped, so the shim
+# lands in each target; without the env var behavior is native-identical.
+for target in Sources/FoodTruckKit Sources/FoodTruckNativeTwin; do
+cat > "$target/HarnessFrozenClock.swift" << 'SHIM'
+import Foundation
+
+// HARNESS-GENERATED (sync.sh) — not app source. FOODTRUCK_FROZEN_NOW
+// (epoch seconds) pins the model clock so twin and interpreter captures
+// are comparable across runs; unset, this is exactly Foundation's now.
+extension Date {
+    static var now: Date {
+        if let raw = ProcessInfo.processInfo.environment["FOODTRUCK_FROZEN_NOW"],
+           let epoch = TimeInterval(raw) {
+            return Date(timeIntervalSince1970: epoch)
+        }
+        return Date(timeIntervalSinceNow: 0)
+    }
+}
+SHIM
+done
 echo "synced kit=$(find Sources/FoodTruckKit -name '*.swift' | wc -l | tr -d ' ') app=$(find Sources/FoodTruckNativeTwin/App -name '*.swift' | wc -l | tr -d ' ')"

@@ -1,5 +1,6 @@
 import Darwin
 import SwiftUI
+import Charts
 import SwiftInterpreter
 
 /// The real SwiftUI `HostRegistry`: hand-written gateway tables mapping
@@ -24,6 +25,7 @@ public final class ViewRegistry: HostRegistry {
         registerViews()
         registerModifiers()
         registerGeometryViews()
+        registerChartViews()
     }
 
     public func hostSetMember(_ name: String, on value: Any, to newValue: RuntimeValue) -> Bool {
@@ -197,6 +199,12 @@ public final class ViewRegistry: HostRegistry {
     }
 
     public func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue {
+        // @ChartContentBuilder functions group MARKS, not views — keep the
+        // chart contents raw so mark modifiers and the Chart builder see them.
+        let marks = Self.chartContents(views)
+        if !marks.isEmpty, marks.count >= views.count {
+            return .native(marks)
+        }
         let anyViews = try views.map(Self.anyView)
         return .native(AnyView(VStack { Self.indexed(anyViews) }))
     }

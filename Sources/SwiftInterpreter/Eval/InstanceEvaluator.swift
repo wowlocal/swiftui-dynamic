@@ -1276,6 +1276,24 @@ extension Interpreter {
             return value
         }
 
+        // Program extensions SHADOW imported statics in annotation position
+        // too — `: Date = .now` with an interpreted `extension Date {
+        // static var now }` resolves to the PROGRAM's static, exactly like
+        // a same-module declaration beats an import in compiled Swift.
+        if let hostSymbol = hostExtensionSymbols[typeName] {
+            if case .implicitMember(let memberName) = value,
+               let staticValue = try staticMember(memberName, of: hostSymbol) {
+                return staticValue
+            }
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+               let overloads = hostSymbol.staticMethods[call.name],
+               let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,
+               let body = method.body {
+                let closure = makeFunctionClosure(
+                    method, body: body, captured: selfEnvironment(.type(hostSymbol)))
+                return try callWithArguments(closure, args: call.arguments, node: nil)
+            }
+        }
         // Host-type annotations: `: Date = .init()`, `: CGSize = .init(…)`,
         // `.now`-style statics served by the bridge.
         if case .host(let any) = value, let call = any as? ImplicitMemberCall {
