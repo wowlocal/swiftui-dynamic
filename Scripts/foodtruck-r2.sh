@@ -7,6 +7,9 @@
 # Ratchet: per-screen AE only ever decreases (LOOP.md R2 baseline note).
 set -u
 cd "$(dirname "$0")/.." || exit 2
+# Frozen clock (LOOP.md determinism): both sides pin Date.now so captures
+# compare across runs. 1784228400 = 2026-07-16 19:00:00 UTC, arbitrary.
+export FOODTRUCK_FROZEN_NOW=${FOODTRUCK_FROZEN_NOW:-1784228400}
 TWIN_DIR=/tmp/foodtruck-twin
 INTERP_DIR=/tmp/foodtruck-interp
 mkdir -p "$TWIN_DIR" "$INTERP_DIR"

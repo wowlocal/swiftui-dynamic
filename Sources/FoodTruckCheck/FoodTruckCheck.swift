@@ -50,6 +50,22 @@ struct FoodTruckCheckMain {
             if argument == "--scenario" { scenarioFilter = iterator.next() }
         }
 
+        // Harness frozen clock — the SAME shim the twin's sync.sh generates
+        // (one copy: the merge is a single module). Env-gated; without
+        // FOODTRUCK_FROZEN_NOW behavior is native-identical.
+        let frozenClockShim = """
+
+        extension Date {
+            static var now: Date {
+                if let raw = ProcessInfo.processInfo.environment["FOODTRUCK_FROZEN_NOW"],
+                   let epoch = TimeInterval(raw) {
+                    return Date(timeIntervalSince1970: epoch)
+                }
+                return Date(timeIntervalSinceNow: 0)
+            }
+        }
+        """
+
         // The app + Kit sources; Widgets/ is out of scope (extension process).
         let appFiles = ProjectMaterial.swiftFiles(under: sampleRoot + "/App")
         let kitFiles = ProjectMaterial.swiftFiles(under: sampleRoot + "/FoodTruckKit/Sources")
@@ -81,6 +97,7 @@ struct FoodTruckCheckMain {
 
         // ── R0: the real @main shell ────────────────────────────────────────────
         let fullMerge = ProjectMaterial.mergedSource(at: sampleRoot, files: appFiles + kitFiles)
+            + frozenClockShim
 
         if screenFilter == nil {
             rung("R0-shell") {
@@ -119,7 +136,7 @@ struct FoodTruckCheckMain {
         // App.swift swaps for the probe app — the twin's documented divergence.
         let appFilesWithoutMain = appFiles.filter { !$0.hasSuffix("/App/App.swift") }
         let probeMergeBase = ProjectMaterial.mergedSource(
-            at: sampleRoot, files: appFilesWithoutMain + kitFiles)
+            at: sampleRoot, files: appFilesWithoutMain + kitFiles) + frozenClockShim
 
         // ── R2 capture mode: PNG per id, same technique as the twin ──
         if let captureDirectory {
