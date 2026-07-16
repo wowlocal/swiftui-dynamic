@@ -54,7 +54,7 @@ extension ViewRegistry {
                 throw RuntimeError(message: "Chart needs a content builder")
             }
             let values = try ctx.callBuilderClosure(content, arguments: [])
-            let marks = Self.chartContents(values)
+            let marks = Self.chartContents(values, recordDrops: true)
             return .native(AnyView(Chart { Self.composed(marks) }))
         }
 
@@ -206,15 +206,36 @@ extension ViewRegistry {
     }
 
     /// Builder output → real chart contents (ForEach fans splice like views).
-    static func chartContents(_ values: [RuntimeValue]) -> [AnyChartContent] {
+    static func chartContents(
+        _ values: [RuntimeValue], recordDrops: Bool = false
+    ) -> [AnyChartContent] {
         var marks: [AnyChartContent] = []
         for value in values {
+            var matched = false
             if case .host(let any) = value {
                 if let mark = any as? AnyChartContent {
                     marks.append(mark)
+                    matched = true
                 } else if let nested = any as? [AnyChartContent] {
                     marks.append(contentsOf: nested)
+                    matched = true
                 }
+            }
+            if case .array(let elements) = value {
+                // A builder statement that came back as a runtime array of
+                // marks (nested builder results) — splice, don't drop.
+                let inner = chartContents(elements)
+                if !inner.isEmpty {
+                    marks.append(contentsOf: inner)
+                    matched = true
+                }
+            }
+            var isVoid = false
+            if case .void = value { isVoid = true }
+            if !matched, !isVoid, recordDrops {
+                RenderDiagnostics.record(
+                    RuntimeError(message: "chart content dropped: \(String(describing: value).prefix(120))"),
+                    in: "Chart")
             }
         }
         return marks
@@ -296,7 +317,8 @@ func chartContentMember(_ name: String, on value: Any) -> RuntimeValue? {
     case "mask":
         return .hostFunction(HostFunction(name: name) { args, ctx in
             guard let closure = args.firstUnlabeledClosure else { return .native(mark) }
-            let inner = ViewRegistry.chartContents(try ctx.callBuilderClosure(closure, arguments: []))
+            let inner = ViewRegistry.chartContents(
+                try ctx.callBuilderClosure(closure, arguments: []), recordDrops: true)
             return .native(AnyChartContent(mark.mask {
                 ViewRegistry.composed(inner)
             }))
