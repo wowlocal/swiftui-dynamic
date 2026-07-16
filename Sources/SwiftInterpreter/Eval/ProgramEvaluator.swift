@@ -126,6 +126,7 @@ extension Interpreter {
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
+        try validatePendingDeinitializerIsolation()
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void
@@ -260,6 +261,7 @@ extension Interpreter {
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
+        try validatePendingDeinitializerIsolation()
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void

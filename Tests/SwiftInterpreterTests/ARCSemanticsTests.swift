@@ -332,6 +332,95 @@ struct ARCSemanticsTests {
         }
     }
 
+    @Test
+    func explicitUserGlobalActorDeinitializerFailsClosedAfterResolution() throws {
+        do {
+            _ = try Interpreter().run(source: """
+                final class GlobalOwned {
+                    @TeardownActor deinit {}
+                }
+                @globalActor actor TeardownActor {
+                    static let shared = TeardownActor()
+                }
+                GlobalOwned()
+                """)
+            Issue.record("global-actor deinitializer was silently admitted")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.line == 2)
+            #expect(error.message.contains("global-actor deinitializer"))
+            #expect(error.message.contains("@TeardownActor"))
+            #expect(error.message.contains("executor-owned teardown"))
+        }
+    }
+
+    @Test
+    func globalActorTypealiasDeinitializerFailsClosedAfterResolution() throws {
+        do {
+            _ = try Interpreter().run(source: """
+                @globalActor actor TeardownActor {
+                    static let shared = TeardownActor()
+                }
+                typealias TeardownAlias = TeardownActor
+                final class GlobalOwned {
+                    @TeardownAlias deinit {}
+                }
+                GlobalOwned()
+                """)
+            Issue.record("aliased global-actor deinitializer was silently admitted")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.line == 6)
+            #expect(error.message.contains("global-actor deinitializer"))
+            #expect(error.message.contains("@TeardownAlias"))
+            #expect(error.message.contains("executor-owned teardown"))
+        }
+    }
+
+    @Test
+    func qualifiedNestedGlobalActorDeinitializerFailsClosedAfterResolution() throws {
+        do {
+            _ = try Interpreter().run(source: """
+                struct Namespace {
+                    @globalActor actor TeardownActor {
+                        static let shared = TeardownActor()
+                    }
+                }
+                final class GlobalOwned {
+                    @Namespace.TeardownActor deinit {}
+                }
+                GlobalOwned()
+                """)
+            Issue.record("qualified global-actor deinitializer was silently admitted")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.line == 7)
+            #expect(error.message.contains("global-actor deinitializer"))
+            #expect(error.message.contains("@Namespace.TeardownActor"))
+            #expect(error.message.contains("executor-owned teardown"))
+        }
+    }
+
+    @Test
+    func enclosingGlobalActorKeepsOrdinaryDeinitializerSupported() throws {
+        let result = try Interpreter().run(source: """
+            var events: [String] = []
+            @globalActor actor TeardownActor {
+                static let shared = TeardownActor()
+            }
+            @TeardownActor final class GlobalOwned {
+                deinit { events.append("ordinary") }
+            }
+            do {
+                let value = GlobalOwned()
+                _ = value
+            }
+            events.joined(separator: ",")
+            """)
+
+        #expect(result.stringValue == "ordinary")
+    }
+
     @Test func ordinaryActorDeinitializerRemainsSupported() throws {
         let result = try Interpreter().run(source: """
             var events: [String] = []

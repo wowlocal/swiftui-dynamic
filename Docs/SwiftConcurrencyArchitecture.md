@@ -1086,9 +1086,14 @@ same-source probe now establishes that `isolated deinit` on a MainActor class
 inherits that executor and may use the already-owned synchronous fast path.
 The interpreter previously discarded this modifier and ran the body inline;
 declaration collection now fails closed before storing it. Explicit
-`nonisolated deinit` remains supported. Arbitrary global-actor deinitializer
-attributes and custom actor executors remain separate safety-boundary
-questions.
+`nonisolated deinit` remains supported. A second repository-owned same-source
+probe establishes the corresponding already-owned fast path for an explicit
+user-declared global-actor deinitializer. The interpreter now resolves
+forward declarations, qualified nested types, and typealiases before deciding
+whether an explicit deinitializer attribute names `@globalActor`, then fails
+closed before its body can run. An actor annotation on the enclosing class
+alone does not change Swift's ordinary nonisolated-deinitializer rule. Custom
+actor executors remain the separate safety-boundary question.
 The per-feature fail-closed safety boundary remains open M5 work.
 
 ### 6.13 Cancellation

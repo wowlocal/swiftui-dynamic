@@ -581,6 +581,11 @@ public final class Interpreter {
     /// Member typealiases whose targets resolve only after the extension
     /// pass (typealias API = TestWebRepository.API).
     var pendingMemberAliases: [(StructSymbol, String, String)] = []
+    /// Explicitly attributed deinitializers are validated only after every
+    /// nominal declaration and typealias has been collected. This keeps
+    /// global-actor isolation lookup declaration-order-independent without
+    /// treating unrelated attributes as actor isolation.
+    var pendingDeinitializerIsolationChecks: [DeinitializerDeclSyntax] = []
     /// Property/method collision preferences currently evaluating — the
     /// property's own body reaching the same name falls to the METHOD.
     var activeCollisionProperties: Set<String> {

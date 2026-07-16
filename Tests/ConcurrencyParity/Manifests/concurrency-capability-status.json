@@ -2692,6 +2692,7 @@
       "verificationStatus": "none",
       "requirementRef": "M5/actor-declaration-safety-boundary",
       "evidenceCaseIDs": [
+        "actor-global-actor-deinitializer",
         "actor-isolated-deinitializer"
       ],
       "testNames": [
@@ -2699,12 +2700,16 @@
         "ARCSemanticsTests/explicitMainActorDeinitializerFailsClosedDuringCollection",
         "ARCSemanticsTests/ordinaryActorDeinitializerRemainsSupported",
         "ARCSemanticsTests/isolatedDeinitializerFailsClosedDuringCollection",
-        "ARCSemanticsTests/explicitNonisolatedActorDeinitializerRemainsSupported"
+        "ARCSemanticsTests/explicitNonisolatedActorDeinitializerRemainsSupported",
+        "ARCSemanticsTests/explicitUserGlobalActorDeinitializerFailsClosedAfterResolution",
+        "ARCSemanticsTests/globalActorTypealiasDeinitializerFailsClosedAfterResolution",
+        "ARCSemanticsTests/qualifiedNestedGlobalActorDeinitializerFailsClosedAfterResolution",
+        "ARCSemanticsTests/enclosingGlobalActorKeepsOrdinaryDeinitializerSupported"
       ],
       "gapEvidenceIDs": [
         "actor-declaration-safety-boundary"
       ],
-      "notes": "Synchronous actor initialization is characterized as lexically nonisolated while seeding a newly registered actor, followed by mailbox-owned isolated entry and final actor-record cleanup. Task-local bindings remain task-owned through actor entry, suspension/reacquisition, and scope restoration while each actor segment owns its mailbox. Cancelling an already queued cross-actor call preserves its waitingForActor edge; mailbox handoff still enters the method with ownership and the request remains available for cooperative observation. Synchronous and async actor functions, externally awaited synchronous computed-property and subscript getters, async computed/subscript getters, computed-property and subscript setters invoked inside an already-owned actor segment, explicit plus defaulted/optional source-actor, MainActor, custom-global-actor, and nil isolated parameters, and mutable stored-property access now require the canonical async source task to own the matching mailbox lease when an actor is selected; compiler preflight rejects external setter mutation even with await, canonical waits release and restore actor leases, cross-actor throwing/cancellation-observing functions plus successful, source-throwing, or cancelled async computed/subscript getters balance target/caller ownership before subsequent caller work, and replayable seeded mailbox stress proves complete runtime draining. Remaining unsupported forms still require explicit dispositions; the 2026-07-16 demand re-plan forbids an up-front global rejection."
+      "notes": "Synchronous actor initialization is characterized as lexically nonisolated while seeding a newly registered actor, followed by mailbox-owned isolated entry and final actor-record cleanup. Task-local bindings remain task-owned through actor entry, suspension/reacquisition, and scope restoration while each actor segment owns its mailbox. Cancelling an already queued cross-actor call preserves its waitingForActor edge; mailbox handoff still enters the method with ownership and the request remains available for cooperative observation. Synchronous and async actor functions, externally awaited synchronous computed-property and subscript getters, async computed/subscript getters, computed-property and subscript setters invoked inside an already-owned actor segment, explicit plus defaulted/optional source-actor, MainActor, custom-global-actor, and nil isolated parameters, and mutable stored-property access now require the canonical async source task to own the matching mailbox lease when an actor is selected; compiler preflight rejects external setter mutation even with await, canonical waits release and restore actor leases, cross-actor throwing/cancellation-observing functions plus successful, source-throwing, or cancelled async computed/subscript getters balance target/caller ownership before subsequent caller work, and replayable seeded mailbox stress proves complete runtime draining. Explicit isolated, MainActor, and user-global-actor deinitializers fail closed until executor-owned teardown exists; the user-global-actor lookup is declaration-order- and alias-independent, while an ordinary deinitializer remains nonisolated even when its enclosing class carries that actor. Custom-executor actor forms still require an explicit disposition; the 2026-07-16 demand re-plan forbids an up-front global rejection."
     },
     {
       "id": "actor-identity-storage-and-serial-executor",

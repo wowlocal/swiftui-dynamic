@@ -6540,3 +6540,44 @@ requires stable native execution plus every declared diagnostic fragment, so a
 returned source string cannot masquerade as a diagnostic. The same-source
 differential and focused ARC tests are GREEN. The M5 boundary remains open for
 arbitrary global-actor deinitializer attributes and custom-executor teardown.
+
+### M5 user global-actor deinitializer boundary
+
+The repository-owned same-source fixture
+`Tests/ConcurrencyParity/Fixtures/actor-global-actor-deinitializer.swift` has
+SHA-256
+`7736ed5ae758e32e47a6733f7ce1d24d7b6eff712723d4f3051e6aa6a169bd1e`.
+It asks one question: when a class explicitly annotates its deinitializer with
+a source-declared global actor and final release already owns that actor, does
+teardown finish before the following actor-isolated statement?
+
+Apple Swift 6.3.3 (`swiftlang-6.3.3.1.3`) compiled the fixture against SDK
+26.5 for `arm64-apple-macosx26.0` with Swift 6, complete strict concurrency,
+and parse-as-library. Twenty bounded native executions returned exactly
+`deinit`; the concatenated output SHA-256 was
+`31a22641c2d9978ed6e65d1f374a2bca272f06ab1a95b0c245524d9c3e56f697`.
+This proves only the already-owned synchronous fast path. It does not establish
+off-executor scheduling, physical-thread behavior, or an order between
+independent tasks.
+
+This is a gap closure. Before the production change, all twenty interpreted
+fresh-process repetitions silently returned `deinit`; the declaration
+collector treated `@ParityTeardownActor` as an unrelated attribute and stored
+the body for ordinary synchronous ARC. The common collector now retains
+explicitly attributed deinitializers as pending isolation checks. After every
+nominal declaration, deferred extension, nested type, and typealias has been
+resolved, it verifies the attribute's declaration metadata. An attribute that
+actually names `@globalActor` raises the located fatal diagnostic
+`global-actor deinitializer '@…' requires executor-owned teardown, which is
+not supported yet` before top-level evaluation begins. The mechanism does not
+recognize the fixture, class, or actor name.
+
+Focused regressions prove declaration-order-independent resolution, a
+global-actor typealias, and Swift's separate rule that an ordinary
+deinitializer remains nonisolated when only its enclosing class carries the
+actor annotation. The ARC suite is GREEN at 57/57, and the exact differential
+is GREEN in 20/20 native and fresh interpreted repetitions with native
+observation digest
+`712624bccfecdd59be5c0dd5d11e430671dca20fe3f8d82510ebc022f48aa578`.
+The M5 safety boundary remains open only for the custom-executor actor-form
+audit; no physical parallelism is claimed.

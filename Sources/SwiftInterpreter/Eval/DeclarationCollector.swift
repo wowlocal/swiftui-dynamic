@@ -24,6 +24,7 @@ extension Interpreter {
     }
 
     func collectDeclarations(from file: SourceFileSyntax) throws {
+        pendingDeinitializerIsolationChecks.removeAll(keepingCapacity: true)
         for item in expandedTopLevelItems(file.statements) {
             guard case .decl(let decl) = item.item else { continue }
             if let structDecl = decl.as(StructDeclSyntax.self) {
@@ -555,6 +556,9 @@ extension Interpreter {
                         line: located.line,
                         column: located.column,
                         fatal: true)
+                }
+                if !attributeNames.isEmpty {
+                    pendingDeinitializerIsolationChecks.append(deinitDecl)
                 }
                 symbol.deinitBody = deinitDecl.body
             } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
@@ -1427,6 +1431,94 @@ extension Interpreter {
             // @Perception.Bindable ≡ @Bindable, @SwiftUI.State ≡ @State.
             return text == name || text.hasSuffix("." + name)
         }
+    }
+
+    /// Resolve explicit deinitializer attributes after collection has made
+    /// forward declarations, nested nominals, and typealiases available.
+    /// Only attributes whose declaration is itself marked `@globalActor`
+    /// are rejected; macros and ordinary declaration attributes stay inert.
+    func validatePendingDeinitializerIsolation() throws {
+        let pending = pendingDeinitializerIsolationChecks
+        pendingDeinitializerIsolationChecks.removeAll(keepingCapacity: true)
+
+        for deinitDecl in pending {
+            let attributeNames = deinitDecl.attributes.compactMap {
+                $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+            }
+            guard let globalActorName = attributeNames.first(where: {
+                isGlobalActorTypeName($0)
+            }) else { continue }
+
+            let located = error(
+                deinitDecl,
+                "global-actor deinitializer '@\(globalActorName)' requires "
+                    + "executor-owned teardown, which is not supported yet")
+            throw RuntimeError(
+                message: located.message,
+                line: located.line,
+                column: located.column,
+                fatal: true)
+        }
+    }
+
+    private func isGlobalActorTypeName(_ name: String) -> Bool {
+        let finalName = name.split(separator: ".").last.map(String.init)
+            ?? name
+        if finalName == "MainActor" { return true }
+
+        var alias = finalName
+        var seen: Set<String> = []
+        while seen.insert(alias).inserted, let target = aliasHeads[alias] {
+            alias = target.split(separator: ".").last.map(String.init)
+                ?? target
+            if alias == "MainActor" { return true }
+        }
+
+        guard let type = typeValueForIsolationAttribute(name) else {
+            return false
+        }
+        let attributes: [String]
+        switch type {
+        case .type(let symbol):
+            attributes = symbol.attributeNames
+        case .enumType(let symbol):
+            attributes = symbol.attributeNames
+        default:
+            return false
+        }
+        return attributes.contains {
+            $0 == "globalActor" || $0.hasSuffix(".globalActor")
+        }
+    }
+
+    private func typeValueForIsolationAttribute(
+        _ name: String
+    ) -> RuntimeValue? {
+        if let direct = globals.lookup(name) { return direct }
+
+        let components = name.split(separator: ".").map(String.init)
+        guard let first = components.first,
+              var current = globals.lookup(first) else {
+            if let final = components.last { return globals.lookup(final) }
+            return nil
+        }
+        for component in components.dropFirst() {
+            switch current {
+            case .type(let symbol):
+                guard let nested = symbol.nestedTypes[component] else {
+                    return globals.lookup(components.last ?? component)
+                }
+                current = nested
+            case .enumType(let symbol):
+                guard let nested = symbol.nestedTypes[component] else {
+                    return globals.lookup(components.last ?? component)
+                }
+                current = nested
+            default:
+                return nil
+            }
+        }
+        return current
     }
 
     private func isStatic(_ modifiers: DeclModifierListSyntax) -> Bool {

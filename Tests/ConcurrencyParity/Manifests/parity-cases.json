@@ -126,6 +126,22 @@
     "notes": "Native exact output is deinit in all repetitions. This proves only the already-owned synchronous fast path. The interpreter must fail closed because its general source ARC path cannot schedule executor-owned teardown; ordinary and explicit nonisolated deinitializers remain supported."
   },
   {
+    "id": "actor-global-actor-deinitializer",
+    "fixture": "Fixtures/actor-global-actor-deinitializer.swift",
+    "mode": "runtime",
+    "assertion": "interpreter-diagnostic",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorGlobalActorDeinitializerProbe()",
+    "interpreterProjection": "string",
+    "interpreterDiagnosticContains": [
+      "global-actor deinitializer",
+      "executor-owned teardown"
+    ],
+    "nativeFact": "A deinitializer explicitly isolated to a user-declared global actor runs before the next statement when final release already owns that actor's executor.",
+    "notes": "Native exact output is deinit in all repetitions. This proves only the already-owned synchronous fast path. The interpreter must fail closed because its general source ARC path cannot schedule executor-owned teardown; an enclosing global-actor annotation does not by itself isolate an ordinary deinitializer."
+  },
+  {
     "id": "actor-task-local-propagation",
     "fixture": "Fixtures/actor-task-local-propagation.swift",
     "mode": "runtime",
