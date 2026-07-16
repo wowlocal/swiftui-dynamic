@@ -1010,6 +1010,153 @@ struct AsyncExecutionTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func taskExecutorPreferenceNilScopePreservesTaskStateAndCleansUp()
+    async throws {
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent(
+                "with-task-executor-preference-nil.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait taskExecutorPreferenceNilProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue ==
+            "success:true:preference-success:25:bound:false:"
+                + "true:preference-success:25:bound:false"
+                + "|error:true|cancel:false:false:true:preference-cancel:true")
+        #expect(interpreter.concurrencyRuntime.records.isEmpty)
+        #expect(interpreter.concurrencyRuntime.structuredScopes.isEmpty)
+        #expect(interpreter.concurrencyRuntime.taskGroups.isEmpty)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func taskExecutorPreferenceUnsupportedShapesFailClosed() async {
+        let cases = [
+            (
+                source: """
+                await withTaskExecutorPreference(
+                    "custom", isolation: nil, operation: { 1 })
+                """,
+                expected: "requires an explicit nil task executor"
+            ),
+            (
+                source: """
+                await withTaskExecutorPreference(nil, operation: { 1 })
+                """,
+                expected: "isolation:) currently requires explicit nil"
+            ),
+            (
+                source: """
+                @MainActor func isolatedPreferenceOperation() async -> Int {
+                    1
+                }
+                await withTaskExecutorPreference(
+                    nil,
+                    isolation: nil,
+                    operation: isolatedPreferenceOperation)
+                """,
+                expected: "function explicitly declared nonisolated"
+            ),
+            (
+                source: """
+                nonisolated(nonsending)
+                func nonsendingPreferenceOperation() async -> Int { 1 }
+                await withTaskExecutorPreference(
+                    nil,
+                    isolation: nil,
+                    operation: nonsendingPreferenceOperation)
+                """,
+                expected: "function explicitly declared nonisolated"
+            ),
+            (
+                source: """
+                nonisolated func nonisolatedPreferenceOperation() async -> Int {
+                    1
+                }
+                await withTaskExecutorPreference(
+                    nil,
+                    isolation: MainActor.shared,
+                    operation: nonisolatedPreferenceOperation)
+                """,
+                expected: "isolation:) currently requires explicit nil"
+            ),
+            (
+                source: """
+                await withTaskExecutorPreference(
+                    nil, isolation: nil, operation: { 1 })
+                """,
+                expected: "function explicitly declared nonisolated"
+            ),
+            (
+                source: """
+                @globalActor actor PreferenceProbeActor {
+                    static let shared = PreferenceProbeActor()
+                }
+                @PreferenceProbeActor
+                func customActorPreferenceOperation() async -> Int { 1 }
+                await withTaskExecutorPreference(
+                    nil,
+                    isolation: nil,
+                    operation: customActorPreferenceOperation)
+                """,
+                expected: "function explicitly declared nonisolated"
+            ),
+            (
+                source: """
+                await withTaskExecutorPreference(
+                    isolation: nil, operation: { 1 })
+                """,
+                expected: "requires an explicit task executor argument"
+            ),
+        ]
+
+        for testCase in cases {
+            let interpreter = Interpreter()
+            do {
+                _ = try await interpreter.runAsync(source: testCase.source)
+                Issue.record("unsupported task-executor shape was accepted")
+            } catch let error as RuntimeError {
+                #expect(error.message.contains(testCase.expected))
+            } catch {
+                Issue.record("unexpected task-executor diagnostic: \(error)")
+            }
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
+    }
+
+    @Test func taskExecutorPreferenceRejectsStaleRuntimeContext() async {
+        let interpreter = Interpreter()
+        let staleContext = interpreter.makeEvaluationTaskContext(
+            runtimeTaskID: RuntimeTaskID(rawValue: 999),
+            runtimeSessionID: RuntimeSessionID(rawValue: 999),
+            isAsyncSession: true)
+        let boundContext = TaskBoundEvalContext(
+            interpreter: interpreter, evaluationContext: staleContext)
+
+        do {
+            _ = try await EvaluationTaskContext.$current.withValue(
+                staleContext
+            ) {
+                try await interpreter.sourceTaskExecutorPreferenceFunction()
+                    .invokeSuspending(CallArguments(), boundContext)
+            }
+            Issue.record("stale runtime context was accepted")
+        } catch let error as RuntimeError {
+            #expect(error.message.contains(
+                "requires an active canonical async runtime task"))
+        } catch {
+            Issue.record("unexpected stale-context diagnostic: \(error)")
+        }
+        #expect(interpreter.concurrencyRuntime.records.isEmpty)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func taskLocalStorageIsTaskOwnedInheritedAndCleaned() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

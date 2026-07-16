@@ -92,6 +92,12 @@ public final class ClosureValue {
     /// A declaration-level source executor hop. `nil` inherits the caller's
     /// current source executor; task creation supplies its own initial value.
     public var executorPreference: RuntimeExecutorKind?
+    /// True only when a source function declaration carries a plain explicit
+    /// `nonisolated` modifier with no detail argument. This is intentionally
+    /// separate from a nil executor preference: nil also represents actor
+    /// kinds the incremental runtime cannot identify yet, so it is not proof
+    /// of nonisolation.
+    public var isExplicitlyNonisolated = false
     /// Statically proven lexical executor inherited by a source closure
     /// expression. This must not be inferred from the dynamic executor on
     /// which a nonisolated factory happened to run. APIs whose parameters

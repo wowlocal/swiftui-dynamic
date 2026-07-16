@@ -1084,6 +1084,9 @@ extension Interpreter {
             .joined()
         closure.sourceFunctionName =
             "\(node.name.text)(\(parameterLabels))"
+        closure.isExplicitlyNonisolated = node.modifiers.contains {
+            $0.trimmedDescription == "nonisolated"
+        }
         closure.executorPreference = functionExecutorPreference(
             node, lexicalOwner: lexicalOwner)
         return closure

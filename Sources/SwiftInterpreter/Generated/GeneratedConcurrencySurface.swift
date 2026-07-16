@@ -9,6 +9,7 @@ enum RuntimeConcurrencyFunctionIntrinsic: String, Sendable {
     case withCurrentTaskCapability
     case withDiscardingTaskGroup
     case withTaskCancellationHandler
+    case withTaskExecutorPreference
     case withTaskGroup
     case withTaskPriorityEscalationHandler
     case withThrowingDiscardingTaskGroup
@@ -120,6 +121,7 @@ enum GeneratedConcurrencySurface {
         "detach": .detachedTask,
         "withDiscardingTaskGroup": .withDiscardingTaskGroup,
         "withTaskCancellationHandler": .withTaskCancellationHandler,
+        "withTaskExecutorPreference": .withTaskExecutorPreference,
         "withTaskGroup": .withTaskGroup,
         "withTaskPriorityEscalationHandler": .withTaskPriorityEscalationHandler,
         "withThrowingDiscardingTaskGroup": .withThrowingDiscardingTaskGroup,

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "a3c9f545021d6b3afb2121bb60fce40470489842e2d7039198229857d60d311a",
+  "inventorySHA256": "61fa2bfe0b763ba7c9b4284669f7b8b0c7d85ad600b9ef40cab773c6cacd7b3a",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -28,7 +28,7 @@
     "excluded": [
       "public _Concurrency declarations outside the generated inventory scope",
       "distributed actors and distributed actor transports",
-      "custom executor preference APIs not yet decomposed into acceptance requirements"
+      "custom TaskExecutor scheduling, ambient-preference inheritance, and non-nil preference semantics beyond explicitly ledgered nil-preference subsets"
     ],
     "capabilityIDs": [
       "core-async-await-language",
@@ -2468,6 +2468,28 @@
         "generated-concurrency-signatures-and-preflight"
       ],
       "notes": "unownedTaskExecutor is inventoried and fails closed. Native nil/default behavior is distinct from MainActor, while nonnil values reflect explicit TaskExecutor preference; mapping it requires the M5 executor-preference runtime rather than reusing RuntimeExecutorKind."
+    },
+    {
+      "id": "swift-concurrency-api-v1:e68748f7bb9c746670485d2f0151129a63ad918994e692bede2ca9d7e622cd05",
+      "implementationStatus": "known-divergence",
+      "verificationStatus": "none",
+      "requirementRef": "M7/generated-signatures-and-preflight",
+      "evidenceCaseIDs": [
+        "with-task-executor-preference-nil"
+      ],
+      "testNames": [
+        "ConcurrencySurfaceGeneratorTests/syntheticInterfacePreservesOverloadsEffectsAndIsolation",
+        "ConcurrencySurfaceGeneratorTests/checkedInSurfaceMatchesActiveSDKAndRetainsCoreEffects",
+        "TaskGroupSurfaceTests/activeInterfaceAliasesResolveToRuntimeIntrinsics",
+        "AsyncExecutionTests/taskExecutorPreferenceNilScopePreservesTaskStateAndCleansUp",
+        "AsyncExecutionTests/taskExecutorPreferenceUnsupportedShapesFailClosed",
+        "AsyncExecutionTests/taskExecutorPreferenceRejectsStaleRuntimeContext",
+        "ConcurrencyMethodologyTests/taskExecutorPreferenceHasExplicitReviewedDisposition"
+      ],
+      "gapEvidenceIDs": [
+        "generated-concurrency-signatures-and-preflight"
+      ],
+      "notes": "The generated declaration routes to a same-task dynamic scope for the evidenced subset with no ambient custom TaskExecutor, an explicit nil executor argument, explicit nil isolation, and a named operation function carrying a plain explicit nonisolated modifier with no detail. Across a forced suspension, the operation retains RuntimeTaskID, name, effective priority, task-local bindings, and cancellation, propagates exact values and source errors, and creates no child task or copied context. Native nil inherits an ambient custom executor preference rather than clearing it; custom executors, ambient-preference inheritance, omitted or non-nil isolation, actor-isolated operations, nonisolated(nonsending), and closure-expression operations remain unsupported. Those shapes fail closed, so the complete declaration remains a known divergence with verification none."
     }
   ],
   "semanticCapabilities": [

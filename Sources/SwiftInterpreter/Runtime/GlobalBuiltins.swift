@@ -146,6 +146,9 @@ extension Interpreter {
             } else if intrinsic == .withTaskPriorityEscalationHandler {
                 function = sourceTaskPriorityEscalationHandlerFunction(
                     name: sourceName)
+            } else if intrinsic == .withTaskExecutorPreference {
+                function = sourceTaskExecutorPreferenceFunction(
+                    name: sourceName)
             } else if intrinsic == .withCurrentTaskCapability {
                 function = sourceCurrentTaskCapabilityFunction(
                     name: sourceName)

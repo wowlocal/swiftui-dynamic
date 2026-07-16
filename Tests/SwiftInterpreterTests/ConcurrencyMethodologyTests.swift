@@ -1410,6 +1410,63 @@ struct ConcurrencyMethodologyTests {
         })
     }
 
+    @Test func taskExecutorPreferenceHasExplicitReviewedDisposition() throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let expectedID =
+            "swift-concurrency-api-v1:e68748f7bb9c746670485d2f0151129a63ad918994e692bede2ca9d7e622cd05"
+        let row = try #require(inventory.declarations.first {
+            $0.id == expectedID
+        })
+
+        #expect(row.domain == "top-level-function")
+        #expect(row.name == "withTaskExecutorPreference")
+        #expect(row.adapterIntrinsic == "withTaskExecutorPreference")
+        #expect(row.declaration.contains(
+            "withTaskExecutorPreference<T, Failure>"))
+        #expect(row.declaration.contains(
+            "_ taskExecutor: (any _Concurrency.TaskExecutor)?"))
+        #expect(row.declaration.contains(
+            "isolation: isolated (any _Concurrency.Actor)? = #isolation"))
+        #expect(row.declaration.contains(
+            "operation: () async throws(Failure) -> T"))
+        #expect(row.declaration.contains(
+            ") async throws(Failure) -> T where Failure : Swift.Error"))
+
+        let claim = try #require(status.interfaceOverrides.first {
+            $0.id == expectedID
+        })
+        #expect(claim.implementationStatus == .knownDivergence)
+        #expect(claim.verificationStatus == .none)
+        #expect(claim.requirementRef
+            == "M7/generated-signatures-and-preflight")
+        #expect(claim.evidenceCaseIDs
+            == ["with-task-executor-preference-nil"])
+        #expect(claim.testNames.contains(
+            "AsyncExecutionTests/taskExecutorPreferenceNilScopePreservesTaskStateAndCleansUp"))
+        #expect(claim.testNames.contains(
+            "AsyncExecutionTests/taskExecutorPreferenceUnsupportedShapesFailClosed"))
+        #expect(claim.testNames.contains(
+            "AsyncExecutionTests/taskExecutorPreferenceRejectsStaleRuntimeContext"))
+        #expect(claim.gapEvidenceIDs
+            == ["generated-concurrency-signatures-and-preflight"])
+        #expect(claim.notes.contains("no ambient custom TaskExecutor"))
+        #expect(claim.notes.contains("plain explicit nonisolated"))
+        #expect(claim.notes.contains("inherits an ambient custom executor"))
+        #expect(claim.notes.contains("nonisolated(nonsending)"))
+        #expect(claim.notes.contains("closure-expression operations"))
+    }
+
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)

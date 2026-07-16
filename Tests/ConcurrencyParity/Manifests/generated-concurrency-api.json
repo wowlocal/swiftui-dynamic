@@ -8865,6 +8865,7 @@
       "returnType" : "T"
     },
     {
+      "adapterIntrinsic" : "withTaskExecutorPreference",
       "attributes" : [
         "@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)"
       ],
@@ -9482,7 +9483,7 @@
     "targetTriple" : "arm64e-apple-macosx26.5"
   },
   "summary" : {
-    "adapterRoutedDeclarationCount" : 121,
+    "adapterRoutedDeclarationCount" : 122,
     "declarationCount" : 171,
     "declarationsByDomain" : {
       "selected-nominal-member" : 9,

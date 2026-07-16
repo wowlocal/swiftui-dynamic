@@ -766,6 +766,52 @@ Executor rules include:
 - global actors use the same abstraction;
 - `MainActor` maps to the native main actor at the host boundary.
 
+#### `withTaskExecutorPreference` is a same-task dynamic scope
+
+`withTaskExecutorPreference` does not create a child task. Its operation runs
+under the caller's existing `RuntimeTaskID`, evaluation context, task-local
+storage, cancellation record, name, and effective priority. The adapter calls
+the operation through the ordinary suspending closure path and must not create
+a task record, copy a context, or mutate logical executor identity merely to
+represent scope entry and exit. Exact values and source errors propagate
+unchanged.
+
+Before argument validation, the adapter requires that the ambient task-owned
+context is still bound to a live `.running` runtime record with the same
+`RuntimeTaskID`. A retained host callback context whose record has already been
+released fails closed; non-nil IDs alone are not an active-task capability.
+
+The committed incremental subset is deliberately narrow:
+
+- there is no ambient custom `TaskExecutor` preference;
+- the unlabeled task-executor argument is explicitly `nil`;
+- `isolation:` is present and explicitly `nil` rather than omitted as
+  `#isolation`;
+- `operation:` is a named function with a plain explicit `nonisolated`
+  modifier.
+
+Plain explicit nonisolation is tracked as independent closure metadata. A nil
+`ClosureValue.executorPreference` is not sufficient proof: it also represents
+custom actor kinds whose identity is not modeled yet. Closure expressions,
+actor-isolated functions, and `nonisolated(nonsending)` functions therefore
+fail closed in this subset instead of being reclassified from dynamic caller
+state.
+
+Native `withTaskExecutorPreference(nil)` inherits an ambient custom preference;
+it does not clear one. Consequently, the absence of an ambient custom
+preference is part of the positive contract, not an implementation shortcut.
+Future custom-executor support needs a distinct preference identity and
+dynamic scope stack. It must not reuse `RuntimeTaskRecord.executorPreference`
+or `RuntimeExecutorKind`, which currently describe logical source executor
+ownership rather than a Swift `TaskExecutor` value.
+
+Focused and same-source tests prove the same-task boundary causally: cancelling
+the current task inside the operation remains visible to the caller after the
+scope returns. They also cover suspension, native high-priority raw value,
+name, task-local state, exact success/failure, and cleanup. Non-nil task
+executors, ambient-preference inheritance, omitted or non-nil isolation,
+arbitrary actors, and resume-executor behavior remain M5 work.
+
 ### 6.11 Actor storage
 
 ```swift

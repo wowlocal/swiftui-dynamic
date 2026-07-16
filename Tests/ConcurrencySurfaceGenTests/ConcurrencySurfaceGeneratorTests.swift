@@ -18,6 +18,7 @@ struct ConcurrencySurfaceGeneratorTests {
             "detach": "detachedTask",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
+            "withTaskExecutorPreference": "withTaskExecutorPreference",
             "withTaskGroup": "withTaskGroup",
             "withTaskPriorityEscalationHandler":
                 "withTaskPriorityEscalationHandler",
@@ -52,6 +53,19 @@ struct ConcurrencySurfaceGeneratorTests {
             inventory.topLevelFunctionDeclarations[
                 "_isolatedParameter_withTaskPriorityEscalationHandler"]?.first)
         #expect(isolatedPriorityHandler.parameters.contains {
+            $0.label == "isolation" && $0.isIsolated
+                && $0.defaultValue == "#isolation"
+        })
+        let taskExecutorPreference = try #require(
+            inventory.topLevelFunctionDeclarations[
+                "withTaskExecutorPreference"]?.first)
+        #expect(taskExecutorPreference.isAsync)
+        #expect(taskExecutorPreference.throwsKind == .throwing)
+        #expect(taskExecutorPreference.thrownErrorType == "Failure")
+        #expect(taskExecutorPreference.parameters.contains {
+            $0.label == nil && $0.name == "taskExecutor"
+        })
+        #expect(taskExecutorPreference.parameters.contains {
             $0.label == "isolation" && $0.isIsolated
                 && $0.defaultValue == "#isolation"
         })
@@ -357,7 +371,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 171)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 121)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 122)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 49,
             "task-static-member": 25,
@@ -401,6 +415,11 @@ struct ConcurrencySurfaceGeneratorTests {
                 && ["asyncDetached", "detach"].contains($0.name)
                 && $0.adapterIntrinsic == "detachedTask"
         }.count == 4)
+        #expect(capabilities.declarations.contains {
+            $0.domain == "top-level-function"
+                && $0.name == "withTaskExecutorPreference"
+                && $0.adapterIntrinsic == "withTaskExecutorPreference"
+        })
         #expect(capabilities.declarations.contains {
             $0.domain == "top-level-function"
                 && $0.name == "withCheckedContinuation"
@@ -464,7 +483,8 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(Set(inventory.topLevelFunctionDispatch.keys) == [
             "_isolatedParameter_withTaskPriorityEscalationHandler",
             "async", "asyncDetached", "detach", "withDiscardingTaskGroup",
-            "withTaskCancellationHandler", "withTaskGroup",
+            "withTaskCancellationHandler", "withTaskExecutorPreference",
+            "withTaskGroup",
             "withTaskPriorityEscalationHandler",
             "withThrowingDiscardingTaskGroup",
             "withThrowingTaskGroup", "withUnsafeCurrentTask",
@@ -691,6 +711,11 @@ struct ConcurrencySurfaceGeneratorTests {
         operation: () async throws -> Result,
         onCancel handler: @Sendable () -> Void
     ) async rethrows -> Result { fatalError() }
+    public func withTaskExecutorPreference<T, Failure>(
+        _ taskExecutor: (any TaskExecutor)?,
+        isolation: isolated (any Actor)? = #isolation,
+        operation: () async throws(Failure) -> T
+    ) async throws(Failure) -> T where Failure: Error { fatalError() }
     public func _isolatedParameter_withTaskPriorityEscalationHandler<T, E>(
         operation: () async throws(E) -> T,
         onPriorityEscalated handler: @Sendable (TaskPriority, TaskPriority) -> Void,

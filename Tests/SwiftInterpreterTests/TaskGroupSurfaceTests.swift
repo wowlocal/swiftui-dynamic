@@ -71,6 +71,7 @@ struct TaskGroupSurfaceTests {
             "detach": .detachedTask,
             "withDiscardingTaskGroup": .withDiscardingTaskGroup,
             "withTaskCancellationHandler": .withTaskCancellationHandler,
+            "withTaskExecutorPreference": .withTaskExecutorPreference,
             "withTaskGroup": .withTaskGroup,
             "withTaskPriorityEscalationHandler":
                 .withTaskPriorityEscalationHandler,

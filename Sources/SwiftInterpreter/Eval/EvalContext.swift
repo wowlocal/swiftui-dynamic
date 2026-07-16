@@ -271,6 +271,24 @@ extension Interpreter: EvalContext {
         evaluationTaskContext.currentExecutor
     }
 
+    /// Require the ambient evaluator capability to name the live task record
+    /// that owns it. Checking only a retained context's non-nil IDs is unsafe:
+    /// a host can re-enter that stale capability after runtime release.
+    func requireCanonicalActiveRuntimeTask(
+        for api: String
+    ) throws -> RuntimeTaskRecord {
+        let context = evaluationTaskContext
+        guard context.isAsyncSession,
+              let taskID = context.runtimeTaskID,
+              let record = concurrencyRuntime.records[taskID],
+              record.state == .running,
+              record.evaluationContext === context else {
+            throw RuntimeError(message:
+                "\(api) requires an active canonical async runtime task")
+        }
+        return record
+    }
+
     public func hostTypeName(of value: RuntimeValue) -> String {
         if case .host(let any) = value {
             if let marker = any as? HostTypeMarker { return marker.name + ".Type" }
