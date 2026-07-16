@@ -24,16 +24,22 @@ extension Interpreter {
         }
 
         for candidate in closure.globalActorAttributeCandidates {
-            guard case .type(let symbol)? = globals.lookup(candidate),
-                  symbol.attributeNames.contains("globalActor") else {
+            let shared: RuntimeValue?
+            switch globals.lookup(candidate) {
+            case .type(let symbol)
+            where symbol.attributeNames.contains("globalActor"):
+                shared = try staticMember("shared", of: symbol)
+            case .enumType(let symbol)
+            where symbol.attributeNames.contains("globalActor"):
+                shared = try staticMember("shared", of: symbol)
+            default:
                 continue
             }
-            guard let shared = try staticMember("shared", of: symbol),
-                  case .instance(let actor) = shared,
+            guard case .instance(let actor)? = shared,
                   actor.symbol.isActor,
                   let actorID = actor.actorID else {
                 throw RuntimeError(message:
-                    "global actor '\(symbol.name)' must expose a source "
+                    "global actor '\(candidate)' must expose a source "
                         + "actor instance as static shared")
             }
             return .actor(actorID)

@@ -307,10 +307,12 @@ Canonical async sessions reject eager async-subscript entry.
 
 This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
-complete actor isolation. Remaining actor work includes:
-
-- complete arbitrary global-actor semantics;
-- compile-time restrictions on access.
+complete actor isolation. Remaining actor work includes the per-feature
+compile-time restrictions on access. Struct- and enum-backed user global
+actors now resolve an arbitrary source-actor `static shared` capability through
+`#isolation` and defaulted isolated-parameter dispatch; function-value
+isolation reflection remains the separate bounded gap described in section
+6.10.
 
 Mailbox/reentrancy stress is now replayable and covered: an exact same-source
 fixture anchors Swift's terminal invariants, while a 64-seed interpreter board
@@ -975,8 +977,12 @@ before cancellation observation, and then performs the same balanced target
 release and caller restoration. Its normal-return and typed source-error paths
 perform the same reacquire and balanced exit after suspension. An
 async-throwing subscript getter follows those same paths for cancellation,
-normal return, and typed source error. Arbitrary user global-actor values remain
-open and must not be inferred from the source-actor/MainActor/nil subset.
+normal return, and typed source error. Struct- and enum-backed user global
+actors whose `static shared` value has an arbitrary source-actor type now
+preserve their nominal attribute metadata and select that exact actor
+capability through both `#isolation` and defaulted isolated parameters.
+Function-value isolation identity and conversion remain the separate section
+6.10 boundary; they are not inferred from dispatch metadata.
 
 ### 6.12 Actor reentrancy
 
@@ -1038,7 +1044,11 @@ ownership, mutation totals, child collection, and complete runtime draining.
 `#isolation` inheritance from a source actor, explicit source-actor selection,
 explicit nil, and a nil default from nonisolated code. A separate MainActor
 fixture proves that its default is non-nil and selects the logical main lane,
-while explicit nil remains nil. Arbitrary global actors remain open M5 work.
+while explicit nil remains nil. The
+`actor-arbitrary-global-actor-isolation` fixture proves the corresponding
+canonical capability and mailbox ownership for both struct- and enum-backed
+global actors whose `shared` values have distinct source-actor types. The
+per-feature fail-closed safety boundary remains open M5 work.
 
 ### 6.13 Cancellation
 
@@ -1828,8 +1838,9 @@ entry slice installs actor identity/storage, serial executor hops, and
 replayable mailbox stress for the measured demand shapes — `@MainActor`
 isolation and user-declared global actors of the FoodTruck StoreActor shape —
 while valid actor declarations keep executing through the documented
-class-like compatibility path. The second slice now has only arbitrary global
-actors left. The final slice flips each actor feature to
+class-like compatibility path. The second slice now covers arbitrary
+struct-/enum-backed global-actor capabilities and defaulted isolated dispatch.
+The active final slice flips each actor feature to
 fail-closed diagnosis as its replacement lands; a global up-front rejection
 is forbidden while FoodTruckCheck, ProjectCheck, and suite ratchets execute
 through the compatibility path, because board ratchets may never decrease.
@@ -1974,8 +1985,9 @@ Proof:
 Slice order (2026-07-16 demand cycle): the covered first slice supplies actor
 identity/storage, serial executor hops, and replayable mailbox stress for the
 measured demand shapes (`@MainActor` isolation and user-declared global actors
-of the FoodTruck StoreActor shape); the active second slice completes arbitrary
-global actors; the final slice applies
+of the FoodTruck StoreActor shape); the covered second slice completes
+arbitrary struct-/enum-backed global-actor capability dispatch; the active
+final slice applies
 per-feature fail-closed flips to the class-like compatibility path. A feature
 fails closed only once its actor-runtime replacement lands — never as an
 up-front global rejection — because board ratchets may never decrease.

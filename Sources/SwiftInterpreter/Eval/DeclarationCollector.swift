@@ -444,6 +444,10 @@ extension Interpreter {
         symbol.isRepresentable = inherited.contains { $0.hasSuffix("Representable") }
         symbol.conformsToShape = inherited.contains("Shape") || inherited.contains("InsettableShape")
         symbol.conformances = inherited
+        symbol.attributeNames = node.attributes.compactMap {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+        }
+        symbol.observableViaMacro = symbol.attributeNames.contains("Observable")
         try collectStructMembers(node.memberBlock, into: symbol)
         return symbol
     }

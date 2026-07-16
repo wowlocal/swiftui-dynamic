@@ -13,7 +13,6 @@
       "state": "active",
       "milestoneIDs": ["M5"],
       "requirementRefs": [
-        "M5/actor-reentrancy-and-isolated-dispatch",
         "M5/actor-declaration-safety-boundary"
       ]
     },
@@ -656,8 +655,8 @@
       "title": "Actor support and executor architecture",
       "status": "partial",
       "dependsOn": ["M4", "M7"],
-      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, depth-counted mailbox ownership for synchronous and async actor-function plus externally awaited synchronous computed-getter and subscript-getter segments, throwing computed-getter failure cleanup, async-throwing computed/subscript-getter success/source-error/cancellation reacquisition cleanup with caller restoration, actor computed-property and subscript-setter confinement to already-owned segments, controlled suspension release/reacquisition and actor reentrancy, cross-actor throwing and cancellation-observing function hops with caller restoration, explicit plus defaulted/optional source-actor, MainActor, and nil isolated-parameter dispatch, explicit waitingForActor handoff/cleanup, replayable seeded mailbox stress with complete runtime draining, and mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions are covered.",
-      "ledgerRemainingWork": "Active demand cycle (2026-07-16): add arbitrary global actors, then finish per-feature fail-closed flips with no up-front global rejection; physical workers remain M9.",
+      "ledgerEvidence": "Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, struct- and enum-backed arbitrary global-actor capability propagation through `#isolation` and defaulted isolated dispatch, depth-counted mailbox ownership for synchronous and async actor-function plus externally awaited synchronous computed-getter and subscript-getter segments, throwing computed-getter failure cleanup, async-throwing computed/subscript-getter success/source-error/cancellation reacquisition cleanup with caller restoration, actor computed-property and subscript-setter confinement to already-owned segments, controlled suspension release/reacquisition and actor reentrancy, cross-actor throwing and cancellation-observing function hops with caller restoration, explicit plus defaulted/optional source-actor, MainActor, custom-global-actor, and nil isolated-parameter dispatch, explicit waitingForActor handoff/cleanup, replayable seeded mailbox stress with complete runtime draining, and mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions are covered.",
+      "ledgerRemainingWork": "Active demand cycle (2026-07-16): finish per-feature fail-closed flips with no up-front global rejection; physical workers remain M9.",
       "requirements": [
         {
           "id": "logical-executor-identity",
@@ -679,7 +678,7 @@
           "status": "open",
           "owners": ["runtime", "compiler"],
           "coverage": ["diagnostic", "isolation"],
-          "dependsOnRequirements": ["M5/actor-identity-storage-and-serial-executor", "M7/generated-signatures-and-preflight"],
+          "dependsOnRequirements": ["M5/actor-identity-storage-and-serial-executor", "M7/native-diagnostic-oracles"],
           "ownedCaseIDs": [
             "actor-computed-setter-diagnostic",
             "actor-subscript-setter-diagnostic"
@@ -765,12 +764,12 @@
         },
         {
           "id": "actor-reentrancy-and-isolated-dispatch",
-          "status": "open",
+          "status": "covered",
           "owners": ["runtime", "compiler"],
           "coverage": ["success", "failure", "isolation", "executor", "stress"],
           "dependsOnRequirements": [
             "M5/actor-identity-storage-and-serial-executor",
-            "M7/generated-signatures-and-preflight"
+            "M7/native-diagnostic-oracles"
           ],
           "ownedCaseIDs": [
             "actor-reentrancy",
@@ -778,7 +777,8 @@
             "actor-cross-actor-cancellation",
             "actor-isolated-parameter",
             "actor-isolated-parameter-defaults",
-            "actor-isolated-parameter-mainactor-default"
+            "actor-isolated-parameter-mainactor-default",
+            "actor-arbitrary-global-actor-isolation"
           ],
           "evidenceCaseIDs": [
             "concurrent-executor-hop",
@@ -790,11 +790,36 @@
             "ActorRuntimeTests/crossActorCancellationRestoresCallerAndReleasesCallee",
             "ActorRuntimeTests/isolatedParameterSelectsArgumentActorAndRejectsUnawaitedEntry",
             "ActorRuntimeTests/defaultedOptionalIsolatedParameterUsesCallerLexicalIsolationAndNil",
+            "ActorRuntimeTests/arbitraryGlobalActorDefaultsUseCanonicalSharedCapabilities",
             "ActorMailboxStressTests/configuredBoardPreservesOwnershipAndDrainsEveryEdge",
             "ActorMailboxStressTests/failureDiagnosticContainsExactReplayCommand"
           ],
-          "gapEvidenceIDs": ["actor-reentrancy-isolated-dispatch"],
-          "notes": "Controlled same-source parity proves that an async actor message owns its synchronous prefix, releases the complete nested segment at a host suspension, permits a second message to mutate isolated state, and reacquires the same actor before resuming. A second exact case proves a cross-actor throwing-function hop: the callee owns its segment, releases it on error, the caller is restored before catch handling, and a later callee message retains both mutations. Gated function, async-computed-getter, and async-subscript-getter cases cancel the source task while the callee is suspended, then prove callee reacquisition before cancellation observation, balanced release, caller restoration before catch, and subsequent callee progress. Separate source-gated async computed/subscript cases prove the same balanced target/caller transition on normal return and source-thrown error. Isolated parameters preserve syntax metadata and select their executor from the bound runtime value before function entry. Required explicit source actors, default #isolation inherited from a source actor or MainActor, explicit source actors, explicit nil, and a nil default in nonisolated code are covered; the default is evaluated once in the caller's lexical isolation and the exact value is reused for binding. Already-owned synchronous entry is legal, while unawaited cross-actor entry fails closed. The shared runtime path balances task, clock, host, group, accessor, and explicit executor-hop suspensions. A native-anchored exact fixture plus a 64-seed replayable stress board cover mailbox fanout, repeated rounds, suspension/reacquisition, invariant mutation totals, full child collection, and empty runtime registries without claiming FIFO or physical threads. The second slice remains open for arbitrary global actors."
+          "evidenceByCoverage": {
+            "success": [
+              "case:actor-reentrancy",
+              "case:actor-isolated-parameter",
+              "case:actor-arbitrary-global-actor-isolation"
+            ],
+            "failure": [
+              "case:actor-cross-actor-failure"
+            ],
+            "isolation": [
+              "case:actor-isolated-parameter-defaults",
+              "case:actor-isolated-parameter-mainactor-default",
+              "case:actor-arbitrary-global-actor-isolation",
+              "test:ActorRuntimeTests/arbitraryGlobalActorDefaultsUseCanonicalSharedCapabilities"
+            ],
+            "executor": [
+              "case:actor-reentrancy",
+              "case:actor-arbitrary-global-actor-isolation"
+            ],
+            "stress": [
+              "case:actor-mailbox-stress",
+              "test:ActorMailboxStressTests/configuredBoardPreservesOwnershipAndDrainsEveryEdge"
+            ]
+          },
+          "gapEvidenceIDs": [],
+          "notes": "Controlled same-source parity proves that an async actor message owns its synchronous prefix, releases the complete nested segment at a host suspension, permits a second message to mutate isolated state, and reacquires the same actor before resuming. A second exact case proves a cross-actor throwing-function hop: the callee owns its segment, releases it on error, the caller is restored before catch handling, and a later callee message retains both mutations. Gated function, async-computed-getter, and async-subscript-getter cases cancel the source task while the callee is suspended, then prove callee reacquisition before cancellation observation, balanced release, caller restoration before catch, and subsequent callee progress. Separate source-gated async computed/subscript cases prove the same balanced target/caller transition on normal return and source-thrown error. Isolated parameters preserve syntax metadata and select their executor from the bound runtime value before function entry. Required explicit source actors, default #isolation inherited from a source actor, MainActor, or a custom global actor, explicit source actors, explicit nil, and a nil default in nonisolated code are covered; the default is evaluated once in the caller's lexical isolation and the exact value is reused for binding. Struct- and enum-backed global-actor declarations may expose a different source-actor type as static shared; both nominal representations now preserve @globalActor metadata, resolve that exact canonical capability, and own its mailbox through nested defaulted isolated dispatch. Already-owned synchronous entry is legal, while unawaited cross-actor entry fails closed. The shared runtime path balances task, clock, host, group, accessor, and explicit executor-hop suspensions. A native-anchored exact fixture plus a 64-seed replayable stress board cover mailbox fanout, repeated rounds, suspension/reacquisition, invariant mutation totals, full child collection, and empty runtime registries without claiming FIFO or physical threads. This covers the reentrancy and isolated-dispatch slice; the per-feature actor safety boundary remains open."
         }
       ]
     },

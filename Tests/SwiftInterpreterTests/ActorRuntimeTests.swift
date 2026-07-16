@@ -1279,6 +1279,111 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func arbitraryGlobalActorDefaultsUseCanonicalSharedCapabilities()
+        async throws
+    {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "parityCurrentIsolationMatches",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationMatches"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let expectedID = expected.actorID,
+                      let actualID = context.sourceExecutor.actorID else {
+                    return .native("none")
+                }
+                return .native(actualID == expectedID ? "same" : "other")
+            }))
+        interpreter.globals.define(
+            "parityActorSegmentOwnership",
+            .hostFunction(HostFunction(
+                name: "parityActorSegmentOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent(
+                "actor-arbitrary-global-actor-isolation.swift")
+        let declarations = try String(
+            contentsOf: fixture,
+            encoding: .utf8)
+        let result = try await interpreter.runAsync(source:
+            declarations + "\nawait arbitraryGlobalActorIsolationProbe()\n")
+        let globalActor = try #require(
+            interpreter.globals.lookup("ParityArbitraryGlobalActor")?
+                .typeSymbol)
+        guard case .enumType(let enumGlobalActor)? =
+                interpreter.globals.lookup("ParityEnumGlobalActor") else {
+            Issue.record("missing enum-backed global actor")
+            return
+        }
+        guard case .instance(let shared)? = try interpreter.staticMember(
+            "shared", of: globalActor) else {
+            Issue.record("struct-backed global actor lost its shared actor")
+            return
+        }
+        guard case .instance(let enumShared)? = try interpreter.staticMember(
+            "shared", of: enumGlobalActor) else {
+            Issue.record("enum-backed global actor lost its shared actor")
+            return
+        }
+        let sharedID = try #require(shared.actorID)
+        let enumSharedID = try #require(enumShared.actorID)
+        guard case .closure(let entry)? = interpreter.globals.lookup(
+            "parityArbitraryGlobalActorEntry") else {
+            Issue.record("missing arbitrary-global-actor entry")
+            return
+        }
+        guard case .closure(let enumEntry)? = interpreter.globals.lookup(
+            "parityEnumGlobalActorEntry") else {
+            Issue.record("missing enum-global-actor entry")
+            return
+        }
+        guard case .closure(let defaulted)? = interpreter.globals.lookup(
+            "parityArbitraryGlobalActorDefault") else {
+            Issue.record("missing defaulted isolation observer")
+            return
+        }
+
+        #expect(result.stringValue
+            == "same:owned:same|same:owned:same")
+        #expect(!globalActor.isActor)
+        #expect(globalActor.attributeNames.contains("globalActor"))
+        #expect(enumGlobalActor.attributeNames.contains("globalActor"))
+        #expect(shared.symbol.isActor)
+        #expect(enumShared.symbol.isActor)
+        #expect(entry.globalActorAttributeCandidates.contains(
+            "ParityArbitraryGlobalActor"))
+        #expect(enumEntry.globalActorAttributeCandidates.contains(
+            "ParityEnumGlobalActor"))
+        #expect(try interpreter.resolvedExecutor(for: entry)
+            == .actor(sharedID))
+        #expect(try interpreter.resolvedExecutor(for: enumEntry)
+            == .actor(enumSharedID))
+        #expect(defaulted.parameters[1].isIsolated)
+        #expect(defaulted.parameters[1].defaultValue?.trimmedDescription
+            == "#isolation")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 2)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test
     func crossActorFailureRestoresCallerAndReleasesCallee() async throws {
         let interpreter = Interpreter()
         interpreter.globals.define(
