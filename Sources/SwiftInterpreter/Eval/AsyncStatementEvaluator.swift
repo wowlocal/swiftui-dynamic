@@ -698,6 +698,16 @@ extension Interpreter {
                 in: env)
         }
 
+        if forStatement.awaitKeyword != nil {
+            return try await executeProtocolAsyncSequenceForSuspending(
+                forStatement,
+                sequence: sequence,
+                name: name,
+                tupleNames: tupleNames,
+                casePattern: casePattern,
+                in: env)
+        }
+
         let elements: [RuntimeValue]
         if let range = sequence.rangeValue {
             guard let values = range.integerValues() else {
@@ -773,7 +783,92 @@ extension Interpreter {
         casePattern: PatternSyntax?,
         in env: Environment
     ) async throws -> StatementResult {
-        while let element = try await nextSourceTaskGroupIterationValue(group) {
+        try await executeAsyncSequenceForSuspending(
+            forStatement,
+            name: name,
+            tupleNames: tupleNames,
+            casePattern: casePattern,
+            in: env
+        ) {
+            try await self.nextSourceTaskGroupIterationValue(group)
+        }
+    }
+
+    /// Execute the protocol requirements rather than recognizing concrete
+    /// sequence types. Compiler preflight establishes AsyncSequence
+    /// conformance; the runtime uses ordinary member dispatch so interpreted
+    /// values, protocol-extension witnesses, and generated host gateways all
+    /// share the same suspension and executor-hop machinery.
+    private func executeProtocolAsyncSequenceForSuspending(
+        _ forStatement: ForStmtSyntax,
+        sequence: RuntimeValue,
+        name: String?,
+        tupleNames: [String?]?,
+        casePattern: PatternSyntax?,
+        in env: Environment
+    ) async throws -> StatementResult {
+        let makeIterator = try accessMember(
+            "makeAsyncIterator",
+            on: sequence,
+            node: forStatement.sequence,
+            env: env)
+        var iterator = try await invokeSuspending(
+            makeIterator,
+            with: CallArguments(),
+            node: forStatement.sequence)
+
+        return try await executeAsyncSequenceForSuspending(
+            forStatement,
+            name: name,
+            tupleNames: tupleNames,
+            casePattern: casePattern,
+            in: env
+        ) {
+            if let invocation = try await self
+                .invokeMutatingInstanceMethodSuspending(
+                    named: "next",
+                    on: iterator,
+                    arguments: CallArguments(),
+                    node: forStatement.sequence) {
+                iterator = invocation.receiver
+                guard case .optional(let optional) = invocation.result else {
+                    throw self.error(
+                        forStatement.sequence,
+                        "AsyncIteratorProtocol.next() must return an Optional")
+                }
+                return optional.wrapped
+            }
+
+            let next = try self.accessMember(
+                "next",
+                on: iterator,
+                node: forStatement.sequence,
+                env: env)
+            let value = try await self.invokeSuspending(
+                next,
+                with: CallArguments(),
+                node: forStatement.sequence)
+            guard case .optional(let optional) = value else {
+                throw self.error(
+                    forStatement.sequence,
+                    "AsyncIteratorProtocol.next() must return an Optional")
+            }
+            return optional.wrapped
+        }
+    }
+
+    /// Shared streaming loop for TaskGroup's runtime capability and ordinary
+    /// AsyncSequence witnesses. The iterator is advanced only after the prior
+    /// element body finishes, and break/return stop requesting elements.
+    private func executeAsyncSequenceForSuspending(
+        _ forStatement: ForStmtSyntax,
+        name: String?,
+        tupleNames: [String?]?,
+        casePattern: PatternSyntax?,
+        in env: Environment,
+        next: () async throws -> RuntimeValue?
+    ) async throws -> StatementResult {
+        while let element = try await next() {
             try checkRuntimeCancellation()
             guard let result = try await executeForElementSuspending(
                 element,

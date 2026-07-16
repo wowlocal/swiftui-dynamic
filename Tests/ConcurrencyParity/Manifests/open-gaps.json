@@ -11,7 +11,7 @@
     "requirementRef": "M6/protocol-iteration-streams-and-continuations",
     "kind": "coverage-gap",
     "expectedObservation": "Protocol AsyncSequence iteration, streams, checked and unsafe continuations, cancellation, and cleanup have native parity.",
-    "currentObservation": "TaskGroup-specific iteration exists, but protocol iteration and continuation ownership are not implemented. The four active-SDK public continuation entry points are generated and native-typechecked with explicit MainActor isolation, but intentionally have no runtime route until the M5 identity/storage slice provides executor-owned resume. The 2026-07-16 demand slice scopes first runtime coverage to protocol for-await iteration, AsyncStream/AsyncThrowingStream, and checked continuations resuming on cooperative-default and MainActor executors."
+    "currentObservation": "Finite nonthrowing for-await over an interpreted AsyncSequence now has exact same-source parity through ordinary makeAsyncIterator/next witness dispatch, including a suspending mutating value-type iterator and cleanup. Throwing, cancellation, early exit, protocol-extension defaults, host-bridged sequences, AsyncStream/AsyncThrowingStream, and continuation ownership remain open. The four active-SDK public continuation entry points are generated and native-typechecked with explicit MainActor isolation but intentionally have no runtime route yet."
   },
   {
     "id": "generated-concurrency-signatures-and-preflight",

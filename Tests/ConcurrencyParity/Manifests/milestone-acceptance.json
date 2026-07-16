@@ -882,10 +882,10 @@
     {
       "id": "M6",
       "title": "Async sequences and continuations",
-      "status": "not-started",
+      "status": "partial",
       "dependsOn": ["M5"],
-      "ledgerEvidence": "No protocol-level AsyncSequence or continuation runtime is claimed; task-group-specific iteration remains M4 evidence only. All four active-SDK public continuation entry points are generated with exact effects/isolation metadata and explicitly deferred without runtime routes; a strict Swift 6 native probe selects their explicit-MainActor forms.",
-      "ledgerRemainingWork": "Active demand slice: use the covered M5 actor identity/storage requirement for executor-owned resume while adding protocol for-await iteration, AsyncStream/AsyncThrowingStream, and checked continuations on cooperative-default and MainActor executors, followed by cancellation, cleanup, and the remaining continuation and stream surface.",
+      "ledgerEvidence": "Protocol-level `for await` now dispatches `makeAsyncIterator()` and suspending mutating `next()` witnesses through the ordinary evaluator/executor path. Exact same-source parity covers a finite nonthrowing interpreted sequence, real suspension, iterator value-state copy-out, terminal `nil`, and registry cleanup. Task-group iteration remains separate M4 evidence.",
+      "ledgerRemainingWork": "Add throwing, cancellation, early-exit, protocol-default, and host-bridged sequence coverage; then implement `AsyncStream`/`AsyncThrowingStream` and checked continuations on cooperative-default and MainActor executors with termination, double-resume, abandonment, lifetime, and cleanup evidence.",
       "requirements": [
         {
           "id": "protocol-iteration-streams-and-continuations",
@@ -893,16 +893,19 @@
           "owners": ["runtime", "compiler"],
           "coverage": ["success", "failure", "cancellation", "cleanup", "lifetime"],
           "dependsOnRequirements": ["M5/actor-identity-storage-and-serial-executor"],
-          "ownedCaseIDs": [],
+          "ownedCaseIDs": [
+            "protocol-async-sequence-iteration"
+          ],
           "evidenceCaseIDs": [
             "task-group-iteration",
             "task-group-throwing-iteration"
           ],
           "testNames": [
-            "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership"
+            "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership",
+            "AsyncExecutionTests/protocolForAwaitPreservesMutatingIteratorAcrossSuspension"
           ],
           "gapEvidenceIDs": ["async-sequence-continuation-runtime"],
-          "notes": "Group-specific iteration is M4 evidence and does not count as protocol-level AsyncSequence or continuation support. The four generated public continuation entry points have a strict native signature/isolation probe but no adapter route or runtime claim; continuation ownership is gated on the M5 identity/storage slice for executor-owned resume, not on full reentrancy. The 2026-07-16 demand slice orders first coverage as protocol for-await iteration, AsyncStream/AsyncThrowingStream, and checked continuations resuming on cooperative-default and MainActor executors, including host-bridged async sequences of the StoreKit update-stream shape; arbitrary-actor and custom-executor resume follows the M5 reentrancy slice."
+          "notes": "The first protocol-level slice is a gap closure: before the production change, the async statement evaluator accepted only concrete RuntimeTaskGroup values and diagnosed a user AsyncSequence as a non-iterable instance; an initial direct witness call then exposed a second RED by losing mutating iterator state. The shared runtime now dispatches makeAsyncIterator and suspending next witnesses and reuses the ordinary async mutating-method copy-in/copy-out kernel. Exact same-source parity and focused cleanup evidence cover the finite nonthrowing interpreted-witness path. Group-specific iteration remains M4 evidence. Throwing, cancellation, early exit, protocol-extension defaults, host-bridged sequences, streams, and continuations remain open. The four generated public continuation entry points retain their strict native signature/isolation probe but no adapter route or runtime claim."
         }
       ]
     },

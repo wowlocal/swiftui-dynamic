@@ -1795,5 +1795,17 @@
     "interpreterProjection": "string",
     "nativeFact": "For both supplied bare unqualified direct global async function values with plain explicit nonisolated declarations, one also @concurrent, extractIsolation returns nil. It only inspects each function value: neither supplied operation is invoked.",
     "notes": "Apple Swift 6.3.3 strict-concurrency compilation selects the active deprecated variadic-generic declaration. Twenty bounded native runs produce one exact observation. The fixture deliberately places uses in deprecated contexts; the shared NativeMain call site may still emit the expected deprecation warning. MainActor and arbitrary actor identities, unannotated functions under configurable default isolation, qualified or parenthesized references, local aliases, function-value conversions, member references, closure expressions, synchronous functions, and the replacement closure.isolation property remain outside this bare-unqualified-direct-global-async-declaration subset. No scheduling, suspension, executor-hop, or physical-thread behavior is asserted because extractIsolation is synchronous metadata inspection."
+  },
+  {
+    "id": "protocol-async-sequence-iteration",
+    "fixture": "Fixtures/protocol-async-sequence-iteration.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceIterationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Protocol for-await iteration obtains a user-defined AsyncSequence iterator and repeatedly awaits its mutating next() operation until nil. Each nonnil element is delivered exactly once; a real Task.yield suspension inside next() does not duplicate, skip, or terminate iteration.",
+    "notes": "Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 3:6. Count and a commutative sum avoid any scheduler-order claim; physical threads, unrelated ready-task order, throwing iteration, cancellation, early exit, and host-backed sequences are outside this first M6 success slice."
   }
 ]

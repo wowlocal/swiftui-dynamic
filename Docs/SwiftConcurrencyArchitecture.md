@@ -46,8 +46,10 @@ the interpreter still combines program/session/heap responsibilities. A
 runtime-owned mailbox now serializes actor-function segments and releases a
 complete depth-counted segment across canonical runtime waits before queuing
 the same task to reacquire it on resume. There is still no general runnable-
-executor queue, continuation registry, or protocol-level async-sequence
-runtime. The remaining Task API work is a
+executor queue or continuation registry. M6 has begun with protocol-driven
+`for await` over interpreted witnesses, including suspending mutating iterator
+copy-out; throwing/cancellation/early-exit paths, host-backed sequences,
+streams, and continuations remain open. The remaining Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
 name-dispatched Task API surface.
@@ -227,7 +229,7 @@ resume point or executor queue:
 
 - actor executor hops;
 - continuations;
-- general async sequences/streams;
+- stream producer/consumer suspension and continuation-backed sequences;
 - runtime-controlled scheduling and replay.
 
 The target evaluator must represent suspension as a first-class execution
@@ -1342,6 +1344,19 @@ The evaluator implements `for await` in terms of:
 - cancellation and termination callbacks;
 - a documented buffering policy.
 
+The first committed M6 slice implements the protocol lowering for finite
+nonthrowing interpreted sequences. It evaluates the sequence once, calls
+`makeAsyncIterator()` once, repeatedly invokes suspending `next()`, unwraps
+exactly one optional layer, and stops requesting elements after `nil`,
+`break`, or `return`. A value-type iterator uses the same suspension-aware
+mutating-method copy-in/copy-out kernel as an explicit
+`await iterator.next()` call; direct witness dispatch may not discard its
+state. Compiler preflight owns conformance legality. Runtime dispatch remains
+value-based so protocol-extension witnesses and generated host methods can use
+the same path once their focused evidence lands. Throwing, cancellation,
+early-exit/defer, host bridging, stream registries, and continuation ownership
+are not inherited from this success claim.
+
 ### 6.19 Host gateway runtime
 
 Host declarations already retain parsed call contracts. Concurrency extends a
@@ -1908,7 +1923,9 @@ Each milestone is independently gated through
   identity/storage and serial hops, reentrancy/isolated dispatch, and the
   per-feature fail-closed boundary are covered; the milestone is provisional
   while its broad M4/M7 dependencies remain partial;
-- the M6 demand slice is now active. Protocol `for await` iteration,
+- the M6 demand slice is active and partial. Finite nonthrowing protocol
+  `for await` over interpreted witnesses is covered; throwing/cancellation/
+  early-exit and host-bridged iteration,
   `AsyncStream`, and checked continuations resuming on cooperative-default and
   MainActor executors require executor-owned resume from the covered M5
   identity/storage slice, not complete custom-executor scheduling;
@@ -2103,6 +2120,9 @@ demand slice covers protocol `for await` iteration,
 `AsyncStream`/`AsyncThrowingStream`, and checked continuations resuming on
 cooperative-default and MainActor executors, including host-bridged async
 sequences of the StoreKit update-stream shape, before the remaining surface.
+The finite nonthrowing interpreted-witness path is covered; every remaining
+item in this paragraph stays in the active requirement rather than being
+inferred from that first success slice.
 
 Deliverables:
 

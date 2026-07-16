@@ -137,6 +137,44 @@ struct AsyncExecutionTests {
         #expect(interpreted.intValue == nativeCounter.value)
     }
 
+    @Test func protocolForAwaitPreservesMutatingIteratorAcrossSuspension()
+        async throws {
+        let interpreter = Interpreter()
+        let interpreted = try await interpreter.runAsync(source: #"""
+        struct CounterSequence: AsyncSequence {
+            struct AsyncIterator: AsyncIteratorProtocol {
+                var nextValue = 1
+
+                mutating func next() async -> Int? {
+                    guard nextValue <= 3 else { return nil }
+                    let value = nextValue
+                    nextValue += 1
+                    await Task.yield()
+                    return value
+                }
+            }
+
+            func makeAsyncIterator() -> AsyncIterator {
+                AsyncIterator()
+            }
+        }
+
+        var count = 0
+        var total = 0
+        for await value in CounterSequence() {
+            count += 1
+            total += value
+        }
+        "\(count):\(total)"
+        """#)
+
+        #expect(interpreted.stringValue == "3:6")
+        #expect(interpreter.scheduledTasks.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+    }
+
     @Test func runAsyncMatchesNativeTaskOrdering() async throws {
         var nativeEvents: [String] = []
         let nativeTask = Task { @MainActor in
