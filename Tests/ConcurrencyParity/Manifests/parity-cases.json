@@ -113,17 +113,13 @@
     "id": "actor-isolated-deinitializer",
     "fixture": "Fixtures/actor-isolated-deinitializer.swift",
     "mode": "runtime",
-    "assertion": "interpreter-diagnostic",
+    "assertion": "exact",
     "repetitions": 20,
     "timeoutSeconds": 5,
     "interpreterEntry": "await actorIsolatedDeinitializerProbe()",
     "interpreterProjection": "string",
-    "interpreterDiagnosticContains": [
-      "isolated deinitializer",
-      "executor-owned teardown"
-    ],
     "nativeFact": "An explicit isolated deinitializer on a MainActor-isolated class inherits that executor and runs before the next MainActor statement when final release already occurs there.",
-    "notes": "Native exact output is deinit in all repetitions. This proves only the already-owned synchronous fast path. The interpreter must fail closed because its general source ARC path cannot schedule executor-owned teardown; ordinary and explicit nonisolated deinitializers remain supported."
+    "notes": "Exact output is deinit in all repetitions. The interpreter's host Instance lifetime is MainActor-owned, so this covers the same already-owned synchronous fast path without claiming source-actor or user-global-actor teardown scheduling."
   },
   {
     "id": "actor-global-actor-deinitializer",

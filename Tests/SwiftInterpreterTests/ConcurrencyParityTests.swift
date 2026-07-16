@@ -1577,9 +1577,9 @@ struct ConcurrencyParityTests {
 
         let diagnosticCase = try #require(
             ConcurrencyParityHarness.loadCases().first {
-                $0.id == "actor-isolated-deinitializer"
+                $0.id == "actor-global-actor-deinitializer"
             })
-        let message = "isolated deinitializer requires executor-owned teardown"
+        let message = "global-actor deinitializer requires executor-owned teardown"
         let disguisedValue = ConcurrencyParityHarness.observationViolations(
             for: diagnosticCase,
             native: ["deinit"],

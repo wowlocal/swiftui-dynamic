@@ -126,7 +126,8 @@ extension Interpreter {
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
-        try validatePendingDeinitializerIsolation()
+        resolveActorExecutorRequirements()
+        resolvePendingDeinitializerIsolation()
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void
@@ -261,7 +262,8 @@ extension Interpreter {
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
-        try validatePendingDeinitializerIsolation()
+        resolveActorExecutorRequirements()
+        resolvePendingDeinitializerIsolation()
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void

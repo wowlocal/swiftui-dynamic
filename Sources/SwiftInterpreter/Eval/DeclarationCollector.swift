@@ -240,6 +240,30 @@ extension Interpreter {
         }
     }
 
+    /// Classify custom actor executors only after extensions and protocol
+    /// refinement are available. Merely declaring the actor remains legal;
+    /// isolated entry uses this metadata to fail closed instead of replacing
+    /// Swift's source-selected executor with the interpreter mailbox.
+    func resolveActorExecutorRequirements() {
+        for symbol in structSymbols where symbol.isActor {
+            var requiresCustomExecutor =
+                symbol.storedProperty(named: "unownedExecutor") != nil
+                || symbol.computedProperties["unownedExecutor"] != nil
+            if !requiresCustomExecutor {
+                requiresCustomExecutor = transitiveConformances(of: symbol)
+                    .contains { conformance in
+                        guard let defaults = hostExtensionSymbols[conformance]
+                        else { return false }
+                        return defaults.storedProperty(
+                            named: "unownedExecutor") != nil
+                            || defaults.computedProperties[
+                                "unownedExecutor"] != nil
+                    }
+            }
+            symbol.requiresCustomExecutorDispatch = requiresCustomExecutor
+        }
+    }
+
     /// Only plain identifier bindings hoist; tuple/computed bindings run
     /// in statement order.
     func isHoistableGlobal(_ varDecl: VariableDeclSyntax) -> Bool {
@@ -536,29 +560,12 @@ extension Interpreter {
                         .trimmedDescription.split(separator: ".").last
                         .map(String.init)
                 }
-                let isolationDescription: String?
                 if deinitDecl.modifiers.contains(where: {
                     $0.name.text == "isolated"
-                }) {
-                    isolationDescription = "isolated deinitializer"
-                } else if attributeNames.contains("MainActor") {
-                    isolationDescription = "@MainActor deinitializer"
-                } else {
-                    isolationDescription = nil
-                }
-                if let isolationDescription {
-                    let located = error(
-                        deinitDecl,
-                        isolationDescription + " requires executor-owned "
-                            + "teardown, which is not supported yet")
-                    throw RuntimeError(
-                        message: located.message,
-                        line: located.line,
-                        column: located.column,
-                        fatal: true)
-                }
-                if !attributeNames.isEmpty {
-                    pendingDeinitializerIsolationChecks.append(deinitDecl)
+                }) || !attributeNames.isEmpty {
+                    pendingDeinitializerIsolationChecks.append((
+                        symbol: symbol,
+                        declaration: deinitDecl))
                 }
                 symbol.deinitBody = deinitDecl.body
             } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
@@ -1435,15 +1442,44 @@ extension Interpreter {
 
     /// Resolve explicit deinitializer attributes after collection has made
     /// forward declarations, nested nominals, and typealiases available.
-    /// Only attributes whose declaration is itself marked `@globalActor`
-    /// are rejected; macros and ordinary declaration attributes stay inert.
-    func validatePendingDeinitializerIsolation() throws {
+    /// MainActor teardown already owns a real host capability because every
+    /// `Instance` is MainActor-isolated. Other actor executors remain an
+    /// explicit construction boundary; macros and ordinary declaration
+    /// attributes stay inert. Classification is stored on the owning symbol
+    /// so unused declarations remain legal in a merged project.
+    func resolvePendingDeinitializerIsolation() {
         let pending = pendingDeinitializerIsolationChecks
         pendingDeinitializerIsolationChecks.removeAll(keepingCapacity: true)
 
-        for deinitDecl in pending {
+        for (symbol, deinitDecl) in pending {
             let attributeNames = deinitDecl.attributes.compactMap {
                 $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+            }
+            if deinitDecl.modifiers.contains(where: {
+                $0.name.text == "isolated"
+            }) {
+                if symbol.attributeNames.contains(where: {
+                    isMainActorTypeName($0)
+                }) {
+                    symbol.deinitializerExecutor = .mainActor
+                } else {
+                    let located = error(
+                        deinitDecl,
+                        "isolated deinitializer requires a source-actor "
+                            + "executor-owned teardown, which is not "
+                            + "supported yet")
+                    symbol.executorOwnedDeinitializerError = RuntimeError(
+                        message: located.message,
+                        line: located.line,
+                        column: located.column,
+                        fatal: true)
+                }
+                continue
+            }
+
+            if attributeNames.contains(where: { isMainActorTypeName($0) }) {
+                symbol.deinitializerExecutor = .mainActor
+                continue
             }
             guard let globalActorName = attributeNames.first(where: {
                 isGlobalActorTypeName($0)
@@ -1453,7 +1489,7 @@ extension Interpreter {
                 deinitDecl,
                 "global-actor deinitializer '@\(globalActorName)' requires "
                     + "executor-owned teardown, which is not supported yet")
-            throw RuntimeError(
+            symbol.executorOwnedDeinitializerError = RuntimeError(
                 message: located.message,
                 line: located.line,
                 column: located.column,
@@ -1461,17 +1497,29 @@ extension Interpreter {
         }
     }
 
+    private func isMainActorTypeName(_ name: String) -> Bool {
+        var alias = name.split(separator: ".").last.map(String.init) ?? name
+        var seen: Set<String> = []
+        while seen.insert(alias).inserted {
+            if alias == "MainActor" { return true }
+            guard let target = aliasHeads[alias] else { return false }
+            alias = target.split(separator: ".").last.map(String.init)
+                ?? target
+        }
+        return false
+    }
+
     private func isGlobalActorTypeName(_ name: String) -> Bool {
         let finalName = name.split(separator: ".").last.map(String.init)
             ?? name
-        if finalName == "MainActor" { return true }
+        if isMainActorTypeName(finalName) { return true }
 
         var alias = finalName
         var seen: Set<String> = []
         while seen.insert(alias).inserted, let target = aliasHeads[alias] {
             alias = target.split(separator: ".").last.map(String.init)
                 ?? target
-            if alias == "MainActor" { return true }
+            if isMainActorTypeName(alias) { return true }
         }
 
         guard let type = typeValueForIsolationAttribute(name) else {

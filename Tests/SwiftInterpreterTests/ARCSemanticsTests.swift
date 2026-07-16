@@ -297,39 +297,91 @@ private func evaluateARC(
 @Suite("ARC semantics")
 struct ARCSemanticsTests {
     @Test
-    func explicitMainActorDeinitializerFailsClosedDuringCollection() throws {
-        do {
-            _ = try Interpreter().run(source: """
-                final class MainOwned {
-                    @MainActor deinit {}
-                }
-                MainOwned()
-                """)
-            Issue.record("@MainActor deinitializer was silently admitted")
-        } catch let error as RuntimeError {
-            #expect(error.fatal)
-            #expect(error.line == 2)
-            #expect(error.message.contains("@MainActor deinitializer"))
-            #expect(error.message.contains("executor-owned teardown"))
-        }
+    func explicitMainActorDeinitializerRunsOnFinalRelease() throws {
+        let result = try Interpreter().run(source: """
+            var observed = "before"
+            final class MainOwned {
+                @MainActor deinit { observed = "deinit" }
+            }
+            do {
+                _ = MainOwned()
+            }
+            observed
+            """)
+
+        #expect(result.stringValue == "deinit")
     }
 
     @Test
-    func isolatedDeinitializerFailsClosedDuringCollection() throws {
+    func isolatedMainActorDeinitializerRunsOnFinalRelease() throws {
+        let result = try Interpreter().run(source: """
+            var observed = "before"
+            @MainActor final class MainOwned {
+                isolated deinit { observed = "deinit" }
+            }
+            do {
+                _ = MainOwned()
+            }
+            observed
+            """)
+
+        #expect(result.stringValue == "deinit")
+    }
+
+    @Test
+    func mainActorTypealiasDeinitializerRunsOnFinalRelease() throws {
+        let result = try Interpreter().run(source: """
+            typealias UIActor = MainActor
+            var observed = "before"
+            final class MainOwned {
+                @UIActor deinit { observed = "deinit" }
+            }
+            do {
+                _ = MainOwned()
+            }
+            observed
+            """)
+
+        #expect(result.stringValue == "deinit")
+    }
+
+    @Test
+    func isolatedSourceActorDeinitializerFailsClosedAtInstantiation() throws {
         do {
             _ = try Interpreter().run(source: """
-                @MainActor final class MainOwned {
+                actor Worker {
                     isolated deinit {}
                 }
-                MainOwned()
+                Worker()
                 """)
-            Issue.record("isolated deinitializer was silently admitted")
+            Issue.record("source-actor isolated deinitializer was admitted")
         } catch let error as RuntimeError {
             #expect(error.fatal)
             #expect(error.line == 2)
             #expect(error.message.contains("isolated deinitializer"))
-            #expect(error.message.contains("executor-owned teardown"))
+            #expect(error.message.contains("source-actor executor-owned teardown"))
         }
+    }
+
+    @Test
+    func executorOwnedDeinitializerDeclarationsDoNotRejectUnusedTypes() throws {
+        let result = try Interpreter().run(source: """
+            @globalActor actor TeardownActor {
+                static let shared = TeardownActor()
+            }
+            final class MainOwned {
+                @MainActor deinit {}
+            }
+            @MainActor final class IsolatedOwned {
+                isolated deinit {}
+            }
+            final class GlobalOwned {
+                @TeardownActor deinit {}
+            }
+            "collected"
+            """)
+
+        #expect(result.stringValue == "collected")
     }
 
     @Test

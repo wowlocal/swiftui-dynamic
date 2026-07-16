@@ -60,12 +60,41 @@ extension Interpreter {
         return merged
     }
 
+    /// A class lifetime necessarily reaches every deinitializer in its
+    /// superclass chain. Reject construction before allocating storage when
+    /// any of those bodies requires executor-owned teardown for which the
+    /// runtime has no capability. MainActor-owned bodies carry supported
+    /// executor metadata instead. Declaration collection remains side-effect
+    /// free.
+    private func executorOwnedDeinitializerError(
+        for symbol: StructSymbol
+    ) -> RuntimeError? {
+        var current: StructSymbol? = symbol
+        var walked: Set<ObjectIdentifier> = []
+        while let candidate = current,
+              walked.insert(ObjectIdentifier(candidate)).inserted {
+            if let error = candidate.executorOwnedDeinitializerError {
+                return error
+            }
+            if let superName = candidate.superclassName,
+               case .type(let parent)? = globals.lookup(superName) {
+                current = parent
+            } else {
+                current = nil
+            }
+        }
+        return nil
+    }
+
     /// Allocate an instance and evaluate non-suspending stored-property
     /// defaults. Sync and async declared initializers start from the same
     /// storage state; only execution of the selected body is effect-specific.
     private func makeInstanceSeed(
         for symbol: StructSymbol, node: Syntax?
     ) throws -> Instance {
+        if let error = executorOwnedDeinitializerError(for: symbol) {
+            throw error
+        }
         let instance = Instance(
             symbol: symbol, lifecycleOwner: symbol.isClass ? self : nil)
         if symbol.isActor {
@@ -638,6 +667,9 @@ extension Interpreter {
                 let closure = ClosureValue(
                     parameters: [], body: body.statements,
                     captured: selfEnvironment(.instance(instance)))
+                closure.lexicalOwner = symbol
+                closure.lexicalExecutor = symbol.deinitializerExecutor
+                closure.executorPreference = symbol.deinitializerExecutor
                 _ = try? callClosure(closure, arguments: [])
             }
             cursor = symbol.superclassName.flatMap { byName[$0] }

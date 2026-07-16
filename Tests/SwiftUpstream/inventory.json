@@ -6,8 +6,8 @@
   "scope" : "test/Concurrency/Runtime",
   "summary" : {
     "diagnostic" : 4,
-    "direct" : 14,
-    "needsAdapter" : 109,
+    "direct" : 15,
+    "needsAdapter" : 108,
     "total" : 134,
     "unsupported" : 7
   },
@@ -489,8 +489,9 @@
       "upstreamPath" : "test/Concurrency/Runtime/continuation_validation.swift"
     },
     {
-      "classification" : "needs-adapter",
-      "reason" : "Executable candidate not yet admitted; requires Swift 6 compilation and deterministic interpreter review.",
+      "classification" : "direct",
+      "reason" : "Native-positive custom actor executor oracle; the interpreter must fail closed before pretending its default mailbox is equivalent.",
+      "selectedCaseID" : "concurrency-custom-actor-executor",
       "upstreamPath" : "test/Concurrency/Runtime/custom_executors.swift"
     },
     {

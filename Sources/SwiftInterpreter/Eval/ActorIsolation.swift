@@ -20,6 +20,7 @@ extension Interpreter {
         for closure: ClosureValue
     ) throws -> RuntimeExecutorKind? {
         if let executor = closure.executorPreference {
+            try requireSupportedActorExecutor(executor)
             return executor
         }
 
@@ -42,6 +43,7 @@ extension Interpreter {
                     "global actor '\(candidate)' must expose a source "
                         + "actor instance as static shared")
             }
+            try requireSupportedActorExecutor(actor)
             return .actor(actorID)
         }
         return nil
@@ -135,6 +137,7 @@ extension Interpreter {
         if case .instance(let actor) = value,
            actor.symbol.isActor,
            let actorID = actor.actorID {
+            try requireSupportedActorExecutor(actor)
             return .actor(actorID)
         }
         if case .host(let payload) = value,
@@ -172,6 +175,7 @@ extension Interpreter {
                 message: "actor computed property requires a runtime actor ID",
                 fatal: true)
         }
+        try requireSupportedActorExecutor(instance)
         return .actor(actorID)
     }
 
@@ -195,6 +199,7 @@ extension Interpreter {
                 message: "actor subscript requires a runtime actor ID",
                 fatal: true)
         }
+        try requireSupportedActorExecutor(instance)
         return .actor(actorID)
     }
 
@@ -205,10 +210,11 @@ extension Interpreter {
     func enterActorInvocation(
         executor: RuntimeExecutorKind?
     ) async throws -> RuntimeActorInvocationOwnership {
-        guard evaluationTaskContext.isAsyncSession,
-              case .actor(let actorID)? = executor else {
+        guard case .actor(let actorID)? = executor else {
             return .none
         }
+        try requireSupportedActorExecutor(actorID)
+        guard evaluationTaskContext.isAsyncSession else { return .none }
         guard let taskID = evaluationTaskContext.runtimeTaskID else {
             throw RuntimeError(
                 message: "actor-isolated invocation requires a runtime task",
@@ -249,8 +255,9 @@ extension Interpreter {
     func requireSynchronousActorInvocationAccess(
         to executor: RuntimeExecutorKind?
     ) throws {
-        guard evaluationTaskContext.isAsyncSession,
-              case .actor(let actorID)? = executor else { return }
+        guard case .actor(let actorID)? = executor else { return }
+        try requireSupportedActorExecutor(actorID)
+        guard evaluationTaskContext.isAsyncSession else { return }
         guard let taskID = evaluationTaskContext.runtimeTaskID,
               evaluationTaskContext.currentExecutor.actorID == actorID,
               concurrencyRuntime.actors[actorID]?.executorOwnerTaskID == taskID
@@ -275,8 +282,9 @@ extension Interpreter {
               property.requiresActorExecutor,
               !instance.isInitializing,
               !evaluationTaskContext.initializingInstances.contains(
-                ObjectIdentifier(instance)),
-              evaluationTaskContext.isAsyncSession else { return }
+                ObjectIdentifier(instance)) else { return }
+        try requireSupportedActorExecutor(instance)
+        guard evaluationTaskContext.isAsyncSession else { return }
         guard let actorID = instance.actorID,
               evaluationTaskContext.currentExecutor.actorID == actorID,
               let taskID = evaluationTaskContext.runtimeTaskID,
@@ -288,5 +296,32 @@ extension Interpreter {
                     + "owning its executor",
                 fatal: true)
         }
+    }
+
+    private func requireSupportedActorExecutor(
+        _ executor: RuntimeExecutorKind
+    ) throws {
+        guard case .actor(let actorID) = executor else { return }
+        try requireSupportedActorExecutor(actorID)
+    }
+
+    private func requireSupportedActorExecutor(
+        _ actorID: RuntimeActorID
+    ) throws {
+        guard let actor = concurrencyRuntime.actors[actorID]?.instance else {
+            throw RuntimeError(
+                message: "custom actor executor check refers to a released "
+                    + "source actor",
+                fatal: true)
+        }
+        try requireSupportedActorExecutor(actor)
+    }
+
+    private func requireSupportedActorExecutor(_ actor: Instance) throws {
+        guard actor.symbol.requiresCustomExecutorDispatch else { return }
+        throw RuntimeError(
+            message: "custom actor executor for '\(actor.symbol.name)' uses "
+                + "unownedExecutor dispatch, which is not supported yet",
+            fatal: true)
     }
 }

@@ -44,6 +44,101 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func customExecutorActorFailsClosedOnlyAtIsolatedEntry() async throws {
+        let interpreter = Interpreter()
+        do {
+            _ = try await interpreter.runAsync(source: """
+                var observed = "before"
+                actor CustomExecutorActor {
+                    nonisolated var unownedExecutor: UnownedSerialExecutor {
+                        fatalError("must not evaluate custom executor")
+                    }
+                    nonisolated func safe() -> String { "safe" }
+                    func isolated() -> String { "isolated" }
+                }
+                let actor = CustomExecutorActor()
+                observed = actor.safe()
+                await actor.isolated()
+                """)
+            Issue.record("custom actor executor was replaced by the default mailbox")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains("custom actor executor"))
+            #expect(error.message.contains("CustomExecutorActor"))
+            #expect(error.message.contains("unownedExecutor"))
+        }
+
+        #expect(interpreter.globals.lookup("observed")?.stringValue == "safe")
+        let symbol = try #require(
+            interpreter.globals.lookup("CustomExecutorActor")?.typeSymbol)
+        #expect(symbol.requiresCustomExecutorDispatch)
+    }
+
+    @Test
+    func protocolDefaultCustomExecutorFailsClosedAtIsolatedEntry() async {
+        do {
+            _ = try await Interpreter().runAsync(source: """
+                protocol ExecutorBackedActor: Actor {}
+                extension ExecutorBackedActor {
+                    nonisolated var unownedExecutor: UnownedSerialExecutor {
+                        fatalError("must not evaluate protocol executor")
+                    }
+                }
+                actor ProtocolExecutorActor: ExecutorBackedActor {
+                    func isolated() -> String { "isolated" }
+                }
+                await ProtocolExecutorActor().isolated()
+                """)
+            Issue.record("protocol custom actor executor was silently admitted")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains("custom actor executor"))
+            #expect(error.message.contains("ProtocolExecutorActor"))
+            #expect(error.message.contains("unownedExecutor"))
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func customExecutorActorStorageFailsClosedInLegacySyncSession() throws {
+        let interpreter = Interpreter()
+        do {
+            _ = try interpreter.run(source: """
+                actor CustomExecutorActor {
+                    var value = 7
+                    nonisolated var unownedExecutor: UnownedSerialExecutor {
+                        fatalError("must not evaluate custom executor")
+                    }
+                }
+                CustomExecutorActor().value
+                """)
+            Issue.record("custom actor storage used the legacy class-like path")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains("custom actor executor"))
+            #expect(error.message.contains("CustomExecutorActor"))
+            #expect(error.message.contains("unownedExecutor"))
+        }
+    }
+
+    @Test
+    func nonActorUnownedExecutorPropertyRemainsAnOrdinaryMember() throws {
+        let interpreter = Interpreter()
+        let result = try interpreter.run(source: """
+            final class ExecutorHolder {
+                var unownedExecutor: Int { 7 }
+            }
+            ExecutorHolder().unownedExecutor
+            """)
+        let symbol = try #require(
+            interpreter.globals.lookup("ExecutorHolder")?.typeSymbol)
+
+        #expect(result.intValue == 7)
+        #expect(!symbol.requiresCustomExecutorDispatch)
+    }
+
+    @Test
     func actorInstancesOwnDistinctRuntimeIdentitiesAndReleaseRecords() throws {
         let interpreter = Interpreter()
         _ = try interpreter.run(source: """
