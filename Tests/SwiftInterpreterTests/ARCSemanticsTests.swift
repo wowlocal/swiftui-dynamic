@@ -314,6 +314,24 @@ struct ARCSemanticsTests {
         }
     }
 
+    @Test
+    func isolatedDeinitializerFailsClosedDuringCollection() throws {
+        do {
+            _ = try Interpreter().run(source: """
+                @MainActor final class MainOwned {
+                    isolated deinit {}
+                }
+                MainOwned()
+                """)
+            Issue.record("isolated deinitializer was silently admitted")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.line == 2)
+            #expect(error.message.contains("isolated deinitializer"))
+            #expect(error.message.contains("executor-owned teardown"))
+        }
+    }
+
     @Test func ordinaryActorDeinitializerRemainsSupported() throws {
         let result = try Interpreter().run(source: """
             var events: [String] = []
@@ -328,6 +346,22 @@ struct ARCSemanticsTests {
             """)
 
         #expect(result.stringValue == "ordinary")
+    }
+
+    @Test func explicitNonisolatedActorDeinitializerRemainsSupported() throws {
+        let result = try Interpreter().run(source: """
+            var events: [String] = []
+            actor Worker {
+                nonisolated deinit { events.append("nonisolated") }
+            }
+            do {
+                let worker = Worker()
+                _ = worker
+            }
+            events.joined(separator: ",")
+            """)
+
+        #expect(result.stringValue == "nonisolated")
     }
 
     @Test func weakCaptureAliasBuildsAWeakRuntimeSlot() throws {

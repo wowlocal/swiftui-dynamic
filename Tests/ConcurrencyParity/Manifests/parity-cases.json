@@ -110,6 +110,22 @@
     "notes": "Exact output is none:owned:5 in all 20 Swift 6.3.3 runs. The fixture proves initialization isolation, retained state, and post-initialization mailbox ownership without asserting physical threads or unrelated message order."
   },
   {
+    "id": "actor-isolated-deinitializer",
+    "fixture": "Fixtures/actor-isolated-deinitializer.swift",
+    "mode": "runtime",
+    "assertion": "interpreter-diagnostic",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorIsolatedDeinitializerProbe()",
+    "interpreterProjection": "string",
+    "interpreterDiagnosticContains": [
+      "isolated deinitializer",
+      "executor-owned teardown"
+    ],
+    "nativeFact": "An explicit isolated deinitializer on a MainActor-isolated class inherits that executor and runs before the next MainActor statement when final release already occurs there.",
+    "notes": "Native exact output is deinit in all repetitions. This proves only the already-owned synchronous fast path. The interpreter must fail closed because its general source ARC path cannot schedule executor-owned teardown; ordinary and explicit nonisolated deinitializers remain supported."
+  },
+  {
     "id": "actor-task-local-propagation",
     "fixture": "Fixtures/actor-task-local-propagation.swift",
     "mode": "runtime",

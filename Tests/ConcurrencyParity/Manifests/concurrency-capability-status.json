@@ -2691,11 +2691,15 @@
       "implementationStatus": "known-divergence",
       "verificationStatus": "none",
       "requirementRef": "M5/actor-declaration-safety-boundary",
-      "evidenceCaseIDs": [],
+      "evidenceCaseIDs": [
+        "actor-isolated-deinitializer"
+      ],
       "testNames": [
         "SwiftUpstreamParityTests/mainActorDeinitializerFailsClosedAgainstPinnedOracle",
         "ARCSemanticsTests/explicitMainActorDeinitializerFailsClosedDuringCollection",
-        "ARCSemanticsTests/ordinaryActorDeinitializerRemainsSupported"
+        "ARCSemanticsTests/ordinaryActorDeinitializerRemainsSupported",
+        "ARCSemanticsTests/isolatedDeinitializerFailsClosedDuringCollection",
+        "ARCSemanticsTests/explicitNonisolatedActorDeinitializerRemainsSupported"
       ],
       "gapEvidenceIDs": [
         "actor-declaration-safety-boundary"

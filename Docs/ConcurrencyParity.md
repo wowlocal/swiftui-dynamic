@@ -6503,5 +6503,40 @@ The manifest assertion is deliberately `interpreter-diagnostic`: native Swift
 must compile, run, and satisfy the unchanged FileCheck oracle, while the
 interpreter must fail closed with both required message fragments. The intake
 is now 14 direct / 4 diagnostic / 109 needs-adapter / 7 unsupported across all
-134 runtime files. The M5 boundary remains open for `isolated deinit`, arbitrary
-global-actor deinitializer attributes, and custom-executor teardown.
+134 runtime files. At that step the M5 boundary remained open for
+`isolated deinit`, arbitrary global-actor deinitializer attributes, and
+custom-executor teardown.
+
+### M5 isolated deinitializer boundary
+
+The repository-owned same-source fixture
+`Tests/ConcurrencyParity/Fixtures/actor-isolated-deinitializer.swift` has
+SHA-256
+`2c86c8c84447539808242e519b1860b2e8716acb47c8394c86d7dbc52f6d2fa4`.
+It asks one question: when a MainActor-isolated class declares
+`isolated deinit` and final release already owns MainActor, does teardown run
+before the following MainActor statement?
+
+Apple Swift 6.3.3 (`swiftlang-6.3.3.1.3`) compiled the source against SDK 26.5
+for `arm64-apple-macosx26.0` with Swift 6, complete strict concurrency, and
+parse-as-library. Twenty bounded executions returned exactly `deinit`; the
+concatenated output SHA-256 was
+`31a22641c2d9978ed6e65d1f374a2bca272f06ab1a95b0c245524d9c3e56f697`.
+This proves only the already-owned synchronous fast path. It does not establish
+off-executor scheduling or physical-thread behavior.
+
+This is a gap closure. Before the production change, all twenty interpreted
+fresh-process repetitions silently returned `deinit`: the member collector
+discarded the `isolated` modifier and stored the body as an ordinary
+deinitializer. The common collector now detects that syntax construct and
+raises the located fatal diagnostic `isolated deinitializer requires
+executor-owned teardown, which is not supported yet` before the body enters
+the runtime symbol. Ordinary and explicit `nonisolated` actor deinitializers
+remain supported by focused regressions.
+
+The parity harness now represents each interpreted child observation as a
+typed value or `RuntimeError`. Its reusable `interpreter-diagnostic` assertion
+requires stable native execution plus every declared diagnostic fragment, so a
+returned source string cannot masquerade as a diagnostic. The same-source
+differential and focused ARC tests are GREEN. The M5 boundary remains open for
+arbitrary global-actor deinitializer attributes and custom-executor teardown.

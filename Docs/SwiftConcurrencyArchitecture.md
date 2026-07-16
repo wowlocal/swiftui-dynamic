@@ -1081,8 +1081,13 @@ may release the same value from another executor and `Instance` teardown is
 currently synchronous. Declaration collection therefore fails closed on an
 explicit `@MainActor deinit` before its body can be stored or executed. An
 ordinary actor deinitializer remains nonisolated and supported. General
-executor-scheduled teardown, the `isolated deinit` modifier, arbitrary global
-actor attributes, and custom actor executors remain separate safety-boundary
+executor-scheduled teardown is still unavailable. A repository-owned
+same-source probe now establishes that `isolated deinit` on a MainActor class
+inherits that executor and may use the already-owned synchronous fast path.
+The interpreter previously discarded this modifier and ran the body inline;
+declaration collection now fails closed before storing it. Explicit
+`nonisolated deinit` remains supported. Arbitrary global-actor deinitializer
+attributes and custom actor executors remain separate safety-boundary
 questions.
 The per-feature fail-closed safety boundary remains open M5 work.
 

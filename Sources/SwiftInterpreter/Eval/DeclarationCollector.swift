@@ -535,10 +535,20 @@ extension Interpreter {
                         .trimmedDescription.split(separator: ".").last
                         .map(String.init)
                 }
-                if attributeNames.contains("MainActor") {
+                let isolationDescription: String?
+                if deinitDecl.modifiers.contains(where: {
+                    $0.name.text == "isolated"
+                }) {
+                    isolationDescription = "isolated deinitializer"
+                } else if attributeNames.contains("MainActor") {
+                    isolationDescription = "@MainActor deinitializer"
+                } else {
+                    isolationDescription = nil
+                }
+                if let isolationDescription {
                     let located = error(
                         deinitDecl,
-                        "@MainActor deinitializer requires executor-owned "
+                        isolationDescription + " requires executor-owned "
                             + "teardown, which is not supported yet")
                     throw RuntimeError(
                         message: located.message,

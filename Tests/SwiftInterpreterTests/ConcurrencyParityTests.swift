@@ -15,6 +15,7 @@ private enum ParityAssertionKind: String, Decodable {
     case partialOrder = "partial-order"
     case predicate
     case diagnostic
+    case interpreterDiagnostic = "interpreter-diagnostic"
     case stress
 }
 
@@ -33,6 +34,7 @@ private struct ConcurrencyParityCase: Decodable {
     let predicate: String?
     let diagnosticContains: [String]?
     let diagnosticLine: Int?
+    let interpreterDiagnosticContains: [String]?
     let nativeFact: String
     let notes: String
 }
@@ -44,11 +46,21 @@ private struct ParityProcessResult {
     let timedOut: Bool
 }
 
+private struct InterpretedParityObservation: Codable, Equatable {
+    enum Kind: String, Codable {
+        case value
+        case runtimeError
+    }
+
+    let kind: Kind
+    let text: String
+}
+
 private struct InterpretedParityChildReceipt: Codable, Equatable {
     let version: Int
     let caseID: String
     let processIdentifier: Int32
-    let output: String
+    let observation: InterpretedParityObservation
 }
 
 private struct ConcurrencyParityShard {
@@ -262,13 +274,30 @@ private enum ConcurrencyParityHarness {
         for parityCase: ConcurrencyParityCase,
         repetitions: Int? = nil
     ) throws -> [String] {
+        try interpretedObservations(
+            for: parityCase,
+            repetitions: repetitions).map { observation in
+                guard observation.kind == .value else {
+                    throw RuntimeError(message:
+                        "interpreted parity case '\(parityCase.id)' "
+                            + "produced an unexpected runtime diagnostic: "
+                            + observation.text)
+                }
+                return observation.text
+            }
+    }
+
+    static func interpretedObservations(
+        for parityCase: ConcurrencyParityCase,
+        repetitions: Int? = nil
+    ) throws -> [InterpretedParityObservation] {
         guard !isInterpretedChild else {
             throw RuntimeError(message:
                 "an interpreted parity child cannot recursively launch another child")
         }
         let helper = try testingHelperURL()
         let testBundle = try testBundleExecutableURL()
-        var outputs: [String] = []
+        var observations: [InterpretedParityObservation] = []
         var childProcessIdentifiers: Set<Int32> = []
         let repetitionCount = max(1, repetitions ?? parityCase.repetitions)
         for repetition in 0..<repetitionCount {
@@ -303,16 +332,16 @@ private enum ConcurrencyParityHarness {
             let receipt = try JSONDecoder().decode(
                 InterpretedParityChildReceipt.self,
                 from: Data(contentsOf: receiptURL))
-            guard receipt.version == 1,
+            guard receipt.version == 2,
                   receipt.caseID == parityCase.id,
                   receipt.processIdentifier != ProcessInfo.processInfo.processIdentifier,
                   childProcessIdentifiers.insert(receipt.processIdentifier).inserted else {
                 throw RuntimeError(message:
                     "interpreted parity child '\(parityCase.id)' wrote an invalid receipt")
             }
-            outputs.append(receipt.output)
+            observations.append(receipt.observation)
         }
-        return outputs
+        return observations
     }
 
     static var isInterpretedChild: Bool {
@@ -346,14 +375,14 @@ private enum ConcurrencyParityHarness {
 
     static func writeInterpretedChildReceipt(
         caseID: String,
-        output: String,
+        observation: InterpretedParityObservation,
         to outputURL: URL
     ) throws {
         let receipt = InterpretedParityChildReceipt(
-            version: 1,
+            version: 2,
             caseID: caseID,
             processIdentifier: ProcessInfo.processInfo.processIdentifier,
-            output: output)
+            observation: observation)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try encoder.encode(receipt).write(to: outputURL, options: .atomic)
@@ -930,7 +959,66 @@ private enum ConcurrencyParityHarness {
             }
         case .diagnostic:
             return ["diagnostics are validated from compiler status/stderr"]
+        case .interpreterDiagnostic:
+            return [
+                "interpreter diagnostics require typed child observations"
+            ]
         }
+    }
+
+    static func observationViolations(
+        for parityCase: ConcurrencyParityCase,
+        native: [String],
+        interpreted: [InterpretedParityObservation]
+    ) -> [String] {
+        guard parityCase.assertion == .interpreterDiagnostic else {
+            var problems = interpreted.compactMap { observation in
+                observation.kind == .value ? nil
+                    : "unexpected interpreter runtime diagnostic '"
+                        + observation.text + "'"
+            }
+            let values = interpreted.compactMap { observation in
+                observation.kind == .value ? observation.text : nil
+            }
+            problems += violations(
+                assertion: parityCase.assertion,
+                native: native,
+                interpreted: values,
+                allowedOutputs: parityCase.allowedOutputs,
+                requiredEvents: parityCase.requiredEvents,
+                precedes: parityCase.precedes,
+                predicate: parityCase.predicate)
+            return problems
+        }
+
+        guard let expected = native.first else {
+            return ["interpreter-diagnostic assertion needs native output"]
+        }
+        var problems: [String] = []
+        if native.contains(where: { $0 != expected }) {
+            problems.append(
+                "native interpreter-diagnostic output was unstable: \(native)")
+        }
+        let fragments = parityCase.interpreterDiagnosticContains ?? []
+        if fragments.isEmpty {
+            problems.append(
+                "interpreter-diagnostic assertion needs message fragments")
+        }
+        for observation in interpreted {
+            guard observation.kind == .runtimeError else {
+                problems.append(
+                    "interpreter unexpectedly returned '"
+                        + observation.text + "'")
+                continue
+            }
+            for fragment in fragments where
+                !observation.text.contains(fragment) {
+                problems.append(
+                    "interpreter diagnostic did not contain '"
+                        + fragment + "': " + observation.text)
+            }
+        }
+        return problems
     }
 
     private static func traceViolations(
@@ -1271,21 +1359,17 @@ struct ConcurrencyParityTests {
             let native = try ConcurrencyParityHarness.nativeOutputs(
                 for: parityCase)
             let interpreted = try ConcurrencyParityHarness
-                .interpretedOutputs(for: parityCase)
+                .interpretedObservations(for: parityCase)
             let expectedRepetitions = max(1, parityCase.repetitions)
             guard native.count == expectedRepetitions,
                   interpreted.count == expectedRepetitions else {
                 throw RuntimeError(message:
                     "\(parityCase.id) did not complete every repetition")
             }
-            let problems = ConcurrencyParityHarness.violations(
-                assertion: parityCase.assertion,
+            let problems = ConcurrencyParityHarness.observationViolations(
+                for: parityCase,
                 native: native,
-                interpreted: interpreted,
-                allowedOutputs: parityCase.allowedOutputs,
-                requiredEvents: parityCase.requiredEvents,
-                precedes: parityCase.precedes,
-                predicate: parityCase.predicate)
+                interpreted: interpreted)
             if !problems.isEmpty {
                 Issue.record("\(parityCase.id): \(problems.joined(separator: "; "))")
             }
@@ -1300,11 +1384,19 @@ struct ConcurrencyParityTests {
     @Test func interpretedParityChild() async throws {
         guard let request = try ConcurrencyParityHarness
             .interpretedChildRequest() else { return }
-        let output = try await ConcurrencyParityHarness.interpretedOutput(
-            for: request.parityCase)
+        let observation: InterpretedParityObservation
+        do {
+            observation = .init(
+                kind: .value,
+                text: try await ConcurrencyParityHarness.interpretedOutput(
+                    for: request.parityCase))
+        } catch let error as RuntimeError
+            where request.parityCase.assertion == .interpreterDiagnostic {
+            observation = .init(kind: .runtimeError, text: error.message)
+        }
         try ConcurrencyParityHarness.writeInterpretedChildReceipt(
             caseID: request.parityCase.id,
-            output: output,
+            observation: observation,
             to: request.outputURL)
     }
 
@@ -1421,7 +1513,8 @@ struct ConcurrencyParityTests {
         #expect(selectedIDs.sorted() == cases.map(\.id).sorted())
     }
 
-    @Test func assertionEngineDetectsDivergenceAndSupportsNonExactRules() {
+    @Test
+    func assertionEngineDetectsDivergenceAndSupportsNonExactRules() throws {
         let exactMismatch = ConcurrencyParityHarness.violations(
             assertion: .exact,
             native: ["native"],
@@ -1481,6 +1574,22 @@ struct ConcurrencyParityTests {
             native: ["completed", "unexpected"],
             interpreted: ["arbitrary"])
         #expect(unstableStress.count == 2)
+
+        let diagnosticCase = try #require(
+            ConcurrencyParityHarness.loadCases().first {
+                $0.id == "actor-isolated-deinitializer"
+            })
+        let message = "isolated deinitializer requires executor-owned teardown"
+        let disguisedValue = ConcurrencyParityHarness.observationViolations(
+            for: diagnosticCase,
+            native: ["deinit"],
+            interpreted: [.init(kind: .value, text: message)])
+        #expect(!disguisedValue.isEmpty)
+        let typedDiagnostic = ConcurrencyParityHarness.observationViolations(
+            for: diagnosticCase,
+            native: ["deinit"],
+            interpreted: [.init(kind: .runtimeError, text: message)])
+        #expect(typedDiagnostic.isEmpty)
     }
 
     @Test func nativeObservationDigestIsOrderIndependentAndContentSensitive() throws {
