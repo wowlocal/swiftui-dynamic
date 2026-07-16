@@ -1426,3 +1426,34 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   [AnyChartContent] an isViewValue routed mark arrays into the STRICT
   view-modifier retry — reverted; marks are content, not views. Pins:
   InterpretedChartTests.
+- 2026-07-16 forecast-blank diagnosis narrowed (worktree iteration 5,
+  time-boxed): the staked "@State from static" hypothesis was WRONG —
+  a distilled probe passes, and a data probe through the real card
+  proves placeholderForecast resolves fully (25 entries, 1 night range,
+  low 53.0; Calendar/DateComponents/computed props all work). A date-x
+  AreaMark probe with entries/series/interpolation renders a REAL
+  gradient area chart. The real failure is a TWO-PASS divergence:
+  chartContents drop diagnostics (new this iteration — silent drops now
+  record named RenderDiagnostics) show one body evaluation returning
+  pure marks (FOREACH-KINDS elements=25 marks=25; night ForEach 1→3
+  marks incl. mask+annotations) while ANOTHER evaluation of the SAME
+  closures returns view-wrapped content (AnyView(ModifiedContent<
+  AnyView,_ForegroundStyleModifier>) + a ForEachFan) that the Chart
+  gateway rightly refuses — the blank card is the dropped pass. Landed:
+  chart-content drop diagnostics + runtime-array splicing in
+  chartContents, FOREACH-KINDS/CHARTMEMBER FTCHECK_TRACE probes,
+  diag-forecast-data/diag-weather capture probes, capture diagnostic
+  cap 4→12. NEXT (staked precisely): find which of the 2-3 InterpretedView
+  body evaluations diverges and why mark constructors resolve to views
+  there — suspects: post-adoption env injection changing registry
+  dispatch, or the second evaluation running under a different builder
+  context. Pins unchanged (InterpretedChartTests green). GATE-RED
+  POSTMORTEM (same iteration): the "parallel test workers failed" REDs
+  were NOT contention — GATE_KEEP_LOGS=1 named 42 issues in
+  hostedRealRender corpus tests (arrived with the iteration-start merge)
+  that assert EMPTY RenderDiagnostics: the new chart-drop diagnostic
+  fired from makeGroup on every ordinary view group. Drop recording is
+  now scoped to true chart contexts (Chart builder + mask) via a
+  recordDrops flag; all 20 hostedRealRender cases +
+  taskObservatoryExample pass. Instrument lesson logged: keep gate logs
+  (GATE_KEEP_LOGS) BEFORE re-rolling a red gate.

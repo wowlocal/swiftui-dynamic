@@ -184,7 +184,7 @@ struct FoodTruckCheckMain {
                     let path = captureDirectory + "/\(id).png"
                     try? png.write(to: URL(fileURLWithPath: path))
                     print("\(id)\t\(path)\t\(rep.pixelsWide)x\(rep.pixelsHigh)")
-                    for entry in RenderDiagnostics.errors.prefix(4) {
+                    for entry in RenderDiagnostics.errors.prefix(12) {
                         print("   ⚠ \(id) \(entry.view): \(entry.error.message.prefix(110))")
                     }
                 }
@@ -463,6 +463,8 @@ struct FoodTruckCheckMain {
                 }
             }
             """
+            capturePNG("diag-forecast-data", source: probeMergeBase + probeApp(
+                "VStack { Text(String(TruckWeatherCard.placeholderForecast.entries.count)); Text(String(TruckWeatherCard.placeholderForecast.nightTimeRanges.count)); Text(String(TruckWeatherCard.placeholderForecast.low)) }.font(.system(size: 40)).background(Color.white)"), size: cardSize)
             capturePNG("diag-weather", source: probeMergeBase + probeApp(
                 "TruckWeatherCard(location: CLLocation(latitude: 37.3, longitude: -122.0)).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("diag-chart", source: probeMergeBase + diagChartDecl + probeApp(

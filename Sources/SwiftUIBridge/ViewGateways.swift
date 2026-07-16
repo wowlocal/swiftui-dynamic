@@ -620,8 +620,17 @@ extension ViewRegistry {
             // Chart-content ForEach yields MARKS, not views — pass the
             // real chart contents through for the Chart builder to splice.
             let chartMarks = Self.chartContents(collected)
+            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                FileHandle.standardError.write(Data(
+                    "FOREACH-KINDS elements=\(elements.count) marks=\(chartMarks.count) first=\(collected.first.map { String(describing: $0).prefix(90) } ?? "none")\n".utf8))
+            }
             if !chartMarks.isEmpty, chartMarks.count == collected.count {
                 return .native(chartMarks)
+            }
+            if !chartMarks.isEmpty {
+                RenderDiagnostics.record(
+                    RuntimeError(message: "ForEach mixed chart/view content: \(chartMarks.count) marks of \(collected.count) values; kinds=\(collected.map { String(describing: $0).prefix(60) })"),
+                    in: "ForEach")
             }
             let views = try collected.map(Self.anyView)
             if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
