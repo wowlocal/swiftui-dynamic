@@ -159,6 +159,22 @@ enum Coerce {
                 }
             }
         }
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall {
+            // `.linearGradient(colors:startPoint:endPoint:)` — the factory
+            // spelling of the gradient styles (FoodTruck's forecast fill).
+            if call.name == "linearGradient" {
+                let colors = (call.arguments.labeled("colors")?.arrayValue ?? [])
+                    .compactMap(colorLike)
+                let start = call.arguments.labeled("startPoint")
+                    .flatMap { try? unitPoint($0) } ?? .top
+                let end = call.arguments.labeled("endPoint")
+                    .flatMap { try? unitPoint($0) } ?? .bottom
+                if !colors.isEmpty {
+                    return AnyShapeStyle(LinearGradient(
+                        colors: colors, startPoint: start, endPoint: end))
+                }
+            }
+        }
         if case .implicitMember(let name) = value {
             if let color = colorNamed(name) { return AnyShapeStyle(color) }
             switch name {

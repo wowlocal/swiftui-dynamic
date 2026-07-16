@@ -137,6 +137,9 @@ struct FoodTruckCheckMain {
         let appFilesWithoutMain = appFiles.filter { !$0.hasSuffix("/App/App.swift") }
         let probeMergeBase = ProjectMaterial.mergedSource(
             at: sampleRoot, files: appFilesWithoutMain + kitFiles) + frozenClockShim
+        if let dumpPath = ProcessInfo.processInfo.environment["FTCHECK_DUMP_MERGE"] {
+            try? probeMergeBase.write(toFile: dumpPath, atomically: true, encoding: .utf8)
+        }
 
         // ── R2 capture mode: PNG per id, same technique as the twin ──
         if let captureDirectory {
@@ -423,6 +426,47 @@ struct FoodTruckCheckMain {
                 "Label(String(\"New Orders\"), systemImage: String(\"shippingbox\")).labelStyle(.cardNavigationHeader).background(Color.white)"), size: cardSize)
             capturePNG("diag-cardheader", source: probeMergeBase + probeApp(
                 "VStack { CardNavigationHeader(panel: Panel.orders, navigation: .navigationLink) { Label(String(\"New Orders\"), systemImage: String(\"shippingbox\")) } }.frame(width: 380, height: 60).background(Color.white)"), size: cardSize)
+            let diagChartDecl = """
+
+            struct __ChartProbe: View {
+                var body: some View {
+                    Chart {
+                        marks()
+                            .foregroundStyle(.linearGradient(colors: [.teal, .yellow], startPoint: .bottom, endPoint: .top))
+                    }
+                }
+                @ChartContentBuilder
+                func marks() -> some ChartContent {
+                    labeled(seriesKey: String("S"), value: 0)
+                }
+                struct __Entry: Identifiable {
+                    var id: Date { date }
+                    var date: Date
+                    var degrees: Double
+                }
+                var entries: [__Entry] {
+                    [__Entry(date: Date(timeIntervalSince1970: 1784220000), degrees: 63),
+                     __Entry(date: Date(timeIntervalSince1970: 1784223600), degrees: 72),
+                     __Entry(date: Date(timeIntervalSince1970: 1784227200), degrees: 80)]
+                }
+                @ChartContentBuilder
+                func labeled(seriesKey: String, value: Double) -> some ChartContent {
+                    ForEach(entries) { entry in
+                        AreaMark(
+                            x: .value(String("Hour"), entry.date),
+                            yStart: .value(String("Temperature"), 55.0),
+                            yEnd: .value(String("Temperature"), entry.degrees),
+                            series: .value(seriesKey, value)
+                        )
+                        .interpolationMethod(.catmullRom)
+                    }
+                }
+            }
+            """
+            capturePNG("diag-weather", source: probeMergeBase + probeApp(
+                "TruckWeatherCard(location: CLLocation(latitude: 37.3, longitude: -122.0)).padding(10).background(Color.white)"), size: cardSize)
+            capturePNG("diag-chart", source: probeMergeBase + diagChartDecl + probeApp(
+                "__ChartProbe().frame(width: 300, height: 200).background(Color.white)"), size: cardSize)
             capturePNG("diag-layout", source: probeMergeBase + probeApp(
                 "DonutStackView(donuts: Array(model.donuts.prefix(3))).frame(width: 120, height: 120).background(Color.white)"), size: cardSize)
             let diagMiniLayoutDecl = """

@@ -613,10 +613,17 @@ extension ViewRegistry {
             } else {
                 elements = try Self.forEachElements(data)
             }
-            var views: [AnyView] = []
+            var collected: [RuntimeValue] = []
             for element in elements {
-                views += try ctx.callBuilderClosure(content, arguments: [element]).map(Self.anyView)
+                collected += try ctx.callBuilderClosure(content, arguments: [element])
             }
+            // Chart-content ForEach yields MARKS, not views — pass the
+            // real chart contents through for the Chart builder to splice.
+            let chartMarks = Self.chartContents(collected)
+            if !chartMarks.isEmpty, chartMarks.count == collected.count {
+                return .native(chartMarks)
+            }
+            let views = try collected.map(Self.anyView)
             if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
                 FileHandle.standardError.write(Data("FOREACH elements=\(elements.count) views=\(views.count)\n".utf8))
             }
