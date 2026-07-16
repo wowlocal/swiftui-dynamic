@@ -898,6 +898,18 @@ let memberTypes: Set<String> = [
     "Decimal", "IndexPath", "PersonNameComponents",
 ]
 
+/// Protocol extensions serve their CONCRETE runtime carriers: the
+/// interpreter's numeric payloads are Int and Double, so members Foundation
+/// publishes on the numeric protocols (`formatted()` and the FormatStyle
+/// family) register once per carrier the dispatch can actually receive.
+let protocolReceivers: [String: [String]] = [
+    "BinaryInteger": ["Int"],
+    "SignedInteger": ["Int"],
+    "FixedWidthInteger": ["Int"],
+    "BinaryFloatingPoint": ["Double"],
+    "FloatingPoint": ["Double"],
+]
+
 func memberMapping(for normalized: String) -> TypeMapping? {
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
@@ -1143,27 +1155,35 @@ let foundationFile: SourceFileSyntax? = {
 if let foundationFile {
     for statement in foundationFile.statements {
         guard case .decl(let decl) = statement.item else { continue }
-        var typeName: String?
+        var typeNames: [String] = []
         var members: MemberBlockItemListSyntax?
         var guarded = false
         if let structDecl = decl.as(StructDeclSyntax.self),
            memberTypes.contains(structDecl.name.text), isUsable(structDecl.attributes) {
-            typeName = structDecl.name.text
+            typeNames = [structDecl.name.text]
             members = structDecl.memberBlock.members
             guarded = needsAvailabilityGuard(structDecl.attributes)
         } else if let ext = decl.as(ExtensionDeclSyntax.self),
-                  isUsable(ext.attributes), ext.genericWhereClause == nil,
-                  memberTypes.contains(normalize(ext.extendedType.trimmedDescription)) {
-            typeName = normalize(ext.extendedType.trimmedDescription)
-            members = ext.memberBlock.members
-            guarded = needsAvailabilityGuard(ext.attributes)
+                  isUsable(ext.attributes), ext.genericWhereClause == nil {
+            let extended = normalize(ext.extendedType.trimmedDescription)
+            if memberTypes.contains(extended) {
+                typeNames = [extended]
+            } else if let carriers = protocolReceivers[extended] {
+                typeNames = carriers
+            }
+            if !typeNames.isEmpty {
+                members = ext.memberBlock.members
+                guarded = needsAvailabilityGuard(ext.attributes)
+            }
         }
-        guard let typeName, let members else { continue }
-        for member in members {
-            if let function = member.decl.as(FunctionDeclSyntax.self), memberIsUsable(function.attributes) {
-                processMemberFunction(typeName, function, guarded: guarded)
-            } else if let variable = member.decl.as(VariableDeclSyntax.self), memberIsUsable(variable.attributes) {
-                processMemberProperty(typeName, variable, guarded: guarded)
+        guard !typeNames.isEmpty, let members else { continue }
+        for typeName in typeNames {
+            for member in members {
+                if let function = member.decl.as(FunctionDeclSyntax.self), memberIsUsable(function.attributes) {
+                    processMemberFunction(typeName, function, guarded: guarded)
+                } else if let variable = member.decl.as(VariableDeclSyntax.self), memberIsUsable(variable.attributes) {
+                    processMemberProperty(typeName, variable, guarded: guarded)
+                }
             }
         }
     }

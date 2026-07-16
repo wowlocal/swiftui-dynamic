@@ -1,7 +1,7 @@
 .build/
 .swiftpm/
 .DS_Store
-External/
+External
 .claude/worktrees/
 
 # Multi-agent claims lock — out-of-band, never merged

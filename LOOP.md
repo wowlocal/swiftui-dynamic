@@ -1357,3 +1357,26 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   encoding the guard + floors into the board script is the next
   instrument class, then burn the orders/truck residue where R3 and R2
   share a root. These floors are the R3 ratchet baseline — down only.
+- 2026-07-16 orders-family Table fidelity (worktree iteration 2): ONE
+  root, six board rows — the OrdersTable columns. (1) The Donuts column
+  was BLANK: numeric `formatted()` existed only for Date — Foundation
+  publishes it on the numeric PROTOCOLS, and BridgeGen skipped protocol
+  extensions entirely. BridgeGen now expands protocol extensions to
+  their concrete runtime carriers (BinaryInteger/SignedInteger/
+  FixedWidthInteger → Int, BinaryFloatingPoint/FloatingPoint → Double)
+  and the regenerated tier serves Int/Double.formatted() — the column
+  renders the twin's exact values row-for-row. (2) The Details column
+  VANISHED: `.width(60)` on the TableColumn DSL had no host member, so
+  the spec absorbed into a chain marker and the Table saw 4 of 5
+  columns. The sanctioned Table gateway's spec now carries
+  fixed/min/ideal/max widths applied to the real TableColumns. (3) Cell
+  builds no longer swallow errors behind try? — failures record into
+  RenderDiagnostics named per column. Board: orders 7.399%→2.953%,
+  orders-after-complete 7.506%→2.965%, orders-after-preparing
+  7.450%→3.057%, orders-after-steps 8.327%→4.141%, detail-orders
+  7.452%→3.015%; all other rows hold (AE=0 rows stay 0.000%,
+  detail-truck 11.889%). Residual orders classes staked: frozen clock
+  (Date column drifts by capture time — protocol-level, both sides),
+  Details Menu label icon, Status header sort chevron. Pins:
+  NumericFormattedAndTableWidthTests (host-native formatted() parity +
+  width spec round-trip).

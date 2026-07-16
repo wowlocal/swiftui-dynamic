@@ -229,6 +229,10 @@ extension ViewRegistry {
                 rowValues = TableRowCollector.active ?? []
                 TableRowCollector.active = nil
             }
+            if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                FileHandle.standardError.write(Data(
+                    "TABLE specs=\(specs.map(\.title)) rows=\(rowValues.count)\n".utf8))
+            }
             guard !specs.isEmpty else { return .native(AnyView(EmptyView())) }
             return .native(try Self.realTable(rows: rowValues, specs: specs, interpreter: interpreter))
         }
@@ -744,6 +748,34 @@ struct TableColumnSpec {
     let title: String
     let keyPath: KeyPathStub?
     let content: ClosureValue?
+    // `.width(60)` / `.width(min:ideal:max:)` on the column DSL.
+    var fixedWidth: CGFloat?
+    var minWidth: CGFloat?
+    var idealWidth: CGFloat?
+    var maxWidth: CGFloat?
+
+    init(title: String, keyPath: KeyPathStub?, content: ClosureValue?) {
+        self.title = title
+        self.keyPath = keyPath
+        self.content = content
+    }
+}
+
+/// Host members on the column spec (the DSL's width modifiers).
+@MainActor
+func tableColumnSpecMember(_ name: String, on value: Any) -> RuntimeValue? {
+    guard let spec = value as? TableColumnSpec, name == "width" else { return nil }
+    return .hostFunction(HostFunction(name: name) { args, _ in
+        var updated = spec
+        if let fixed = args.positional(0) {
+            updated.fixedWidth = try Coerce.cgFloat(fixed)
+        } else {
+            updated.minWidth = try args.labeled("min").map(Coerce.cgFloat)
+            updated.idealWidth = try args.labeled("ideal").map(Coerce.cgFloat)
+            updated.maxWidth = try args.labeled("max").map(Coerce.cgFloat)
+        }
+        return .native(updated)
+    })
 }
 
 enum TableRowCollector {
@@ -777,7 +809,13 @@ extension ViewRegistry {
             var line: [AnyView] = []
             for spec in specs {
                 if let content = spec.content {
-                    let views = (try? interpreter.callBuilderClosure(content, arguments: [row])) ?? []
+                    var views: [RuntimeValue] = []
+                    do {
+                        views = try interpreter.callBuilderClosure(content, arguments: [row])
+                    } catch let error as RuntimeError {
+                        RenderDiagnostics.record(error, in: "TableColumn(\(spec.title))")
+                    } catch {
+                    }
                     let anyViews = views.compactMap { try? ViewRegistry.anyView($0) }
                     if anyViews.count == 1 {
                         line.append(anyViews[0])
@@ -798,40 +836,48 @@ extension ViewRegistry {
         let grid = CellGrid(built)
         let shims = rows.indices.map { TableShimRow(id: $0) }
         let titles = specs.map(\.title)
+        func sized(_ column: TableColumn<TableShimRow, Never, AnyView, Text>, _ index: Int) -> TableColumn<TableShimRow, Never, AnyView, Text> {
+            let spec = specs[index]
+            if let fixed = spec.fixedWidth { return column.width(fixed) }
+            if spec.minWidth != nil || spec.idealWidth != nil || spec.maxWidth != nil {
+                return column.width(min: spec.minWidth, ideal: spec.idealWidth, max: spec.maxWidth)
+            }
+            return column
+        }
         switch specs.count {
         case 1:
             return AnyView(Table(shims) {
-                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
+                sized(TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }, 0)
             })
         case 2:
             return AnyView(Table(shims) {
-                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
-                TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }
+                sized(TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }, 0)
+                sized(TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }, 1)
             })
         case 3:
             return AnyView(Table(shims) {
-                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
-                TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }
-                TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }
+                sized(TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }, 0)
+                sized(TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }, 1)
+                sized(TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }, 2)
             })
         case 4:
             return AnyView(Table(shims) {
-                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
-                TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }
-                TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }
-                TableColumn(titles[3]) { (r: TableShimRow) in grid.cell(r.id, 3) }
+                sized(TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }, 0)
+                sized(TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }, 1)
+                sized(TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }, 2)
+                sized(TableColumn(titles[3]) { (r: TableShimRow) in grid.cell(r.id, 3) }, 3)
             })
         case 5:
             return AnyView(Table(shims) {
-                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
-                TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }
-                TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }
-                TableColumn(titles[3]) { (r: TableShimRow) in grid.cell(r.id, 3) }
-                TableColumn(titles[4]) { (r: TableShimRow) in grid.cell(r.id, 4) }
+                sized(TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }, 0)
+                sized(TableColumn(titles[1]) { (r: TableShimRow) in grid.cell(r.id, 1) }, 1)
+                sized(TableColumn(titles[2]) { (r: TableShimRow) in grid.cell(r.id, 2) }, 2)
+                sized(TableColumn(titles[3]) { (r: TableShimRow) in grid.cell(r.id, 3) }, 3)
+                sized(TableColumn(titles[4]) { (r: TableShimRow) in grid.cell(r.id, 4) }, 4)
             })
         default:
             return AnyView(Table(shims) {
-                TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }
+                sized(TableColumn(titles[0]) { (r: TableShimRow) in grid.cell(r.id, 0) }, 0)
                 TableColumn(titles.count > 1 ? titles[1] : "") { (r: TableShimRow) in grid.cell(r.id, 1) }
                 TableColumn(titles.count > 2 ? titles[2] : "") { (r: TableShimRow) in grid.cell(r.id, 2) }
                 TableColumn(titles.count > 3 ? titles[3] : "") { (r: TableShimRow) in grid.cell(r.id, 3) }
