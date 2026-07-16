@@ -1855,5 +1855,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Continue from a protocol for-await body runs that iteration's defer before requesting the next element. Returning from the consumer runs the current body defer and the enclosing function defer, stops before another next request, and resumes the caller afterward.",
     "notes": "The iterator has no terminal nil path and every next call suspends with Task.yield. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output returned-3:3:next-1,continue-1,defer-1,next-2,body-2,defer-2,next-3,return-3,defer-3,consumer-defer,after. No physical-thread or unrelated ready-task order is asserted."
+  },
+  {
+    "id": "protocol-async-sequence-default-witnesses",
+    "fixture": "Fixtures/protocol-async-sequence-default-witnesses.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceDefaultWitnessesProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Protocol-extension default witnesses can satisfy both a refined AsyncSequence's makeAsyncIterator() requirement and a refined AsyncIteratorProtocol's mutating async next() requirement. For-await dispatches those defaults and preserves iterator value state across suspension until nil.",
+    "notes": "The concrete sequence and iterator declare only their associated-type witnesses and stored iterator state; neither redeclares the two callable requirements. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 3:6. Every successful default next() suspends with Task.yield; no physical-thread or unrelated ready-task order is asserted."
   }
 ]
