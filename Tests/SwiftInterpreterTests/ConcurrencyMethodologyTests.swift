@@ -1534,6 +1534,101 @@ struct ConcurrencyMethodologyTests {
         #expect(claim.notes.contains("known divergence"))
     }
 
+    @Test func continuationEntryPointsHaveExplicitDeferredDispositions()
+    throws {
+        let manifestRoot = Self.packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Manifests", isDirectory: true)
+        let inventory = try JSONDecoder().decode(
+            CapabilityInventoryDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "generated-concurrency-api.json")),
+        )
+        let status = try JSONDecoder().decode(
+            CapabilityStatusDocument.self,
+            from: Data(contentsOf: manifestRoot.appendingPathComponent(
+                "concurrency-capability-status.json")),
+        )
+        let expected: [String: String] = [
+            "swift-concurrency-api-v1:4a06fa1c6a62c68b34e00e0b05359c361239a7bd4697477916bbba908ed12453":
+                "withCheckedContinuation",
+            "swift-concurrency-api-v1:ace6ad5d810bcf9eda3b3214d498b783a36385621bc9361241fba14afb9f1e39":
+                "withCheckedThrowingContinuation",
+            "swift-concurrency-api-v1:1c6b71ba2592eb2a5841edbe5c173bf0dcc5801237920669367ca47a9797fcc3":
+                "withUnsafeContinuation",
+            "swift-concurrency-api-v1:16b269f49b82c403312e3cbfde1b6db496f06dc96b32e22d8a0ede15a94167d7":
+                "withUnsafeThrowingContinuation",
+        ]
+        let publicContinuationRows = inventory.declarations.filter {
+            $0.domain == "top-level-function"
+                && !$0.name.hasPrefix("_")
+                && $0.name.contains("Continuation")
+        }
+        let rows = inventory.declarations.filter { expected[$0.id] != nil }
+
+        #expect(Set(publicContinuationRows.map(\.id)) == Set(expected.keys),
+            "the public continuation entry-point denominator changed")
+        #expect(rows.count == 4)
+        #expect(Set(rows.map(\.id)) == Set(expected.keys))
+        #expect(rows.allSatisfy {
+            $0.domain == "top-level-function"
+                && $0.container == "_Concurrency"
+                && $0.name == expected[$0.id]
+                && $0.adapterIntrinsic == nil
+                && $0.declaration.contains(
+                    "isolation: isolated (any _Concurrency.Actor)? = #isolation")
+                && $0.declaration.contains("async")
+                && $0.declaration.contains("-> sending T")
+        })
+        let checked = try #require(rows.first {
+            $0.name == "withCheckedContinuation"
+        })
+        #expect(checked.declaration.contains(
+            "function: Swift.String = #function"))
+        #expect(checked.declaration.contains(
+            "_Concurrency.CheckedContinuation<T, Swift.Never>"))
+        #expect(!checked.declaration.contains("async throws -> sending T"))
+        let checkedThrowing = try #require(rows.first {
+            $0.name == "withCheckedThrowingContinuation"
+        })
+        #expect(checkedThrowing.declaration.contains(
+            "_Concurrency.CheckedContinuation<T, any Swift.Error>"))
+        #expect(checkedThrowing.declaration.contains(
+            "async throws -> sending T"))
+        let unsafe = try #require(rows.first {
+            $0.name == "withUnsafeContinuation"
+        })
+        #expect(unsafe.declaration.contains("@unsafe public func"))
+        #expect(unsafe.declaration.contains(
+            "_Concurrency.UnsafeContinuation<T, Swift.Never>"))
+        #expect(!unsafe.declaration.contains("async throws -> sending T"))
+        let unsafeThrowing = try #require(rows.first {
+            $0.name == "withUnsafeThrowingContinuation"
+        })
+        #expect(unsafeThrowing.declaration.contains("@unsafe public func"))
+        #expect(unsafeThrowing.declaration.contains(
+            "_Concurrency.UnsafeContinuation<T, any Swift.Error>"))
+        #expect(unsafeThrowing.declaration.contains(
+            "async throws -> sending T"))
+
+        let claims = status.interfaceOverrides.filter { expected[$0.id] != nil }
+        #expect(claims.count == 4)
+        #expect(Set(claims.map(\.id)) == Set(expected.keys))
+        #expect(claims.allSatisfy {
+            $0.implementationStatus == .deferred
+                && $0.verificationStatus == .none
+                && $0.requirementRef
+                    == "M6/protocol-iteration-streams-and-continuations"
+                && $0.evidenceCaseIDs.isEmpty
+                && $0.testNames == [
+                    "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership",
+                ]
+                && $0.gapEvidenceIDs
+                    == ["async-sequence-continuation-runtime"]
+                && $0.notes.contains("M5")
+                && $0.notes.contains("resume executor")
+        })
+    }
+
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)

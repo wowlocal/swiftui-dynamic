@@ -104,6 +104,17 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership()
+        throws {
+        let source = try Self.fixture("continuation-entry-points.swift")
+        let result = try Self.activePreflight().preflight(
+            source: source,
+            fileName: "continuation-entry-points.swift")
+
+        #expect(result.succeeded, Comment(rawValue: result.standardError))
+    }
+
+    @Test
     func multiFilePreflightPreservesFileScopedPrivateDeclarations() throws {
         let engine = try Self.activePreflight()
         let sources = try [
