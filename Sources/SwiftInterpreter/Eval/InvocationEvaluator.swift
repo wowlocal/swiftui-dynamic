@@ -692,8 +692,10 @@ extension Interpreter {
     }
 
     func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {
-        let calleeExecutor = try resolvedExecutor(
+        let invocation = try resolvedInvocation(
             for: closure, arguments: args)
+        let effectiveArguments = invocation.arguments
+        let calleeExecutor = invocation.executor
         try requireSynchronousActorInvocationAccess(to: calleeExecutor)
         callDepth += 1
         defer { callDepth -= 1 }
@@ -732,13 +734,18 @@ extension Interpreter {
             throw RuntimeError(message: "call depth exceeded (possible infinite recursion)", fatal: true)
         }
         let env = Environment(parent: closure.captured)
-        let writeBacks = try bindParameters(of: closure, to: args, into: env, node: node)
+        let writeBacks = try bindParameters(
+            of: closure,
+            to: effectiveArguments,
+            into: env,
+            node: node)
         if let functionName = closure.sourceFunctionName {
             env.define("#function", .native(functionName))
         }
         if !closure.genericParameters.isEmpty {
             bindGenericReturnParameter(closure, into: env)
-            bindGenericsFromClosureArguments(closure, args: args, into: env)
+            bindGenericsFromClosureArguments(
+                closure, args: effectiveArguments, into: env)
         }
         // Copy-out for `inout` parameters whose argument wasn't a plain
         // variable (member/subscript lvalues) — applied on normal exit,

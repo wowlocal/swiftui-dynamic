@@ -206,6 +206,30 @@
     "notes": "Exact output is owned:2|owned:5|5 in all 20 Swift 6.3.3 runs. Sequential external awaits establish both isolated mutations without asserting physical threads or independent-message ordering."
   },
   {
+    "id": "actor-isolated-parameter-defaults",
+    "fixture": "Fixtures/actor-isolated-parameter-defaults.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorIsolatedParameterDefaultsProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An optional isolated parameter inherits the caller's actor through a default #isolation value, accepts an explicit actor executor, and becomes nonisolated for either explicit nil or a nil default from a nonisolated caller.",
+    "notes": "Exact output is owned:actor|owned:actor|unowned:none|unowned:none in all 20 Swift 6.3.3 runs. The four calls establish source-actor inheritance, explicit actor selection, explicit nil, and nonisolated default behavior without asserting physical threads or independent-message ordering."
+  },
+  {
+    "id": "actor-isolated-parameter-mainactor-default",
+    "fixture": "Fixtures/actor-isolated-parameter-mainactor-default.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "actorIsolatedParameterMainActorDefaultProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A default #isolation value in a MainActor caller is a non-nil actor isolation and selects MainActor, while an explicit nil value is observably nil without forcing a hop away from the synchronous caller lane.",
+    "notes": "Exact output is actor:main|nil:main in all 20 Swift 6.3.3 runs. The result separates isolation-value presence from executor lane and makes no claim about arbitrary global actors, physical worker execution, or unrelated scheduling order."
+  },
+  {
     "id": "actor-computed-property-failure",
     "fixture": "Fixtures/actor-computed-property-failure.swift",
     "mode": "runtime",

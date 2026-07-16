@@ -268,6 +268,9 @@ extension Interpreter {
                let functionName = env.lookup("#function") {
                 return functionName
             }
+            if macro.macroName.text == "isolation" {
+                return try currentSourceIsolationValue()
+            }
             if let result = try invokeRegisteredMacro(
                 named: macro.macroName.text, arguments: macro.arguments,
                 trailingClosure: macro.trailingClosure,

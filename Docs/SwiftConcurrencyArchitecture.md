@@ -309,8 +309,7 @@ This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
 complete actor isolation. Remaining actor work includes:
 
-- complete defaulted/optional isolated-parameter and arbitrary global-actor
-  semantics;
+- complete arbitrary global-actor semantics;
 - compile-time restrictions on access.
 
 Mailbox/reentrancy stress is now replayable and covered: an exact same-source
@@ -961,10 +960,14 @@ already-owned actor segment; external mutation is rejected by native/compiler
 preflight rather than turned into a setter hop. Awaited subscript getters use
 the same receiver-selected executor path; their declared `async`/`throws`
 effects select a suspending accessor body, and eager async entry fails closed.
-Required explicit source-actor
 `isolated` parameters retain syntax metadata and select their executor from the
-bound runtime argument before invocation; synchronous entry is legal only
-when that actor is already owned. A throwing computed getter balances its
+bound runtime argument before invocation. A defaulted isolated argument is
+evaluated exactly once in the caller's lexical isolation before any hop, and
+that same value is reused for ordinary parameter binding. `#isolation`
+projects a source actor, MainActor, or nil independently of the native
+MainActor physically hosting the evaluator; explicit source actors and nil use
+the same path. Synchronous actor entry is legal only when that actor is already
+owned. A throwing computed getter balances its
 target lease on failure and restores a parked caller actor before source catch
 handling. An async-throwing computed getter preserves its declared effects,
 uses the suspension-aware statement evaluator, reacquires its target mailbox
@@ -972,8 +975,8 @@ before cancellation observation, and then performs the same balanced target
 release and caller restoration. Its normal-return and typed source-error paths
 perform the same reacquire and balanced exit after suspension. An
 async-throwing subscript getter follows those same paths for cancellation,
-normal return, and typed source error. Defaulted and optional isolated-parameter
-forms remain open and must not be inferred from this subset.
+normal return, and typed source error. Arbitrary user global-actor values remain
+open and must not be inferred from the source-actor/MainActor/nil subset.
 
 ### 6.12 Actor reentrancy
 
@@ -1031,8 +1034,11 @@ entry and malformed dynamic values fail closed. `actor-mailbox-stress` proves
 the commutative native terminal invariant across repeated mailbox rounds, and a
 64-seed replayable board varies fanout plus suspension placement while checking
 ownership, mutation totals, child collection, and complete runtime draining.
-Defaulted/optional isolated parameters and arbitrary global actors remain open
-M5 work.
+`actor-isolated-parameter-defaults` additionally proves caller-lexical
+`#isolation` inheritance from a source actor, explicit source-actor selection,
+explicit nil, and a nil default from nonisolated code. A separate MainActor
+fixture proves that its default is non-nil and selects the logical main lane,
+while explicit nil remains nil. Arbitrary global actors remain open M5 work.
 
 ### 6.13 Cancellation
 
@@ -1822,8 +1828,8 @@ entry slice installs actor identity/storage, serial executor hops, and
 replayable mailbox stress for the measured demand shapes — `@MainActor`
 isolation and user-declared global actors of the FoodTruck StoreActor shape —
 while valid actor declarations keep executing through the documented
-class-like compatibility path. The second slice completes isolated-parameter
-forms and arbitrary global actors. The final slice flips each actor feature to
+class-like compatibility path. The second slice now has only arbitrary global
+actors left. The final slice flips each actor feature to
 fail-closed diagnosis as its replacement lands; a global up-front rejection
 is forbidden while FoodTruckCheck, ProjectCheck, and suite ratchets execute
 through the compatibility path, because board ratchets may never decrease.
@@ -1968,8 +1974,8 @@ Proof:
 Slice order (2026-07-16 demand cycle): the covered first slice supplies actor
 identity/storage, serial executor hops, and replayable mailbox stress for the
 measured demand shapes (`@MainActor` isolation and user-declared global actors
-of the FoodTruck StoreActor shape); the active second slice completes
-isolated-parameter forms and arbitrary global actors; the final slice applies
+of the FoodTruck StoreActor shape); the active second slice completes arbitrary
+global actors; the final slice applies
 per-feature fail-closed flips to the class-like compatibility path. A feature
 fails closed only once its actor-runtime replacement lands — never as an
 up-front global rejection — because board ratchets may never decrease.

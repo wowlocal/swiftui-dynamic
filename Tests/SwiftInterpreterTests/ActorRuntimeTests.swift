@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SwiftInterpreter
 
@@ -1217,6 +1218,64 @@ struct ActorRuntimeTests {
                 "cross-actor synchronous call requires an awaited "
                     + "actor-executor entry"))
         }
+    }
+
+    @Test
+    func defaultedOptionalIsolatedParameterUsesCallerLexicalIsolationAndNil()
+        async throws
+    {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "parityActorSegmentOwnership",
+            .hostFunction(HostFunction(
+                name: "parityActorSegmentOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+        interpreter.globals.define(
+            "parityCurrentIsolationKind",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationKind"
+            ) { _, context in
+                .native(context.sourceExecutor.actorID == nil
+                    ? "none" : "actor")
+            }))
+
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent(
+                "actor-isolated-parameter-defaults.swift")
+        let declarations = try String(
+            contentsOf: fixture,
+            encoding: .utf8)
+        let result = try await interpreter.runAsync(source:
+            declarations + "\nawait actorIsolatedParameterDefaultsProbe()\n")
+        guard case .closure(let operation)? = interpreter.globals.lookup(
+            "defaultedIsolationObservation") else {
+            Issue.record("missing defaulted isolated-parameter operation")
+            return
+        }
+
+        #expect(result.stringValue
+            == "owned:actor|owned:actor|unowned:none|unowned:none")
+        #expect(operation.parameters.map(\.isIsolated) == [false, true])
+        #expect(operation.parameters[1].defaultValue?.trimmedDescription
+            == "#isolation")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
     }
 
     @Test

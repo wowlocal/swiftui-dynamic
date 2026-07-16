@@ -1,3 +1,10 @@
+/// Source value used when `#isolation` names an executor without an
+/// interpreted actor instance (currently MainActor). Source actors retain
+/// their real `Instance` value so identity and lifetime remain canonical.
+struct RuntimeActorIsolationValue {
+    let executor: RuntimeExecutorKind
+}
+
 extension Interpreter {
     enum RuntimeActorInvocationOwnership {
         case none
@@ -34,20 +41,21 @@ extension Interpreter {
         return nil
     }
 
-    /// Resolve dynamic isolation selected by a source function's `isolated`
-    /// parameter. Argument matching happens before the hop, exactly as native
-    /// Swift chooses the target executor from the call-site value. Static
-    /// declaration/receiver isolation and dynamic parameter isolation are
-    /// mutually exclusive source contracts.
-    func resolvedExecutor(
+    /// Materialize a defaulted isolated argument once in the caller's lexical
+    /// isolation, then use that exact value for both executor selection and
+    /// ordinary parameter binding. In particular `#isolation` must not be
+    /// reevaluated after the callee has already hopped executors.
+    func resolvedInvocation(
         for closure: ClosureValue,
         arguments: CallArguments
-    ) throws -> RuntimeExecutorKind? {
+    ) throws -> (arguments: CallArguments, executor: RuntimeExecutorKind?) {
         let declarationExecutor = try resolvedExecutor(for: closure)
         let isolatedIndices = closure.parameters.indices.filter {
             closure.parameters[$0].isIsolated
         }
-        guard !isolatedIndices.isEmpty else { return declarationExecutor }
+        guard !isolatedIndices.isEmpty else {
+            return (arguments, declarationExecutor)
+        }
         guard isolatedIndices.count == 1 else {
             throw RuntimeError(
                 message: "a function may have only one isolated parameter",
@@ -61,27 +69,81 @@ extension Interpreter {
         }
 
         let index = isolatedIndices[0]
-        let matched = matchedParameterArguments(
-            of: closure, to: arguments)
+        let parameter = closure.parameters[index]
+        var effectiveArguments = arguments
+        var matched = matchedParameterArguments(
+            of: closure, to: effectiveArguments)
+        if matched[index] == nil, let defaultValue = parameter.defaultValue {
+            let value = try evaluate(defaultValue, in: closure.captured)
+            effectiveArguments.arguments.append(.init(
+                label: parameter.label,
+                value: value))
+            matched = matchedParameterArguments(
+                of: closure, to: effectiveArguments)
+        }
         guard let argument = matched[index] else {
             throw RuntimeError(
                 message: "isolated parameter '"
-                    + closure.parameters[index].name
+                    + parameter.name
                     + "' requires an explicit runtime argument",
                 fatal: true)
         }
-        if argument.isNil { return nil }
+        if argument.isNil { return (effectiveArguments, nil) }
         guard let value = argument.unwrappingInoutSlot.unwrappedOptionalOrSelf,
-              case .instance(let actor) = value,
-              actor.symbol.isActor,
-              let actorID = actor.actorID else {
-            throw RuntimeError(
-                message: "isolated parameter '"
-                    + closure.parameters[index].name
-                    + "' requires a source actor instance",
-                fatal: true)
+              !value.isNil else {
+            return (effectiveArguments, nil)
         }
-        return .actor(actorID)
+        let executor = try executorSelectedByIsolatedValue(
+            value, parameterName: parameter.name)
+        return (effectiveArguments, executor)
+    }
+
+    /// Evaluate Swift's `#isolation` magic literal from lexical source
+    /// isolation rather than the physical executor hosting the interpreter.
+    /// A nonisolated/default-executor frame therefore produces nil even when
+    /// the evaluator itself is currently running on the native MainActor.
+    func currentSourceIsolationValue() throws -> RuntimeValue {
+        switch currentLexicalExecutor {
+        case .actor(let actorID):
+            guard let actor = concurrencyRuntime.actors[actorID]?.instance else {
+                throw RuntimeError(
+                    message: "#isolation refers to a released source actor",
+                    fatal: true)
+            }
+            return .some(
+                .instance(actor),
+                wrappedTypeName: "any Actor")
+        case .mainActor:
+            return .some(
+                .native(RuntimeActorIsolationValue(executor: .mainActor)),
+                wrappedTypeName: "any Actor")
+        case .cooperativeDefault, .detached, nil:
+            return .none(wrappedTypeName: "any Actor")
+        }
+    }
+
+    private func executorSelectedByIsolatedValue(
+        _ value: RuntimeValue,
+        parameterName: String
+    ) throws -> RuntimeExecutorKind {
+        if case .instance(let actor) = value,
+           actor.symbol.isActor,
+           let actorID = actor.actorID {
+            return .actor(actorID)
+        }
+        if case .host(let payload) = value,
+           let isolation = payload as? RuntimeActorIsolationValue {
+            switch isolation.executor {
+            case .mainActor, .actor:
+                return isolation.executor
+            case .cooperativeDefault, .detached:
+                break
+            }
+        }
+        throw RuntimeError(
+            message: "isolated parameter '" + parameterName
+                + "' requires an actor instance",
+            fatal: true)
     }
 
     /// A source actor's instance computed property is isolated to that exact
