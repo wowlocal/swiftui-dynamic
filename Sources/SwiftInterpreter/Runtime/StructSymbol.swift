@@ -190,6 +190,10 @@ public final class StructSymbol {
     public struct SubscriptMember {
         public let parameters: [ClosureValue.Parameter]
         public let getter: CodeBlockItemListSyntax
+        /// Getter effects select the suspension-aware accessor driver. They
+        /// cannot be reconstructed from the body after declaration parsing.
+        public let isAsync: Bool
+        public let isThrowing: Bool
         public let setter: ComputedProperty.Setter?
         public let resultTypeName: String?
         /// Actor subscripts are isolated by default. An explicit
@@ -205,10 +209,14 @@ public final class StructSymbol {
             setter: ComputedProperty.Setter?,
             resultTypeName: String?,
             isNonisolated: Bool = false,
-            declarationID: SyntaxIdentifier? = nil
+            declarationID: SyntaxIdentifier? = nil,
+            isAsync: Bool = false,
+            isThrowing: Bool = false
         ) {
             self.parameters = parameters
             self.getter = getter
+            self.isAsync = isAsync
+            self.isThrowing = isThrowing
             self.setter = setter
             self.resultTypeName = resultTypeName
             self.isNonisolated = isNonisolated

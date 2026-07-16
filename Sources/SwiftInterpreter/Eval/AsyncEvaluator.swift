@@ -252,37 +252,30 @@ extension Interpreter {
                     in: env,
                     forceInvocation: true)
 
-                let actorReceiver: (
-                    instance: Instance,
-                    selfValue: RuntimeValue,
-                    liftsResult: Bool
-                )?
+                let receiver: (selfValue: RuntimeValue, liftsResult: Bool)?
                 switch base.optionalState {
                 case .some(let wrapped, _):
-                    if case .instance(let instance) = wrapped,
-                       instance.symbol.isActor {
-                        actorReceiver = (instance, wrapped, true)
-                    } else {
-                        actorReceiver = nil
-                    }
+                    receiver = (wrapped, true)
                 case .none:
-                    actorReceiver = nil
+                    receiver = nil
                 case .notOptional:
-                    if case .instance(let instance) = base,
-                       instance.symbol.isActor {
-                        actorReceiver = (instance, base, false)
-                    } else {
-                        actorReceiver = nil
-                    }
+                    receiver = (base, false)
                 }
 
-                if let actorReceiver,
-                   !actorReceiver.instance.symbol.subscripts.isEmpty {
+                if let receiver,
+                   let (symbol, selfValue) = userSubscriptOwner(
+                    for: receiver.selfValue) {
                     let member = try userSubscriptMember(
-                        in: actorReceiver.instance.symbol,
+                        in: symbol,
                         argumentCount: call.arguments.count)
-                    if let executor = try resolvedExecutor(
-                        for: member, on: actorReceiver.instance) {
+                    let executor: RuntimeExecutorKind?
+                    if case .instance(let instance) = selfValue {
+                        executor = try resolvedExecutor(
+                            for: member, on: instance)
+                    } else {
+                        executor = nil
+                    }
+                    if member.isAsync || executor != nil {
                         var arguments: [CallArguments.Argument] = []
                         for argument in call.arguments {
                             arguments.append(.init(
@@ -292,11 +285,11 @@ extension Interpreter {
                         }
                         let result = try await evaluateUserSubscriptGetterSuspending(
                             member,
-                            symbolName: actorReceiver.instance.symbol.name,
-                            selfValue: actorReceiver.selfValue,
+                            symbolName: symbol.name,
+                            selfValue: selfValue,
                             args: CallArguments(arguments: arguments),
                             executor: executor)
-                        return actorReceiver.liftsResult
+                        return receiver.liftsResult
                             ? result.liftedToOptional() : result
                     }
                 }
@@ -473,7 +466,7 @@ extension Interpreter {
         symbolName: String,
         selfValue: RuntimeValue,
         args: CallArguments,
-        executor: RuntimeExecutorKind
+        executor: RuntimeExecutorKind?
     ) async throws -> RuntimeValue {
         let suspendedCallerActor = suspendCallerActorForExecutorHop(
             to: executor)
@@ -504,10 +497,17 @@ extension Interpreter {
         symbolName: String,
         selfValue: RuntimeValue,
         args: CallArguments,
-        executor: RuntimeExecutorKind
+        executor: RuntimeExecutorKind?
     ) async throws -> RuntimeValue {
         let actorOwnership = try await enterActorInvocation(executor: executor)
         defer { leaveActorInvocation(actorOwnership) }
+        if member.isAsync {
+            return try await runUserSubscriptGetterSuspending(
+                member,
+                symbolName: symbolName,
+                selfValue: selfValue,
+                args: args)
+        }
         return try runUserSubscriptGetter(
             member,
             symbolName: symbolName,

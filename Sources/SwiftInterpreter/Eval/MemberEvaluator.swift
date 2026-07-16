@@ -647,7 +647,13 @@ extension Interpreter {
         selfValue: RuntimeValue,
         args: CallArguments
     ) throws -> RuntimeValue {
-        try withUserSubscriptContext(
+        if member.isAsync && evaluationTaskContext.isAsyncSession {
+            throw RuntimeError(
+                message: "async subscript getter on '\(symbolName)' requires "
+                    + "an awaited suspending entry",
+                fatal: true)
+        }
+        return try withUserSubscriptContext(
             member, selfValue: selfValue, symbolName: symbolName
         ) { env in
             let closure = ClosureValue(
@@ -656,6 +662,25 @@ extension Interpreter {
                 captured: env,
                 returnTypeName: member.resultTypeName)
             return try callWithArguments(closure, args: args, node: nil)
+        }
+    }
+
+    func runUserSubscriptGetterSuspending(
+        _ member: StructSymbol.SubscriptMember,
+        symbolName: String,
+        selfValue: RuntimeValue,
+        args: CallArguments
+    ) async throws -> RuntimeValue {
+        try await withUserSubscriptContextSuspending(
+            member, selfValue: selfValue, symbolName: symbolName
+        ) { env in
+            let closure = ClosureValue(
+                parameters: member.parameters,
+                body: member.getter,
+                captured: env,
+                returnTypeName: member.resultTypeName)
+            return try await callWithArgumentsSuspending(
+                closure, args: args, node: nil)
         }
     }
 
@@ -754,19 +779,13 @@ extension Interpreter {
             operation)
     }
 
-    private func withComputedPropertyContextSuspending<T>(
-        _ computed: ComputedProperty,
+    private func withAccessorContextSuspending<T>(
+        declarationID: SyntaxIdentifier?,
+        executor calleeExecutor: RuntimeExecutorKind?,
         selfValue: RuntimeValue,
         name: String,
         _ operation: (Environment) async throws -> T
     ) async throws -> T {
-        let calleeExecutor: RuntimeExecutorKind?
-        if case .instance(let instance) = selfValue {
-            calleeExecutor = try resolvedExecutor(for: computed, on: instance)
-        } else {
-            calleeExecutor = nil
-        }
-
         let previousExecutor = evaluationTaskContext.currentExecutor
         if let calleeExecutor {
             evaluationTaskContext.currentExecutor = calleeExecutor
@@ -790,14 +809,33 @@ extension Interpreter {
         }
 
         var pushedLexicalOwner = false
-        if let declarationID = computed.declarationID,
-           let owner = declLexicalOwners[declarationID] {
+        if let declarationID, let owner = declLexicalOwners[declarationID] {
             lexicalOwnerFrames.append(owner)
             pushedLexicalOwner = true
         }
         defer { if pushedLexicalOwner { lexicalOwnerFrames.removeLast() } }
 
         return try await operation(selfEnvironment(selfValue))
+    }
+
+    private func withComputedPropertyContextSuspending<T>(
+        _ computed: ComputedProperty,
+        selfValue: RuntimeValue,
+        name: String,
+        _ operation: (Environment) async throws -> T
+    ) async throws -> T {
+        let executor: RuntimeExecutorKind?
+        if case .instance(let instance) = selfValue {
+            executor = try resolvedExecutor(for: computed, on: instance)
+        } else {
+            executor = nil
+        }
+        return try await withAccessorContextSuspending(
+            declarationID: computed.declarationID,
+            executor: executor,
+            selfValue: selfValue,
+            name: name,
+            operation)
     }
 
     private func withUserSubscriptContext<T>(
@@ -813,6 +851,26 @@ extension Interpreter {
             executor = nil
         }
         return try withAccessorContext(
+            declarationID: member.declarationID,
+            executor: executor,
+            selfValue: selfValue,
+            name: "\(symbolName).subscript",
+            operation)
+    }
+
+    private func withUserSubscriptContextSuspending<T>(
+        _ member: StructSymbol.SubscriptMember,
+        selfValue: RuntimeValue,
+        symbolName: String,
+        _ operation: (Environment) async throws -> T
+    ) async throws -> T {
+        let executor: RuntimeExecutorKind?
+        if case .instance(let instance) = selfValue {
+            executor = try resolvedExecutor(for: member, on: instance)
+        } else {
+            executor = nil
+        }
+        return try await withAccessorContextSuspending(
             declarationID: member.declarationID,
             executor: executor,
             selfValue: selfValue,

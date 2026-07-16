@@ -567,7 +567,9 @@ extension Interpreter {
                     isNonisolated: subscriptDecl.modifiers.contains {
                         $0.name.text == "nonisolated"
                     },
-                    declarationID: subscriptDecl.id))
+                    declarationID: subscriptDecl.id,
+                    isAsync: accessors.isGetterAsync,
+                    isThrowing: accessors.isGetterThrowing))
             } else if let nestedEnum = member.decl.as(EnumDeclSyntax.self) {
                 if Self.tracedIdentifier == nestedEnum.name.text {
                     Swift.print("   ⌗ nestedEnum \(symbol.name).\(nestedEnum.name.text) bareTaken=\(enumSymbols[nestedEnum.name.text] != nil)")

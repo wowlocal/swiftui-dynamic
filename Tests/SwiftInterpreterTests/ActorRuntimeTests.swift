@@ -699,6 +699,147 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func asyncActorSubscriptCancellationRestoresCallerAndReleasesTarget()
+        async throws
+    {
+        let interpreter = Interpreter()
+        var accessorSuspended = false
+        var accessorMayResume = false
+        interpreter.globals.define(
+            "inspectSubscriptCancellationOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectSubscriptCancellationOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+        interpreter.globals.define(
+            "suspendSubscriptCancellationMessage",
+            .hostFunction(HostFunction(
+                name: "suspendSubscriptCancellationMessage",
+                asyncInvoke: { _, _ in
+                    accessorSuspended = true
+                    while !accessorMayResume { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "awaitSubscriptCancellationSuspension",
+            .hostFunction(HostFunction(
+                name: "awaitSubscriptCancellationSuspension",
+                asyncInvoke: { _, _ in
+                    while !accessorSuspended { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "resumeSubscriptCancellationMessage",
+            .hostFunction(HostFunction(
+                name: "resumeSubscriptCancellationMessage",
+                asyncInvoke: { _, _ in
+                    accessorMayResume = true
+                    return .void
+                })))
+
+        let result = try await interpreter.runAsync(source: """
+            actor SubscriptCancellationTarget {
+                var stored = 0
+                var entryOwnership = "unset"
+                var resumeOwnership = "unset"
+
+                subscript(_ increment: Int) -> Int {
+                    get async throws {
+                        entryOwnership =
+                            inspectSubscriptCancellationOwnership(self)
+                        stored += increment
+                        await suspendSubscriptCancellationMessage()
+                        resumeOwnership =
+                            inspectSubscriptCancellationOwnership(self)
+                        try Task.checkCancellation()
+                        return stored
+                    }
+                }
+
+                func recover() -> String {
+                    let recoveryOwnership =
+                        inspectSubscriptCancellationOwnership(self)
+                    stored += 1
+                    return entryOwnership + ":" + resumeOwnership
+                        + ":" + recoveryOwnership + ":" + String(stored)
+                }
+            }
+
+            actor SubscriptCancellationCaller {
+                func run(_ target: SubscriptCancellationTarget) async -> String {
+                    let before = inspectSubscriptCancellationOwnership(self)
+                    var outcome = "missed"
+                    do {
+                        _ = try await target[1]
+                    } catch is CancellationError {
+                        outcome = "cancelled"
+                    } catch {
+                        outcome = "other"
+                    }
+                    let afterCancellation =
+                        inspectSubscriptCancellationOwnership(self)
+                    let recovered = await target.recover()
+                    let afterRecovery =
+                        inspectSubscriptCancellationOwnership(self)
+                    return before + "|" + outcome + "|" + afterCancellation
+                        + "|" + recovered + "|" + afterRecovery
+                }
+            }
+
+            func runSubscriptCancellationProbe() async -> String {
+                let target = SubscriptCancellationTarget()
+                let caller = SubscriptCancellationCaller()
+                let task = Task { await caller.run(target) }
+                await awaitSubscriptCancellationSuspension()
+                task.cancel()
+                await resumeSubscriptCancellationMessage()
+                return await task.value
+            }
+
+            await runSubscriptCancellationProbe()
+            """)
+        let symbol = try #require(
+            interpreter.globals.lookup("SubscriptCancellationTarget")?
+                .typeSymbol)
+        let getter = try #require(symbol.subscripts.first)
+
+        #expect(result.stringValue
+            == "owned|cancelled|owned|owned:owned:owned:2|owned")
+        #expect(getter.isAsync)
+        #expect(getter.isThrowing)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+
+        do {
+            _ = try await Interpreter().runAsync(source: """
+                actor AsyncSubscriptProbe {
+                    subscript(_ index: Int) -> Int {
+                        get async { index }
+                    }
+                }
+                let probe = AsyncSubscriptProbe()
+                probe[0]
+                """)
+            Issue.record(
+                "async actor subscript executed through eager entry")
+        } catch let error as RuntimeError {
+            #expect(error.fatal)
+            #expect(error.message.contains(
+                "requires an awaited suspending entry"))
+        }
+    }
+
+    @Test
     func actorSubscriptSetterRequiresOwnedSynchronousEntry() async throws {
         let interpreter = Interpreter()
         interpreter.globals.define(

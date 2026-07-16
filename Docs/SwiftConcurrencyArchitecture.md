@@ -291,12 +291,20 @@ observes cancellation and balances receiver release plus caller-actor
 restoration before source `catch` handling. Canonical async sessions reject an
 eager entry into an async getter instead of silently running it synchronously.
 
+Subscript getter declarations likewise retain their `async` and `throws`
+effects. Awaited user-subscript dispatch selects the same suspension-aware
+accessor context for actor instances, ordinary interpreted instances, and host
+extension receivers; only a receiver actor adds mailbox acquisition. A
+cancelled async-throwing actor subscript getter reacquires that mailbox before
+observing cancellation, then balances target release and caller restoration.
+Canonical async sessions reject eager async-subscript entry.
+
 This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
 complete actor isolation. Remaining actor work includes:
 
-- complete native evidence for effectful subscript-getter and other unproven
-  accessor exits;
+- complete native evidence for async-subscript success/source-error and other
+  unproven accessor exits;
 - replayable mailbox/reentrancy stress;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
@@ -939,7 +947,9 @@ entry fails closed, and explicit `nonisolated` metadata avoids over-isolation.
 Computed and subscript setters use that common context but require an
 already-owned actor segment; external mutation is rejected by native/compiler
 preflight rather than turned into a setter hop. Awaited subscript getters use
-the same receiver-selected executor path. Required explicit source-actor
+the same receiver-selected executor path; their declared `async`/`throws`
+effects select a suspending accessor body, and eager async entry fails closed.
+Required explicit source-actor
 `isolated` parameters retain syntax metadata and select their executor from the
 bound runtime argument before invocation; synchronous entry is legal only
 when that actor is already owned. A throwing computed getter balances its
@@ -947,9 +957,11 @@ target lease on failure and restores a parked caller actor before source catch
 handling. An async-throwing computed getter preserves its declared effects,
 uses the suspension-aware statement evaluator, reacquires its target mailbox
 before cancellation observation, and then performs the same balanced target
-release and caller restoration. Defaulted and optional isolated-parameter
-forms plus effectful subscript-getter and other unproven accessor exits stay
-open and must not be inferred from this subset.
+release and caller restoration. A cancelled async-throwing subscript getter
+follows the same reacquire-before-observation and balanced unwind path.
+Defaulted and optional isolated-parameter forms plus async-subscript
+success/source-error and other unproven accessor exits stay open and must not
+be inferred from this subset.
 
 ### 6.12 Actor reentrancy
 
@@ -983,7 +995,11 @@ proves legal setter execution inside an already-owned actor method, while a
 diagnostic fixture proves that external mutation cannot be made into a hop
 with `await`. The
 `actor-subscript-getter` fixture proves the corresponding externally awaited
-getter segment and explicit-nonisolated exception. The
+getter segment and explicit-nonisolated exception.
+`actor-subscript-cancellation` uses a controlled gate to prove target release
+at suspension, target reacquisition before cancellation observation, balanced
+target release, caller restoration before catch, and later target progress for
+an async-throwing subscript getter. The
 `actor-subscript-setter` fixture plus its compiler-diagnostic twin prove legal
 already-owned execution and reject an invented external hop. The
 `actor-cross-actor-failure` fixture proves callee release and caller restoration
@@ -995,8 +1011,9 @@ executor selection share one mapping: the required explicit actor argument is
 resolved before a hop, its mailbox is acquired for the complete synchronous
 body, and an already-owned same-actor call stays synchronous. Eager unowned
 entry and malformed dynamic values fail closed. Defaulted/optional isolated
-parameters, effectful subscript-getter and other unproven accessor exits,
-arbitrary global actors, and replayable mailbox stress remain open M5 work.
+parameters, async-subscript success/source-error and other unproven accessor
+exits, arbitrary global actors, and replayable mailbox stress remain open M5
+work.
 
 ### 6.13 Cancellation
 
