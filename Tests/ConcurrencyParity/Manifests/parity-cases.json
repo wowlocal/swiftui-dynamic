@@ -1843,5 +1843,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Breaking from protocol for-await iteration stops requesting elements immediately. The current iteration's defer runs before control reaches the statement after the loop, just as it does for earlier normally completed iterations.",
     "notes": "The iterator has no terminal nil path, so exact completion proves that break prevents a third next call. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 12:2:next-1,defer-1,next-2,defer-2,after. Task.yield forces real suspension in every next call; no physical-thread or unrelated ready-task order is asserted."
+  },
+  {
+    "id": "protocol-async-sequence-return-continue",
+    "fixture": "Fixtures/protocol-async-sequence-return-continue.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await protocolAsyncSequenceReturnContinueProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Continue from a protocol for-await body runs that iteration's defer before requesting the next element. Returning from the consumer runs the current body defer and the enclosing function defer, stops before another next request, and resumes the caller afterward.",
+    "notes": "The iterator has no terminal nil path and every next call suspends with Task.yield. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output returned-3:3:next-1,continue-1,defer-1,next-2,body-2,defer-2,next-3,return-3,defer-3,consumer-defer,after. No physical-thread or unrelated ready-task order is asserted."
   }
 ]

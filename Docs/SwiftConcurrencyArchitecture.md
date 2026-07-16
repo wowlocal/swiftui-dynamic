@@ -50,8 +50,9 @@ executor queue or continuation registry. M6 has begun with protocol-driven
 `for await` over interpreted witnesses, including suspending mutating iterator
 copy-out, typed source-error propagation, and cooperative user-iterator
 cancellation. Early `break` and its per-iteration `defer` cleanup are also
-covered; `return`/`continue`, host-backed sequences, cancellable streams, and
-continuations remain open. The remaining
+covered together with `continue` and `return` cleanup; protocol-extension
+defaults, host-backed sequences, cancellable streams, and continuations remain
+open. The remaining
 Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1364,10 +1365,13 @@ not evidence for `AsyncStream` consumer termination.
 An iterator with no terminal `nil` path proves the first early-exit slice:
 `break` after the second suspended element causes the current iteration's
 `defer` to run and reaches post-loop code without a third `next()` request.
+The companion control-flow slice proves that `continue` runs its iteration
+defer before requesting again, while `return` stops requests and unwinds the
+current body defer plus the enclosing function defer before caller resumption.
 Compiler preflight owns conformance legality. Runtime dispatch remains
 value-based so protocol-extension witnesses and generated host methods can use
-the same path once their focused evidence lands. `return`/`continue`, host
-bridging, cancellable stream registries, and continuation ownership
+the same path once their focused evidence lands. Protocol-extension defaults,
+host bridging, cancellable stream registries, and continuation ownership
 are not inherited from this success claim.
 
 ### 6.19 Host gateway runtime
@@ -1939,8 +1943,9 @@ Each milestone is independently gated through
 - the M6 demand slice is active and partial. Finite success, typed source
   failure, and cooperative user-iterator cancellation for protocol `for await`
   over interpreted witnesses are covered together with early `break` and
-  per-iteration `defer` cleanup; `return`/`continue`, host-bridged iteration,
-  cancellable `AsyncStream` consumers, and
+  `continue`/`return` plus per-iteration and function-level `defer` cleanup;
+  protocol-extension defaults, host-bridged iteration, cancellable
+  `AsyncStream` consumers, and
   checked continuations resuming on cooperative-default and
   MainActor executors require executor-owned resume from the covered M5
   identity/storage slice, not complete custom-executor scheduling;
@@ -2137,9 +2142,9 @@ cooperative-default and MainActor executors, including host-bridged async
 sequences of the StoreKit update-stream shape, before the remaining surface.
 The finite interpreted-witness success and typed-error paths are covered;
 cooperative cancellation of a consuming task while `next()` is suspended and
-early `break` with per-iteration `defer` cleanup are also characterized. Every
-remaining item in this paragraph stays in the active requirement rather than
-being inferred from those first slices.
+`break`/`continue`/`return` with per-iteration and function-level `defer`
+cleanup are also characterized. Every remaining item in this paragraph stays
+in the active requirement rather than being inferred from those first slices.
 
 Deliverables:
 
