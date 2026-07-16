@@ -1503,3 +1503,12 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   Remaining truck residue: pillar .shadow(.drop) style + annotation
   icons. Pins: InterpretedChartTests.customAxisBuildersRender
   InterpretedLabels (pixel), StdlibNumericMemberTests.
+- 2026-07-17 gate note (same iteration): the closing gate reads RED on
+  the corpus floor (674/680) — the four new failures (CotEditor,
+  kiwix-apple, element-x-ios, Provenance) all throw "isolated/MainActor
+  deinitializer requires executor-owned teardown, not supported yet",
+  from the concurrency lane's staged fail-closed deinit commits
+  (55e38b0/b15585e/ea22b3a) inherited at iteration-start merge;
+  suite/live/parity and all lane pins are green. Close-merge DEFERRED
+  per worktree protocol until the upstream class lands its
+  implementation and the floor recovers.
