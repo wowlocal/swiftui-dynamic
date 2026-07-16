@@ -76,6 +76,7 @@ evidence that remains covered.
 | `actor-isolated-entry` | exact | An actor-isolated instance method sees its exact actor through `#isolation`, while an explicit `nonisolated` method sees no actor | Native/interpreter parity in 20 repetitions: `actor:none`; actor identity is logical and does not claim physical worker execution |
 | `custom-global-actor-isolation` | exact | A function annotated with a user-defined global actor uses that declaration's canonical `static shared` actor identity, while an explicit `nonisolated` function sees none | Native/interpreter parity in 20 repetitions: `same:none`; declaration order and repeated resolution preserve the same runtime actor ID |
 | `actor-arbitrary-global-actor-isolation` | exact | Struct- and enum-backed global actors whose `static shared` values have separate source-actor types expose those exact canonical actors through `#isolation`; a defaulted isolated existential selects and owns the same mailbox | Native/interpreter parity in 20 repetitions: `same:owned:same\|same:owned:same`; both nominal-symbol representations are covered without a physical-thread, independent-order, or arbitrary `@isolated(any)` task-operation claim |
+| `actor-initialization` | exact | A synchronous actor initializer is lexically nonisolated, initializes actor-owned stored state without `await`, and the first externally awaited isolated method executes while owning that actor's executor | Native/interpreter parity in 20 repetitions: `none:owned:5`; the assertion covers initialization isolation, retained state, mailbox ownership, and cleanup without claiming a physical thread or unrelated message order |
 | `actor-serial-segment` | exact | Two concurrent calls to a synchronous actor-isolated method each own one mutually exclusive actor-executor segment and retain both mutations | Native/interpreter parity in 20 repetitions: `owned:owned:2`; the runtime records mailbox ownership explicitly and the assertion makes no FIFO, start-order, physical-thread, or cross-actor-parallelism claim |
 | `actor-mailbox-stress` | stress invariant | Eight child tasks complete four actor-mailbox rounds with two post-barrier suspension/resume cycles per message; every message retains actor ownership and exactly one mutation, every child completes valid, and the terminal barrier is drained | Native/interpreter parity in 20 repetitions: `32:4:0:0:8`; a separate 64-seed interpreter board varies fanout, rounds, pre-entry yield, and resume-yield count while checking exact terminal counters and empty task/actor/group/scope/host-operation/scheduler registries; no FIFO, child order, physical-thread, or cross-actor-parallelism claim is made |
 | `actor-computed-property` | exact | Each externally awaited synchronous actor computed-property getter owns the receiver actor for its complete accessor segment, explicit `nonisolated` does not enter it, and sequential isolated reads retain both mutations | Native/interpreter parity in 20 repetitions: `owned:1\|owned:2\|unowned\|2`; no FIFO between independent messages, physical-thread, or parallelism claim is made |
@@ -3671,6 +3672,41 @@ is not a semantic prerequisite for source nominal actor dispatch.
 This covers `M5/actor-reentrancy-and-isolated-dispatch`. M5 remains partial
 only for the active per-feature fail-closed actor safety boundary; physical
 workers remain M9.
+
+### Actor initialization isolation boundary
+
+`actor-initialization.swift` asks whether construction itself owns an actor
+executor. Its synchronous initializer records caller-independent lexical
+isolation while seeding and mutating stored state; the first externally
+awaited method then checks ownership of the new actor's mailbox and returns the
+retained value. Twenty bounded Apple Swift 6.3.3 executions with SDK 26.5
+under Swift 6 complete strict concurrency returned `none:owned:5` exactly.
+The initializer is therefore lexically nonisolated, while the post-init method
+is isolated to the new actor. No physical thread or unrelated message order is
+asserted. The native-observation digest is
+`23e29416eefa3be111ed2ba69d4e6f9a71ba03d22c0bcbee81ef6f7ea013ee46`.
+
+This is a characterization: after correcting the differential support helper,
+the production runtime was already GREEN in all twenty fresh-process
+repetitions. The first helper version projected only source-actor IDs and
+mistook logical MainActor for nil; broadening it to the dynamic executor then
+exposed the opposite error by reporting the caller's MainActor inside a
+lexically nonisolated initializer. The final adapter consumes the
+interpreter's actual lexical `#isolation` projection, matching the native
+helper's defaulted isolated parameter. That intermediate adapter failure is
+test-oracle evidence, not a claimed production RED.
+
+Focused evidence pins the initializer's synchronous metadata, its single nil
+lexical-isolation observation, mailbox ownership during the first isolated
+method, the retained value, and empty task, actor, and scheduled-task
+registries after completion. The final incremental build took 6.22 seconds.
+Three processes then reused the prebuilt bundle directly, avoiding SwiftPM's
+otherwise-serialized package-planning lock: all 20 actor-runtime tests passed
+in 0.52 seconds, all 38 methodology tests in 12.05 seconds, and the fresh-
+process 20-repetition differential in 15.17 seconds, which was the complete
+parallel-board tail. This adds actor initialization to the active safety-
+boundary inventory; the requirement remains open for the remaining unsupported
+actor forms and their explicit fail-closed dispositions.
 
 ## Official Swift upstream intake
 

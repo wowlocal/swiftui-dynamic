@@ -251,7 +251,10 @@ updates the handle flag without changing its terminal outcome.
 
 Actor declarations retain reference semantics and their nominal actor kind.
 Each source actor instance now receives a distinct runtime actor ID with a
-non-owning lifetime record. Synchronous and async isolated functions acquire a
+non-owning lifetime record. A synchronous actor initializer runs in its
+lexically nonisolated context, initializes the new instance's storage without
+an executor hop, and leaves subsequent isolated entry to the registered
+mailbox. Synchronous and async isolated functions acquire a
 depth-counted lease on that actor record before entering its logical executor.
 A canonical host, task, clock, or group wait parks the complete nested segment,
 hands ownership to another waiter, and queues the suspended task on that actor
@@ -983,6 +986,13 @@ preserve their nominal attribute metadata and select that exact actor
 capability through both `#isolation` and defaulted isolated parameters.
 Function-value isolation identity and conversion remain the separate section
 6.10 boundary; they are not inferred from dispatch metadata.
+
+A synchronous actor initializer remains lexically nonisolated while its new
+instance is marked as initializing. It may seed and mutate that instance's
+stored state without acquiring its mailbox; after initialization ends, the
+same mutable-storage funnels require ownership and the first external isolated
+method enters through the registered actor ID. The committed initialization
+fixture pins this transition and final actor-record cleanup.
 
 ### 6.12 Actor reentrancy
 

@@ -680,6 +680,7 @@
           "coverage": ["diagnostic", "isolation"],
           "dependsOnRequirements": ["M5/actor-identity-storage-and-serial-executor", "M7/native-diagnostic-oracles"],
           "ownedCaseIDs": [
+            "actor-initialization",
             "actor-computed-setter-diagnostic",
             "actor-subscript-setter-diagnostic"
           ],
@@ -687,10 +688,11 @@
           "testNames": [
             "CompilerPreflightTests/requiredModeRejectsNativeDiagnosticBeforeInterpreterMutation",
             "CompilerPreflightTests/requiredModeRejectsExternalActorComputedSetterBeforeMutation",
-            "CompilerPreflightTests/requiredModeRejectsExternalActorSubscriptSetterBeforeMutation"
+            "CompilerPreflightTests/requiredModeRejectsExternalActorSubscriptSetterBeforeMutation",
+            "ActorRuntimeTests/actorInitializationIsLexicallyNonisolatedThenUsesMailbox"
           ],
           "gapEvidenceIDs": ["actor-declaration-safety-boundary"],
-          "notes": "Final slice of the 2026-07-16 demand cycle: each actor semantic feature flips from the documented class-like compatibility path to fail-closed diagnosis together with or after its actor-runtime replacement. A global up-front rejection of valid actor declarations is forbidden while corpus and FoodTruck ratchets execute through the compatibility path. The boundary closes when every demand-scoped actor feature routes through the actor runtime and remaining unsupported actor forms are explicitly diagnosed instead of silently absorbed."
+          "notes": "Final slice of the 2026-07-16 demand cycle: each actor semantic feature flips from the documented class-like compatibility path to fail-closed diagnosis together with or after its actor-runtime replacement. Synchronous actor initialization is characterized: its body is lexically nonisolated, may initialize stored state without await, and the first externally awaited isolated method owns the new actor mailbox. A global up-front rejection of valid actor declarations is forbidden while corpus and FoodTruck ratchets execute through the compatibility path. The boundary closes when every demand-scoped actor feature routes through the actor runtime and remaining unsupported actor forms are explicitly diagnosed instead of silently absorbed."
         },
         {
           "id": "actor-identity-storage-and-serial-executor",

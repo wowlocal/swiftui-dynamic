@@ -90,6 +90,66 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func actorInitializationIsLexicallyNonisolatedThenUsesMailbox()
+        async throws
+    {
+        let interpreter = Interpreter()
+        var initializationIsolation: [String] = []
+        var isolatedMethodActorID: RuntimeActorID?
+        interpreter.globals.define(
+            "parityCurrentIsolationKind",
+            .hostFunction(HostFunction(
+                name: "parityCurrentIsolationKind"
+            ) { _, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                let kind = isolation.isNil ? "none" : "actor"
+                initializationIsolation.append(kind)
+                return .native(kind)
+            }))
+        interpreter.globals.define(
+            "parityActorSegmentOwnership",
+            .hostFunction(HostFunction(
+                name: "parityActorSegmentOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                isolatedMethodActorID = actorID
+                return .native("owned")
+            }))
+
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("ConcurrencyParity")
+            .appendingPathComponent("Fixtures")
+            .appendingPathComponent("actor-initialization.swift")
+        let declarations = try String(contentsOf: fixture, encoding: .utf8)
+        let result = try await interpreter.runAsync(source:
+            declarations + "\nawait actorInitializationProbe()\n")
+        let symbol = try #require(
+            interpreter.globals.lookup("ParityInitializationActor")?
+                .typeSymbol)
+
+        #expect(result.stringValue == "none:owned:5")
+        #expect(initializationIsolation == ["none"])
+        #expect(isolatedMethodActorID != nil)
+        #expect(symbol.isActor)
+        #expect(symbol.initializers.count == 1)
+        #expect(symbol.initializers[0].signature.effectSpecifiers?
+            .asyncSpecifier == nil)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test
     func actorMailboxSuspendsHandsOffAndReleasesRuntimeEdges() async throws {
         let interpreter = Interpreter()
         _ = try interpreter.run(source: "actor MailboxProbe {}")

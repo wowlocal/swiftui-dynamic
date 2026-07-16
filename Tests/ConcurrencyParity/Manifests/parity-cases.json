@@ -98,6 +98,18 @@
     "notes": "Exact output is same:owned:same|same:owned:same in all 20 Swift 6.3.3 runs. The fixture covers both nominal-symbol representations and actor capability identity without asserting physical threads, independent scheduling order, or arbitrary @isolated(any) task-operation executors."
   },
   {
+    "id": "actor-initialization",
+    "fixture": "Fixtures/actor-initialization.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorInitializationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A synchronous actor initializer is lexically nonisolated, initializes actor-owned stored state without await, and the first externally awaited isolated method executes while owning that actor's executor.",
+    "notes": "Exact output is none:owned:5 in all 20 Swift 6.3.3 runs. The fixture proves initialization isolation, retained state, and post-initialization mailbox ownership without asserting physical threads or unrelated message order."
+  },
+  {
     "id": "actor-serial-segment",
     "fixture": "Fixtures/actor-serial-segment.swift",
     "mode": "runtime",

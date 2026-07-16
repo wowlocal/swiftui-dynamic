@@ -425,8 +425,9 @@ private enum ConcurrencyParityHarness {
             "parityCurrentIsolationKind",
             .hostFunction(HostFunction(
                 name: "parityCurrentIsolationKind"
-            ) { _, context in
-                .native(context.sourceExecutor.actorID == nil ? "none" : "actor")
+            ) { _, _ in
+                let isolation = try interpreter.currentSourceIsolationValue()
+                return .native(isolation.isNil ? "none" : "actor")
             }))
         interpreter.globals.define(
             "parityCurrentIsolationMatches",
