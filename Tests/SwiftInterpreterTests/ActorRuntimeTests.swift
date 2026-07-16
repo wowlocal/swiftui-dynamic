@@ -553,6 +553,79 @@ struct ActorRuntimeTests {
         }
     }
 
+    @Test
+    func crossActorFailureRestoresCallerAndReleasesCallee() async throws {
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "inspectFailureOwnership",
+            .hostFunction(HostFunction(
+                name: "inspectFailureOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+
+        let result = try await interpreter.runAsync(source: """
+            enum HopFailure: Error { case boom }
+
+            actor FailureTarget {
+                var stored = 0
+                var failureOwnership = "unset"
+
+                func fail() throws {
+                    failureOwnership = inspectFailureOwnership(self)
+                    stored += 1
+                    throw HopFailure.boom
+                }
+
+                func recover() -> String {
+                    let recoveryOwnership = inspectFailureOwnership(self)
+                    stored += 1
+                    return failureOwnership + ":" + recoveryOwnership
+                        + ":" + String(stored)
+                }
+            }
+
+            actor FailureCaller {
+                func run(_ target: FailureTarget) async -> String {
+                    let before = inspectFailureOwnership(self)
+                    var outcome = "missed"
+                    do {
+                        try await target.fail()
+                    } catch {
+                        outcome = "caught"
+                    }
+                    let afterFailure = inspectFailureOwnership(self)
+                    let recovered = await target.recover()
+                    let afterRecovery = inspectFailureOwnership(self)
+                    return before + "|" + outcome + "|" + afterFailure
+                        + "|" + recovered + "|" + afterRecovery
+                }
+            }
+
+            func runFailureProbe() async -> String {
+                let target = FailureTarget()
+                let caller = FailureCaller()
+                return await caller.run(target)
+            }
+
+            await runFailureProbe()
+            """)
+
+        #expect(result.stringValue
+            == "owned|caught|owned|owned:owned:2|owned")
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
     private static func instance(from value: RuntimeValue?) -> Instance? {
         guard case .instance(let instance)? = value else { return nil }
         return instance

@@ -275,14 +275,17 @@ accessor context after evaluating its base once and its indices before the hop;
 an explicit `nonisolated` subscript stays on the caller executor. A synchronous
 subscript setter also uses the common accessor context and requires an
 already-owned actor segment. Native Swift rejects external subscript mutation
-even when it is prefixed with `await`; no setter hop is synthesized.
+even when it is prefixed with `await`; no setter hop is synthesized. A
+cross-actor throwing-function call parks the caller actor, owns the callee for
+its throwing segment, releases the callee on error, and restores the caller
+before source `catch` handling continues.
 
 This establishes runtime-owned synchronous prefixes plus controlled
 release/interleaving/reacquisition for async actor messages. It is not yet
 complete actor isolation. Remaining actor work includes:
 
-- complete native evidence for cross-actor executor hops and every failure or
-  cancellation exit;
+- complete native evidence for effectful-accessor failure and cancellation
+  exits;
 - replayable mailbox/reentrancy stress;
 - complete `nonisolated`, isolated-parameter, and global-actor semantics;
 - compile-time restrictions on access.
@@ -955,9 +958,11 @@ proves that external mutation cannot be made into a hop with `await`. The
 `actor-subscript-getter` fixture proves the corresponding externally awaited
 getter segment and explicit-nonisolated exception. The
 `actor-subscript-setter` fixture plus its compiler-diagnostic twin prove legal
-already-owned execution and reject an invented external hop. Failure,
-cancellation, isolated-parameter dispatch, arbitrary global actors, and
-replayable mailbox stress remain open M5 work.
+already-owned execution and reject an invented external hop. The
+`actor-cross-actor-failure` fixture proves callee release and caller restoration
+around a throwing function hop. Effectful-accessor failure, cancellation,
+isolated-parameter dispatch, arbitrary global actors, and replayable mailbox
+stress remain open M5 work.
 
 ### 6.13 Cancellation
 

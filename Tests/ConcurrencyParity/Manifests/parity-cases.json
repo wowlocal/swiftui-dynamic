@@ -158,6 +158,18 @@
     "notes": "Exact output is owned:owned:interleaved:owned:3 in all 20 Swift 6.3.3 runs. A controlled gate establishes every asserted edge; no FIFO, task-start order, physical thread, or unrelated scheduling order is asserted."
   },
   {
+    "id": "actor-cross-actor-failure",
+    "fixture": "Fixtures/actor-cross-actor-failure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await actorCrossActorFailureProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A cross-actor awaited throwing call runs inside the callee actor, releases that actor on failure, and restores the caller actor before catch handling and subsequent cross-actor work.",
+    "notes": "Exact output is owned|caught|owned|owned:owned:2|owned in all 20 Swift 6.3.3 runs. The observation proves caller/callee actor-segment ownership and retained target mutations without asserting FIFO, physical threads, or unrelated scheduling order."
+  },
+  {
     "id": "task-owned-evaluator-context",
     "fixture": "Fixtures/task-owned-evaluator-context.swift",
     "mode": "runtime",
