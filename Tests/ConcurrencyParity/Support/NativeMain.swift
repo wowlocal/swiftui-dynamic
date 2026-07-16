@@ -258,6 +258,28 @@ func parityHostGatewayEvents() -> String {
     parityHostGatewayEventStorage.joined(separator: ",")
 }
 
+struct ParityHostAsyncSequence: AsyncSequence, Sendable {
+    struct AsyncIterator: AsyncIteratorProtocol, Sendable {
+        var index = 0
+
+        mutating func next() async -> Int? {
+            await Task.yield()
+            let values = [2, 4, 6]
+            guard index < values.count else { return nil }
+            defer { index += 1 }
+            return values[index]
+        }
+    }
+
+    func makeAsyncIterator() -> AsyncIterator {
+        AsyncIterator()
+    }
+}
+
+nonisolated func parityHostAsyncSequence() -> ParityHostAsyncSequence {
+    ParityHostAsyncSequence()
+}
+
 @MainActor
 var parityTaskValueGateStarted = false
 

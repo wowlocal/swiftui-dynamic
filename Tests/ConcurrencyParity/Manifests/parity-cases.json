@@ -1867,5 +1867,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Protocol-extension default witnesses can satisfy both a refined AsyncSequence's makeAsyncIterator() requirement and a refined AsyncIteratorProtocol's mutating async next() requirement. For-await dispatches those defaults and preserves iterator value state across suspension until nil.",
     "notes": "The concrete sequence and iterator declare only their associated-type witnesses and stored iterator state; neither redeclares the two callable requirements. Apple Swift 6.3.3 strict-concurrency compilation succeeded, and twenty bounded native runs produced exact output 3:6. Every successful default next() suspends with Task.yield; no physical-thread or unrelated ready-task order is asserted."
+  },
+  {
+    "id": "host-bridged-async-sequence",
+    "fixture": "Fixtures/host-bridged-async-sequence.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await hostBridgedAsyncSequenceProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "For-await over an SDK-owned opaque AsyncSequence calls its host-gateway makeAsyncIterator() once and repeatedly awaits the host iterator's next() until nil. Three suspending values are delivered exactly once, and the terminal fourth next() ends iteration.",
+    "notes": "The shared native support models an SDK sequence while the interpreter receives only typed HostRegistry contracts for the opaque sequence and iterator carriers. Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native runs produced exact output 3:12. Focused interpreter evidence additionally requires all four next() calls to own tracked host operations and leaves the host-operation and task/scope/group registries empty. No fixture ID or carrier name is recognized by production code."
   }
 ]

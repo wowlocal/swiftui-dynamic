@@ -121,6 +121,102 @@ private struct DetachedHostCallback: @unchecked Sendable {
     }
 }
 
+/// Opaque test carriers stand in for an SDK-owned AsyncSequence and iterator.
+/// Their only source-visible surface is the typed HostRegistry contract below.
+private final class ParityHostAsyncSequenceCarrier {}
+
+private final class ParityHostAsyncIteratorCarrier {
+    var index = 0
+}
+
+private final class ParityHostAsyncSequenceRegistry: HostRegistry {
+    weak var interpreter: Interpreter?
+    private let makeIteratorSignature: HostSignature
+    private let nextSignature: HostSignature
+    private(set) var nextCallCount = 0
+    private(set) var trackedNextCallCount = 0
+
+    init() throws {
+        makeIteratorSignature = try HostSignature(parsing:
+            "func ParityHostAsyncSequence.makeAsyncIterator() -> ParityHostAsyncIterator")
+        nextSignature = try HostSignature(parsing:
+            "mutating func ParityHostAsyncIterator.next() async -> Int?")
+    }
+
+    func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
+        if name == "makeAsyncIterator",
+           value is ParityHostAsyncSequenceCarrier,
+           let function = try? HostFunction(
+                signature: makeIteratorSignature,
+                invoke: { _, _ in
+                    .native(ParityHostAsyncIteratorCarrier())
+                }) {
+            return .hostFunction(function)
+        }
+        if name == "next",
+           let iterator = value as? ParityHostAsyncIteratorCarrier,
+           let function = try? HostFunction(
+                signature: nextSignature,
+                asyncInvoke: { [weak self] _, _ in
+                    guard let self, let interpreter = self.interpreter else {
+                        throw RuntimeError(message:
+                            "host AsyncSequence registry lost its interpreter")
+                    }
+                    self.nextCallCount += 1
+                    if interpreter.concurrencyRuntime
+                        .activeHostOperationCount == 1 {
+                        self.trackedNextCallCount += 1
+                    }
+                    await Task.yield()
+                    let values = [2, 4, 6]
+                    guard iterator.index < values.count else {
+                        return .none(wrappedTypeName: "Int")
+                    }
+                    let value = values[iterator.index]
+                    iterator.index += 1
+                    return .some(.native(value), wrappedTypeName: "Int")
+                }) {
+            return .hostFunction(function)
+        }
+        return nil
+    }
+
+    func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
+        hostMember(name, on: value)
+    }
+
+    func hostTypeName(of value: Any) -> String? {
+        if value is ParityHostAsyncSequenceCarrier {
+            return "ParityHostAsyncSequence"
+        }
+        if value is ParityHostAsyncIteratorCarrier {
+            return "ParityHostAsyncIterator"
+        }
+        return nil
+    }
+
+    func hostProtocolCandidates(of value: Any) -> [String] {
+        if value is ParityHostAsyncSequenceCarrier {
+            return ["AsyncSequence"]
+        }
+        if value is ParityHostAsyncIteratorCarrier {
+            return ["AsyncIteratorProtocol"]
+        }
+        return []
+    }
+
+    func cFunction(named name: String) -> HostFunction? { nil }
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+}
+
 private enum ConcurrencyParityHarness {
     private static let childCaseEnvironmentVariable =
         "DYNAMIC_SWIFT_PARITY_CHILD_CASE_ID"
@@ -433,7 +529,9 @@ private enum ConcurrencyParityHarness {
         let fixture = parityRoot.appendingPathComponent(parityCase.fixture)
         let source = try String(contentsOf: fixture, encoding: .utf8)
             + "\n" + entry + "\n"
-        let interpreter = Interpreter()
+        let hostSequenceRegistry = try ParityHostAsyncSequenceRegistry()
+        let interpreter = Interpreter(registry: hostSequenceRegistry)
+        hostSequenceRegistry.interpreter = interpreter
         var waitStarted = false
         var expectedDetachedContextID: UInt64?
         var hostGatewayEvents: [String] = []
@@ -456,6 +554,14 @@ private enum ConcurrencyParityHarness {
         var taskLocalRecordStorageMatched = true
         let parityTaskLocalKey = RuntimeTaskLocalKey(
             rawValue: "ConcurrencyParity.value")
+        interpreter.globals.define(
+            "parityHostAsyncSequence",
+            .hostFunction(try HostFunction(
+                declaration:
+                    "func parityHostAsyncSequence() -> ParityHostAsyncSequence"
+            ) { _, _ in
+                .native(ParityHostAsyncSequenceCarrier())
+            }))
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
             name: "parityYield",
             asyncInvoke: { arguments, _ in
@@ -859,10 +965,19 @@ private enum ConcurrencyParityHarness {
               interpreter.scheduledTasks.isEmpty,
               interpreter.concurrencyRuntime.activeRecordCount == 0,
               interpreter.concurrencyRuntime.activeStructuredScopeCount == 0,
-              interpreter.concurrencyRuntime.activeTaskGroupCount == 0
+              interpreter.concurrencyRuntime.activeTaskGroupCount == 0,
+              interpreter.concurrencyRuntime.activeHostOperationCount == 0
         else {
             throw RuntimeError(message:
-                "case '\(parityCase.id)' leaked task/scope/group runtime ownership")
+                "case '\(parityCase.id)' leaked task/scope/group/host runtime ownership")
+        }
+
+        if hostSequenceRegistry.nextCallCount > 0 {
+            guard hostSequenceRegistry.nextCallCount == 4,
+                  hostSequenceRegistry.trackedNextCallCount == 4 else {
+                throw RuntimeError(message:
+                    "case '\(parityCase.id)' did not route every host iterator next() through a tracked suspension")
+            }
         }
 
         if !taskLocalStorageByTask.isEmpty {
