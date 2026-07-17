@@ -277,7 +277,7 @@ enum GeneratedDispatch {
                 return lower...upper
             }
             if let closed: ClosedRange<Double> = hostValue(value) { return closed }
-            throw RuntimeError(message: "expected a ClosedRange<Double> like 0...1")
+            throw RuntimeError(message: "expected a closed range (ClosedRange<Double>) like 0...1")
         case .calendarComponent:
             return try Coerce.calendarComponent(value)
         case .calendarComponentSet:

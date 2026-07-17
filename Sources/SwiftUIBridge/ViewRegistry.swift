@@ -127,8 +127,18 @@ public final class ViewRegistry: HostRegistry {
             if let hand {
                 do {
                     return try hand.invoke(args, ctx)
-                } catch where generated != nil {
-                    // fall through to generated overloads
+                } catch let handError where generated != nil {
+                    // Fall through to generated overloads; when BOTH tiers
+                    // reject, the handwritten error is the curated message
+                    // ("Slider(in:) needs a closed range ...") and wins over
+                    // the generic no-matching-initializer report.
+                    do {
+                        return .native(try GeneratedDispatch.construct(
+                            name: resolvedName, overloads: generated!,
+                            args: args, ctx: ctx))
+                    } catch {
+                        throw handError
+                    }
                 }
             }
             guard let generated else {

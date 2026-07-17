@@ -2366,3 +2366,18 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   in the titlebar). R4 BOARD: ALL NINE navigations + ALL THREE
   mutations land, zero diagnostics. Debug traces removed. R2/R3/pins
   green. Gate still blocked by main-red.
+- 2026-07-17 GATE-RED FIXES: curated errors win the dispatch fallthrough
+  (worktree iteration 53): main healed (lane-concurrency's containment
+  merged, 47ee78e) and the first full-stack gate surfaced two failures.
+  (1) sliderRequiresClosedRange: i43's generated Slider range forms now
+  make Slider(value:in:) resolvable, and on a HALF-OPEN range the
+  constructor fallthrough replaced the handwritten "needs a closed
+  range" message with the generic no-matching-initializer report. Fix:
+  when BOTH tiers reject a call, the handwritten (curated) error wins —
+  better diagnostics everywhere, no test weakening (the half-open case
+  still fails, with the right message; the closed case works where it
+  used to error). The doubleRange coercion message also now says
+  "closed range". (2) interpretedSwiftUIStartsAsyncTaskBodyInCanonical-
+  AsyncContext passes isolated — a load flake alongside "parallel test
+  workers failed" appearing once in the suite tail; watching whether
+  the containment fully holds on the re-roll. Gate re-rolling.
