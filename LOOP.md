@@ -2231,3 +2231,26 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   Probes: memberComposedSplitBodyRenders (macOS-forced),
   editorSplitShapeBisect, form-bisect, wrapper-bisect. Gate still
   blocked by main-red.
+- 2026-07-17 THE EDITOR RENDERS — generatedBuilder pane collapse
+  (worktree iteration 46): the silent-blank root cause, found by an
+  elimination cascade (sections bisect -> pure shape blanks under the
+  probe env -> pure shape RENDERS in the unit harness -> merged-source
+  bisect renders -> the capture showed "LEFT" centered = ONE-pane
+  split): `generatedBuilder` wrapped multi-child builder content in a
+  VSTACK, so every multi-child GENERATED container collapsed its
+  children into one cell — HSplitView { viewer; form } became a
+  one-pane split (handwritten gateways were immune; they fan out with
+  indexed ForEach INSIDE the real container). Fix: generatedBuilder
+  returns the neutral indexed fan-out; the receiving container sees its
+  children as children. The donut editor NOW RENDERS through the
+  interpreter: split divider, name field, six flavor gauges,
+  ingredient pickers — diag-donuteditor 100%-blank -> 10.56% vs twin
+  (residues: section-header styling, optional-tag Glaze/Topping
+  labels, divider position). Probe adjustments: struct-binding probe
+  canvas 700x300 + constrained form pane (the old pass was an
+  artifact of the collapse; an UNCONSTRAINED pane collapsing a
+  headless split is a known edge, noted). Corpus backstop 678/680
+  (unchanged); full R2 board all-zero except content artifact; R3
+  green; all pin suites pass. Scratch bisect harness kept
+  (MergeBisectScratchTests) pending removal next close. Gate still
+  blocked by main-red.

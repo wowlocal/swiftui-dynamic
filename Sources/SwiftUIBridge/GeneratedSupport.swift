@@ -852,7 +852,10 @@ func generatedBuilder(_ value: Any) throws -> AnyView {
     }
     let views = try builder.context.callBuilderClosure(closure, arguments: [])
         .map(ViewRegistry.anyView)
-    return views.count == 1 ? views[0] : AnyView(VStack { ViewRegistry.indexed(views) })
+    // NEUTRAL fan-out: the receiving container must see the children as
+    // ITS children (HSplitView panes, Group members...). A VStack wrap
+    // collapsed every multi-child generated container into one cell.
+    return views.count == 1 ? views[0] : AnyView(ViewRegistry.indexed(views))
 }
 
 // MARK: - Coercions added for generated surface

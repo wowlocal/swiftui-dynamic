@@ -125,6 +125,7 @@ import Testing
                     Form {
                         TextField(String("Name"), text: $donut.name)
                     }
+                    .frame(minWidth: 200, maxHeight: .infinity)
                 }
             }
         }
@@ -146,9 +147,11 @@ import Testing
             Issue.record("render failed")
             return
         }
-        let rep = Self.bitmap(view, size: NSSize(width: 300, height: 120))
+        // A REAL two-pane split needs pane-viable space (the old 300x120
+        // pass was an artifact of the generatedBuilder VStack collapse).
+        let rep = Self.bitmap(view, size: NSSize(width: 700, height: 300))
         var ink = 0
-        for x in 0..<300 { for y in 0..<120 {
+        for x in 0..<700 { for y in 0..<300 {
             if let c = rep.colorAt(x: x, y: y), c.brightnessComponent < 0.9 { ink += 1 }
         } }
         print("PROBE struct-binding ink:", ink, "diags:", RenderDiagnostics.errors.count)
@@ -258,6 +261,44 @@ import Testing
                 .layoutPriority(1)
         """
         for (name, left) in [("split-full", leftFull), ("split-noinsets", leftNoInsets), ("split-emptyleft", leftEmpty)] {
+            _ = (name, left)
+        }
+        for (name, right) in [
+            ("plainform", "Form { Text(String(\"RIGHT\")) }"),
+            ("sectionform", "Form { Section(String(\"Head\")) { Text(String(\"RIGHT\")) } }"),
+        ] {
+            let source = """
+            @main
+            struct P: App {
+                var body: some Scene {
+                    WindowGroup {
+                        HSplitView {
+                            Text(String("LEFT")).frame(maxWidth: .infinity, maxHeight: .infinity).layoutPriority(1)
+                            \(right)
+                                .formStyle(.grouped)
+                                .padding()
+                                .frame(minWidth: 300, idealWidth: 350, maxHeight: .infinity, alignment: .top)
+                        }
+                    }
+                }
+            }
+            """
+            RenderDiagnostics.reset()
+            let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+            guard case .success(let view) = rendered else {
+                print("PROBE section-split \(name): RENDER FAILED")
+                continue
+            }
+            for (w, h) in [(700, 300), (1000, 650)] {
+                let rep = Self.bitmap(view, size: NSSize(width: CGFloat(w), height: CGFloat(h)))
+                var ink = 0
+                for x in (w/2)..<w { for y in 0..<h {
+                    if let c = rep.colorAt(x: x, y: y), c.brightnessComponent < 0.88 { ink += 1 }
+                } }
+                print("PROBE section-split \(name)@\(w)x\(h): right-ink=\(ink)")
+            }
+        }
+        for (name, left) in [("noop", "Text(String(\"X\"))")] {
             let source = """
             @main
             struct P: App {
