@@ -1,4 +1,5 @@
 import Testing
+import SwiftSyntax
 @testable import SwiftInterpreter
 
 @Suite("Parsed program concurrency boundary")
@@ -148,6 +149,15 @@ struct ParsedProgramConcurrencyTests {
                 1
             }
 
+            var state: Int {
+                get { 1 }
+                set {}
+            }
+
+            subscript(_ index: Int) -> Int {
+                get async throws { index }
+            }
+
             #if os(iOS)
             @concurrent func selected() async {}
             #else
@@ -164,7 +174,12 @@ struct ParsedProgramConcurrencyTests {
             throwingFunctionCount: 1,
             explicitlyNonisolatedFunctionCount: 1,
             mainActorFunctionCount: 1,
-            concurrentFunctionCount: 1)
+            concurrentFunctionCount: 1,
+            readableAccessorCount: 2,
+            subscriptCount: 1,
+            asyncGetterCount: 1,
+            throwingGetterCount: 1,
+            setterCount: 1)
 
         func requireSendable<T: Sendable>(_: T) {}
         requireSendable(program.callableMetadataIndex)
@@ -183,6 +198,74 @@ struct ParsedProgramConcurrencyTests {
         #expect(session.runtimeEntry.callableMetadataIndex?.summary == expected)
         let result = try await interpreter.runAsync(session: session)
         #expect(result.intValue == 42)
+    }
+
+    @Test nonisolated func parsedProgramIndexesAccessorAndSubscriptMetadata()
+    throws {
+        let program = try ParsedProgram(source: """
+        struct Indexed {
+            var plain: Int {
+                get { 1 }
+                set(replacement) {}
+            }
+
+            var effectful: Int {
+                get async throws { 2 }
+            }
+
+            var observed = 0 {
+                willSet {}
+                didSet {}
+            }
+
+            subscript(_ index: Int) -> Int {
+                get async throws { index }
+            }
+
+            subscript(label label: String) -> String {
+                get { label }
+                set(replacement) {}
+            }
+        }
+        """)
+        let summary = program.callableMetadataIndex.summary
+        #expect(summary.readableAccessorCount == 4)
+        #expect(summary.subscriptCount == 2)
+        #expect(summary.asyncGetterCount == 2)
+        #expect(summary.throwingGetterCount == 2)
+        #expect(summary.setterCount == 2)
+
+        let structures: [StructDeclSyntax] = program.syntax.statements.compactMap {
+            guard case .decl(let declaration) = $0.item else { return nil }
+            return declaration.as(StructDeclSyntax.self)
+        }
+        let indexed = try #require(structures.first)
+        let subscripts: [SubscriptDeclSyntax] =
+            indexed.memberBlock.members.compactMap {
+                $0.decl.as(SubscriptDeclSyntax.self)
+            }
+        let asyncSubscript = try #require(subscripts.first)
+        let asyncMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: asyncSubscript))
+        #expect(asyncMetadata.parameters.map(\.name) == ["index"])
+        #expect(asyncMetadata.parameters.map(\.label) == [nil])
+        #expect(asyncMetadata.resultTypeName == "Int")
+        #expect(!asyncMetadata.isNonisolated)
+
+        let asyncAccessorBlock = try #require(asyncSubscript.accessorBlock)
+        let asyncAccessor = try #require(
+            program.callableMetadataIndex.metadata(for: asyncAccessorBlock))
+        #expect(asyncAccessor.isAsync)
+        #expect(asyncAccessor.isThrowing)
+        #expect(asyncAccessor.setter == nil)
+
+        let syncSubscript = try #require(subscripts.last)
+        let syncAccessorBlock = try #require(syncSubscript.accessorBlock)
+        let syncAccessor = try #require(
+            program.callableMetadataIndex.metadata(for: syncAccessorBlock))
+        #expect(!syncAccessor.isAsync)
+        #expect(!syncAccessor.isThrowing)
+        #expect(syncAccessor.setter?.parameterName == "replacement")
     }
 
     @Test func sourceEntryStillReturnsLocatedRuntimeParseError() throws {

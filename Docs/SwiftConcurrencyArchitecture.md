@@ -153,6 +153,16 @@ tasks keep the originating program's metadata. Existing native parity for
 plain explicitly nonisolated async declarations remains exact; this slice does
 not claim complete member/accessor, call-site, or compiler metadata.
 
+The seventh prerequisite extends that same index across readable accessor
+blocks and subscript declarations. Getter bodies, `async`/`throws` effects,
+setter bodies and custom parameter names, subscript parameters/call shapes,
+result types, and explicit nonisolation are now parsed once. Computed-property,
+local/global accessor, and subscript materialization consume the immutable
+index; observer-only `willSet`/`didSet` blocks remain storage metadata rather
+than readable accessors. Swift 6 parity for controlled async-throwing actor
+subscript success and source-error exits remains exact. Nominal/property
+storage metadata, call-site resolution, and compiler fingerprints remain open.
+
 The stable target separates five concerns:
 
 ```text
@@ -548,9 +558,11 @@ ordered build-specific plan; the collector no longer rescans the source or
 re-evaluates top-level `#if` regions in three separate passes. The callable
 index records all-branch function/initializer parameter shapes, effects,
 return/builder/generic facts, attributes, and the modeled declaration-level
-isolation flags once. Mutable runtime symbol materialization remains
-session/facade-owned. Member/accessor metadata, call-site semantic resolution,
-and the compiler-preflight fingerprint remain target work.
+isolation flags once. It also records readable accessor getter/setter bodies
+and effects plus subscript parameters, call shapes, result types, and explicit
+nonisolation. Mutable runtime symbol materialization remains
+session/facade-owned. Nominal/property-storage metadata, call-site semantic
+resolution, and the compiler-preflight fingerprint remain target work.
 
 ### 6.2 `InterpreterSession`
 
@@ -2668,11 +2680,14 @@ function/initializer metadata caches on the facade. Sessions and escaped
 callbacks retain the originating index through `RuntimeEntry`, and eight
 detached readers exercise one snapshot under Swift 6 strict concurrency.
 Existing `extractIsolation` parity characterizes the no-semantic-change result
-for plain explicitly nonisolated async declarations. These slices separate
-immutable program input, mutable storage, and execution identity without
-changing scheduling. Member/accessor and call-site metadata indexing remains
-incomplete, and mutable symbol materialization plus evaluator state must move
-fully behind the session;
+for plain explicitly nonisolated async declarations. The same index now owns
+readable getter/setter metadata and subscript parameter/result/isolation facts;
+computed/local/global accessors and subscript materialization consume it rather
+than rescanning syntax. Controlled async-throwing actor-subscript native parity
+remains exact. These slices separate immutable program input, mutable storage,
+and execution identity without changing scheduling. Nominal/property-storage,
+call-site, and compiler metadata indexing remains incomplete, and mutable
+symbol materialization plus evaluator state must move fully behind the session;
 worker-safe heap classification, physical worker scheduling,
 cooperative-versus-parallel parity, and TSan evidence remain open.
 

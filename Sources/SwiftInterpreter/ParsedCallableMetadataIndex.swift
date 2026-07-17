@@ -13,6 +13,11 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
         public let explicitlyNonisolatedFunctionCount: Int
         public let mainActorFunctionCount: Int
         public let concurrentFunctionCount: Int
+        public let readableAccessorCount: Int
+        public let subscriptCount: Int
+        public let asyncGetterCount: Int
+        public let throwingGetterCount: Int
+        public let setterCount: Int
 
         public init(
             functionCount: Int,
@@ -21,7 +26,12 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
             throwingFunctionCount: Int,
             explicitlyNonisolatedFunctionCount: Int,
             mainActorFunctionCount: Int,
-            concurrentFunctionCount: Int
+            concurrentFunctionCount: Int,
+            readableAccessorCount: Int = 0,
+            subscriptCount: Int = 0,
+            asyncGetterCount: Int = 0,
+            throwingGetterCount: Int = 0,
+            setterCount: Int = 0
         ) {
             self.functionCount = functionCount
             self.initializerCount = initializerCount
@@ -31,11 +41,18 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
                 explicitlyNonisolatedFunctionCount
             self.mainActorFunctionCount = mainActorFunctionCount
             self.concurrentFunctionCount = concurrentFunctionCount
+            self.readableAccessorCount = readableAccessorCount
+            self.subscriptCount = subscriptCount
+            self.asyncGetterCount = asyncGetterCount
+            self.throwingGetterCount = throwingGetterCount
+            self.setterCount = setterCount
         }
     }
 
     fileprivate let functions: [SyntaxIdentifier: ParsedFunctionMetadata]
     fileprivate let initializers: [SyntaxIdentifier: ParsedInitializerMetadata]
+    fileprivate let accessors: [SyntaxIdentifier: ParsedAccessorMetadata]
+    fileprivate let subscripts: [SyntaxIdentifier: ParsedSubscriptMetadata]
     public let summary: Summary
 
     init(file: SourceFileSyntax) {
@@ -44,7 +61,10 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
         collector.walk(Syntax(file))
         functions = collector.functions
         initializers = collector.initializers
+        accessors = collector.accessors
+        subscripts = collector.subscripts
         let functionValues = Array(functions.values)
+        let accessorValues = Array(accessors.values)
         summary = Summary(
             functionCount: functions.count,
             initializerCount: initializers.count,
@@ -53,7 +73,12 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
             explicitlyNonisolatedFunctionCount: functionValues.count(
                 where: \.isExplicitlyNonisolated),
             mainActorFunctionCount: functionValues.count(where: \.isMainActor),
-            concurrentFunctionCount: functionValues.count(where: \.isConcurrent))
+            concurrentFunctionCount: functionValues.count(where: \.isConcurrent),
+            readableAccessorCount: accessors.count,
+            subscriptCount: subscripts.count,
+            asyncGetterCount: accessorValues.count(where: \.isAsync),
+            throwingGetterCount: accessorValues.count(where: \.isThrowing),
+            setterCount: accessorValues.count { $0.setter != nil })
     }
 
     func metadata(
@@ -66,6 +91,18 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
         for declaration: InitializerDeclSyntax
     ) -> ParsedInitializerMetadata? {
         initializers[Syntax(declaration).id]
+    }
+
+    func metadata(
+        for accessorBlock: AccessorBlockSyntax
+    ) -> ParsedAccessorMetadata? {
+        accessors[Syntax(accessorBlock).id]
+    }
+
+    func metadata(
+        for declaration: SubscriptDeclSyntax
+    ) -> ParsedSubscriptMetadata? {
+        subscripts[Syntax(declaration).id]
     }
 }
 
@@ -150,9 +187,87 @@ nonisolated struct ParsedInitializerMetadata: Sendable {
     }
 }
 
+nonisolated struct ParsedAccessorMetadata: Sendable {
+    nonisolated struct Setter: Sendable {
+        let body: CodeBlockItemListSyntax
+        let parameterName: String
+    }
+
+    let getter: CodeBlockItemListSyntax
+    let setter: Setter?
+    let isAsync: Bool
+    let isThrowing: Bool
+
+    init?(_ accessorBlock: AccessorBlockSyntax) {
+        switch accessorBlock.accessors {
+        case .getter(let items):
+            getter = items
+            setter = nil
+            isAsync = false
+            isThrowing = false
+        case .accessors(let list):
+            var getter: CodeBlockItemListSyntax?
+            var setter: Setter?
+            var isAsync = false
+            var isThrowing = false
+            for accessor in list {
+                guard let body = accessor.body?.statements else { continue }
+                switch accessor.accessorSpecifier.tokenKind {
+                case .keyword(.get):
+                    getter = body
+                    isAsync = accessor.effectSpecifiers?.asyncSpecifier != nil
+                    isThrowing =
+                        accessor.effectSpecifiers?.throwsClause != nil
+                case .keyword(.set):
+                    setter = Setter(
+                        body: body,
+                        parameterName: accessor.parameters?.name.text
+                            ?? "newValue")
+                default:
+                    break
+                }
+            }
+            guard let getter else { return nil }
+            self.getter = getter
+            self.setter = setter
+            self.isAsync = isAsync
+            self.isThrowing = isThrowing
+        }
+    }
+}
+
+nonisolated struct ParsedSubscriptMetadata: Sendable {
+    let parameters: [ClosureValue.Parameter]
+    let shape: ParsedCallableShape
+    let resultTypeName: String
+    let isNonisolated: Bool
+
+    init(_ declaration: SubscriptDeclSyntax) {
+        let parameters = declaration.parameterClause.parameters
+        let backticks = CharacterSet(charactersIn: "`")
+        self.parameters = parameters.map { parameter in
+            let firstName = parameter.firstName.text
+                .trimmingCharacters(in: backticks)
+            return ClosureValue.Parameter(
+                name: (parameter.secondName ?? parameter.firstName).text
+                    .trimmingCharacters(in: backticks),
+                label: firstName == "_" ? nil : firstName,
+                defaultValue: parameter.defaultValue?.value,
+                typeAnnotation: parameter.type)
+        }
+        shape = parsedCallableShape(parameters)
+        resultTypeName = declaration.returnClause.type.trimmedDescription
+        isNonisolated = declaration.modifiers.contains {
+            $0.name.text == "nonisolated"
+        }
+    }
+}
+
 private nonisolated final class ParsedCallableMetadataCollector: SyntaxVisitor {
     var functions: [SyntaxIdentifier: ParsedFunctionMetadata] = [:]
     var initializers: [SyntaxIdentifier: ParsedInitializerMetadata] = [:]
+    var accessors: [SyntaxIdentifier: ParsedAccessorMetadata] = [:]
+    var subscripts: [SyntaxIdentifier: ParsedSubscriptMetadata] = [:]
 
     override func visit(
         _ node: FunctionDeclSyntax
@@ -165,6 +280,22 @@ private nonisolated final class ParsedCallableMetadataCollector: SyntaxVisitor {
         _ node: InitializerDeclSyntax
     ) -> SyntaxVisitorContinueKind {
         initializers[Syntax(node).id] = ParsedInitializerMetadata(node)
+        return .visitChildren
+    }
+
+    override func visit(
+        _ node: AccessorBlockSyntax
+    ) -> SyntaxVisitorContinueKind {
+        if let metadata = ParsedAccessorMetadata(node) {
+            accessors[Syntax(node).id] = metadata
+        }
+        return .visitChildren
+    }
+
+    override func visit(
+        _ node: SubscriptDeclSyntax
+    ) -> SyntaxVisitorContinueKind {
+        subscripts[Syntax(node).id] = ParsedSubscriptMetadata(node)
         return .visitChildren
     }
 }

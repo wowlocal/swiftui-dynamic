@@ -2916,13 +2916,15 @@
       "requirementRef": "M9/parallel-runtime-and-sanitizers",
       "evidenceCaseIDs": [
         "host-callback-overlap",
-        "extract-isolation-nonisolated"
+        "extract-isolation-nonisolated",
+        "actor-subscript-async-exits"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
         "ParsedProgramConcurrencyTests/parsedProgramIsSendableAcrossDetachedReaders",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableDeclarationIndex",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableCallableMetadataIndex",
+        "ParsedProgramConcurrencyTests/parsedProgramIndexesAccessorAndSubscriptMetadata",
         "ParsedProgramConcurrencyTests/oneParsedProgramBacksIndependentAsyncSessions",
         "ParsedProgramConcurrencyTests/sessionsBindBuildResolvedDeclarationPlans",
         "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError",
@@ -2940,7 +2942,7 @@
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Six M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, a target-neutral all-branch ParsedDeclarationIndex, and an all-branch ParsedCallableMetadataIndex reusable across detached readers. The callable index records function/initializer parameter shapes, effects, result/builder/generic facts, attributes, and modeled declaration-level isolation once; runtime symbol construction no longer uses mutable facade callable caches. Each session resolves one build-specific declaration plan, and its RuntimeEntry retains the callable index. Escaped closures preserve the originating index across fresh host-callback and SwiftUI entries. Each Interpreter owns a distinct explicit MainActor-confined RuntimeHeap; every runAsync entry executes through a single-use InterpreterSession; and all source tasks retain their entry capability instead of relying on a bare ID. Focused evidence covers detached readers, session/callback propagation, distinct iOS/macOS plans, session identity/rejection/draining/lifetime, callback overlap/release, and twenty unchanged extract-isolation-nonisolated native/interpreter repetitions. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Member/accessor, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Seven M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, a target-neutral all-branch ParsedDeclarationIndex, and an all-branch ParsedCallableMetadataIndex reusable across detached readers. The callable index records function/initializer call and isolation facts plus readable getter/setter bodies, getter effects, custom setter names, subscript parameters/call shapes/results, and explicit nonisolation once; runtime symbol construction no longer uses mutable facade callable caches or rescans accessor/subscript syntax. Each session resolves one build-specific declaration plan and its RuntimeEntry retains the index; escaped closures preserve it across fresh callback entries. Each Interpreter owns a distinct MainActor-confined RuntimeHeap and every runAsync entry executes through a single-use InterpreterSession. Focused evidence covers detached readers, session/callback propagation, observer exclusion, distinct target plans, ownership/lifetime, twenty unchanged extract-isolation observations, and twenty causal async-throwing actor-subscript observations. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Nominal/property-storage, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

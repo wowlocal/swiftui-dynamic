@@ -589,21 +589,13 @@ extension Interpreter {
                       let accessorBlock = subscriptDecl.accessorBlock,
                       let accessors = parseAccessors(of: accessorBlock) {
                 declLexicalOwners[subscriptDecl.id] = symbol
-                let parameters = subscriptDecl.parameterClause.parameters.map { param in
-                    ClosureValue.Parameter(
-                        name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                        label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                        defaultValue: param.defaultValue?.value,
-                        typeAnnotation: param.type
-                    )
-                }
+                let metadata = subscriptMetadata(for: subscriptDecl)
                 symbol.subscripts.append(.init(
-                    parameters: parameters, getter: accessors.getter,
+                    parameters: metadata.parameters,
+                    getter: accessors.getter,
                     setter: accessors.setter,
-                    resultTypeName: subscriptDecl.returnClause.type.trimmedDescription,
-                    isNonisolated: subscriptDecl.modifiers.contains {
-                        $0.name.text == "nonisolated"
-                    },
+                    resultTypeName: metadata.resultTypeName,
+                    isNonisolated: metadata.isNonisolated,
                     declarationID: subscriptDecl.id,
                     isAsync: accessors.isGetterAsync,
                     isThrowing: accessors.isGetterThrowing))
@@ -1306,30 +1298,19 @@ extension Interpreter {
         isGetterAsync: Bool,
         isGetterThrowing: Bool
     )? {
-        switch accessorBlock.accessors {
-        case .getter(let items):
-            return (items, nil, false, false)
-        case .accessors(let list):
-            var getter: CodeBlockItemListSyntax?
-            var setter: ComputedProperty.Setter?
-            var isGetterAsync = false
-            var isGetterThrowing = false
-            for accessor in list {
-                guard let body = accessor.body?.statements else { continue }
-                switch accessor.accessorSpecifier.tokenKind {
-                case .keyword(.get):
-                    getter = body
-                    isGetterAsync = accessor.effectSpecifiers?.asyncSpecifier != nil
-                    isGetterThrowing = accessor.effectSpecifiers?.throwsClause != nil
-                case .keyword(.set):
-                    setter = .init(body: body, parameterName: accessor.parameters?.name.text ?? "newValue")
-                default:
-                    break // willSet/didSet observers are inert
-                }
-            }
-            guard let getter else { return nil }
-            return (getter, setter, isGetterAsync, isGetterThrowing)
+        guard let metadata = accessorMetadata(for: accessorBlock) else {
+            return nil
         }
+        let setter = metadata.setter.map {
+            ComputedProperty.Setter(
+                body: $0.body,
+                parameterName: $0.parameterName)
+        }
+        return (
+            metadata.getter,
+            setter,
+            metadata.isAsync,
+            metadata.isThrowing)
     }
 
     /// Wrapper kind plus, for `@Environment(Type.self)`, the type name that

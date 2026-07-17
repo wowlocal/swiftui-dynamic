@@ -687,4 +687,18 @@ public final class Interpreter {
             ?? ParsedInitializerMetadata(node)
     }
 
+    func accessorMetadata(
+        for node: AccessorBlockSyntax
+    ) -> ParsedAccessorMetadata? {
+        currentCallableMetadataIndex?.metadata(for: node)
+            ?? ParsedAccessorMetadata(node)
+    }
+
+    func subscriptMetadata(
+        for node: SubscriptDeclSyntax
+    ) -> ParsedSubscriptMetadata {
+        currentCallableMetadataIndex?.metadata(for: node)
+            ?? ParsedSubscriptMetadata(node)
+    }
+
 }

@@ -178,9 +178,15 @@ absent index/summary/runtime-entry API. GREEN evidence covers eight detached
 readers, session and callback propagation, 145 affected runtime/language/
 compiler tests, and twenty unchanged `extract-isolation-nonisolated` native/
 interpreter repetitions under Apple Swift 6.3.3. This was an already-GREEN
-semantic characterization, not a fabricated runtime mismatch. Extending
-immutable member/accessor, call-site, and compiler metadata, moving mutable
-symbols and evaluation fully behind the session, worker-safe heap
+semantic characterization, not a fabricated runtime mismatch. Its seventh
+prerequisite extends the index across readable accessor blocks and subscript
+declarations. The compile-time RED was the absent accessor/subscript metadata
+API. GREEN proves getter effects, setter names, subscript parameters/results,
+observer exclusion, and detached-reader Sendability; 181 affected tests pass.
+The causal `actor-subscript-async-exits` fixture remained exact in twenty
+native/interpreter repetitions with no physical-thread claim. Extending
+immutable nominal/property-storage, call-site, and compiler metadata, moving
+mutable symbols and evaluation fully behind the session, worker-safe heap
 classification, physical workers, cooperative-versus-parallel differential
 evidence, and TSan remain open.
 
