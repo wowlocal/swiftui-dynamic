@@ -2159,6 +2159,18 @@
     "notes": "Each continuation has its own detached producer, which yields before resuming. Program order between the two awaits fixes value before error, but no producer scheduling order, physical thread, or parallel execution is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced value:23|error:failed in twenty native runs."
   },
   {
+    "id": "checked-throwing-continuation-mainactor-error",
+    "fixture": "Fixtures/checked-throwing-continuation-mainactor-error.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedThrowingContinuationMainActorErrorProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "From a @concurrent nonisolated caller, MainActor isolation runs a checked-throwing continuation body on MainActor and a delayed source-error resume restores the caller executor before its matching catch.",
+    "notes": "The task-value gate forces the detached producer to suspend before a controller opens it. Exact output worker|main|worker proves caller entry, contextual MainActor body execution, and cooperative caller restoration before source-error catch without asserting producer scheduling order, physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced the exact output in twenty bounded native runs. This was an already-GREEN characterization: the shared contextual-executor invocation and failed continuation transition already composed correctly, so no production change was required. Focused evidence observes the cooperative required executor while the owner is parked, exact catch-lane restoration, one canonical suspension, and complete cleanup. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 cf35e0f2fff2d29dd27a7b7b026bc52ecd705ce15e72919ac8fc24ae7d3b17fe."
+  },
+  {
     "id": "checked-throwing-continuation-result-resume",
     "fixture": "Fixtures/checked-throwing-continuation-result-resume.swift",
     "mode": "runtime",

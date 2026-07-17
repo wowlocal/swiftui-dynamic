@@ -200,6 +200,110 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func throwingMainActorErrorRestoresCallerAndCleansUp()
+        async throws
+    {
+        let interpreter = Interpreter()
+        let gate = CheckedContinuationProducerGate()
+        interpreter.globals.define(
+            "waitForContinuationProducerGate",
+            .hostFunction(HostFunction(
+                name: "waitForContinuationProducerGate",
+                asyncInvoke: { _, _ in
+                    gate.entered = true
+                    while !gate.isOpen { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "checkedContinuationExecutorLane",
+            .hostFunction(HostFunction(
+                name: "checkedContinuationExecutorLane"
+            ) { _, context in
+                .native(context.sourceExecutor.isMainActor ? "main" : "worker")
+            }))
+        let evaluation = Task {
+            try await interpreter.runAsync(source: """
+                enum ControlledContinuationError: Error {
+                    case failed
+                    case wrongBodyExecutor
+                }
+
+                @concurrent
+                nonisolated
+                func controlledThrowingContinuation() async -> String {
+                    let entered = checkedContinuationExecutorLane()
+                    do {
+                        let _: Int = try await withCheckedThrowingContinuation(
+                            isolation: MainActor.shared
+                        ) { continuation in
+                            let bodyLane = checkedContinuationExecutorLane()
+                            Task.detached {
+                                await waitForContinuationProducerGate()
+                                if bodyLane == "main" {
+                                    continuation.resume(
+                                        throwing: ControlledContinuationError
+                                            .failed)
+                                } else {
+                                    continuation.resume(
+                                        throwing: ControlledContinuationError
+                                            .wrongBodyExecutor)
+                                }
+                            }
+                        }
+                        return "missing-error"
+                    } catch ControlledContinuationError.failed {
+                        let resumed = checkedContinuationExecutorLane()
+                        return "\\(entered)|main|\\(resumed)"
+                    } catch ControlledContinuationError.wrongBodyExecutor {
+                        return "wrong-body-executor"
+                    } catch {
+                        return "unexpected-error"
+                    }
+                }
+
+                await controlledThrowingContinuation()
+                """)
+        }
+        defer {
+            gate.isOpen = true
+            evaluation.cancel()
+        }
+
+        var reachedWait = false
+        for _ in 0..<10_000 {
+            if gate.entered,
+               interpreter.concurrencyRuntime.activeContinuationCount == 1 {
+                reachedWait = true
+                break
+            }
+            await Task.yield()
+        }
+        #expect(reachedWait)
+        let continuation = try #require(
+            interpreter.concurrencyRuntime.continuations.values.first)
+        let owner = try #require(
+            interpreter.concurrencyRuntime.records[continuation.ownerTaskID])
+        let reason = RuntimeSuspension.waitingForContinuation(continuation.id)
+        #expect(owner.state == .waiting)
+        #expect(owner.suspension == reason)
+        #expect(continuation.requiredExecutor == .cooperativeDefault)
+        #expect(owner.evaluationContext?.currentExecutor == .cooperativeDefault)
+
+        gate.isOpen = true
+        let value = try await evaluation.value
+
+        #expect(value.stringValue == "worker|main|worker")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 1)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 1)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func hostCancellationAbortsWaitAndCleansRegistry() async throws {
         let interpreter = Interpreter()
         let evaluation = Task {

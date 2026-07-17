@@ -1661,16 +1661,20 @@ struct ConcurrencyMethodologyTests {
             == "M6/protocol-iteration-streams-and-continuations")
         #expect(checkedThrowingClaim.evidenceCaseIDs == [
             "checked-throwing-continuation-value-error",
+            "checked-throwing-continuation-mainactor-error",
             "checked-throwing-continuation-result-resume",
         ])
         #expect(checkedThrowingClaim.testNames == [
             "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
+            "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
             "CheckedContinuationRuntimeTests/resultResumeUsesReturningAndThrowingTransitions",
             "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
         ])
         #expect(checkedThrowingClaim.gapEvidenceIDs
             == ["async-sequence-continuation-runtime"])
         #expect(checkedThrowingClaim.notes.contains("resume(throwing:)"))
+        #expect(checkedThrowingClaim.notes.contains("MainActor"))
+        #expect(checkedThrowingClaim.notes.contains("cooperative"))
         #expect(checkedThrowingClaim.notes.contains("Result resume(with:)"))
         #expect(checkedThrowingClaim.notes.contains("InterpretedThrow"))
 
