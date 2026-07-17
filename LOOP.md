@@ -1839,3 +1839,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   DISTINCTLY NAMED generatedMemberArrayResult and everything else to
   the plain helper, so emitted member resolution is untouched.
   Parity board verified 345/0/0 after the fix. Third gate rolling.
+- 2026-07-17 continuous card corners (worktree iteration 27, while the
+  gated merge of 69b1b7e waits on Codex's commit window): the truck
+  residue's dominant class was L-bracket diffs at every card corner —
+  `.continuous` squircles rendering as circular arcs. Three gaps wired
+  together: the RoundedRectangle constructor dropped `style:` (now a
+  shared Coerce.roundedCornerStyle, also applied to the `.rect(...)`
+  marker), `.containerShape` was inert (ShapeBox(insettable:) now
+  captures a containerShapeApplier with the CONCRETE shape — the
+  strokeBorderPainter doctrine — and the gateway applies it), and
+  ContainerRelativeShape() had no constructor (now an insettable box).
+  Truck ratchets 1.082% -> 0.986% — under 1% for the first time. R3
+  all ten green; pin continuousCornersMatchNativeSquircles asserts
+  pixel equality against a compiled native control. MERGE STATE: gate
+  GREEN on 69b1b7e; `git merge` into main still refused while Codex's
+  uncommitted continuation work sits on parity-cases.json and the two
+  continuation test files; watcher armed, merging the gated commit
+  the moment their next commit clears the overlap.
