@@ -2109,5 +2109,17 @@
     "interpreterProjection": "string",
     "nativeFact": "When an unfinished AsyncThrowingStream and its builder continuation lose their last references at nested-function exit, storage deinitialization synchronously invokes onTermination(.cancelled) before the caller continues.",
     "notes": "The nested function discards the only sequence value and does not let its builder continuation escape. The caller reads callback-owned state immediately, so lifetime ordering is exact without scheduler, executor, or thread claims. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced cancelled in twenty bounded native runs. The interpreter RED was its explicit AsyncThrowingStream implicit-termination unsupported diagnostic. Removing that temporary flavor guard lets the shared storage-deinit path synchronously pass the throwing `.cancelled` value, preserve callback failures for the next safe point, and close the record. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 165b1dc6bc0549403e963d0309882cc678f0ef9ff759b898171790b9d9641cc1; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
+  },
+  {
+    "id": "async-throwing-stream-escaped-continuation-lifetime",
+    "fixture": "Fixtures/async-throwing-stream-escaped-continuation-lifetime.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamEscapedContinuationLifetimeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An escaped AsyncThrowingStream producer continuation does not retain unfinished stream storage: final sequence release synchronously cancels the stream, later yield is terminated, and releasing the handle is inert.",
+    "notes": "All three observations are program-ordered in one MainActor task. No task scheduling, executor, or thread behavior is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced cancelled:terminated:cancelled in twenty bounded native runs. This was an already-GREEN characterization: the shared producer carrier was already weak for both stream flavors after scope-exit support landed, so no production change was required. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 37ca395c9da690fb5efa6fba8dfec52ec9ee6ddce65ce54e759749b1a8932bb2; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
   }
 ]
