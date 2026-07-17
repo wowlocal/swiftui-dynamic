@@ -2044,3 +2044,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   ten scenarios 0.000% (detail-orders floor 0.039 -> 0.000).
   Pin: TableSortHeaderProbeTests.sortedColumnHeaderMatchesNative.
   Gate next.
+- 2026-07-18 INDEPENDENT VERIFICATION: MAIN 5cecca0 STILL RED (worktree
+  iteration 57): absorbed the steward's "parallel-worker fixed" merge
+  (52165f8 per-session ownership) and re-gated — RED with the same
+  signature; then, per the steward's independent-verifier request, gated
+  CLEAN main 5cecca0 in a detached worktree: RED at 524s, same
+  task-group-board hung set. THIRD consecutive main-side fix that greens
+  a lane-local gate but dies under the real gate's 2-worker + concurrent
+  corpus/parity/live load. Attribution filed in claims with both kept
+  log dirs; lane stack (i37-i56, absorbed tip 6ac50bd) remains
+  exonerated and gate-blocked. Meanwhile the R4 live sweep re-ran on the
+  fan-change tip: all nine navigations + four mutations GREEN, zero
+  diagnostics — the TupleView splice fix is regression-clean on every
+  board (R2, R3, R4, isolated full suite).
