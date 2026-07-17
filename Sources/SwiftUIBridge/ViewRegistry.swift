@@ -217,7 +217,31 @@ public final class ViewRegistry: HostRegistry {
             if let fan = any as? ForEachFan { return AnyView(Self.indexed(fan.views)) }
             if any is UIKitStub || any is ImplicitMemberCall || any is ChainedImplicitCall {
                 // Unknown SDK views render empty — the documented inert
-                // degrade (Lottie precedent), live-render edition.
+                // degrade (Lottie precedent), live-render edition. When the
+                // absorbed chain WRAPS a real view, an unbridged modifier
+                // just swallowed renderable content — every such blank cost
+                // a bisect hunt (formStyle) until this diagnostic.
+                if let chain = any as? ChainedImplicitCall {
+                    // Walk nested chains (`.toolbar{}.navigationTitle()`)
+                    // to the ROOT base.
+                    var members = [chain.member]
+                    var root = chain.base
+                    while case .host(let inner) = root, let next = inner as? ChainedImplicitCall {
+                        members.append(next.member)
+                        root = next.base
+                    }
+                    var wrapsView = false
+                    if case .host(let base) = root {
+                        wrapsView = base is AnyView || base is TextBox
+                            || base is ImageBox || base is ShapeBox
+                    }
+                    if case .instance = root { wrapsView = true }
+                    if wrapsView {
+                        RenderDiagnostics.record(
+                            RuntimeError(message: "unbridged view modifier chain '.\(members.reversed().joined(separator: "."))' absorbed a rendered view; renders EMPTY"),
+                            in: "anyView")
+                    }
+                }
                 return AnyView(EmptyView())
             }
             if let box = any as? TextBox { return AnyView(box.text) }

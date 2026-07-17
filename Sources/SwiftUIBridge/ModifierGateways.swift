@@ -662,6 +662,16 @@ extension ViewRegistry {
             default: return AnyView(view.menuStyle(.automatic))
             }
         }
+        register("formStyle") { view, args, _ in
+            // Closed-set style params are interface-inexpressible (generic
+            // style protocols) — the sanctioned handwritten switch tier.
+            guard case .implicitMember(let name)? = args.positional(0) else { return view }
+            switch name {
+            case "grouped": return AnyView(view.formStyle(.grouped))
+            case "columns": return AnyView(view.formStyle(.columns))
+            default: return AnyView(view.formStyle(.automatic))
+            }
+        }
         register("pickerStyle") { view, args, _ in
             guard case .implicitMember(let name)? = args.positional(0) else { return view }
             switch name {

@@ -159,6 +159,46 @@ import Testing
     }
 
     @MainActor
+    @Test func groupedFormInsideSplitRenders() throws {
+        for (name, body) in [
+            ("form-alone", "Form { Text(String(\"RIGHT\")) }"),
+            ("form-grouped", "Form { Text(String(\"RIGHT\")) }.formStyle(.grouped)"),
+            ("form-in-split", """
+                HSplitView {
+                    Text(String("LEFT")).frame(maxWidth: .infinity, maxHeight: .infinity).layoutPriority(1)
+                    Form { Text(String("RIGHT")) }
+                        .formStyle(.grouped)
+                        .padding()
+                        .frame(minWidth: 300, idealWidth: 350, maxHeight: .infinity, alignment: .top)
+                }
+                """),
+        ] {
+            let source = """
+            @main
+            struct P: App {
+                var body: some Scene {
+                    WindowGroup {
+                        \(body)
+                    }
+                }
+            }
+            """
+            RenderDiagnostics.reset()
+            let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+            guard case .success(let view) = rendered else {
+                Issue.record("render failed for \(name)")
+                continue
+            }
+            let rep = Self.bitmap(view, size: NSSize(width: 500, height: 200))
+            var ink = 0
+            for x in 0..<500 { for y in 0..<200 {
+                if let c = rep.colorAt(x: x, y: y), c.brightnessComponent < 0.88 { ink += 1 }
+            } }
+            print("PROBE form-bisect \(name): ink=\(ink) diags=\(RenderDiagnostics.errors.count)")
+        }
+    }
+
+    @MainActor
     @Test func harnessControlPlainText() throws {
         let source = """
         @main

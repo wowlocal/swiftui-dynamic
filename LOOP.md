@@ -2189,3 +2189,24 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   diagnostics (the silent-blank moved past bridging into layout/eval —
   next iteration's hunt). 55 tests across 7 suites pass; R2 intact.
   Gate still blocked by main-red.
+- 2026-07-17 SILENT-BLANK DOCTRINE + formStyle (worktree iteration 44):
+  the donut-editor hunt isolated the biggest silent absorber —
+  `.formStyle(.grouped)` was COMPLETELY unbridged and the unknown
+  modifier swallowed the whole Form with no diagnostic (unit bisect:
+  form ink 171 -> 0 under the modifier). formStyle joins the sanctioned
+  closed-set style switch tier (grouped/columns/automatic); grouped
+  forms render with their section chrome (ink 665). Doctrine
+  improvement: when a ChainedImplicitCall absorb at the anyView
+  boundary WRAPS a real view (walking nested chains to the root base),
+  it now records "unbridged view modifier chain '...' absorbed a
+  rendered view; renders EMPTY" — the class of bisect-hunts formStyle
+  cost becomes self-attributing. Bisection rows added
+  (diag-editorviewer/editorsplit probes, unit form-bisect probe).
+  RESIDUE: diag-donuteditor STILL renders empty with zero diagnostics
+  even past the absorb tracer — the blank draws through a "successful"
+  view; next iteration adds the TWIN-side editor row (native may
+  equally render the toolbar/HSplitView shell empty headless, which
+  would re-scope the class to live-only). model.newDonut reads
+  correctly ("NAME=New Donut" probe); the empty viewer pane is
+  asset-empty on BOTH sides by doctrine. 30 tests across 5 suites
+  pass; R2/R3 within floors. Gate still blocked by main-red.
