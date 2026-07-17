@@ -142,6 +142,10 @@ explicitly demand-deferred. The M8 view-owned async lifecycle cycle is covered
 with repeated teardown and weak session-release evidence; M8 remains
 provisional only because broad M5/M7 are partial. Its requirement-level
 prerequisites are covered, so M9 physical parallelism is now the active cycle.
+Its first architectural prerequisite is green: one immutable `ParsedProgram`
+can cross detached readers and back independent cooperative sessions without
+sharing evaluator state. Physical workers, heap confinement, cooperative-
+versus-parallel differential evidence, and TSan remain open.
 
 ## Process and liveness isolation
 

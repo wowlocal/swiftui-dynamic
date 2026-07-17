@@ -25,6 +25,6 @@
     "requirementRef": "M9/parallel-runtime-and-sanitizers",
     "kind": "coverage-gap",
     "expectedObservation": "An opt-in parallel runtime executes eligible detached/background source work on physical workers while preserving cooperative-mode semantics, executor isolation, deterministic ownership cleanup, and a green Thread Sanitizer stress board.",
-    "currentObservation": "The evaluator, Environment, Box, Instance, and runtime registries remain package-wide MainActor hosted. Logical source executors and cooperative interleaving are covered, but there is no parallel execution mode, cooperative-versus-parallel differential board, or Thread Sanitizer receipt; the public testing-only ExecutorJob hook remains preflight-only/deferred."
+    "currentObservation": "Parsed and operator-folded syntax plus its source-location index now live in an immutable Sendable ParsedProgram reusable across detached readers and independent cooperative sessions. Declaration metadata, the evaluator, Environment, Box, Instance, and runtime registries remain MainActor hosted. There is no parallel execution mode, cooperative-versus-parallel differential board, or Thread Sanitizer receipt; the public testing-only ExecutorJob hook remains preflight-only/deferred."
   }
 ]

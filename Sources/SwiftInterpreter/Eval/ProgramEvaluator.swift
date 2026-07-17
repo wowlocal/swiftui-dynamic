@@ -36,6 +36,52 @@ extension Interpreter {
         try performCompilerPreflightIfNeeded(
             source: source,
             sources: compilerPreflightSources)
+        let program = try makeParsedProgram(source: source)
+        return try await runPreparedProgramAsync(
+            program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy)
+    }
+
+    /// Execute an immutable parsed program in a fresh async runtime session.
+    /// The syntax tree may be shared by independent interpreters; evaluator
+    /// state, globals, task records, and host state remain session-confined.
+    @discardableResult
+    public func runAsync(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool = false,
+        completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
+    ) async throws -> RuntimeValue {
+        try await runAsync(
+            program: program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy,
+            compilerPreflightSources: nil)
+    }
+
+    /// Preserve native source-file boundaries during compiler preflight while
+    /// executing a reusable parsed representation of the merged module.
+    @discardableResult
+    public func runAsync(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool,
+        completionPolicy: SessionCompletionPolicy,
+        compilerPreflightSources: [CompilerPreflightSource]?
+    ) async throws -> RuntimeValue {
+        try performCompilerPreflightIfNeeded(
+            source: program.source,
+            sources: compilerPreflightSources)
+        return try await runPreparedProgramAsync(
+            program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy)
+    }
+
+    private func runPreparedProgramAsync(
+        _ program: ParsedProgram,
+        lazyTopLevelGlobals: Bool,
+        completionPolicy: SessionCompletionPolicy
+    ) async throws -> RuntimeValue {
         let sessionID = concurrencyRuntime.createSession()
         let taskLocals = RuntimeTaskLocalStorage()
         let root = concurrencyRuntime.createTask(
@@ -58,7 +104,7 @@ extension Interpreter {
             defer { context.removeAllDynamicState() }
             do {
                 let value = try await runAsyncInCurrentTaskContext(
-                    source: source,
+                    program: program,
                     lazyTopLevelGlobals: lazyTopLevelGlobals,
                     completionPolicy: completionPolicy,
                     sessionID: sessionID)
@@ -82,7 +128,7 @@ extension Interpreter {
     }
 
     private func runAsyncInCurrentTaskContext(
-        source: String,
+        program: ParsedProgram,
         lazyTopLevelGlobals: Bool,
         completionPolicy: SessionCompletionPolicy,
         sessionID: RuntimeSessionID
@@ -92,7 +138,8 @@ extension Interpreter {
         let result: RuntimeValue
         do {
             result = try await runProgramSuspending(
-                source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+                program: program,
+                lazyTopLevelGlobals: lazyTopLevelGlobals)
         } catch {
             await cancelOwnedTasks(in: sessionID)
             throw error
@@ -116,9 +163,10 @@ extension Interpreter {
     }
 
     private func runProgramSuspending(
-        source: String, lazyTopLevelGlobals: Bool
+        program: ParsedProgram, lazyTopLevelGlobals: Bool
     ) async throws -> RuntimeValue {
-        let file = try parse(source: source)
+        let file = program.syntax
+        locationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         assumesCompiledImports = lazyTopLevelGlobals
@@ -253,7 +301,46 @@ extension Interpreter {
         try performCompilerPreflightIfNeeded(
             source: source,
             sources: compilerPreflightSources)
-        let file = try parse(source: source)
+        let program = try makeParsedProgram(source: source)
+        return try runPreparedProgram(
+            program, lazyTopLevelGlobals: lazyTopLevelGlobals)
+    }
+
+    /// Execute an immutable parsed program using synchronous top-level
+    /// semantics. Mutable evaluator state is owned by this interpreter, not
+    /// by the shared program.
+    @discardableResult
+    public func run(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool = false
+    ) throws -> RuntimeValue {
+        try run(
+            program: program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            compilerPreflightSources: nil)
+    }
+
+    /// Preserve native source-file boundaries during compiler preflight while
+    /// executing a reusable parsed representation of the merged module.
+    @discardableResult
+    public func run(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool,
+        compilerPreflightSources: [CompilerPreflightSource]?
+    ) throws -> RuntimeValue {
+        try performCompilerPreflightIfNeeded(
+            source: program.source,
+            sources: compilerPreflightSources)
+        return try runPreparedProgram(
+            program, lazyTopLevelGlobals: lazyTopLevelGlobals)
+    }
+
+    private func runPreparedProgram(
+        _ program: ParsedProgram,
+        lazyTopLevelGlobals: Bool
+    ) throws -> RuntimeValue {
+        let file = program.syntax
+        locationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved

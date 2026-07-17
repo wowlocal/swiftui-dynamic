@@ -93,6 +93,14 @@ each task-owned graph, and final interpreter/runtime release. M8 remains
 provisional only because its broad M5/M7 dependencies remain partial; the
 active cycle is now M9 optional physical parallelism.
 
+The first M9 prerequisite slice is implemented: `ParsedProgram` now owns the
+immutable parsed/operator-folded syntax tree and source-location index, is
+strictly `Sendable`, and may be reused by independent interpreter sessions.
+Eight detached readers and two concurrent cooperative sessions exercise the
+same instance without sharing evaluator state. Declaration indexes and the
+mutable runtime heap have not moved into this value yet; the evaluator and
+heap remain MainActor-confined, so this is not a physical-parallelism claim.
+
 The stable target separates five concerns:
 
 ```text
@@ -2528,6 +2536,16 @@ Proof:
 
 - parallel stress tests have no races or invariant violations;
 - semantic parity is unchanged between cooperative and parallel runtime modes.
+
+Implemented prerequisite slice (2026-07-17): parsing and operator folding now
+produce a reusable immutable `ParsedProgram`. Its SwiftSyntax tree and location
+converter cross strict-concurrency detached-task boundaries as `Sendable`, and
+fresh interpreters can execute one parsed program in independent async
+sessions while keeping globals and runtime records separate. Legacy
+`run(source:)` still maps parse failures to the same located `RuntimeError`.
+This removes parsing from session-owned mutable state but deliberately leaves
+declaration collection, `RuntimeHeap`, worker scheduling, and TSan evidence
+open.
 
 ## 15. Verification gates
 

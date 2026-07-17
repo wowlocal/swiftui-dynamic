@@ -3,9 +3,72 @@ import SwiftParser
 import SwiftOperators
 import SwiftParserDiagnostics
 
-extension Interpreter {
-    /// Formatting recoveries that parse to a CORRECT tree — the compiler
-    /// accepts these spellings too.
+/// Immutable, executor-neutral input to an interpreter session.
+///
+/// Parsing and operator folding happen once. The resulting SwiftSyntax tree
+/// and source-location index are immutable and `Sendable`, so independent
+/// sessions may share them without sharing any evaluator heap state.
+public nonisolated struct ParsedProgram: Sendable {
+    public struct ParseFailure: Error, CustomStringConvertible, Sendable {
+        public let message: String
+        public let line: Int
+        public let column: Int
+
+        public var description: String { "\(line):\(column): \(message)" }
+    }
+
+    public let source: String
+    public let fileName: String
+    let syntax: SourceFileSyntax
+    let locationConverter: SourceLocationConverter
+
+    public init(source: String, fileName: String = "input.swift") throws {
+        self.source = source
+        self.fileName = fileName
+
+        // SwiftParser's default nesting ceiling (~256) trips on generated
+        // preview fixtures. Evaluation has an independent stack guard.
+        var parser = Parser(source, maximumNestingLevel: 2_048)
+        let tree = SourceFileSyntax.parse(from: &parser)
+        let converter = SourceLocationConverter(fileName: fileName, tree: tree)
+
+        let diagnostics = ParseDiagnosticsGenerator.diagnostics(for: tree)
+        if let firstError = diagnostics.first(where: {
+            $0.diagMessage.severity == .error
+                && !Self.isToleratedParseRecovery($0.message)
+        }) {
+            let location = converter.location(for: firstError.position)
+            throw ParseFailure(
+                message: firstError.message,
+                line: location.line,
+                column: location.column)
+        }
+
+        var operatorErrors: [OperatorError] = []
+        // User-declared operators and precedence groups join the standard
+        // fold table. External-module operators recover at default
+        // precedence, matching the interpreter's historical behavior.
+        var table = OperatorTable.standardOperators
+        table.addSourceFile(tree) { _ in }
+        let folded = table.foldAll(tree) { operatorErrors.append($0) }
+        if let first = operatorErrors.first(where: {
+            if case .missingOperator = $0 { return false }
+            return true
+        }) {
+            throw ParseFailure(
+                message: "operator error: \(first)", line: 1, column: 1)
+        }
+        guard let foldedFile = folded.as(SourceFileSyntax.self) else {
+            throw ParseFailure(
+                message: "internal error: operator folding failed",
+                line: 1,
+                column: 1)
+        }
+
+        syntax = foldedFile
+        locationConverter = converter
+    }
+
     public static func isToleratedParseRecovery(_ message: String) -> Bool {
         message.contains("extraneous whitespace")
             // The `(@MainActor() -> Void)?` no-space family: the attribute
@@ -14,9 +77,24 @@ extension Interpreter {
             || message.contains("expected '(' to start function type")
             || message.contains("expected ')' in function type")
             || message.contains("expected '(', type, and ')' in function type")
-            // `throws async` — the parser recovers by normalizing effect
-            // order; the tree carries both effects correctly.
+            // `throws async` is recovered by normalizing effect order.
             || message.contains("must precede 'throws'")
+    }
+
+    public static func sourceHasHardErrors(_ source: String) -> Bool {
+        let tree = Parser.parse(source: source)
+        return ParseDiagnosticsGenerator.diagnostics(for: tree).contains {
+            $0.diagMessage.severity == .error
+                && !isToleratedParseRecovery($0.message)
+        }
+    }
+}
+
+extension Interpreter {
+    /// Formatting recoveries that parse to a CORRECT tree — the compiler
+    /// accepts these spellings too.
+    public static func isToleratedParseRecovery(_ message: String) -> Bool {
+        ParsedProgram.isToleratedParseRecovery(message)
     }
 
     /// True when the source has HARD parse errors (recovered formatting
@@ -24,50 +102,25 @@ extension Interpreter {
     /// compiling target (Sourcery scratch fragments, abandoned files with
     /// editor placeholders).
     public static func sourceHasHardErrors(_ source: String) -> Bool {
-        let tree = Parser.parse(source: source)
-        return ParseDiagnosticsGenerator.diagnostics(for: tree).contains {
-            $0.diagMessage.severity == .error && !isToleratedParseRecovery($0.message)
-        }
+        ParsedProgram.sourceHasHardErrors(source)
     }
 
     // MARK: - Parsing
 
     public func parse(source: String) throws -> SourceFileSyntax {
-        // SwiftParser's default nesting ceiling (~256) trips on generated
-        // preview fixtures (apple-browsers nests bookmark literals dozens
-        // deep). Evaluation has its own stack probe; parsing gets headroom.
-        var parser = Parser(source, maximumNestingLevel: 2_048)
-        let tree = SourceFileSyntax.parse(from: &parser)
-        let converter = SourceLocationConverter(fileName: "input.swift", tree: tree)
-        locationConverter = converter
+        let program = try makeParsedProgram(source: source)
+        locationConverter = program.locationConverter
+        return program.syntax
+    }
 
-        let diagnostics = ParseDiagnosticsGenerator.diagnostics(for: tree)
-        if let firstError = diagnostics.first(where: {
-            $0.diagMessage.severity == .error && !Self.isToleratedParseRecovery($0.message)
-        }) {
-            let location = converter.location(for: firstError.position)
-            throw RuntimeError(message: firstError.message, line: location.line, column: location.column)
+    func makeParsedProgram(source: String) throws -> ParsedProgram {
+        do {
+            return try ParsedProgram(source: source)
+        } catch let failure as ParsedProgram.ParseFailure {
+            throw RuntimeError(
+                message: failure.message,
+                line: failure.line,
+                column: failure.column)
         }
-
-        var operatorErrors: [OperatorError] = []
-        // User-declared operators and precedence groups (Point-Free's
-        // `|>` pipe) join the fold table; conflicts with the standard set
-        // are tolerated (last declaration wins inside addSourceFile).
-        var table = OperatorTable.standardOperators
-        try? table.addSourceFile(tree) { _ in }
-        let folded = table.foldAll(tree) { operatorErrors.append($0) }
-        if let first = operatorErrors.first(where: {
-            // Operators declared in EXTERNAL modules (Overture's `|>`)
-            // recover with default precedence — the evaluator gives them
-            // meaning (or absorbs). Other fold errors stay fatal.
-            if case .missingOperator = $0 { return false }
-            return true
-        }) {
-            throw RuntimeError(message: "operator error: \(first)", line: 1, column: 1)
-        }
-        guard let foldedFile = folded.as(SourceFileSyntax.self) else {
-            throw RuntimeError(message: "internal error: operator folding failed", line: 1, column: 1)
-        }
-        return foldedFile
     }
 }
