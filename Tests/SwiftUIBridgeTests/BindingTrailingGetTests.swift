@@ -2,7 +2,12 @@ import Testing
 @testable import SwiftInterpreter
 @testable import SwiftUIBridge
 
-@Suite struct BindingWritebackProbe {
+/// FoodTruck R3 orders-after-preparing/steps: mutations through
+/// `model.orderBinding(for:).wrappedValue.markAsPreparing()` no-opped —
+/// the Binding(get:set:) gateway only accepted a LABELED get closure,
+/// so the Kit's trailing form `Binding<Order> { … } set: { … }` seeded
+/// the box with void and the mutation had nothing to land on.
+@Suite struct BindingTrailingGetTests {
     @MainActor
     @Test func customBindingWrappedValueMutatingWriteBack() throws {
         let source = """
@@ -29,7 +34,6 @@ import Testing
         """
         let interpreter = Interpreter(registry: ViewRegistry())
         try interpreter.run(source: source)
-        print("PROBE status=", interpreter.globals.lookup("status") ?? "nil")
         #expect(interpreter.globals.lookup("status")?.stringValue == "preparing")
     }
 }
