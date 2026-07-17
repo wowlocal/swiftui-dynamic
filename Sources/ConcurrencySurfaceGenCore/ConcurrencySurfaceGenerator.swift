@@ -469,6 +469,8 @@ public enum ConcurrencySurfaceGenerator {
         "withDiscardingTaskGroup": "withDiscardingTaskGroup",
         "withCheckedContinuation": "withCheckedContinuation",
         "withCheckedThrowingContinuation": "withCheckedThrowingContinuation",
+        "withUnsafeContinuation": "unsupportedUnsafeContinuation",
+        "withUnsafeThrowingContinuation": "unsupportedUnsafeContinuation",
         "withTaskCancellationHandler": "withTaskCancellationHandler",
         "withTaskExecutorPreference": "withTaskExecutorPreference",
         "withTaskGroup": "withTaskGroup",

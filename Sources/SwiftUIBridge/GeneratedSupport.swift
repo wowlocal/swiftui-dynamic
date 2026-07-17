@@ -16,7 +16,7 @@ enum ParamTag: Hashable {
     case shapeStyle, anyView, shape
     case visibility, axisSet, edgeInsets, gradient, gridItems
     case axis, colorArray
-    case builder, action, equatable
+    case builder, action, asyncAction, equatable
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
     case decimal, characterSet, indexSet, dateComponents, dateInterval
@@ -46,6 +46,13 @@ struct ParamSpec {
 /// Only ever invoked on the main actor.
 struct ActionValue: @unchecked Sendable {
     let run: @MainActor () -> Void
+}
+
+/// Async counterpart used only by generated SwiftUI modifier signatures.
+/// Its implementation enters a fresh interpreter `.swiftUITask` session;
+/// native SwiftUI remains the owner of appearance and cancellation.
+struct AsyncActionValue: @unchecked Sendable {
+    let run: @MainActor @Sendable () async -> Void
 }
 
 /// Keeps generated result-builder arguments lazy while overload labels and
@@ -197,6 +204,15 @@ enum GeneratedDispatch {
                 context: ctx,
                 diagnosticContext: "generated action")
             return ActionValue(run: { callback.call() })
+        case .asyncAction:
+            guard let closure = value.closureValue else {
+                throw RuntimeError(message: "expected an async closure")
+            }
+            let callback = InterpretedSwiftUITaskCallback(
+                closure: closure,
+                context: ctx,
+                diagnosticContext: "generated SwiftUI async action")
+            return AsyncActionValue(run: { await callback.call() })
         case .equatable:
             return value.stringified
         case .date:
@@ -804,6 +820,15 @@ enum GeneratedConstructors {
 nonisolated func generatedAction(_ value: Any) -> () -> Void {
     let action = value as! ActionValue
     return { MainActor.assumeIsolated { action.run() } }
+}
+
+/// Bridges generated async modifier arguments without encoding any modifier
+/// name or lifecycle rule in the generated surface.
+func generatedAsyncAction(
+    _ value: Any
+) -> @MainActor @Sendable () async -> Void {
+    let action = value as! AsyncActionValue
+    return { await action.run() }
 }
 
 /// Evaluates a generated zero-input `@ViewBuilder` only after its overload has

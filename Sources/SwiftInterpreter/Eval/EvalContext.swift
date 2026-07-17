@@ -124,6 +124,16 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func callSwiftUITask(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        // A view-owned task may begin long after the render task that created
+        // this capability has completed. It therefore enters through a fresh
+        // runtime session rather than rebinding the retained render context.
+        try await interpreter.callSwiftUITask(
+            closure, arguments: arguments)
+    }
+
     func spawnBackgroundTask(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) throws -> RuntimeValue {
@@ -403,6 +413,69 @@ extension Interpreter: EvalContext {
             .init(label: nil, value: $0)
         })
         return try await callWithArgumentsSuspending(closure, args: args, node: nil)
+    }
+
+    /// Run one SwiftUI-owned async action as a canonical source task.
+    ///
+    /// Real SwiftUI owns appearance, identity, replacement, and disappearance
+    /// of the outer native task. This entry owns only the interpreter runtime
+    /// counterpart and keeps the two cancellation lifetimes linked.
+    public func callSwiftUITask(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        let sessionID = concurrencyRuntime.createSession()
+        let priority = RuntimeTaskPriority(Task.currentPriority)
+        let taskLocals = RuntimeTaskLocalStorage()
+        let record = concurrencyRuntime.createTask(
+            sessionID: sessionID,
+            kind: .swiftUITask,
+            parent: nil,
+            priority: priority,
+            executorPreference: .mainActor,
+            taskLocals: taskLocals,
+            name: nil)
+        let handle = RuntimeTaskHandle(
+            runtime: concurrencyRuntime, record: record)
+        let pending = PendingRuntimeTask(
+            sessionID: sessionID,
+            priority: priority,
+            taskLocals: taskLocals,
+            record: record,
+            handle: handle)
+
+        do {
+            try launchRuntimeTask(pending, sessionOwned: false) {
+                [weak self] in
+                guard let self else {
+                    throw RuntimeError(message:
+                        "interpreter was released during SwiftUI task")
+                }
+                return try await self.callBackgroundClosureSuspending(
+                    closure, arguments: arguments)
+            }
+        } catch {
+            concurrencyRuntime.release(handle.id)
+            throw error
+        }
+        defer { concurrencyRuntime.release(handle.id) }
+
+        let outcome = await withTaskCancellationHandler {
+            await handle.waitForOutcome()
+        } onCancel: { [weak handle] in
+            Task { @MainActor [weak handle] in
+                handle?.cancel(source: .swiftUILifecycle)
+            }
+        }
+
+        switch outcome {
+        case .success(let value, _):
+            return value
+        case .cancelled:
+            throw CancellationError()
+        case .failure(let value, _):
+            throw RuntimeError(
+                message: handle.failureDescription ?? value.stringified)
+        }
     }
 
     public func taskLocalValue(

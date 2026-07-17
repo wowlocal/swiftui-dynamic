@@ -338,6 +338,14 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
             hasDefault: hasDefault, blocker: nil, usesGeneric: nil
         )
     }
+    if normalized == "() async -> Void" {
+        return .init(
+            label: label,
+            mapping: .init(
+                tag: "asyncAction", cast: "generatedAsyncAction(%@)"),
+            hasDefault: hasDefault, blocker: nil, usesGeneric: nil
+        )
+    }
     // A generic parameter can legally shadow a concrete SDK type (`Data` is
     // common in collection initializers). Resolve declared generics first so
     // it is never mistaken for Foundation.Data or another direct mapping.

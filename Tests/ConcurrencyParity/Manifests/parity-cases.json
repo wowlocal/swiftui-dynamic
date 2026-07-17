@@ -2123,6 +2123,40 @@
     "notes": "All three observations are program-ordered in one MainActor task. No task scheduling, executor, or thread behavior is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced cancelled:terminated:cancelled in twenty bounded native runs. This was an already-GREEN characterization: the shared producer carrier was already weak for both stream flavors after scope-exit support landed, so no production change was required. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 37ca395c9da690fb5efa6fba8dfec52ec9ee6ddce65ce54e759749b1a8932bb2; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
   },
   {
+    "id": "unsafe-continuation-fail-closed",
+    "fixture": "Fixtures/unsafe-continuation-fail-closed.swift",
+    "mode": "runtime",
+    "assertion": "interpreter-diagnostic",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await unsafeContinuationFailClosedProbe()",
+    "interpreterProjection": "string",
+    "interpreterDiagnosticContains": [
+      "withUnsafeContinuation",
+      "unsafe continuation ownership is unsupported",
+      "use a checked continuation"
+    ],
+    "nativeFact": "Swift accepts withUnsafeContinuation with explicit MainActor isolation; its synchronous body resumes once with an exact value and the awaiting call returns that value.",
+    "notes": "The body resumes immediately in program order, so exact native output value:33 makes no scheduler-order, physical-thread, or parallelism claim. This native-positive case is intentionally an interpreter-diagnostic boundary rather than behavioral parity: the uncited unsafe family is outside the demand depth cap and must fail closed before invoking its body or allocating continuation ownership."
+  },
+  {
+    "id": "unsafe-throwing-continuation-fail-closed",
+    "fixture": "Fixtures/unsafe-throwing-continuation-fail-closed.swift",
+    "mode": "runtime",
+    "assertion": "interpreter-diagnostic",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await unsafeThrowingContinuationFailClosedProbe()",
+    "interpreterProjection": "string",
+    "interpreterDiagnosticContains": [
+      "withUnsafeThrowingContinuation",
+      "unsafe continuation ownership is unsupported",
+      "use a checked continuation"
+    ],
+    "nativeFact": "Swift accepts withUnsafeThrowingContinuation with explicit MainActor isolation; its synchronous body resumes once with an exact value and the awaiting call returns that value.",
+    "notes": "The body resumes immediately in program order, so exact native output value:44 makes no scheduler-order, physical-thread, or parallelism claim. This native-positive case is intentionally an interpreter-diagnostic boundary rather than behavioral parity: the uncited unsafe family is outside the demand depth cap and must fail closed before invoking its body or allocating continuation ownership."
+  },
+  {
     "id": "checked-continuation-value-resume",
     "fixture": "Fixtures/checked-continuation-value-resume.swift",
     "mode": "runtime",
@@ -2199,6 +2233,18 @@
     ],
     "nativeFact": "Dropping the last checked-throwing-continuation token without resuming logs a runtime misuse warning, does not enter source catch or trap, and leaves the task waiting on that continuation suspended indefinitely.",
     "notes": "Task.immediate causally executes the complete throwing-continuation body before returning its handle. Apple Swift 6.3.3 compiled the source in complete strict-concurrency mode with warnings as errors and produced exit 0, stdout caller-returned, and the same three warning fragments in twenty bounded runs; source catch is unreachable because abandonment is a warning and not an error result. This form shares the checked token canary and the nonthrowing fixture's captured missing-warning RED. The native wrapper exits its process, while the interpreter wrapper applies cancelRemainingTasks only after the source observation to drain the deliberately suspended runtime owner. No scheduler-order, physical-thread, or parallelism claim is made."
+  },
+  {
+    "id": "checked-continuation-escaped-token-lifetime",
+    "fixture": "Fixtures/checked-continuation-escaped-token-lifetime.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "try await checkedContinuationEscapedTokenLifetimeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A checked continuation may escape its body and resume its suspended owner later. After that owner completes, retaining the already-resumed token does not retain the owner's task-local object; releasing the token is inert for both checked forms.",
+    "notes": "Task.immediate causally reaches each unresumed continuation suspension before the caller inspects the escaped token and weak task-local sentinel. Explicit resume followed by await owner.value establishes task completion before the second weak-lifetime observation; the token remains stored until after that observation. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced true:47:true:true|true:53:true:true with empty stderr in twenty bounded runs. The interpreter was already GREEN before any production change: its continuation token already holds the runtime weakly and retains only the diagnostic sink. Focused host evidence keeps both resumed tokens alive after the source return, proves the continuation/task/session graph empty and both Interpreter and CooperativeConcurrencyRuntime released, then releases the tokens without a warning. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 7685db10bf77cdad7182f1297a12b536b1dfda617f8e182b78fe3f1892426a97. No sleep, ready-task order, physical-thread, or parallelism claim is made."
   },
   {
     "id": "checked-continuation-mainactor-resume",

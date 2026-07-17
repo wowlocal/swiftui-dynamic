@@ -164,7 +164,7 @@ struct CompilerPreflightTests {
     }
 
     @Test
-    func publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership()
+    func publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition()
         throws {
         let source = try Self.fixture("continuation-entry-points.swift")
         let result = try Self.activePreflight().preflight(

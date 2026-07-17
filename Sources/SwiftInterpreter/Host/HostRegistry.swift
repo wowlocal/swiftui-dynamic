@@ -117,6 +117,13 @@ public protocol EvalContext: AnyObject {
     func callClosureAsync(
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue
+    /// Enter an async closure whose lifetime is owned by SwiftUI. The
+    /// interpreter-backed implementation creates a fresh `.swiftUITask`
+    /// session and maps cancellation of the native view task into the source
+    /// runtime instead of reusing the render task that built the view.
+    func callSwiftUITask(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue
     /// Run one validated asynchronous host implementation while the bound
     /// source task is represented as waiting on a runtime-owned operation.
     /// Non-interpreter embedders inherit the transparent default below.
@@ -219,6 +226,14 @@ extension EvalContext {
         _ closure: ClosureValue, arguments: [RuntimeValue]
     ) async throws -> RuntimeValue {
         try callClosure(closure, arguments: arguments)
+    }
+
+    /// Compatibility fallback for non-interpreter embedders. SwiftUIBridge's
+    /// interpreter context supplies the lifecycle-aware runtime entry.
+    public func callSwiftUITask(
+        _ closure: ClosureValue, arguments: [RuntimeValue]
+    ) async throws -> RuntimeValue {
+        try await callClosureAsync(closure, arguments: arguments)
     }
 
     public func withHostOperation<T>(

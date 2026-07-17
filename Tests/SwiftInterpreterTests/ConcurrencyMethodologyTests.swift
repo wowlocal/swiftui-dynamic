@@ -347,23 +347,23 @@ struct ConcurrencyMethodologyTests {
         #expect(requirementRefs.contains(
             matrix.externalCapabilityAccounting.ownerRequirementRef))
         #expect(matrix.executionPlan.currentTail.id
-            == "async-sequence-continuation-demand-slice")
+            == "swiftui-lifecycle-demand-cycle")
         #expect(matrix.executionPlan.currentTail.state == "active")
-        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M6"])
+        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M8"])
         #expect(Set(matrix.executionPlan.currentTail.requirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.currentTail.requirementRefs == [
-            "M6/protocol-iteration-streams-and-continuations",
+            "M8/view-owned-async-lifecycle",
         ])
         #expect(matrix.executionPlan.nextMajorCycle.id
-            == "swiftui-lifecycle-demand-cycle")
+            == "physical-parallelism-cycle")
         #expect(matrix.executionPlan.nextMajorCycle.state
-            == "queued-behind-async-sequence-continuation-demand-slice")
-        #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M8")
+            == "queued-behind-swiftui-lifecycle-demand-cycle")
+        #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M9")
         #expect(Set(matrix.executionPlan.nextMajorCycle.entryRequirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.nextMajorCycle.entryRequirementRefs
-            == ["M8/view-owned-async-lifecycle"])
+            == ["M9/parallel-runtime-and-sanitizers"])
         let requirementStatuses = Dictionary(uniqueKeysWithValues:
             matrix.milestones.flatMap { milestone in
                 milestone.requirements.map {
@@ -1605,7 +1605,7 @@ struct ConcurrencyMethodologyTests {
         let unsafe = try #require(rows.first {
             $0.name == "withUnsafeContinuation"
         })
-        #expect(unsafe.adapterIntrinsic == nil)
+        #expect(unsafe.adapterIntrinsic == "unsupportedUnsafeContinuation")
         #expect(unsafe.declaration.contains("@unsafe public func"))
         #expect(unsafe.declaration.contains(
             "_Concurrency.UnsafeContinuation<T, Swift.Never>"))
@@ -1613,7 +1613,8 @@ struct ConcurrencyMethodologyTests {
         let unsafeThrowing = try #require(rows.first {
             $0.name == "withUnsafeThrowingContinuation"
         })
-        #expect(unsafeThrowing.adapterIntrinsic == nil)
+        #expect(unsafeThrowing.adapterIntrinsic
+            == "unsupportedUnsafeContinuation")
         #expect(unsafeThrowing.declaration.contains("@unsafe public func"))
         #expect(unsafeThrowing.declaration.contains(
             "_Concurrency.UnsafeContinuation<T, any Swift.Error>"))
@@ -1626,14 +1627,15 @@ struct ConcurrencyMethodologyTests {
         let checkedClaim = try #require(claims.first {
             $0.id == checked.id
         })
-        #expect(checkedClaim.implementationStatus == .knownDivergence)
-        #expect(checkedClaim.verificationStatus == .none)
+        #expect(checkedClaim.implementationStatus == .runtimeSupported)
+        #expect(checkedClaim.verificationStatus == .nativeParity)
         #expect(checkedClaim.requirementRef
             == "M6/protocol-iteration-streams-and-continuations")
         #expect(checkedClaim.evidenceCaseIDs == [
             "checked-continuation-value-resume",
             "checked-continuation-double-resume",
             "checked-continuation-abandonment",
+            "checked-continuation-escaped-token-lifetime",
             "checked-continuation-mainactor-resume",
             "checked-continuation-omitted-isolation",
             "checked-continuation-result-spellings",
@@ -1644,6 +1646,7 @@ struct ConcurrencyMethodologyTests {
             "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
             "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
             "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
+            "CheckedContinuationRuntimeTests/escapedResumedTokensReleaseOwnerGraphAndRuntimeWithoutWarnings",
             "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
             "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
@@ -1653,8 +1656,7 @@ struct ConcurrencyMethodologyTests {
             "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess",
             "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck",
         ])
-        #expect(checkedClaim.gapEvidenceIDs
-            == ["async-sequence-continuation-runtime"])
+        #expect(checkedClaim.gapEvidenceIDs.isEmpty)
         #expect(checkedClaim.notes.contains(
             "explicit isolation: nil and MainActor.shared"))
         #expect(checkedClaim.notes.contains("required resume executor"))
@@ -1665,19 +1667,23 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.notes.contains("caller lexical isolation"))
         #expect(checkedClaim.notes.contains("double resume"))
         #expect(checkedClaim.notes.contains("successful-process misuse warning"))
-        #expect(checkedClaim.notes.contains("Escaped-token lifetime remains open"))
+        #expect(checkedClaim.notes.contains("task-local object"))
+        #expect(checkedClaim.notes.contains("runtime, session, or interpreter"))
+        #expect(checkedClaim.notes.contains("inert"))
+        #expect(checkedClaim.notes.contains("runtime-supported with native parity"))
 
         let checkedThrowingClaim = try #require(claims.first {
             $0.id == checkedThrowing.id
         })
-        #expect(checkedThrowingClaim.implementationStatus == .knownDivergence)
-        #expect(checkedThrowingClaim.verificationStatus == .none)
+        #expect(checkedThrowingClaim.implementationStatus == .runtimeSupported)
+        #expect(checkedThrowingClaim.verificationStatus == .nativeParity)
         #expect(checkedThrowingClaim.requirementRef
             == "M6/protocol-iteration-streams-and-continuations")
         #expect(checkedThrowingClaim.evidenceCaseIDs == [
             "checked-throwing-continuation-value-error",
             "checked-throwing-continuation-double-resume",
             "checked-throwing-continuation-abandonment",
+            "checked-continuation-escaped-token-lifetime",
             "checked-throwing-continuation-mainactor-error",
             "checked-throwing-continuation-source-actor-isolation",
             "checked-continuation-omitted-isolation",
@@ -1688,6 +1694,7 @@ struct ConcurrencyMethodologyTests {
             "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
             "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
             "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
+            "CheckedContinuationRuntimeTests/escapedResumedTokensReleaseOwnerGraphAndRuntimeWithoutWarnings",
             "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
             "CheckedContinuationRuntimeTests/throwingSourceActorIsolationRestoresErrorAndCleansUp",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
@@ -1696,8 +1703,7 @@ struct ConcurrencyMethodologyTests {
             "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
             "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck",
         ])
-        #expect(checkedThrowingClaim.gapEvidenceIDs
-            == ["async-sequence-continuation-runtime"])
+        #expect(checkedThrowingClaim.gapEvidenceIDs.isEmpty)
         #expect(checkedThrowingClaim.notes.contains("resume(throwing:)"))
         #expect(checkedThrowingClaim.notes.contains("MainActor"))
         #expect(checkedThrowingClaim.notes.contains("source-actor"))
@@ -1709,26 +1715,63 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.notes.contains("caller lexical isolation"))
         #expect(checkedThrowingClaim.notes.contains("double resume"))
         #expect(checkedThrowingClaim.notes.contains("misuse-warning canary"))
+        #expect(checkedThrowingClaim.notes.contains("task-local object"))
         #expect(checkedThrowingClaim.notes.contains(
-            "Escaped-token lifetime remains open"))
+            "runtime, session, or interpreter"))
+        #expect(checkedThrowingClaim.notes.contains("inert"))
+        #expect(checkedThrowingClaim.notes.contains(
+            "runtime-supported with native parity"))
 
-        let routedIDs = Set([checked.id, checkedThrowing.id])
-        let deferredClaims = claims.filter { !routedIDs.contains($0.id) }
-        #expect(deferredClaims.count == 2)
-        #expect(deferredClaims.allSatisfy {
-            $0.implementationStatus == .deferred
-                && $0.verificationStatus == .none
-                && $0.requirementRef
-                    == "M6/protocol-iteration-streams-and-continuations"
-                && $0.evidenceCaseIDs.isEmpty
-                && $0.testNames == [
-                    "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership",
-                ]
-                && $0.gapEvidenceIDs
-                    == ["async-sequence-continuation-runtime"]
-                && $0.notes.contains("M5")
-                && $0.notes.contains("resume executor")
+        let unsafeClaim = try #require(claims.first {
+            $0.id == unsafe.id
         })
+        #expect(unsafeClaim.implementationStatus == .diagnosedUnsupported)
+        #expect(unsafeClaim.verificationStatus == .focusedOnly)
+        #expect(unsafeClaim.requirementRef
+            == "M6/protocol-iteration-streams-and-continuations")
+        #expect(unsafeClaim.evidenceCaseIDs == [
+            "unsafe-continuation-fail-closed",
+        ])
+        #expect(unsafeClaim.testNames == [
+            "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
+            "UnsafeContinuationDiagnosticsTests/unsafeContinuationFailsClosedBeforeOwnership",
+        ])
+        #expect(unsafeClaim.gapEvidenceIDs == [
+            "async-sequence-continuation-runtime",
+        ])
+        #expect(unsafeClaim.notes.contains(
+            "unsupportedUnsafeContinuation intrinsic"))
+        #expect(unsafeClaim.notes.contains("explicit MainActor isolation"))
+        #expect(unsafeClaim.notes.contains("fails closed"))
+        #expect(unsafeClaim.notes.contains("before invoking the body"))
+        #expect(unsafeClaim.notes.contains("section 14 depth cap"))
+
+        let unsafeThrowingClaim = try #require(claims.first {
+            $0.id == unsafeThrowing.id
+        })
+        #expect(unsafeThrowingClaim.implementationStatus
+            == .diagnosedUnsupported)
+        #expect(unsafeThrowingClaim.verificationStatus == .focusedOnly)
+        #expect(unsafeThrowingClaim.requirementRef
+            == "M6/protocol-iteration-streams-and-continuations")
+        #expect(unsafeThrowingClaim.evidenceCaseIDs == [
+            "unsafe-throwing-continuation-fail-closed",
+        ])
+        #expect(unsafeThrowingClaim.testNames == [
+            "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
+            "UnsafeContinuationDiagnosticsTests/unsafeThrowingContinuationFailsClosedBeforeOwnership",
+        ])
+        #expect(unsafeThrowingClaim.gapEvidenceIDs == [
+            "async-sequence-continuation-runtime",
+        ])
+        #expect(unsafeThrowingClaim.notes.contains(
+            "unsupportedUnsafeContinuation intrinsic"))
+        #expect(unsafeThrowingClaim.notes.contains(
+            "explicit MainActor isolation"))
+        #expect(unsafeThrowingClaim.notes.contains("fails closed"))
+        #expect(unsafeThrowingClaim.notes.contains(
+            "before invoking the body"))
+        #expect(unsafeThrowingClaim.notes.contains("section 14 depth cap"))
     }
 
     @Test func taskGroupStatePropertiesHaveExplicitReviewedDispositions() throws {
