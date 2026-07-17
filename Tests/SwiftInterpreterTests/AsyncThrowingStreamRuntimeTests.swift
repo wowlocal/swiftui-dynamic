@@ -4,27 +4,6 @@ import Testing
 
 @Suite("AsyncThrowingStream runtime")
 struct AsyncThrowingStreamRuntimeTests {
-    @Test func unverifiedZeroCapacityBufferingFailsClosed() async throws {
-        let interpreter = Interpreter()
-        do {
-            try await interpreter.runAsync(source: """
-                let stream = AsyncThrowingStream<Int, Error>(
-                    bufferingPolicy: .bufferingNewest(0)
-                ) { continuation in
-                    continuation.finish(throwing: CancellationError())
-                }
-                """)
-            Issue.record(
-                "unverified zero-capacity AsyncThrowingStream was accepted")
-        } catch let error as RuntimeError {
-            #expect(error.message
-                == "AsyncThrowingStream buffering policy is not yet supported")
-        }
-        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
-        #expect(interpreter.scheduledTasks.isEmpty)
-    }
-
     @Test func bufferingNewestEvictsOldestValuesWithExactResults()
         async throws
     {
@@ -44,6 +23,33 @@ struct AsyncThrowingStreamRuntimeTests {
             + "|enqueued(remaining: 0)|dropped(1)|dropped(2)"
             + "=>3,4,true")
         #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 1)
+        #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func zeroCapacityPoliciesDropEveryValueWithExactResults()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/async-throwing-stream-zero-capacity.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait asyncThrowingStreamZeroCapacityProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "newest:dropped(1):true|oldest:dropped(2):true")
+        #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 2)
         #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount == 0)
         #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)

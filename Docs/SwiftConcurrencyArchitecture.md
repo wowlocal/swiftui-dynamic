@@ -1427,9 +1427,9 @@ cancellation bit remains set. Positive-capacity `.bufferingNewest` now reports
 remaining capacity after insertion, evicts and returns the oldest element once
 full, and retains only the newest values. Its `.bufferingOldest` counterpart
 reports the same capacity, preserves the first values, and returns each newly
-rejected element. Zero-capacity buffering, iterator-copy, and throwing-stream
-lifetime edges remain fail-closed or open. Source checked continuations are not
-yet claimed.
+rejected element. At capacity zero both policies retain no element and return
+the supplied value as `.dropped`. Iterator-copy and throwing-stream lifetime
+edges remain open. Source checked continuations are not yet claimed.
 
 ### 6.19 Host gateway runtime
 
@@ -2017,7 +2017,8 @@ Each milestone is independently gated through
   consumer also receives `.cancelled` synchronously before terminal `nil`.
   Positive-capacity `.bufferingNewest` result/eviction/retention and
   `.bufferingOldest` result/rejection/retention semantics are covered as well.
-  Its zero-capacity buffering, iterator-copy, and lifetime semantics plus
+  At capacity zero both policies return the supplied value as `.dropped` and
+  retain nothing. Its iterator-copy and lifetime semantics plus
   checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
@@ -2252,8 +2253,9 @@ consumer synchronously delivers `.cancelled` before terminal `nil`, matching
 the nonthrowing storage edge. Positive-capacity `.bufferingNewest` also reports
 the same capacity, eviction, and retention semantics through the shared kernel;
 positive-capacity `.bufferingOldest` preserves the first values and returns
-each later rejected element. Zero-capacity buffering, iterator-copy, and
-lifetime edges plus
+each later rejected element. At capacity zero both policies return the supplied
+element as `.dropped`, keep no value, and read terminal `nil`. Iterator-copy
+and lifetime edges plus
 checked-continuation ownership
 remain active rather than being inferred from those slices.
 

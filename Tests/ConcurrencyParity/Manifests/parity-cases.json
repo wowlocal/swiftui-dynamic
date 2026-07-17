@@ -2071,5 +2071,17 @@
     "interpreterProjection": "string",
     "nativeFact": "AsyncThrowingStream bufferingOldest(2) retains the first two unconsumed values, reports remaining capacity after successful insertion, returns each newly rejected value once full, and drains only the retained values before terminal nil.",
     "notes": "Every producer operation precedes iteration in one MainActor task. Sequential next calls make the yield results, rejection semantics, retained-value order, and terminal nil deterministic without task-order or physical-executor claims. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact output enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true in twenty bounded runs. The interpreter RED was the explicit policy capability diagnostic. The shared storage kernel now accepts both proven positive-capacity policies while zero capacity stays fail-closed. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 6272b53c8b144fdc2dcd1a634e3d61f188df3a54ed9f5297cb29e1690bd0db68; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
+  },
+  {
+    "id": "async-throwing-stream-zero-capacity",
+    "fixture": "Fixtures/async-throwing-stream-zero-capacity.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamZeroCapacityProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncThrowingStream bufferingNewest(0) and bufferingOldest(0) retain no unconsumed value, return the supplied value as dropped, and read terminal nil after finish.",
+    "notes": "Each stream performs one synchronous yield and finish before one sequential next call. The exact yield result and empty terminal state are program-ordered; no scheduler or physical-executor behavior is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact output newest:dropped(1):true|oldest:dropped(2):true in twenty bounded runs. The interpreter RED was the remaining zero-capacity capability guard. Removing the temporary throwing-policy guard lets both flavors share every nonnegative policy while the common parser still rejects negative and unknown forms. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 72fec1663febaddef370e266d91916d3a79842c423b27d3dea3ed16093cadd0b; focused evidence records two streams, no consumer suspension, and complete ownership cleanup."
   }
 ]
