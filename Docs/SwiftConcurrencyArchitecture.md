@@ -221,6 +221,23 @@ cover the boundary. Swift 6 and the interpreter produce
 `authenticated:foodtruck|default|1.0:0.5` in twenty repetitions without a
 scheduler-order or physical-worker claim.
 
+The twelfth prerequisite adds an immutable, all-branch
+`ParsedExtensionMetadataIndex` to the same composite capability. Every
+extension declaration is indexed by syntax identity across nested and inactive
+conditional-compilation regions. The index owns the extended type spelling,
+inherited conformances, generic `where` requirements, attributes, and
+modifiers. Extension target resolution and retroactive conformance merging
+consume those immutable headers with a pure fallback for foreign or synthetic
+syntax; active-branch selection, member materialization, and supported generic-
+constraint behavior remain session-owned. FoodTruck bounds the slice with
+dotted `Donut.Topping` extensions, the retroactive
+`AuthorizationHandlingError: LocalizedError` conformance, and
+`ClosedRange where Bound: BinaryFloatingPoint`. Eight detached readers,
+session and callback provenance, existing extension regressions, and a
+same-source actor-crossing oracle cover the boundary. Swift 6 and the
+interpreter produce `true:42:21` in twenty repetitions. Nonmatching generic
+constraints, scheduler order, and physical workers are not claimed.
+
 The stable target separates five concerns:
 
 ```text
@@ -600,6 +617,7 @@ public struct ParsedProgram: Sendable {
     let nominalMetadata: NominalMetadataIndex
     let propertyMetadata: PropertyMetadataIndex
     let enumCaseMetadata: EnumCaseMetadataIndex
+    let extensionMetadata: ExtensionMetadataIndex
     let callMetadata: CallMetadataIndex
     let isolationMetadata: IsolationIndex
     let sourceLocations: SourceLocationIndex
@@ -616,7 +634,7 @@ syntax, source-location index, and one public immutable
 `ParsedProgramMetadata` capability. That value owns the public
 `ParsedDeclarationIndex`, `ParsedCallableMetadataIndex`,
 `ParsedNominalMetadataIndex`, `ParsedPropertyMetadataIndex`, and
-`ParsedEnumCaseMetadataIndex`;
+`ParsedEnumCaseMetadataIndex`, and `ParsedExtensionMetadataIndex`;
 compatibility accessors on `ParsedProgram`
 expose the same values. The declaration index
 classifies all possible top-level primary declarations, aliases, and
@@ -639,9 +657,14 @@ member, enum-static, and local storage materialization consumes it.
 The enum-case index records normalized/backticked names, associated-value
 labels and type spellings, and explicit raw expressions in every lexical and
 conditional region. Enum symbol materialization consumes those headers while
-the session owns active-branch selection and raw-value evaluation. Remaining
-member families, call-site semantic resolution, and the compiler-preflight
-fingerprint remain target work.
+the session owns active-branch selection and raw-value evaluation.
+The extension index records extended type spellings, inherited conformances,
+generic requirements, attributes, and modifiers across every conditional
+branch. Extension target resolution and conformance merging consume those
+headers while the session owns branch selection and member materialization.
+Nonmatching generic-constraint selection remains outside the implemented
+claim. Remaining member families, call-site semantic resolution, and the
+compiler-preflight fingerprint remain target work.
 
 ### 6.2 `InterpreterSession`
 
@@ -2755,10 +2778,11 @@ distinct callback IDs over one heap, and final release. A causal same-source
 probe establishes cooperative overlap against the confined heap in twenty
 native/interpreter repetitions. `ParsedProgram` additionally owns one immutable
 `ParsedProgramMetadata` capability containing its declaration and all-branch
-callable, nominal, property, and enum-case indexes; the runtime no longer
-stores mutable function/initializer metadata caches on the facade. Sessions
-and escaped callbacks retain the originating capability through `RuntimeEntry`, and eight
-detached readers exercise one snapshot under Swift 6 strict concurrency.
+callable, nominal, property, enum-case, and extension indexes; the runtime no
+longer stores mutable function/initializer metadata caches on the facade.
+Sessions and escaped callbacks retain the originating capability through
+`RuntimeEntry`, and eight detached readers exercise one snapshot under Swift 6
+strict concurrency.
 Existing `extractIsolation` parity characterizes the no-semantic-change result
 for plain explicitly nonisolated async declarations. The same index now owns
 readable getter/setter metadata and subscript parameter/result/isolation facts;
@@ -2781,6 +2805,12 @@ uses normalized/backticked names, associated labels/type spellings, and raw
 expressions from that index while evaluating raw values inside the session.
 The `enum-case-metadata` fixture remains exact in twenty native/interpreter
 repetitions.
+The composite now also owns all-branch extension headers. Extension target
+resolution and retroactive conformance merging consume the indexed extended
+type and inherited-type spellings, while generic requirements, attributes,
+and modifiers remain available as immutable program facts. The
+`extension-metadata` fixture remains exact in twenty native/interpreter
+repetitions for the demand-cited matching-constraint subset.
 These slices separate immutable program input, mutable storage, and execution
 identity without changing scheduling. Remaining member families, call-site, and
 compiler metadata indexing remains incomplete, and mutable

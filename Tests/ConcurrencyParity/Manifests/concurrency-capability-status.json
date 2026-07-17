@@ -2920,7 +2920,8 @@
         "actor-subscript-async-exits",
         "custom-global-actor-isolation",
         "actor-initialization",
-        "enum-case-metadata"
+        "enum-case-metadata",
+        "extension-metadata"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -2932,6 +2933,8 @@
         "ParsedProgramConcurrencyTests/propertyMetadataHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableEnumCaseMetadataIndex",
         "ParsedProgramConcurrencyTests/enumCaseMetadataHasPureForeignSyntaxFallback",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableExtensionMetadataIndex",
+        "ParsedProgramConcurrencyTests/extensionMetadataHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/parsedProgramIndexesAccessorAndSubscriptMetadata",
         "ParsedProgramConcurrencyTests/parsedProgramMetadataIsOneSendableRuntimeCapability",
         "ParsedProgramConcurrencyTests/oneParsedProgramBacksIndependentAsyncSessions",
@@ -2949,13 +2952,15 @@
         "RuntimeEntryOwnershipTests/separateCallbacksUseDistinctEntriesAgainstTheSameHeap",
         "EnumAndSwitchTests/rawValueEnums",
         "EnumAndSwitchTests/switchWithAssociatedValues",
+        "TypeFeatureTests/extensionsAddMembers",
+        "RetroactiveConformanceTests/extensionConformanceCountsForCasts",
         "ActorRuntimeTests/actorMutableStorageRequiresOwnershipWhileAllowedStorageRemainsReadable",
         "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Eleven M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral declaration plus all-branch callable, nominal, property, and enum-case indexes. Function/initializer/accessor/subscript, nominal-header, variable/property storage, and enum-case name/associated-value/raw-expression facts are indexed once; runtime nominal, storage, and enum-case materialization consumes immutable metadata while mutable runtime symbols, values, and raw-value evaluation remain MainActor-confined on the interpreter facade. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. Focused evidence covers detached readers, distinct target plans, session binding, callback provenance after a different facade fallback, pure foreign-syntax fallback, ownership/lifetime, real SwiftUI task entry, prior extract-isolation, actor-subscript, custom-global-actor, and actor-initialization observations, plus twenty exact enum-case observations. The enum slice covers normalized/backticked names, labeled and unlabeled associated values, type spellings, explicit raw expressions, and FoodTruck-cited conditional cases; uncited attributes and indirect semantics are not claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Twelve M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral declaration plus all-branch callable, nominal, property, enum-case, and extension indexes. Function/initializer/accessor/subscript, nominal-header, variable/property storage, enum-case, and extension-header facts are indexed once; runtime nominal, storage, enum-case materialization, extension target resolution, and retroactive conformance merging consume immutable metadata while mutable runtime symbols, values, raw-value evaluation, active-branch selection, and member materialization remain MainActor-confined on the interpreter facade. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. Focused evidence covers detached readers, distinct target plans, session binding, callback provenance after a different facade fallback, pure foreign-syntax fallback, ownership/lifetime, real SwiftUI task entry, prior extract-isolation, actor-subscript, custom-global-actor, actor-initialization, and enum-case observations, plus twenty exact matching-constraint extension observations. The extension slice covers dotted extended types, inherited conformances, generic requirements, attributes, modifiers, and FoodTruck-cited conditional headers; nonmatching generic constraints are not claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

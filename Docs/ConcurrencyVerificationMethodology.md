@@ -236,6 +236,26 @@ call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
 heap classification, physical workers, mode-differential evidence, and TSan
 remain open.
 
+Its twelfth prerequisite adds all-branch extension headers to the composite
+capability. The architecture workflow is a gap closure: the captured compile-
+time RED had no `ParsedExtensionMetadataIndex`, summary, compatibility
+accessor, composite component, or runtime lookup. The semantic workflow is an
+already-GREEN characterization. FoodTruck supplies the within-slice demand
+citations for dotted `Donut.Topping` extensions, the retroactive
+`AuthorizationHandlingError: LocalizedError` conformance, and
+`ClosedRange where Bound: BinaryFloatingPoint`. GREEN covers exact all-scope/
+all-branch summaries, extended and inherited type spellings, generic
+requirements, attributes, modifiers, eight detached readers, pure foreign-
+syntax fallback, session/callback provenance, and existing extension
+materialization. A same-source value crosses an actor boundary after using a
+dotted conforming extension and a matching constrained extension; Apple Swift
+6.3.3 and the interpreter both produce `true:42:21` in twenty bounded
+repetitions. No behavior for a nonmatching generic constraint, scheduler
+order, or physical thread is inferred. Remaining member families, call-site/
+compiler metadata, mutable-symbol/evaluator migration, worker-safe heap
+classification, physical workers, mode-differential evidence, and TSan remain
+open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

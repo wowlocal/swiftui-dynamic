@@ -689,6 +689,17 @@ public final class Interpreter {
         currentProgramMetadata?.enumCaseMetadataIndex
     }
 
+    var currentExtensionMetadataIndex: ParsedExtensionMetadataIndex? {
+        currentProgramMetadata?.extensionMetadataIndex
+    }
+
+    func extensionMetadata(
+        for node: ExtensionDeclSyntax
+    ) -> ParsedExtensionMetadata {
+        currentExtensionMetadataIndex?.metadata(for: node)
+            ?? ParsedExtensionMetadata(node)
+    }
+
     func enumCaseMetadata(
         for node: EnumCaseElementSyntax
     ) -> ParsedEnumCaseMetadata {

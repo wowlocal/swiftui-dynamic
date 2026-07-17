@@ -34,6 +34,8 @@ struct InterpreterSessionOwnershipTests {
             .summary == program.propertyMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.enumCaseMetadataIndex
             .summary == program.enumCaseMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.extensionMetadataIndex
+            .summary == program.extensionMetadataIndex.summary)
         if case .drainOwnedTasks = session.completionPolicy {
             // Expected policy is bound into the session.
         } else {

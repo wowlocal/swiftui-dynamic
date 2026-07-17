@@ -627,11 +627,109 @@ struct ParsedProgramConcurrencyTests {
         #expect(valueMetadata.associatedValues.map(\.typeName) == ["String"])
     }
 
+    @Test func parsedProgramOwnsSendableExtensionMetadataIndex() async throws {
+        let program = try ParsedProgram(source: """
+        struct Truck {}
+
+        @available(macOS 10, *)
+        public extension Truck: Sendable {}
+
+        struct Donut { struct Topping {} }
+        private extension Donut.Topping {}
+
+        public extension ClosedRange where Bound: BinaryFloatingPoint {}
+        extension LabelStyle where Self == FoodTruckStyle {}
+
+        #if os(iOS)
+        extension Truck: Codable {}
+        #else
+        extension Truck: Hashable, Equatable {}
+        #endif
+        """)
+        let expected = ParsedExtensionMetadataIndex.Summary(
+            extensionCount: 6,
+            dottedExtendedTypeCount: 1,
+            inheritedTypeCount: 4,
+            constrainedExtensionCount: 2,
+            genericRequirementCount: 2,
+            attributedExtensionCount: 1,
+            modifiedExtensionCount: 3)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.extensionMetadataIndex)
+        #expect(program.extensionMetadataIndex.summary == expected)
+        #expect(program.metadata.extensionMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.extensionMetadataIndex.summary }
+        }
+        var observations: [ParsedExtensionMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let extensions: [ExtensionDeclSyntax] =
+            program.syntax.statements.compactMap {
+                guard case .decl(let declaration) = $0.item else {
+                    return nil
+                }
+                return declaration.as(ExtensionDeclSyntax.self)
+            }
+        let truck = try #require(extensions.first)
+        let truckMetadata = try #require(
+            program.extensionMetadataIndex.metadata(for: truck))
+        #expect(truckMetadata.extendedTypeName == "Truck")
+        #expect(truckMetadata.inheritedTypeNames == ["Sendable"])
+        #expect(truckMetadata.attributeNames == ["available"])
+        #expect(truckMetadata.modifierNames == ["public"])
+        #expect(truckMetadata.genericRequirements.isEmpty)
+
+        let topping = try #require(extensions.dropFirst().first)
+        let toppingMetadata = try #require(
+            program.extensionMetadataIndex.metadata(for: topping))
+        #expect(toppingMetadata.extendedTypeName == "Donut.Topping")
+        #expect(toppingMetadata.modifierNames == ["private"])
+
+        let closedRange = try #require(extensions.dropFirst(2).first)
+        let rangeMetadata = try #require(
+            program.extensionMetadataIndex.metadata(for: closedRange))
+        #expect(rangeMetadata.extendedTypeName == "ClosedRange")
+        #expect(rangeMetadata.genericRequirements
+            == ["Bound: BinaryFloatingPoint"])
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata?.extensionMetadataIndex
+            .summary == expected)
+    }
+
+    @Test func extensionMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        @available(macOS 10, *)
+        public extension Foreign.Value: Sendable
+        where Element == Int, State: Equatable {}
+        """)
+        let declaration = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(ExtensionDeclSyntax.self))
+        let interpreter = Interpreter()
+
+        let metadata = interpreter.extensionMetadata(for: declaration)
+        #expect(metadata.extendedTypeName == "Foreign.Value")
+        #expect(metadata.inheritedTypeNames == ["Sendable"])
+        #expect(metadata.attributeNames == ["available"])
+        #expect(metadata.modifierNames == ["public"])
+        #expect(metadata.genericRequirements
+            == ["Element == Int", "State: Equatable"])
+    }
+
     @Test func parsedProgramMetadataIsOneSendableRuntimeCapability()
     async throws {
         let program = try ParsedProgram(source: """
         struct Marker {}
         enum Phase { case ready }
+        extension Phase {}
         func makeValue() -> Int { 42 }
         makeValue()
         """)
@@ -647,6 +745,8 @@ struct ParsedProgramConcurrencyTests {
             == program.propertyMetadataIndex.summary)
         #expect(program.metadata.enumCaseMetadataIndex.summary
             == program.enumCaseMetadataIndex.summary)
+        #expect(program.metadata.extensionMetadataIndex.summary
+            == program.extensionMetadataIndex.summary)
 
         let readers = (0..<8).map { _ in
             Task.detached {
@@ -656,15 +756,16 @@ struct ParsedProgramConcurrencyTests {
                     program.metadata.callableMetadataIndex.summary.functionCount,
                     program.metadata.nominalMetadataIndex.summary.structureCount,
                     program.metadata.propertyMetadataIndex.summary.bindingCount,
-                    program.metadata.enumCaseMetadataIndex.summary.caseElementCount
+                    program.metadata.enumCaseMetadataIndex.summary.caseElementCount,
+                    program.metadata.extensionMetadataIndex.summary.extensionCount
                 )
             }
         }
-        var observations: [(Int, Int, Int, Int, Int)] = []
+        var observations: [(Int, Int, Int, Int, Int, Int)] = []
         for reader in readers {
             observations.append(await reader.value)
         }
-        #expect(observations.allSatisfy { $0 == (3, 1, 1, 0, 1) })
+        #expect(observations.allSatisfy { $0 == (3, 1, 1, 0, 1, 1) })
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
@@ -676,6 +777,8 @@ struct ParsedProgramConcurrencyTests {
             .summary == program.propertyMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.enumCaseMetadataIndex
             .summary == program.enumCaseMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.extensionMetadataIndex
+            .summary == program.extensionMetadataIndex.summary)
         #expect(try await interpreter.runAsync(session: session).intValue == 42)
     }
 
