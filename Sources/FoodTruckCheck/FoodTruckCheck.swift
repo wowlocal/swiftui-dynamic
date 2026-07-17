@@ -440,6 +440,97 @@ struct FoodTruckCheckMain {
                 "TruckOrdersCard(model: model).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("donut-view", source: probeMergeBase + probeApp(
                 "DonutView(donut: model.donuts[0]).padding(10).background(Color.white)"), size: cardSize)
+            let donutCellBody = """
+            VStack {
+                DonutView(donut: model.donuts[0])
+                    .frame(width: 80, height: 80)
+                VStack {
+                    Text(model.donuts[0].name)
+                    HStack(spacing: 4) {
+                        model.donuts[0].flavors.mostPotentFlavor.image
+                        Text(model.donuts[0].flavors.mostPotentFlavor.name)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+            }
+            .padding(10).background(Color.white)
+            """
+            capturePNG("donut-cell", source: probeMergeBase + probeApp(donutCellBody),
+                       size: NSSize(width: 200, height: 200))
+            let donutForEachBody = """
+            VStack {
+                ForEach(Array(model.donuts.prefix(1))) { donut in
+                    VStack {
+                        GeometryReader { proxy in
+                                    ZStack {
+                                        Circle().fill(Color.gray)
+                                    }
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .compositingGroup()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                            .frame(width: 80, height: 80)
+                        VStack {
+                            Text(donut.name)
+                            HStack(spacing: 4) {
+                                donut.flavors.mostPotentFlavor.image
+                                Text(donut.flavors.mostPotentFlavor.name)
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        }
+                        .multilineTextAlignment(.center)
+                    }
+                }
+            }
+            .padding(10).background(Color.white)
+            """
+            capturePNG("donut-foreach", source: probeMergeBase + probeApp(donutForEachBody),
+                       size: NSSize(width: 200, height: 200))
+            let mimicDecl = """
+
+            struct MimicGrid: View {
+                var donuts: [Donut]
+                var body: some View {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 20, alignment: .top)], spacing: 20) {
+                        ForEach(donuts) { donut in
+                            VStack {
+                                VStack {
+                                    GeometryReader { proxy in
+                                    ZStack {
+                                        Circle().fill(Color.gray)
+                                    }
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .compositingGroup()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                                        .frame(width: 80, height: 80)
+                                    VStack {
+                                                                                Text(donut.name)
+                                        HStack(spacing: 4) {
+                                            donut.flavors.mostPotentFlavor.image
+                                            Text(donut.flavors.mostPotentFlavor.name)
+                                        }
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    }
+                                    .multilineTextAlignment(.center)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            }
+            """
+            capturePNG("donut-mimic", source: probeMergeBase + mimicDecl + probeApp(
+                "MimicGrid(donuts: Array(model.donuts.prefix(4))).background(Color.white)"),
+                       size: NSSize(width: 700, height: 300))
+            capturePNG("donut-grid", source: probeMergeBase + probeApp(
+                "DonutGalleryGrid(donuts: Array(model.donuts.prefix(4)), width: 700).background(Color.white)"),
+                       size: NSSize(width: 700, height: 300))
             capturePNG("diag-navlink", source: probeMergeBase + probeApp(
                 "NavigationLink(value: Panel.orders) { Label(String(\"New Orders\"), systemImage: String(\"shippingbox\")) }.background(Color.white)"), size: cardSize)
             capturePNG("diag-label", source: probeMergeBase + probeApp(
