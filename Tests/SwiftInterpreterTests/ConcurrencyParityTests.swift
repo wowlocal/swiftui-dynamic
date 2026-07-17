@@ -1497,6 +1497,7 @@ private enum ConcurrencyParityHarness {
 
         let process = Process()
         process.executableURL = executable
+        process.standardInput = FileHandle.nullDevice
         process.arguments = arguments
         process.currentDirectoryURL = packageRoot
         if let environment { process.environment = environment }

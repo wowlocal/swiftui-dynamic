@@ -12,12 +12,19 @@ extension ViewRegistry {
     func registerViews() {
         // MARK: Text & symbols
 
-        constructors["Text"] = HostFunction(name: "Text") { args, _ in
-            guard let value = args.positional(0) else {
+        constructors["Text"] = HostFunction(name: "Text") { args, ctx in
+            guard var value = args.positional(0) else {
                 throw RuntimeError(message: "Text needs a string argument")
             }
             if case .host(let any) = value, let box = any as? AttributedStringBox {
                 return .native(TextBox(Text(box.attributed)))
+            }
+            // TYPED markers resolve at this boundary (the computed-property
+            // laziness contract): `var title: LocalizedStringKey { .init(x) }`
+            // reaches Text as an init marker hinted with the property type.
+            if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+               let hint = call.typeHint, let interpreter = ctx as? Interpreter {
+                value = interpreter.resolveForBridge(value, typeName: hint)
             }
             // Unknowables read "" (fresh-string doctrine) — marker dumps
             // must never reach rendered Text.
@@ -98,7 +105,7 @@ extension ViewRegistry {
 
         // MARK: Shapes & gradients
 
-        constructors["Circle"] = HostFunction(name: "Circle") { _, _ in .native(ShapeBox(Circle())) }
+        constructors["Circle"] = HostFunction(name: "Circle") { _, _ in .native(ShapeBox(insettable: Circle())) }
         constructors["UnevenRoundedRectangle"] = HostFunction(name: "UnevenRoundedRectangle") { args, _ in
             .native(ShapeBox(UnevenRoundedRectangle(
                 topLeadingRadius: (try? Coerce.cgFloat(args.labeled("topLeadingRadius") ?? .native(0))) ?? 0,
@@ -107,12 +114,12 @@ extension ViewRegistry {
                 topTrailingRadius: (try? Coerce.cgFloat(args.labeled("topTrailingRadius") ?? .native(0))) ?? 0
             )))
         }
-        constructors["Ellipse"] = HostFunction(name: "Ellipse") { _, _ in .native(ShapeBox(Ellipse())) }
-        constructors["Rectangle"] = HostFunction(name: "Rectangle") { _, _ in .native(ShapeBox(Rectangle())) }
-        constructors["Capsule"] = HostFunction(name: "Capsule") { _, _ in .native(ShapeBox(Capsule())) }
+        constructors["Ellipse"] = HostFunction(name: "Ellipse") { _, _ in .native(ShapeBox(insettable: Ellipse())) }
+        constructors["Rectangle"] = HostFunction(name: "Rectangle") { _, _ in .native(ShapeBox(insettable: Rectangle())) }
+        constructors["Capsule"] = HostFunction(name: "Capsule") { _, _ in .native(ShapeBox(insettable: Capsule())) }
         constructors["RoundedRectangle"] = HostFunction(name: "RoundedRectangle") { args, _ in
             let radius = try Coerce.cgFloat(args.labeled("cornerRadius") ?? .native(8))
-            return .native(ShapeBox(RoundedRectangle(cornerRadius: radius)))
+            return .native(ShapeBox(insettable: RoundedRectangle(cornerRadius: radius)))
         }
 
         constructors["AnyShapeStyle"] = HostFunction(name: "AnyShapeStyle") { args, _ in

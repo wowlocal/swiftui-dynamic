@@ -127,6 +127,24 @@ enum Coerce {
         return nil
     }
 
+    /// `.drop(color:radius:x:y:)` / `.inner(...)` — ShadowStyle factories
+    /// (defaults mirror SwiftUI's declared signatures: drop shadows read
+    /// opacity 0.33, inner 0.55 — SwiftUICore.swiftinterface).
+    static func shadowStyle(_ value: RuntimeValue?) throws -> ShadowStyle {
+        guard case .host(let any)? = value, let call = any as? ImplicitMemberCall,
+              call.name == "drop" || call.name == "inner" else {
+            throw RuntimeError(message: "expected a .drop(…)/.inner(…) shadow style")
+        }
+        let color = call.arguments.labeled("color").flatMap(colorLike)
+            ?? Color(.sRGBLinear, white: 0, opacity: call.name == "drop" ? 0.33 : 0.55)
+        let radius = call.arguments.labeled("radius").flatMap { try? cgFloat($0) } ?? 0
+        let x = call.arguments.labeled("x").flatMap { try? cgFloat($0) } ?? 0
+        let y = call.arguments.labeled("y").flatMap { try? cgFloat($0) } ?? 0
+        return call.name == "drop"
+            ? .drop(color: color, radius: radius, x: x, y: y)
+            : .inner(color: color, radius: radius, x: x, y: y)
+    }
+
     /// The wide funnel for style positions: colors, hierarchical styles,
     /// materials, gradients, and `.color.opacity(x)` / `.color.gradient` chains.
     static func shapeStyle(_ value: RuntimeValue) throws -> AnyShapeStyle {
@@ -154,12 +172,23 @@ enum Coerce {
                         throw RuntimeError(message: "unknown color before '.gradient' in style chain")
                     }
                     return AnyShapeStyle(base.gradient)
+                case "shadow":
+                    // `.indigo.shadow(.drop(color:radius:x:))` — the
+                    // FoodTruck forecast pillar. The chain keeps its REAL
+                    // base style.
+                    let style = try shadowStyle(chained.arguments.positional(0))
+                    return AnyShapeStyle(try shapeStyle(chained.base).shadow(style))
                 default:
                     throw RuntimeError(message: "unsupported style '.\(chained.baseName ?? "…").\(chained.member)'")
                 }
             }
         }
         if case .host(let any) = value, let call = any as? ImplicitMemberCall {
+            // A zero-argument marker CALL is the marker itself — chain bases
+            // arrive in this carrier (`.indigo` under `.shadow(…)`).
+            if call.arguments.arguments.isEmpty {
+                return try shapeStyle(.implicitMember(call.name))
+            }
             // `.linearGradient(colors:startPoint:endPoint:)` — the factory
             // spelling of the gradient styles (FoodTruck's forecast fill).
             if call.name == "linearGradient" {

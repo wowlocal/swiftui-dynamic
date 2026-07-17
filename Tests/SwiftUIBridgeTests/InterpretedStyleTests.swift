@@ -179,6 +179,45 @@ import Testing
         }
     }
 
+    // FoodTruck truck-row annotation class: palette symbols paint their
+    // SECONDARY layer only when foregroundStyle(_:_:) dispatches through
+    // the generated tier (arities 1-3). The old handwritten gateway read
+    // just the first style, so `.foregroundStyle(.white, .indigo)`
+    // rendered an all-white disc — no indigo anywhere on the canvas.
+    @MainActor
+    @Test func paletteSymbolPaintsSecondaryStyleLayer() throws {
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Image(systemName: String("moon.circle.fill"))
+                        .imageScale(.large)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, .indigo)
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let rep = Self.bitmap(view, size: NSSize(width: 80, height: 80))
+        var indigoPixels = 0
+        for x in 0..<80 {
+            for y in 0..<80 {
+                if let color = rep.colorAt(x: x, y: y),
+                   color.blueComponent > 0.5, color.redComponent < 0.55,
+                   color.blueComponent - color.redComponent > 0.2 {
+                    indigoPixels += 1
+                }
+            }
+        }
+        #expect(indigoPixels > 20)
+    }
+
     @MainActor
     private static func bitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
         let hosting = NSHostingView(

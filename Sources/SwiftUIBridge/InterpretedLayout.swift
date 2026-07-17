@@ -19,11 +19,14 @@ private final class LayoutCarrier: @unchecked Sendable {
 final class LayoutSubviewBox {
     let place: (CGPoint, UnitPoint, ProposedViewSize) -> Void
     let sizeThatFits: (ProposedViewSize) -> CGSize
+    let spacing: ViewSpacing
 
     init(place: @escaping (CGPoint, UnitPoint, ProposedViewSize) -> Void,
-         sizeThatFits: @escaping (ProposedViewSize) -> CGSize) {
+         sizeThatFits: @escaping (ProposedViewSize) -> CGSize,
+         spacing: ViewSpacing) {
         self.place = place
         self.sizeThatFits = sizeThatFits
+        self.spacing = spacing
     }
 }
 
@@ -97,8 +100,13 @@ struct InterpretedLayout: Layout {
                     subview.place(at: point, anchor: anchor, proposal: proposal)
                 },
                 sizeThatFits: { proposal in
-                    subview.sizeThatFits(proposal)
-                }))
+                    if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
+                        FileHandle.standardError.write(Data(
+                            "SIZEQ[\(name) #\(index)] -> \(subview.sizeThatFits(proposal))\n".utf8))
+                    }
+                    return subview.sizeThatFits(proposal)
+                },
+                spacing: subview.spacing))
         }
         return .native(boxes)
     }
@@ -152,6 +160,28 @@ func layoutHostMember(_ name: String, on value: Any) -> RuntimeValue? {
                     proposal = real
                 }
                 return .native(box.sizeThatFits(proposal))
+            })
+        case "spacing":
+            return .native(box.spacing)
+        default:
+            return nil
+        }
+    }
+    if let spacing = value as? ViewSpacing {
+        switch name {
+        case "distance":
+            // `spacing.distance(to: other, along: .horizontal)` — the
+            // FlowLayout spacing math runs on REAL ViewSpacing.
+            return .hostFunction(HostFunction(name: name) { args, _ in
+                var other = ViewSpacing()
+                if case .host(let any)? = args.labeled("to"), let real = any as? ViewSpacing {
+                    other = real
+                }
+                var axis = Axis.horizontal
+                if case .implicitMember("vertical")? = args.labeled("along") {
+                    axis = .vertical
+                }
+                return .native(spacing.distance(to: other, along: axis))
             })
         default:
             return nil

@@ -119,6 +119,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first?.makeKeyAndOrderFront(nil)
+        // Self-capture evidence for headless verification sessions that
+        // lack screen-recording access: after the LIVE interactive window
+        // settles, write its contentView bitmap and keep running.
+        if let capturePath = ProcessInfo.processInfo
+            .environment["DYNAMIC_DEMO_SELF_CAPTURE"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+                guard let window = NSApp.windows.first,
+                      let view = window.contentView,
+                      let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+                    return
+                }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?
+                    .write(to: URL(fileURLWithPath: capturePath))
+            }
+        }
     }
 
     /// Headless verification hook: render the counter sample through the real

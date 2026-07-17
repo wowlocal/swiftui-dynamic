@@ -111,12 +111,14 @@ extension ViewRegistry {
 
         // MARK: Color & effects
 
-        let foreground: @MainActor (AnyView, CallArguments, EvalContext) throws -> AnyView = { view, args, _ in
+        // foregroundStyle lives in the generated tier (arities 1-3 —
+        // palette symbols need the secondary/tertiary layers). Only the
+        // deprecated foregroundColor, absent from the swept interfaces,
+        // stays handwritten.
+        register("foregroundColor") { view, args, _ in
             guard let value = args.positional(0) else { throw RuntimeError(message: "missing style argument") }
             return AnyView(view.foregroundStyle(try Coerce.shapeStyle(value)))
         }
-        register("foregroundStyle", foreground)
-        register("foregroundColor", foreground)
 
         register("background") { [unowned self] view, args, ctx in
             if args.isEmpty {
@@ -158,12 +160,25 @@ extension ViewRegistry {
             return AnyView(view.overlay(alignment: alignment) { content })
         }
 
-        register("shadow") { view, args, _ in
+        modifiers["shadow"] = HostModifier(name: "shadow") { value, args, _ in
+            // `.indigo.shadow(.drop(…))` is ShapeStyle.shadow, NOT the view
+            // modifier — a ShadowStyle marker argument only compiles against
+            // the style overload, so a style-like receiver keeps its
+            // styleness for the downstream foregroundStyle funnel (the
+            // FoodTruck forecast pillars).
+            if case .host(let any)? = args.positional(0),
+               let call = any as? ImplicitMemberCall,
+               call.name == "drop" || call.name == "inner",
+               let base = try? Coerce.shapeStyle(value) {
+                let style = try Coerce.shadowStyle(args.positional(0))
+                return .native(AnyShapeStyle(base.shadow(style)))
+            }
+            let view = try Self.anyView(value)
             let radius = try Coerce.cgFloat(args.labeled("radius") ?? .native(4))
             let color = try args.labeled("color").map(Coerce.color) ?? Color.black.opacity(0.33)
             let x = try args.labeled("x").map(Coerce.cgFloat) ?? 0
             let y = try args.labeled("y").map(Coerce.cgFloat) ?? 0
-            return AnyView(view.shadow(color: color, radius: radius, x: x, y: y))
+            return .native(AnyView(view.shadow(color: color, radius: radius, x: x, y: y)))
         }
 
         register("cornerRadius") { view, args, _ in
@@ -680,6 +695,22 @@ extension ViewRegistry {
             }
             let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
             let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
+            return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
+        }
+        modifiers["strokeBorder"] = HostModifier(name: "strokeBorder") { value, args, _ in
+            // InsettableShape's inside-stroke, drawn as a centered stroke on
+            // the erased shape — a documented ≤lineWidth/2 divergence
+            // (FoodTruck's tile outlines use lineWidth 0.5: sub-antialiasing).
+            var shapeBox: ShapeBox?
+            if case .host(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
+            guard let box = shapeBox else {
+                throw RuntimeError(message: ".strokeBorder applies to insettable shapes")
+            }
+            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
+            let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
+            if let painter = box.strokeBorderPainter {
+                return .native(painter(style, lineWidth))
+            }
             return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
         }
         modifiers["trim"] = HostModifier(name: "trim") { value, args, _ in

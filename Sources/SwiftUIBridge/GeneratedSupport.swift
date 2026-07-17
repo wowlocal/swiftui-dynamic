@@ -11,6 +11,7 @@ enum ParamTag: Hashable {
     case color, font, fontWeight, angle, animation
     case alignment, horizontalAlignment, verticalAlignment, textAlignment
     case edgeSet, unitPoint, contentMode, imageScale, buttonRole
+    case symbolRenderingMode
     case bindingBool, bindingString, bindingDouble
     case shapeStyle, anyView, shape
     case visibility, axisSet, edgeInsets, gradient, gridItems
@@ -122,6 +123,18 @@ enum GeneratedDispatch {
             return try Coerce.font(value)
         case .fontWeight:
             return try Coerce.fontWeight(value)
+        case .symbolRenderingMode:
+            guard case .implicitMember(let name) = value else {
+                throw RuntimeError(message: "expected a symbol rendering mode like .palette")
+            }
+            switch name {
+            case "palette": return SymbolRenderingMode.palette
+            case "hierarchical": return SymbolRenderingMode.hierarchical
+            case "multicolor": return SymbolRenderingMode.multicolor
+            case "monochrome": return SymbolRenderingMode.monochrome
+            default:
+                throw RuntimeError(message: "unknown symbol rendering mode '.\(name)'")
+            }
         case .angle:
             return try Coerce.angle(value)
         case .animation:
@@ -607,6 +620,17 @@ extension GeneratedDispatch {
 /// scalar and framework payloads.
 func generatedMemberResult<Wrapped>(_ value: Wrapped?) -> RuntimeValue {
     .native(value)
+}
+
+/// SDK arrays cross into the interpreter's array plane element-wise —
+/// `DateBins.thresholds: [Date]` must answer `.count`/subscripts/iteration
+/// like any interpreted array, not ride as an opaque host payload. The
+/// DISTINCT name is load-bearing: BridgeGen picks it at emit time for
+/// array-typed contracts only, so it never re-ranks member overload
+/// resolution inside emitted closures (Sequence.dropLast would otherwise
+/// beat IndexPath.dropLast on the [Element] parameter match).
+func generatedMemberArrayResult<Element>(_ value: [Element]) -> RuntimeValue {
+    .array(value.map { RuntimeValue.native($0 as Any) })
 }
 
 func generatedMemberResult(_ value: Any) -> RuntimeValue {

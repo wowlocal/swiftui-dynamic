@@ -421,6 +421,56 @@ extension Interpreter {
     }
 
     /// Interpreted extension-of-host-type members (`extension View { … }`).
+    /// Static METHODS of a host-type extension dispatch at INVOKE time so
+    /// the call shape can resolve past the program shadow to the host —
+    /// `Double.random(in:using:)` against a 1-arg shadow picks the stdlib,
+    /// exactly like native overload resolution. Returns nil when the name
+    /// isn't purely a method (properties keep the staticMember path).
+    func hostExtensionStaticMethodDispatcher(
+        _ name: String, hostSymbol: StructSymbol, typeName: String
+    ) -> RuntimeValue? {
+        guard let overloads = hostSymbol.staticMethods[name], !overloads.isEmpty,
+              hostSymbol.staticProperties[name] == nil,
+              hostSymbol.staticComputedProperties[name] == nil,
+              hostSymbol.nestedTypes[name] == nil,
+              hostSymbol.staticCache[name] == nil,
+              hostSymbol.staticReferenceBoxes[name] == nil else { return nil }
+        return .hostFunction(HostFunction(name: name) { [unowned self] args, _ in
+            let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
+            let pool = available.isEmpty ? overloads : available
+            // A declared overload only competes when it accepts every label
+            // the call passes — `using:` against an (in:)-only shadow is a
+            // host call, not a shadow hit.
+            let callLabels = Set(args.arguments.compactMap(\.label))
+            let shapePool = pool.filter { method in
+                let paramLabels = Set(method.signature.parameterClause.parameters.compactMap {
+                    parameter -> String? in
+                    let label = parameter.firstName.text
+                    return label == "_" ? nil : label
+                })
+                return callLabels.isSubset(of: paramLabels)
+            }
+            var chosen = chooseFunction(from: shapePool, for: args) ?? shapePool.first
+            if chosen == nil,
+               ((try? readHostMember(name, on: HostTypeMarker(name: typeName))) ?? nil) == nil {
+                // No host to defer to: keep the historical force-first
+                // behavior for label-lenient code.
+                chosen = pool.first
+            }
+            if let method = chosen, let body = method.body {
+                let closure = makeFunctionClosure(
+                    method, body: body, captured: selfEnvironment(.type(hostSymbol)))
+                return try callWithArguments(closure, args: args, node: nil)
+            }
+            guard let host = try readHostMember(name, on: HostTypeMarker(name: typeName)),
+                  case .hostFunction(let function) = host else {
+                throw RuntimeError(
+                    message: "\(typeName).\(name): no overload matches the call")
+            }
+            return try function.invoke(args, self)
+        })
+    }
+
     func hostExtensionMember(_ name: String, candidates: [String], selfValue: RuntimeValue) throws -> RuntimeValue? {
         for typeName in candidates {
             guard let symbol = hostExtensionSymbols[typeName] else { continue }
@@ -916,6 +966,15 @@ extension Interpreter {
                 // Keep contextual markers lazy. Receiver operations that
                 // require the concrete type (notably user subscripts) resolve
                 // this value against the annotation at their dispatch boundary.
+                // A HINTLESS marker can never resolve downstream, though —
+                // carry the property's declared type with it
+                // (`var title: LocalizedStringKey { .init(name) }`).
+                if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+                   call.typeHint == nil,
+                   let typeName = computed.typeAnnotation?.trimmedDescription {
+                    return .native(ImplicitMemberCall(
+                        name: call.name, arguments: call.arguments, typeHint: typeName))
+                }
                 return value
             default:
                 throw RuntimeError(message:
@@ -1363,10 +1422,16 @@ extension Interpreter {
             // Program extensions SHADOW imported statics — `extension Date {
             // static var now }` wins over Foundation's own, exactly like a
             // same-module declaration beats an import in compiled Swift
-            // (the FoodTruck frozen-clock harness rides this).
-            if let symbol = hostExtensionSymbols[function.name],
-               let value = try staticMember(name, of: symbol) {
-                return value
+            // (the FoodTruck frozen-clock harness rides this). Static
+            // METHOD sets defer overload choice to INVOKE time.
+            if let symbol = hostExtensionSymbols[function.name] {
+                if let dispatcher = hostExtensionStaticMethodDispatcher(
+                    name, hostSymbol: symbol, typeName: function.name) {
+                    return dispatcher
+                }
+                if let value = try staticMember(name, of: symbol) {
+                    return value
+                }
             }
             if let value = try readHostMember(
                 name,
@@ -1388,7 +1453,9 @@ extension Interpreter {
         case .int, .double, .bool, .string, .array, .set, .dictionary, .tuple, .range, .host:
             // Core values and opaque hosts share the extension/gateway tail,
             // but standard-library dispatch receives the typed RuntimeValue
-            // before any compatibility boxing occurs.
+            // before any compatibility boxing occurs. (See
+            // hostExtensionStaticMethodDispatcher below for static METHODS
+            // of extended host types.)
             let any = baseValue.hostPayload!
             if let member = runtimeCheckedContinuationMember(name, on: any) {
                 return member
@@ -1653,9 +1720,14 @@ extension Interpreter {
             // static var now }` wins over Foundation's own, exactly like a
             // same-module declaration beats an import in compiled Swift.
             if let marker = any as? HostTypeMarker,
-               let hostSymbol = hostExtensionSymbols[marker.name],
-               let value = try staticMember(name, of: hostSymbol) {
-                return value
+               let hostSymbol = hostExtensionSymbols[marker.name] {
+                if let dispatcher = hostExtensionStaticMethodDispatcher(
+                    name, hostSymbol: hostSymbol, typeName: marker.name) {
+                    return dispatcher
+                }
+                if let value = try staticMember(name, of: hostSymbol) {
+                    return value
+                }
             }
             // The bridge gets first refusal on host natives (GeometryProxy,
             // CGRect, and static chains like UIScreen.main / DispatchQueue.main).

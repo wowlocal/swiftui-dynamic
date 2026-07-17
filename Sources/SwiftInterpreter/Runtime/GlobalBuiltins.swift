@@ -334,6 +334,29 @@ extension Interpreter {
                 return .native(KeyPathComparatorBox(keyPath: stub, ascending: ascending))
             }
         }
+        define("zip") { args, _ in
+            // Stdlib zip over runtime sequences: pairs as unlabeled tuples,
+            // so `for (index, subview) in zip(subviews.indices, subviews)`
+            // destructures exactly like compiled Swift (FlowLayout's shape).
+            @MainActor func sequenceElements(_ value: RuntimeValue?) -> [RuntimeValue] {
+                guard let value else { return [] }
+                if let array = value.arrayValue { return array }
+                if case .range(let range) = value,
+                   let lower = range.lowerBound?.intValue, let upper = range.upperBound?.intValue {
+                    let top = range.includesUpperBound ? upper + 1 : upper
+                    guard lower < top else { return [] }
+                    return (lower..<top).map { .int($0) }
+                }
+                if let string = value.stringValue { return string.map { .string(String($0)) } }
+                return []
+            }
+            let lefts = sequenceElements(args.positional(0))
+            let rights = sequenceElements(args.positional(1))
+            let pairs = Swift.zip(lefts, rights).map { left, right in
+                RuntimeValue.native(TupleValue(labels: [nil, nil], values: [left, right]))
+            }
+            return .native(pairs)
+        }
         define("srand48") { args, _ in
             // REAL libc seeding — the FoodTruck SeededRandomGenerator genre:
             // a constant-seeded drand48 stream matches native exactly.

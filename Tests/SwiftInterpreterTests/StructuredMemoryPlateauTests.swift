@@ -194,6 +194,7 @@ private enum StructuredMemoryPlateauHarness {
         environment[structuredMemoryChildReceiptVariable] = receiptURL.path
         let process = Process()
         process.executableURL = try testingHelperURL()
+        process.standardInput = FileHandle.nullDevice
         process.arguments = [
             "--test-bundle-path", try testBundleExecutableURL().path,
             "--skip-build",

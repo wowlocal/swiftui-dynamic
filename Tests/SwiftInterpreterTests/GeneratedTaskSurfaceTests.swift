@@ -519,6 +519,7 @@ struct GeneratedTaskSurfaceTests {
         let output = Pipe()
         let error = Pipe()
         process.executableURL = URL(fileURLWithPath: executable)
+        process.standardInput = FileHandle.nullDevice
         process.arguments = arguments
         process.standardOutput = output
         process.standardError = error

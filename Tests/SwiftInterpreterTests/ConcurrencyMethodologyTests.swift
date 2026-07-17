@@ -2933,6 +2933,11 @@ struct ConcurrencyMethodologyTests {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        // Child processes must not inherit the test worker's stdin
+        // pipe: under swiftpm-testing-helper's parallel workers the
+        // pipe never closes and a child that reads stdin blocks the
+        // worker forever (the gate's ~89-test deadlock).
+        process.standardInput = FileHandle.nullDevice
         process.arguments = [
             Self.packageRoot.appendingPathComponent("Scripts/gate.sh").path,
         ]
@@ -3198,6 +3203,11 @@ struct ConcurrencyMethodologyTests {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        // Child processes must not inherit the test worker's stdin
+        // pipe: under swiftpm-testing-helper's parallel workers the
+        // pipe never closes and a child that reads stdin blocks the
+        // worker forever (the gate's ~89-test deadlock).
+        process.standardInput = FileHandle.nullDevice
         process.arguments = [
             Self.packageRoot.appendingPathComponent("Scripts/gate.sh").path,
         ]
@@ -3309,6 +3319,11 @@ struct ConcurrencyMethodologyTests {
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ruby")
+        // Child processes must not inherit the test worker's stdin
+        // pipe: under swiftpm-testing-helper's parallel workers the
+        // pipe never closes and a child that reads stdin blocks the
+        // worker forever (the gate's ~89-test deadlock).
+        process.standardInput = FileHandle.nullDevice
         process.arguments = [
             Self.packageRoot.appendingPathComponent(
                 "Scripts/validate-concurrency-parity-summaries.rb").path,
@@ -3362,6 +3377,11 @@ struct ConcurrencyMethodologyTests {
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ruby")
+        // Child processes must not inherit the test worker's stdin
+        // pipe: under swiftpm-testing-helper's parallel workers the
+        // pipe never closes and a child that reads stdin blocks the
+        // worker forever (the gate's ~89-test deadlock).
+        process.standardInput = FileHandle.nullDevice
         process.arguments = [
             Self.packageRoot.appendingPathComponent(
                 "Scripts/validate-focused-parity-summaries.rb").path,
@@ -3396,6 +3416,11 @@ struct ConcurrencyMethodologyTests {
     ) throws -> ValidatorProcessResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ruby")
+        // Child processes must not inherit the test worker's stdin
+        // pipe: under swiftpm-testing-helper's parallel workers the
+        // pipe never closes and a child that reads stdin blocks the
+        // worker forever (the gate's ~89-test deadlock).
+        process.standardInput = FileHandle.nullDevice
         process.arguments = [
             Self.packageRoot.appendingPathComponent(
                 "Scripts/validate-concurrency-capability-accounting.rb").path,

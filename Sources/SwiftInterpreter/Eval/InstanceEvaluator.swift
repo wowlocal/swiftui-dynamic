@@ -1102,6 +1102,20 @@ extension Interpreter {
         return found
     }
 
+    /// Overload fallback for a marker call against a host-type EXTENSION:
+    /// when no declared overload matches the call shape and the HOST can
+    /// serve the member, defer to the host — native overload resolution
+    /// reaches past the module extension (`Double.random(in:using:)` with
+    /// a 1-arg program shadow picks the stdlib). Only a host miss keeps
+    /// the historical force-first behavior for label-lenient user code.
+    private func extensionFallback(
+        _ overloads: [FunctionDeclSyntax], member: String, typeName: String
+    ) -> FunctionDeclSyntax? {
+        let hostServes = ((try? readHostMember(
+            member, on: HostTypeMarker(name: typeName))) ?? nil) != nil
+        return hostServes ? nil : overloads.first
+    }
+
     func resolveAnnotated(_ value: RuntimeValue, typeName rawName: String) throws -> RuntimeValue {
         // Cyclic marker graphs (lazy-global cycles can weave a chain whose
         // base reaches itself) must not recurse the native stack to death:
@@ -1319,7 +1333,8 @@ extension Interpreter {
             }
             if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                let overloads = hostSymbol.staticMethods[call.name],
-               let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,
+               let method = chooseFunction(from: overloads, for: call.arguments)
+                   ?? extensionFallback(overloads, member: call.name, typeName: typeName),
                let body = method.body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))
@@ -1401,7 +1416,8 @@ extension Interpreter {
             }
             if case .host(let any) = value, let call = any as? ImplicitMemberCall,
                let overloads = hostSymbol.staticMethods[call.name],
-               let method = chooseFunction(from: overloads, for: call.arguments) ?? overloads.first,
+               let method = chooseFunction(from: overloads, for: call.arguments)
+                   ?? extensionFallback(overloads, member: call.name, typeName: typeName),
                let body = method.body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: selfEnvironment(.type(hostSymbol)))

@@ -153,6 +153,12 @@ public final class Interpreter {
     /// explicit `InterpreterBuildConfiguration`. Target-manifest callers use
     /// immutable per-instance build identity instead.
     public static var interpretsAsPlatform = "iOS"
+    /// When the PROGRAM shadows `Date.now` (`extension Date { static var
+    /// now }` — the frozen-clock harness), bridge coercions that must
+    /// resolve a bare `.now` marker in Date positions consult this instead
+    /// of the wall clock, honoring the same-module shadowing rule at every
+    /// boundary. Set per run by ProgramEvaluator; nil = wall clock.
+    public static var ambientDateNowProvider: (() -> Date)?
     /// RNG_TRACE diagnostics only.
     public static var rngDrawCount = 0
     /// Number of large finite loops prepared by this interpreter instance.

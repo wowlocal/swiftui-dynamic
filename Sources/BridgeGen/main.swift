@@ -129,6 +129,7 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "UnitPoint": return .init(tag: "unitPoint", cast: "%@ as! UnitPoint")
     case "ContentMode": return .init(tag: "contentMode", cast: "%@ as! ContentMode")
     case "Image.Scale": return .init(tag: "imageScale", cast: "%@ as! Image.Scale")
+    case "SymbolRenderingMode": return .init(tag: "symbolRenderingMode", cast: "%@ as! SymbolRenderingMode")
     case "Visibility": return .init(tag: "visibility", cast: "%@ as! Visibility")
     case "Axis.Set": return .init(tag: "axisSet", cast: "%@ as! Axis.Set")
     case "EdgeInsets": return .init(tag: "edgeInsets", cast: "%@ as! EdgeInsets")
@@ -896,12 +897,20 @@ let memberTypes: Set<String> = [
     "DateComponents", "DateInterval", "URLComponents", "URLQueryItem",
     "URLRequest", "CharacterSet", "IndexSet",
     "Decimal", "IndexPath", "PersonNameComponents",
+    // Charts value-plane carrier (swept from the Charts swiftinterface):
+    // interpreted axis builders hand its thresholds straight back to real
+    // AxisMarks. NumberBins stays out — it is generic over Value.
+    "DateBins",
 ]
 
 /// Protocol extensions serve their CONCRETE runtime carriers: the
 /// interpreter's numeric payloads are Int and Double, so members Foundation
 /// publishes on the numeric protocols (`formatted()` and the FormatStyle
 /// family) register once per carrier the dispatch can actually receive.
+/// While sweeping a protocol extension for a concrete carrier, `Self`
+/// params/returns mean the carrier (`isMultiple(of other: Self)`).
+var currentSelfCarrier: String?
+
 let protocolReceivers: [String: [String]] = [
     "BinaryInteger": ["Int"],
     "SignedInteger": ["Int"],
@@ -911,6 +920,9 @@ let protocolReceivers: [String: [String]] = [
 ]
 
 func memberMapping(for normalized: String) -> TypeMapping? {
+    if normalized == "Self", let carrier = currentSelfCarrier {
+        return memberMapping(for: carrier)
+    }
     switch normalized {
     case "String", "StringProtocol": return .init(tag: "string", cast: "%@ as! String")
     case "Bool": return .init(tag: "bool", cast: "%@ as! Bool")
@@ -1090,7 +1102,9 @@ func processMemberFunction(_ typeName: String, _ function: FunctionDeclSyntax, g
                 .init(
                     label: $0.label, tag: $0.mapping!.tag,
                     cast: $0.mapping!.cast,
-                    contractType: $0.contractType!)
+                    // Protocol-receiver expansion: `Self` params contract
+                    // as the concrete carrier (Int.isMultiple(of: Int)).
+                    contractType: $0.contractType == "Self" ? typeName : $0.contractType!)
             }
         )
         if memberMethodSeen.insert(variant.key).inserted {
@@ -1107,9 +1121,14 @@ func processMemberProperty(_ typeName: String, _ variable: VariableDeclSyntax, g
     let name = pattern.identifier.text
     guard !name.hasPrefix("_") else { return }
     memberPropertyTotal += 1
-    guard let rawType = binding.typeAnnotation?.type.trimmedDescription else {
+    guard var rawType = binding.typeAnnotation?.type.trimmedDescription else {
         memberBlockers["untyped property", default: 0] += 1
         return
+    }
+    if normalize(rawType) == "Self", currentSelfCarrier != nil {
+        // Protocol-receiver expansion: Self-typed properties contract as
+        // the concrete carrier (Int.bigEndian: Int).
+        rawType = typeName
     }
     if rawType.contains("some ") {
         memberBlockers["opaque property", default: 0] += 1
@@ -1152,10 +1171,11 @@ let foundationFile: SourceFileSyntax? = {
     return Parser.parse(source: source)
 }()
 
-if let foundationFile {
-    for statement in foundationFile.statements {
+func sweepMemberFile(_ file: SourceFileSyntax) {
+    for statement in file.statements {
         guard case .decl(let decl) = statement.item else { continue }
         var typeNames: [String] = []
+        var isProtocolExpansion = false
         var members: MemberBlockItemListSyntax?
         var guarded = false
         if let structDecl = decl.as(StructDeclSyntax.self),
@@ -1170,6 +1190,7 @@ if let foundationFile {
                 typeNames = [extended]
             } else if let carriers = protocolReceivers[extended] {
                 typeNames = carriers
+                isProtocolExpansion = true
             }
             if !typeNames.isEmpty {
                 members = ext.memberBlock.members
@@ -1178,6 +1199,7 @@ if let foundationFile {
         }
         guard !typeNames.isEmpty, let members else { continue }
         for typeName in typeNames {
+            currentSelfCarrier = isProtocolExpansion ? typeName : nil
             for member in members {
                 if let function = member.decl.as(FunctionDeclSyntax.self), memberIsUsable(function.attributes) {
                     processMemberFunction(typeName, function, guarded: guarded)
@@ -1185,8 +1207,51 @@ if let foundationFile {
                     processMemberProperty(typeName, variable, guarded: guarded)
                 }
             }
+            currentSelfCarrier = nil
         }
     }
+}
+
+if let foundationFile {
+    sweepMemberFile(foundationFile)
+}
+
+// The STDLIB owns the numeric protocol surface (isMultiple(of:), …);
+// Foundation only ADDS formatted(). Same sweep, same receiver gates.
+let stdlibFile: SourceFileSyntax? = {
+    let moduleDir = "\(sdk)/usr/lib/swift/Swift.swiftmodule"
+    let candidates = ((try? FileManager.default.contentsOfDirectory(atPath: moduleDir)) ?? [])
+        .filter { $0.hasSuffix("-apple-macos.swiftinterface") }
+        .sorted()
+    let architecturePrefix = hostArchitecture == "arm64" ? "arm64" : hostArchitecture
+    guard let name = candidates.first(where: { $0.hasPrefix(architecturePrefix) }) ?? candidates.first,
+          let source = try? String(contentsOfFile: "\(moduleDir)/\(name)", encoding: .utf8) else {
+        print("warning: no swiftinterface for the Swift stdlib")
+        return nil
+    }
+    print("parsing Swift stdlib (\(source.count) chars)…")
+    return Parser.parse(source: source)
+}()
+
+if let stdlibFile {
+    sweepMemberFile(stdlibFile)
+}
+
+// Charts owns the axis value-plane carriers (DateBins/NumberBins) —
+// interpreted axis builders read `.thresholds` and hand the dates back
+// to real AxisMarks. Same sweep, same receiver gates.
+let chartsFile: SourceFileSyntax? = {
+    guard let path = interfacePath(framework: "Charts"),
+          let source = try? String(contentsOfFile: path, encoding: .utf8) else {
+        print("warning: no swiftinterface for Charts")
+        return nil
+    }
+    print("parsing Charts (\(source.count) chars)…")
+    return Parser.parse(source: source)
+}()
+
+if let chartsFile {
+    sweepMemberFile(chartsFile)
 }
 
 // MARK: - Report
@@ -1504,11 +1569,21 @@ print("wrote \(enumsPath) (\(emittedSDKEnumTypes.count) enum types)")
 
 // MARK: - Emit members
 
+/// Array-typed contracts box element-wise into the interpreter's array
+/// plane (`DateBins.thresholds`); every other return keeps its host
+/// typing. The choice is made HERE at emit time — a type-directed
+/// overload would re-rank member resolution inside the emitted closures
+/// (Sequence.dropLast beating IndexPath.dropLast).
+func memberResultCall(_ returnType: String) -> String {
+    returnType.hasPrefix("[") && returnType.hasSuffix("]") && !returnType.contains(":")
+        ? "generatedMemberArrayResult" : "generatedMemberResult"
+}
+
 func memberPropertyCode(_ property: MemberProperty) -> String {
     if property.isSettable {
         return """
             registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get set }", get: { base in
-                (base as? \(property.type)).map { generatedMemberResult($0.\(property.name)) }
+                (base as? \(property.type)).map { \(memberResultCall(property.returnType))($0.\(property.name)) }
             }, mutate: { base, newValue in
                 guard var copy = base as? \(property.type) else {
                     throw RuntimeError(message: "generated \(property.type).\(property.name) mutation received the wrong receiver", fatal: true)
@@ -1520,7 +1595,7 @@ func memberPropertyCode(_ property: MemberProperty) -> String {
     }
     return """
             registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get }", get: { base in
-                (base as? \(property.type)).map { generatedMemberResult($0.\(property.name)) }
+                (base as? \(property.type)).map { \(memberResultCall(property.returnType))($0.\(property.name)) }
             })
     """
 }
@@ -1542,7 +1617,7 @@ func memberMethodCode(_ variant: MemberVariant) -> String {
         .joined(separator: ", ")
     return """
             registerMethod(&t, "\(declaration)", [\(specs)]) { base, v in
-                generatedMemberResult((base as! \(variant.type)).\(variant.name)(\(argList)))
+                \(memberResultCall(variant.returnType))((base as! \(variant.type)).\(variant.name)(\(argList)))
             }
     """
 }
@@ -1560,6 +1635,7 @@ var membersOutput = """
 // GENERATED by BridgeGen from the SDK's Foundation swiftinterface.
 // Do not edit. Regenerate: swift run BridgeGen --emit
 // \(sortedProperties.count) properties + \(sortedMembers.count) method variants across \(memberTypes.sorted().joined(separator: ", ")).
+import Charts
 import Foundation
 import SwiftInterpreter
 
@@ -1668,6 +1744,8 @@ let seedIndexSet = IndexSet([1, 2, 3, 9])
 let seedDecimal = Decimal(string: "3.14159")!
 let seedIndexPath = IndexPath(indexes: [1, 3])
 let seedPersonName = PersonNameComponents(givenName: "Ada", familyName: "Lovelace")
+let seedInt = 42
+let seedDouble = 3.5
 """
 
 let seedReceivers: [String: String] = [
@@ -1678,6 +1756,8 @@ let seedReceivers: [String: String] = [
     "URLRequest": "seedRequest", "CharacterSet": "seedCharset", "IndexSet": "seedIndexSet",
     "Decimal": "seedDecimal", "IndexPath": "seedIndexPath",
     "PersonNameComponents": "seedPersonName",
+    // Protocol-receiver carriers (the stdlib sweep's Int/Double surface).
+    "Int": "seedInt", "Double": "seedDouble",
 ]
 
 func probeArgument(for tag: String) -> String? {

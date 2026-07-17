@@ -507,6 +507,13 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         // the storage is fresh-store results: empty (same doctrine as the
         // wrapper flatten).
         return HostFunction(name: name) { _, _ in .native([RuntimeValue]()) }
+    case "LocalizedStringKey":
+        // The merged model has no string catalogs: a key IS its literal
+        // text (the String(localized:) doctrine) — `Text(.init(donut.name))`
+        // renders the name instead of absorbing.
+        return HostFunction(name: name) { args, _ in
+            .native(args.positional(0)?.stringValue ?? "")
+        }
     case "ProposedViewSize":
         return HostFunction(name: name) { args, _ in
             if case .host(let any)? = args.positional(0), let size = any as? CGSize {
@@ -547,6 +554,8 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
                 height: try Coerce.cgFloat(args.labeled("height") ?? .native(0))
             ))
         }
+    case "ViewSpacing":
+        return HostFunction(name: name) { _, _ in .native(ViewSpacing()) }
     case "UnitPoint":
         return HostFunction(name: name) { args, _ in
             .native(UnitPoint(
@@ -626,7 +635,10 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         // now (bindings are reconstructed every render pass, so the snapshot
         // refreshes per pass); writes call set(newValue).
         return HostFunction(name: name) { args, ctx in
-            let get = args.closure(labeled: "get")
+            // Both spellings: Binding(get:set:) and the trailing form
+            // `Binding<Order> { self.orders[i] } set: { ... }` (FoodTruck's
+            // orderBinding).
+            let get = args.closure(labeled: "get") ?? args.firstUnlabeledClosure
             let set = args.closure(labeled: "set")
             // `Binding<Loadable<String>>(get:set:)` — the generic argument
             // is the Value type: get() results and written values resolve
@@ -779,7 +791,9 @@ func modelFetchTypeName(from descriptor: RuntimeValue) -> String? {
 
 private func dateArg(_ value: RuntimeValue?) -> Date? {
     if case .host(let any)? = value, let date = any as? Date { return date }
-    if case .implicitMember("now")? = value { return Date() }
+    if case .implicitMember("now")? = value {
+        return Interpreter.ambientDateNowProvider?() ?? Date()
+    }
     // `to: .init()` — a bare Date construction in date position.
     if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
         if let interval = call.arguments.labeled("timeIntervalSince1970")?.doubleValue {
@@ -935,6 +949,7 @@ func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let style = styleHostMember(name, on: value) { return style }
     if let column = tableColumnSpecMember(name, on: value) { return column }
     if let chart = chartContentMember(name, on: value) { return chart }
+    if let axis = axisValueMember(name, on: value) { return axis }
     if let container = value as? ModelContainerBox {
         if name == "mainContext" { return .native(container.context) }
         return nil

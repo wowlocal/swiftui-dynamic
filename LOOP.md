@@ -1477,3 +1477,365 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   class is staked: the AxisMarks/AxisValueLabel/AxisTick/AxisGridLine/
   DateBins axis DSL, plus the annotation icons and the masked-band
   color). Pin: EnvironmentalServiceTests (throw + catch keeps state).
+- 2026-07-17 CHART AXIS DSL + stdlib sweep (worktree iteration 7):
+  truck/detail-truck **11.889% → 4.336%** — the completing class landed.
+  Two roots: (1) the axis DSL is bridged through the ChartsBridge
+  magic-tier gateway — DateBins(unit:by:range:) (real, ClosedRange
+  Date), AxisMarks (values array / .automatic(minimumStride:
+  desiredCount:roundLowerBound:)), AxisValueLabel (string +
+  format: .dateTime chains), AxisTick/AxisGridLine, composed via
+  AnyAxisMark(erasing: AxisMarkBuilder.buildBlock(...)) count-switch;
+  the per-value content closure runs INTERPRETED through an
+  AxisMarksSpec carrier (InterpretedLayout pattern — Charts calls it at
+  layout), with AxisValue.as(Double/Int/Date/String) host members.
+  (2) binRange's `first(where:)!` returned nil because Int.isMultiple
+  (of:) was UNBRIDGED — a STDLIB protocol-extension member: BridgeGen
+  now sweeps the Swift stdlib swiftinterface with the same
+  protocol-receiver expansion (Self params/returns resolve to the
+  concrete carrier in both mapping and contract). The forecast card
+  now renders hour labels, °F labels, gradient curve, night band —
+  near twin-identical. Same-day board (twin refreshed; the frozen
+  clock shadows Date.now but Calendar.isDateInToday compares REAL
+  now, so cross-day twin captures go stale — documented): truck/
+  detail-truck 4.336%, orders family 0.777-0.869%, orders-after-steps
+  3.144%, donuts 1.041% (+0.6pp residual, staked), card-orders
+  2.385%, socialfeed 17.155%, content 26.201%, four AE=0 rows hold.
+  Remaining truck residue: pillar .shadow(.drop) style + annotation
+  icons. Pins: InterpretedChartTests.customAxisBuildersRender
+  InterpretedLabels (pixel), StdlibNumericMemberTests.
+- 2026-07-17 gate note (same iteration): the closing gate reads RED on
+  the corpus floor (674/680) — the four new failures (CotEditor,
+  kiwix-apple, element-x-ios, Provenance) all throw "isolated/MainActor
+  deinitializer requires executor-owned teardown, not supported yet",
+  from the concurrency lane's staged fail-closed deinit commits
+  (55e38b0/b15585e/ea22b3a) inherited at iteration-start merge;
+  suite/live/parity and all lane pins are green. Close-merge DEFERRED
+  per worktree protocol until the upstream class lands its
+  implementation and the floor recovers.
+- 2026-07-17 socialfeed FlowLayout class (worktree iteration 8):
+  **17.155% → 10.789%** — the tag pills flow. Three interpreter
+  semantics gaps, bisected with PLACE/SIZEQ traces and distilled
+  probes, every fix core/shared-tier: (1) LOCAL FUNCTIONS HOIST —
+  FlowResult's for-loop calls finalizeRow/addToRow declared AFTER it;
+  executeBlock now binds function decls up front (closures capture the
+  environment OBJECT, so later vars resolve at call time). (2) stdlib
+  `zip` — `for (index, subview) in zip(subviews.indices, subviews)`
+  silently absorbed to zero iterations; a zip builtin pairs runtime
+  sequences (arrays/ranges/strings) as unlabeled tuples. (3) the
+  native factory now bridges CGFloat/Float into .double as its own doc
+  comment promised — ViewSpacing.distance returned a host CGFloat that
+  `'+' cannot combine 95.5 and 8.0` refused (the error that named the
+  class). Plus the Layout gateway grew its documented ViewSpacing face
+  (LayoutSubviewBox.spacing, ViewSpacing() ctor,
+  distance(to:along:)). Remaining socialfeed residue: donut/city pill
+  thumbnails (placeholder squares), post avatar circles. Pins:
+  InterpreterScopeAndSequenceTests (hoisting + self-mutation, zip
+  tuples, nested-row build). Upstream corpus floor still 674/680
+  (isolated-deinit staging) — close-merge remains deferred.
+- 2026-07-17 socialfeed pills COMPLETE (worktree iteration 9):
+  **socialfeed 10.789% → 0.393%, truck 4.336% → 1.998%** (the truck's
+  social card body rides the same fix). The pill texts were init
+  markers: `var title: LocalizedStringKey { .init(donut.name) }` — a
+  computed property returning `.init(…)`. Three-piece fix, all
+  doctrine-tier: (1) LocalizedStringKey host ctor — a key IS its
+  literal text in the merged model (String(localized:) doctrine);
+  (2) computed-property markers now CARRY the property's declared type
+  as their typeHint (the laziness contract said "resolve at the
+  dispatch boundary" but a hintless marker never could); (3) the REAL
+  Text gateway resolves hinted markers via resolveForBridge before the
+  fresh-string doctrine blanks them. Board: content 25.806% (the last
+  big row — twin-side blank sidebar policy; detail-* rows are the
+  sanctioned per-panel comparison), donuts 1.041%, orders 0.777%,
+  card-orders 2.385%, card-donuts/donut-view 0.000%. Pins:
+  ComputedMarkerHintTests (typed marker + Text-boundary resolution +
+  key ctor). Upstream deinit floor still holds three lane commits
+  unmerged.
+- 2026-07-17 gate note (same iteration): the closing gate's suite
+  stage hangs REPRODUCIBLY at the upstream
+  requiredModeRejectsExternalActor{ComputedSetter,SubscriptSetter}
+  BeforeMutation pair (both at 0% CPU after ~89 passes; the pair
+  passes together standalone in 1.5s — a worker-parallelism deadlock
+  only under the gate's helper). Corpus RECOVERED upstream to
+  678/680; live 5/5; parity 345/0/0; the full standalone suite
+  passed 1029/1029 this session. Close-merge still deferred pending
+  one clean gate; the exact pair is flagged to the concurrency lane
+  in claims. Five lane commits queue: frozen clock, Charts gateway,
+  axis DSL + stdlib sweep, FlowLayout semantics, socialfeed pills.
+- 2026-07-17 gate-deadlock DIAGNOSED (worktree iteration 10, diagnosis
+  iteration): the suite stage's reproducible hang is the upstream
+  requiredModeRejectsExternalActor{ComputedSetter,SubscriptSetter}
+  BeforeMutation tests spawning Scripts/
+  validate-concurrency-parity-summaries.rb — the ruby child blocks at
+  0% CPU (stdin pipe never closes under swiftpm-testing-helper's
+  parallel workers) and the test's waitUntilExit stalls both workers
+  after ~89 passes. Reproduced OUTSIDE the gate with the exact helper
+  invocation; the pair passes together standalone in 1.5s. The fix
+  belongs to the concurrency lane (their tests + validator script);
+  the mechanism is posted in claims. Five lane commits remain queued
+  for one clean gate.
+- 2026-07-17 gate deadlock FIXED (worktree iteration 11): every test
+  Process spawn now sets standardInput = FileHandle.nullDevice — the
+  ruby validator child inherited the parallel worker's never-closing
+  stdin pipe and waitUntilExit pinned both workers (~89 tests in).
+  With the fix the suite RUNS TO COMPLETION under the gate (1064
+  tests in 413s). One NEW failure surfaced and is attributed
+  upstream: sessionScriptToleranceIntervalsAndAppending (top-level
+  fatalError tolerance for merged tooling scripts) passes at lane
+  ffedc48 and fails after merge 6909753 brought the concurrency
+  lane's AsyncThrowingStream/actor series — flagged in claims. The
+  six-commit queue still awaits one clean gate.
+- 2026-07-17 upstream regression BISECTED (worktree iteration 12):
+  sessionScriptToleranceIntervalsAndAppending fails from commit
+  25ad8db "Correct AsyncStream producer ownership" (weak storage on
+  producer handles — RuntimeAsyncStream.swift, 22 source lines);
+  passes at its parent. git-bisect-run verified, standalone repro
+  posted in claims for the concurrency lane. The lane queue (six
+  commits: frozen clock, Charts gateway, axis DSL + stdlib sweep,
+  FlowLayout semantics, socialfeed pills, gate stdin fix) remains
+  ready for one clean gate; the FoodTruck board stands at four AE=0
+  screens, socialfeed 0.393%, truck 1.998%, orders 0.777%, donuts
+  1.041%, card-orders 2.385%.
+- 2026-07-17 tile outlines land (worktree iteration 13): strokeBorder
+  was entirely unbridged (the tiles' hairline outline silently
+  absorbed). A centered-stroke approximation measured WORSE than blank
+  (AA at 0.5pt); the REAL InsettableShape inside-stroke is retained at
+  ShapeBox construction (`init(insettable:)` keeps a strokeBorder
+  painter closure — erasure loses the conformance) and the five
+  insettable constructors route through it. Board: **card-orders
+  2.385%→0.168%, truck 1.998%→1.400%, orders 0.777%→0.492%, socialfeed
+  0.393%→0.472%** (tiny AA shift from strokes now present, accepted),
+  donuts 1.041%, content 25.979% (twin-side sidebar policy), four
+  AE=0 rows hold. Upstream tolerance regression (25ad8db) still
+  blocks the gate; queue is seven commits. Pin: StrokeBorderTests
+  (inside-ink present, no outside leak, unfilled center).
+- 2026-07-17 tolerance contract reconciled (worktree iteration 14): the
+  25ad8db regression root was the located-rewrap invariant ("runtime
+  traps stay fatal across gateway boundaries") colliding with the
+  script-tolerance contract that had relied on the accidental
+  fatal-flag drop. Reconciled: stack-guard trips now carry budgetTrip
+  (they are resource trips, same family as the step budget), and the
+  ProgramEvaluator top-level script arm tolerates trap errors by
+  keying on !budgetTrip instead of !fatal — traps stay fatal at every
+  gateway boundary, the documented top-level script exception holds,
+  and budget/stack trips still abort. sessionScriptTolerance +
+  runawayRecursion both green. REMAINING upstream blocker, proven on a
+  pristine main merge: activeInterfaceAliasesResolveToRuntimeIntrinsics
+  fails on PURE MAIN (the committed runtime/generator emit checked-
+  continuation dispatch entries, the committed test expects 13 without
+  them, and the checked-continuation registration path SIGTRAPs — the
+  half-landed c7e1f14/6d2f294 series). Two convergence attempts hit
+  their protective traps; theirs to complete. Lane queue: nine commits.
+- 2026-07-17 R3 spec enforcement lands and CATCHES REAL GAPS (worktree
+  iteration 15): foodtruck-r3.sh now enforces the spec — per-capture
+  FLOORS (ratcheted from the current board + headroom) and the
+  CHANGED-GUARD with disagreement semantics (one side re-renders the
+  mutation, the other does not; both-zero = agreement, e.g. donut-view
+  shows art, not the renamed label). First enforced board: 8/10
+  scenarios green within floors; the guard EXPOSED two interp-side
+  function no-ops — orders-after-preparing (twinΔ 0.092, interpΔ 0)
+  and orders-after-steps (twinΔ 2.367, interpΔ 0):
+  `model.orderBinding(for:).wrappedValue.markAsPreparing()/.markAsComplete()`
+  mutations do not re-render, while the direct model-method route
+  (markOrderAsCompleted) does — the Binding wrappedValue
+  mutating-method write-back class, STAKED as the next iteration's
+  work. The board script exits nonzero on the gaps, as the spec
+  demands. Upstream checked-continuation half-landing still blocks the
+  gate (their new Void-resume commit landed; the test-update commit
+  has not).
+- 2026-07-17 **R3 COMPLETE — all ten scenarios green** (worktree
+  iteration 16): the guard-caught class was one line — the
+  Binding(get:set:) gateway only accepted a LABELED get closure, so
+  the Kit's trailing form `Binding<Order> { … } set: { … }`
+  (orderBinding) seeded the box with VOID and
+  `wrappedValue.markAsPreparing()` had nothing to land on. With the
+  trailing get accepted, the status mutations render and the enforced
+  board reads: donuts-after-rename 1.067%, donut-view-after-rename
+  0.000%, orders-after-complete/preparing/steps 0.492%,
+  donuts-after-popularity 1.041%, card-donuts-after-popularity 0.000%,
+  detail-truck 1.400%, detail-orders 0.492%, detail-donuts 1.041% —
+  ALL within floors, ALL mutations visible (changed-guard green). The
+  ladder now stands R0 ✓, R1 9/9 ✓, R2 at floors (4× AE=0), R3 ✓ per
+  the spec's model-API protocol. Pin: BindingTrailingGetTests. Next:
+  R4 residue burn-down (donuts 1.04%, truck 1.40% annotation icons)
+  and the interactive `--project` launch; the gate still awaits the
+  upstream checked-continuation completion.
+- 2026-07-17 **THE APP RUNS** (worktree iteration 17): `swift run
+  DynamicSwiftUIDemo --project Examples/
+  FoodTruckBuildingASwiftUIMultiplatformApp --platform macOS` launches
+  a LIVE interactive window — the interpreted Food Truck renders its
+  full sidebar (Truck/Orders/Social Feed/Sales History, Donuts,
+  Cities), the New Orders card (hero + 2×2 tiles + Order#1201 12), and
+  the Forecast chart (gradient curve, night band, hour + °F axes)
+  inside a real NSWindow, correctly adapted to the system DARK
+  appearance (hierarchical styles resolving against the live window —
+  incidental proof the style pipeline is real, not baked). Evidence:
+  Docs/evidence-foodtruck-live-window-2026-07-17.png, captured by a
+  new env-gated harness hook (DYNAMIC_DEMO_SELF_CAPTURE writes the
+  live window's contentView bitmap after settle and keeps running) —
+  this session lacks screen-recording access, so the app self-reports.
+  The RUN-THE-APP north star is standing: R0–R3 green ladder + a
+  usable interactive window. Remaining: R4 pixel residue, click-driven
+  interaction sweeps, and the upstream checked-continuation completion
+  that still gates the eleven-commit merge.
+- 2026-07-17 donuts-gallery residue diagnosed to the data (worktree
+  iteration 18): the 1.041% donuts row is a SORT-ORDER divergence of
+  two adjacent pairs (Cosmos/Picnic Basket, Nighttime/Strawberry
+  Sprinkles) in DonutGallery's default `.popularity(.week)` sort. The
+  interpreted sort and dictionary machinery are CORRECT (distilled
+  probe passes; month sales match; comparator deterministic): the
+  divergence is in the WEEK sales data itself — interp cosmos=218/
+  picnic=216 and sprinkles=94/nighttime=93, while the twin's implied
+  ordering requires the opposite by 1-2 counts. Orders are verified
+  identical order-for-order (RNG parity), so the residual stream is
+  the SALES-HISTORY generation tail (a different seeded path than
+  todaysOrders). STAKED: diff the sales-history stream via RNG_TRACE
+  + a twin dump extension, the way the orders stream was aligned on
+  07-11. Upstream checked-continuation completion still gates the
+  merge queue (fourteen commits).
+- 2026-07-17 sales-stream suspects narrowed (worktree iteration 19):
+  pow is BIT-EXACT against libm (pinned: PowBitExactTests), dates and
+  the weekend multiplier are frozen-deterministic, and the summary
+  union machinery is proven. The 1-2 count week drift therefore lives
+  in the per-city seeded sequence of historicalDailyOrders — the
+  14-donut shuffled(using:) order or the per-day Double.random draw
+  sequence over city seeds (a longer stream than the pinned orders
+  case). STAKED with the method: RNG_TRACE both sides + a twin dump of
+  the per-city day-one sales vector, then align draw-by-draw as on
+  07-11. Upstream: the checked-continuation series continues
+  (throwing-MainActor characterization landed); the alias-test
+  completion still gates the fifteen-commit merge queue.
+- 2026-07-17 donuts residue ELIMINATED (worktree iteration 20):
+  **donuts 1.041% → 0.437%, detail-donuts likewise** — the entire
+  +0.6pp drift was ONE wall-clock leak. The stream diff (twin
+  TWIN-HISTORY dump + interp day-0 vector probe) showed Cupertino's
+  day-0 sales scaled by EXACTLY 1.25 — the weekend multiplier — and
+  the chain probe isolated it: `startOfDay(for: .now)` resolves the
+  bare `.now` ARGUMENT marker through the bridge's dateArg, which
+  hardcoded the WALL clock (`Date()`), bypassing the program's frozen
+  `extension Date { static var now }` shadow; day-60 landed on Monday
+  instead of Sunday. Fix: Interpreter.ambientDateNowProvider —
+  installed per run when the program shadows Date.now (both
+  ProgramEvaluator entries), consulted by dateArg's `.now` arm — the
+  shadowing rule now holds in Date ARGUMENT positions too. pow was
+  cleared bit-exact en route (pinned). Board: donuts/detail-donuts
+  0.437%, R3 all green, four AE=0 rows hold. Pins:
+  AmbientDateNowTests (chain stamp + weekend parity vs native), twin
+  TWIN-HISTORY dump kept as harness. Remaining R4 residue: truck
+  1.400% (annotation icons + pillar shadow), socialfeed 0.472%,
+  orders 0.492%, card-orders 0.168%. Upstream alias-test completion
+  still gates the sixteen-commit merge.
+- 2026-07-17 symbolRenderingMode joins the generated tier (worktree
+  iteration 21): the annotation-icon chain's missing link —
+  `.symbolRenderingMode(.palette)` was unbridged because
+  SymbolRenderingMode (a static-constant struct, not an enum) wasn't in
+  BridgeGen's modifier param whitelist. Added the mapping + ParamTag +
+  marker coercion (palette/hierarchical/multicolor/monochrome);
+  regenerated (501 modifier variants). Truck holds 1.400% — the icons
+  STILL don't paint despite the chain now resolving and the annotation
+  arm running without diagnostics; restaked with the next probe:
+  annotation-in-isolation through the ChartsBridge arm (suspects: the
+  omitted alignment parameter, or views.first coming up empty in the
+  annotation builder). The `.shadow(.drop)` pillar style remains the
+  other truck residue. Upstream alias-test completion still gates the
+  seventeen-commit merge.
+- 2026-07-17 annotation icon narrowed to the palette layers (worktree
+  iteration 22): the isolation probe (diag-annotation) proves the
+  annotation ARM works — the icon is placed at the pillar top — but it
+  paints ALL-WHITE (visible only as a gap across the gridline): the
+  palette two-layer styling isn't taking effect, so
+  foregroundStyle(.white, .indigo) shows only the primary white layer.
+  Suspects, in order: the env-propagated symbolRenderingMode not
+  reaching the descendant Image through the AnyView wrapping, or the
+  generated two-arg foregroundStyle applying to the wrapper instead of
+  the symbol layers. Next probe: palette variants side-by-side
+  (.multicolor, plain .foregroundStyle(.indigo), unwrapped Image).
+  Upstream alias-test completion still gates the eighteen-commit
+  merge.
+- 2026-07-17 palette layers + deterministic .random (worktree iteration
+  23, two classes closed): (1) the handwritten foregroundStyle gateway
+  was shadowing the generated arity-1/2/3 variants and dropping the
+  secondary style — deleted per bridge policy, palette annotation
+  icons paint, truck ratchets 1.400% -> 1.330% (pinned:
+  paletteSymbolPaintsSecondaryStyleLayer). (2) socialfeed's residue
+  was UNSEEDED randomness: SocialFeedContent's `-60 * .random(in:
+  5...30)` rolled fresh post minutes every run on both sides, making
+  the floor bounce and R4's AE=0 impossible. Fixed with the frozen-
+  clock doctrine: both harness shims (twin sync.sh + FoodTruckCheck
+  merge) now inject an env-gated `extension Double { static func
+  random(in:) }` LCG shadow. Interpreter work to honor it faithfully:
+  adoptNumericFactoryMarker promotes an Int-literal peer family to a
+  program Double shadow (native contextual typing); host-extension
+  static METHOD sets dispatch at INVOKE time with a label-subset
+  shape check so the seeded `.random(in:using:)` spellings (qualified
+  AND marker forms — OrderGenerator) resolve past the 1-arg shadow to
+  the stdlib exactly like native overload resolution
+  (hostExtensionStaticMethodDispatcher in MemberEvaluator;
+  extensionFallback in resolveAnnotated). Socialfeed 0.472% -> 0.166%
+  and BIT-DETERMINISTIC across runs; R3 board all ten green; R2
+  ratchet now: donut-view 0, card-donuts 0, card-orders 0.168,
+  socialfeed 0.166, donuts 0.437, orders 0.492, truck 1.330, content
+  26.023 (documented twin-side artifact). Pins:
+  interpretedStaticFuncShadowResolvesImplicitMemberCalls (shadow via
+  qualified + implicit-in-context paths, Foundation-bit-exact Date
+  round-trip, seeded spellings bypass). Upstream alias test STILL red
+  on lane tip (runtime emits 13 intrinsics, test wants the checked-
+  continuation pair) — merge queue still waits on Codex.
+- 2026-07-17 forecast pillars paint their real style (worktree iteration
+  24): gate i23 attributed — the suite's single failure IS the upstream
+  alias test (runtime now emits the checked-continuation pair; Codex's
+  test update still pending), concurrency parity shards recovered to
+  green, and the corpus '677/680' headline is a shard double-assignment
+  artifact (unique accounting: 678 pass / 2 fail — Planet + Mythic,
+  both pre-existing; Planet reproduced at 03d8452, well before the
+  dispatch changes). Iteration class: TruckWeatherCard's
+  `.indigo.shadow(.drop(color:radius:x:))` — the marker chain was
+  eagerly consumed by the handwritten VIEW shadow gateway (defaults
+  radius 4, drop marker silently absorbed) before any style funnel saw
+  it. Fixes: shared-coercion tier gains Coerce.shadowStyle
+  (drop/inner factories with the SDK's per-factory default colors) and
+  a `.shadow` chain case in Coerce.shapeStyle (+ zero-arg marker-call
+  normalization); the shadow gateway becomes a typed HostModifier —
+  a ShadowStyle marker argument routes to ShapeStyle.shadow on the
+  raw receiver (native overload resolution: the view shadow requires
+  radius:), everything else keeps the view path. Truck ratchets
+  1.330% -> 1.257%, detail-truck floor follows, the last chart ⚠ on
+  the truck row is gone. Pin: shadowStyleChainCoercesOnChartMarks.
+  Next truck class staked: x-axis label elision (twin 3-hourly, interp
+  6-hourly — DateBins thresholds correct, label width/collision
+  suspected). Merge queue: still waiting on the upstream alias-test
+  update; corpus floor accounting artifact worth a harness look.
+- 2026-07-17 axis thresholds are real dates (worktree iteration 25):
+  the weather chart's "label elision" was never elision — `DateBins(
+  unit:.hour, by:3, range:).thresholds` absorbed under
+  assumesCompiledImports (unknown host member -> ChainedImplicitCall),
+  so AxisMarks silently fell back to `.automatic` and rendered the
+  6-hourly default where native draws 3-hourly. A compiled native
+  control probe at identical size proved native renders all 8 labels.
+  Policy-shaped fix: BridgeGen now sweeps the Charts swiftinterface
+  with DateBins as a receiver seed (NumberBins stays out — generic
+  over Value), and generatedMemberResult gains an element-wise array
+  boundary so SDK arrays enter the interpreter's array plane
+  (`thresholds.count`/subscripts work like any interpreted array;
+  Calendar.monthSymbols etc. now cross as real arrays too — pins
+  updated to the better boundary). Truck ratchets 1.257% -> 1.082%,
+  detail-truck follows, axis labels match native 3-hourly. Pins:
+  GeneratedChartsMemberTests.dateBinsThresholdsMatchNative (interp
+  thresholds == native count/first/last), DateBins receiver seed in
+  the generated-property validation sweep. Remaining truck residue
+  ~1.08%: corner brackets, small icon tints, caption strip. Merge
+  queue unchanged (upstream alias test).
+- 2026-07-17 merge-close gates + array-boundary refinement (worktree
+  iteration 26, in flight): upstream alias test went GREEN after
+  merging main 16bab0c — the queue's blocker is gone. Close-gate
+  attempt 1: RED on task-priority-escalation fixture TIMEOUTS (load
+  flake — passes isolated, exit 0; same suite green under load in the
+  i23 gate). Attempt 2: tests green, live 5/5, corpus 678/680 AT
+  FLOOR, but API parity 344/1: the generic [Element] overload of
+  generatedMemberResult re-ranked overload resolution inside emitted
+  closures — Sequence.dropLast() -> [Int] beat IndexPath's own
+  dropLast() -> IndexPath on the exact-generic-parameter match,
+  violating the host contract. Fix: the boxing choice moved to EMIT
+  time — BridgeGen routes array-typed contracts (non-optional) to the
+  DISTINCTLY NAMED generatedMemberArrayResult and everything else to
+  the plain helper, so emitted member resolution is untouched.
+  Parity board verified 345/0/0 after the fix. Third gate rolling.

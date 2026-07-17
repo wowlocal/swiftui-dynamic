@@ -64,6 +64,28 @@ struct FoodTruckCheckMain {
                 return Date(timeIntervalSinceNow: 0)
             }
         }
+
+        // Deterministic `.random` for harness runs — same doctrine as the
+        // frozen clock. Env-pinned runs draw from a shared LCG so twin and
+        // interpreter social-feed timestamps agree bit-exactly; unpinned
+        // (live) runs seed from the wall clock so launches still differ.
+        // The seeded `.random(in:using:)` spellings resolve past this shadow
+        // to the stdlib, exactly like native overload resolution.
+        nonisolated(unsafe) var __harnessRandomState = 0
+        extension Double {
+            static func random(in range: ClosedRange<Double>) -> Double {
+                if __harnessRandomState == 0 {
+                    if ProcessInfo.processInfo.environment["FOODTRUCK_FROZEN_NOW"] != nil {
+                        __harnessRandomState = 1
+                    } else {
+                        __harnessRandomState = Int(Date(timeIntervalSinceNow: 0).timeIntervalSince1970 * 1000) % 2147483647 + 1
+                    }
+                }
+                __harnessRandomState = (__harnessRandomState * 1103515245 + 12345) % 2147483648
+                let unit = Double(__harnessRandomState) / 2147483648.0
+                return range.lowerBound + unit * (range.upperBound - range.lowerBound)
+            }
+        }
         """
 
         // The app + Kit sources; Widgets/ is out of scope (extension process).
@@ -465,8 +487,84 @@ struct FoodTruckCheckMain {
             """
             capturePNG("diag-forecast-data", source: probeMergeBase + probeApp(
                 "VStack { Text(String(TruckWeatherCard.placeholderForecast.entries.count)); Text(String(TruckWeatherCard.placeholderForecast.nightTimeRanges.count)); Text(String(TruckWeatherCard.placeholderForecast.low)) }.font(.system(size: 40)).background(Color.white)"), size: cardSize)
+            capturePNG("diag-sales", source: probeMergeBase + probeApp(
+                "Text(model.dailyOrderSummaries(cityID: City.cupertino.id).first!.sales.sorted { $0.key < $1.key }.map { String(describing: $0.key) + String(\":\") + String(describing: $0.value) }.joined(separator: String(\",\"))).font(.system(size: 14)).background(Color.white)"), size: cardSize)
             capturePNG("diag-weather", source: probeMergeBase + probeApp(
                 "TruckWeatherCard(location: CLLocation(latitude: 37.3, longitude: -122.0)).padding(10).background(Color.white)"), size: cardSize)
+            let diagAnnotationDecl = """
+
+            struct __AnnotationProbe: View {
+                var body: some View {
+                    Chart {
+                        RectangleMark(
+                            x: .value(String("X"), 1.0),
+                            yStart: .value(String("Y"), 0.0),
+                            yEnd: .value(String("Y"), 5.0),
+                            width: .fixed(6)
+                        )
+                        .annotation(position: .top, alignment: .bottom, spacing: 5) {
+                            Image(systemName: String("moon.circle.fill"))
+                                .imageScale(.large)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, .indigo)
+                        }
+                    }
+                }
+            }
+            """
+            let diagSymbolDecl = """
+
+            struct __SymbolProbe: View {
+                var body: some View {
+                    HStack(spacing: 20) {
+                        Image(systemName: String("moon.circle.fill"))
+                            .imageScale(.large)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .indigo)
+                        Image(systemName: String("moon.circle.fill"))
+                            .imageScale(.large)
+                            .foregroundStyle(.indigo)
+                        Image(systemName: String("moon.circle.fill"))
+                            .imageScale(.large)
+                            .symbolRenderingMode(.multicolor)
+                    }
+                }
+            }
+            """
+            let diagAxisDecl = """
+
+            struct __AxisProbe: View {
+                var range: ClosedRange<Date> {
+                    let start = Date(timeIntervalSince1970: 1784192400)
+                    return start...start.addingTimeInterval(24 * 3600)
+                }
+                var body: some View {
+                    Chart {
+                        LineMark(
+                            x: .value(String("Date"), range.lowerBound),
+                            y: .value(String("Temperature"), 55.0)
+                        )
+                        LineMark(
+                            x: .value(String("Date"), range.upperBound),
+                            y: .value(String("Temperature"), 85.0)
+                        )
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: DateBins(unit: .hour, by: 3, range: range).thresholds) { _ in
+                            AxisValueLabel(format: .dateTime.hour())
+                            AxisTick()
+                            AxisGridLine()
+                        }
+                    }
+                }
+            }
+            """
+            capturePNG("diag-axis", source: probeMergeBase + diagAxisDecl + probeApp(
+                "__AxisProbe().frame(width: 400, height: 200).background(Color.white)"), size: cardSize)
+            capturePNG("diag-symbol", source: probeMergeBase + diagSymbolDecl + probeApp(
+                "__SymbolProbe().frame(width: 200, height: 80).background(Color.gray)"), size: cardSize)
+            capturePNG("diag-annotation", source: probeMergeBase + diagAnnotationDecl + probeApp(
+                "__AnnotationProbe().frame(width: 200, height: 150).background(Color.white)"), size: cardSize)
             capturePNG("diag-chart", source: probeMergeBase + diagChartDecl + probeApp(
                 "__ChartProbe().frame(width: 300, height: 200).background(Color.white)"), size: cardSize)
             capturePNG("diag-layout", source: probeMergeBase + probeApp(
