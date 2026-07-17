@@ -112,6 +112,59 @@ import SwiftInterpreter
         }
     }
 
+    @Test func uuidFieldsRoundTripLikeFoundationCodable() throws {
+        try Self.withFixture(
+            #"{"id": "abcdefab-cdef-abcd-efab-cdefabcdefab"}"#
+        ) { directory in
+            NetworkBridge.policy = .replay(fixturesDirectory: directory)
+            defer { NetworkBridge.policy = .absorbed }
+            let source = """
+            struct Payload: Codable {
+                let id: UUID
+                let lock = NSLock()
+
+                enum CodingKeys: CodingKey {
+                    case id
+                }
+            }
+            let key = Payload.CodingKeys.id.stringValue
+            let payload = try JSONDecoder().decode(
+                Payload.self, from: __fixtureData("payload"))
+            let encoded = try JSONEncoder().encode(payload)
+            let object = try JSONSerialization.jsonObject(with: encoded) as! NSDictionary
+            let encodedKeys = object.allKeys.compactMap { $0 as? String }.joined(separator: ",")
+            let equalCopy = object.isEqual(
+                try JSONSerialization.jsonObject(with: encoded) as! NSDictionary)
+            let roundTripped = try JSONDecoder().decode(
+                Payload.self, from: encoded)
+            "\\(key)|\\(payload.id.uuidString)|\\(roundTripped.id.uuidString)|\\(encodedKeys)|\\(equalCopy)"
+            """
+            let result = try Interpreter(registry: ViewRegistry()).run(
+                source: source)
+            #expect(result.stringValue ==
+                "id|ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB|"
+                    + "ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB|id|true")
+        }
+    }
+
+    @Test func defaultDateDecodesReferenceDateSeconds() throws {
+        try Self.withFixture(#"{"created": 700000000.0}"#) { directory in
+            NetworkBridge.policy = .replay(fixturesDirectory: directory)
+            defer { NetworkBridge.policy = .absorbed }
+            let source = """
+            struct Payload: Codable {
+                let created: Date
+            }
+            let payload = try JSONDecoder().decode(
+                Payload.self, from: __fixtureData("payload"))
+            payload.created.timeIntervalSinceReferenceDate
+            """
+            let result = try Interpreter(registry: ViewRegistry()).run(
+                source: source)
+            #expect(result.doubleValue == 700_000_000)
+        }
+    }
+
     @Test func objectBackedTypesStillDecodeStructurally() throws {
         try Self.withFixture(#"{"tag": {"label": "swift"}}"#) { directory in
             NetworkBridge.policy = .replay(fixturesDirectory: directory)

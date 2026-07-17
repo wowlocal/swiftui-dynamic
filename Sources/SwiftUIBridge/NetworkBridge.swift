@@ -605,6 +605,26 @@ public final class KeyedContainerStub {
 @MainActor
 func networkBridgeMember(_ name: String, on value: Any) -> RuntimeValue? {
     if let marker = value as? HostTypeMarker,
+       marker.name == "JSONSerialization", name == "jsonObject" {
+        return .hostFunction(HostFunction(name: name) { args, _ in
+            guard case .host(let payload)? = args.labeled("with")
+                    ?? args.positional(0),
+                  let data = payload as? Data else {
+                throw RuntimeError(
+                    message: "JSONSerialization.jsonObject needs Data")
+            }
+            do {
+                let json = try JSONSerialization.jsonObject(
+                    with: data, options: [.fragmentsAllowed])
+                return JSONDecodeBridge.runtimeValue(fromJSON: json)
+            } catch {
+                throw RuntimeError(
+                    message: "JSONSerialization.jsonObject: invalid JSON — "
+                        + error.localizedDescription)
+            }
+        })
+    }
+    if let marker = value as? HostTypeMarker,
        marker.name == "JSONSerialization", name == "data" {
         return .hostFunction(HostFunction(name: name) { args, _ in
             guard let object = args.labeled("withJSONObject")
@@ -1273,6 +1293,35 @@ func networkHostObjectConstructor(named name: String) -> HostFunction? {
 /// surfaces types this breaks.
 @MainActor
 enum JSONDecodeBridge {
+    /// Preserve Foundation's untyped JSON container shape at the interpreter
+    /// boundary. Objects use DictValue so both Dictionary and NSDictionary
+    /// APIs can dispatch through the same runtime representation.
+    static func runtimeValue(fromJSON json: Any) -> RuntimeValue {
+        if json is NSNull { return .nilValue }
+        if let text = json as? String { return .native(text) }
+        if let number = json as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return .native(number.boolValue)
+            }
+            let encoding = String(cString: number.objCType)
+            if encoding == "f" || encoding == "d" {
+                return .native(number.doubleValue)
+            }
+            return .native(number.intValue)
+        }
+        if let items = json as? [Any] {
+            return .native(items.map(runtimeValue(fromJSON:)))
+        }
+        if let object = json as? [String: Any] {
+            let entries = object.map { key, value in
+                (RuntimeValue.native(key), runtimeValue(fromJSON: value))
+            }
+            return .native(DictValue(
+                keys: entries.map(\.0), values: entries.map(\.1)))
+        }
+        return .native(json)
+    }
+
     /// The shapes `decode(_:json:…)` can act on. Anything else is an
     /// UNRESOLVED type reference (a generic parameter that only pins
     /// downstream) — callers defer instead of failing.
@@ -1455,9 +1504,19 @@ enum JSONDecodeBridge {
                 throw RuntimeError(message: "decode(\(context)): expected URL string")
             }
             return .native(url)
+        case "UUID":
+            guard let text = json as? String, let uuid = UUID(uuidString: text) else {
+                throw RuntimeError(message: "decode(\(context)): expected UUID string")
+            }
+            return .native(uuid)
         case "Date":
+            if let number = json as? NSNumber, decoder.dateStrategy == nil {
+                return .native(Date(
+                    timeIntervalSinceReferenceDate: number.doubleValue))
+            }
             guard let text = json as? String, let date = parseISO8601(text) else {
-                throw RuntimeError(message: "decode(\(context)): expected ISO8601 date string")
+                throw RuntimeError(message:
+                    "decode(\(context)): expected Date representation")
             }
             return .native(date)
         default:
@@ -1514,12 +1573,26 @@ enum JSONDecodeBridge {
         case .instance(let instance):
             var out: [String: Any] = [:]
             let codingKeys = codingKeyMap(of: instance.symbol)
-            for property in instance.symbol.storedProperties {
-                guard let box = instance.box(for: property.name) else { continue }
+            let hasExplicitCodingKeys = declaresCodingKeys(instance.symbol)
+            // A subclass's CodingKeys may deliberately include storage
+            // inherited from its interpreted superclass. The instance owns
+            // those boxes even though they are not in the child symbol's
+            // direct stored-property list.
+            let propertyNames = hasExplicitCodingKeys
+                ? Array(codingKeys.keys)
+                : instance.symbol.storedProperties.map(\.name)
+            for propertyName in propertyNames {
+                guard let box = instance.box(for: propertyName) else { continue }
                 if box.value.isNil { continue }
-                var key = codingKeys[property.name] ?? property.name
-                if codingKeys[property.name] == nil, snakeCase { key = snakeCased(key) }
-                out[key] = try encodeToJSON(box.value, snakeCase: snakeCase)
+                var key = codingKeys[propertyName] ?? propertyName
+                if codingKeys[propertyName] == nil, snakeCase { key = snakeCased(key) }
+                do {
+                    out[key] = try encodeToJSON(box.value, snakeCase: snakeCase)
+                } catch let error as RuntimeError {
+                    throw RuntimeError(
+                        message: "encode(\(instance.symbol.name).\(propertyName)): "
+                            + error.message)
+                }
             }
             return out
         case .host(let any):
@@ -1530,6 +1603,7 @@ enum JSONDecodeBridge {
                 return formatter.string(from: date)
             }
             if let url = any as? URL { return url.absoluteString }
+            if let uuid = any as? UUID { return uuid.uuidString }
             if let array = any as? [RuntimeValue] {
                 return try array.map { try encodeToJSON($0, snakeCase: snakeCase) }
             }
@@ -1630,6 +1704,13 @@ enum JSONDecodeBridge {
             map[enumCase.name] = enumCase.rawValue.stringValue ?? enumCase.name
         }
         return map
+    }
+
+    private static func declaresCodingKeys(_ symbol: StructSymbol) -> Bool {
+        guard case .enumType? = symbol.nestedTypes["CodingKeys"] else {
+            return false
+        }
+        return true
     }
 
     private static func lookup(_ property: String, in object: [String: Any], codingKeys: [String: String]) -> Any? {

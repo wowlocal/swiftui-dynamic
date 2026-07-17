@@ -155,11 +155,6 @@ extension Interpreter {
             }
             let executor = try executorSelectedByIsolatedValue(
                 actor, parameterName: "isolation")
-            guard executor == .mainActor else {
-                throw RuntimeError(message:
-                    "\(api) currently supports only nil "
-                        + "or MainActor isolation")
-            }
             bodyExecutor = executor
         }
         if let function = arguments.labeled("function"),
@@ -180,7 +175,7 @@ extension Interpreter {
             id: record.id,
             allowsThrowingResume: allowsThrowingResume)
         do {
-            _ = try callWithArguments(
+            _ = try await callWithArgumentsSuspending(
                 body,
                 args: CallArguments(arguments: [
                     .init(label: nil, value: .native(continuation))

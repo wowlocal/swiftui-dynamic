@@ -604,6 +604,16 @@ extension Interpreter {
             return .native(hasher.finalize())
         }
         if name == "rawValue" { return value.rawValue }
+        if value.symbol.conformances.contains("CodingKey") {
+            if name == "stringValue" {
+                return .native(value.rawValue.stringValue ?? value.name)
+            }
+            if name == "intValue" {
+                return .optional(
+                    value.rawValue.intValue.map(RuntimeValue.native),
+                    wrappedTypeName: "Int")
+            }
+        }
         if let overloads = value.symbol.methods[name], let first = overloads.first {
             // Overload sets never re-enter the running declaration
             // (IconDrawable's image(ofSize:color:) → edgeInsets form,
@@ -1569,6 +1579,38 @@ extension Interpreter {
                 let symbol = superRef.instance.symbol
                 if let parentName = symbol.superclassName,
                    case .type(let parent)? = globals.lookup(parentName) {
+                    if name == "init" {
+                        return .hostFunction(HostFunction(name: name) { [weak self] args, _ in
+                            guard let self else {
+                                throw RuntimeError(message: "interpreter gone")
+                            }
+                            let available = parent.initializers.filter {
+                                !self.activeInitializers.contains($0.id)
+                            }
+                            guard let initializer = self.chooseInitializerStrict(
+                                from: available, for: args) else {
+                                if args.arguments.isEmpty, parent.initializers.isEmpty {
+                                    return .void
+                                }
+                                throw RuntimeError(
+                                    message: "no matching superclass initializer "
+                                        + "'\(parent.name).init'")
+                            }
+                            if initializer.signature.effectSpecifiers?.asyncSpecifier != nil {
+                                throw RuntimeError(
+                                    message: "async superclass initializers require "
+                                        + "suspension-aware dispatch")
+                            }
+                            let outcome = try self.runInitializer(
+                                initializer, on: superRef.instance,
+                                args: args, node: nil)
+                            if outcome.isNil {
+                                throw RuntimeError(
+                                    message: Interpreter.initFailedSentinel)
+                            }
+                            return .void
+                        })
+                    }
                     // Interpreted superclass: dispatch methods/computed with
                     // self bound to the SAME instance (super dispatch).
                     if let method = parent.methods[name]?.first, let body = method.body {

@@ -398,6 +398,31 @@ private func eval(_ source: String) throws -> RuntimeValue {
         #expect(try eval(source).stringValue == "base+child")
     }
 
+    @Test func superInitializerPopulatesInheritedStorage() throws {
+        let source = """
+        class Base {
+            let id: Int
+            var title: String
+
+            init(id: Int, title: String) {
+                self.id = id
+                self.title = title
+            }
+        }
+        class Child: Base {
+            let note: String
+
+            init(id: Int, title: String, note: String) {
+                self.note = note
+                super.init(id: id, title: title)
+            }
+        }
+        let value = Child(id: 7, title: "native", note: "child")
+        "\\(value.id)|\\(value.title)|\\(value.note)"
+        """
+        #expect(try eval(source).stringValue == "7|native|child")
+    }
+
     @Test func hostSuperclassInitIsInertAndIUOIsNil() throws {
         let source = """
         class Recognizer: NSObject, ObservableObject {

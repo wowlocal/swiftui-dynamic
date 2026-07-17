@@ -2207,6 +2207,18 @@
     "notes": "The nonthrowing and throwing calls are sequential, and each detached producer yields before resume, so exact lane triples are causal without asserting producer scheduling order, physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced nonisolated=worker:worker:worker|main=main:main:main in twenty bounded native runs. The interpreter RED rejected the first call because withCheckedContinuation required an explicit isolation argument. Omitted isolation now materializes #isolation once through the shared caller-lexical-isolation kernel before the existing nil/MainActor validation; it therefore preserves nonisolated nil and MainActor defaults without silently converting an arbitrary source actor to nil. Focused evidence covers two canonical suspensions, exact lane restoration, complete cleanup, and fail-closed omitted arbitrary-actor isolation before record creation. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 62b25d7d6a1744bcea392ca81dca119864b5725b5f893c232ee9fbccbe24ed7e."
   },
   {
+    "id": "checked-continuation-source-actor-isolation",
+    "fixture": "Fixtures/checked-continuation-source-actor-isolation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationSourceActorIsolationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An explicitly selected source actor owns the synchronous checked-continuation body and restores a nonisolated caller after resume; a caller-defaulted source actor retains body ownership, releases its mailbox while parked so another actor message runs, and reacquires it before continuation.",
+    "notes": "The explicit producer yields before resume. In the caller-defaulted case, a detached controller can open the producer gate only after its actor method reenters and increments isolated state, so exact output explicit=worker:owned:worker|default=owned:owned:owned:1 proves release and reacquisition without asserting unrelated ready-task order, physical threads, or parallel execution. Dynamic native ownership uses Actor.assertIsolated through a parity helper rather than lexical #isolation. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced the exact output in twenty bounded runs. The interpreter RED rejected explicit source-actor isolation before creating a continuation because the entry adapter accepted only nil or MainActor. The shared suspending invocation kernel now accepts a contextual executor, acquires the selected source actor for the synchronous body, restores a different caller executor after the body, and lets the canonical continuation suspension release and later reacquire an already-owned source actor. Omitted isolation reaches the same path through caller-lexical #isolation. Focused evidence records two continuations, two canonical suspensions, causal actor reentry, exact caller/body/resume ownership, and empty actor/task/continuation/scope/group/stream/host-operation/scheduler registries. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 b919a36e3510d689feccceed310076dfe2168910cbc94a97b224c6658d585935."
+  },
+  {
     "id": "checked-continuation-void-resume",
     "fixture": "Fixtures/checked-continuation-void-resume.swift",
     "mode": "runtime",

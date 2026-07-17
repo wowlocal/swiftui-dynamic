@@ -528,6 +528,41 @@ struct ActorRuntimeTests {
     }
 
     @Test
+    func semanticSuspensionRenewsConsecutiveWorkBudget() async throws {
+        let interpreter = Interpreter()
+        let runtime = interpreter.concurrencyRuntime
+        let session = runtime.createSession()
+        let task = runtime.createTask(
+            sessionID: session,
+            kind: .unstructured,
+            parent: nil,
+            priority: .medium,
+            executorPreference: .mainActor,
+            taskLocals: RuntimeTaskLocalStorage(),
+            name: "budget-renewal")
+        let context = interpreter.makeEvaluationTaskContext(
+            runtimeTaskID: task.id,
+            runtimeSessionID: session,
+            isAsyncSession: true)
+        runtime.bind(context, to: task)
+        #expect(runtime.begin(task))
+
+        context.steps = interpreter.stepBudget
+        let suspension = runtime.beginTaskSuspension(
+            task.id, for: .yielding)
+        #expect(context.steps == interpreter.stepBudget)
+
+        await runtime.endTaskSuspension(suspension)
+        #expect(context.steps == 0)
+        #expect(task.state == .running)
+
+        runtime.succeed(task, with: .void)
+        context.removeAllDynamicState()
+        runtime.release(task.id)
+        #expect(runtime.activeRecordCount == 0)
+    }
+
+    @Test
     func actorMutableStorageRequiresOwnershipWhileAllowedStorageRemainsReadable()
         async throws
     {

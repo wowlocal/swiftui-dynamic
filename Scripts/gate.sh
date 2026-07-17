@@ -6,6 +6,7 @@
 # Tuning: GATE_JOBS, GATE_TEST_WORKERS, GATE_PARITY_TEST_WORKERS,
 #         GATE_EVAL_WORKERS, GATE_LIVE_WORKERS, GATE_*_TIMEOUT_SECONDS,
 #         GATE_TERMINATION_GRACE_SECONDS, GATE_KEEP_LOGS, GATE_RECEIPT_PATH,
+#         GATE_CONTINUE_AFTER_FAILURE,
 #         GATE_EXPECTED_TOOLCHAIN_FINGERPRINT,
 #         GATE_CAPABILITY_{INVENTORY,STATUS}_INPUT_PATH (negative controls)
 set -u
@@ -75,6 +76,11 @@ if ! eval_timeout=$(positive_integer_value GATE_EVAL_TIMEOUT_SECONDS 1800); then
 if ! live_timeout=$(positive_integer_value GATE_LIVE_TIMEOUT_SECONDS 1800); then exit 2; fi
 if ! child_timeout=$(positive_integer_value GATE_CHILD_TIMEOUT_SECONDS 1500); then exit 2; fi
 if ! termination_grace=$(positive_integer_value GATE_TERMINATION_GRACE_SECONDS 5); then exit 2; fi
+continue_after_failure="${GATE_CONTINUE_AFTER_FAILURE:-0}"
+if [[ "$continue_after_failure" != 0 && "$continue_after_failure" != 1 ]]; then
+    echo "GATE_CONTINUE_AFTER_FAILURE must be 0 or 1, got '$continue_after_failure'" >&2
+    exit 2
+fi
 
 out=$(mktemp -d)
 typeset -a active_pids
@@ -535,6 +541,9 @@ write_receipt() {
         "0..<$parity_test_workers (one value per shard)"
     receipt_string \
         configuration.effectiveEnvironment.SWIFT_DETERMINISTIC_HASHING "1"
+    receipt_string \
+        configuration.effectiveEnvironment.GATE_CONTINUE_AFTER_FAILURE \
+        "$continue_after_failure"
 
     /usr/bin/plutil -insert stages -dictionary "$plist" >/dev/null
     receipt_stage build "$build_stage_status" "$build_stage_seconds"
@@ -916,6 +925,21 @@ if (( test_red == 0 )); then
     echo "Test run with $test_count tests passed ($parity_test_workers process shards)" > "$out/suite"
 else
     echo "parallel test workers failed" > "$out/suite"
+fi
+
+# A failed test stage already makes the source-bound gate RED. Do not spend
+# another ~10 minutes on memory-isolated live scenarios unless a diagnostic
+# run explicitly asks for every board.
+if (( test_red != 0 )) && [[ "$continue_after_failure" != 1 ]]; then
+    suite_summary=$(cat "$out/suite")
+    append_gate_diagnostic \
+        "evaluation and live stages skipped after test failure"
+    current_stage="completion"
+    capture_source_at_end
+    report_source_drift
+    echo "suite: $suite_summary"
+    echo "GATE RED (evaluation/live skipped after test failure)"
+    exit 1
 fi
 
 current_stage="evaluation"
