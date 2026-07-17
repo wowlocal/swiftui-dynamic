@@ -1670,6 +1670,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.evidenceCaseIDs == [
             "checked-throwing-continuation-value-error",
             "checked-throwing-continuation-mainactor-error",
+            "checked-throwing-continuation-source-actor-isolation",
             "checked-continuation-omitted-isolation",
             "checked-throwing-continuation-result-resume",
             "checked-continuation-result-spellings",
@@ -1677,6 +1678,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.testNames == [
             "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
             "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
+            "CheckedContinuationRuntimeTests/throwingSourceActorIsolationRestoresErrorAndCleansUp",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
             "CheckedContinuationRuntimeTests/resultResumeUsesReturningAndThrowingTransitions",
             "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
@@ -1687,6 +1689,8 @@ struct ConcurrencyMethodologyTests {
             == ["async-sequence-continuation-runtime"])
         #expect(checkedThrowingClaim.notes.contains("resume(throwing:)"))
         #expect(checkedThrowingClaim.notes.contains("MainActor"))
+        #expect(checkedThrowingClaim.notes.contains("source-actor"))
+        #expect(checkedThrowingClaim.notes.contains("mailbox"))
         #expect(checkedThrowingClaim.notes.contains("cooperative"))
         #expect(checkedThrowingClaim.notes.contains("Result resume(with:)"))
         #expect(checkedThrowingClaim.notes.contains("Result<T, any Error>"))
@@ -2952,6 +2956,10 @@ struct ConcurrencyMethodologyTests {
             source["concurrencyCapabilityAccounting"] as? [String: Any])
         let diagnostics = try #require(
             receipt["diagnostics"] as? [String: Any])
+        let configuration = try #require(
+            receipt["configuration"] as? [String: Any])
+        let effectiveEnvironment = try #require(
+            configuration["effectiveEnvironment"] as? [String: Any])
         let inventoryData = try Data(contentsOf:
             Self.packageRoot.appendingPathComponent(
                 "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json"))
@@ -3053,6 +3061,11 @@ struct ConcurrencyMethodologyTests {
             "toolchain fingerprint mismatch") == true)
         #expect(diagnostics["exitStatuses"] is [String: Any])
         #expect(diagnostics["timeouts"] is [String: Any])
+        #expect(configuration["gateLockPolicy"] as? String
+            == "exclusive-git-common-dir")
+        #expect(configuration["gateLockDirectory"] is String)
+        #expect((effectiveEnvironment["GATE_LOCK_DIRECTORY"] as? String)
+            == (configuration["gateLockDirectory"] as? String))
     }
 
     @Test func gateFailsFastBeforeExpensiveStagesAfterTestFailure() throws {
@@ -3070,6 +3083,82 @@ struct ConcurrencyMethodologyTests {
             "evaluation and live stages skipped after test failure"))
         #expect(script.contains(
             "configuration.effectiveEnvironment.GATE_CONTINUE_AFTER_FAILURE"))
+    }
+
+    @Test func gateRejectsConcurrentWorktreeRunBeforeBuild() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "dynamic-swift-gate-lock-\(UUID().uuidString)",
+                isDirectory: true)
+        let lockDirectory = directory.appendingPathComponent(
+            "closing-gate.lock", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: lockDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try "\(ProcessInfo.processInfo.processIdentifier)\n".write(
+            to: lockDirectory.appendingPathComponent("pid"),
+            atomically: true,
+            encoding: .utf8)
+        try "test-owner\n".write(
+            to: lockDirectory.appendingPathComponent("worktree"),
+            atomically: true,
+            encoding: .utf8)
+        try "controlled-test\n".write(
+            to: lockDirectory.appendingPathComponent("started-at"),
+            atomically: true,
+            encoding: .utf8)
+        let receiptURL = directory.appendingPathComponent("receipt.json")
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = [
+            Self.packageRoot.appendingPathComponent("Scripts/gate.sh").path,
+        ]
+        process.currentDirectoryURL = Self.packageRoot
+        var environment = ProcessInfo.processInfo.environment
+        environment["GATE_JOBS"] = "1"
+        environment["GATE_TEST_WORKERS"] = "1"
+        environment["GATE_PARITY_TEST_WORKERS"] = "1"
+        environment["GATE_EVAL_WORKERS"] = "1"
+        environment["GATE_LIVE_WORKERS"] = "1"
+        environment["GATE_RECEIPT_PATH"] = receiptURL.path
+        environment["GATE_LOCK_DIRECTORY"] = lockDirectory.path
+        process.environment = environment
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+
+        let deadline = ProcessInfo.processInfo.systemUptime + 30
+        while process.isRunning,
+              ProcessInfo.processInfo.systemUptime < deadline
+        {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        if process.isRunning { process.terminate() }
+        process.waitUntilExit()
+
+        let output = String(
+            data: stdout.fileHandleForReading.readDataToEndOfFile()
+                + stderr.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8) ?? ""
+        #expect(process.terminationStatus != 0)
+        #expect(output.contains("another closing gate is active"))
+        #expect(FileManager.default.fileExists(atPath: lockDirectory.path))
+        let receipt = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: receiptURL))
+                as? [String: Any])
+        let stages = try #require(receipt["stages"] as? [String: Any])
+        let build = try #require(stages["build"] as? [String: Any])
+        let tests = try #require(stages["tests"] as? [String: Any])
+        let evaluation = try #require(stages["evaluation"] as? [String: Any])
+        let live = try #require(stages["live"] as? [String: Any])
+        #expect(receipt["result"] as? String == "RED")
+        #expect(build["status"] as? String == "blocked-concurrent-gate")
+        #expect(tests["status"] as? String == "not-run")
+        #expect(evaluation["status"] as? String == "not-run")
+        #expect(live["status"] as? String == "not-run")
     }
 
     @Test func gateBlocksInvalidCapabilityAccountingBeforeBuild() throws {

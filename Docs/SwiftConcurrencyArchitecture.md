@@ -69,8 +69,9 @@ covered together with `continue` and `return` cleanup; protocol-extension
 defaults for both requirements are covered as well. Host-backed sequences,
 including typed opaque gateways with tracked host suspension, are covered as
 well. Both stream flavors' evidenced cancellation, buffering, iterator-copy,
-and lifetime tails are covered. Unsafe continuations, arbitrary-source-actor
-execution, and checked-continuation diagnostic/lifetime edges remain open. The remaining
+and lifetime tails are covered. Checked nonthrowing and throwing continuations
+now cover explicit and caller-defaulted source actors. Unsafe continuations
+and checked-continuation diagnostic/lifetime edges remain open. The remaining
 Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1354,10 +1355,12 @@ terminal transition, and nonthrowing `Result<T, Never>` success delegates to
 that same returning transition. Compiler preflight owns Swift's static
 overload/member constraints, while the runtime implements the already-selected
 valid calls.
-`withCheckedThrowingContinuation` shares that record for explicit `nil` plus
-caller-defaulted nonisolated/MainActor isolation, `resume(returning:)`, and
-`resume(throwing:)`; its MainActor error path has exact body-isolation and
-caller-restoration evidence, and its
+`withCheckedThrowingContinuation` shares that record for explicit `nil`,
+MainActor, and source-actor isolation plus caller-defaulted
+nonisolated/MainActor/source-actor isolation, `resume(returning:)`, and
+`resume(throwing:)`; its MainActor and source-actor error paths have exact
+body-isolation and caller-restoration evidence, the caller-defaulted source
+actor path proves mailbox release/reentry/reacquisition, and its
 concrete-error plus existential `Result<T, any Error>` `resume(with:)`
 overloads delegate success/failure to those same terminal transitions. A
 distinct failed terminal outcome retains
@@ -1377,9 +1380,9 @@ same exactly-once transition without a synthetic suspension. Infrastructure
 cancellation may abort the internal native waiter so session teardown cannot
 hang; ordinary source cancellation does not resolve the continuation. Omitted
 `#isolation` is materialized once from caller lexical isolation before executor
-selection. The nonthrowing explicit and caller-defaulted source-actor shapes
-have exact native parity; a dedicated throwing source-actor slice, checked
-diagnostics/lifetime, and unsafe variants remain open.
+selection. The nonthrowing and throwing explicit plus caller-defaulted
+source-actor shapes have exact native parity; checked diagnostics/lifetime and
+unsafe variants remain open.
 
 ### 6.18 Async sequences and streams
 
@@ -2093,14 +2096,15 @@ Each milestone is independently gated through
   teardown cleanup. The checked throwing form
   additionally owns explicit-`nil` plus caller-defaulted isolation,
   value resume, exact source-error projection through `resume(throwing:)`,
-  exact MainActor body/caller restoration on delayed source error, and
+  exact MainActor and source-actor body/caller restoration on delayed source
+  error, mailbox release/reentry/reacquisition for a caller-defaulted source
+  actor, and
   concrete-error plus existential-error Result success/failure through
   `resume(with:)`.
   The nonthrowing explicit-`nil` Void slice owns zero-argument `resume()`
   and `Result<T, Never>` success through the same terminal transition and
   cleanup path.
-  Unsafe variants, a dedicated throwing source-actor slice, and remaining
-  diagnostic/lifetime edges remain active;
+  Unsafe variants and remaining diagnostic/lifetime edges remain active;
   complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
@@ -2347,15 +2351,15 @@ bounded runtime record, delayed value resume for explicit or caller-defaulted
 execution, caller-executor restoration, mailbox release/reentry/reacquisition,
 and infrastructure-abort cleanup. The throwing
 form shares that record for explicit-`nil` value return, caller-defaulted
-isolation, exact source-error projection, exact MainActor body/caller
-restoration on delayed source error,
+isolation, exact source-error projection, exact MainActor and source-actor
+body/caller restoration on delayed source error, caller-defaulted source-actor
+mailbox release/reentry/reacquisition,
 and concrete-error plus existential-error Result success/failure through
 `resume(with:)`;
 the nonthrowing explicit-`nil` Void slice maps zero-argument
 `resume()` and `Result<T, Never>` success to that same successful terminal
-path. A dedicated throwing source-actor slice and the remaining
-diagnostic/lifetime edges remain active rather than being inferred from the
-nonthrowing or stream behavior.
+path. The remaining diagnostic/lifetime edges remain active rather than being
+inferred from the covered resume paths or stream behavior.
 
 Deliverables:
 

@@ -425,8 +425,59 @@ struct CheckedContinuationRuntimeTests {
         let source = try String(contentsOf: fixture, encoding: .utf8)
             + "\nawait checkedContinuationSourceActorIsolationProbe()\n"
         let interpreter = Interpreter()
-        var gateStarted = false
-        var gateOpen = false
+        installSourceActorIsolationSupport(on: interpreter)
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "explicit=worker:owned:worker|default=owned:owned:owned:1")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.actors.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func throwingSourceActorIsolationRestoresErrorAndCleansUp()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/"
+                + "checked-throwing-continuation-source-actor-isolation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait checkedThrowingContinuationSourceActorIsolationProbe()\n"
+        let interpreter = Interpreter()
+        installSourceActorIsolationSupport(on: interpreter)
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "explicit=worker:owned:worker|default=owned:owned:failed:owned:1")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.actors.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    private func installSourceActorIsolationSupport(
+        on interpreter: Interpreter
+    ) {
+        let gate = CheckedContinuationProducerGate()
         interpreter.globals.define(
             "parityCurrentExecutorLane",
             .hostFunction(HostFunction(
@@ -471,8 +522,8 @@ struct CheckedContinuationRuntimeTests {
             .hostFunction(HostFunction(
                 name: "parityWaitTaskValueGate",
                 asyncInvoke: { _, _ in
-                    gateStarted = true
-                    while !gateOpen { await Task.yield() }
+                    gate.entered = true
+                    while !gate.isOpen { await Task.yield() }
                     return .void
                 })))
         interpreter.globals.define(
@@ -480,7 +531,7 @@ struct CheckedContinuationRuntimeTests {
             .hostFunction(HostFunction(
                 name: "parityAwaitTaskValueGateStarted",
                 asyncInvoke: { _, _ in
-                    while !gateStarted { await Task.yield() }
+                    while !gate.entered { await Task.yield() }
                     return .void
                 })))
         interpreter.globals.define(
@@ -488,23 +539,8 @@ struct CheckedContinuationRuntimeTests {
             .hostFunction(HostFunction(
                 name: "parityOpenTaskValueGate"
             ) { _, _ in
-                gateOpen = true
+                gate.isOpen = true
                 return .void
             }))
-
-        let value = try await interpreter.runAsync(source: source)
-
-        #expect(value.stringValue
-            == "explicit=worker:owned:worker|default=owned:owned:owned:1")
-        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
-        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
-        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
-        #expect(interpreter.concurrencyRuntime.actors.isEmpty)
-        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
-        #expect(interpreter.scheduledTasks.isEmpty)
     }
 }

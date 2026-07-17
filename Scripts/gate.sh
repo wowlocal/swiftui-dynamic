@@ -6,7 +6,7 @@
 # Tuning: GATE_JOBS, GATE_TEST_WORKERS, GATE_PARITY_TEST_WORKERS,
 #         GATE_EVAL_WORKERS, GATE_LIVE_WORKERS, GATE_*_TIMEOUT_SECONDS,
 #         GATE_TERMINATION_GRACE_SECONDS, GATE_KEEP_LOGS, GATE_RECEIPT_PATH,
-#         GATE_CONTINUE_AFTER_FAILURE,
+#         GATE_CONTINUE_AFTER_FAILURE, GATE_LOCK_DIRECTORY,
 #         GATE_EXPECTED_TOOLCHAIN_FINGERPRINT,
 #         GATE_CAPABILITY_{INVENTORY,STATUS}_INPUT_PATH (negative controls)
 set -u
@@ -14,6 +14,11 @@ set -o pipefail
 cd "$(dirname "$0")/.." || exit 2
 integer gate_started=$SECONDS
 gate_started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir \
+    2>/dev/null || true)
+if [[ -z "$git_common_dir" ]]; then git_common_dir="$PWD/.git"; fi
+gate_lock_directory="${GATE_LOCK_DIRECTORY:-$git_common_dir/dynamic-swiftui-closing-gate.lock}"
+typeset gate_lock_owned=false gate_lock_conflict=""
 
 is_positive_integer() {
     [[ "$1" == <-> ]] && (( $1 > 0 ))
@@ -28,6 +33,63 @@ positive_integer_value() {
         return 2
     fi
     echo "$value"
+}
+
+write_gate_lock_owner() {
+    print -r -- "$$" > "$gate_lock_directory/pid" \
+        && print -r -- "$PWD" > "$gate_lock_directory/worktree" \
+        && print -r -- "$gate_started_at" > "$gate_lock_directory/started-at"
+}
+
+acquire_gate_lock() {
+    local owner_pid owner_worktree owner_started stale_lock
+    if mkdir "$gate_lock_directory" 2>/dev/null; then
+        gate_lock_owned=true
+        if write_gate_lock_owner; then return 0; fi
+        gate_lock_conflict="could not write owner metadata at $gate_lock_directory"
+        rm -rf "$gate_lock_directory"
+        gate_lock_owned=false
+        return 2
+    fi
+
+    owner_pid=$(/bin/cat "$gate_lock_directory/pid" 2>/dev/null || true)
+    owner_worktree=$(/bin/cat "$gate_lock_directory/worktree" 2>/dev/null \
+        || echo unknown)
+    owner_started=$(/bin/cat "$gate_lock_directory/started-at" 2>/dev/null \
+        || echo unknown)
+    if [[ "$owner_pid" == <-> ]] && kill -0 "$owner_pid" 2>/dev/null; then
+        gate_lock_conflict="pid=$owner_pid worktree=$owner_worktree started=$owner_started"
+        return 1
+    fi
+    if [[ "$owner_pid" != <-> ]]; then
+        gate_lock_conflict="owner metadata is incomplete at $gate_lock_directory"
+        return 1
+    fi
+
+    stale_lock="$gate_lock_directory.stale.$$"
+    if ! mv "$gate_lock_directory" "$stale_lock" 2>/dev/null; then
+        gate_lock_conflict="lock ownership changed while inspecting $gate_lock_directory"
+        return 1
+    fi
+    rm -rf "$stale_lock"
+    if ! mkdir "$gate_lock_directory" 2>/dev/null; then
+        gate_lock_conflict="another gate acquired $gate_lock_directory"
+        return 1
+    fi
+    gate_lock_owned=true
+    if write_gate_lock_owner; then return 0; fi
+    gate_lock_conflict="could not write owner metadata at $gate_lock_directory"
+    rm -rf "$gate_lock_directory"
+    gate_lock_owned=false
+    return 2
+}
+
+release_gate_lock() {
+    local owner_pid
+    if [[ "$gate_lock_owned" != true ]]; then return; fi
+    owner_pid=$(/bin/cat "$gate_lock_directory/pid" 2>/dev/null || true)
+    if [[ "$owner_pid" == "$$" ]]; then rm -rf "$gate_lock_directory"; fi
+    gate_lock_owned=false
 }
 
 compute_worktree_fingerprint() {
@@ -417,6 +479,7 @@ cleanup() {
     else
         rm -rf "$out"
     fi
+    release_gate_lock
     if (( original_exit_status == 0 \
           && (exit_status != 0 || receipt_failed != 0) )); then
         if (( receipt_failed != 0 )); then echo "GATE RECEIPT RED" >&2; fi
@@ -522,6 +585,8 @@ write_receipt() {
     receipt_integer configuration.parityTestWorkers "$parity_test_workers"
     receipt_integer configuration.evalWorkers "$eval_workers"
     receipt_integer configuration.liveWorkers "$live_workers"
+    receipt_string configuration.gateLockPolicy "exclusive-git-common-dir"
+    receipt_string configuration.gateLockDirectory "$gate_lock_directory"
     receipt_integer configuration.buildTimeoutSeconds "$build_timeout"
     receipt_integer configuration.testTimeoutSeconds "$test_timeout"
     receipt_integer configuration.evalTimeoutSeconds "$eval_timeout"
@@ -544,6 +609,9 @@ write_receipt() {
     receipt_string \
         configuration.effectiveEnvironment.GATE_CONTINUE_AFTER_FAILURE \
         "$continue_after_failure"
+    receipt_string \
+        configuration.effectiveEnvironment.GATE_LOCK_DIRECTORY \
+        "$gate_lock_directory"
 
     /usr/bin/plutil -insert stages -dictionary "$plist" >/dev/null
     receipt_stage build "$build_stage_status" "$build_stage_seconds"
@@ -729,6 +797,18 @@ if [[ -n "$expected_toolchain_fingerprint" \
     echo "expected: $expected_toolchain_fingerprint" >&2
     echo "actual:   $toolchain_fingerprint" >&2
     exit 1
+fi
+
+acquire_gate_lock
+gate_lock_status=$?
+if (( gate_lock_status != 0 )); then
+    build_stage_status="blocked-concurrent-gate"
+    current_stage="completion"
+    append_gate_diagnostic \
+        "another closing gate is active: $gate_lock_conflict"
+    echo "another closing gate is active" >&2
+    echo "$gate_lock_conflict" >&2
+    exit 75
 fi
 
 current_stage="build"
