@@ -660,7 +660,8 @@ extension Interpreter {
                 let closure = ClosureValue(
                     parameters: [], body: body.statements,
                     captured: selfEnvironment(.instance(instance)),
-                    programMetadata: currentProgramMetadata)
+                    programMetadata: currentProgramMetadata,
+                    programPlan: currentProgramPlan)
                 closure.lexicalOwner = symbol
                 closure.lexicalExecutor = symbol.deinitializerExecutor
                 closure.executorPreference = symbol.deinitializerExecutor

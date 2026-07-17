@@ -130,11 +130,94 @@ struct ParsedProgramConcurrencyTests {
         #expect(macSession.executionPlan.extensionDeclarations.count == 1)
         #expect(iosSession.executionPlan.topLevelItems.count == 4)
         #expect(macSession.executionPlan.topLevelItems.count == 4)
+        #expect(iosSession.programPlan === iosSession.runtimeEntry.programPlan)
+        #expect(macSession.programPlan === macSession.runtimeEntry.programPlan)
+        #expect(iosSession.programPlan.metadata === program.metadata)
+        #expect(macSession.programPlan.metadata === program.metadata)
+        #expect(iosSession.programPlan.buildConfiguration
+            == ios.buildConfiguration)
+        #expect(macSession.programPlan.buildConfiguration
+            == mac.buildConfiguration)
 
         let iosValue = try await ios.runAsync(session: iosSession)
         let macValue = try await mac.runAsync(session: macSession)
         #expect(iosValue.intValue == 42)
         #expect(macValue.intValue == 21)
+    }
+
+    @Test nonisolated func parsedProgramResolvesOneSendableTargetPlan()
+    async throws {
+        let program = try ParsedProgram(source: """
+        struct Selected {
+            #if os(iOS)
+            static let platform = "ios"
+            struct Nested {}
+            #else
+            static func platform() -> String { "mac" }
+            class Nested {}
+            #endif
+        }
+        #if os(iOS)
+        typealias Alias = Selected
+        extension Selected { static let extensionValue = 1 }
+        #else
+        typealias Alias = Selected.Nested
+        extension Selected { static func extensionValue() -> Int { 2 } }
+        #endif
+        """)
+        let iosConfiguration = InterpreterBuildConfiguration(
+            platformName: "iOS", activeCompilationConditions: [])
+        let macConfiguration = InterpreterBuildConfiguration(
+            platformName: "macOS", activeCompilationConditions: [])
+
+        func requireSendable<T: Sendable>(_: T) {}
+        let readers = [
+            Task.detached {
+                program.resolve(buildConfiguration: iosConfiguration)
+            },
+            Task.detached {
+                program.resolve(buildConfiguration: macConfiguration)
+            },
+        ]
+        let iosPlan = await readers[0].value
+        let macPlan = await readers[1].value
+        requireSendable(iosPlan)
+        requireSendable(macPlan)
+
+        let nominal = try #require(
+            program.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        #expect(iosPlan.metadata === program.metadata)
+        #expect(macPlan.metadata === program.metadata)
+        #expect(iosPlan.buildConfiguration == iosConfiguration)
+        #expect(macPlan.buildConfiguration == macConfiguration)
+        #expect(iosPlan.declarationPlan.primaryDeclarations.count == 1)
+        #expect(macPlan.declarationPlan.primaryDeclarations.count == 1)
+        #expect(iosPlan.declarationPlan.typeAliases.count == 1)
+        #expect(macPlan.declarationPlan.typeAliases.count == 1)
+        #expect(iosPlan.declarationPlan.extensionDeclarations.count == 1)
+        #expect(macPlan.declarationPlan.extensionDeclarations.count == 1)
+        let expectedSummary = ResolvedProgramPlan.Summary(
+            activeTopLevelItemCount: 3,
+            activePrimaryDeclarationCount: 1,
+            activeTypeAliasCount: 1,
+            activeExtensionCount: 1,
+            resolvedMemberBlockCount: 5,
+            resolvedMemberDeclarationCount: 4)
+        #expect(iosPlan.summary == expectedSummary)
+        #expect(macPlan.summary == expectedSummary)
+        let iosMembers = try #require(
+            iosPlan.memberDeclarations(in: nominal.memberBlock))
+        let macMembers = try #require(
+            macPlan.memberDeclarations(in: nominal.memberBlock))
+        let expectedIOSKinds: [ParsedMemberDeclaration.Kind] = [
+            .variable, .structure,
+        ]
+        let expectedMacKinds: [ParsedMemberDeclaration.Kind] = [
+            .function, .classType,
+        ]
+        #expect(iosMembers.map(\.kind) == expectedIOSKinds)
+        #expect(macMembers.map(\.kind) == expectedMacKinds)
     }
 
     @Test func parsedProgramOwnsSendableCallableMetadataIndex() async throws {

@@ -392,11 +392,44 @@ forty-two methodology checks, and all twenty parity repetitions in one second.
 No positive-watchOS selection, new member semantics, scheduler order, physical
 thread, or physical parallelism is inferred.
 
+The twentieth prerequisite closes the split ownership of target selection.
+`ParsedProgram.resolve(buildConfiguration:)` now produces one immutable,
+Sendable `ResolvedProgramPlan` containing the originating composite metadata,
+the exact build configuration, the resolved top-level declaration plan, and
+the resolved member plan. An `InterpreterSession` creates this capability
+before mutable symbols are materialized. Its `RuntimeEntry`, every source
+`ClosureValue`, later host callbacks, SwiftUI tasks, and source tasks retain
+the same plan identity. An escaped closure therefore cannot reselect a
+conditional member using whichever target or parsed program the mutable
+interpreter facade prepared most recently. Compatibility and foreign-syntax
+fallbacks remain explicit; evaluator state and runtime values remain
+MainActor-confined.
+
+The architectural RED was compile-time: `ResolvedProgramPlan`,
+`ParsedProgram.resolve(buildConfiguration:)`, and the plan edges on session,
+entry, and closure did not exist, while the immutable build-configuration
+evaluator was still MainActor-isolated. The semantic question reused the
+already-owned `conditional-member-metadata` oracle instead of manufacturing a
+new behavior claim: Swift selects target declarations at compilation and that
+selection survives an actor hop. Before production changes, Apple Swift 6.3.3
+and the interpreter matched in all twenty bounded repetitions, producing
+`foodtruck:7:type:extension:regular:nested`; each four-worker native shard
+reported SHA-256
+`8c1f91f180b8517d68ab0a40b3f0cc2ab73a32db163c2d296b1bc25d9561a937`.
+The post-change prebuilt focused gate preserved that exact result in all
+twenty repetitions and completed thirteen ownership/dispatch tests in seven
+suites plus all forty-two methodology checks within two seconds.
+No new conditional-compilation semantics, scheduler order, physical thread, or
+physical parallelism is inferred.
+
 The stable target separates five concerns:
 
 ```text
 Immutable ParsedProgram
           └── ParsedProgramMetadata
+                    │ resolve(target)
+                    ▼
+          ResolvedProgramPlan
                     │
                     ▼
 InterpreterSession ─────────────── HostGatewayRuntime

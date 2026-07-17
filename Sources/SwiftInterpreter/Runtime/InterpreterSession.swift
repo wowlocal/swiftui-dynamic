@@ -23,14 +23,17 @@ public final class InterpreterSession {
 
     let concurrencyRuntime: CooperativeConcurrencyRuntime
     let runtimeEntry: RuntimeEntry
-    let executionPlan: ResolvedDeclarationPlan
+    let programPlan: ResolvedProgramPlan
+    var executionPlan: ResolvedDeclarationPlan {
+        programPlan.declarationPlan
+    }
     private weak var owner: Interpreter?
 
     init(
         program: ParsedProgram,
         heap: RuntimeHeap,
         concurrencyRuntime: CooperativeConcurrencyRuntime,
-        executionPlan: ResolvedDeclarationPlan,
+        programPlan: ResolvedProgramPlan,
         lazyTopLevelGlobals: Bool,
         completionPolicy: SessionCompletionPolicy,
         owner: Interpreter
@@ -38,13 +41,14 @@ public final class InterpreterSession {
         self.program = program
         self.heap = heap
         self.concurrencyRuntime = concurrencyRuntime
-        self.executionPlan = executionPlan
+        self.programPlan = programPlan
         self.lazyTopLevelGlobals = lazyTopLevelGlobals
         self.completionPolicy = completionPolicy
         self.owner = owner
         runtimeEntry = concurrencyRuntime.createEntry(
             kind: .program,
             heap: heap,
+            programPlan: programPlan,
             programMetadata: program.metadata,
             interpreter: owner)
         id = runtimeEntry.id

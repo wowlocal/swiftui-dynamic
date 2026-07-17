@@ -412,6 +412,31 @@ member semantics, call-site/compiler metadata, mutable-symbol/evaluator
 migration, worker-safe heap classification, physical workers,
 mode-differential evidence, and TSan remain open.
 
+Its twentieth prerequisite verifies target-plan ownership rather than inventing
+a new runtime semantic. The architecture workflow first captured a compile-time
+RED for the absent `ResolvedProgramPlan`, parsed-program resolver, and
+session/runtime-entry/closure plan edges. The immutable target evaluator and
+both declaration indexes were then made callable outside MainActor, and one
+session-owned plan was propagated unchanged through escaped callbacks,
+SwiftUI entries, and their source tasks. Identity assertions deliberately
+prepare a different program before invoking an older closure, so a fallback to
+mutable facade state is observable.
+
+The native semantic baseline was captured before production changes with the
+existing `conditional-member-metadata` case. Apple Swift 6.3.3 selected the
+non-watchOS declaration/member branches, carried the result through an actor
+hop, and produced
+`foodtruck:7:type:extension:regular:nested` in all twenty bounded
+repetitions. Four native shards each reported SHA-256
+`8c1f91f180b8517d68ab0a40b3f0cc2ab73a32db163c2d296b1bc25d9561a937`.
+The same exact case remained GREEN after migration; no duplicate fixture or
+post-hoc oracle was introduced. The final prebuilt focused gate completed
+thirteen ownership/dispatch tests in seven suites, all forty-two methodology
+checks, and all twenty parity repetitions within two seconds. FoodTruck's five
+conditional member regions bound the demand. New branch semantics, positive-
+watchOS behavior, scheduler order, physical threads, and physical parallelism
+are not inferred.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

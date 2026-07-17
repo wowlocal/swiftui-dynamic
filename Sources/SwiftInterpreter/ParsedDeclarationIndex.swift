@@ -129,8 +129,7 @@ public nonisolated struct ParsedDeclarationIndex: Sendable {
         return (entries, summary)
     }
 
-    @MainActor
-    func resolve(
+    nonisolated func resolve(
         conditionHolds: (ExprSyntax?) -> Bool
     ) -> ResolvedDeclarationPlan {
         var builder = ResolutionBuilder()
@@ -138,8 +137,7 @@ public nonisolated struct ParsedDeclarationIndex: Sendable {
         return builder.build()
     }
 
-    @MainActor
-    private func append(
+    private nonisolated func append(
         _ entries: [Entry],
         conditionHolds: (ExprSyntax?) -> Bool,
         to builder: inout ResolutionBuilder
@@ -170,13 +168,13 @@ public nonisolated struct ParsedDeclarationIndex: Sendable {
     }
 }
 
-private struct ResolutionBuilder {
+private nonisolated struct ResolutionBuilder {
     var topLevelItems: [CodeBlockItemSyntax] = []
     var primaryDeclarations: [ParsedPrimaryDeclaration] = []
     var typeAliases: [TypeAliasDeclSyntax] = []
     var extensionDeclarations: [ExtensionDeclSyntax] = []
 
-    func build() -> ResolvedDeclarationPlan {
+    nonisolated func build() -> ResolvedDeclarationPlan {
         ResolvedDeclarationPlan(
             topLevelItems: topLevelItems,
             primaryDeclarations: primaryDeclarations,

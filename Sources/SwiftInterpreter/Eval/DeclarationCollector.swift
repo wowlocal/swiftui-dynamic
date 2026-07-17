@@ -346,81 +346,7 @@ extension Interpreter {
     /// construction derives platform, environment, architecture, and active
     /// conditions from the compiler-preflight build target.
     func ifConfigConditionHolds(_ condition: ExprSyntax?) -> Bool {
-        guard let condition else { return true } // #else
-        if let paren = condition.as(TupleExprSyntax.self), paren.elements.count == 1,
-           let only = paren.elements.first {
-            return ifConfigConditionHolds(only.expression)
-        }
-        if let ref = condition.as(DeclReferenceExprSyntax.self) {
-            return buildConfiguration.activeCompilationConditions.contains(
-                ref.baseName.text)
-        }
-        if let call = condition.as(FunctionCallExprSyntax.self),
-           let callee = call.calledExpression.as(DeclReferenceExprSyntax.self) {
-            let argument = call.arguments.first?.expression.trimmedDescription ?? ""
-            switch callee.baseName.text {
-            case "os":
-                return argument == buildConfiguration.platformName
-            case "arch":
-                return argument == buildConfiguration.architecture
-            case "canImport":
-                if call.arguments.count == 2,
-                   let versionArgument = call.arguments.last,
-                   let versionKind = versionArgument.label?.text,
-                   versionKind == "_version"
-                        || versionKind == "_underlyingVersion" {
-                    return buildConfiguration.canImport(
-                        argument,
-                        versionKind: versionKind,
-                        version: versionArgument.expression
-                            .trimmedDescription)
-                }
-                if call.arguments.count != 1,
-                   buildConfiguration.authoritativeImportableModules != nil {
-                    return false
-                }
-                return buildConfiguration.canImport(argument)
-            case "swift":
-                return buildConfiguration.swiftConditionalCompilationVersion?
-                    .satisfies(argument) ?? true
-            case "compiler":
-                return buildConfiguration.compilerVersion?
-                    .satisfies(argument) ?? true
-            case "targetEnvironment":
-                return argument == buildConfiguration.targetEnvironment
-            default:
-                return buildConfiguration.conditionalCompilationQuery(
-                    predicate: callee.baseName.text,
-                    argument: argument) ?? false
-            }
-        }
-        if let prefix = condition.as(PrefixOperatorExprSyntax.self), prefix.operator.text == "!" {
-            return !ifConfigConditionHolds(prefix.expression)
-        }
-        if let infix = condition.as(InfixOperatorExprSyntax.self) {
-            let op = infix.operator.trimmedDescription
-            if op == "&&" {
-                return ifConfigConditionHolds(infix.leftOperand) && ifConfigConditionHolds(infix.rightOperand)
-            }
-            if op == "||" {
-                return ifConfigConditionHolds(infix.leftOperand) || ifConfigConditionHolds(infix.rightOperand)
-            }
-        }
-        if let sequence = condition.as(SequenceExprSyntax.self) {
-            // #if conditions aren't operator-folded; handle && / || runs.
-            let elements = Array(sequence.elements)
-            let operators = stride(from: 1, to: elements.count, by: 2).compactMap {
-                elements[$0].as(BinaryOperatorExprSyntax.self)?.operator.text
-            }
-            let operands = stride(from: 0, to: elements.count, by: 2).map { elements[$0] }
-            if operators.allSatisfy({ $0 == "&&" }), !operators.isEmpty {
-                return operands.allSatisfy { ifConfigConditionHolds($0) }
-            }
-            if operators.allSatisfy({ $0 == "||" }), !operators.isEmpty {
-                return operands.contains { ifConfigConditionHolds($0) }
-            }
-        }
-        return false
+        buildConfiguration.ifConfigConditionHolds(condition)
     }
 
     /// The first clause whose condition holds (`#else` always does).
@@ -1182,7 +1108,8 @@ extension Interpreter {
             isBuilder: metadata.isBuilder,
             returnType: metadata.returnType,
             returnTypeName: metadata.returnTypeName,
-            programMetadata: currentProgramMetadata
+            programMetadata: currentProgramMetadata,
+            programPlan: currentProgramPlan
         )
         closure.functionDeclID = node.id
         let lexicalOwner = declLexicalOwners[node.id]
@@ -1227,7 +1154,8 @@ extension Interpreter {
             parameters: metadata.parameters,
             body: body.statements,
             captured: captured,
-            programMetadata: currentProgramMetadata)
+            programMetadata: currentProgramMetadata,
+            programPlan: currentProgramPlan)
         let lexicalOwner = declLexicalOwners[node.id] ?? fallbackLexicalOwner
         let actorInitializer =
             (lexicalOwner as? StructSymbol)?.isActor == true

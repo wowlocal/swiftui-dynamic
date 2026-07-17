@@ -109,6 +109,36 @@ public nonisolated struct ParsedMemberMetadataIndex: Sendable {
     ) -> ParsedMemberBlockMetadata? {
         blocks[Syntax(block).id]
     }
+
+    nonisolated func resolve(
+        conditionHolds: (ExprSyntax?) -> Bool
+    ) -> ResolvedMemberPlan {
+        var resolved: [SyntaxIdentifier: [ParsedMemberDeclaration]] = [:]
+        var resolvedMemberDeclarationCount = 0
+        for (identifier, block) in blocks {
+            let declarations = block.resolve(conditionHolds: conditionHolds)
+            resolved[identifier] = declarations
+            resolvedMemberDeclarationCount += declarations.count
+        }
+        return ResolvedMemberPlan(
+            blocks: resolved,
+            resolvedMemberDeclarationCount: resolvedMemberDeclarationCount)
+    }
+}
+
+nonisolated struct ResolvedMemberPlan: Sendable {
+    fileprivate let blocks: [
+        SyntaxIdentifier: [ParsedMemberDeclaration]
+    ]
+    let resolvedMemberDeclarationCount: Int
+
+    var memberBlockCount: Int { blocks.count }
+
+    func declarations(
+        in block: MemberBlockSyntax
+    ) -> [ParsedMemberDeclaration]? {
+        blocks[Syntax(block).id]
+    }
 }
 
 nonisolated struct ParsedMemberBlockMetadata: Sendable {
@@ -144,8 +174,7 @@ nonisolated struct ParsedMemberBlockMetadata: Sendable {
             otherDeclarationCount: 0))
     }
 
-    @MainActor
-    func resolve(
+    nonisolated func resolve(
         conditionHolds: (ExprSyntax?) -> Bool
     ) -> [ParsedMemberDeclaration] {
         var declarations: [ParsedMemberDeclaration] = []
@@ -205,8 +234,7 @@ nonisolated struct ParsedMemberBlockMetadata: Sendable {
         return (entries, summary)
     }
 
-    @MainActor
-    private static func append(
+    private nonisolated static func append(
         _ entries: [Entry],
         conditionHolds: (ExprSyntax?) -> Bool,
         to declarations: inout [ParsedMemberDeclaration]

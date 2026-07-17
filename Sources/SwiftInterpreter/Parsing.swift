@@ -104,6 +104,16 @@ public nonisolated struct ParsedProgram: Sendable {
         locationConverter = converter
     }
 
+    /// Resolve every target-dependent declaration and member branch once,
+    /// without entering an interpreter or touching mutable runtime state.
+    public func resolve(
+        buildConfiguration: InterpreterBuildConfiguration
+    ) -> ResolvedProgramPlan {
+        ResolvedProgramPlan(
+            metadata: metadata,
+            buildConfiguration: buildConfiguration)
+    }
+
     public static func isToleratedParseRecovery(_ message: String) -> Bool {
         message.contains("extraneous whitespace")
             // The `(@MainActor() -> Void)?` no-space family: the attribute

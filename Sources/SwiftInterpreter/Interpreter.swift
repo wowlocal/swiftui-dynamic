@@ -4,7 +4,7 @@ import SwiftSyntax
 /// Per-interpreter conditional-compilation identity. Target-aware project
 /// callers derive this from the same build target used by compiler preflight;
 /// legacy callers retain the historical iOS + DEBUG canvas.
-public struct InterpreterBuildConfiguration: Sendable, Equatable {
+public nonisolated struct InterpreterBuildConfiguration: Sendable, Equatable {
     public let platformName: String
     public let targetEnvironment: String?
     public let architecture: String?
@@ -120,6 +120,98 @@ public struct InterpreterBuildConfiguration: Sendable, Equatable {
         authoritativeConditionalCompilationQueries?[
             predicate + "\u{0}" + argument
         ]
+    }
+
+    /// Resolve one conditional-compilation expression from immutable target
+    /// identity. Keeping this off the interpreter facade lets a parsed
+    /// program build its complete target plan before mutable runtime state is
+    /// materialized.
+    func ifConfigConditionHolds(_ condition: ExprSyntax?) -> Bool {
+        guard let condition else { return true } // #else
+        if let paren = condition.as(TupleExprSyntax.self),
+           paren.elements.count == 1,
+           let only = paren.elements.first {
+            return ifConfigConditionHolds(only.expression)
+        }
+        if let ref = condition.as(DeclReferenceExprSyntax.self) {
+            return activeCompilationConditions.contains(ref.baseName.text)
+        }
+        if let call = condition.as(FunctionCallExprSyntax.self),
+           let callee = call.calledExpression.as(DeclReferenceExprSyntax.self) {
+            let argument = call.arguments.first?.expression
+                .trimmedDescription ?? ""
+            switch callee.baseName.text {
+            case "os":
+                return argument == platformName
+            case "arch":
+                return argument == architecture
+            case "canImport":
+                if call.arguments.count == 2,
+                   let versionArgument = call.arguments.last,
+                   let versionKind = versionArgument.label?.text,
+                   versionKind == "_version"
+                        || versionKind == "_underlyingVersion" {
+                    return canImport(
+                        argument,
+                        versionKind: versionKind,
+                        version: versionArgument.expression
+                            .trimmedDescription)
+                }
+                if call.arguments.count != 1,
+                   authoritativeImportableModules != nil {
+                    return false
+                }
+                return canImport(argument)
+            case "swift":
+                return swiftConditionalCompilationVersion?
+                    .satisfies(argument) ?? true
+            case "compiler":
+                return compilerVersion?.satisfies(argument) ?? true
+            case "targetEnvironment":
+                return argument == targetEnvironment
+            default:
+                return conditionalCompilationQuery(
+                    predicate: callee.baseName.text,
+                    argument: argument) ?? false
+            }
+        }
+        if let prefix = condition.as(PrefixOperatorExprSyntax.self),
+           prefix.operator.text == "!" {
+            return !ifConfigConditionHolds(prefix.expression)
+        }
+        if let infix = condition.as(InfixOperatorExprSyntax.self) {
+            switch infix.operator.trimmedDescription {
+            case "&&":
+                return ifConfigConditionHolds(infix.leftOperand)
+                    && ifConfigConditionHolds(infix.rightOperand)
+            case "||":
+                return ifConfigConditionHolds(infix.leftOperand)
+                    || ifConfigConditionHolds(infix.rightOperand)
+            default:
+                break
+            }
+        }
+        if let sequence = condition.as(SequenceExprSyntax.self) {
+            // #if conditions are not operator-folded; handle && / || runs.
+            let elements = Array(sequence.elements)
+            let operators = stride(
+                from: 1, to: elements.count, by: 2
+            ).compactMap {
+                elements[$0].as(BinaryOperatorExprSyntax.self)?.operator.text
+            }
+            let operands = stride(
+                from: 0, to: elements.count, by: 2
+            ).map { elements[$0] }
+            if !operators.isEmpty,
+               operators.allSatisfy({ $0 == "&&" }) {
+                return operands.allSatisfy(ifConfigConditionHolds)
+            }
+            if !operators.isEmpty,
+               operators.allSatisfy({ $0 == "||" }) {
+                return operands.contains(where: ifConfigConditionHolds)
+            }
+        }
+        return false
     }
 }
 
@@ -436,6 +528,10 @@ public final class Interpreter {
     /// this fallback keeps post-run rendering/instantiation APIs source-
     /// compatible without rebuilding mutable syntax caches.
     var compatibilityProgramMetadata: ParsedProgramMetadata?
+    /// Target-resolved counterpart of `compatibilityProgramMetadata`.
+    /// Canonical async work reads its exact plan from RuntimeEntry; this
+    /// fallback serves synchronous APIs and foreign syntax.
+    var compatibilityProgramPlan: ResolvedProgramPlan?
 
     /// Per-view-IDENTITY state cells: compiled SwiftUI keeps @State/
     /// @StateObject storage alive across re-renders of the same position;
@@ -674,7 +770,13 @@ public final class Interpreter {
 
     var currentProgramMetadata: ParsedProgramMetadata? {
         evaluationTaskContext.runtimeEntry?.programMetadata
+            ?? currentProgramPlan?.metadata
             ?? compatibilityProgramMetadata
+    }
+
+    var currentProgramPlan: ResolvedProgramPlan? {
+        evaluationTaskContext.runtimeEntry?.programPlan
+            ?? compatibilityProgramPlan
     }
 
     var currentCallableMetadataIndex: ParsedCallableMetadataIndex? {
@@ -699,7 +801,10 @@ public final class Interpreter {
     func memberDeclarations(
         in block: MemberBlockSyntax
     ) -> [ParsedMemberDeclaration] {
-        memberMetadata(for: block).resolve(conditionHolds: {
+        if let declarations = currentProgramPlan?.memberDeclarations(in: block) {
+            return declarations
+        }
+        return memberMetadata(for: block).resolve(conditionHolds: {
             ifConfigConditionHolds($0)
         })
     }

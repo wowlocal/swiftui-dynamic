@@ -689,7 +689,8 @@ extension Interpreter {
         let value = ClosureValue(
             parameters: parameters, body: closure.statements,
             captured: captured,
-            programMetadata: currentProgramMetadata)
+            programMetadata: currentProgramMetadata,
+            programPlan: currentProgramPlan)
         value.lexicalExecutor = currentLexicalExecutor
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
@@ -1057,7 +1058,8 @@ extension Interpreter {
                         isBuilder: true,
                         returnType: parameter.builderReturnType ?? c.returnType,
                         returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName,
-                        programMetadata: c.programMetadata
+                        programMetadata: c.programMetadata,
+                        programPlan: c.programPlan
                     ))
                 }
                 env.define(

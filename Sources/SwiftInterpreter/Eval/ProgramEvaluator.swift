@@ -85,13 +85,15 @@ extension Interpreter {
         lazyTopLevelGlobals: Bool = false,
         completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
     ) -> InterpreterSession {
+        let programPlan = program.resolve(
+            buildConfiguration: buildConfiguration)
+        compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
         return InterpreterSession(
             program: program,
             heap: runtimeHeap,
             concurrencyRuntime: concurrencyRuntime,
-            executionPlan: program.declarationIndex.resolve(
-                conditionHolds: ifConfigConditionHolds),
+            programPlan: programPlan,
             lazyTopLevelGlobals: lazyTopLevelGlobals,
             completionPolicy: completionPolicy,
             owner: self)
@@ -394,10 +396,12 @@ extension Interpreter {
         _ program: ParsedProgram,
         lazyTopLevelGlobals: Bool
     ) throws -> RuntimeValue {
+        let programPlan = program.resolve(
+            buildConfiguration: buildConfiguration)
+        compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
         let file = program.syntax
-        let executionPlan = program.declarationIndex.resolve(
-            conditionHolds: ifConfigConditionHolds)
+        let executionPlan = programPlan.declarationPlan
         locationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0

@@ -731,7 +731,8 @@ extension Interpreter {
                 body: member.getter,
                 captured: env,
                 returnTypeName: member.resultTypeName,
-                programMetadata: currentProgramMetadata)
+                programMetadata: currentProgramMetadata,
+                programPlan: currentProgramPlan)
             return try callWithArguments(closure, args: args, node: nil)
         }
     }
@@ -750,7 +751,8 @@ extension Interpreter {
                 body: member.getter,
                 captured: env,
                 returnTypeName: member.resultTypeName,
-                programMetadata: currentProgramMetadata)
+                programMetadata: currentProgramMetadata,
+                programPlan: currentProgramPlan)
             return try await callWithArgumentsSuspending(
                 closure, args: args, node: nil)
         }

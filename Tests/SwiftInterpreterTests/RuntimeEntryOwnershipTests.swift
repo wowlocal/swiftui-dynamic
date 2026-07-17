@@ -22,6 +22,7 @@ struct RuntimeEntryOwnershipTests {
         var observedExtensionCounts: [Int?] = []
         var observedTypeAliasCounts: [Int?] = []
         var observedDeinitializerCounts: [Int?] = []
+        var observedProgramPlans: [ResolvedProgramPlan?] = []
         weak var observedEntry: RuntimeEntry?
         interpreter.globals.define(
             "captureRuntimeEntry",
@@ -66,6 +67,7 @@ struct RuntimeEntryOwnershipTests {
                         .typeAliasMetadataIndex.summary.typeAliasCount)
                     observedDeinitializerCounts.append(entry.programMetadata?
                         .deinitializerMetadataIndex.summary.deinitializerCount)
+                    observedProgramPlans.append(entry.programPlan)
                     return .void
                 })))
         let value = try interpreter.run(source: """
@@ -90,6 +92,7 @@ struct RuntimeEntryOwnershipTests {
         makeCallback()
         """)
         let closure = try #require(value.closureValue)
+        let originatingPlan = try #require(closure.programPlan)
         _ = interpreter.makeSession(program: try ParsedProgram(source: """
         struct NewerMarker {
             let value = 1
@@ -140,6 +143,8 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedExtensionCounts == [1, 1])
         #expect(observedTypeAliasCounts == [1, 1])
         #expect(observedDeinitializerCounts == [1, 1])
+        #expect(observedProgramPlans.count == 2)
+        #expect(observedProgramPlans.allSatisfy { $0 === originatingPlan })
         #expect(observedEntry == nil,
             "the runtime entry must release after its final task record")
     }

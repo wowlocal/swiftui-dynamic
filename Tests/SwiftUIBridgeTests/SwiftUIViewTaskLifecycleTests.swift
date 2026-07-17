@@ -305,7 +305,11 @@ struct SwiftUIViewTaskLifecycleTests {
                 "\($0.kind.rawValue):\($0.state.rawValue):"
                     + "entry=\($0.entry.kind):"
                     + "metadata=\($0.entry.programMetadata != nil):"
-                    + "executor=\(String(describing: $0.executorPreference))"
+                    + "plan=\($0.entry.programPlan != nil):"
+                    + "heap=\($0.entry.heap === interpreter.runtimeHeap):"
+                    + "interpreter=\($0.entry.interpreter === interpreter):"
+                    + "executor=\(String(describing: $0.executorPreference)):"
+                    + "context=\(String(describing: $0.evaluationContext?.currentExecutor))"
             }
             .sorted()
             .joined(separator: ",")

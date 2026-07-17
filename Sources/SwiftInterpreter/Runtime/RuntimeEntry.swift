@@ -21,6 +21,7 @@ final class RuntimeEntry {
     let id: RuntimeSessionID
     let kind: Kind
     let heap: RuntimeHeap?
+    let programPlan: ResolvedProgramPlan?
     let programMetadata: ParsedProgramMetadata?
     var callableMetadataIndex: ParsedCallableMetadataIndex? {
         programMetadata?.callableMetadataIndex
@@ -31,13 +32,15 @@ final class RuntimeEntry {
         id: RuntimeSessionID,
         kind: Kind,
         heap: RuntimeHeap?,
+        programPlan: ResolvedProgramPlan?,
         programMetadata: ParsedProgramMetadata?,
         interpreter: Interpreter?
     ) {
         self.id = id
         self.kind = kind
         self.heap = heap
-        self.programMetadata = programMetadata
+        self.programPlan = programPlan
+        self.programMetadata = programPlan?.metadata ?? programMetadata
         self.interpreter = interpreter
     }
 }

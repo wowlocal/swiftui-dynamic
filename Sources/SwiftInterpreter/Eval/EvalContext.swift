@@ -365,6 +365,8 @@ extension Interpreter: EvalContext {
         let entry = concurrencyRuntime.createEntry(
             kind: .hostCallback,
             heap: runtimeHeap,
+            programPlan: closure.programPlan
+                ?? currentProgramPlan,
             programMetadata: closure.programMetadata
                 ?? currentProgramMetadata,
             interpreter: self)
@@ -431,6 +433,8 @@ extension Interpreter: EvalContext {
         let entry = concurrencyRuntime.createEntry(
             kind: .swiftUITask,
             heap: runtimeHeap,
+            programPlan: closure.programPlan
+                ?? currentProgramPlan,
             programMetadata: closure.programMetadata
                 ?? currentProgramMetadata,
             interpreter: self)
@@ -713,6 +717,7 @@ extension Interpreter: EvalContext {
             ?? concurrencyRuntime.createEntry(
                 kind: .compatibilityTask,
                 heap: runtimeHeap,
+                programPlan: currentProgramPlan,
                 programMetadata: currentProgramMetadata,
                 interpreter: self)
         let priority = explicitPriority ?? (kind == .detached
