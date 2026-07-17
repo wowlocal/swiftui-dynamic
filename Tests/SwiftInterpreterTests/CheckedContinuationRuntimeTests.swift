@@ -64,6 +64,54 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func doubleResumeIsFatalAcrossCheckedFormsAndCleansUp()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let cases = [
+            (
+                fixture: "checked-continuation-double-resume.swift",
+                entry: "await checkedContinuationDoubleResumeProbe()"
+            ),
+            (
+                fixture: "checked-throwing-continuation-double-resume.swift",
+                entry: "await checkedThrowingContinuationDoubleResumeProbe()"
+            ),
+        ]
+
+        for item in cases {
+            let fixture = packageRoot.appendingPathComponent(
+                "Tests/ConcurrencyParity/Fixtures/" + item.fixture)
+            let source = try String(contentsOf: fixture, encoding: .utf8)
+                + "\n\(item.entry)\n"
+            let interpreter = Interpreter()
+
+            do {
+                _ = try await interpreter.runAsync(source: source)
+                Issue.record("double resume did not remain a fatal invariant")
+            } catch let error as RuntimeError {
+                #expect(error.fatal)
+                #expect(error.message.contains("checked continuation"))
+                #expect(error.message.contains("resumed more than once"))
+            } catch {
+                Issue.record("unexpected double-resume error: \(error)")
+            }
+
+            #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 1)
+            #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
+    }
+
     @Test func resultResumeUsesReturningAndThrowingTransitions()
         async throws
     {
@@ -412,6 +460,63 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test
+    func abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let cases = [
+            (
+                fixture: "checked-continuation-abandonment.swift",
+                entry: "await checkedContinuationAbandonmentProbe()",
+                function: "checkedContinuationAbandonmentProbe()"
+            ),
+            (
+                fixture: "checked-throwing-continuation-abandonment.swift",
+                entry: "await checkedThrowingContinuationAbandonmentProbe()",
+                function: "checkedThrowingContinuationAbandonmentProbe()"
+            ),
+        ]
+
+        for item in cases {
+            let fixture = packageRoot.appendingPathComponent(
+                "Tests/ConcurrencyParity/Fixtures/" + item.fixture)
+            let source = try String(contentsOf: fixture, encoding: .utf8)
+                + "\n\(item.entry)\n"
+            let interpreter = Interpreter()
+
+            let value = try await interpreter.runAsync(
+                source: source,
+                completionPolicy: .cancelRemainingTasks)
+
+            #expect(value.stringValue == "caller-returned")
+            let warning = try #require(
+                interpreter.concurrencyRuntime.diagnostics.warnings.first)
+            #expect(warning.contains("SWIFT TASK CONTINUATION MISUSE"))
+            #expect(warning.contains(
+                item.function + " leaked its continuation without resuming it"))
+            #expect(warning.contains("remain suspended forever"))
+
+            #expect(
+                interpreter.concurrencyRuntime.diagnostics.warnings.count == 1)
+            #expect(
+                interpreter.concurrencyRuntime.totalContinuationsCreated == 1)
+            #expect(
+                interpreter.concurrencyRuntime.continuationSuspensionCount == 1)
+            #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(
+                interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
+    }
+
     @Test func sourceActorIsolationOwnsBodyReentersAndCleansUp()
         async throws
     {
@@ -425,8 +530,59 @@ struct CheckedContinuationRuntimeTests {
         let source = try String(contentsOf: fixture, encoding: .utf8)
             + "\nawait checkedContinuationSourceActorIsolationProbe()\n"
         let interpreter = Interpreter()
-        var gateStarted = false
-        var gateOpen = false
+        installSourceActorIsolationSupport(on: interpreter)
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "explicit=worker:owned:worker|default=owned:owned:owned:1")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.actors.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func throwingSourceActorIsolationRestoresErrorAndCleansUp()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/"
+                + "checked-throwing-continuation-source-actor-isolation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait checkedThrowingContinuationSourceActorIsolationProbe()\n"
+        let interpreter = Interpreter()
+        installSourceActorIsolationSupport(on: interpreter)
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "explicit=worker:owned:worker|default=owned:owned:failed:owned:1")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.actors.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    private func installSourceActorIsolationSupport(
+        on interpreter: Interpreter
+    ) {
+        let gate = CheckedContinuationProducerGate()
         interpreter.globals.define(
             "parityCurrentExecutorLane",
             .hostFunction(HostFunction(
@@ -471,8 +627,8 @@ struct CheckedContinuationRuntimeTests {
             .hostFunction(HostFunction(
                 name: "parityWaitTaskValueGate",
                 asyncInvoke: { _, _ in
-                    gateStarted = true
-                    while !gateOpen { await Task.yield() }
+                    gate.entered = true
+                    while !gate.isOpen { await Task.yield() }
                     return .void
                 })))
         interpreter.globals.define(
@@ -480,7 +636,7 @@ struct CheckedContinuationRuntimeTests {
             .hostFunction(HostFunction(
                 name: "parityAwaitTaskValueGateStarted",
                 asyncInvoke: { _, _ in
-                    while !gateStarted { await Task.yield() }
+                    while !gate.entered { await Task.yield() }
                     return .void
                 })))
         interpreter.globals.define(
@@ -488,23 +644,8 @@ struct CheckedContinuationRuntimeTests {
             .hostFunction(HostFunction(
                 name: "parityOpenTaskValueGate"
             ) { _, _ in
-                gateOpen = true
+                gate.isOpen = true
                 return .void
             }))
-
-        let value = try await interpreter.runAsync(source: source)
-
-        #expect(value.stringValue
-            == "explicit=worker:owned:worker|default=owned:owned:owned:1")
-        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
-        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
-        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
-        #expect(interpreter.concurrencyRuntime.actors.isEmpty)
-        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
-        #expect(interpreter.scheduledTasks.isEmpty)
     }
 }

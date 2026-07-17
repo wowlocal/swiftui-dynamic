@@ -15,6 +15,7 @@ private enum ParityAssertionKind: String, Decodable {
     case partialOrder = "partial-order"
     case predicate
     case runtimeTrap = "runtime-trap"
+    case runtimeWarning = "runtime-warning"
     case diagnostic
     case interpreterDiagnostic = "interpreter-diagnostic"
     case stress
@@ -35,6 +36,9 @@ private struct ConcurrencyParityCase: Decodable {
     let predicate: String?
     let nativeTrapContains: [String]?
     let interpreterTrapContains: [String]?
+    let nativeWarningContains: [String]?
+    let interpreterWarningContains: [String]?
+    let interpreterCompletionPolicy: String?
     let diagnosticContains: [String]?
     let diagnosticLine: Int?
     let interpreterDiagnosticContains: [String]?
@@ -386,6 +390,17 @@ private enum ConcurrencyParityHarness {
                 outputs.append("runtime-trap")
                 continue
             }
+            if parityCase.assertion == .runtimeWarning {
+                let successfulExecution = try validateRuntimeWarning(
+                    execution,
+                    requiredFragments: parityCase.nativeWarningContains,
+                    operation: "run native warning \(parityCase.id) repetition "
+                        + "\(repetition + 1)/\(repetitionCount)")
+                outputs.append(
+                    successfulExecution.standardOutput.trimmed
+                        + "|runtime-warning")
+                continue
+            }
             let successfulExecution = try successful(
                 execution,
                 operation: "run \(parityCase.id) repetition "
@@ -473,6 +488,13 @@ private enum ConcurrencyParityHarness {
                     text: "runtime-trap"))
                 continue
             }
+            if parityCase.assertion == .runtimeWarning {
+                _ = try validateRuntimeWarning(
+                    execution,
+                    requiredFragments: parityCase.interpreterWarningContains,
+                    operation: "run interpreted warning \(parityCase.id) repetition "
+                        + "\(repetition + 1)/\(repetitionCount)")
+            }
             _ = try successful(
                 execution,
                 operation: "run interpreted parity child \(parityCase.id) "
@@ -491,7 +513,13 @@ private enum ConcurrencyParityHarness {
                 throw RuntimeError(message:
                     "interpreted parity child '\(parityCase.id)' wrote an invalid receipt")
             }
-            observations.append(receipt.observation)
+            if parityCase.assertion == .runtimeWarning {
+                observations.append(.init(
+                    kind: receipt.observation.kind,
+                    text: receipt.observation.text + "|runtime-warning"))
+            } else {
+                observations.append(receipt.observation)
+            }
         }
         return observations
     }
@@ -967,7 +995,21 @@ private enum ConcurrencyParityHarness {
                 return .void
             }
         )))
-        let value = try await interpreter.runAsync(source: source)
+        let completionPolicy: SessionCompletionPolicy
+        switch parityCase.interpreterCompletionPolicy {
+        case nil, "drain-owned-tasks":
+            completionPolicy = .drainOwnedTasks
+        case "top-level":
+            completionPolicy = .topLevel
+        case "cancel-remaining-tasks":
+            completionPolicy = .cancelRemainingTasks
+        case .some(let unknown):
+            throw RuntimeError(message:
+                "unknown interpreter completion policy '\(unknown)' "
+                    + "for '\(parityCase.id)'")
+        }
+        let value = try await interpreter.runAsync(
+            source: source, completionPolicy: completionPolicy)
 
         var externalProjectionOutput: String?
         if projection.hasPrefix("host-callback-global-string:") {
@@ -1006,6 +1048,7 @@ private enum ConcurrencyParityHarness {
               interpreter.concurrencyRuntime.activeStructuredScopeCount == 0,
               interpreter.concurrencyRuntime.activeTaskGroupCount == 0,
               interpreter.concurrencyRuntime.activeAsyncStreamCount == 0,
+              interpreter.concurrencyRuntime.activeContinuationCount == 0,
               interpreter.concurrencyRuntime.activeHostOperationCount == 0
         else {
             throw RuntimeError(message:
@@ -1085,7 +1128,7 @@ private enum ConcurrencyParityHarness {
         predicate: String? = nil
     ) -> [String] {
         switch assertion {
-        case .exact:
+        case .exact, .runtimeWarning:
             guard let first = native.first else { return ["exact assertion needs native output"] }
             guard !interpreted.isEmpty else { return ["exact assertion needs interpreter output"] }
             var problems: [String] = []
@@ -1298,6 +1341,27 @@ private enum ConcurrencyParityHarness {
                 "\(operation) did not contain '\(fragment)'"
                     + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
         }
+    }
+
+    static func validateRuntimeWarning(
+        _ result: ParityProcessResult,
+        requiredFragments: [String]?,
+        operation: String
+    ) throws -> ParityProcessResult {
+        let successfulResult = try successful(result, operation: operation)
+        let diagnostics = [result.standardError, result.standardOutput]
+            .map(\.trimmed).filter { !$0.isEmpty }.joined(separator: "\n")
+        guard let requiredFragments, !requiredFragments.isEmpty else {
+            throw RuntimeError(message:
+                "\(operation) has no required warning diagnostic fragments")
+        }
+        for fragment in requiredFragments where
+            !diagnostics.contains(fragment) {
+                throw RuntimeError(message:
+                    "\(operation) did not contain '\(fragment)'"
+                        + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
+        }
+        return successfulResult
     }
 
     static func emitShardReceipt(
@@ -1871,6 +1935,48 @@ struct ConcurrencyParityTests {
             native: ["runtime-trap"],
             interpreted: [.init(kind: .value, text: "runtime-trap")])
         #expect(!disguisedTrap.isEmpty)
+    }
+
+    @Test func runtimeWarningRequiresSuccessfulExitAndDiagnosticFragments()
+        throws
+    {
+        let warning = ParityProcessResult(
+            status: 0,
+            standardOutput: "caller-returned",
+            standardError: "SWIFT TASK CONTINUATION MISUSE: leaked",
+            timedOut: false)
+        let accepted = try ConcurrencyParityHarness.validateRuntimeWarning(
+            warning,
+            requiredFragments: ["CONTINUATION MISUSE", "leaked"],
+            operation: "warning negative control")
+        #expect(accepted.status == 0)
+
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.validateRuntimeWarning(
+                warning,
+                requiredFragments: ["missing"],
+                operation: "missing warning fragment")
+        }
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.validateRuntimeWarning(
+                .init(
+                    status: 1,
+                    standardOutput: "",
+                    standardError: "leaked",
+                    timedOut: false),
+                requiredFragments: ["leaked"],
+                operation: "warning nonzero exit")
+        }
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.validateRuntimeWarning(
+                .init(
+                    status: 0,
+                    standardOutput: "",
+                    standardError: "leaked",
+                    timedOut: true),
+                requiredFragments: ["leaked"],
+                operation: "warning timeout")
+        }
     }
 
     @Test func nativeObservationDigestIsOrderIndependentAndContentSensitive() throws {

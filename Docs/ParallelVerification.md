@@ -143,6 +143,15 @@ at once:
 3. corpus and generated API parity together;
 4. live-data workers after the corpus has exited.
 
+Before the build stage, the gate acquires one exclusive lease under the
+repository's git common directory. Linked worktrees therefore share the same
+host-level closing-gate budget. A second gate writes a bounded RED receipt and
+exits before build instead of competing for CPU and turning per-probe liveness
+deadlines into false semantic failures. The owner PID, worktree, and start time
+make the conflict actionable; a dead owner's lock is reclaimed, and normal or
+signalled cleanup releases the lease. Focused prebuilt-test lanes do not take
+this lock and may still run concurrently.
+
 Live rendering stays separate because deep render graphs retain substantially
 more memory. On the 16-logical-core, 48 GB reference machine, a sequential
 forced 680-project sweep took 624 seconds and reached 7.30 GB RSS. Process
@@ -198,9 +207,20 @@ four-shard parity lane still running long after the ordinary test worker pool
 had exited. The default test-stage split was therefore changed from 4+4 to
 2 ordinary workers + 6 parity shards on the eight-worker budget, without
 raising peak process count. Closing gates from separate worktrees should not
-overlap on one host: CPU contention lengthens both receipts and makes their
-stage timings useless. Lane iterations use focused prebuilt tests; the primary
+overlap on one host: CPU contention lengthens both receipts, makes their stage
+timings useless, and can starve bounded native probes. The git-common-dir lease
+now enforces that rule. Lane iterations use focused prebuilt tests; the primary
 worktree runs the one full gate after integration.
+
+Two subsequent source-bound RED receipts exposed a narrower load-sensitive
+boundary: the native binaries for `task-priority-escalation` and its transitive
+variant exceeded their original five-second process deadline while the main
+compiler-heavy suite and six parity shards were active. Both cases then passed
+20/20 simultaneously in two four-worker focused boards with unchanged exact
+digests. Their authored process deadline is therefore 15 seconds. This changes
+only the bounded liveness envelope under gate load; exact output, repetitions,
+native/interpreter comparison, and the 30-minute whole-stage deadline are
+unchanged.
 
 Treat these as comparison points, not permanent thresholds; corpus contents
 and toolchain versions change.
@@ -222,6 +242,7 @@ All allocations can be overridden:
 | `GATE_TERMINATION_GRACE_SECONDS` | TERM grace before process-tree KILL | `5` |
 | `GATE_KEEP_LOGS=1` | Preserve the temporary build/worker logs and print their directory | disabled |
 | `GATE_RECEIPT_PATH` | Machine-readable closing receipt | `.build/gate-receipt.json` |
+| `GATE_LOCK_DIRECTORY` | Override the cross-worktree exclusive closing-gate lease path; intended for isolated methodology tests | shared git common directory |
 | `GATE_EXPECTED_TOOLCHAIN_FINGERPRINT` | Require a pinned combined build/native/SDK fingerprint; unset records without pinning | unset |
 | `GATE_CAPABILITY_INVENTORY_INPUT_PATH` / `GATE_CAPABILITY_STATUS_INPUT_PATH` | Override only the physical accounting inputs for fail-closed negative controls; the receipt records both canonical and physical paths | checked-in manifests |
 

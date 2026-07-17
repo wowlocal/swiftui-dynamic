@@ -5,20 +5,38 @@ final class RuntimeCheckedContinuation: RuntimeConcurrencyHostValue {
     weak var runtime: CooperativeConcurrencyRuntime?
     let id: RuntimeContinuationID
     let allowsThrowingResume: Bool
+    private let function: String
+    private let diagnostics: RuntimeDiagnosticSink
     private var didResume = false
+    private var wasInfrastructureAborted = false
 
     init(
         runtime: CooperativeConcurrencyRuntime,
         id: RuntimeContinuationID,
-        allowsThrowingResume: Bool
+        allowsThrowingResume: Bool,
+        function: String
     ) {
         self.runtime = runtime
         self.id = id
         self.allowsThrowingResume = allowsThrowingResume
+        self.function = function
+        diagnostics = runtime.diagnostics
+    }
+
+    deinit {
+        guard !didResume, !wasInfrastructureAborted else { return }
+        diagnostics.emitWarning(
+            "SWIFT TASK CONTINUATION MISUSE: \(function) leaked its "
+                + "continuation without resuming it. This may cause tasks "
+                + "waiting on it to remain suspended forever.")
     }
 
     var sourceTypeName: String { "CheckedContinuation" }
     var sourceProtocolNames: [String] { [] }
+
+    func invalidateForInfrastructureAbort() {
+        wasInfrastructureAborted = true
+    }
 
     func resume(returning value: RuntimeValue) throws {
         guard !didResume else {
@@ -96,6 +114,7 @@ final class RuntimeContinuationRecord {
     var state: RuntimeContinuationState = .pending
     var nativeWaiter: CheckedContinuation<Void, Never>?
     var suspensionLease: RuntimeTaskSuspensionLease?
+    weak var sourceToken: RuntimeCheckedContinuation?
 
     init(
         id: RuntimeContinuationID,
@@ -157,10 +176,15 @@ extension Interpreter {
                 actor, parameterName: "isolation")
             bodyExecutor = executor
         }
-        if let function = arguments.labeled("function"),
-           function.stringValue == nil {
-            throw RuntimeError(message:
-                "\(api)(function:) requires a String")
+        let function: String
+        if let suppliedFunction = arguments.labeled("function") {
+            guard let string = suppliedFunction.stringValue else {
+                throw RuntimeError(message:
+                    "\(api)(function:) requires a String")
+            }
+            function = string
+        } else {
+            function = api
         }
         guard let body = arguments.firstUnlabeledClosure else {
             throw RuntimeError(message:
@@ -170,11 +194,16 @@ extension Interpreter {
         let record = try concurrencyRuntime.createContinuation(
             ownerTaskID: task.id,
             requiredExecutor: evaluationTaskContext.currentExecutor)
-        let continuation = RuntimeCheckedContinuation(
+        var continuation: RuntimeCheckedContinuation? = RuntimeCheckedContinuation(
             runtime: concurrencyRuntime,
             id: record.id,
-            allowsThrowingResume: allowsThrowingResume)
+            allowsThrowingResume: allowsThrowingResume,
+            function: function)
+        record.sourceToken = continuation
         do {
+            guard let continuation else {
+                preconditionFailure("\(record.id) lost its source token")
+            }
             _ = try await callWithArgumentsSuspending(
                 body,
                 args: CallArguments(arguments: [
@@ -183,9 +212,15 @@ extension Interpreter {
                 node: nil,
                 contextualExecutor: bodyExecutor)
         } catch {
+            continuation?.invalidateForInfrastructureAbort()
+            continuation = nil
             concurrencyRuntime.discardContinuation(record)
             throw error
         }
+        // Release the runtime's body-local source capability before parking.
+        // If source did not escape it, the final release emits Swift's checked
+        // abandonment warning; an escaped copy retains the same token canary.
+        continuation = nil
         return try await concurrencyRuntime.awaitContinuation(record)
     }
 

@@ -554,11 +554,11 @@
     "mode": "runtime",
     "assertion": "exact",
     "repetitions": 20,
-    "timeoutSeconds": 5,
+    "timeoutSeconds": 15,
     "interpreterEntry": "await taskPriorityEscalationProbe()",
     "interpreterProjection": "string",
     "nativeFact": "A running background-priority task is escalated to high priority when a high-priority task awaits its value, and a subsequently created unstructured child inherits that effective priority.",
-    "notes": "The low task records 9 before the high waiter exists. On MainActor, the high task opens the low gate and immediately awaits the low handle with no intervening suspension, so the second read and child creation occur only after waiter registration. Exact output is 9,25,25 on Swift 6.3.3."
+    "notes": "The low task records 9 before the high waiter exists. On MainActor, the high task opens the low gate and immediately awaits the low handle with no intervening suspension, so the second read and child creation occur only after waiter registration. Exact output is 9,25,25 on Swift 6.3.3. The process remains hard-bounded at 15 seconds: two source-bound closing receipts showed the earlier 5-second native-binary deadline was unstable under the intended concurrent compiler/parity load, while two simultaneous four-worker focused boards completed all 20 native/interpreter repetitions with the same digest. The semantic assertion and repetition count are unchanged."
   },
   {
     "id": "task-priority-transitive-escalation",
@@ -566,11 +566,11 @@
     "mode": "runtime",
     "assertion": "exact",
     "repetitions": 20,
-    "timeoutSeconds": 5,
+    "timeoutSeconds": 15,
     "interpreterEntry": "await taskPriorityTransitiveProbe()",
     "interpreterProjection": "string",
     "nativeFact": "High-priority donation propagates through a chain when the awaited task is itself awaiting another task.",
-    "notes": "MainActor barriers ensure the utility middle task is already awaiting the background bottom task before the high task opens the bottom gate and immediately awaits the middle task. Exact output is 9,25,25 on Swift 6.3.3."
+    "notes": "MainActor barriers ensure the utility middle task is already awaiting the background bottom task before the high task opens the bottom gate and immediately awaits the middle task. Exact output is 9,25,25 on Swift 6.3.3. The process remains hard-bounded at 15 seconds: two source-bound closing receipts showed the earlier 5-second native-binary deadline was unstable under the intended concurrent compiler/parity load, while two simultaneous four-worker focused boards completed all 20 native/interpreter repetitions with the same digest. The semantic assertion and repetition count are unchanged."
   },
   {
     "id": "task-local-declaration",
@@ -2135,6 +2135,72 @@
     "notes": "The exact result is causal and makes no scheduling-order, physical-thread, or parallelism claim. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced 41 in twenty bounded native runs. The interpreter RED was unresolved identifier 'withCheckedContinuation'. Generated dispatch now routes the proven explicit-isolation-nil value subset through a task-owned bounded continuation record; the detached producer exercises resume from another source task. Focused evidence observes waitingForContinuation, required-executor restoration, one record, infrastructure-abort cleanup, and empty continuation/task/scope/group/stream/host-operation/scheduler registries. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 cdc0e05905b13ba3a3ef5a18fbefc271aedd047a639102d2b4ef965cc4f8c1a7."
   },
   {
+    "id": "checked-continuation-double-resume",
+    "fixture": "Fixtures/checked-continuation-double-resume.swift",
+    "mode": "runtime",
+    "assertion": "runtime-trap",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationDoubleResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeTrapContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "tried to resume its continuation more than once"
+    ],
+    "interpreterTrapContains": [
+      "checked continuation",
+      "resumed more than once"
+    ],
+    "nativeFact": "A checked nonthrowing continuation accepts its first returning resume and traps the process synchronously when the same token is resumed a second time; the second value is never returned to source.",
+    "notes": "Both resume calls are program-ordered in the continuation body, so the trap requires no scheduler, executor, physical-thread, or parallelism claim. This is the self-contained same-source adapter for the unchanged pinned swiftlang checked_continuation.swift oracle, whose StdlibUnittest test independently expects a crash for the same returning-then-returning misuse. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors; native and interpreted execution trapped in all twenty bounded isolated runs. This was an already-GREEN characterization: the source carrier already rejected the second resume as a fatal invariant, so no production change was required for this form. Focused evidence records one created record, no suspension, and complete ownership cleanup. Canonical native-observation SHA-256: 14011640abe8a0f135e2a1f33df41bcb1fd9839ed9365f7d30e03fb19e1ce64e."
+  },
+  {
+    "id": "checked-continuation-abandonment",
+    "fixture": "Fixtures/checked-continuation-abandonment.swift",
+    "mode": "runtime",
+    "assertion": "runtime-warning",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationAbandonmentProbe()",
+    "interpreterProjection": "string",
+    "interpreterCompletionPolicy": "cancel-remaining-tasks",
+    "nativeWarningContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "checkedContinuationAbandonmentProbe() leaked its continuation without resuming it",
+      "remain suspended forever"
+    ],
+    "interpreterWarningContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "checkedContinuationAbandonmentProbe() leaked its continuation without resuming it",
+      "remain suspended forever"
+    ],
+    "nativeFact": "Dropping the last checked-continuation token without resuming logs a runtime misuse warning, does not trap, and leaves the task waiting on that continuation suspended indefinitely.",
+    "notes": "Task.immediate causally executes the complete continuation body before returning its handle, so caller-returned plus the warning requires no sleep or scheduler-order assumption. Apple Swift 6.3.3 compiled the source in complete strict-concurrency mode with warnings as errors and produced exit 0, stdout caller-returned, and the same three warning fragments in twenty bounded runs. The native wrapper then exits its process; the interpreter wrapper applies cancelRemainingTasks only after the same source observation so the intentionally suspended task and continuation registry can be torn down. That host-boundary cleanup is not a source continuation result and does not alter the warning invariant. No physical-thread or parallelism claim is made."
+  },
+  {
+    "id": "checked-throwing-continuation-abandonment",
+    "fixture": "Fixtures/checked-throwing-continuation-abandonment.swift",
+    "mode": "runtime",
+    "assertion": "runtime-warning",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedThrowingContinuationAbandonmentProbe()",
+    "interpreterProjection": "string",
+    "interpreterCompletionPolicy": "cancel-remaining-tasks",
+    "nativeWarningContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "checkedThrowingContinuationAbandonmentProbe() leaked its continuation without resuming it",
+      "remain suspended forever"
+    ],
+    "interpreterWarningContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "checkedThrowingContinuationAbandonmentProbe() leaked its continuation without resuming it",
+      "remain suspended forever"
+    ],
+    "nativeFact": "Dropping the last checked-throwing-continuation token without resuming logs a runtime misuse warning, does not enter source catch or trap, and leaves the task waiting on that continuation suspended indefinitely.",
+    "notes": "Task.immediate causally executes the complete throwing-continuation body before returning its handle. Apple Swift 6.3.3 compiled the source in complete strict-concurrency mode with warnings as errors and produced exit 0, stdout caller-returned, and the same three warning fragments in twenty bounded runs; source catch is unreachable because abandonment is a warning and not an error result. This form shares the checked token canary and the nonthrowing fixture's captured missing-warning RED. The native wrapper exits its process, while the interpreter wrapper applies cancelRemainingTasks only after the source observation to drain the deliberately suspended runtime owner. No scheduler-order, physical-thread, or parallelism claim is made."
+  },
+  {
     "id": "checked-continuation-mainactor-resume",
     "fixture": "Fixtures/checked-continuation-mainactor-resume.swift",
     "mode": "runtime",
@@ -2157,6 +2223,26 @@
     "interpreterProjection": "string",
     "nativeFact": "Two sequential checked throwing continuations project the exact value supplied through resume(returning:) and the original source error supplied through resume(throwing:) into its matching catch.",
     "notes": "Each continuation has its own detached producer, which yields before resuming. Program order between the two awaits fixes value before error, but no producer scheduling order, physical thread, or parallel execution is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced value:23|error:failed in twenty native runs."
+  },
+  {
+    "id": "checked-throwing-continuation-double-resume",
+    "fixture": "Fixtures/checked-throwing-continuation-double-resume.swift",
+    "mode": "runtime",
+    "assertion": "runtime-trap",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedThrowingContinuationDoubleResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeTrapContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "tried to resume its continuation more than once"
+    ],
+    "interpreterTrapContains": [
+      "checked continuation",
+      "resumed more than once"
+    ],
+    "nativeFact": "A checked throwing continuation accepts its first returning resume and traps the process synchronously when the same token is then resumed by throwing; the second terminal outcome cannot be caught as a source error.",
+    "notes": "Both resume calls are program-ordered in the continuation body, so the trap requires no scheduler, executor, physical-thread, or parallelism claim. This is the self-contained same-source adapter for the unchanged pinned swiftlang checked_continuation.swift oracle, whose StdlibUnittest test independently expects a crash for the same returning-then-throwing misuse. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and trapped in twenty bounded runs. The interpreter RED was a successful child exit: async do/catch converted the fatal second-resume invariant into a source-catchable error. The common suspending do/catch boundary now rethrows every fatal RuntimeError, matching the synchronous evaluator and try? boundary; no continuation-name special case was added. Native/interpreter runtime-trap parity is 20/20 with canonical native-observation SHA-256 d9182563ed7f04da65516cc3b3cd55b5936278384e7cf2a8dc502e0eef4ce6ef. Focused evidence covers both checked forms, one record and zero suspensions per immediate misuse, and complete ownership cleanup."
   },
   {
     "id": "checked-throwing-continuation-mainactor-error",
@@ -2217,6 +2303,18 @@
     "interpreterProjection": "string",
     "nativeFact": "An explicitly selected source actor owns the synchronous checked-continuation body and restores a nonisolated caller after resume; a caller-defaulted source actor retains body ownership, releases its mailbox while parked so another actor message runs, and reacquires it before continuation.",
     "notes": "The explicit producer yields before resume. In the caller-defaulted case, a detached controller can open the producer gate only after its actor method reenters and increments isolated state, so exact output explicit=worker:owned:worker|default=owned:owned:owned:1 proves release and reacquisition without asserting unrelated ready-task order, physical threads, or parallel execution. Dynamic native ownership uses Actor.assertIsolated through a parity helper rather than lexical #isolation. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced the exact output in twenty bounded runs. The interpreter RED rejected explicit source-actor isolation before creating a continuation because the entry adapter accepted only nil or MainActor. The shared suspending invocation kernel now accepts a contextual executor, acquires the selected source actor for the synchronous body, restores a different caller executor after the body, and lets the canonical continuation suspension release and later reacquire an already-owned source actor. Omitted isolation reaches the same path through caller-lexical #isolation. Focused evidence records two continuations, two canonical suspensions, causal actor reentry, exact caller/body/resume ownership, and empty actor/task/continuation/scope/group/stream/host-operation/scheduler registries. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 b919a36e3510d689feccceed310076dfe2168910cbc94a97b224c6658d585935."
+  },
+  {
+    "id": "checked-throwing-continuation-source-actor-isolation",
+    "fixture": "Fixtures/checked-throwing-continuation-source-actor-isolation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedThrowingContinuationSourceActorIsolationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An explicitly selected source actor owns the synchronous checked-throwing-continuation body and restores a nonisolated caller before matching the resumed source error; a caller-defaulted source actor releases its mailbox while parked, permits another actor message, and reacquires it before source-error catch handling.",
+    "notes": "The explicit producer yields before resuming with a source error selected from dynamic actor ownership. In the caller-defaulted case, a detached controller can open the producer gate only after its actor method reenters and increments isolated state, so exact output explicit=worker:owned:worker|default=owned:owned:failed:owned:1 proves source-error projection, mailbox release, and reacquisition without asserting unrelated ready-task order, physical threads, or parallel execution. Dynamic native ownership uses Actor.assertIsolated through a parity helper rather than lexical #isolation. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode and produced the exact output in twenty bounded native runs. This was an already-GREEN characterization: the existing contextual-executor invocation and failed continuation transition already composed for explicit and caller-defaulted source actors, so no production change was required. Focused evidence records two canonical suspensions, causal actor reentry, exact source-error catch restoration, and empty actor/task/continuation/scope/group/stream/host-operation/scheduler registries. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 82eb9f8c66f3251029411784959e1746ce0e1565620a36da6e9fa781fe82c383."
   },
   {
     "id": "checked-continuation-void-resume",

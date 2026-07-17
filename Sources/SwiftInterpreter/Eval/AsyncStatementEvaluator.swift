@@ -560,7 +560,8 @@ extension Interpreter {
         } catch let thrown as InterpretedThrow {
             return try await executeCatchSuspending(
                 doStatement.catchClauses, error: thrown.value, in: env)
-        } catch let hostError as RuntimeError where !hostError.fatal {
+        } catch let hostError as RuntimeError {
+            if hostError.fatal { throw hostError }
             return try await executeCatchSuspending(
                 doStatement.catchClauses,
                 error: .native(hostError.message),
