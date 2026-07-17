@@ -20,6 +20,7 @@ struct ConcurrencySurfaceGeneratorTests {
             "withCheckedContinuation": "withCheckedContinuation",
             "withCheckedThrowingContinuation":
                 "withCheckedThrowingContinuation",
+            "withUnsafeContinuation": "unsupportedUnsafeContinuation",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
             "withTaskExecutorPreference": "withTaskExecutorPreference",
@@ -387,7 +388,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 171)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 125)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 126)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 49,
             "task-static-member": 25,
@@ -450,6 +451,11 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.domain == "top-level-function"
                 && $0.name == "withCheckedThrowingContinuation"
                 && $0.adapterIntrinsic == "withCheckedThrowingContinuation"
+        })
+        #expect(capabilities.declarations.contains {
+            $0.domain == "top-level-function"
+                && $0.name == "withUnsafeContinuation"
+                && $0.adapterIntrinsic == "unsupportedUnsafeContinuation"
         })
         #expect(capabilities.declarations.contains {
             $0.domain == "task-static-member" && $0.name == "sleep"
@@ -516,7 +522,8 @@ struct ConcurrencySurfaceGeneratorTests {
             "withTaskGroup",
             "withTaskPriorityEscalationHandler",
             "withThrowingDiscardingTaskGroup",
-            "withThrowingTaskGroup", "withUnsafeCurrentTask",
+            "withThrowingTaskGroup", "withUnsafeContinuation",
+            "withUnsafeCurrentTask",
         ])
         #expect(inventory.knownTopLevelFunctions.contains("withUnsafeCurrentTask"))
         #expect(inventory.nominalMemberDeclarations["UnsafeCurrentTask"]?.values
@@ -750,6 +757,10 @@ struct ConcurrencySurfaceGeneratorTests {
         function: String = #function,
         _ body: (CheckedContinuation<T, any Error>) -> Void
     ) async throws -> sending T { fatalError() }
+    @unsafe public func withUnsafeContinuation<T>(
+        isolation: isolated (any Actor)? = #isolation,
+        _ body: (UnsafeContinuation<T, Never>) -> Void
+    ) async -> sending T { fatalError() }
     public func extractIsolation<each Arg, Result>(
         _ fn: @escaping @isolated(any)
             (repeat each Arg) async throws -> Result

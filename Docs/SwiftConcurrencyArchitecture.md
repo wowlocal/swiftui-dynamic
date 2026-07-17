@@ -77,8 +77,10 @@ Swift's successful-process misuse warning when the final unresumed source token
 is released; the waiting task stays suspended and explicit host teardown
 remains separate. A resumed checked token may remain escaped after owner
 completion without retaining the task-local owner graph, runtime, session, or
-interpreter, and its later release is inert. Only fail-closed diagnostics for
-the unsafe continuation entry points remain open.
+interpreter, and its later release is inert. The active-interface generator
+routes `withUnsafeContinuation` to a shared named fail-closed diagnostic before
+body invocation or ownership allocation; only the corresponding
+`withUnsafeThrowingContinuation` boundary remains open.
 The remaining Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1396,8 +1398,12 @@ warning through a diagnostic sink that does not retain the session, leaves the
 waiting task parked, and never enters source `catch`; infrastructure abort
 invalidates the token before host cleanup. After successful resume and owner
 completion, an escaped token retains neither the task-local owner graph nor the
-runtime/session/interpreter; its later release is inert. Unsafe variants remain
-open only for explicit fail-closed diagnostics.
+runtime/session/interpreter; its later release is inert. The generated
+`withUnsafeContinuation` entry point now fails closed through the shared
+`unsupportedUnsafeContinuation` intrinsic before invoking its body or creating
+ownership. `withUnsafeThrowingContinuation` remains open for the same explicit
+boundary; unsafe continuation ownership is not silently approximated by the
+checked registry.
 
 ### 6.18 Async sequences and streams
 
@@ -2127,7 +2133,9 @@ Each milestone is independently gated through
   successful-process warning while leaving the owner suspended; host teardown
   is explicit and occurs after observation. Resumed-token lifetime is covered:
   a retained escaped token does not own the completed task graph or runtime and
-  is inert on release. Only unsafe-variant fail-closed diagnostics remain;
+  is inert on release. The nonthrowing unsafe entry point is generated into a
+  shared named fail-closed diagnostic before source-body invocation and runtime
+  ownership; only the throwing unsafe entry point remains open;
   complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows

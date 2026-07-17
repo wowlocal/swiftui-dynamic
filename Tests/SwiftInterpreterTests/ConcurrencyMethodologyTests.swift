@@ -1605,7 +1605,7 @@ struct ConcurrencyMethodologyTests {
         let unsafe = try #require(rows.first {
             $0.name == "withUnsafeContinuation"
         })
-        #expect(unsafe.adapterIntrinsic == nil)
+        #expect(unsafe.adapterIntrinsic == "unsupportedUnsafeContinuation")
         #expect(unsafe.declaration.contains("@unsafe public func"))
         #expect(unsafe.declaration.contains(
             "_Concurrency.UnsafeContinuation<T, Swift.Never>"))
@@ -1721,9 +1721,32 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.notes.contains(
             "runtime-supported with native parity"))
 
-        let routedIDs = Set([checked.id, checkedThrowing.id])
-        let deferredClaims = claims.filter { !routedIDs.contains($0.id) }
-        #expect(deferredClaims.count == 2)
+        let unsafeClaim = try #require(claims.first {
+            $0.id == unsafe.id
+        })
+        #expect(unsafeClaim.implementationStatus == .diagnosedUnsupported)
+        #expect(unsafeClaim.verificationStatus == .focusedOnly)
+        #expect(unsafeClaim.requirementRef
+            == "M6/protocol-iteration-streams-and-continuations")
+        #expect(unsafeClaim.evidenceCaseIDs == [
+            "unsafe-continuation-fail-closed",
+        ])
+        #expect(unsafeClaim.testNames == [
+            "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
+            "UnsafeContinuationDiagnosticsTests/unsafeContinuationFailsClosedBeforeOwnership",
+        ])
+        #expect(unsafeClaim.gapEvidenceIDs == [
+            "async-sequence-continuation-runtime",
+        ])
+        #expect(unsafeClaim.notes.contains(
+            "unsupportedUnsafeContinuation intrinsic"))
+        #expect(unsafeClaim.notes.contains("explicit MainActor isolation"))
+        #expect(unsafeClaim.notes.contains("fails closed"))
+        #expect(unsafeClaim.notes.contains("before invoking the body"))
+        #expect(unsafeClaim.notes.contains("section 14 depth cap"))
+
+        let deferredClaims = claims.filter { $0.id == unsafeThrowing.id }
+        #expect(deferredClaims.count == 1)
         #expect(deferredClaims.allSatisfy {
             $0.implementationStatus == .deferred
                 && $0.verificationStatus == .none
@@ -1731,7 +1754,7 @@ struct ConcurrencyMethodologyTests {
                     == "M6/protocol-iteration-streams-and-continuations"
                 && $0.evidenceCaseIDs.isEmpty
                 && $0.testNames == [
-                    "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership",
+                    "CompilerPreflightTests/publicContinuationEntryPointsTypecheckForAuthoredRuntimeDisposition",
                 ]
                 && $0.gapEvidenceIDs
                     == ["async-sequence-continuation-runtime"]

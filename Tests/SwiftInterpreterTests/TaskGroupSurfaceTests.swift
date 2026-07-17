@@ -72,6 +72,7 @@ struct TaskGroupSurfaceTests {
             "extractIsolation": .extractIsolation,
             "withCheckedContinuation": .withCheckedContinuation,
             "withCheckedThrowingContinuation": .withCheckedThrowingContinuation,
+            "withUnsafeContinuation": .unsupportedUnsafeContinuation,
             "withDiscardingTaskGroup": .withDiscardingTaskGroup,
             "withTaskCancellationHandler": .withTaskCancellationHandler,
             "withTaskExecutorPreference": .withTaskExecutorPreference,

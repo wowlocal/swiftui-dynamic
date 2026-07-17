@@ -161,6 +161,9 @@ extension Interpreter {
             } else if intrinsic == .withCheckedThrowingContinuation {
                 function = sourceCheckedContinuationFunction(
                     name: sourceName, allowsThrowingResume: true)
+            } else if intrinsic == .unsupportedUnsafeContinuation {
+                function = sourceUnsupportedUnsafeContinuationFunction(
+                    name: sourceName)
             } else if intrinsic == .extractIsolation {
                 function = sourceExtractIsolationFunction(name: sourceName)
             } else if intrinsic == .withCurrentTaskCapability {

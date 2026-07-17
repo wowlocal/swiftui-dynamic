@@ -2123,6 +2123,23 @@
     "notes": "All three observations are program-ordered in one MainActor task. No task scheduling, executor, or thread behavior is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced cancelled:terminated:cancelled in twenty bounded native runs. This was an already-GREEN characterization: the shared producer carrier was already weak for both stream flavors after scope-exit support landed, so no production change was required. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 37ca395c9da690fb5efa6fba8dfec52ec9ee6ddce65ce54e759749b1a8932bb2; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
   },
   {
+    "id": "unsafe-continuation-fail-closed",
+    "fixture": "Fixtures/unsafe-continuation-fail-closed.swift",
+    "mode": "runtime",
+    "assertion": "interpreter-diagnostic",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await unsafeContinuationFailClosedProbe()",
+    "interpreterProjection": "string",
+    "interpreterDiagnosticContains": [
+      "withUnsafeContinuation",
+      "unsafe continuation ownership is unsupported",
+      "use a checked continuation"
+    ],
+    "nativeFact": "Swift accepts withUnsafeContinuation with explicit MainActor isolation; its synchronous body resumes once with an exact value and the awaiting call returns that value.",
+    "notes": "The body resumes immediately in program order, so exact native output value:33 makes no scheduler-order, physical-thread, or parallelism claim. This native-positive case is intentionally an interpreter-diagnostic boundary rather than behavioral parity: the uncited unsafe family is outside the demand depth cap and must fail closed before invoking its body or allocating continuation ownership."
+  },
+  {
     "id": "checked-continuation-value-resume",
     "fixture": "Fixtures/checked-continuation-value-resume.swift",
     "mode": "runtime",
