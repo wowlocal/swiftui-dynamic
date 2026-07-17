@@ -76,6 +76,15 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["FOODTRUCK_TWIN_DUMP"] != nil {
             let counts = model.orders.prefix(6).map { "\($0.donuts.count)/\($0.grandTotal)" }
             print("TWIN-DUMP orders=\(model.orders.count) firsts=\(counts.joined(separator: ","))")
+            // Week sales-stream alignment: day-one vector per city, sorted
+            // by donut id, encodes the shuffle + per-day draw sequence.
+            for city in City.all {
+                if let day = model.dailyOrderSummaries(cityID: city.id).first {
+                    let vector = day.sales.sorted { $0.key < $1.key }
+                        .map { "\($0.key):\($0.value)" }.joined(separator: ",")
+                    print("TWIN-HISTORY \(city.id) day0=\(vector)")
+                }
+            }
         }
 
         // Full screens (grow toward the complete Panel list as rungs open).

@@ -1704,3 +1704,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   07-11. Upstream: the checked-continuation series continues
   (throwing-MainActor characterization landed); the alias-test
   completion still gates the fifteen-commit merge queue.
+- 2026-07-17 donuts residue ELIMINATED (worktree iteration 20):
+  **donuts 1.041% → 0.437%, detail-donuts likewise** — the entire
+  +0.6pp drift was ONE wall-clock leak. The stream diff (twin
+  TWIN-HISTORY dump + interp day-0 vector probe) showed Cupertino's
+  day-0 sales scaled by EXACTLY 1.25 — the weekend multiplier — and
+  the chain probe isolated it: `startOfDay(for: .now)` resolves the
+  bare `.now` ARGUMENT marker through the bridge's dateArg, which
+  hardcoded the WALL clock (`Date()`), bypassing the program's frozen
+  `extension Date { static var now }` shadow; day-60 landed on Monday
+  instead of Sunday. Fix: Interpreter.ambientDateNowProvider —
+  installed per run when the program shadows Date.now (both
+  ProgramEvaluator entries), consulted by dateArg's `.now` arm — the
+  shadowing rule now holds in Date ARGUMENT positions too. pow was
+  cleared bit-exact en route (pinned). Board: donuts/detail-donuts
+  0.437%, R3 all green, four AE=0 rows hold. Pins:
+  AmbientDateNowTests (chain stamp + weekend parity vs native), twin
+  TWIN-HISTORY dump kept as harness. Remaining R4 residue: truck
+  1.400% (annotation icons + pillar shadow), socialfeed 0.472%,
+  orders 0.492%, card-orders 0.168%. Upstream alias-test completion
+  still gates the sixteen-commit merge.

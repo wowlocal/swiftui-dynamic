@@ -466,7 +466,7 @@ struct FoodTruckCheckMain {
             capturePNG("diag-forecast-data", source: probeMergeBase + probeApp(
                 "VStack { Text(String(TruckWeatherCard.placeholderForecast.entries.count)); Text(String(TruckWeatherCard.placeholderForecast.nightTimeRanges.count)); Text(String(TruckWeatherCard.placeholderForecast.low)) }.font(.system(size: 40)).background(Color.white)"), size: cardSize)
             capturePNG("diag-sales", source: probeMergeBase + probeApp(
-                "VStack { Text(String(describing: model.combinedOrderSummary(timeframe: .week).sales[Donut.cosmos.id] ?? -1)); Text(String(describing: model.combinedOrderSummary(timeframe: .week).sales[Donut.picnicBasket.id] ?? -1)); Text(String(describing: model.combinedOrderSummary(timeframe: .week).sales[Donut.nighttime.id] ?? -1)); Text(String(describing: model.combinedOrderSummary(timeframe: .week).sales[Donut.strawberrySprinkles.id] ?? -1)) }.font(.system(size: 30)).background(Color.white)"), size: cardSize)
+                "Text(model.dailyOrderSummaries(cityID: City.cupertino.id).first!.sales.sorted { $0.key < $1.key }.map { String(describing: $0.key) + String(\":\") + String(describing: $0.value) }.joined(separator: String(\",\"))).font(.system(size: 14)).background(Color.white)"), size: cardSize)
             capturePNG("diag-weather", source: probeMergeBase + probeApp(
                 "TruckWeatherCard(location: CLLocation(latitude: 37.3, longitude: -122.0)).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("diag-chart", source: probeMergeBase + diagChartDecl + probeApp(

@@ -791,7 +791,9 @@ func modelFetchTypeName(from descriptor: RuntimeValue) -> String? {
 
 private func dateArg(_ value: RuntimeValue?) -> Date? {
     if case .host(let any)? = value, let date = any as? Date { return date }
-    if case .implicitMember("now")? = value { return Date() }
+    if case .implicitMember("now")? = value {
+        return Interpreter.ambientDateNowProvider?() ?? Date()
+    }
     // `to: .init()` — a bare Date construction in date position.
     if case .host(let any)? = value, let call = any as? ImplicitMemberCall, call.name == "init" {
         if let interval = call.arguments.labeled("timeIntervalSince1970")?.doubleValue {
