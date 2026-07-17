@@ -112,9 +112,15 @@ private enum RuntimeAsyncStreamBufferingPolicy {
     case bufferingOldest(Int)
     case bufferingNewest(Int)
 
-    var isUnbounded: Bool {
-        if case .unbounded = self { return true }
-        return false
+    var isSupportedForThrowingStream: Bool {
+        switch self {
+        case .unbounded:
+            true
+        case .bufferingNewest(let limit):
+            limit > 0
+        case .bufferingOldest:
+            false
+        }
     }
 
     func remainingCapacity(bufferedCount: Int) -> Int {
@@ -466,9 +472,10 @@ extension Interpreter {
     ) throws -> RuntimeValue {
         let bufferingPolicy = try Self.runtimeAsyncStreamBufferingPolicy(
             arguments.labeled("bufferingPolicy"))
-        guard !flavor.isThrowing || bufferingPolicy.isUnbounded else {
+        guard !flavor.isThrowing
+                || bufferingPolicy.isSupportedForThrowingStream else {
             throw RuntimeError(message:
-                "AsyncThrowingStream bounded buffering is not yet supported")
+                "AsyncThrowingStream buffering policy is not yet supported")
         }
         guard let build = arguments.lastUnlabeledClosure else {
             throw RuntimeError(message:

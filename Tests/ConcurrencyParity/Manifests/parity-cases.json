@@ -2047,5 +2047,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Cancelling a task parked in empty AsyncThrowingStream.Iterator.next() synchronously invokes onTermination(.cancelled) before next returns nil; the task may return normally while remaining marked cancelled.",
     "notes": "The MainActor child marks entry immediately before awaiting next. Run-to-suspension prevents the parent from observing that marker until the iterator can park, so cancel occurs at the controlled edge without unrelated task-order or physical-executor claims. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and returned true:true:cancelled:cancelled in twenty bounded runs. The interpreter RED timed out because its explicit throwing-stream cancellation guard discarded the callback and left the parked waiter unresolved. The shared cancellation path now delivers the flavor-specific .cancelled value before resuming next with nil. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 8248bec5de22875ebe62a306cd31b2da279ff76a8ae4e49dbe34dbb67c77ea93; focused runtime evidence observes one suspension and complete ownership cleanup."
+  },
+  {
+    "id": "async-throwing-stream-buffering-newest",
+    "fixture": "Fixtures/async-throwing-stream-buffering-newest.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamBufferingNewestProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncThrowingStream bufferingNewest(2) retains the newest two unconsumed values, reports remaining capacity after successful insertion, returns each displaced oldest value once full, and drains only the retained values before terminal nil.",
+    "notes": "Every producer operation precedes iteration in one MainActor task. Sequential next calls make the yield results, eviction semantics, retained-value order, and terminal nil deterministic without task-order or physical-executor claims. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact output enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true in twenty bounded runs. The interpreter RED was the explicit blanket diagnostic rejecting every bounded AsyncThrowingStream policy. The shared storage kernel now accepts only the proven positive-capacity bufferingNewest subset; bufferingOldest and zero capacity stay fail-closed. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 94d8669f69f6d2b253081259b081438fe1602acc67a8d2158bf00165c7923f7b; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
   }
 ]
