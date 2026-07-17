@@ -240,12 +240,14 @@ extension ViewRegistry {
                 rowValues = TableRowCollector.active ?? []
                 TableRowCollector.active = nil
             }
+            guard !specs.isEmpty else { return .native(AnyView(EmptyView())) }
+            let sortBox = args.labeled("sortOrder").flatMap { try? Coerce.bindingBox($0) }
             if ProcessInfo.processInfo.environment["FTCHECK_TRACE"] != nil {
                 FileHandle.standardError.write(Data(
-                    "TABLE specs=\(specs.map(\.title)) rows=\(rowValues.count)\n".utf8))
+                    "TABLE specs=\(specs.map { ($0.title, $0.keyPath?.components) }) rows=\(rowValues.count) sort=\(String(describing: sortBox?.value))\n".utf8))
             }
-            guard !specs.isEmpty else { return .native(AnyView(EmptyView())) }
-            return .native(try Self.realTable(rows: rowValues, specs: specs, interpreter: interpreter))
+            return .native(try Self.realTable(
+                rows: rowValues, specs: specs, sortOrder: sortBox, interpreter: interpreter))
         }
 
         constructors["ScrollView"] = HostFunction(name: "ScrollView") { args, ctx in
@@ -818,6 +820,14 @@ extension ViewRegistry {
     /// with the app (it sorts before the Table sees rows).
     struct TableShimRow: Identifiable {
         let id: Int
+        // Distinct comparable keys so sortable TableColumns carry per-column
+        // identity to the native header; the app still sorts the rows.
+        nonisolated var c0: Int { id }
+        nonisolated var c1: Int { id }
+        nonisolated var c2: Int { id }
+        nonisolated var c3: Int { id }
+        nonisolated var c4: Int { id }
+        nonisolated var c5: Int { id }
     }
 
     private final class CellGrid: @unchecked Sendable {
@@ -832,7 +842,8 @@ extension ViewRegistry {
     }
 
     static func realTable(
-        rows: [RuntimeValue], specs: [TableColumnSpec], interpreter: Interpreter
+        rows: [RuntimeValue], specs: [TableColumnSpec], sortOrder: Box?,
+        interpreter: Interpreter
     ) throws -> AnyView {
         var built: [[AnyView]] = []
         for row in rows {
@@ -866,6 +877,10 @@ extension ViewRegistry {
         let grid = CellGrid(built)
         let shims = rows.indices.map { TableShimRow(id: $0) }
         let titles = specs.map(\.title)
+        if let sortBox = sortOrder {
+            return sortableTable(
+                shims: shims, grid: grid, specs: specs, titles: titles, sortBox: sortBox)
+        }
         func sized(_ column: TableColumn<TableShimRow, Never, AnyView, Text>, _ index: Int) -> TableColumn<TableShimRow, Never, AnyView, Text> {
             let spec = specs[index]
             if let fixed = spec.fixedWidth { return column.width(fixed) }
@@ -913,6 +928,78 @@ extension ViewRegistry {
                 TableColumn(titles.count > 3 ? titles[3] : "") { (r: TableShimRow) in grid.cell(r.id, 3) }
                 TableColumn(titles.count > 4 ? titles[4] : "") { (r: TableShimRow) in grid.cell(r.id, 4) }
                 TableColumn(titles.count > 5 ? titles[5] : "") { (r: TableShimRow) in grid.cell(r.id, 5) }
+            })
+        }
+    }
+
+    /// Sortable Table: the app's `sortOrder` binding (an array of
+    /// KeyPathComparatorBox) drives the native header — the sorted column's
+    /// bold title + direction chevron — and header clicks write back through
+    /// the same box so the app re-sorts its rows. Columns whose spec has no
+    /// key path are unsortable in native, so their writes are dropped.
+    private static let shimSortPaths: [any KeyPath<TableShimRow, Int> & Sendable] = [
+        \.c0, \.c1, \.c2, \.c3, \.c4, \.c5,
+    ]
+
+    private static func sortableTable(
+        shims: [TableShimRow], grid: CellGrid, specs: [TableColumnSpec],
+        titles: [String], sortBox: Box
+    ) -> AnyView {
+        let paths = shimSortPaths
+        func appSort() -> (index: Int, ascending: Bool)? {
+            guard case .array(let entries) = sortBox.value, let first = entries.first,
+                  case .host(let any) = first, let comparator = any as? KeyPathComparatorBox,
+                  let index = specs.firstIndex(where: {
+                      $0.keyPath?.components == comparator.keyPath.components
+                  }),
+                  index < paths.count else { return nil }
+            return (index, comparator.ascending)
+        }
+        let binding = Binding<[KeyPathComparator<TableShimRow>]>(
+            get: {
+                guard let (index, ascending) = appSort() else { return [] }
+                return [KeyPathComparator(paths[index], order: ascending ? .forward : .reverse)]
+            },
+            set: { newOrder in
+                guard let first = newOrder.first,
+                      let index = paths.firstIndex(where: {
+                          ($0 as PartialKeyPath<TableShimRow>) == first.keyPath
+                      }),
+                      index < specs.count, let keyPath = specs[index].keyPath else { return }
+                sortBox.value = .array([.host(KeyPathComparatorBox(
+                    keyPath: keyPath, ascending: first.order == .forward))])
+            }
+        )
+        func sized(
+            _ column: TableColumn<TableShimRow, KeyPathComparator<TableShimRow>, AnyView, Text>,
+            _ index: Int
+        ) -> TableColumn<TableShimRow, KeyPathComparator<TableShimRow>, AnyView, Text> {
+            let spec = specs[index]
+            if let fixed = spec.fixedWidth { return column.width(fixed) }
+            if spec.minWidth != nil || spec.idealWidth != nil || spec.maxWidth != nil {
+                return column.width(min: spec.minWidth, ideal: spec.idealWidth, max: spec.maxWidth)
+            }
+            return column
+        }
+        func col(_ index: Int) -> TableColumn<TableShimRow, KeyPathComparator<TableShimRow>, AnyView, Text> {
+            sized(TableColumn(titles[index], sortUsing: KeyPathComparator(paths[index])) {
+                (r: TableShimRow) in grid.cell(r.id, index)
+            }, index)
+        }
+        switch specs.count {
+        case 1:
+            return AnyView(Table(shims, sortOrder: binding) { col(0) })
+        case 2:
+            return AnyView(Table(shims, sortOrder: binding) { col(0); col(1) })
+        case 3:
+            return AnyView(Table(shims, sortOrder: binding) { col(0); col(1); col(2) })
+        case 4:
+            return AnyView(Table(shims, sortOrder: binding) { col(0); col(1); col(2); col(3) })
+        case 5:
+            return AnyView(Table(shims, sortOrder: binding) { col(0); col(1); col(2); col(3); col(4) })
+        default:
+            return AnyView(Table(shims, sortOrder: binding) {
+                col(0); col(1); col(2); col(3); col(4); col(5)
             })
         }
     }
