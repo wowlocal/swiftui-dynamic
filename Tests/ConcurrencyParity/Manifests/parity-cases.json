@@ -2023,5 +2023,17 @@
     "interpreterProjection": "string",
     "nativeFact": "AsyncThrowingStream normal finish synchronously invokes one onTermination(.finished(nil)) callback before returning, preserves a prior buffered value, makes repeated terminal reads nil, and makes a later yield return terminated.",
     "notes": "The builder performs every producer operation synchronously and records an event immediately after finish returns. Three sequential iterator reads then expose the buffered value and stable terminal state without task-order or physical-executor claims. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output 3:true:true:finished(nil),after-finish:terminated with canonical native-observation SHA-256 c208018808dc13933512c4d0274986274461222cfafc3806ebfcfd65d880f944. The captured interpreter RED was assignment rejection for AsyncThrowingStream.Continuation.onTermination. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup. Failure/cancellation callback payloads and implicit lifetime termination remain fail-closed or open."
+  },
+  {
+    "id": "async-throwing-stream-failure-termination",
+    "fixture": "Fixtures/async-throwing-stream-failure-termination.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamFailureTerminationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncThrowingStream finish(throwing:) synchronously invokes one onTermination(.finished(error)) callback containing the supplied source error before returning, preserves a prior buffered value, rethrows that same error after the value, and terminates later yields.",
+    "notes": "The callback renders the associated termination error only to prove that it contains the stopped case, avoiding module-qualified description differences. Every producer operation is synchronous; sequential iterator reads make value-before-error ordering deterministic without task-order or physical-executor claims. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output 5:caught:finished-error,after-finish:terminated with canonical native-observation SHA-256 f1ab4a6a9520f687349a779caf3d418c77cd925a5b9011cf4d98167001453935. The captured interpreter RED was its explicit fail-closed diagnostic for a failure termination callback. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup. Cancellation callbacks and implicit lifetime termination remain fail-closed or open."
   }
 ]

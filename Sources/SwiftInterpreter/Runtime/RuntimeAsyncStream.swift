@@ -261,11 +261,6 @@ final class RuntimeAsyncStreamStorage {
         failure: RuntimeValue? = nil
     ) throws {
         guard !terminal else { return }
-        if flavor.isThrowing, failure != nil, onTermination != nil {
-            onTermination = nil
-            throw RuntimeError(message:
-                "AsyncThrowingStream failure termination callback is not yet supported")
-        }
         terminal = true
         terminalFailure = failure?.copiedForValueSemantics()
         let handler = onTermination

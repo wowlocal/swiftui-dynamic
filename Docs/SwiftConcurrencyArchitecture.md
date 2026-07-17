@@ -1417,10 +1417,12 @@ consumer, one delivered value, case-specific failure projection, and complete
 cleanup.
 Normal throwing-stream finish now also has exact evidence: it synchronously
 delivers `.finished(nil)` to one registered callback, preserves a buffered
-value, produces stable terminal nil, and rejects later yield. Failure and
-cancellation callback payloads, bounded buffering, iterator-copy, and
-throwing-stream lifetime edges remain fail-closed or open. Source checked
-continuations are not yet claimed.
+value, produces stable terminal nil, and rejects later yield. Failure finish
+has companion evidence: `.finished(error)` carries the original source
+value synchronously before return, iteration drains the prior value then
+rethrows that error, and later yield is terminated. Cancellation callbacks,
+bounded buffering, iterator-copy, and throwing-stream lifetime edges remain
+fail-closed or open. Source checked continuations are not yet claimed.
 
 ### 6.19 Host gateway runtime
 
@@ -2003,9 +2005,10 @@ Each milestone is independently gated through
   and both zero-capacity boundaries. The shared kernel also owns one unbounded
   `AsyncThrowingStream` suspended-consumer/value/source-error/cleanup slice;
   normal finish, `.finished(nil)` callback timing, buffered retention, stable
-  nil, and rejected post-finish yield are also covered. Its remaining failure
-  and cancellation callbacks, buffering, iterator-copy, and lifetime semantics
-  plus checked continuations resuming on
+  nil, and rejected post-finish yield are also covered. Failure finish adds the
+  associated source error callback and later exact rethrow. Its remaining
+  cancellation callbacks, buffering, iterator-copy, and lifetime semantics plus
+  checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
   complete custom-executor scheduling;
@@ -2232,9 +2235,11 @@ suspends an empty consumer, delivers one value, then rethrows the exact source
 error supplied to `finish(throwing:)` after that value drains, using the same
 runtime record and cleanup kernel. Normal throwing finish,
 `.finished(nil)` callback timing, buffered retention, stable nil, and rejected
-post-terminal yield are covered separately. Failure/cancellation callbacks,
-bounded buffering, iterator-copy, and lifetime edges plus checked-continuation
-ownership remain active rather than being inferred from those slices.
+post-terminal yield are covered separately. Failure finish also synchronously
+delivers `.finished(error)` with the original source value before that value is
+re-thrown after the prior element drains. Cancellation callbacks, bounded
+buffering, iterator-copy, and lifetime edges plus checked-continuation ownership
+remain active rather than being inferred from those slices.
 
 Deliverables:
 
