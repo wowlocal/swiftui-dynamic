@@ -53,6 +53,31 @@ final class RuntimeCheckedContinuation: RuntimeConcurrencyHostValue {
         try runtime.resumeContinuation(id, throwing: value)
         didResume = true
     }
+
+    func resume(with result: RuntimeValue) throws {
+        // Compiler preflight proves the nominal Swift.Result constraint. The
+        // evaluator's imported-enum carrier preserves its case and payload.
+        guard case .host(let payload) = result,
+              let shaped = payload as? CaseShaped else {
+            throw RuntimeError(message:
+                "CheckedContinuation.resume(with:) requires a Result value")
+        }
+        let values = shaped.casePayloads
+        guard values.count == 1 else {
+            throw RuntimeError(message:
+                "CheckedContinuation.resume(with:) requires a Result value")
+        }
+        let value = values[0]
+        switch shaped.caseName {
+        case "success":
+            try resume(returning: value)
+        case "failure":
+            try resume(throwing: value)
+        default:
+            throw RuntimeError(message:
+                "CheckedContinuation.resume(with:) requires a Result value")
+        }
+    }
 }
 
 enum RuntimeContinuationState {
@@ -192,9 +217,13 @@ extension Interpreter {
                 try continuation.resume(throwing: value)
                 return .void
             }
+            if let result = arguments.labeled("with") {
+                try continuation.resume(with: result)
+                return .void
+            }
             throw RuntimeError(message:
-                "CheckedContinuation.resume currently requires returning: "
-                    + "or throwing:")
+                "CheckedContinuation.resume currently requires returning:, "
+                    + "throwing:, or with:")
         })
     }
 }

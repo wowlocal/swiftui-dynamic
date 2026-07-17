@@ -195,6 +195,27 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func continuationResultResumeRejectsNonResultArgument() throws {
+        let result = try Self.activePreflight().preflight(source: """
+        nonisolated func invalidContinuationResultResume() async throws -> Int {
+            try await withCheckedThrowingContinuation(
+                isolation: nil
+            ) { (continuation: CheckedContinuation<Int, any Error>) in
+                continuation.resume(with: 1)
+            }
+        }
+        """)
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.severity == .error
+                && $0.message.contains(
+                    "cannot convert value of type 'Int' to expected argument "
+                        + "type 'Result<Int, any Error>'")
+        }, Comment(rawValue: result.standardError))
+    }
+
+    @Test
     func multiFilePreflightPreservesFileScopedPrivateDeclarations() throws {
         let engine = try Self.activePreflight()
         let sources = try [

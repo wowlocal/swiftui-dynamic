@@ -64,6 +64,34 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func resultResumeUsesReturningAndThrowingTransitions()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/"
+                + "checked-throwing-continuation-result-resume.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait checkedThrowingContinuationResultResumeProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "value:29|error:failed")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func voidResumeUsesSameRecordAndCleanup() async throws {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
