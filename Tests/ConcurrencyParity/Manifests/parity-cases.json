@@ -1999,5 +1999,17 @@
     "interpreterProjection": "string",
     "nativeFact": "Both bufferingNewest(0) and bufferingOldest(0) retain no unconsumed value. Each yield reports the newly supplied element as dropped, finish is terminal, and the first iterator read returns nil.",
     "notes": "Each zero-capacity stream is produced and drained sequentially on MainActor. The only yield occurs synchronously before iteration, so rejection and terminal state are deterministic and no task order or physical executor behavior is asserted. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output newest:dropped(1):true|oldest:dropped(2):true with canonical native-observation SHA-256 835466db10fcdaa4c20da208c0dbea51584198f6d47292fdf4096c8310702079. The captured interpreter RED was its explicit fail-closed diagnostic for .bufferingNewest(0). Focused evidence requires two created streams, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup. Negative capacities remain explicitly unsupported."
+  },
+  {
+    "id": "async-throwing-stream-suspended-failure",
+    "fixture": "Fixtures/async-throwing-stream-suspended-failure.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamSuspendedFailureProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An empty AsyncThrowingStream consumer suspends, receives a yielded value, and then observes the exact source error supplied to finish(throwing:) after draining that value.",
+    "notes": "The MainActor producer starts with Task.yield before delivering one value and a typed source error. The exact count, sum, and case-specific catch avoid unrelated task-order or physical-executor claims. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output 1:2:caught with canonical native-observation SHA-256 b35c84ff9dee12339f6f150c9f5074154bc4ee6c478e988f675c468f1f291d56. The captured interpreter RED was the missing AsyncThrowingStream constructor diagnostic. Focused evidence requires one created stream, at least one consumer suspension, and complete stream/task/scope/group/host-operation/scheduler cleanup. Normal finish, termination callbacks, bounded buffering, and throwing-stream lifetime edges remain fail-closed or open."
   }
 ]

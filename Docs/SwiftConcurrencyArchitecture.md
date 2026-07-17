@@ -1408,8 +1408,16 @@ escaped producer handle then returns `.terminated` from `yield`, and releasing
 it cannot invoke termination again. Because destruction cannot throw, an
 interpreter failure from this source-level nonthrowing callback is retained by
 the concurrency runtime and surfaced at the next throwing evaluator safe point.
-The current slices do not yet claim `AsyncThrowingStream` or source checked
-continuations.
+The first `AsyncThrowingStream<Element, Error>` slice reuses this same
+flavor-aware storage, waiter, suspension, producer-handle, iterator-carrier, and
+cleanup kernel. Its terminal state may retain an original source error value;
+after a waiter receives its prior value, the next `next()` rethrows the error
+through `InterpretedThrow`. Exact evidence covers one suspended unbounded
+consumer, one delivered value, case-specific failure projection, and complete
+cleanup.
+Normal finish, throwing termination/cancellation callbacks, bounded buffering,
+and throwing-stream lifetime edges remain fail-closed or open. Source checked
+continuations are not yet claimed.
 
 ### 6.19 Host gateway runtime
 
@@ -1989,8 +1997,10 @@ Each milestone is independently gated through
   independent and copied iterators, scope-exit cancellation termination,
   non-owning escaped producer handles, and exact positive-capacity
   `.bufferingNewest(2)` plus `.bufferingOldest(2)` result/retention semantics
-  and both zero-capacity boundaries; `AsyncThrowingStream` and checked
-  continuations resuming on
+  and both zero-capacity boundaries. The shared kernel also owns one unbounded
+  `AsyncThrowingStream` suspended-consumer/value/source-error/cleanup slice;
+  its remaining finish, termination, buffering, iterator-copy, and lifetime
+  semantics plus checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
   complete custom-executor scheduling;
@@ -2212,8 +2222,13 @@ Its `.bufferingOldest(2)` counterpart reports the same capacities, rejects and
 returns new values `3` then `4`, and drains only `1`, `2`, then `nil`.
 At capacity zero both policies return the supplied element as `.dropped`, keep
 no buffered value, and read terminal `nil` after finish. Negative capacities
-remain explicitly unsupported. Throwing streams and checked-continuation
-ownership remain active rather than being inferred from those slices.
+remain explicitly unsupported. The first unbounded throwing-stream slice also
+suspends an empty consumer, delivers one value, then rethrows the exact source
+error supplied to `finish(throwing:)` after that value drains, using the same
+runtime record and cleanup kernel. Normal throwing finish,
+termination/cancellation callbacks, bounded buffering, iterator-copy, and
+lifetime edges plus checked-continuation ownership remain active rather than
+being inferred from that slice.
 
 Deliverables:
 

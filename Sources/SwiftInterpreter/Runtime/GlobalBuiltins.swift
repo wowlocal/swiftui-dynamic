@@ -131,6 +131,9 @@ extension Interpreter {
         globals.define(
             "AsyncStream",
             .hostFunction(sourceAsyncStreamFunction()))
+        globals.define(
+            "AsyncThrowingStream",
+            .hostFunction(sourceAsyncThrowingStreamFunction()))
         for sourceName in GeneratedConcurrencySurface
                 .topLevelFunctionDispatch.keys.sorted() {
             guard let intrinsic = GeneratedConcurrencySurface

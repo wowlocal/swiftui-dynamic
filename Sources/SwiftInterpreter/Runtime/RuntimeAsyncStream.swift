@@ -11,6 +11,33 @@ protocol RuntimeConcurrencyHostValue: AnyObject {
 private enum RuntimeAsyncStreamNext {
     case value(RuntimeValue)
     case finished
+    case failed(RuntimeValue)
+}
+
+fileprivate enum RuntimeAsyncStreamFlavor {
+    case nonthrowing
+    case throwing(failureTypeName: String)
+
+    var baseName: String {
+        switch self {
+        case .nonthrowing: "AsyncStream"
+        case .throwing: "AsyncThrowingStream"
+        }
+    }
+
+    var isThrowing: Bool {
+        if case .throwing = self { return true }
+        return false
+    }
+
+    func sequenceTypeName(elementTypeName: String) -> String {
+        switch self {
+        case .nonthrowing:
+            "AsyncStream<\(elementTypeName)>"
+        case .throwing(let failureTypeName):
+            "AsyncThrowingStream<\(elementTypeName), \(failureTypeName)>"
+        }
+    }
 }
 
 private enum RuntimeAsyncStreamTermination: CustomStringConvertible {
@@ -60,6 +87,11 @@ private enum RuntimeAsyncStreamBufferingPolicy {
     case bufferingOldest(Int)
     case bufferingNewest(Int)
 
+    var isUnbounded: Bool {
+        if case .unbounded = self { return true }
+        return false
+    }
+
     func remainingCapacity(bufferedCount: Int) -> Int {
         switch self {
         case .unbounded:
@@ -75,21 +107,25 @@ final class RuntimeAsyncStreamStorage {
     weak var callbackOwner: Interpreter?
     let id: RuntimeAsyncStreamID
     let elementTypeName: String
+    fileprivate let flavor: RuntimeAsyncStreamFlavor
     private let bufferingPolicy: RuntimeAsyncStreamBufferingPolicy
     private var buffered: [RuntimeValue] = []
     private var waiters: [RuntimeAsyncStreamWaiter] = []
     private var onTermination: ClosureValue?
     private var terminal = false
+    private var terminalFailure: RuntimeValue?
     private var closed = false
 
     fileprivate init(
         runtime: CooperativeConcurrencyRuntime,
         callbackOwner: Interpreter,
+        flavor: RuntimeAsyncStreamFlavor,
         bufferingPolicy: RuntimeAsyncStreamBufferingPolicy,
         elementTypeName: String
     ) {
         self.runtime = runtime
         self.callbackOwner = callbackOwner
+        self.flavor = flavor
         self.bufferingPolicy = bufferingPolicy
         self.elementTypeName = elementTypeName
         id = runtime.createAsyncStream()
@@ -99,9 +135,9 @@ final class RuntimeAsyncStreamStorage {
         guard !closed else { return }
         precondition(
             waiters.isEmpty,
-            "an AsyncStream storage cannot die with suspended consumers")
+            "an async stream storage cannot die with suspended consumers")
         if !terminal, let handler = onTermination {
-            // The final sequence/iterator release owns native AsyncStream's
+            // The final sequence/iterator release owns the native stream's
             // implicit cancellation edge. Run the callback
             // before releasing the runtime record, synchronously with ARC.
             onTermination = nil
@@ -125,6 +161,7 @@ final class RuntimeAsyncStreamStorage {
         }
         guard terminal else { return nil }
         closeIfPossible()
+        if let terminalFailure { return .failed(terminalFailure) }
         return .finished
     }
 
@@ -186,9 +223,13 @@ final class RuntimeAsyncStreamStorage {
         onTermination
     }
 
-    func finish(in context: EvalContext) throws {
+    func finish(
+        in context: EvalContext,
+        failure: RuntimeValue? = nil
+    ) throws {
         guard !terminal else { return }
         terminal = true
+        terminalFailure = failure?.copiedForValueSemantics()
         let handler = onTermination
         onTermination = nil
         var handlerFailure: Error?
@@ -204,7 +245,11 @@ final class RuntimeAsyncStreamStorage {
         let pending = waiters
         waiters.removeAll(keepingCapacity: false)
         for waiter in pending {
-            waiter.continuation.resume(returning: .finished)
+            if let terminalFailure {
+                waiter.continuation.resume(returning: .failed(terminalFailure))
+            } else {
+                waiter.continuation.resume(returning: .finished)
+            }
         }
         closeIfPossible()
         if let handlerFailure { throw handlerFailure }
@@ -254,7 +299,8 @@ final class RuntimeAsyncStreamSequence: RuntimeConcurrencyHostValue {
     }
 
     var sourceTypeName: String {
-        "AsyncStream<\(storage.elementTypeName)>"
+        storage.flavor.sequenceTypeName(
+            elementTypeName: storage.elementTypeName)
     }
 
     var sourceProtocolNames: [String] { ["AsyncSequence"] }
@@ -270,7 +316,8 @@ final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue,
     }
 
     var sourceTypeName: String {
-        "AsyncStream<\(storage.elementTypeName)>.Iterator"
+        storage.flavor.sequenceTypeName(
+            elementTypeName: storage.elementTypeName) + ".Iterator"
     }
 
     var sourceProtocolNames: [String] { ["AsyncIteratorProtocol"] }
@@ -281,19 +328,22 @@ final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue,
 }
 
 final class RuntimeAsyncStreamContinuation: RuntimeConcurrencyHostValue {
-    /// Producer handles do not own native AsyncStream lifetime. The sequence
+    /// Producer handles do not own native stream lifetime. The sequence
     /// and its iterators retain storage; once those owners disappear, this
     /// handle remains usable only to report terminal/no-op outcomes.
     weak var storage: RuntimeAsyncStreamStorage?
     let elementTypeName: String
+    fileprivate let flavor: RuntimeAsyncStreamFlavor
 
     init(storage: RuntimeAsyncStreamStorage) {
         self.storage = storage
         elementTypeName = storage.elementTypeName
+        flavor = storage.flavor
     }
 
     var sourceTypeName: String {
-        "AsyncStream<\(elementTypeName)>.Continuation"
+        flavor.sequenceTypeName(
+            elementTypeName: elementTypeName) + ".Continuation"
     }
 
     var sourceProtocolNames: [String] { ["Sendable"] }
@@ -306,12 +356,6 @@ extension Interpreter {
                 throw RuntimeError(message:
                     "interpreter was released while creating AsyncStream")
             }
-            let bufferingPolicy = try Self.runtimeAsyncStreamBufferingPolicy(
-                arguments.labeled("bufferingPolicy"))
-            guard let build = arguments.lastUnlabeledClosure else {
-                throw RuntimeError(message:
-                    "AsyncStream requires a continuation builder closure")
-            }
             let specializedElementType = arguments
                 .labeled("__genericArguments")?.stringValue
             let explicitElementType = arguments.positional(0)?
@@ -323,17 +367,70 @@ extension Interpreter {
                 throw RuntimeError(message:
                     "AsyncStream currently requires one explicit element type")
             }
-            let storage = RuntimeAsyncStreamStorage(
-                runtime: self.concurrencyRuntime,
-                callbackOwner: self,
-                bufferingPolicy: bufferingPolicy,
-                elementTypeName: elementType)
-            let continuation = RuntimeAsyncStreamContinuation(
-                storage: storage)
-            _ = try context.callClosure(
-                build, arguments: [.native(continuation)])
-            return .native(RuntimeAsyncStreamSequence(storage: storage))
+            return try self.makeRuntimeAsyncStream(
+                sourceName: "AsyncStream",
+                elementTypeName: elementType,
+                flavor: .nonthrowing,
+                arguments: arguments,
+                context: context)
         }
+    }
+
+    func sourceAsyncThrowingStreamFunction() -> HostFunction {
+        HostFunction(name: "AsyncThrowingStream") {
+            [weak self] arguments, context in
+            guard let self else {
+                throw RuntimeError(message:
+                    "interpreter was released while creating AsyncThrowingStream")
+            }
+            guard let specialization = arguments
+                    .labeled("__genericArguments")?.stringValue else {
+                throw RuntimeError(message:
+                    "AsyncThrowingStream requires explicit Element and Error types")
+            }
+            let genericArguments = Self.splitTopLevel(specialization)
+            guard genericArguments.count == 2,
+                  !genericArguments[0].isEmpty,
+                  Self.isAnyErrorType(genericArguments[1]) else {
+                throw RuntimeError(message:
+                    "AsyncThrowingStream currently requires <Element, Error>")
+            }
+            return try self.makeRuntimeAsyncStream(
+                sourceName: "AsyncThrowingStream",
+                elementTypeName: genericArguments[0],
+                flavor: .throwing(failureTypeName: genericArguments[1]),
+                arguments: arguments,
+                context: context)
+        }
+    }
+
+    private func makeRuntimeAsyncStream(
+        sourceName: String,
+        elementTypeName: String,
+        flavor: RuntimeAsyncStreamFlavor,
+        arguments: CallArguments,
+        context: EvalContext
+    ) throws -> RuntimeValue {
+        let bufferingPolicy = try Self.runtimeAsyncStreamBufferingPolicy(
+            arguments.labeled("bufferingPolicy"))
+        guard !flavor.isThrowing || bufferingPolicy.isUnbounded else {
+            throw RuntimeError(message:
+                "AsyncThrowingStream bounded buffering is not yet supported")
+        }
+        guard let build = arguments.lastUnlabeledClosure else {
+            throw RuntimeError(message:
+                "\(sourceName) requires a continuation builder closure")
+        }
+        let storage = RuntimeAsyncStreamStorage(
+            runtime: concurrencyRuntime,
+            callbackOwner: self,
+            flavor: flavor,
+            bufferingPolicy: bufferingPolicy,
+            elementTypeName: elementTypeName)
+        let continuation = RuntimeAsyncStreamContinuation(storage: storage)
+        _ = try context.callClosure(
+            build, arguments: [.native(continuation)])
+        return .native(RuntimeAsyncStreamSequence(storage: storage))
     }
 
     func runtimeAsyncStreamMember(
@@ -349,17 +446,19 @@ extension Interpreter {
         }
         if let iterator = payload as? RuntimeAsyncStreamIterator,
            name == "next" {
+            let streamName = iterator.storage.flavor.baseName
             return .hostFunction(HostFunction(
                 name: name,
                 tracksHostOperation: false,
                 asyncInvoke: { [weak self, weak iterator] _, _ in
                     guard let self, let iterator else {
                         throw RuntimeError(message:
-                            "AsyncStream iterator was released while awaiting next()")
+                            "\(streamName) iterator was released while awaiting next()")
                     }
                     guard !iterator.isAwaitingNext else {
                         throw RuntimeError(
-                            message: "attempt to await AsyncStream.Iterator.next() concurrently",
+                            message: "attempt to await "
+                                + "\(streamName).Iterator.next() concurrently",
                             fatal: true)
                     }
                     iterator.isAwaitingNext = true
@@ -378,7 +477,7 @@ extension Interpreter {
                     arguments, _ in
                     guard let value = arguments.positional(0) else {
                         throw RuntimeError(message:
-                            "AsyncStream.Continuation.yield requires a value")
+                            "\(continuation.flavor.baseName).Continuation.yield requires a value")
                     }
                     guard let storage = continuation.storage else {
                         return .native(RuntimeAsyncStreamYieldResult.terminated)
@@ -386,11 +485,20 @@ extension Interpreter {
                     return .native(storage.yield(value))
                 })
             case "finish":
-                return .hostFunction(HostFunction(name: name) { _, context in
-                    try continuation.storage?.finish(in: context)
+                return .hostFunction(HostFunction(name: name) {
+                    arguments, context in
+                    let failure = Self.runtimeOptionalPayload(
+                        arguments.labeled("throwing"))
+                    if continuation.flavor.isThrowing, failure == nil {
+                        throw RuntimeError(message:
+                            "AsyncThrowingStream normal finish is not yet supported")
+                    }
+                    try continuation.storage?.finish(
+                        in: context, failure: failure)
                     return .void
                 })
             case "onTermination":
+                guard !continuation.flavor.isThrowing else { return nil }
                 return .optional(
                     continuation.storage?.getOnTermination().map {
                         .closure($0)
@@ -407,19 +515,22 @@ extension Interpreter {
     private func nextRuntimeAsyncStreamValue(
         from storage: RuntimeAsyncStreamStorage
     ) async throws -> RuntimeValue? {
+        let streamName = storage.flavor.baseName
         guard storage.runtime === concurrencyRuntime else {
             throw RuntimeError(message:
-                "AsyncStream belongs to a released interpreter runtime")
+                "\(streamName) belongs to a released interpreter runtime")
         }
         if let immediate = storage.poll() {
             switch immediate {
             case .value(let value): return value
             case .finished: return nil
+            case .failed(let failure):
+                throw InterpretedThrow(value: failure)
             }
         }
 
         let task = try requireCanonicalActiveRuntimeTask(
-            for: "AsyncStream.Iterator.next")
+            for: "\(streamName).Iterator.next")
         let lease = concurrencyRuntime.beginWaitingForAsyncStream(
             storage.id, taskID: task.id)
         let cancellationHandler = concurrencyRuntime.addCancellationHandler(
@@ -427,7 +538,7 @@ extension Interpreter {
         ) { [weak self, weak storage] in
             guard let self else {
                 throw RuntimeError(message:
-                    "interpreter was released while cancelling AsyncStream")
+                    "interpreter was released while cancelling \(streamName)")
             }
             try storage?.cancel(in: self)
         }
@@ -441,6 +552,8 @@ extension Interpreter {
         switch next {
         case .value(let value): return value
         case .finished: return nil
+        case .failed(let failure):
+            throw InterpretedThrow(value: failure)
         }
     }
 
@@ -450,7 +563,8 @@ extension Interpreter {
         to value: RuntimeValue
     ) throws -> Bool {
         guard name == "onTermination",
-              let continuation = payload as? RuntimeAsyncStreamContinuation else {
+              let continuation = payload as? RuntimeAsyncStreamContinuation,
+              !continuation.flavor.isThrowing else {
             return false
         }
         if value.isNil {
@@ -473,8 +587,29 @@ extension Interpreter {
     }
 
     func hasRuntimeAsyncStreamMember(_ name: String, on payload: Any) -> Bool {
-        name == "onTermination"
-            && payload is RuntimeAsyncStreamContinuation
+        guard name == "onTermination",
+              let continuation = payload as? RuntimeAsyncStreamContinuation else {
+            return false
+        }
+        return !continuation.flavor.isThrowing
+    }
+
+    private static func runtimeOptionalPayload(
+        _ value: RuntimeValue?
+    ) -> RuntimeValue? {
+        guard let value else { return nil }
+        if case .optional(let optional) = value {
+            return optional.wrapped
+        }
+        return value.isNil ? nil : value
+    }
+
+    private static func isAnyErrorType(_ typeName: String) -> Bool {
+        let normalized = typeName
+            .replacingOccurrences(of: "Swift.", with: "")
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+        return normalized == "Error" || normalized == "any Error"
     }
 
     private static func runtimeAsyncStreamBufferingPolicy(
