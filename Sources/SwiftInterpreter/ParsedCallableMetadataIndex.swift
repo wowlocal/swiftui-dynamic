@@ -13,6 +13,8 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
         public let explicitlyNonisolatedFunctionCount: Int
         public let mainActorFunctionCount: Int
         public let concurrentFunctionCount: Int
+        public let typeMemberFunctionCount: Int
+        public let modifiedFunctionCount: Int
         public let readableAccessorCount: Int
         public let subscriptCount: Int
         public let asyncGetterCount: Int
@@ -27,6 +29,8 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
             explicitlyNonisolatedFunctionCount: Int,
             mainActorFunctionCount: Int,
             concurrentFunctionCount: Int,
+            typeMemberFunctionCount: Int = 0,
+            modifiedFunctionCount: Int = 0,
             readableAccessorCount: Int = 0,
             subscriptCount: Int = 0,
             asyncGetterCount: Int = 0,
@@ -41,6 +45,8 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
                 explicitlyNonisolatedFunctionCount
             self.mainActorFunctionCount = mainActorFunctionCount
             self.concurrentFunctionCount = concurrentFunctionCount
+            self.typeMemberFunctionCount = typeMemberFunctionCount
+            self.modifiedFunctionCount = modifiedFunctionCount
             self.readableAccessorCount = readableAccessorCount
             self.subscriptCount = subscriptCount
             self.asyncGetterCount = asyncGetterCount
@@ -74,6 +80,11 @@ public nonisolated struct ParsedCallableMetadataIndex: Sendable {
                 where: \.isExplicitlyNonisolated),
             mainActorFunctionCount: functionValues.count(where: \.isMainActor),
             concurrentFunctionCount: functionValues.count(where: \.isConcurrent),
+            typeMemberFunctionCount: functionValues.count(
+                where: \.isTypeMember),
+            modifiedFunctionCount: functionValues.count {
+                !$0.modifierNames.isEmpty
+            },
             readableAccessorCount: accessors.count,
             subscriptCount: subscripts.count,
             asyncGetterCount: accessorValues.count(where: \.isAsync),
@@ -128,6 +139,7 @@ nonisolated struct ParsedCallableShape: Sendable {
 }
 
 nonisolated struct ParsedFunctionMetadata: Sendable {
+    let name: String
     let parameters: [ClosureValue.Parameter]
     let shape: ParsedCallableShape
     let returnType: TypeSyntax?
@@ -135,6 +147,7 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
     let isBuilder: Bool
     let genericParameters: [String]
     let attributeNames: [String]
+    let modifierNames: [String]
     let sourceFunctionName: String
     let isAsync: Bool
     let isThrowing: Bool
@@ -142,12 +155,15 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
     let isExplicitlyNonisolated: Bool
     let isMainActor: Bool
     let isConcurrent: Bool
+    let isTypeMember: Bool
 
     init(_ declaration: FunctionDeclSyntax) {
         let parameters = declaration.signature.parameterClause.parameters
         let returnType = declaration.signature.returnClause?.type
         let returnTypeName = returnType?.trimmedDescription
         let attributeNames = parsedAttributeNames(declaration.attributes)
+        let modifierNames = declaration.modifiers.map { $0.name.text }
+        name = declaration.name.text
         self.parameters = parsedClosureParameters(parameters)
         shape = parsedCallableShape(parameters)
         self.returnType = returnType
@@ -157,6 +173,7 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
         genericParameters = declaration.genericParameterClause?.parameters
             .map(\.name.text) ?? []
         self.attributeNames = attributeNames
+        self.modifierNames = modifierNames
         sourceFunctionName = declaration.name.text + "("
             + parameters.map { $0.firstName.text + ":" }.joined() + ")"
         isAsync = declaration.signature.effectSpecifiers?.asyncSpecifier != nil
@@ -169,6 +186,8 @@ nonisolated struct ParsedFunctionMetadata: Sendable {
         }
         isMainActor = attributeNames.contains("MainActor")
         isConcurrent = attributeNames.contains("concurrent")
+        isTypeMember = modifierNames.contains("static")
+            || modifierNames.contains("class")
     }
 }
 

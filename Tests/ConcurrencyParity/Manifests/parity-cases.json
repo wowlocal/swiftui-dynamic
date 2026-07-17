@@ -158,6 +158,18 @@
     "notes": "Exact output is body|none:foodtruck|after in all repetitions. FoodTruck cites the ordinary deinitializer on MainActor-isolated StoreMessagesManager; no physical-thread, scheduler-order, isolated-deinitializer, or custom-global-actor teardown claim is made."
   },
   {
+    "id": "callable-placement-metadata",
+    "fixture": "Fixtures/callable-placement-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await callablePlacementMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Static and instance methods of a MainActor-isolated nominal inherit that actor while remaining callable through the type and an instance respectively.",
+    "notes": "Exact output is type:same:foodtruck|instance:same in all repetitions and remains unchanged after an awaited actor hop. FoodTruck cites static callables in City, StoreMessagesManager, and TaskSeconds; no class-func, physical-thread, scheduler-order, or unrelated-overload claim is made."
+  },
+  {
     "id": "actor-isolated-deinitializer",
     "fixture": "Fixtures/actor-isolated-deinitializer.swift",
     "mode": "runtime",

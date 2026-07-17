@@ -9,6 +9,7 @@ struct RuntimeEntryOwnershipTests {
         var observedKinds: [RuntimeEntry.Kind] = []
         var observedHeapMatches: [Bool] = []
         var observedMetadata: [ParsedCallableMetadataIndex.Summary?] = []
+        var observedTypeMemberFunctionCounts: [Int?] = []
         var observedDeclarationCounts: [Int?] = []
         var observedNominalCounts: [Int?] = []
         var observedPropertyBindingCounts: [Int?] = []
@@ -30,6 +31,9 @@ struct RuntimeEntryOwnershipTests {
                     observedKinds.append(entry.kind)
                     observedHeapMatches.append(entry.heap === interpreter.runtimeHeap)
                     observedMetadata.append(entry.callableMetadataIndex?.summary)
+                    observedTypeMemberFunctionCounts.append(
+                        entry.callableMetadataIndex?.summary
+                            .typeMemberFunctionCount)
                     observedDeclarationCounts.append(entry.programMetadata?
                         .declarationIndex.summary
                         .possiblePrimaryDeclarationCount)
@@ -51,6 +55,7 @@ struct RuntimeEntryOwnershipTests {
         struct OriginMarker {
             let value = 1
             final class Lifetime { deinit {} }
+            static func origin() {}
         }
         enum OriginState { case ready }
         extension OriginMarker {}
@@ -70,10 +75,12 @@ struct RuntimeEntryOwnershipTests {
         struct NewerMarker {
             let value = 1
             final class Lifetime { deinit {} }
+            static func newerTypeValue() {}
         }
         struct NewestMarker {
             let value = 2
             final class Lifetime { deinit {} }
+            static func newestTypeValue() {}
         }
         enum NewerState { case first; case second }
         extension NewerMarker {}
@@ -98,7 +105,8 @@ struct RuntimeEntryOwnershipTests {
         #expect(Set(observedIDs).count == 1)
         #expect(observedKinds == [.hostCallback, .hostCallback])
         #expect(observedHeapMatches == [true, true])
-        #expect(observedMetadata.map { $0?.functionCount } == [1, 1])
+        #expect(observedMetadata.map { $0?.functionCount } == [2, 2])
+        #expect(observedTypeMemberFunctionCounts == [1, 1])
         #expect(observedDeclarationCounts == [3, 3])
         #expect(observedNominalCounts == [1, 1])
         #expect(observedPropertyBindingCounts == [1, 1])

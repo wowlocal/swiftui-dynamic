@@ -272,6 +272,21 @@ remains nonisolated and completes synchronously at final release. Isolated or
 custom-global-actor teardown beyond existing fail-closed coverage, scheduler
 order, and physical workers are not claimed.
 
+The fifteenth prerequisite extends the existing immutable, all-branch
+`ParsedCallableMetadataIndex` with function names, modifier names, and
+static/class-versus-instance placement. Struct and enum method registration,
+global function binding, closure debug names, and lexical capture discovery
+consume those facts with a pure fallback for foreign or synthetic syntax;
+active-branch selection, overload sets, closures, and mutable nominal symbols
+remain session-owned. FoodTruck bounds the slice with `static func` callables
+in `City`, `StoreMessagesManager`, and `TaskSeconds`. Session/callback
+provenance and directly affected callable regressions cover ownership. After a
+generic parity helper was corrected to recognize the runtime carrier for
+`MainActor.shared`, the unchanged interpreter and Apple Swift 6.3.3 both
+produce `type:same:foodtruck|instance:same` in twenty repetitions. The index
+records `class` placement as a syntax fact, but class-method dispatch,
+scheduler order, and physical workers are not claimed.
+
 The stable target separates five concerns:
 
 ```text
@@ -2820,7 +2835,8 @@ probe establishes cooperative overlap against the confined heap in twenty
 native/interpreter repetitions. `ParsedProgram` additionally owns one immutable
 `ParsedProgramMetadata` capability containing its declaration and all-branch
 callable, nominal, property, enum-case, extension, type-alias, and
-deinitializer indexes; the
+deinitializer indexes; callable entries now also own names, modifiers, and
+type-member placement. The
 runtime no longer stores mutable function/initializer metadata caches on the facade.
 Sessions and escaped callbacks retain the originating capability through
 `RuntimeEntry`, and eight detached readers exercise one snapshot under Swift 6
@@ -2864,6 +2880,11 @@ body attachment and isolation-policy resolution consume indexed bodies,
 attribute type spellings, and modifier names. The `deinitializer-metadata`
 fixture remains exact in twenty native/interpreter repetitions for FoodTruck's
 ordinary `@MainActor`-class teardown path.
+Callable registration, global binding, closure naming, and lexical capture
+discovery now consume indexed function names, modifier names, and
+static/class-versus-instance placement. The `callable-placement-metadata`
+fixture remains exact in twenty native/interpreter repetitions for the
+demand-cited static and instance MainActor routes.
 These slices separate immutable program input, mutable storage, and execution
 identity without changing scheduling. Remaining member families, call-site, and
 compiler metadata indexing remains incomplete, and mutable

@@ -552,10 +552,12 @@ extension Interpreter {
                 try collectProperties(varDecl, into: symbol)
             } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
                 declLexicalOwners[funcDecl.id] = symbol
-                if isStatic(funcDecl.modifiers) {
-                    symbol.staticMethods[funcDecl.name.text, default: []].append(funcDecl)
+                let metadata = functionMetadata(for: funcDecl)
+                if metadata.isTypeMember {
+                    symbol.staticMethods[metadata.name, default: []].append(
+                        funcDecl)
                 } else {
-                    symbol.methods[funcDecl.name.text, default: []].append(funcDecl)
+                    symbol.methods[metadata.name, default: []].append(funcDecl)
                 }
             } else if let initDecl = member.decl.as(InitializerDeclSyntax.self) {
                 declLexicalOwners[initDecl.id] = symbol
@@ -1050,10 +1052,12 @@ extension Interpreter {
             }
         } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
             declLexicalOwners[funcDecl.id] = symbol
-            if isStatic(funcDecl.modifiers) {
-                symbol.staticMethods[funcDecl.name.text, default: []].append(funcDecl)
+            let metadata = functionMetadata(for: funcDecl)
+            if metadata.isTypeMember {
+                symbol.staticMethods[metadata.name, default: []].append(
+                    funcDecl)
             } else {
-                symbol.methods[funcDecl.name.text, default: []].append(funcDecl)
+                symbol.methods[metadata.name, default: []].append(funcDecl)
             }
         } else if let nestedEnum = decl.as(EnumDeclSyntax.self) {
             // Enums are namespaces as often as value types
@@ -1165,19 +1169,22 @@ extension Interpreter {
     // MARK: - Functions
 
     func defineFunction(_ node: FunctionDeclSyntax, in env: Environment) throws {
+        let metadata = functionMetadata(for: node)
         guard let body = node.body else {
             // Bodyless declarations are extern/C bridges (@_silgen_name
             // Carbon privates): inert absorbers, like the C-interop family.
-            let name = node.name.text
+            let name = metadata.name
             env.define(name, .hostFunction(HostFunction(name: name) { _, _ in
                 .native(ChainedImplicitCall(
                     base: .implicitMember(name), member: "call", arguments: CallArguments()))
             }))
             return
         }
-        env.define(node.name.text, .closure(makeFunctionClosure(node, body: body, captured: env)))
+        env.define(
+            metadata.name,
+            .closure(makeFunctionClosure(node, body: body, captured: env)))
         if env === globals {
-            globalFunctionOverloads[node.name.text, default: []].append(node)
+            globalFunctionOverloads[metadata.name, default: []].append(node)
         }
     }
 
@@ -1196,7 +1203,7 @@ extension Interpreter {
         let lexicalOwner = declLexicalOwners[node.id]
         closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
-        closure.debugName = node.name.text
+        closure.debugName = metadata.name
         closure.sourceFunctionName = metadata.sourceFunctionName
         let isAnyNonisolated = metadata.isAnyNonisolated
         closure.isExplicitlyNonisolated = metadata.isExplicitlyNonisolated

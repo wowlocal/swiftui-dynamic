@@ -175,6 +175,8 @@ struct ParsedProgramConcurrencyTests {
             explicitlyNonisolatedFunctionCount: 1,
             mainActorFunctionCount: 1,
             concurrentFunctionCount: 1,
+            typeMemberFunctionCount: 0,
+            modifiedFunctionCount: 1,
             readableAccessorCount: 2,
             subscriptCount: 1,
             asyncGetterCount: 1,
@@ -198,6 +200,80 @@ struct ParsedProgramConcurrencyTests {
         #expect(session.runtimeEntry.callableMetadataIndex?.summary == expected)
         let result = try await interpreter.runAsync(session: session)
         #expect(result.intValue == 42)
+    }
+
+    @Test func callableMetadataOwnsFunctionPlacement() throws {
+        let program = try ParsedProgram(source: """
+        func globalValue() {}
+
+        class Owner {
+            static func typeValue(label: String) {}
+            class func inheritedTypeValue() {}
+            func instanceValue() {}
+
+            #if os(iOS)
+            static func conditionalValue() {}
+            #else
+            func conditionalValue() {}
+            #endif
+        }
+        """)
+
+        #expect(program.callableMetadataIndex.summary
+            .typeMemberFunctionCount == 3)
+        #expect(program.callableMetadataIndex.summary
+            .modifiedFunctionCount == 3)
+
+        let owners: [ClassDeclSyntax] =
+            program.syntax.statements.compactMap {
+                guard case .decl(let declaration) = $0.item else {
+                    return nil
+                }
+                return declaration.as(ClassDeclSyntax.self)
+            }
+        let owner = try #require(owners.first)
+        let functions = owner.memberBlock.members.compactMap {
+            $0.decl.as(FunctionDeclSyntax.self)
+        }
+        let typeFunction = try #require(functions.first)
+        let typeMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: typeFunction))
+        #expect(typeMetadata.name == "typeValue")
+        #expect(typeMetadata.modifierNames == ["static"])
+        #expect(typeMetadata.isTypeMember)
+
+        let classFunction = try #require(functions.dropFirst().first)
+        let classMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: classFunction))
+        #expect(classMetadata.name == "inheritedTypeValue")
+        #expect(classMetadata.modifierNames == ["class"])
+        #expect(classMetadata.isTypeMember)
+
+        let instanceFunction = try #require(functions.dropFirst(2).first)
+        let instanceMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: instanceFunction))
+        #expect(instanceMetadata.name == "instanceValue")
+        #expect(instanceMetadata.modifierNames.isEmpty)
+        #expect(!instanceMetadata.isTypeMember)
+    }
+
+    @Test func callablePlacementHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        struct Foreign {
+            static func build() {}
+        }
+        """)
+        let nominal = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        let declaration = try #require(
+            nominal.memberBlock.members.first?.decl
+                .as(FunctionDeclSyntax.self))
+        let metadata = Interpreter().functionMetadata(for: declaration)
+
+        #expect(metadata.name == "build")
+        #expect(metadata.modifierNames == ["static"])
+        #expect(metadata.isTypeMember)
     }
 
     @Test nonisolated func parsedProgramIndexesAccessorAndSubscriptMetadata()
@@ -934,6 +1010,7 @@ struct ParsedProgramConcurrencyTests {
         let program = try ParsedProgram(source: """
         struct Marker {
             final class Lifetime { deinit {} }
+            static func typeValue() -> Int { 42 }
         }
         enum Phase { case ready }
         extension Phase {}
@@ -967,6 +1044,8 @@ struct ParsedProgramConcurrencyTests {
                     program.metadata.declarationIndex.summary
                         .possiblePrimaryDeclarationCount,
                     program.metadata.callableMetadataIndex.summary.functionCount,
+                    program.metadata.callableMetadataIndex.summary
+                        .typeMemberFunctionCount,
                     program.metadata.nominalMetadataIndex.summary.structureCount,
                     program.metadata.propertyMetadataIndex.summary.bindingCount,
                     program.metadata.enumCaseMetadataIndex.summary.caseElementCount,
@@ -982,7 +1061,7 @@ struct ParsedProgramConcurrencyTests {
             observations.append(await reader.value)
         }
         #expect(observations.allSatisfy {
-            $0 == [3, 1, 1, 0, 1, 1, 1, 1]
+            $0 == [3, 2, 1, 1, 0, 1, 1, 1, 1]
         })
 
         let interpreter = Interpreter()

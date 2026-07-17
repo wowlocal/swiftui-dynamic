@@ -401,7 +401,7 @@ extension Interpreter {
             for item in items {
                 guard case .decl(let declaration) = item.item else { continue }
                 if let function = declaration.as(FunctionDeclSyntax.self) {
-                    bound.insert(function.name.text)
+                    bound.insert(functionMetadata(for: function).name)
                 } else if let type = declaration.as(StructDeclSyntax.self) {
                     bound.insert(type.name.text)
                 } else if let type = declaration.as(ClassDeclSyntax.self) {
@@ -468,10 +468,11 @@ extension Interpreter {
             }
             if let function = node.as(FunctionDeclSyntax.self) {
                 guard let body = function.body else { return }
+                let metadata = functionMetadata(for: function)
                 var functionBound = bound
-                functionBound.insert(function.name.text)
-                for parameter in function.signature.parameterClause.parameters {
-                    functionBound.insert((parameter.secondName ?? parameter.firstName).text)
+                functionBound.insert(metadata.name)
+                for parameter in metadata.parameters {
+                    functionBound.insert(parameter.name)
                 }
                 collectItems(body.statements, bound: functionBound)
                 return

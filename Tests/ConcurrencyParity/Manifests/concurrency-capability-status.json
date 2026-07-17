@@ -2923,13 +2923,16 @@
         "enum-case-metadata",
         "extension-metadata",
         "typealias-metadata",
-        "deinitializer-metadata"
+        "deinitializer-metadata",
+        "callable-placement-metadata"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
         "ParsedProgramConcurrencyTests/parsedProgramIsSendableAcrossDetachedReaders",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableDeclarationIndex",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableCallableMetadataIndex",
+        "ParsedProgramConcurrencyTests/callableMetadataOwnsFunctionPlacement",
+        "ParsedProgramConcurrencyTests/callablePlacementHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableNominalMetadataIndex",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendablePropertyMetadataIndex",
         "ParsedProgramConcurrencyTests/propertyMetadataHasPureForeignSyntaxFallback",
@@ -2959,6 +2962,8 @@
         "EnumAndSwitchTests/rawValueEnums",
         "EnumAndSwitchTests/switchWithAssociatedValues",
         "TypeFeatureTests/extensionsAddMembers",
+        "TypeFeatureTests/staticPropertiesAndMethods",
+        "MagicIdentifierTests/functionUsesDeclarationSpellingAndSurvivesClosureCapture",
         "RetroactiveConformanceTests/extensionConformanceCountsForCasts",
         "StdlibTests/userSubscriptsTypealiasesAndDefer",
         "ARCSemanticsTests/mainActorTypealiasDeinitializerRunsOnFinalRelease",
@@ -2975,7 +2980,7 @@
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Fourteen M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral declaration plus all-branch callable, nominal, property, enum-case, extension, type-alias, and deinitializer indexes. Deinitializer body attachment and isolation-policy resolution consume immutable body, attribute-type, and modifier facts with pure foreign-syntax fallback; active-branch selection and mutable symbol attachment remain confined. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. Focused evidence covers detached readers, session and callback provenance, existing teardown regressions, and twenty exact body|none:foodtruck|after observations for FoodTruck's ordinary MainActor-class deinitializer. This proves nil lexical isolation and synchronous final-release ordering only; no isolated/custom-global-actor expansion or physical thread is claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Fifteen M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral declaration plus all-branch callable, nominal, property, enum-case, extension, type-alias, and deinitializer indexes. Callable entries now own names, modifier names, and static/class-versus-instance placement; struct/enum method registration, global binding, closure naming, and lexical capture discovery consume those facts with pure foreign-syntax fallback. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. Focused evidence covers detached readers, session and callback provenance, directly affected callable regressions, and twenty exact type:same:foodtruck|instance:same observations. The first apparent none result was a parity-helper blind spot for the MainActor.shared runtime carrier and disappeared in the unchanged interpreter once that generic helper was corrected before production. FoodTruck cites static callables in City, StoreMessagesManager, and TaskSeconds; class-method dispatch is not claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

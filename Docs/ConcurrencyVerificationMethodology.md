@@ -296,6 +296,27 @@ families, call-site/compiler metadata, mutable-symbol/evaluator migration,
 worker-safe heap classification, physical workers, mode-differential evidence,
 and TSan remain open.
 
+Its fifteenth prerequisite extends the all-branch callable index with immutable
+function names, modifier names, and static/class-versus-instance placement.
+The architecture workflow is a gap closure: the captured compile-time RED had
+no `typeMemberFunctionCount` or `modifiedFunctionCount` summary fields and no
+`name`, `modifierNames`, or `isTypeMember` callable-entry facts. Struct/enum
+method registration, global binding, closure naming, and lexical capture
+discovery now consume the index with pure foreign-syntax fallback; session and
+escaped-callback provenance retain the originating snapshot. FoodTruck cites
+`static func` demand in `City`, `StoreMessagesManager`, and `TaskSeconds`.
+The semantic workflow is an already-GREEN characterization. Its first apparent
+`none` result came from a parity helper that recognized source-actor instances
+but not the runtime carrier for `MainActor.shared`; correcting that generic
+helper before the production change made the unchanged interpreter match
+Swift. Apple Swift 6.3.3 and the interpreter both produce
+`type:same:foodtruck|instance:same` in twenty bounded repetitions, including
+the exact value after an awaited actor hop. `class` placement is indexed as a
+syntax fact, but no class-method dispatch, scheduler order, physical thread, or
+unrelated overload is inferred. Remaining member families, call-site/compiler
+metadata, mutable-symbol/evaluator migration, worker-safe heap classification,
+physical workers, mode-differential evidence, and TSan remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
