@@ -256,6 +256,22 @@ boundary. Swift 6 and the interpreter produce `mac:42` in twenty repetitions
 for the selected non-watchOS branch. Inaccessible inactive-branch behavior,
 scheduler order, and physical workers are not claimed.
 
+The fourteenth prerequisite adds an immutable, all-branch
+`ParsedDeinitializerMetadataIndex` to the composite capability. Every
+deinitializer is indexed by syntax identity across nested and inactive
+conditional-compilation regions. The index owns its body, attribute type
+spellings, and modifier names, including explicit `isolated` and
+`nonisolated`. Deinitializer body attachment and executor-policy resolution
+consume those facts with a pure fallback for foreign or synthetic syntax;
+active-branch selection and attachment to mutable nominal symbols remain
+session-owned. FoodTruck bounds the slice with the ordinary `deinit` on its
+`@MainActor StoreMessagesManager`. Eight detached readers plus session and
+callback provenance cover ownership. Swift 6 and the interpreter produce
+`body|none:foodtruck|after` in twenty repetitions: the ordinary deinitializer
+remains nonisolated and completes synchronously at final release. Isolated or
+custom-global-actor teardown beyond existing fail-closed coverage, scheduler
+order, and physical workers are not claimed.
+
 The stable target separates five concerns:
 
 ```text
@@ -2803,7 +2819,8 @@ distinct callback IDs over one heap, and final release. A causal same-source
 probe establishes cooperative overlap against the confined heap in twenty
 native/interpreter repetitions. `ParsedProgram` additionally owns one immutable
 `ParsedProgramMetadata` capability containing its declaration and all-branch
-callable, nominal, property, enum-case, extension, and type-alias indexes; the
+callable, nominal, property, enum-case, extension, type-alias, and
+deinitializer indexes; the
 runtime no longer stores mutable function/initializer metadata caches on the facade.
 Sessions and escaped callbacks retain the originating capability through
 `RuntimeEntry`, and eight detached readers exercise one snapshot under Swift 6
@@ -2842,6 +2859,11 @@ the indexed source and normalized target spellings. The `typealias-metadata`
 fixture remains exact in twenty native/interpreter repetitions for the
 selected non-watchOS branch, while target-aware project selection remains M7
 evidence.
+The composite now also owns all-branch deinitializer headers. Deinitializer
+body attachment and isolation-policy resolution consume indexed bodies,
+attribute type spellings, and modifier names. The `deinitializer-metadata`
+fixture remains exact in twenty native/interpreter repetitions for FoodTruck's
+ordinary `@MainActor`-class teardown path.
 These slices separate immutable program input, mutable storage, and execution
 identity without changing scheduling. Remaining member families, call-site, and
 compiler metadata indexing remains incomplete, and mutable

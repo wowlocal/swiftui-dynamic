@@ -569,7 +569,11 @@ public final class Interpreter {
     /// requirement, so collection stays legal and construction fails closed
     /// only when no teardown capability exists.
     var pendingDeinitializerIsolationChecks: [
-        (symbol: StructSymbol, declaration: DeinitializerDeclSyntax)
+        (
+            symbol: StructSymbol,
+            declaration: DeinitializerDeclSyntax,
+            metadata: ParsedDeinitializerMetadata
+        )
     ] = []
     /// Property/method collision preferences currently evaluating — the
     /// property's own body reaching the same name falls to the METHOD.
@@ -709,6 +713,19 @@ public final class Interpreter {
     ) -> ParsedTypeAliasMetadata {
         currentTypeAliasMetadataIndex?.metadata(for: node)
             ?? ParsedTypeAliasMetadata(node)
+    }
+
+    var currentDeinitializerMetadataIndex:
+        ParsedDeinitializerMetadataIndex?
+    {
+        currentProgramMetadata?.deinitializerMetadataIndex
+    }
+
+    func deinitializerMetadata(
+        for node: DeinitializerDeclSyntax
+    ) -> ParsedDeinitializerMetadata {
+        currentDeinitializerMetadataIndex?.metadata(for: node)
+            ?? ParsedDeinitializerMetadata(node)
     }
 
     func enumCaseMetadata(

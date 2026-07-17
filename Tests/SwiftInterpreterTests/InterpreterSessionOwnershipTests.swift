@@ -15,7 +15,10 @@ struct InterpreterSessionOwnershipTests {
                     .native(observedInterpreter?.evaluationTaskContext
                         .runtimeSessionID?.description ?? "none")
                 })))
-        let program = try ParsedProgram(source: "currentRuntimeSession()")
+        let program = try ParsedProgram(source: """
+        final class Lifetime { deinit {} }
+        currentRuntimeSession()
+        """)
         let session = interpreter.makeSession(
             program: program,
             lazyTopLevelGlobals: false,
@@ -38,6 +41,8 @@ struct InterpreterSessionOwnershipTests {
             .summary == program.extensionMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.typeAliasMetadataIndex
             .summary == program.typeAliasMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.deinitializerMetadataIndex
+            .summary == program.deinitializerMetadataIndex.summary)
         if case .drainOwnedTasks = session.completionPolicy {
             // Expected policy is bound into the session.
         } else {

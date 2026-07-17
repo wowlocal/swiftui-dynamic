@@ -15,6 +15,7 @@ struct RuntimeEntryOwnershipTests {
         var observedEnumCaseCounts: [Int?] = []
         var observedExtensionCounts: [Int?] = []
         var observedTypeAliasCounts: [Int?] = []
+        var observedDeinitializerCounts: [Int?] = []
         weak var observedEntry: RuntimeEntry?
         interpreter.globals.define(
             "captureRuntimeEntry",
@@ -42,10 +43,15 @@ struct RuntimeEntryOwnershipTests {
                         .extensionMetadataIndex.summary.extensionCount)
                     observedTypeAliasCounts.append(entry.programMetadata?
                         .typeAliasMetadataIndex.summary.typeAliasCount)
+                    observedDeinitializerCounts.append(entry.programMetadata?
+                        .deinitializerMetadataIndex.summary.deinitializerCount)
                     return .void
                 })))
         let value = try interpreter.run(source: """
-        struct OriginMarker { let value = 1 }
+        struct OriginMarker {
+            let value = 1
+            final class Lifetime { deinit {} }
+        }
         enum OriginState { case ready }
         extension OriginMarker {}
         typealias OriginAlias = OriginMarker
@@ -61,8 +67,14 @@ struct RuntimeEntryOwnershipTests {
         """)
         let closure = try #require(value.closureValue)
         _ = interpreter.makeSession(program: try ParsedProgram(source: """
-        struct NewerMarker { let value = 1 }
-        struct NewestMarker { let value = 2 }
+        struct NewerMarker {
+            let value = 1
+            final class Lifetime { deinit {} }
+        }
+        struct NewestMarker {
+            let value = 2
+            final class Lifetime { deinit {} }
+        }
         enum NewerState { case first; case second }
         extension NewerMarker {}
         extension NewestMarker {}
@@ -93,6 +105,7 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedEnumCaseCounts == [1, 1])
         #expect(observedExtensionCounts == [1, 1])
         #expect(observedTypeAliasCounts == [1, 1])
+        #expect(observedDeinitializerCounts == [1, 1])
         #expect(observedEntry == nil,
             "the runtime entry must release after its final task record")
     }

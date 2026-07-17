@@ -2922,7 +2922,8 @@
         "actor-initialization",
         "enum-case-metadata",
         "extension-metadata",
-        "typealias-metadata"
+        "typealias-metadata",
+        "deinitializer-metadata"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -2938,6 +2939,8 @@
         "ParsedProgramConcurrencyTests/extensionMetadataHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableTypeAliasMetadataIndex",
         "ParsedProgramConcurrencyTests/typeAliasMetadataHasPureForeignSyntaxFallback",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableDeinitializerMetadataIndex",
+        "ParsedProgramConcurrencyTests/deinitializerMetadataHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/parsedProgramIndexesAccessorAndSubscriptMetadata",
         "ParsedProgramConcurrencyTests/parsedProgramMetadataIsOneSendableRuntimeCapability",
         "ParsedProgramConcurrencyTests/oneParsedProgramBacksIndependentAsyncSessions",
@@ -2960,6 +2963,9 @@
         "StdlibTests/userSubscriptsTypealiasesAndDefer",
         "ARCSemanticsTests/mainActorTypealiasDeinitializerRunsOnFinalRelease",
         "ARCSemanticsTests/globalActorTypealiasDeinitializerFailsClosedAfterResolution",
+        "ARCSemanticsTests/enclosingGlobalActorKeepsOrdinaryDeinitializerSupported",
+        "ARCSemanticsTests/ordinaryActorDeinitializerRemainsSupported",
+        "ARCSemanticsTests/explicitNonisolatedActorDeinitializerRemainsSupported",
         "CorpusTests/typealiasClockSetAlgebraAndOptionalMap",
         "BindingExtensionMethodTests/extensionMethodDispatchesOnBuiltBinding",
         "CurrentValueSubjectStoreTests/keyPathSubscriptWritesThroughStore",
@@ -2969,7 +2975,7 @@
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Thirteen M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral declaration plus all-branch callable, nominal, property, enum-case, extension, and type-alias indexes. Callable/accessor/subscript, nominal, property-storage, enum-case, extension, and alias headers are indexed once; runtime nominal/storage/case materialization, extension target/conformance handling, and top-level/member/local alias binding consume immutable metadata while mutable runtime symbols, values, active-branch selection, and member materialization remain MainActor-confined on the interpreter facade. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. Focused evidence covers detached readers, distinct target plans, session binding, callback provenance, pure foreign-syntax fallback, ownership/lifetime, real SwiftUI task entry, prior metadata observations, twenty exact matching-constraint extension observations, and twenty exact selected type-alias observations. The alias slice covers full and normalized targets, generic parameters/requirements, attributes, modifiers, nominal-versus-tuple targets, FoodTruck-cited conditional aliases, and cited generic-alias corpus regressions; inaccessible inactive-branch runtime behavior is not claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Fourteen M9 prerequisites are green: ParsedProgram owns immutable Sendable folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral declaration plus all-branch callable, nominal, property, enum-case, extension, type-alias, and deinitializer indexes. Deinitializer body attachment and isolation-policy resolution consume immutable body, attribute-type, and modifier facts with pure foreign-syntax fallback; active-branch selection and mutable symbol attachment remain confined. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. Focused evidence covers detached readers, session and callback provenance, existing teardown regressions, and twenty exact body|none:foodtruck|after observations for FoodTruck's ordinary MainActor-class deinitializer. This proves nil lexical isolation and synchronous final-release ordering only; no isolated/custom-global-actor expansion or physical thread is claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

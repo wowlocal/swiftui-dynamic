@@ -146,6 +146,18 @@
     "notes": "Exact output is mac:42 in all repetitions. Native runs use the pinned macOS target and both executions select the non-watchOS branch. FoodTruck cites conditional private top-level and member aliases in DetailedMapView; no inaccessible inactive-branch, positive-macOS-predicate, scheduler-order, or physical-thread claim is made."
   },
   {
+    "id": "deinitializer-metadata",
+    "fixture": "Fixtures/deinitializer-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "deinitializerMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An ordinary unannotated deinitializer on a MainActor-isolated class remains nonisolated and completes synchronously before execution continues after the final release.",
+    "notes": "Exact output is body|none:foodtruck|after in all repetitions. FoodTruck cites the ordinary deinitializer on MainActor-isolated StoreMessagesManager; no physical-thread, scheduler-order, isolated-deinitializer, or custom-global-actor teardown claim is made."
+  },
+  {
     "id": "actor-isolated-deinitializer",
     "fixture": "Fixtures/actor-isolated-deinitializer.swift",
     "mode": "runtime",

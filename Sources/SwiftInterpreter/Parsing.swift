@@ -8,9 +8,9 @@ import SwiftParserDiagnostics
 /// Parsing, operator folding, and target-neutral metadata discovery happen
 /// once. The resulting SwiftSyntax tree, source-location index, declaration
 /// plan, callable metadata, nominal headers, property-storage headers, and
-/// enum-case, extension, and type-alias headers are immutable and `Sendable`,
-/// so independent sessions may share them without sharing evaluator or
-/// runtime-symbol state.
+/// enum-case, extension, type-alias, and deinitializer headers are immutable
+/// and `Sendable`, so independent sessions may share them without sharing
+/// evaluator or runtime-symbol state.
 public nonisolated struct ParsedProgram: Sendable {
     public struct ParseFailure: Error, CustomStringConvertible, Sendable {
         public let message: String
@@ -43,6 +43,9 @@ public nonisolated struct ParsedProgram: Sendable {
     }
     public var typeAliasMetadataIndex: ParsedTypeAliasMetadataIndex {
         metadata.typeAliasMetadataIndex
+    }
+    public var deinitializerMetadataIndex: ParsedDeinitializerMetadataIndex {
+        metadata.deinitializerMetadataIndex
     }
     let syntax: SourceFileSyntax
     let locationConverter: SourceLocationConverter

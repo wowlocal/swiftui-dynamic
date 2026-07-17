@@ -561,19 +561,14 @@ extension Interpreter {
                 declLexicalOwners[initDecl.id] = symbol
                 symbol.initializers.append(initDecl)
             } else if let deinitDecl = member.decl.as(DeinitializerDeclSyntax.self) {
-                let attributeNames = deinitDecl.attributes.compactMap {
-                    $0.as(AttributeSyntax.self)?.attributeName
-                        .trimmedDescription.split(separator: ".").last
-                        .map(String.init)
-                }
-                if deinitDecl.modifiers.contains(where: {
-                    $0.name.text == "isolated"
-                }) || !attributeNames.isEmpty {
+                let metadata = deinitializerMetadata(for: deinitDecl)
+                if metadata.requiresIsolationResolution {
                     pendingDeinitializerIsolationChecks.append((
                         symbol: symbol,
-                        declaration: deinitDecl))
+                        declaration: deinitDecl,
+                        metadata: metadata))
                 }
-                symbol.deinitBody = deinitDecl.body
+                symbol.deinitBody = metadata.body
             } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
                 // Member typealiases resolve like nested types (bare name
                 // when unclaimed); generic arguments drop.
@@ -1382,13 +1377,8 @@ extension Interpreter {
         let pending = pendingDeinitializerIsolationChecks
         pendingDeinitializerIsolationChecks.removeAll(keepingCapacity: true)
 
-        for (symbol, deinitDecl) in pending {
-            let attributeNames = deinitDecl.attributes.compactMap {
-                $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-            }
-            if deinitDecl.modifiers.contains(where: {
-                $0.name.text == "isolated"
-            }) {
+        for (symbol, deinitDecl, metadata) in pending {
+            if metadata.hasIsolatedModifier {
                 if symbol.attributeNames.contains(where: {
                     isMainActorTypeName($0)
                 }) {
@@ -1408,11 +1398,13 @@ extension Interpreter {
                 continue
             }
 
-            if attributeNames.contains(where: { isMainActorTypeName($0) }) {
+            if metadata.attributeTypeNames.contains(where: {
+                isMainActorTypeName($0)
+            }) {
                 symbol.deinitializerExecutor = .mainActor
                 continue
             }
-            guard let globalActorName = attributeNames.first(where: {
+            guard let globalActorName = metadata.attributeTypeNames.first(where: {
                 isGlobalActorTypeName($0)
             }) else { continue }
 

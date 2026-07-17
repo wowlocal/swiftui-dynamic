@@ -823,10 +823,118 @@ struct ParsedProgramConcurrencyTests {
         #expect(metadata.isNominalTarget)
     }
 
+    @Test func parsedProgramOwnsSendableDeinitializerMetadataIndex()
+    async throws {
+        let program = try ParsedProgram(source: """
+        @MainActor
+        final class Owner {
+            deinit { _ = "ordinary" }
+        }
+        final class MainOwned {
+            @MainActor deinit {}
+        }
+        @MainActor final class IsolatedOwned {
+            isolated deinit {}
+        }
+        actor Worker {
+            nonisolated deinit {}
+        }
+        #if os(iOS)
+        final class Conditional {
+            @Namespace.TeardownActor deinit {}
+        }
+        #else
+        final class Conditional {
+            deinit {}
+        }
+        #endif
+        """)
+        let expected = ParsedDeinitializerMetadataIndex.Summary(
+            deinitializerCount: 6,
+            attributedDeinitializerCount: 2,
+            modifiedDeinitializerCount: 2,
+            isolatedModifierCount: 1,
+            nonisolatedModifierCount: 1,
+            bodyStatementCount: 1)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.deinitializerMetadataIndex)
+        #expect(program.deinitializerMetadataIndex.summary == expected)
+        #expect(program.metadata.deinitializerMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.deinitializerMetadataIndex.summary }
+        }
+        var observations: [ParsedDeinitializerMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let classes: [ClassDeclSyntax] =
+            program.syntax.statements.compactMap {
+                guard case .decl(let declaration) = $0.item else {
+                    return nil
+                }
+                return declaration.as(ClassDeclSyntax.self)
+            }
+        let owner = try #require(classes.first)
+        let ownerDeinitializer = try #require(
+            owner.memberBlock.members.compactMap {
+                $0.decl.as(DeinitializerDeclSyntax.self)
+            }.first)
+        let ownerMetadata = try #require(
+            program.deinitializerMetadataIndex.metadata(
+                for: ownerDeinitializer))
+        #expect(ownerMetadata.attributeTypeNames.isEmpty)
+        #expect(ownerMetadata.modifierNames.isEmpty)
+        #expect(!ownerMetadata.requiresIsolationResolution)
+        #expect(ownerMetadata.body?.statements.count == 1)
+
+        let mainOwned = try #require(classes.dropFirst().first)
+        let mainOwnedDeinitializer = try #require(
+            mainOwned.memberBlock.members.compactMap {
+                $0.decl.as(DeinitializerDeclSyntax.self)
+            }.first)
+        let mainOwnedMetadata = try #require(
+            program.deinitializerMetadataIndex.metadata(
+                for: mainOwnedDeinitializer))
+        #expect(mainOwnedMetadata.attributeTypeNames == ["MainActor"])
+        #expect(mainOwnedMetadata.requiresIsolationResolution)
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata?
+            .deinitializerMetadataIndex.summary == expected)
+    }
+
+    @Test func deinitializerMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        final class Foreign {
+            @Namespace.TeardownActor deinit { _ = "foreign" }
+        }
+        """)
+        let nominal = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(ClassDeclSyntax.self))
+        let declaration = try #require(
+            nominal.memberBlock.members.first?.decl
+                .as(DeinitializerDeclSyntax.self))
+        let interpreter = Interpreter()
+
+        let metadata = interpreter.deinitializerMetadata(for: declaration)
+        #expect(metadata.attributeTypeNames == ["Namespace.TeardownActor"])
+        #expect(metadata.modifierNames.isEmpty)
+        #expect(metadata.requiresIsolationResolution)
+        #expect(metadata.body?.statements.count == 1)
+    }
+
     @Test func parsedProgramMetadataIsOneSendableRuntimeCapability()
     async throws {
         let program = try ParsedProgram(source: """
-        struct Marker {}
+        struct Marker {
+            final class Lifetime { deinit {} }
+        }
         enum Phase { case ready }
         extension Phase {}
         typealias MarkerAlias = Marker
@@ -850,6 +958,8 @@ struct ParsedProgramConcurrencyTests {
             == program.extensionMetadataIndex.summary)
         #expect(program.metadata.typeAliasMetadataIndex.summary
             == program.typeAliasMetadataIndex.summary)
+        #expect(program.metadata.deinitializerMetadataIndex.summary
+            == program.deinitializerMetadataIndex.summary)
 
         let readers = (0..<8).map { _ in
             Task.detached {
@@ -861,7 +971,9 @@ struct ParsedProgramConcurrencyTests {
                     program.metadata.propertyMetadataIndex.summary.bindingCount,
                     program.metadata.enumCaseMetadataIndex.summary.caseElementCount,
                     program.metadata.extensionMetadataIndex.summary.extensionCount,
-                    program.metadata.typeAliasMetadataIndex.summary.typeAliasCount
+                    program.metadata.typeAliasMetadataIndex.summary.typeAliasCount,
+                    program.metadata.deinitializerMetadataIndex.summary
+                        .deinitializerCount
                 ]
             }
         }
@@ -869,7 +981,9 @@ struct ParsedProgramConcurrencyTests {
         for reader in readers {
             observations.append(await reader.value)
         }
-        #expect(observations.allSatisfy { $0 == [3, 1, 1, 0, 1, 1, 1] })
+        #expect(observations.allSatisfy {
+            $0 == [3, 1, 1, 0, 1, 1, 1, 1]
+        })
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
@@ -886,6 +1000,8 @@ struct ParsedProgramConcurrencyTests {
             .summary == program.extensionMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.typeAliasMetadataIndex
             .summary == program.typeAliasMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.deinitializerMetadataIndex
+            .summary == program.deinitializerMetadataIndex.summary)
         #expect(try await interpreter.runAsync(session: session).intValue == 42)
     }
 

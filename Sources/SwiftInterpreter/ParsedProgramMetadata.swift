@@ -11,6 +11,7 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
     public let enumCaseMetadataIndex: ParsedEnumCaseMetadataIndex
     public let extensionMetadataIndex: ParsedExtensionMetadataIndex
     public let typeAliasMetadataIndex: ParsedTypeAliasMetadataIndex
+    public let deinitializerMetadataIndex: ParsedDeinitializerMetadataIndex
 
     init(file: SourceFileSyntax) {
         declarationIndex = ParsedDeclarationIndex(
@@ -21,5 +22,6 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
         enumCaseMetadataIndex = ParsedEnumCaseMetadataIndex(file: file)
         extensionMetadataIndex = ParsedExtensionMetadataIndex(file: file)
         typeAliasMetadataIndex = ParsedTypeAliasMetadataIndex(file: file)
+        deinitializerMetadataIndex = ParsedDeinitializerMetadataIndex(file: file)
     }
 }

@@ -278,6 +278,24 @@ Remaining member families, call-site/compiler metadata, mutable-symbol/
 evaluator migration, worker-safe heap classification, physical workers, mode-
 differential evidence, and TSan remain open.
 
+Its fourteenth prerequisite adds all-branch deinitializer headers to the
+composite capability. The architecture workflow is a gap closure: the captured
+compile-time RED had no `ParsedDeinitializerMetadataIndex`, summary,
+compatibility accessor, composite component, or runtime lookup. The semantic
+workflow is an already-GREEN characterization rather than an invented runtime
+mismatch. FoodTruck cites the ordinary `deinit` on its `@MainActor`
+`StoreMessagesManager`. GREEN covers all-scope/all-branch body, attribute, and
+modifier facts, explicit isolated/nonisolated classification, eight detached
+readers, pure foreign-syntax fallback, session/callback provenance, and the
+existing teardown consumers. Apple Swift 6.3.3 and the interpreter both
+produce `body|none:foodtruck|after` in twenty bounded repetitions: the ordinary
+deinitializer sees nil isolation and completes before execution continues
+after final release. No isolated/custom-global-actor expansion, scheduler
+order, physical thread, or physical parallelism is inferred. Remaining member
+families, call-site/compiler metadata, mutable-symbol/evaluator migration,
+worker-safe heap classification, physical workers, mode-differential evidence,
+and TSan remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.
