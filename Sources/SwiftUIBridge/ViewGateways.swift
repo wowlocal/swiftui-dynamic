@@ -305,8 +305,8 @@ extension ViewRegistry {
                let box = try? Coerce.bindingBox(selectionArg) {
                 let binding = Binding<String?>(
                     get: {
-                        if case .nilValue = box.value { return nil }
-                        return box.value.stringified
+                        if box.value.isNil { return nil }
+                        return NavigationSelectionValues.identity(box.value)
                     },
                     set: { newTag in
                         guard let newTag else {
@@ -470,7 +470,7 @@ extension ViewRegistry {
                 // real NavigationLink behavior and rendering intact; the tag
                 // makes the row selectable in a List(selection:) and the
                 // registry preserves the original value for the write-back.
-                let tag = value.stringified
+                let tag = NavigationSelectionValues.identity(value)
                 NavigationSelectionValues.byTag[tag] = value
                 return .native(AnyView(NavigationLink(value: tag) { label }.tag(tag)))
             }
@@ -880,6 +880,19 @@ enum TableRowCollector {
 /// the app back the exact value it navigated with.
 enum NavigationSelectionValues {
     static var byTag: [String: RuntimeValue] = [:]
+
+    /// The stable identity BOTH `.tag(...)` and selection bindings use:
+    /// optional layers unwrap (nil -> "nil") so `.tag(x as T?)` rows match
+    /// non-optional state values and nil-tags match nil state.
+    static func identity(_ value: RuntimeValue) -> String {
+        var current = value
+        while case .optional(let optional) = current {
+            guard let wrapped = optional.wrapped else { return "nil" }
+            current = wrapped
+        }
+        if current.isNil { return "nil" }
+        return current.stringValue ?? current.stringified
+    }
 }
 
 extension ViewRegistry {

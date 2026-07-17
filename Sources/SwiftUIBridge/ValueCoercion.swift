@@ -44,7 +44,7 @@ enum Coerce {
     static func selectionBinding(_ value: RuntimeValue) throws -> Binding<String> {
         let box = try bindingBox(value)
         return Binding(
-            get: { box.value.stringValue ?? box.value.stringified },
+            get: { NavigationSelectionValues.identity(box.value) },
             set: { newTag in
                 box.value = NavigationSelectionValues.byTag[newTag] ?? .native(newTag)
             }

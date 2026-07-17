@@ -2254,3 +2254,24 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   green; all pin suites pass. Scratch bisect harness kept
   (MergeBisectScratchTests) pending removal next close. Gate still
   blocked by main-red.
+- 2026-07-17 OPTIONAL-CAST TAGS — Glaze/Topping pickers complete
+  (worktree iteration 47): the editor's biggest remaining functional
+  residue was `.tag(glaze as Donut.Glaze?)` / `.tag(nil as
+  Donut.Glaze?)` — optional-cast tag identities never matched the
+  non-optional stored state, so Glaze/Topping pickers showed no
+  selected label. Fix: NavigationSelectionValues.identity(_:) — the
+  ONE identity both `.tag(...)` and every selection binding use:
+  optional layers unwrap (nil -> "nil"), then stringValue/stringified.
+  Applied to the tag gateway, Picker selectionBinding, List selection,
+  and NavigationLink rows. Editor form now shows Glaze "Chocolate
+  Glaze" / Topping "Sprinkles" exactly like native. BOARD NOTE:
+  content 26.137% -> 26.778% — the sidebar List now correctly
+  HIGHLIGHTS the selected row (the identity get matches row tags), a
+  fidelity IMPROVEMENT measured against the documented-broken twin
+  content row (headless NavigationSplitView sidebar blank); the
+  sanctioned detail-truck proxy remains 0.000. Remaining editor class:
+  Sections flatten into ONE grouped box with centered inline headers
+  vs native's separate grouped boxes with outside headers (the
+  Section-in-grouped-Form structure) — next. 12 selection pins pass;
+  R2 main rows 0.000; R3 green. Gate still blocked by main-red
+  (steward's third escalation to lane-concurrency pending).
