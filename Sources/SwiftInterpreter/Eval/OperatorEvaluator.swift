@@ -1048,7 +1048,18 @@ extension Interpreter {
             familyName = nil
         }
         guard let familyName else { return value }
-        let resolved = try resolveAnnotated(value, typeName: familyName)
+        // Program shadows win FAMILY-WIDE: native resolves the marker in
+        // the expression's contextual type, and mixed Int-literal
+        // arithmetic promotes toward Double — so a program extension
+        // declaring the factory (the harness determinism shim) claims
+        // `-60 * .random(in:)` even though the literal peer reads as Int.
+        var resolutionFamily = familyName
+        if familyName == "Int",
+           hostExtensionSymbols["Int"]?.staticMethods[call.name] == nil,
+           hostExtensionSymbols["Double"]?.staticMethods[call.name] != nil {
+            resolutionFamily = "Double"
+        }
+        let resolved = try resolveAnnotated(value, typeName: resolutionFamily)
         if case .host(let stillAny) = resolved, stillAny is ImplicitMemberCall { return value }
         return resolved
     }

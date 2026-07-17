@@ -1751,3 +1751,32 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   (.multicolor, plain .foregroundStyle(.indigo), unwrapped Image).
   Upstream alias-test completion still gates the eighteen-commit
   merge.
+- 2026-07-17 palette layers + deterministic .random (worktree iteration
+  23, two classes closed): (1) the handwritten foregroundStyle gateway
+  was shadowing the generated arity-1/2/3 variants and dropping the
+  secondary style — deleted per bridge policy, palette annotation
+  icons paint, truck ratchets 1.400% -> 1.330% (pinned:
+  paletteSymbolPaintsSecondaryStyleLayer). (2) socialfeed's residue
+  was UNSEEDED randomness: SocialFeedContent's `-60 * .random(in:
+  5...30)` rolled fresh post minutes every run on both sides, making
+  the floor bounce and R4's AE=0 impossible. Fixed with the frozen-
+  clock doctrine: both harness shims (twin sync.sh + FoodTruckCheck
+  merge) now inject an env-gated `extension Double { static func
+  random(in:) }` LCG shadow. Interpreter work to honor it faithfully:
+  adoptNumericFactoryMarker promotes an Int-literal peer family to a
+  program Double shadow (native contextual typing); host-extension
+  static METHOD sets dispatch at INVOKE time with a label-subset
+  shape check so the seeded `.random(in:using:)` spellings (qualified
+  AND marker forms — OrderGenerator) resolve past the 1-arg shadow to
+  the stdlib exactly like native overload resolution
+  (hostExtensionStaticMethodDispatcher in MemberEvaluator;
+  extensionFallback in resolveAnnotated). Socialfeed 0.472% -> 0.166%
+  and BIT-DETERMINISTIC across runs; R3 board all ten green; R2
+  ratchet now: donut-view 0, card-donuts 0, card-orders 0.168,
+  socialfeed 0.166, donuts 0.437, orders 0.492, truck 1.330, content
+  26.023 (documented twin-side artifact). Pins:
+  interpretedStaticFuncShadowResolvesImplicitMemberCalls (shadow via
+  qualified + implicit-in-context paths, Foundation-bit-exact Date
+  round-trip, seeded spellings bypass). Upstream alias test STILL red
+  on lane tip (runtime emits 13 intrinsics, test wants the checked-
+  continuation pair) — merge queue still waits on Codex.

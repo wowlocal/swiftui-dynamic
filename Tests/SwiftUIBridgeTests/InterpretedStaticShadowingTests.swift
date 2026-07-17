@@ -33,4 +33,55 @@ import Testing
         #expect(interpreter.globals.lookup("stamp")?.doubleValue == 1784228400)
         #expect(interpreter.globals.lookup("implicitStamp")?.doubleValue == 1784228400)
     }
+
+    /// The deterministic-random shim rides the same semantic with a static
+    /// FUNC: `extension Double { static func random(in:) }` must beat the
+    /// builtin on the qualified path AND on the implicit-member call inside
+    /// a Double-typed argument (`addingTimeInterval(-60 * .random(in:))` —
+    /// the exact SocialFeedContent shape).
+    @MainActor
+    @Test func interpretedStaticFuncShadowResolvesImplicitMemberCalls() throws {
+        let source = """
+        nonisolated(unsafe) var __state = 1
+        extension Double {
+            static func random(in range: ClosedRange<Double>) -> Double {
+                __state = (__state * 1103515245 + 12345) % 2147483648
+                let unit = Double(__state) / 2147483648.0
+                return range.lowerBound + unit * (range.upperBound - range.lowerBound)
+            }
+        }
+        let qualified = Double.random(in: 5...30)
+        let viaContext = Date(timeIntervalSince1970: 0).addingTimeInterval(-60 * .random(in: 5...30))
+        let offset = viaContext.timeIntervalSince1970
+        struct FixedGen: RandomNumberGenerator {
+            var v: UInt64 = 42
+            mutating func next() -> UInt64 {
+                v += 1
+                return v
+            }
+        }
+        var gen = FixedGen()
+        var seededDelta = 0.0
+        seededDelta -= .random(in: 60 ..< 180, using: &gen)
+        let qualifiedSeeded = Double.random(in: 80.0 ... 120.0, using: &gen)
+        let stateAfterSeeded = __state
+        """
+        let interpreter = Interpreter(registry: ViewRegistry())
+        try interpreter.run(source: source)
+        #expect(interpreter.globals.lookup("qualified")?.doubleValue == 17.846751953475177)
+        // The offset expectation is computed through native Foundation so
+        // the pin asserts interp == native BIT-EXACTLY, including Date's
+        // own epoch<->reference-date round-trip precision.
+        let nativeOffset = Date(timeIntervalSince1970: 0)
+            .addingTimeInterval(-60 * 9.393532581161708).timeIntervalSince1970
+        #expect(interpreter.globals.lookup("offset")?.doubleValue == nativeOffset)
+        // The SEEDED spelling (`.random(in:using:)` — OrderGenerator's
+        // shape) must NOT be captured by the 1-arg program shadow: native
+        // overload resolution picks the stdlib 2-arg. The LCG state pins
+        // it — exactly two draws consumed, none by the seeded call.
+        #expect(interpreter.globals.lookup("stateAfterSeeded")?.intValue == 377401575)
+        #expect((interpreter.globals.lookup("seededDelta")?.doubleValue ?? 0) < 0)
+        let qualifiedSeeded = interpreter.globals.lookup("qualifiedSeeded")?.doubleValue ?? 0
+        #expect(qualifiedSeeded >= 80.0 && qualifiedSeeded < 120.0)
+    }
 }
