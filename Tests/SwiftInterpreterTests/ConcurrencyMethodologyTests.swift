@@ -332,7 +332,7 @@ struct ConcurrencyMethodologyTests {
                 "open-gaps.json")),
         )
         let ledgerRows = try loadLedgerRows()
-        let testSource = try loadTestSource()
+        let testFunctionNames = try loadTestFunctionNames()
 
         #expect(matrix.schemaVersion == 3)
         #expect(matrix.milestones.map(\.id) == (0 ... 9).map { "M\($0)" })
@@ -413,8 +413,8 @@ struct ConcurrencyMethodologyTests {
                 let parityCase = try #require(gap.parityCase)
                 let reproductionTest = try #require(gap.reproductionTest)
                 #expect(gap.expectedObservation != gap.currentObservation)
-                #expect(testSource.contains(
-                    "func \(reproductionTest.split(separator: "/").last!)"))
+                #expect(testFunctionNames.contains(
+                    String(reproductionTest.split(separator: "/").last!)))
                 #expect(FileManager.default.fileExists(atPath:
                     Self.packageRoot.appendingPathComponent(
                         "Tests/ConcurrencyParity/\(parityCase.fixture)").path))
@@ -535,7 +535,7 @@ struct ConcurrencyMethodologyTests {
                 }
                 for testName in requirement.testNames {
                     let functionName = testName.split(separator: "/").last.map(String.init)
-                    #expect(functionName.map { testSource.contains("func \($0)(") } == true,
+                    #expect(functionName.map(testFunctionNames.contains) == true,
                             "\(milestone.id)/\(requirement.id) cites unknown test \(testName)")
                 }
                 for gapID in requirement.gapEvidenceIDs {
@@ -615,7 +615,7 @@ struct ConcurrencyMethodologyTests {
         let gaps = Dictionary(uniqueKeysWithValues:
             openGaps.map { ($0.id, $0) })
         let parityCaseIDs = Set(parityCases.map(\.id))
-        let testSource = try loadTestSource()
+        let testFunctionNames = try loadTestFunctionNames()
 
         #expect(inventory.schemaVersion == accounting.inventorySchemaVersion)
         #expect(status.schemaVersion == accounting.statusSchemaVersion)
@@ -671,7 +671,7 @@ struct ConcurrencyMethodologyTests {
             for testName in claim.testNames {
                 let functionName = testName.split(separator: "/").last
                     .map(String.init) ?? ""
-                #expect(testSource.contains("func \(functionName)("),
+                #expect(testFunctionNames.contains(functionName),
                         "\(label) cites unknown test \(testName)")
             }
             for gapID in claim.gapEvidenceIDs {
@@ -3323,7 +3323,7 @@ struct ConcurrencyMethodologyTests {
         return rows
     }
 
-    private func loadTestSource() throws -> String {
+    private func loadTestFunctionNames() throws -> Set<String> {
         let root = Self.packageRoot.appendingPathComponent(
             "Tests", isDirectory: true,
         )
@@ -3331,13 +3331,26 @@ struct ConcurrencyMethodologyTests {
             at: root,
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles],
-        ) else { return "" }
-        return try enumerator.compactMap { item -> String? in
+        ) else { return [] }
+        let declaration = try NSRegularExpression(
+            pattern: #"\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\("#,
+        )
+        var names: Set<String> = []
+        for item in enumerator {
             guard let url = item as? URL, url.pathExtension == "swift" else {
-                return nil
+                continue
             }
-            return try String(contentsOf: url, encoding: .utf8)
-        }.joined(separator: "\n")
+            let source = try String(contentsOf: url, encoding: .utf8)
+            let range = NSRange(source.startIndex ..< source.endIndex, in: source)
+            declaration.enumerateMatches(in: source, range: range) {
+                match, _, _ in
+                guard let match,
+                      let range = Range(match.range(at: 1), in: source)
+                else { return }
+                names.insert(String(source[range]))
+            }
+        }
+        return names
     }
 
     private func runShardValidator(

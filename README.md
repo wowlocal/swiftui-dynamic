@@ -82,10 +82,11 @@ For the complete concurrency inner loop, use
 bundle once, then runs the focused parity case, targeted tests, and methodology
 suite concurrently through direct prebuilt-bundle processes. During the edit
 loop, `--methodology-filter 'RELEVANT_TEST|ACCEPTANCE_TEST'` limits that lane to
-the checks affected by the slice; omit the option for the complete 39-test
-methodology gate before committing. This avoids the shared SwiftPM planning
-lock that serializes concurrent `swift test` commands; pass `--skip-build` only
-when the bundle is already current.
+the checks affected by the slice; omit the option for the complete 41-test
+methodology gate before committing. The runner reports each lane's wall time
+so the slowest verification surface remains visible. This avoids the shared
+SwiftPM planning lock that serializes concurrent `swift test` commands; pass
+`--skip-build` only when the bundle is already current.
 
 ## Concurrency roadmap
 

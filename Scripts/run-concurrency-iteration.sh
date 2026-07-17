@@ -3,8 +3,9 @@
 # prebuilt-test processes. Avoid concurrent `swift test` commands: SwiftPM
 # serializes them on the shared .build lock even when --skip-build is passed.
 # Keep AppKit/SwiftUI selections serial inside their process. Pure methodology
-# checks run in parallel, while the three checks that invoke the repository
-# gate stay in a separate serial process so they cannot contend on its lock.
+# checks use Swift Testing workers. Each gate-contract check gets a separate
+# prebuilt process: two exit before gate-lock acquisition and the lock-conflict
+# check owns a unique temporary lock, so they can overlap safely.
 set -u
 set -o pipefail
 cd "$(dirname "$0")/.." || exit 2
@@ -53,7 +54,7 @@ if (( skip_build == 0 )); then
 fi
 
 work_dir=$(mktemp -d)
-typeset -a labels logs pids active_pids test_labels test_logs
+typeset -a labels logs durations pids active_pids test_labels test_logs
 
 cleanup() {
     if [[ "${CONCURRENCY_ITERATION_KEEP_LOGS:-0}" == 1 ]]; then
@@ -87,10 +88,17 @@ trap on_signal HUP INT TERM
 launch() {
     local label="$1"
     local log="$2"
+    local duration="$log.duration"
     shift 2
     labels+=("$label")
     logs+=("$log")
-    "$@" > "$log" 2>&1 &
+    durations+=("$duration")
+    (
+        integer lane_started=$SECONDS lane_status=0
+        "$@" || lane_status=$?
+        print -r -- "$(( SECONDS - lane_started ))" > "$duration"
+        exit $lane_status
+    ) > "$log" 2>&1 &
     local pid=$!
     pids+=($pid)
     active_pids+=($pid)
@@ -112,9 +120,17 @@ if [[ "$methodology_filter" == ConcurrencyMethodologyTests ]]; then
         Scripts/run-prebuilt-tests.sh --parallel --num-workers "$jobs" \
             --filter "$methodology_filter" \
             --skip "$gate_methodology_filter"
-    launch_test "methodology gate checks" "$work_dir/methodology-gate.log" \
-        Scripts/run-prebuilt-tests.sh --no-parallel \
-            --filter "$gate_methodology_filter"
+    typeset -a gate_methodology_tests=(
+        gateReceiptContractIsSourceBoundAndActionable
+        gateRejectsConcurrentWorktreeRunBeforeBuild
+        gateBlocksInvalidCapabilityAccountingBeforeBuild
+    )
+    for gate_test in $gate_methodology_tests; do
+        launch_test "methodology $gate_test" \
+            "$work_dir/methodology-$gate_test.log" \
+            Scripts/run-prebuilt-tests.sh --no-parallel \
+                --filter "ConcurrencyMethodologyTests/$gate_test"
+    done
 else
     launch_test "methodology" "$work_dir/methodology.log" \
         Scripts/run-prebuilt-tests.sh --no-parallel \
@@ -144,7 +160,11 @@ done
 if (( failed != 0 )); then exit 1; fi
 
 for (( index = 1; index <= ${#logs}; index++ )); do
-    echo "${labels[$index]}:"
+    lane_duration="?"
+    if [[ -f "${durations[$index]}" ]]; then
+        lane_duration=$(<"${durations[$index]}")
+    fi
+    echo "${labels[$index]} (${lane_duration}s):"
     tail -5 "${logs[$index]}"
 done
 echo "concurrency iteration completed in $(( SECONDS - started ))s"
