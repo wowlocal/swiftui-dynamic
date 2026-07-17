@@ -955,12 +955,15 @@ extension Interpreter {
     }
 
     func callWithArgumentsSuspending(
-        _ closure: ClosureValue, args: CallArguments, node: Syntax?
+        _ closure: ClosureValue,
+        args: CallArguments,
+        node: Syntax?,
+        contextualExecutor: RuntimeExecutorKind? = nil
     ) async throws -> RuntimeValue {
         let invocation = try resolvedInvocation(
             for: closure, arguments: args)
         let effectiveArguments = invocation.arguments
-        let calleeExecutor = invocation.executor
+        let calleeExecutor = contextualExecutor ?? invocation.executor
         let suspendedCallerActor = suspendCallerActorForExecutorHop(
             to: calleeExecutor)
         do {
@@ -968,7 +971,8 @@ extension Interpreter {
                 closure,
                 args: effectiveArguments,
                 node: node,
-                calleeExecutor: calleeExecutor)
+                calleeExecutor: calleeExecutor,
+                contextualExecutor: contextualExecutor)
             if let suspendedCallerActor {
                 await concurrencyRuntime.resumeActorExecutor(
                     suspendedCallerActor)
@@ -988,7 +992,8 @@ extension Interpreter {
         _ closure: ClosureValue,
         args: CallArguments,
         node: Syntax?,
-        calleeExecutor: RuntimeExecutorKind?
+        calleeExecutor: RuntimeExecutorKind?,
+        contextualExecutor: RuntimeExecutorKind?
     ) async throws -> RuntimeValue {
         let actorOwnership = try await enterActorInvocation(
             executor: calleeExecutor)
@@ -1002,7 +1007,8 @@ extension Interpreter {
         defer { evaluationTaskContext.currentExecutor = previousExecutor }
         lexicalExecutorFrames.append(
             closure.functionDeclID == nil
-                ? closure.lexicalExecutor : calleeExecutor)
+                ? contextualExecutor ?? closure.lexicalExecutor
+                : calleeExecutor)
         defer { lexicalExecutorFrames.removeLast() }
         var insertedFrame: ExtensionFrame?
         if let frame = closure.extensionFrame,

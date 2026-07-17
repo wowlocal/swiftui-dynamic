@@ -1731,6 +1731,12 @@ final class CooperativeConcurrencyRuntime {
         }
         record.suspension = nil
         record.state = .running
+        // The evaluator budget bounds consecutive non-suspending work. A
+        // registered suspension is a real cooperative progress boundary, so
+        // polling loops such as `while !ready { await Task.yield() }` must not
+        // fail merely because another task was delayed by host contention.
+        // Tight loops without a suspension still exhaust the same budget.
+        record.evaluationContext?.steps = 0
     }
 
     /// Canonical semantic suspension entry. Actor ownership is released only

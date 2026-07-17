@@ -412,61 +412,98 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
-    @Test func arbitraryActorIsolationFailsClosedBeforeRecordCreation()
+    @Test func sourceActorIsolationOwnsBodyReentersAndCleansUp()
         async throws
     {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/"
+                + "checked-continuation-source-actor-isolation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait checkedContinuationSourceActorIsolationProbe()\n"
         let interpreter = Interpreter()
-        do {
-            _ = try await interpreter.runAsync(source: """
-                actor ContinuationIsolationActor {}
-
-                let isolation = ContinuationIsolationActor()
-                await withCheckedContinuation(isolation: isolation) {
-                    continuation in
-                    continuation.resume(returning: 1)
+        var gateStarted = false
+        var gateOpen = false
+        interpreter.globals.define(
+            "parityCurrentExecutorLane",
+            .hostFunction(HostFunction(
+                name: "parityCurrentExecutorLane"
+            ) { _, context in
+                .native(context.sourceExecutor.isMainActor ? "main" : "worker")
+            }))
+        interpreter.globals.define(
+            "parityActorSegmentOwnership",
+            .hostFunction(HostFunction(
+                name: "parityActorSegmentOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
                 }
-                """)
-            Issue.record(
-                "arbitrary actor isolation was silently treated as MainActor")
-        } catch {
-            #expect(String(describing: error).contains(
-                "currently supports only nil or MainActor isolation"))
-        }
+                return .native("owned")
+            }))
+        interpreter.globals.define(
+            "parityAssertActorSegmentOwnership",
+            .hostFunction(HostFunction(
+                name: "parityAssertActorSegmentOwnership"
+            ) { arguments, context in
+                guard case .instance(let expected)? = arguments.positional(0),
+                      let actorID = expected.actorID,
+                      context.sourceExecutor.actorID == actorID,
+                      let taskID = interpreter.evaluationTaskContext
+                        .runtimeTaskID,
+                      interpreter.concurrencyRuntime.actors[actorID]?
+                        .executorOwnerTaskID == taskID else {
+                    return .native("unowned")
+                }
+                return .native("owned")
+            }))
+        interpreter.globals.define(
+            "parityWaitTaskValueGate",
+            .hostFunction(HostFunction(
+                name: "parityWaitTaskValueGate",
+                asyncInvoke: { _, _ in
+                    gateStarted = true
+                    while !gateOpen { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "parityAwaitTaskValueGateStarted",
+            .hostFunction(HostFunction(
+                name: "parityAwaitTaskValueGateStarted",
+                asyncInvoke: { _, _ in
+                    while !gateStarted { await Task.yield() }
+                    return .void
+                })))
+        interpreter.globals.define(
+            "parityOpenTaskValueGate",
+            .hostFunction(HostFunction(
+                name: "parityOpenTaskValueGate"
+            ) { _, _ in
+                gateOpen = true
+                return .void
+            }))
 
-        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 0)
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "explicit=worker:owned:worker|default=owned:owned:owned:1")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
         #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
-        #expect(interpreter.scheduledTasks.isEmpty)
-    }
-
-    @Test func omittedArbitraryActorIsolationFailsClosedBeforeRecordCreation()
-        async throws
-    {
-        let interpreter = Interpreter()
-        do {
-            _ = try await interpreter.runAsync(source: """
-                actor OmittedContinuationIsolationActor {
-                    func value() async -> Int {
-                        await withCheckedContinuation { continuation in
-                            continuation.resume(returning: 1)
-                        }
-                    }
-                }
-
-                let actor = OmittedContinuationIsolationActor()
-                await actor.value()
-                """)
-            Issue.record(
-                "omitted source-actor isolation was silently treated as nil")
-        } catch {
-            #expect(String(describing: error).contains(
-                "currently supports only nil or MainActor isolation"))
-        }
-
-        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 0)
-        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
-        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.actors.isEmpty)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
     }

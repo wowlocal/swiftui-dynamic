@@ -114,6 +114,15 @@ func parityActorSegmentOwnership(
         ? "owned" : "other"
 }
 
+/// Check dynamic executor ownership even when the call site's lexical
+/// `#isolation` is nil, as with an explicitly supplied isolated parameter.
+nonisolated func parityAssertActorSegmentOwnership(
+    _ expected: any Actor
+) -> String {
+    expected.assertIsolated()
+    return "owned"
+}
+
 nonisolated func paritySuspendActorMessage() async {
     await actorReentrancyGate.suspendUntilOpen()
 }

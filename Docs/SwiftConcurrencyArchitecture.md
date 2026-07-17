@@ -1347,12 +1347,13 @@ Native probes determine which properties are guaranteed and which diagnostics
 are debug implementation behavior.
 
 The current slice implements a bounded runtime-owned record and opaque source
-carrier for `withCheckedContinuation` with explicit or caller-defaulted `nil`
-or `MainActor.shared` isolation plus `resume(returning:)`; its explicit-`nil`
-Void slice also maps zero-argument `resume()` to the same resumed terminal
-transition, and nonthrowing `Result<T, Never>` success delegates to that same
-returning transition. Compiler preflight owns Swift's static overload/member
-constraints, while the runtime implements the already-selected valid calls.
+carrier for `withCheckedContinuation` with explicit or caller-defaulted `nil`,
+`MainActor.shared`, or source-actor isolation plus `resume(returning:)`; its
+explicit-`nil` Void slice also maps zero-argument `resume()` to the same resumed
+terminal transition, and nonthrowing `Result<T, Never>` success delegates to
+that same returning transition. Compiler preflight owns Swift's static
+overload/member constraints, while the runtime implements the already-selected
+valid calls.
 `withCheckedThrowingContinuation` shares that record for explicit `nil` plus
 caller-defaulted nonisolated/MainActor isolation, `resume(returning:)`, and
 `resume(throwing:)`; its MainActor error path has exact body-isolation and
@@ -1361,20 +1362,24 @@ concrete-error plus existential `Result<T, any Error>` `resume(with:)`
 overloads delegate success/failure to those same terminal transitions. A
 distinct failed terminal outcome retains
 the copied source error and projects it only after the runtime has closed the
-continuation ownership edges. A contextual executor
-override runs the synchronous MainActor body and restores the caller before
-waiting, so a delayed resume records `.waitingForContinuation(id)` with the
-caller's required logical executor rather than the temporary body executor.
-Resume restores that owner executor and closes both the registry entry and
-task-owner edge before returning the copied value or throwing the original
-source value through `InterpretedThrow`. Immediate resume uses the same
-exactly-once transition without a synthetic suspension. Infrastructure
+continuation ownership edges. A contextual-executor override uses the ordinary
+suspending invocation kernel: it acquires a selected source actor for the
+synchronous body, or switches logical identity for MainActor, then restores a
+different caller before waiting. A delayed resume therefore records
+`.waitingForContinuation(id)` with the caller's required logical executor
+rather than the temporary body executor. When the caller already owns the
+selected source actor, the canonical suspension lease releases the complete
+depth-counted segment, permits another actor message to enter, and reacquires
+the actor before source evaluation continues. Resume closes both the registry
+entry and task-owner edge before returning the copied value or throwing the
+original source value through `InterpretedThrow`. Immediate resume uses the
+same exactly-once transition without a synthetic suspension. Infrastructure
 cancellation may abort the internal native waiter so session teardown cannot
-hang; ordinary source cancellation does not resolve the continuation.
-Omitted `#isolation` is materialized once from caller lexical isolation before
-this validation. Arbitrary source actors therefore fail closed before record
-creation instead of being approximated as nil. Arbitrary-source-actor
-execution, checked diagnostics/lifetime, and unsafe variants remain open.
+hang; ordinary source cancellation does not resolve the continuation. Omitted
+`#isolation` is materialized once from caller lexical isolation before executor
+selection. The nonthrowing explicit and caller-defaulted source-actor shapes
+have exact native parity; a dedicated throwing source-actor slice, checked
+diagnostics/lifetime, and unsafe variants remain open.
 
 ### 6.18 Async sequences and streams
 
@@ -2082,9 +2087,10 @@ Each milestone is independently gated through
   process-isolated native/interpreter runtime-trap parity. Final-owner
   scope-exit cancellation and non-owning escaped producer-continuation lifetime
   also have exact parity. The checked-continuation value slices now own
-  explicit or caller-defaulted `nil` and `MainActor.shared` isolation,
-  detached-producer resume, contextual MainActor body execution,
-  caller-executor restoration, and teardown cleanup. The checked throwing form
+  explicit or caller-defaulted `nil`, `MainActor.shared`, and source-actor
+  isolation, detached-producer resume, contextual actor body execution,
+  caller-executor restoration, mailbox release/reentry/reacquisition, and
+  teardown cleanup. The checked throwing form
   additionally owns explicit-`nil` plus caller-defaulted isolation,
   value resume, exact source-error projection through `resume(throwing:)`,
   exact MainActor body/caller restoration on delayed source error, and
@@ -2093,8 +2099,8 @@ Each milestone is independently gated through
   The nonthrowing explicit-`nil` Void slice owns zero-argument `resume()`
   and `Result<T, Never>` success through the same terminal transition and
   cleanup path.
-  Unsafe variants, arbitrary-source-actor execution, and remaining diagnostic/
-  lifetime edges remain active;
+  Unsafe variants, a dedicated throwing source-actor slice, and remaining
+  diagnostic/lifetime edges remain active;
   complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
@@ -2337,8 +2343,9 @@ before its caller continues. An escaped throwing producer continuation likewise
 does not retain storage, returns `.terminated` after owner release, and is inert
 on its own release. The source checked-continuation slices separately own a
 bounded runtime record, delayed value resume for explicit or caller-defaulted
-`nil` and `MainActor.shared` isolation, contextual MainActor body execution,
-caller-executor restoration, and infrastructure-abort cleanup. The throwing
+`nil`, `MainActor.shared`, and source-actor isolation, contextual actor body
+execution, caller-executor restoration, mailbox release/reentry/reacquisition,
+and infrastructure-abort cleanup. The throwing
 form shares that record for explicit-`nil` value return, caller-defaulted
 isolation, exact source-error projection, exact MainActor body/caller
 restoration on delayed source error,
@@ -2346,8 +2353,9 @@ and concrete-error plus existential-error Result success/failure through
 `resume(with:)`;
 the nonthrowing explicit-`nil` Void slice maps zero-argument
 `resume()` and `Result<T, Never>` success to that same successful terminal
-path. Arbitrary-source-actor execution and the remaining diagnostic/lifetime
-edges remain active rather than being inferred from stream behavior.
+path. A dedicated throwing source-actor slice and the remaining
+diagnostic/lifetime edges remain active rather than being inferred from the
+nonthrowing or stream behavior.
 
 Deliverables:
 

@@ -1635,6 +1635,7 @@ struct ConcurrencyMethodologyTests {
             "checked-continuation-mainactor-resume",
             "checked-continuation-omitted-isolation",
             "checked-continuation-result-spellings",
+            "checked-continuation-source-actor-isolation",
             "checked-continuation-void-resume",
         ])
         #expect(checkedClaim.testNames == [
@@ -1642,9 +1643,8 @@ struct ConcurrencyMethodologyTests {
             "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
             "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
-            "CheckedContinuationRuntimeTests/arbitraryActorIsolationFailsClosedBeforeRecordCreation",
-            "CheckedContinuationRuntimeTests/omittedArbitraryActorIsolationFailsClosedBeforeRecordCreation",
             "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
+            "CheckedContinuationRuntimeTests/sourceActorIsolationOwnsBodyReentersAndCleansUp",
             "CheckedContinuationRuntimeTests/voidResumeUsesSameRecordAndCleanup",
             "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess",
             "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck",
@@ -1655,7 +1655,7 @@ struct ConcurrencyMethodologyTests {
             "explicit isolation: nil and MainActor.shared"))
         #expect(checkedClaim.notes.contains("required resume executor"))
         #expect(checkedClaim.notes.contains(
-            "arbitrary source actors fail closed"))
+            "source-actor callers"))
         #expect(checkedClaim.notes.contains("Void resume()"))
         #expect(checkedClaim.notes.contains("Result<T, Never>"))
         #expect(checkedClaim.notes.contains("caller lexical isolation"))
@@ -1678,7 +1678,6 @@ struct ConcurrencyMethodologyTests {
             "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
             "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
-            "CheckedContinuationRuntimeTests/omittedArbitraryActorIsolationFailsClosedBeforeRecordCreation",
             "CheckedContinuationRuntimeTests/resultResumeUsesReturningAndThrowingTransitions",
             "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
             "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
@@ -3054,6 +3053,23 @@ struct ConcurrencyMethodologyTests {
             "toolchain fingerprint mismatch") == true)
         #expect(diagnostics["exitStatuses"] is [String: Any])
         #expect(diagnostics["timeouts"] is [String: Any])
+    }
+
+    @Test func gateFailsFastBeforeExpensiveStagesAfterTestFailure() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/gate.sh"),
+            encoding: .utf8)
+        let failFast = try #require(script.range(of:
+            "if (( test_red != 0 )) && [[ \"$continue_after_failure\" != 1 ]]; then"))
+        let evaluation = try #require(script.range(of:
+            "current_stage=\"evaluation\""))
+
+        #expect(failFast.lowerBound < evaluation.lowerBound)
+        #expect(script.contains(
+            "evaluation and live stages skipped after test failure"))
+        #expect(script.contains(
+            "configuration.effectiveEnvironment.GATE_CONTINUE_AFTER_FAILURE"))
     }
 
     @Test func gateBlocksInvalidCapabilityAccountingBeforeBuild() throws {
