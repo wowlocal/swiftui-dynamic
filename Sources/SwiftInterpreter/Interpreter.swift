@@ -681,6 +681,10 @@ public final class Interpreter {
         currentProgramMetadata?.callableMetadataIndex
     }
 
+    var currentCallSiteMetadataIndex: ParsedCallSiteMetadataIndex? {
+        currentProgramMetadata?.callSiteMetadataIndex
+    }
+
     var currentNominalMetadataIndex: ParsedNominalMetadataIndex? {
         currentProgramMetadata?.nominalMetadataIndex
     }
@@ -754,6 +758,13 @@ public final class Interpreter {
     ) -> ParsedFunctionMetadata {
         currentCallableMetadataIndex?.metadata(for: node)
             ?? ParsedFunctionMetadata(node)
+    }
+
+    func callSiteMetadata(
+        for node: FunctionCallExprSyntax
+    ) -> ParsedCallSiteMetadata {
+        currentCallSiteMetadataIndex?.metadata(for: node)
+            ?? ParsedCallSiteMetadata(node)
     }
 
     func initializerMetadata(

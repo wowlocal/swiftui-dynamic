@@ -2925,7 +2925,8 @@
         "typealias-metadata",
         "deinitializer-metadata",
         "callable-placement-metadata",
-        "initializer-declaration-metadata"
+        "initializer-declaration-metadata",
+        "with-task-executor-preference-nil"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -2934,6 +2935,8 @@
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableCallableMetadataIndex",
         "ParsedProgramConcurrencyTests/callableMetadataOwnsFunctionPlacement",
         "ParsedProgramConcurrencyTests/callablePlacementHasPureForeignSyntaxFallback",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableCallSiteMetadataIndex",
+        "ParsedProgramConcurrencyTests/callSiteMetadataHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/initializerMetadataOwnsDeclarationFacts",
         "ParsedProgramConcurrencyTests/initializerMetadataHasPureForeignSyntaxFallback",
         "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableNominalMetadataIndex",
@@ -2960,6 +2963,9 @@
         "InterpreterSessionOwnershipTests/sessionRejectsExecutionByAnotherInterpreter",
         "InterpreterSessionOwnershipTests/sessionKeepsItsHeapAndRuntimeAliveWithoutRetainingFacade",
         "AsyncExecutionTests/drainPolicyDoesNotWaitForAnotherSessionTasks",
+        "AsyncExecutionTests/extractIsolationUnsupportedProvenanceFailsClosed",
+        "AsyncExecutionTests/taskExecutorPreferenceNilScopePreservesTaskStateAndCleansUp",
+        "ClosureTests/multipleTrailingClosuresBindMemberwiseInOrder",
         "RuntimeEntryOwnershipTests/hostCallbackAndSpawnedTaskShareOneOwnedEntry",
         "RuntimeEntryOwnershipTests/separateCallbacksUseDistinctEntriesAgainstTheSameHeap",
         "EnumAndSwitchTests/rawValueEnums",
@@ -2985,7 +2991,7 @@
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Seventeen M9 prerequisites are green. Function entries now own optional bodies plus names, parameters/call shapes, return/builder facts, generics, attributes, modifiers, effects, isolation, and placement; bodylessFunctionCount records requirements and extern absorbers. All synchronous and suspending source-function dispatch paths consume body/default/label/mutating facts from the immutable index with pure foreign-syntax fallback. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. FoodTruck cites 133 functions across async account/StoreKit work, layouts and local helpers, mutating models, static reducers/operators, and modifiers. The migration was already-GREEN: twenty exact type:same:foodtruck|instance:same native/interpreter callable-placement observations remain green after an awaited actor hop. Initializer declaration/isolation and earlier metadata parity remain green. No bodyless invocation, new isolation rule, scheduler order, or physical-thread claim is made. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site, and compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Eighteen M9 prerequisites are green. Runtime call entries now own ordinary labels/expressions, first and additional trailing closures in source order, and bare unqualified direct-reference spelling while compiler-only #if predicates are excluded. Both argument collectors and bounded async-operation provenance consume this immutable index with pure foreign-syntax fallback. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their children propagate the composite capability. FoodTruck cites 41 additional-trailing-closure spellings and three direct Button(action:) references. The semantic characterization was already GREEN: twenty exact explicit-nil task-executor-preference task-state/error projections remain green. Qualified/converted/member/closure provenance, full overload resolution, new executor behavior, scheduler order, and physical threads are not claimed. Earlier function/initializer and metadata parity remains green. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Remaining member families, call-site semantic resolution, compiler metadata, mutable symbols, and evaluation remain on the facade, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

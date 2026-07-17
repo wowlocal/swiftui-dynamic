@@ -4,24 +4,19 @@ import SwiftSyntax
 extension Interpreter {
     func collectArguments(of call: FunctionCallExprSyntax, in env: Environment) throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
-        for labeled in call.arguments {
-            let value = try evaluate(labeled.expression, in: env)
+        for argument in callSiteMetadata(for: call).arguments {
+            let value: RuntimeValue
+            if let trailingClosure = argument.trailingClosure {
+                value = .closure(try makeClosure(trailingClosure, in: env))
+            } else {
+                value = try evaluate(argument.expression, in: env)
+            }
             arguments.append(.init(
-                label: labeled.label?.text,
+                label: argument.label,
                 value: value,
+                isTrailing: argument.isTrailing,
                 sourceProvenance: callArgumentSourceProvenance(
-                    of: labeled.expression, value: value, in: env)))
-        }
-        if let trailing = call.trailingClosure {
-            arguments.append(.init(
-                label: nil, value: .closure(try makeClosure(trailing, in: env)),
-                isTrailing: true))
-        }
-        for extra in call.additionalTrailingClosures {
-            arguments.append(.init(
-                label: extra.label.text,
-                value: .closure(try makeClosure(extra.closure, in: env)),
-                isTrailing: true))
+                    of: argument, value: value, in: env)))
         }
         return CallArguments(arguments: arguments)
     }
@@ -31,14 +26,14 @@ extension Interpreter {
     /// local alias, or conversion is deliberately unknown until function
     /// values carry isolation identity themselves.
     func callArgumentSourceProvenance(
-        of expression: ExprSyntax,
+        of argument: ParsedCallArgumentMetadata,
         value: RuntimeValue,
         in env: Environment
     ) -> CallArgumentSourceProvenance {
         guard let functionID = value.closureValue?.functionDeclID,
-              let reference = expression.as(DeclReferenceExprSyntax.self),
-              env.box(for: reference.baseName.text, before: globals) == nil,
-              globalFunctionOverloads[reference.baseName.text]?.contains(where: {
+              let referenceName = argument.directUnqualifiedReferenceName,
+              env.box(for: referenceName, before: globals) == nil,
+              globalFunctionOverloads[referenceName]?.contains(where: {
                 $0.id == functionID
                     && functionMetadata(for: $0).isAsync
               }) == true else {

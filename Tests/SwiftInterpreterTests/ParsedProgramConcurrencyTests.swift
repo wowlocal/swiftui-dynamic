@@ -281,6 +281,68 @@ struct ParsedProgramConcurrencyTests {
         #expect(!instanceMetadata.isTypeMember)
     }
 
+    @Test nonisolated func parsedProgramOwnsSendableCallSiteMetadataIndex()
+    async throws {
+        let program = try ParsedProgram(source: """
+        func operation() async {}
+        func route(
+            operation: () async -> Void,
+            value: Int,
+            onSuccess: () -> Void,
+            onFailure: () -> Void
+        ) {}
+
+        route(operation: operation, value: 1) {
+        } onFailure: {
+        }
+
+        #if os(iOS)
+        route(operation: operation, value: 2) {
+        } onFailure: {
+        }
+        #else
+        route(operation: operation, value: 3) {
+        } onFailure: {
+        }
+        #endif
+        """)
+        let expected = ParsedCallSiteMetadataIndex.Summary(
+            callCount: 3,
+            ordinaryArgumentCount: 6,
+            trailingClosureCount: 3,
+            additionalTrailingClosureCount: 3,
+            directReferenceArgumentCount: 3)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.callSiteMetadataIndex)
+        #expect(program.callSiteMetadataIndex.summary == expected)
+        #expect(program.metadata.callSiteMetadataIndex.summary == expected)
+
+        let topLevelCalls = program.syntax.statements.compactMap {
+            $0.item.as(ExprSyntax.self)?.as(FunctionCallExprSyntax.self)
+        }
+        let call = try #require(topLevelCalls.first)
+        let metadata = try #require(
+            program.callSiteMetadataIndex.metadata(for: call))
+        #expect(metadata.arguments.map(\.label)
+            == ["operation", "value", nil, "onFailure"])
+        #expect(metadata.arguments.map(\.isTrailing)
+            == [false, false, true, true])
+        #expect(metadata.arguments.map(\.isAdditionalTrailingClosure)
+            == [false, false, false, true])
+        #expect(metadata.arguments.first?.directUnqualifiedReferenceName
+            == "operation")
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.callSiteMetadataIndex.summary }
+        }
+        var observations: [ParsedCallSiteMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+    }
+
     @Test func callablePlacementHasPureForeignSyntaxFallback() throws {
         let foreignProgram = try ParsedProgram(source: """
         struct Foreign {
@@ -299,6 +361,26 @@ struct ParsedProgramConcurrencyTests {
         #expect(metadata.body?.statements.count == 0)
         #expect(metadata.modifierNames == ["static"])
         #expect(metadata.isTypeMember)
+    }
+
+    @Test func callSiteMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        consume(operation: operation) {
+        } completion: {
+        }
+        """)
+        let calls = foreignProgram.syntax.statements.compactMap {
+            $0.item.as(ExprSyntax.self)?.as(FunctionCallExprSyntax.self)
+        }
+        let call = try #require(calls.first)
+        let metadata = Interpreter().callSiteMetadata(for: call)
+
+        #expect(metadata.arguments.map(\.label)
+            == ["operation", nil, "completion"])
+        #expect(metadata.arguments.map(\.isTrailing)
+            == [false, true, true])
+        #expect(metadata.arguments.first?.directUnqualifiedReferenceName
+            == "operation")
     }
 
     @Test func initializerMetadataOwnsDeclarationFacts() throws {
@@ -1153,6 +1235,8 @@ struct ParsedProgramConcurrencyTests {
             == program.declarationIndex.summary)
         #expect(program.metadata.callableMetadataIndex.summary
             == program.callableMetadataIndex.summary)
+        #expect(program.metadata.callSiteMetadataIndex.summary
+            == program.callSiteMetadataIndex.summary)
         #expect(program.metadata.nominalMetadataIndex.summary
             == program.nominalMetadataIndex.summary)
         #expect(program.metadata.propertyMetadataIndex.summary
@@ -1172,6 +1256,7 @@ struct ParsedProgramConcurrencyTests {
                     program.metadata.declarationIndex.summary
                         .possiblePrimaryDeclarationCount,
                     program.metadata.callableMetadataIndex.summary.functionCount,
+                    program.metadata.callSiteMetadataIndex.summary.callCount,
                     program.metadata.callableMetadataIndex.summary
                         .typeMemberFunctionCount,
                     program.metadata.callableMetadataIndex.summary
@@ -1193,7 +1278,7 @@ struct ParsedProgramConcurrencyTests {
             observations.append(await reader.value)
         }
         #expect(observations.allSatisfy {
-            $0 == [3, 2, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+            $0 == [3, 2, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1]
         })
 
         let interpreter = Interpreter()

@@ -9,6 +9,7 @@ struct RuntimeEntryOwnershipTests {
         var observedKinds: [RuntimeEntry.Kind] = []
         var observedHeapMatches: [Bool] = []
         var observedMetadata: [ParsedCallableMetadataIndex.Summary?] = []
+        var observedCallSiteCounts: [Int?] = []
         var observedTypeMemberFunctionCounts: [Int?] = []
         var observedBodylessFunctionCounts: [Int?] = []
         var observedInitializerCounts: [Int?] = []
@@ -34,6 +35,8 @@ struct RuntimeEntryOwnershipTests {
                     observedKinds.append(entry.kind)
                     observedHeapMatches.append(entry.heap === interpreter.runtimeHeap)
                     observedMetadata.append(entry.callableMetadataIndex?.summary)
+                    observedCallSiteCounts.append(entry.programMetadata?
+                        .callSiteMetadataIndex.summary.callCount)
                     observedTypeMemberFunctionCounts.append(
                         entry.callableMetadataIndex?.summary
                             .typeMemberFunctionCount)
@@ -121,6 +124,7 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedKinds == [.hostCallback, .hostCallback])
         #expect(observedHeapMatches == [true, true])
         #expect(observedMetadata.map { $0?.functionCount } == [3, 3])
+        #expect(observedCallSiteCounts == [4, 4])
         #expect(observedTypeMemberFunctionCounts == [1, 1])
         #expect(observedBodylessFunctionCounts == [1, 1])
         #expect(observedInitializerCounts == [1, 1])

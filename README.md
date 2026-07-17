@@ -99,10 +99,11 @@ with the detailed design in
   separate immutable parsed-program metadata, session-owned mutable state, and
   runtime-entry identity. Declaration, callable/accessor/subscript, nominal,
   property-storage, enum-case, extension, type-alias, and deinitializer
-  headers plus function bodies/placement and initializer declaration/isolation
-  facts are now immutable Sendable indexes;
-  remaining member-family/call-site/compiler metadata, session migration, heap-edge
-  classification, workers, mode-differential parity, and TSan are still open.
+  headers plus function bodies/placement, initializer declaration/isolation,
+  and call-site argument structure/provenance are now immutable Sendable
+  indexes; remaining member-family, call-site semantic-resolution, and
+  compiler metadata, session migration, heap-edge classification, workers,
+  mode-differential parity, and TSan are still open.
 - **Covered demand cycles:** M5 actor identity/mailboxes and storage
   confinement, M6 protocol sequences/streams/checked continuations, and M8
   SwiftUI-owned `.task` lifecycle have scoped executable evidence. Their broad

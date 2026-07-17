@@ -664,24 +664,19 @@ extension Interpreter {
         of call: FunctionCallExprSyntax, in env: Environment
     ) async throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
-        for labeled in call.arguments {
-            let value = try await evaluateSuspending(labeled.expression, in: env)
+        for argument in callSiteMetadata(for: call).arguments {
+            let value: RuntimeValue
+            if let trailingClosure = argument.trailingClosure {
+                value = .closure(try makeClosure(trailingClosure, in: env))
+            } else {
+                value = try await evaluateSuspending(argument.expression, in: env)
+            }
             arguments.append(.init(
-                label: labeled.label?.text,
+                label: argument.label,
                 value: value,
+                isTrailing: argument.isTrailing,
                 sourceProvenance: callArgumentSourceProvenance(
-                    of: labeled.expression, value: value, in: env)))
-        }
-        if let trailing = call.trailingClosure {
-            arguments.append(.init(
-                label: nil, value: .closure(try makeClosure(trailing, in: env)),
-                isTrailing: true))
-        }
-        for extra in call.additionalTrailingClosures {
-            arguments.append(.init(
-                label: extra.label.text,
-                value: .closure(try makeClosure(extra.closure, in: env)),
-                isTrailing: true))
+                    of: argument, value: value, in: env)))
         }
         return CallArguments(arguments: arguments)
     }

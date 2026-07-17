@@ -6,6 +6,7 @@ import SwiftSyntax
 public nonisolated final class ParsedProgramMetadata: Sendable {
     public let declarationIndex: ParsedDeclarationIndex
     public let callableMetadataIndex: ParsedCallableMetadataIndex
+    public let callSiteMetadataIndex: ParsedCallSiteMetadataIndex
     public let nominalMetadataIndex: ParsedNominalMetadataIndex
     public let propertyMetadataIndex: ParsedPropertyMetadataIndex
     public let enumCaseMetadataIndex: ParsedEnumCaseMetadataIndex
@@ -17,6 +18,7 @@ public nonisolated final class ParsedProgramMetadata: Sendable {
         declarationIndex = ParsedDeclarationIndex(
             statements: file.statements)
         callableMetadataIndex = ParsedCallableMetadataIndex(file: file)
+        callSiteMetadataIndex = ParsedCallSiteMetadataIndex(file: file)
         nominalMetadataIndex = ParsedNominalMetadataIndex(file: file)
         propertyMetadataIndex = ParsedPropertyMetadataIndex(file: file)
         enumCaseMetadataIndex = ParsedEnumCaseMetadataIndex(file: file)

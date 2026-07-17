@@ -364,6 +364,30 @@ call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
 heap classification, physical workers, mode-differential evidence, and TSan
 remain open.
 
+Its eighteenth prerequisite introduces the immutable call-site argument
+boundary. The architecture workflow captured a compile-time RED for the absent
+`ParsedCallSiteMetadataIndex`, `ParsedProgram.callSiteMetadataIndex`, and
+composite capability edge. Entries preserve ordinary labels/expressions, first
+and additional trailing closures in source order, and bare unqualified direct-
+reference spelling; compiler-only `#if` predicate calls are excluded. The
+synchronous and suspending collectors now consume the same indexed shape, and
+the bounded async-operation provenance rule uses its direct-reference fact.
+FoodTruck supplies 41 additional-trailing-closure spellings and three direct
+`Button(action:)` uses of `onPurchase`/`onDismiss`. The semantic workflow is an
+already-GREEN characterization: Apple Swift 6.3.3 and the interpreter preserve
+the exact explicit-nil executor-preference task-state/error projection in all
+twenty bounded `with-task-executor-preference-nil` repetitions. Four native
+shards each reported SHA-256
+`8cd6f4abe47320a422f3c0da80530aa47491ddb0eace1d6087040e1f16dd5e86`.
+The final prebuilt focused gate completed ten tests in four suites, all
+forty-two methodology checks, and all twenty parity repetitions in two
+seconds.
+Qualified/converted references, full overload identity, new executor behavior,
+scheduler order, physical thread, and physical parallelism are not inferred.
+Remaining member families, call-site semantic resolution, compiler metadata,
+mutable-symbol/evaluator migration, worker-safe heap classification, physical
+workers, mode-differential evidence, and TSan remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

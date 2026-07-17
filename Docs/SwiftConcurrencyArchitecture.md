@@ -330,6 +330,38 @@ each five-observation native shard reported SHA-256
 No bodyless-requirement invocation, new isolation behavior, scheduler order,
 physical thread, or physical parallelism is inferred.
 
+The eighteenth prerequisite introduces an immutable, all-branch
+`ParsedCallSiteMetadataIndex` for the argument structure runtime evaluation
+actually consumes. Each function-call entry owns ordinary argument labels and
+expressions, the first and additional trailing closures in source order, and
+the spelling of a bare unqualified declaration reference when one is present.
+Compiler-only conditional predicates such as `#if os(iOS)` are deliberately
+excluded: they are build-selection inputs, not runtime call sites. Both
+synchronous and suspending argument collection now consume one shared metadata
+shape, and the bounded async-operation provenance check uses the captured
+direct-reference spelling rather than reparsing the expression. Runtime value
+evaluation, active-branch selection, overload choice, and call-target identity
+remain session-owned; this slice does not pretend that syntax facts are a
+compiler-resolved call graph.
+
+FoodTruck supplies 41 additional-trailing-closure spellings, including
+`ActivityConfiguration { } dynamicIsland: { }` and the four-region
+`DynamicIsland` builder, plus direct action arguments such as
+`Button(action: onPurchase)` and `Button(action: onDismiss)`. The architectural
+RED was compile-time: `ParsedCallSiteMetadataIndex`, its composite capability
+edge, and the new call-site summary did not exist. The runtime behavior was an
+already-GREEN characterization. Apple Swift 6.3.3 and the interpreter preserve
+the exact `withTaskExecutorPreference(nil, isolation: nil)` task-state/error
+projection in twenty bounded repetitions; four five-observation native shards
+each reported SHA-256
+`8cd6f4abe47320a422f3c0da80530aa47491ddb0eace1d6087040e1f16dd5e86`.
+The final prebuilt focused gate completed ten tests in four suites, all
+forty-two methodology checks, and all twenty parity repetitions in two
+seconds.
+No qualified or converted function-value provenance, overload-resolution
+guarantee, new executor behavior, scheduler order, physical thread, or physical
+parallelism is inferred.
+
 The stable target separates five concerns:
 
 ```text
@@ -726,9 +758,9 @@ Current implementation stage (2026-07-17): `ParsedProgram` owns the folded
 syntax, source-location index, and one public immutable
 `ParsedProgramMetadata` capability. That value owns the public
 `ParsedDeclarationIndex`, `ParsedCallableMetadataIndex`,
-`ParsedNominalMetadataIndex`, `ParsedPropertyMetadataIndex`, and
-`ParsedEnumCaseMetadataIndex`, `ParsedExtensionMetadataIndex`, and
-`ParsedTypeAliasMetadataIndex`;
+`ParsedCallSiteMetadataIndex`, `ParsedNominalMetadataIndex`,
+`ParsedPropertyMetadataIndex`, `ParsedEnumCaseMetadataIndex`,
+`ParsedExtensionMetadataIndex`, and `ParsedTypeAliasMetadataIndex`;
 compatibility accessors on `ParsedProgram`
 expose the same values. The declaration index
 classifies all possible top-level primary declarations, aliases, and
@@ -740,7 +772,12 @@ return/builder/generic facts, attributes, and the modeled declaration-level
 isolation flags once. It also records readable accessor getter/setter bodies
 and effects plus subscript parameters, call shapes, result types, and explicit
 nonisolation. Mutable runtime symbol materialization remains
-session/facade-owned. The nominal index records struct/class/actor/enum/
+session/facade-owned. The call-site index records ordinary argument labels and
+expressions, first/additional trailing-closure structure, and bare unqualified
+reference spelling across runtime source regions while excluding compiler-only
+conditional predicates. Synchronous and suspending argument collection consume
+it; value evaluation, overload resolution, and call-target identity remain
+session-owned. The nominal index records struct/class/actor/enum/
 protocol kind, name, inherited type spellings, attributes, and generic header
 constraints across top-level, nested, local, and conditional declarations;
 nominal symbol construction consumes it. The property index records every
@@ -762,8 +799,8 @@ spellings, generic parameters and requirements, attributes, modifiers, and
 nominal-target classification across every lexical and conditional region.
 Top-level, member, and local alias binding consumes those headers while the
 session owns active-branch selection and mutable symbol lookup. Remaining
-member families, call-site semantic resolution, and the compiler-preflight
-fingerprint remain target work.
+member families, call-site semantic resolution beyond these source facts, and
+the compiler-preflight fingerprint remain target work.
 
 ### 6.2 `InterpreterSession`
 
