@@ -82,11 +82,29 @@ extension Interpreter {
     ) async throws -> RuntimeValue {
         let task = try requireCanonicalActiveRuntimeTask(
             for: "withCheckedContinuation")
-        guard let isolation = arguments.labeled("isolation"),
-              isolation.isNil else {
+        guard let isolation = arguments.labeled("isolation") else {
             throw RuntimeError(message:
-                "withCheckedContinuation currently requires explicit "
-                    + "isolation: nil")
+                "withCheckedContinuation currently requires an explicit "
+                    + "isolation argument")
+        }
+        let bodyExecutor: RuntimeExecutorKind?
+        if isolation.isNil {
+            bodyExecutor = nil
+        } else {
+            guard let actor = isolation.unwrappingInoutSlot
+                    .unwrappedOptionalOrSelf,
+                  !actor.isNil else {
+                throw RuntimeError(message:
+                    "withCheckedContinuation isolation requires an actor")
+            }
+            let executor = try executorSelectedByIsolatedValue(
+                actor, parameterName: "isolation")
+            guard executor == .mainActor else {
+                throw RuntimeError(message:
+                    "withCheckedContinuation currently supports only nil "
+                        + "or MainActor isolation")
+            }
+            bodyExecutor = executor
         }
         if let function = arguments.labeled("function"),
            function.stringValue == nil {
@@ -110,7 +128,8 @@ extension Interpreter {
                 args: CallArguments(arguments: [
                     .init(label: nil, value: .native(continuation))
                 ]),
-                node: nil)
+                node: nil,
+                contextualExecutor: bodyExecutor)
         } catch {
             concurrencyRuntime.discardContinuation(record)
             throw error

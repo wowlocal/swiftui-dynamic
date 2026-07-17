@@ -37,6 +37,10 @@ extension Interpreter {
             // observable without pretending the mutable heap is parallel-safe.
             return .native(evaluationTaskContext.currentExecutor.isMainActor)
         }
+        if let marker = value as? HostTypeMarker,
+           marker.name == "MainActor", name == "shared" {
+            return .native(RuntimeActorIsolationValue(executor: .mainActor))
+        }
         if let property = registry?.hostProperty(named: name, on: value) {
             let receiver = RuntimeValue.native(value)
             if deferringAsyncProperty && property.canSuspend {

@@ -2133,5 +2133,17 @@
     "interpreterProjection": "string",
     "nativeFact": "A one-shot checked continuation returns the exact value supplied by a detached producer after that producer yields, with explicit nil isolation from a nonisolated caller.",
     "notes": "The exact result is causal and makes no scheduling-order, physical-thread, or parallelism claim. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced 41 in twenty bounded native runs. The interpreter RED was unresolved identifier 'withCheckedContinuation'. Generated dispatch now routes the proven explicit-isolation-nil value subset through a task-owned bounded continuation record; the detached producer exercises resume from another source task. Focused evidence observes waitingForContinuation, required-executor restoration, one record, infrastructure-abort cleanup, and empty continuation/task/scope/group/stream/host-operation/scheduler registries. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 cdc0e05905b13ba3a3ef5a18fbefc271aedd047a639102d2b4ef965cc4f8c1a7."
+  },
+  {
+    "id": "checked-continuation-mainactor-resume",
+    "fixture": "Fixtures/checked-continuation-mainactor-resume.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationMainActorResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An explicit MainActor isolation argument hops a @concurrent nonisolated caller to MainActor for the checked-continuation body, then restores that caller's cooperative executor after a causally delayed detached producer supplies the value.",
+    "notes": "The task-value gate forces the detached producer to suspend before a separate controller opens it. Exact output worker|main|worker proves caller entry, the contextually isolated continuation body, and caller-executor restoration after resume; no ready-task order, producer physical thread, or parallel execution is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced the exact output in twenty native runs."
   }
 ]

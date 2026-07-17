@@ -47,9 +47,11 @@ runtime-owned mailbox now serializes actor-function segments and releases a
 complete depth-counted segment across canonical runtime waits before queuing
 the same task to reacquire it on resume. There is still no general runnable-
 executor queue. M6 now includes a bounded checked-continuation registry for
-the explicit-`nil` isolation, `resume(returning:)` value slice; each active
-record is owned by one task, names its required resume executor, uses the
-canonical suspension lease, and is removed on success or infrastructure abort.
+the explicit-`nil` and `MainActor.shared` isolation,
+`resume(returning:)` value slices; contextual MainActor body execution is
+temporary, each active record is owned by one task and names the caller's
+required resume executor, and the canonical suspension lease removes every
+edge on success or infrastructure abort.
 M6 began with protocol-driven
 `for await` over interpreted witnesses, including suspending mutating iterator
 copy-out, typed source-error propagation, and cooperative user-iterator
@@ -1336,16 +1338,20 @@ Checked continuations enforce:
 Native probes determine which properties are guaranteed and which diagnostics
 are debug implementation behavior.
 
-The current first slice implements a bounded runtime-owned record and opaque
-source carrier for `withCheckedContinuation(isolation:nil)` plus
-`resume(returning:)`. A delayed resume records
-`.waitingForContinuation(id)`, restores the owner's required logical executor,
-and closes both the registry entry and task-owner edge before returning the
-copied value. Immediate resume uses the same exactly-once transition without a
-synthetic suspension. Infrastructure cancellation may abort the internal
-native waiter so session teardown cannot hang; ordinary source cancellation
-does not resolve the continuation. Throwing/error projection, broader
-isolation, checked diagnostics/lifetime, and unsafe variants remain open.
+The current slice implements a bounded runtime-owned record and opaque source
+carrier for `withCheckedContinuation` with explicit `nil` or
+`MainActor.shared` isolation plus `resume(returning:)`. A contextual executor
+override runs the synchronous MainActor body and restores the caller before
+waiting, so a delayed resume records `.waitingForContinuation(id)` with the
+caller's required logical executor rather than the temporary body executor.
+Resume restores that owner executor and closes both the registry entry and
+task-owner edge before returning the copied value. Immediate resume uses the
+same exactly-once transition without a synthetic suspension. Infrastructure
+cancellation may abort the internal native waiter so session teardown cannot
+hang; ordinary source cancellation does not resolve the continuation.
+Arbitrary source actors fail closed before record creation. Throwing/error
+projection, omitted and arbitrary-source-actor isolation, other resume
+spellings, checked diagnostics/lifetime, and unsafe variants remain open.
 
 ### 6.18 Async sequences and streams
 
@@ -2051,10 +2057,11 @@ Each milestone is independently gated through
   single pending-`next()` capability, and a causally overlapping call has
   process-isolated native/interpreter runtime-trap parity. Final-owner
   scope-exit cancellation and non-owning escaped producer-continuation lifetime
-  also have exact parity. The first checked-continuation value slice now owns
-  explicit-`nil` isolation, one detached-producer resume, required-executor
-  restoration, and teardown cleanup. MainActor-specific evidence, throwing and
-  unsafe variants, other resume spellings, and diagnostic/lifetime edges remain
+  also have exact parity. The checked-continuation value slices now own
+  explicit-`nil` and `MainActor.shared` isolation, detached-producer resume,
+  contextual MainActor body execution, caller-executor restoration, and
+  teardown cleanup. Throwing and unsafe variants, omitted and arbitrary-source-
+  actor isolation, other resume spellings, and diagnostic/lifetime edges remain
   active; complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
@@ -2295,11 +2302,12 @@ suspension, a second call traps in both isolated native and interpreted
 processes. Final-owner scope exit also synchronously delivers `.cancelled`
 before its caller continues. An escaped throwing producer continuation likewise
 does not retain storage, returns `.terminated` after owner release, and is inert
-on its own release. The first source checked-continuation slice separately owns
-a bounded runtime record, delayed value resume, required-executor restoration,
-and infrastructure-abort cleanup. Its remaining isolation, error, diagnostic,
-and lifetime edges remain active rather than being inferred from stream
-behavior.
+on its own release. The source checked-continuation slices separately own a
+bounded runtime record, delayed value resume for explicit `nil` and
+`MainActor.shared` isolation, contextual MainActor body execution,
+caller-executor restoration, and infrastructure-abort cleanup. Their remaining
+isolation, error, diagnostic, and lifetime edges remain active rather than
+being inferred from stream behavior.
 
 Deliverables:
 
