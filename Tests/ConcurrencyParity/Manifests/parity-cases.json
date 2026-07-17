@@ -2159,6 +2159,18 @@
     "notes": "Each continuation has its own detached producer, which yields before resuming. Program order between the two awaits fixes value before error, but no producer scheduling order, physical thread, or parallel execution is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced value:23|error:failed in twenty native runs."
   },
   {
+    "id": "checked-throwing-continuation-result-resume",
+    "fixture": "Fixtures/checked-throwing-continuation-result-resume.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedThrowingContinuationResultResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A checked throwing continuation maps a concrete Result success to its exact value and a concrete Result failure to its original source error through resume(with:).",
+    "notes": "The two continuation calls are sequential, and each detached producer yields before resume(with:), so value precedes error causally without asserting producer scheduling order, physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced value:29|error:failed in twenty bounded native runs. The interpreter RED timed out on repetition one because the detached producer rejected the unrouted with: label and left the owner parked. The common Result carrier adapter now delegates success and failure to the existing returning and throwing terminal transitions. Focused evidence records two canonical suspensions and complete cleanup, compiler preflight rejects a non-Result argument, and native/interpreter parity is 20/20 with canonical native-observation SHA-256 6400bcdc43bd6c03163fe44074b7e214559b9b36dbabb3a06017c268cb703c4e."
+  },
+  {
     "id": "checked-continuation-void-resume",
     "fixture": "Fixtures/checked-continuation-void-resume.swift",
     "mode": "runtime",

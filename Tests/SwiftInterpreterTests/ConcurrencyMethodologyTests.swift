@@ -1659,14 +1659,19 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.verificationStatus == .none)
         #expect(checkedThrowingClaim.requirementRef
             == "M6/protocol-iteration-streams-and-continuations")
-        #expect(checkedThrowingClaim.evidenceCaseIDs
-            == ["checked-throwing-continuation-value-error"])
+        #expect(checkedThrowingClaim.evidenceCaseIDs == [
+            "checked-throwing-continuation-value-error",
+            "checked-throwing-continuation-result-resume",
+        ])
         #expect(checkedThrowingClaim.testNames == [
             "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
+            "CheckedContinuationRuntimeTests/resultResumeUsesReturningAndThrowingTransitions",
+            "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
         ])
         #expect(checkedThrowingClaim.gapEvidenceIDs
             == ["async-sequence-continuation-runtime"])
         #expect(checkedThrowingClaim.notes.contains("resume(throwing:)"))
+        #expect(checkedThrowingClaim.notes.contains("Result resume(with:)"))
         #expect(checkedThrowingClaim.notes.contains("InterpretedThrow"))
 
         let routedIDs = Set([checked.id, checkedThrowing.id])
