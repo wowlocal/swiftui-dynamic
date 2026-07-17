@@ -304,9 +304,28 @@ Each iteration does exactly this:
      minimal inert stub if cheap and honest (renders something reasonable),
      otherwise record the project name + reason in the Quarantine section
      below. Quarantine is a last resort and never used to inflate pass rate.
-5. **Add regression coverage**: a corpus program under
-   `Tests/SwiftUIBridgeTests/Corpus/` or a unit test that captures the fixed
-   class. New capability without a test doesn't count.
+5. **Add regression coverage — distill a minimal repro (user directive
+   2026-07-17)**: a failure class found inside a large app (FoodTruck, any
+   OSS target) closes only when a SMALL, self-contained reproduction is
+   committed alongside the fix — runnable in seconds, named after the
+   class, citing the app+file that surfaced it, and demonstrated RED
+   before the fix so the pin provably bites. Tier by class kind:
+   - core-semantics class → a unit test whose distilled source snippet IS
+     the repro (native-verified expectation, existing pattern);
+   - render/app-shell/framework-interplay class → a corpus micro-program
+     under `Tests/SwiftUIBridgeTests/Corpus/` (single file, deep-render +
+     assertions, runs with the suite);
+   - native-vs-interpreted PIXEL divergence → a micro-twin fixture: a tiny
+     (≤~50-line) view distilled from the app, captured natively via the
+     scratch-package pattern (Examples/ExpenseTrackerNative /
+     FoodTruckNativeTwin) and pinned at AE=0. Bootstrap the shared
+     MicroTwin harness the first time a pixel class needs it; every later
+     class reuses it.
+   Repros contain only distilled code (no app imports, no copied app
+   files); the interpreter fix itself still obeys AGENTS.md — the repro
+   never becomes a special case. New capability without its repro doesn't
+   count. (The concurrency lane's native-probe + same-source-fixture
+   discipline is the reference implementation of this rule.)
 6. **Verify — cheap by structure, never by weakening** (user directive
    2026-07-11: reduce iteration cost AND allow no regressions — the two
    are reconciled by parallelism and caching, never by skipping checks):
