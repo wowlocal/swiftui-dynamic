@@ -100,6 +100,18 @@ import Testing
         print("PROBE navigation-selection detail-changed:", mismatched)
         // The detail region must repaint (TRUCK PANEL → ORDERS PANEL).
         #expect(mismatched > 50)
+        // The SIDEBAR must survive the re-render: the live sweep found the
+        // list column blanking to the canvas after a selection write.
+        var sidebarInk = 0
+        for x in 0..<180 {
+            for y in 0..<Int(size.height) {
+                if let color = after.colorAt(x: x, y: y), color.brightnessComponent < 0.9 {
+                    sidebarInk += 1
+                }
+            }
+        }
+        print("PROBE navigation-selection sidebar-ink:", sidebarInk)
+        #expect(sidebarInk > 200)
     }
 
     @MainActor

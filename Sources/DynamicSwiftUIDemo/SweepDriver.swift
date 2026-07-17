@@ -46,10 +46,23 @@ enum SweepDriver {
             let current = capture(
                 "sweep-\(index + 1)-\(step.name)", window: window, outDirectory: outDirectory)
             let changed = changedPixels(previous, current)
-            // A panel swap repaints the detail region — thousands of pixels.
-            // A dead click changes at most the row highlight.
-            let landed = changed > 5000
-            print("SWEEP \(step.name) changed=\(changed) landed=\(landed)")
+            // Layer rasterization is PARTIAL for re-created live tables
+            // (SWEEP-TREE proved healthy hierarchies under blank captures),
+            // so each step lands on hierarchy markers + repaint magnitude,
+            // not raw capture ink.
+            let rowCounts = tableRowCounts(in: window)
+            let sidebarAlive = rowCounts.contains(12)
+            let ordersTableVisible = rowCounts.contains { $0 >= 20 }
+            let landed: Bool
+            switch step.name {
+            case "orders":
+                landed = sidebarAlive && ordersTableVisible && changed > 100_000
+            case "donuts":
+                landed = sidebarAlive && !ordersTableVisible && changed > 100_000
+            default:
+                landed = sidebarAlive && !ordersTableVisible && changed > 5000
+            }
+            print("SWEEP \(step.name) changed=\(changed) tables=\(rowCounts) diag=\(RenderDiagnostics.errors.count) landed=\(landed)")
             allGreen = allGreen && landed
             previous = current
         }
@@ -96,6 +109,11 @@ enum SweepDriver {
             return nil
         }
         rep.size = view.bounds.size
+        // Freshly re-created table layers publish their contents on the
+        // next transaction commit — flush before rasterizing or they read
+        // as blank in the offscreen render.
+        view.displayIfNeeded()
+        CATransaction.flush()
         // The LIVE window is layer-backed: cacheDisplay yields a blank
         // bitmap there; the CALayer tree renders the actual composite.
         if let layer = view.layer, let context = NSGraphicsContext(bitmapImageRep: rep) {
@@ -115,6 +133,21 @@ enum SweepDriver {
             .write(to: URL(fileURLWithPath: path))
         print("SWEEP-CAPTURE \(name) \(path)")
         return rep
+    }
+
+    /// Row counts of every live NSTableView — the in-process hierarchy is
+    /// the honest read of what is on screen (12 = sidebar outline; >=20 =
+    /// the orders table).
+    static func tableRowCounts(in window: NSWindow) -> [Int] {
+        var counts: [Int] = []
+        func walk(_ view: NSView) {
+            if let table = view as? NSTableView, !table.isHiddenOrHasHiddenAncestor {
+                counts.append(table.numberOfRows)
+            }
+            view.subviews.forEach(walk)
+        }
+        if let content = window.contentView { walk(content) }
+        return counts
     }
 
     static func changedPixels(_ a: NSBitmapImageRep?, _ b: NSBitmapImageRep?) -> Int {

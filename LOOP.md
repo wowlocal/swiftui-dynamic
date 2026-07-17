@@ -2068,3 +2068,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   ScreenCaptureKit/CGWindowList capture arc on BOTH sides.
   Pin: NavigationSelectionProbeTests.sidebarSelectionWritesInterpretedStateAndSwapsDetail.
   Gate next.
+- 2026-07-17 R4 SWEEP HARDENED — "blank sidebar" was the instrument, not
+  the app (worktree iteration 38): the i37 sweep's follow-up class
+  dissolved under instrumentation. SWEEP-TREE hierarchy walks show a
+  healthy 12-row sidebar outline (280x774, visible) after EVERY
+  navigation, plus the 26-row orders table appearing/disappearing
+  exactly on cue — the live interpreted app re-renders correctly; the
+  CALayer.render offscreen rasterization simply cannot see NSTableViews
+  re-created after initial compositing (CATransaction.flush does not
+  help; in-process AX traversal returns no children for hosted SwiftUI).
+  The sweep now verdicts on hierarchy markers + repaint magnitude
+  (orders: sidebar + >=20-row table + >100k changed; donuts: orders
+  table gone + >100k; truck: >5k) — SWEEP GREEN, diagnostics 0. Pin
+  strengthened: NavigationSelectionProbeTests also asserts the sidebar
+  survives the selection re-render (sidebar-ink > 200; headless capture
+  is not layer-partial). GATE NOTE: main is RED at 575d199 with
+  "parallel test workers failed" (lane-concurrency regression, three
+  reproductions, attribution in claims) — i37/i38 tips are gate-blocked
+  until main heals; MERGE-READY will cover both.
