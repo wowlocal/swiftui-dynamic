@@ -20,7 +20,7 @@ enum ParamTag: Hashable {
     // Foundation-value tags for the generated-members tier.
     case date, url, data, stringArray
     case decimal, characterSet, indexSet, dateComponents, dateInterval
-    case indexPath, intArray, intRange
+    case indexPath, intArray, intRange, doubleRange
     case calendarComponent, calendarComponentSet
     /// A concrete, payload-free enum collected from the SDK interface. The
     /// associated value is its normalized Swift type name.
@@ -268,6 +268,16 @@ enum GeneratedDispatch {
             if let range: Range<Int> = hostValue(value) { return range }
             if let closed: ClosedRange<Int> = hostValue(value) { return closed.lowerBound..<(closed.upperBound + 1) }
             throw RuntimeError(message: "expected a Range<Int>")
+        case .doubleRange:
+            // `in: 0...10` — interpreted ranges carry runtime bounds; Int
+            // bounds promote (Gauge/Slider ranges are written both ways).
+            if let runtime = value.rangeValue, runtime.includesUpperBound,
+               let lower = runtime.lowerBound?.doubleValue,
+               let upper = runtime.upperBound?.doubleValue {
+                return lower...upper
+            }
+            if let closed: ClosedRange<Double> = hostValue(value) { return closed }
+            throw RuntimeError(message: "expected a ClosedRange<Double> like 0...1")
         case .calendarComponent:
             return try Coerce.calendarComponent(value)
         case .calendarComponentSet:
@@ -901,6 +911,17 @@ extension Coerce {
 
     static func edgeInsets(_ value: RuntimeValue) throws -> EdgeInsets {
         if case .host(let any) = value, let insets = any as? EdgeInsets { return insets }
+        // `.init()` / `.init(top:leading:bottom:trailing:)` — implicit
+        // member markers resolve against the expected type here, like every
+        // other expected-type-context coercion.
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+           call.name == "init" {
+            return EdgeInsets(
+                top: (try? cgFloat(call.arguments.labeled("top") ?? .native(0.0))) ?? 0,
+                leading: (try? cgFloat(call.arguments.labeled("leading") ?? .native(0.0))) ?? 0,
+                bottom: (try? cgFloat(call.arguments.labeled("bottom") ?? .native(0.0))) ?? 0,
+                trailing: (try? cgFloat(call.arguments.labeled("trailing") ?? .native(0.0))) ?? 0)
+        }
         throw RuntimeError(message: "expected EdgeInsets(top:leading:bottom:trailing:)")
     }
 

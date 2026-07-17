@@ -116,6 +116,7 @@ func directMapping(for normalized: String) -> TypeMapping? {
     case "Int": return .init(tag: "int", cast: "%@ as! Int")
     case "Double": return .init(tag: "double", cast: "%@ as! Double")
     case "CGFloat": return .init(tag: "cgFloat", cast: "%@ as! CGFloat")
+    case "ClosedRange<Double>": return .init(tag: "doubleRange", cast: "%@ as! ClosedRange<Double>")
     case "Color": return .init(tag: "color", cast: "%@ as! Color")
     case "Font": return .init(tag: "font", cast: "%@ as! Font")
     case "Font.Weight": return .init(tag: "fontWeight", cast: "%@ as! Font.Weight")
@@ -159,6 +160,18 @@ func directMapping(for normalized: String) -> TypeMapping? {
             tag: "sdkEnum(\"\(normalized)\")", cast: "%@ as! \(normalized)",
             requiredFramework: requirements.count == 1
                 ? requirements.first : nil)
+    }
+}
+
+/// The canonical concrete type a lone conformance constraint specializes
+/// to when it appears INSIDE a compound type (`ClosedRange<V>` with
+/// V: BinaryFloatingPoint → ClosedRange<Double>).
+func constraintConcreteType(for constraint: String) -> String? {
+    switch constraint {
+    case "BinaryFloatingPoint", "FloatingPoint": return "Double"
+    case "StringProtocol": return "String"
+    case "BinaryInteger": return "Int"
+    default: return nil
     }
 }
 
@@ -225,17 +238,22 @@ struct AnalyzedParam {
     let hasDefault: Bool
     let blocker: String?
     let usesGeneric: String?
+    /// The concrete type this parameter's mapping instantiates its generic
+    /// to — repeats of one generic are legal when they all agree.
+    let genericConcrete: String?
     let contractType: String?
 
     init(
         label: String?, mapping: TypeMapping?, hasDefault: Bool,
-        blocker: String?, usesGeneric: String?, contractType: String? = nil
+        blocker: String?, usesGeneric: String?, genericConcrete: String? = nil,
+        contractType: String? = nil
     ) {
         self.label = label
         self.mapping = mapping
         self.hasDefault = hasDefault
         self.blocker = blocker
         self.usesGeneric = usesGeneric
+        self.genericConcrete = genericConcrete
         self.contractType = contractType
     }
 }
@@ -353,12 +371,12 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
         switch facts {
         case .concrete(let concrete):
             if let mapping = directMapping(for: concrete) {
-                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized)
+                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: concrete)
             }
             return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: "== \(concrete)", usesGeneric: normalized)
         case .constraints(let set):
             if set.count == 1, let mapping = constraintMapping(for: set.first!) {
-                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized)
+                return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: normalized, genericConcrete: constraintConcreteType(for: set.first!))
             }
             return .init(label: label, mapping: nil, hasDefault: hasDefault,
                          blocker: "<\(set.sorted().joined(separator: "&"))>", usesGeneric: normalized)
@@ -366,6 +384,23 @@ func analyzeParameter(_ param: FunctionParameterSyntax, generics: Generics) -> A
     }
     if let mapping = directMapping(for: normalized) {
         return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: nil)
+    }
+    // Compound types over constrained generics (`ClosedRange<V>` with
+    // V: BinaryFloatingPoint) specialize to their canonical concrete form
+    // and then map like any direct type.
+    for (name, facts) in generics where normalized.contains("<\(name)>") {
+        let concrete: String?
+        switch facts {
+        case .concrete(let c):
+            concrete = c
+        case .constraints(let set):
+            concrete = set.count == 1 ? constraintConcreteType(for: set.first!) : nil
+        }
+        if let concrete,
+           let mapping = directMapping(
+            for: normalized.replacingOccurrences(of: "<\(name)>", with: "<\(concrete)>")) {
+            return .init(label: label, mapping: mapping, hasDefault: hasDefault, blocker: nil, usesGeneric: name, genericConcrete: concrete)
+        }
     }
     return .init(label: label, mapping: nil, hasDefault: hasDefault, blocker: normalized, usesGeneric: nil)
 }
@@ -660,10 +695,15 @@ func processModifier(
 
     // A generic used by more than one parameter can't be instantiated
     // independently per-argument — skip those signatures.
-    let genericUses = analyzed.compactMap(\.usesGeneric)
-    if Set(genericUses).count != genericUses.count {
-        modifierBlockers["<shared generic>", default: 0] += 1
-        return
+    // A generic used by more than one parameter is legal only when every
+    // use instantiates it to the SAME concrete type.
+    let byGeneric = Dictionary(grouping: analyzed.filter { $0.usesGeneric != nil }, by: { $0.usesGeneric! })
+    for (_, uses) in byGeneric where uses.count > 1 {
+        let concretes = Set(uses.map(\.genericConcrete))
+        if concretes.count != 1 || concretes.first == nil {
+            modifierBlockers["<shared generic>", default: 0] += 1
+            return
+        }
     }
 
     if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
@@ -739,10 +779,13 @@ func processInit(
         return
     }
     let analyzed = parameters.map { analyzeParameter($0, generics: generics) }
-    let genericUses = analyzed.compactMap(\.usesGeneric)
-    if Set(genericUses).count != genericUses.count {
-        initBlockers["<shared generic>", default: 0] += 1
-        return
+    let byGenericInit = Dictionary(grouping: analyzed.filter { $0.usesGeneric != nil }, by: { $0.usesGeneric! })
+    for (_, uses) in byGenericInit where uses.count > 1 {
+        let concretes = Set(uses.map(\.genericConcrete))
+        if concretes.count != 1 || concretes.first == nil {
+            initBlockers["<shared generic>", default: 0] += 1
+            return
+        }
     }
     if let firstBlocked = analyzed.first(where: { $0.mapping == nil && !$0.hasDefault }) {
         initBlockers[firstBlocked.blocker ?? "?", default: 0] += 1
@@ -1786,6 +1829,7 @@ func probeArgument(for tag: String) -> String? {
     case "indexPath": return "seedIndexPath"
     case "intArray": return "[1, 2]"
     case "intRange": return "2..<5"
+    case "doubleRange": return "0.0...10.0"
     case "calendarComponent": return ".month"
     case "calendarComponentSet": return "[.year, .month]"
     default: return nil

@@ -97,10 +97,34 @@ enum SweepDriver {
             reportedDiagnostics = RenderDiagnostics.errors.count
             allGreen = allGreen && landed
             previous = current
-            // MUTATION phase: panels with a timeframe picker must respond
-            // to a segment change — the genuine AppKit action path drives
-            // the SwiftUI binding into interpreted state and the chart
-            // must repaint with the new range.
+            // MUTATION phase: the donut editor must accept a rename
+            // through the real NSTextField commit path and repaint the
+            // preview with the new name.
+            if landed, step.name == "donuteditor" {
+                if let field = firstTextField(in: window) {
+                    field.stringValue = field.stringValue + " X"
+                    let sent = field.sendAction(field.action, to: field.target)
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    let mutated = capture(
+                        "sweep-\(index + 1)-\(step.name)-mutated", window: window,
+                        outDirectory: outDirectory)
+                    let mutatedChanged = changedPixels(previous, mutated)
+                    let mutatedLanded = mutatedChanged > 2000
+                    print("SWEEP \(step.name)-mutate changed=\(mutatedChanged) sent=\(sent) landed=\(mutatedLanded)")
+                    for entry in RenderDiagnostics.errors.dropFirst(reportedDiagnostics).prefix(4) {
+                        print("SWEEP-DIAG \(step.name)-mutate \(entry.view): \(entry.error.message.prefix(110))")
+                    }
+                    reportedDiagnostics = RenderDiagnostics.errors.count
+                    allGreen = allGreen && mutatedLanded
+                    previous = mutated
+                } else {
+                    print("SWEEP \(step.name)-mutate no-text-field")
+                    allGreen = false
+                }
+            }
+            // Panels with a timeframe picker must respond to a segment
+            // change — the genuine AppKit action path drives the SwiftUI
+            // binding into interpreted state and the chart must repaint.
             if landed, ["saleshistory", "topfive"].contains(step.name) {
                 if let segmented = firstSegmentedControl(in: window) {
                     segmented.selectedSegment = min(1, segmented.segmentCount - 1)
@@ -193,6 +217,19 @@ enum SweepDriver {
             .write(to: URL(fileURLWithPath: path))
         print("SWEEP-CAPTURE \(name) \(path)")
         return rep
+    }
+
+    static func firstTextField(in window: NSWindow) -> NSTextField? {
+        var found: NSTextField?
+        func walk(_ view: NSView) {
+            if found == nil, let field = view as? NSTextField,
+               field.isEditable, !field.isHiddenOrHasHiddenAncestor {
+                found = field
+            }
+            view.subviews.forEach(walk)
+        }
+        if let content = window.contentView { walk(content) }
+        return found
     }
 
     static func firstSegmentedControl(in window: NSWindow) -> NSSegmentedControl? {

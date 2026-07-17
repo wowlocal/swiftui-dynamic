@@ -2168,3 +2168,24 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   19 neighbor pins pass; R2/R3 within floors (orders 0.017% = the
   known ±1/255 AA flicker, floor 0.039). Pin:
   PickerSelectionProbeTests. Gate still blocked by main-red.
+- 2026-07-17 DONUT EDITOR CLASS CHAIN — EdgeInsets markers + compound
+  generic specialization (worktree iteration 43): the sweep's planned
+  donut-editor rename mutation found the panel renders BLANK. New
+  permanent diag row (diag-donuteditor) reproduced headlessly and
+  attributed the chain: (1) `.listRowInsets(.init())` — the shared
+  .edgeInsets coercion could not resolve bare `.init(...)` markers
+  against the expected type; fixed in GeneratedSupport (benefits every
+  EdgeInsets-taking generated modifier). (2) `Gauge(value:in:_:)` — NO
+  range forms were ever emitted: ClosedRange<V> with
+  V: BinaryFloatingPoint hit two generator gaps. BridgeGen now
+  specializes compound types over constrained generics
+  (ClosedRange<V> -> ClosedRange<Double>, new doubleRange ParamTag +
+  coercion) and the <shared generic> rule allows repeats that agree on
+  ONE concrete type (value: V + in: ClosedRange<V> both Double).
+  Regenerated: 253 init variants (+22 new call shapes across the SDK).
+  Probes added (ObservableBindingProbeTests): $model.property
+  projection, struct-binding editors, HSplitView, harness control —
+  all render. RESIDUE: diag-donuteditor now renders EMPTY with ZERO
+  diagnostics (the silent-blank moved past bridging into layout/eval —
+  next iteration's hunt). 55 tests across 7 suites pass; R2 intact.
+  Gate still blocked by main-red.

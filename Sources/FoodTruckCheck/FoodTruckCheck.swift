@@ -434,6 +434,8 @@ struct FoodTruckCheckMain {
                 "OrdersView(model: model)"), size: screenSize)
             capturePNG("socialfeed", source: probeMergeBase + probeApp(
                 "SocialFeedView()"), size: screenSize)
+            capturePNG("diag-donuteditor", source: probeMergeBase + probeApp(
+                "DonutEditor(donut: $model.newDonut)"), size: screenSize)
             capturePNG("card-donuts", source: probeMergeBase + probeApp(
                 "TruckDonutsCard(donuts: Array(model.donuts.prefix(15))).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("card-orders", source: probeMergeBase + probeApp(
