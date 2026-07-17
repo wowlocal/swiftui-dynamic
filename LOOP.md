@@ -2016,3 +2016,15 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   mutation. Pin gridItemAlignmentTopPinsUnequalCells (height-unequal
   cells — equal heights masked the bug in every earlier probe). Board:
   orders 0.039, socialfeed 0.166, content (artifact). Gate next.
+- 2026-07-17 SOCIALFEED AE=0 — env-styled stroke defaults (worktree
+  iteration 35): the five avatar rings rendered near-black because
+  `strokeBorder(lineWidth:)` with NO style argument defaulted to
+  .primary in the gateway — native reads the ENVIRONMENT foreground
+  style (the rings' .foregroundStyle(.tertiary) view modifier).
+  ShapeBox(insettable:) gains a strokeBorderPlainPainter and both
+  stroke gateways use the env-styled overloads when the style argument
+  is absent. Socialfeed 0.166% -> 0.000%. SIX app screens
+  pixel-perfect: donut-view, card-donuts, card-orders, truck, donuts,
+  socialfeed (+ 4 diag rows at 0). Remaining: orders 0.039% (sorted
+  Status header bold+chevron) and content (documented twin artifact).
+  Pin: styleLessStrokeBorderReadsEnvironmentStyle. Gate next.
