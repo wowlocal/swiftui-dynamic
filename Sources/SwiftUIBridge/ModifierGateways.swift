@@ -682,6 +682,22 @@ extension ViewRegistry {
             let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
             return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
         }
+        modifiers["strokeBorder"] = HostModifier(name: "strokeBorder") { value, args, _ in
+            // InsettableShape's inside-stroke, drawn as a centered stroke on
+            // the erased shape — a documented ≤lineWidth/2 divergence
+            // (FoodTruck's tile outlines use lineWidth 0.5: sub-antialiasing).
+            var shapeBox: ShapeBox?
+            if case .host(let any) = value { shapeBox = any as? ShapeBox ?? (any as? PathDrawStub).map { ShapeBox($0.path) } }
+            guard let box = shapeBox else {
+                throw RuntimeError(message: ".strokeBorder applies to insettable shapes")
+            }
+            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
+            let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
+            if let painter = box.strokeBorderPainter {
+                return .native(painter(style, lineWidth))
+            }
+            return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
+        }
         modifiers["trim"] = HostModifier(name: "trim") { value, args, _ in
             guard case .host(let any) = value, let box = any as? ShapeBox else {
                 throw RuntimeError(message: ".trim applies to shapes")

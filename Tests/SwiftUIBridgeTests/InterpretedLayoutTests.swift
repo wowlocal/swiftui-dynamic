@@ -122,3 +122,57 @@ import Testing
         #expect(unit.y == 0.5)
     }
 }
+
+/// FoodTruck card tiles: `.strokeBorder(.quaternary, lineWidth: 0.5)` —
+/// the REAL InsettableShape inside-stroke (retained at ShapeBox
+/// construction; erasure loses the conformance and a centered stroke
+/// reads visibly different under antialiasing at hairline widths).
+@Suite struct StrokeBorderTests {
+    @MainActor
+    @Test func strokeBorderPaintsInsideStroke() throws {
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.black, lineWidth: 8)
+                        .frame(width: 60, height: 60)
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 100, height: 100)
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 100, pixelsHigh: 100,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = size
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        func dark(_ x: Int, _ y: Int) -> Bool {
+            guard let c = rep.colorAt(x: x, y: y) else { return false }
+            return c.redComponent + c.greenComponent + c.blueComponent < 1.2
+        }
+        // Inside-stroke: ink INSIDE the 60×60 frame edge (frame spans
+        // 20..80; an 8pt inside stroke inks ~21..28), none OUTSIDE it.
+        #expect(dark(24, 50), "inside-stroke ink missing at x=24")
+        #expect(!dark(17, 50), "ink leaked outside the shape edge")
+        #expect(!dark(50, 50), "center should be unfilled")
+    }
+}

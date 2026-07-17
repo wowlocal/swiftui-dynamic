@@ -105,7 +105,7 @@ extension ViewRegistry {
 
         // MARK: Shapes & gradients
 
-        constructors["Circle"] = HostFunction(name: "Circle") { _, _ in .native(ShapeBox(Circle())) }
+        constructors["Circle"] = HostFunction(name: "Circle") { _, _ in .native(ShapeBox(insettable: Circle())) }
         constructors["UnevenRoundedRectangle"] = HostFunction(name: "UnevenRoundedRectangle") { args, _ in
             .native(ShapeBox(UnevenRoundedRectangle(
                 topLeadingRadius: (try? Coerce.cgFloat(args.labeled("topLeadingRadius") ?? .native(0))) ?? 0,
@@ -114,12 +114,12 @@ extension ViewRegistry {
                 topTrailingRadius: (try? Coerce.cgFloat(args.labeled("topTrailingRadius") ?? .native(0))) ?? 0
             )))
         }
-        constructors["Ellipse"] = HostFunction(name: "Ellipse") { _, _ in .native(ShapeBox(Ellipse())) }
-        constructors["Rectangle"] = HostFunction(name: "Rectangle") { _, _ in .native(ShapeBox(Rectangle())) }
-        constructors["Capsule"] = HostFunction(name: "Capsule") { _, _ in .native(ShapeBox(Capsule())) }
+        constructors["Ellipse"] = HostFunction(name: "Ellipse") { _, _ in .native(ShapeBox(insettable: Ellipse())) }
+        constructors["Rectangle"] = HostFunction(name: "Rectangle") { _, _ in .native(ShapeBox(insettable: Rectangle())) }
+        constructors["Capsule"] = HostFunction(name: "Capsule") { _, _ in .native(ShapeBox(insettable: Capsule())) }
         constructors["RoundedRectangle"] = HostFunction(name: "RoundedRectangle") { args, _ in
             let radius = try Coerce.cgFloat(args.labeled("cornerRadius") ?? .native(8))
-            return .native(ShapeBox(RoundedRectangle(cornerRadius: radius)))
+            return .native(ShapeBox(insettable: RoundedRectangle(cornerRadius: radius)))
         }
 
         constructors["AnyShapeStyle"] = HostFunction(name: "AnyShapeStyle") { args, _ in

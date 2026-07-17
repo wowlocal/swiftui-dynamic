@@ -1595,3 +1595,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   ready for one clean gate; the FoodTruck board stands at four AE=0
   screens, socialfeed 0.393%, truck 1.998%, orders 0.777%, donuts
   1.041%, card-orders 2.385%.
+- 2026-07-17 tile outlines land (worktree iteration 13): strokeBorder
+  was entirely unbridged (the tiles' hairline outline silently
+  absorbed). A centered-stroke approximation measured WORSE than blank
+  (AA at 0.5pt); the REAL InsettableShape inside-stroke is retained at
+  ShapeBox construction (`init(insettable:)` keeps a strokeBorder
+  painter closure — erasure loses the conformance) and the five
+  insettable constructors route through it. Board: **card-orders
+  2.385%→0.168%, truck 1.998%→1.400%, orders 0.777%→0.492%, socialfeed
+  0.393%→0.472%** (tiny AA shift from strokes now present, accepted),
+  donuts 1.041%, content 25.979% (twin-side sidebar policy), four
+  AE=0 rows hold. Upstream tolerance regression (25ad8db) still
+  blocks the gate; queue is seven commits. Pin: StrokeBorderTests
+  (inside-ink present, no outside leak, unfilled center).

@@ -61,9 +61,21 @@ final class ImageBox {
 /// `.stroke` can apply; used directly in view position they render as views.
 final class ShapeBox {
     let shape: AnyShape
+    /// Real inside-stroke, retained at construction when the concrete
+    /// shape is Insettable (erasure loses the conformance; FoodTruck's
+    /// tile outlines need the true inset, not a centered approximation).
+    let strokeBorderPainter: (@MainActor (AnyShapeStyle, CGFloat) -> AnyView)?
 
     init(_ shape: some Shape) {
         self.shape = AnyShape(shape)
+        self.strokeBorderPainter = nil
+    }
+
+    init(insettable shape: some InsettableShape) {
+        self.shape = AnyShape(shape)
+        self.strokeBorderPainter = { style, lineWidth in
+            AnyView(shape.strokeBorder(style, lineWidth: lineWidth))
+        }
     }
 }
 
