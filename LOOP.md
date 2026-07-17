@@ -1642,3 +1642,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   demands. Upstream checked-continuation half-landing still blocks the
   gate (their new Void-resume commit landed; the test-update commit
   has not).
+- 2026-07-17 **R3 COMPLETE — all ten scenarios green** (worktree
+  iteration 16): the guard-caught class was one line — the
+  Binding(get:set:) gateway only accepted a LABELED get closure, so
+  the Kit's trailing form `Binding<Order> { … } set: { … }`
+  (orderBinding) seeded the box with VOID and
+  `wrappedValue.markAsPreparing()` had nothing to land on. With the
+  trailing get accepted, the status mutations render and the enforced
+  board reads: donuts-after-rename 1.067%, donut-view-after-rename
+  0.000%, orders-after-complete/preparing/steps 0.492%,
+  donuts-after-popularity 1.041%, card-donuts-after-popularity 0.000%,
+  detail-truck 1.400%, detail-orders 0.492%, detail-donuts 1.041% —
+  ALL within floors, ALL mutations visible (changed-guard green). The
+  ladder now stands R0 ✓, R1 9/9 ✓, R2 at floors (4× AE=0), R3 ✓ per
+  the spec's model-API protocol. Pin: BindingTrailingGetTests. Next:
+  R4 residue burn-down (donuts 1.04%, truck 1.40% annotation icons)
+  and the interactive `--project` launch; the gate still awaits the
+  upstream checked-continuation completion.

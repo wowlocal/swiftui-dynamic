@@ -635,7 +635,10 @@ func bridgeHostObjectConstructor(named name: String) -> HostFunction? {
         // now (bindings are reconstructed every render pass, so the snapshot
         // refreshes per pass); writes call set(newValue).
         return HostFunction(name: name) { args, ctx in
-            let get = args.closure(labeled: "get")
+            // Both spellings: Binding(get:set:) and the trailing form
+            // `Binding<Order> { self.orders[i] } set: { ... }` (FoodTruck's
+            // orderBinding).
+            let get = args.closure(labeled: "get") ?? args.firstUnlabeledClosure
             let set = args.closure(labeled: "set")
             // `Binding<Loadable<String>>(get:set:)` — the generic argument
             // is the Value type: get() results and written values resolve
