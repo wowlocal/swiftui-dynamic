@@ -1891,5 +1891,17 @@
     "interpreterProjection": "string",
     "nativeFact": "An unbounded AsyncStream builder returns immediately, its producer task yields two values across real suspensions, and a for-await consumer that starts before the first yield resumes once per value before finish terminates iteration at nil.",
     "notes": "Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native/interpreter runs produced exact output 2:6 with canonical native-observation SHA-256 5c90df842175db3c82f1151ac4cdbb285bc67a7e6f4136a0f0db96ea56d63b49. The MainActor producer begins with Task.yield so the consumer reaches an empty stream and must enter the runtime-owned waitingForStream suspension before delivery. Focused evidence requires one stream record to be created and every stream/task/scope/group/host-operation/scheduler registry to drain. The semantic subset is adapted from the unchanged pinned swiftlang async_stream.swift oracle (SHA-256 940c49ec9cfe4a0292f13757e0a56be5a601618fd5ecaae6d489ce9952569447); that full upstream file still needs an adapter because it imports StdlibUnittest and covers unsupported surface. No unrelated task order or physical-thread behavior is asserted."
+  },
+  {
+    "id": "async-stream-cancelled-consumer",
+    "fixture": "Fixtures/async-stream-cancelled-consumer.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamCancelledConsumerProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Cancelling a task suspended in an empty AsyncStream.Iterator.next() synchronously invokes onTermination with .cancelled before resuming next() with nil. The consumer remains marked cancelled while completing normally.",
+    "notes": "The MainActor child sets enteredNext immediately before awaiting next(); run-to-suspension means the parent cannot observe that flag until the iterator is actually parked. Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native/interpreter runs produced exact output true:true:cancelled:cancelled with canonical native-observation SHA-256 56a7e6749ac968b86afc193b51e0a60609748b599aff47a818c4c729d5c17616. The result asserts the causal callback-before-nil edge, cancellation observation, and final callback value without relying on unrelated scheduler order or a physical thread. Focused evidence requires the stream wait, cancellation registration, stream record, source tasks, and scheduler to drain."
   }
 ]

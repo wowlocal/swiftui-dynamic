@@ -13,6 +13,18 @@ private enum RuntimeAsyncStreamNext {
     case finished
 }
 
+private enum RuntimeAsyncStreamTermination: CustomStringConvertible {
+    case cancelled
+    case finished
+
+    var description: String {
+        switch self {
+        case .cancelled: "cancelled"
+        case .finished: "finished"
+        }
+    }
+}
+
 private final class RuntimeAsyncStreamWaiter {
     let taskID: RuntimeTaskID
     let continuation: CheckedContinuation<RuntimeAsyncStreamNext, Never>
@@ -37,6 +49,7 @@ final class RuntimeAsyncStreamStorage {
     let elementTypeName: String
     private var buffered: [RuntimeValue] = []
     private var waiters: [RuntimeAsyncStreamWaiter] = []
+    private var onTermination: ClosureValue?
     private var terminal = false
     private var closed = false
 
@@ -97,19 +110,58 @@ final class RuntimeAsyncStreamStorage {
         return .enqueued
     }
 
-    func finish() {
+    func setOnTermination(_ handler: ClosureValue?) {
+        onTermination = handler
+    }
+
+    func getOnTermination() -> ClosureValue? {
+        onTermination
+    }
+
+    func finish(in context: EvalContext) throws {
         guard !terminal else { return }
         terminal = true
+        let handler = onTermination
+        onTermination = nil
+        var handlerFailure: Error?
+        if let handler {
+            do {
+                _ = try context.callClosure(
+                    handler,
+                    arguments: [.native(RuntimeAsyncStreamTermination.finished)])
+            } catch {
+                handlerFailure = error
+            }
+        }
         let pending = waiters
         waiters.removeAll(keepingCapacity: false)
         for waiter in pending {
             waiter.continuation.resume(returning: .finished)
         }
         closeIfPossible()
+        if let handlerFailure { throw handlerFailure }
     }
 
-    func cancel() {
-        finish()
+    func cancel(in context: EvalContext) throws {
+        guard !terminal else { return }
+        let handler = onTermination
+        onTermination = nil
+        var handlerFailure: Error?
+        if let handler {
+            do {
+                _ = try context.callClosure(
+                    handler,
+                    arguments: [.native(RuntimeAsyncStreamTermination.cancelled)])
+            } catch {
+                handlerFailure = error
+            }
+        }
+        // Swift invokes the cancellation callback before it marks the stream
+        // terminal. A callback may therefore yield or finish recursively.
+        if !terminal {
+            try finish(in: context)
+        }
+        if let handlerFailure { throw handlerFailure }
     }
 
     func closeIfPossible() {
@@ -254,10 +306,17 @@ extension Interpreter {
                     return .native(continuation.storage.yield(value))
                 })
             case "finish":
-                return .hostFunction(HostFunction(name: name) { _, _ in
-                    continuation.storage.finish()
+                return .hostFunction(HostFunction(name: name) { _, context in
+                    try continuation.storage.finish(in: context)
                     return .void
                 })
+            case "onTermination":
+                return .optional(
+                    continuation.storage.getOnTermination().map {
+                        .closure($0)
+                    },
+                    wrappedTypeName:
+                        "@Sendable (AsyncStream.Continuation.Termination) -> Void")
             default:
                 break
             }
@@ -285,8 +344,12 @@ extension Interpreter {
             storage.id, taskID: task.id)
         let cancellationHandler = concurrencyRuntime.addCancellationHandler(
             to: task.id
-        ) { [weak storage] in
-            storage?.cancel()
+        ) { [weak self, weak storage] in
+            guard let self else {
+                throw RuntimeError(message:
+                    "interpreter was released while cancelling AsyncStream")
+            }
+            try storage?.cancel(in: self)
         }
         let next = await storage.wait(taskID: task.id)
         concurrencyRuntime.removeCancellationHandler(
@@ -299,6 +362,39 @@ extension Interpreter {
         case .value(let value): return value
         case .finished: return nil
         }
+    }
+
+    func writeRuntimeAsyncStreamMember(
+        _ name: String,
+        on payload: Any,
+        to value: RuntimeValue
+    ) throws -> Bool {
+        guard name == "onTermination",
+              let continuation = payload as? RuntimeAsyncStreamContinuation else {
+            return false
+        }
+        if value.isNil {
+            continuation.storage.setOnTermination(nil)
+            return true
+        }
+        let candidate: RuntimeValue
+        if case .optional(let optional) = value,
+           let wrapped = optional.wrapped {
+            candidate = wrapped
+        } else {
+            candidate = value
+        }
+        guard let handler = candidate.closureValue else {
+            throw RuntimeError(message:
+                "AsyncStream.Continuation.onTermination requires a closure or nil")
+        }
+        continuation.storage.setOnTermination(handler)
+        return true
+    }
+
+    func hasRuntimeAsyncStreamMember(_ name: String, on payload: Any) -> Bool {
+        name == "onTermination"
+            && payload is RuntimeAsyncStreamContinuation
     }
 
     private static func isUnboundedAsyncStreamPolicy(

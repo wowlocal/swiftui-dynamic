@@ -1261,12 +1261,15 @@ extension Interpreter {
                 if let stub = any as? BindingStub, member.declName.baseName.text == "wrappedValue" {
                     return .box(stub.box)
                 }
+                let memberName = member.declName.baseName.text
+                if hasRuntimeAsyncStreamMember(memberName, on: any) {
+                    return .hostProperty(any, memberName)
+                }
                 if registry != nil {
                     // VALUE types (CGSize/CGPoint/CGRect…) write through a
                     // mutated copy so the base re-writes and notifies. Only
                     // structs with a readable same-named member route here;
                     // class-backed boxes keep hostProperty reference writes.
-                    let memberName = member.declName.baseName.text
                     if !(type(of: any) is AnyClass),
                        hasHostMember(memberName, on: any),
                        let owner = optionalPayloadOwner
