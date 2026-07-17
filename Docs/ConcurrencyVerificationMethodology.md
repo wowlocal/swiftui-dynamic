@@ -603,6 +603,29 @@ The canonical parallel iteration completed eight targeted tests in three
 suites, all forty-two methodology checks, and all twenty exact parity
 repetitions on four workers in 2.2 seconds.
 
+Its twenty-eighth prerequisite verifies that host coercions resolve source
+static members through the originating program entry rather than process-wide
+mutable state. The required semantic RED prepares an escaped callback under a
+frozen `Date.now`, prepares a newer program without that extension, and then
+invokes the old callback. Returning the wall-clock day is the bug; returning
+the origin epoch proves the retained entry owns lookup provenance. The common
+mechanism is a type/member-parameterized `EvalContext.sourceStaticMember`
+capability. Interpreter-backed contexts bind it to their current runtime entry;
+legacy embedders return nil explicitly. The Date bridge consumes this general
+capability instead of an `Interpreter` static closure.
+
+A strict Apple Swift 6.3.3 probe separately passes implicit `.now` into
+`Calendar.startOfDay(for:)` after `Task.yield()` and returns exact
+`1784160000` with a UTC calendar in three runs. The committed same-source
+fixture projects the raw authored epoch and must return `1784228400` on both
+sides in twenty bounded repetitions. Focused coverage also keeps the original
+FoodTruck Calendar coercions, qualified/annotated static shadowing, cross-
+program callback provenance, and real SwiftUI runtime entry green. No ready-
+task order, worker thread, Sendable bridge, or physical parallelism is claimed.
+The canonical parallel iteration completed seven targeted tests in four
+suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 1.8 seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

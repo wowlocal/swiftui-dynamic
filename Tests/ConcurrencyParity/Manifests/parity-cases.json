@@ -1588,6 +1588,18 @@
     "notes": "The harness waits for the first callback's task to publish worker-started before invoking the same retained callback again. Continuation resume is synchronous but MainActor serialization forces second-return before worker-resumed, so the exact three snapshots are causal and assert no unrelated scheduler or physical-thread order. Apple Swift 6.3.3 strict-concurrency compilation and the interpreter produced the same result in twenty bounded runs before and after mutable program registries plus the selected HostRegistry moved into session-owned RuntimeProgramState; every four-worker native shard reported SHA-256 4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652."
   },
   {
+    "id": "host-static-shadow-after-suspension",
+    "fixture": "Fixtures/host-static-shadow-after-suspension.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parityHostStaticShadowAfterSuspension()",
+    "interpreterProjection": "string",
+    "nativeFact": "A same-module Date.now extension remains the selected static member when an implicit .now value crosses a host-call boundary after suspension.",
+    "notes": "The exact output is 1784228400. Task.yield establishes a suspension but no relative ready-task order is asserted; the focused ownership regression separately invokes an escaped origin callback after the interpreter has prepared a newer program."
+  },
+  {
     "id": "source-provenance-after-suspension",
     "fixture": "Fixtures/source-provenance-after-suspension.swift",
     "mode": "runtime",

@@ -71,6 +71,7 @@ evidence that remains covered.
 | `async-try-await-conditional` | exact | A throwing async call remains awaited when its optional result is compared with `nil` as the condition of a ternary expression | Native/interpreter parity in 20 repetitions: `nil`; the fixture yields once inside the call but makes no scheduler-order claim |
 | `host-gateway-suspension` | exact | Awaiting the controlled async wrapper suspends until its explicit gate opens, so a ready MainActor controller records progress before the wrapper returns | Native/interpreter parity in 20 repetitions: `before,host-enter,controller,host-exit,value`; the interpreted caller is `.waiting/.awaitingHost(operationID)` at the forced barrier and the operation registry is empty after completion |
 | `host-callback-task-runtime` | exact | A synchronous MainActor callback exposes its inline mutation before returning, while an unstructured task it creates continues through Swift concurrency and may own structured group children | Native/interpreter parity in 20 repetitions: `started,done-3`; the interpreter fires the retained closure only after its initial evaluation has returned, enters `.hostCallback`, and finishes with empty task/group/scope registries |
+| `host-static-shadow-after-suspension` | exact | A same-module `Date.now` remains selected when implicit `.now` crosses a host-call boundary after suspension | Native/interpreter parity in 20 repetitions: `1784228400`; a focused cross-program callback regression proves a newer prepared program cannot redirect the old lookup, and no scheduler-order, worker-thread, or physical-parallelism claim is made |
 | `main-actor-task-partial-order` | partial order | A newly created MainActor task does not execute inline; `sync` precedes both task events | Expected native parity through async-session drain policy; relative child order is not asserted |
 | `concurrent-executor-hop` | exact | A `@concurrent nonisolated` async method leaves MainActor for entry and post-yield continuation, an awaited MainActor method runs on the main executor, and both direct and detached callers return to their prior executor afterward | Native/interpreter parity in 20 repetitions: `main\|worker:worker:main\|worker:worker:main\|main`; the interpreter models logical executor identity cooperatively and does not claim physical parallel execution |
 | `actor-isolated-entry` | exact | An actor-isolated instance method sees its exact actor through `#isolation`, while an explicit `nonisolated` method sees no actor | Native/interpreter parity in 20 repetitions: `actor:none`; actor identity is logical and does not claim physical worker execution |
@@ -8764,3 +8765,29 @@ path. The registry remains MainActor-confined and is not declared Sendable.
 The canonical parallel iteration completed eight targeted tests in three
 suites, all forty-two methodology checks, and all twenty exact parity
 repetitions on four workers in 2.2 seconds.
+
+### Host coercions retain source-program provenance
+
+The twenty-eighth M9 prerequisite removes
+`Interpreter.ambientDateNowProvider`, a process-wide mutable closure formerly
+installed or cleared by every prepared program. An escaped origin callback
+therefore used the wall clock after a newer program without the shadow ran.
+Host coercions now receive a reusable `sourceStaticMember(named:ofType:)`
+capability from their bound `EvalContext`; interpreter contexts resolve it
+through the exact runtime entry and retained `RuntimeProgramState`, while
+non-interpreter contexts return nil.
+
+The captured RED returned the current day instead of the origin program's
+frozen day. A standalone Apple Swift 6.3.3 probe passes implicit `.now` into
+`Calendar.startOfDay(for:)` after `Task.yield()` and returns exact
+`1784160000` under a fixed UTC calendar in three runs. The committed
+`host-static-shadow-after-suspension` fixture projects the raw epoch
+`1784228400`; Swift and the interpreter match in twenty bounded repetitions,
+and every native shard reports SHA-256
+`49bde28776cde22ce6aa47e119d3ecbb34246309ef8fa2bddb609146a19e692c`.
+FoodTruck Calendar coercions and static-shadow regressions remain green. The
+lookup is still MainActor-confined; no Sendable gateway, physical worker, or
+parallel-execution claim follows.
+The canonical parallel iteration completed seven targeted tests in four
+suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 1.8 seconds.

@@ -120,7 +120,9 @@ with the detailed design in
   numeric ID of its supplying pthread, so a Swift task that resumes on another
   worker cannot reuse the previous thread's stack geometry. Prepared program
   state also captures its exact host registry; escaped callbacks and SwiftUI/
-  source tasks cannot be redirected by later facade reconfiguration.
+  source tasks cannot be redirected by later facade reconfiguration. Host
+  coercions likewise resolve interpreted static members through their bound
+  program entry instead of process-wide mutable lookup state.
   Remaining member semantics, call-site semantic resolution, compiler
   metadata, evaluator/session migration, heap-edge classification, workers,
   mode-differential parity, and TSan are still open.

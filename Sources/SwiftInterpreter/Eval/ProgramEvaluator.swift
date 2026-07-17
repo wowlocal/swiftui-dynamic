@@ -229,7 +229,6 @@ extension Interpreter {
         reconcileStrandedExtensions()
         resolveActorExecutorRequirements()
         resolvePendingDeinitializerIsolation()
-        installAmbientDateNowIfShadowed()
         resolveTransitiveViewConformance()
 
         return try await withTopLevelStructuredScopeSuspending(in: globals) {
@@ -425,7 +424,6 @@ extension Interpreter {
         reconcileStrandedExtensions()
         resolveActorExecutorRequirements()
         resolvePendingDeinitializerIsolation()
-        installAmbientDateNowIfShadowed()
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void
@@ -505,24 +503,4 @@ extension Interpreter {
         return last
     }
 
-    /// The frozen-clock shadowing hook: if the program declares
-    /// `extension Date { static var now }`, bare `.now` markers resolved
-    /// by BRIDGE coercions (dateArg-style Date positions) must see the
-    /// program's value, not the wall clock.
-    func installAmbientDateNowIfShadowed() {
-        guard let hostSymbol = hostExtensionSymbols["Date"],
-              hostSymbol.staticComputedProperties["now"] != nil else {
-            Interpreter.ambientDateNowProvider = nil
-            return
-        }
-        Interpreter.ambientDateNowProvider = { [weak self] in
-            guard let self,
-                  let symbol = self.hostExtensionSymbols["Date"],
-                  let value = try? self.staticMember("now", of: symbol),
-                  case .host(let any) = value, let date = any as? Date else {
-                return Date()
-            }
-            return date
-        }
-    }
 }

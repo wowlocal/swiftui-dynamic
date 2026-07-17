@@ -271,6 +271,15 @@ final class TaskBoundEvalContext: EvalContext {
         }
     }
 
+    func sourceStaticMember(
+        named member: String, ofType typeName: String
+    ) throws -> RuntimeValue? {
+        try bound {
+            try interpreter.sourceStaticMember(
+                named: member, ofType: typeName)
+        }
+    }
+
     func hostTypeName(of value: RuntimeValue) -> String {
         bound { interpreter.hostTypeName(of: value) }
     }
@@ -322,6 +331,15 @@ extension Interpreter: EvalContext {
             if let typeName = registry?.hostTypeName(of: any) { return typeName }
         }
         return HostRuntimeTypeSystem.typeName(of: value)
+    }
+
+    public func sourceStaticMember(
+        named member: String, ofType typeName: String
+    ) throws -> RuntimeValue? {
+        guard let symbol = hostExtensionSymbols[typeName] else {
+            return nil
+        }
+        return try staticMember(member, of: symbol)
     }
 
     public func hostValue(

@@ -613,6 +613,31 @@ The canonical parallel iteration completed eight targeted tests in three
 suites, all forty-two methodology checks, and all twenty exact parity
 repetitions on four workers in 2.2 seconds.
 
+The twenty-eighth prerequisite removes the process-wide static provider used
+when a host coercion resolved an implicit member supplied by an interpreted
+extension. `Date.now` was the demand-cited FoodTruck spelling, but the
+ownership defect was general: preparing any later program replaced or cleared
+one global closure, so an escaped callback could resolve host input through
+the wrong program. Host gateways now ask their bound `EvalContext` for a
+source static member. `TaskBoundEvalContext` restores the originating runtime
+entry before that lookup, and the interpreter resolves against that entry's
+retained `RuntimeProgramState`. Non-interpreter embedders retain an explicit
+nil default.
+
+The semantic RED prepared a callback under a frozen `Date.now`, prepared a
+newer program with no shadow, and then invoked the old callback. It returned
+the current wall-clock day instead of the origin program's day. A standalone
+Apple Swift 6.3.3 probe proves that a same-module `Date.now` remains selected
+when implicit `.now` enters `Calendar.startOfDay(for:)` after `Task.yield()`;
+with a fixed UTC calendar it returned exact `1784160000` in three runs. The
+same-source `host-static-shadow-after-suspension` fixture narrows the stable
+projection to the authored epoch `1784228400` and matches in twenty
+native/interpreter repetitions. This establishes program-bound host coercion,
+not scheduler order, Sendable host values, physical threads, or parallelism.
+The canonical parallel iteration completed seven targeted tests in four
+suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 1.8 seconds.
+
 The stable target separates five concerns:
 
 ```text

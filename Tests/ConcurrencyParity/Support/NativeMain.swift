@@ -267,6 +267,10 @@ func parityHostGatewayEvents() -> String {
     parityHostGatewayEventStorage.joined(separator: ",")
 }
 
+func parityHostDateEpoch(_ date: Date) -> String {
+    String(Int(date.timeIntervalSince1970))
+}
+
 struct ParityHostAsyncSequence: AsyncSequence, Sendable {
     struct AsyncIterator: AsyncIteratorProtocol, Sendable {
         var index = 0

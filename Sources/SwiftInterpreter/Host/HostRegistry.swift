@@ -199,6 +199,13 @@ public protocol EvalContext: AnyObject {
     /// on slice exhaustion, and never charges the caller's step budget.
     func callBackgroundClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> RuntimeValue
     func callBuilderClosure(_ closure: ClosureValue, arguments: [RuntimeValue]) throws -> [RuntimeValue]
+    /// Resolve a static member supplied by an interpreted extension while a
+    /// host coercion is running. Interpreter-backed contexts bind this lookup
+    /// to the current program entry; other embedders have no source extension
+    /// state and use the nil default below.
+    func sourceStaticMember(
+        named member: String, ofType typeName: String
+    ) throws -> RuntimeValue?
     /// Runtime type services for parsed host declarations. Embedders get a
     /// complete primitive/container implementation by default; Interpreter
     /// augments it with source symbols and registry-owned opaque types.
@@ -240,6 +247,12 @@ extension EvalContext {
         _ operation: () async throws -> T
     ) async throws -> T {
         try await operation()
+    }
+
+    public func sourceStaticMember(
+        named member: String, ofType typeName: String
+    ) throws -> RuntimeValue? {
+        nil
     }
 
     public func spawnDetachedTask(
