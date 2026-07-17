@@ -831,10 +831,7 @@ extension Interpreter: EvalContext {
         startPolicy: RuntimeTaskStartPolicy = .enqueued,
         body: @escaping @MainActor @Sendable () async throws -> RuntimeValue
     ) throws {
-        guard concurrencyRuntime.activeRecordCount <= scheduledTaskLimit else {
-            throw RuntimeError(
-                message: "interpreted task limit exceeded", fatal: true)
-        }
+        try concurrencyRuntime.requireTaskCapacity()
 
         let handle = pending.handle
         let record = pending.record
@@ -903,19 +900,15 @@ extension Interpreter: EvalContext {
         handle.attach(task)
         guard sessionOwned else { return }
 
-        scheduledTasks.append(handle)
+        let runtime = concurrencyRuntime
+        runtime.retainScheduledTask(handle)
         let cleanup: @MainActor @Sendable () async -> Void = {
-            [weak self, weak handle] in
+            [weak runtime, weak handle] in
             await task.value
-            guard let self, let handle else { return }
-            self.releaseScheduledTask(handle)
+            guard let runtime, let handle else { return }
+            runtime.releaseScheduledTask(handle)
         }
         Task.detached(operation: cleanup)
-    }
-
-    func releaseScheduledTask(_ handle: RuntimeTaskHandle) {
-        scheduledTasks.removeAll { $0.id == handle.id }
-        concurrencyRuntime.release(handle.id)
     }
 
     public func invokeHostConstructor(

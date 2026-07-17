@@ -467,14 +467,16 @@ public final class Interpreter {
         get { evaluationTaskContext.synchronousTaskDepth }
         set { evaluationTaskContext.synchronousTaskDepth = newValue }
     }
-    var scheduledTasks: [RuntimeTaskHandle] = []
+    /// Compatibility inspection view over the runtime-owned handle registry.
+    var scheduledTasks: [RuntimeTaskHandle] {
+        concurrencyRuntime.scheduledTaskHandles
+    }
     /// Collision-free bindings used while lowering awaited subexpressions
     /// into the established synchronous expression machinery.
     var asyncTemporarySerial: Int {
         get { evaluationTaskContext.asyncTemporarySerial }
         set { evaluationTaskContext.asyncTemporarySerial = newValue }
     }
-    let scheduledTaskLimit = 1_024
     /// Host-extension method frames currently executing (recursion guard:
     /// re-entrant same-name dispatch prefers the registry gateway).
     var activeExtensionFrames: Set<ExtensionFrame> {

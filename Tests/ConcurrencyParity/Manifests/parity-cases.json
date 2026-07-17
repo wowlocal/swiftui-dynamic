@@ -726,7 +726,7 @@
     "interpreterEntry": "await taskHandleDeallocationProbe()",
     "interpreterProjection": "string",
     "nativeFact": "Discarding the last source-level handle to an unstructured task neither cancels the task nor ends its operation; the task remains alive independently until completion.",
-    "notes": "The Task result is assigned directly to _, so no source handle survives creation. MainActor gates prove that the task starts, remains active after the drop, and finishes only after explicit release. Exact output is completed,active on Swift 6.3.3."
+    "notes": "The Task result is assigned directly to _, so no source handle survives creation. MainActor gates prove that the task starts, remains active after the drop, and finishes only after explicit release. Exact output is completed,active on Swift 6.3.3. The interpreter's cooperative runtime strongly owns scheduled handles until autonomous completion or session-policy release."
   },
   {
     "id": "task-cancellation-caught",

@@ -481,6 +481,30 @@ The canonical parallel iteration completed thirteen ownership/source-map tests
 in seven suites, all forty-two methodology checks, and all twenty parity
 repetitions on four workers in 1.8 seconds.
 
+Its twenty-third prerequisite verifies canonical runtime ownership of session-
+owned unstructured and detached handles. The architecture workflow first
+captured a compile-time RED requiring a strong runtime handle registry, task-
+capacity guard, session-scoped lookup, and idempotent canonical release; those
+capabilities existed only as mutable facade bookkeeping. Production launch,
+autonomous completion cleanup, drain, and cancellation must now use the runtime
+API, while the facade may expose only a read-only compatibility view.
+
+The semantic workflow is an already-GREEN characterization using the unchanged
+`task-handle-deallocation` fixture. Before production changes, Apple Swift
+6.3.3 and the interpreter both produced exact output `completed,active` in
+twenty bounded runs. Four native shards each report SHA-256
+`372f912e1aed613d03587d6bd5fc29d6c08f1299ce903484b08e01c8e89a12f9`.
+The post-change differential must preserve that exact observation. The focused
+ownership test drops its local `RuntimeTaskHandle`, requires the runtime to
+retain it and its active record, and then requires canonical release to remove
+both. The closing gate must include session drain/cancel, autonomous cleanup,
+structured-child lifetime, real SwiftUI cancellation, all methodology checks,
+and all twenty focused parity repetitions. No physical-thread or parallel-
+execution assertion is allowed.
+The canonical parallel iteration completed eleven targeted tests in four
+suites, all forty-two methodology checks, and all twenty parity repetitions on
+four workers in 1.9 seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

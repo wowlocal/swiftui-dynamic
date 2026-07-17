@@ -471,6 +471,34 @@ The canonical parallel iteration completed thirteen ownership/source-map tests
 in seven suites, all forty-two methodology checks, and all twenty parity
 repetitions on four workers in 1.8 seconds.
 
+The twenty-third prerequisite moves strong ownership of session-owned
+unstructured and detached task handles from the mutable `Interpreter` facade
+into `CooperativeConcurrencyRuntime`. Launch, completion cleanup, session drain,
+and session cancellation now share one canonical runtime registry;
+`Interpreter.scheduledTasks` remains only a read-only compatibility inspection
+view. The registry deliberately keeps a discarded source handle alive until
+the task completes or its owning session applies its completion policy, then
+atomically releases both the handle's active record and the registry edge.
+
+The architectural RED was compile-time: the cooperative runtime had no task-
+capacity guard, strong scheduled-handle registry, session lookup, or canonical
+release API, while those ownership responsibilities remained on the facade.
+The native semantic baseline reused the unchanged
+`task-handle-deallocation` fixture before production changes. Apple Swift
+6.3.3 and the interpreter produced exact output `completed,active` in all
+twenty bounded repetitions, proving that discarding the last source handle
+neither cancels nor ends the task operation. Four native shards each reported
+SHA-256
+`372f912e1aed613d03587d6bd5fc29d6c08f1299ce903484b08e01c8e89a12f9`.
+The same fixture and digest remain exact after the ownership migration. A
+focused runtime test additionally drops its local handle, observes the
+runtime-owned handle and active record, then proves canonical release removes
+both. This is MainActor-confined ownership work; it does not claim a thread-
+safe registry, physical workers, or parallel execution.
+The canonical parallel iteration completed eleven ownership/lifecycle tests in
+four suites, all forty-two methodology checks, and all twenty parity
+repetitions on four workers in 1.9 seconds.
+
 The stable target separates five concerns:
 
 ```text
@@ -637,12 +665,12 @@ one `EvaluationTaskContext`. Host callbacks carry that context explicitly, and
 task completion clears it. `withParkedEvaluatorFrames` no longer exists.
 
 The remaining ceiling is one level higher: sessions now own distinct mutable
-`RuntimeProgramState` declaration registries, but `Interpreter` still combines
-the evaluator, compatibility facade, shared `RuntimeHeap`, scheduled task
-handles, and cooperative runtime. Overlapping entries therefore select the
-correct program state while still sharing MainActor-confined global/view heap
-storage. Moving evaluation behind the session and classifying every heap edge
-remain required before executor-neutral or parallel operation.
+`RuntimeProgramState` declaration registries, and the cooperative runtime owns
+session-scheduled task handles, but `Interpreter` still combines the evaluator,
+compatibility facade, and shared `RuntimeHeap`. Overlapping entries therefore
+select the correct program state while still sharing MainActor-confined
+global/view heap storage. Moving evaluation behind the session and classifying
+every heap edge remain required before executor-neutral or parallel operation.
 
 ### 4.3 Async overlay over synchronous evaluation
 

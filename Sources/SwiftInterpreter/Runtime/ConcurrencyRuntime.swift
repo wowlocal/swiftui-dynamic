@@ -661,6 +661,7 @@ private final class RuntimeActorMailboxWaiter {
 final class CooperativeConcurrencyRuntime {
     private static let maximumActorMailboxWaiters = 1_024
     private static let maximumLiveContinuations = 1_024
+    private static let maximumLiveTasks = 1_024
 
     let clock: any RuntimeClock
     let diagnostics: RuntimeDiagnosticSink
@@ -676,6 +677,11 @@ final class CooperativeConcurrencyRuntime {
     private var nextPriorityEscalationHandlerID: UInt64 = 1
     private var nextEventSequence: UInt64 = 1
     private(set) var records: [RuntimeTaskID: RuntimeTaskRecord] = [:]
+    /// Strong ownership for session-owned unstructured/detached task handles.
+    /// Source code may discard its handle immediately; the runtime must keep
+    /// that task alive until completion policy or autonomous cleanup releases
+    /// both the handle and its active record.
+    private(set) var scheduledTaskHandles: [RuntimeTaskHandle] = []
     private(set) var structuredScopes: [
         RuntimeStructuredScopeID: RuntimeStructuredScopeRecord
     ] = [:]
@@ -730,6 +736,40 @@ final class CooperativeConcurrencyRuntime {
             programPlan: programPlan,
             programMetadata: programMetadata,
             interpreter: interpreter)
+    }
+
+    func requireTaskCapacity() throws {
+        guard activeRecordCount <= Self.maximumLiveTasks else {
+            throw RuntimeError(
+                message: "interpreted task limit exceeded", fatal: true)
+        }
+    }
+
+    func retainScheduledTask(_ handle: RuntimeTaskHandle) {
+        precondition(
+            records[handle.id] != nil,
+            "cannot retain an unknown runtime task \(handle.id)")
+        precondition(
+            !scheduledTaskHandles.contains { $0.id == handle.id },
+            "runtime task \(handle.id) was scheduled twice")
+        scheduledTaskHandles.append(handle)
+    }
+
+    func firstScheduledTask(
+        in sessionID: RuntimeSessionID
+    ) -> RuntimeTaskHandle? {
+        scheduledTaskHandles.first { $0.sessionID == sessionID }
+    }
+
+    /// Drain/cancel and autonomous completion cleanup can reach this method
+    /// after awaiting the same native task. Treat the second release as an
+    /// already-completed observation while keeping raw record release guarded.
+    func releaseScheduledTask(_ handle: RuntimeTaskHandle) {
+        guard scheduledTaskHandles.contains(where: {
+            $0.id == handle.id
+        }) else { return }
+        scheduledTaskHandles.removeAll { $0.id == handle.id }
+        release(handle.id)
     }
 
     func recordNonthrowingCallbackFailure(
@@ -1690,6 +1730,9 @@ final class CooperativeConcurrencyRuntime {
     }
 
     func release(_ id: RuntimeTaskID) {
+        precondition(
+            !scheduledTaskHandles.contains { $0.id == id },
+            "scheduled runtime task \(id) requires canonical handle release")
         precondition(
             !hostOperations.values.contains(id),
             "cannot release runtime task \(id) with an active host operation")

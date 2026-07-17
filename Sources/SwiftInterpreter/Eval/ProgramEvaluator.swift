@@ -315,22 +315,22 @@ extension Interpreter {
     private func drainOwnedTasks(
         in sessionID: RuntimeSessionID
     ) async throws {
-        while let handle = scheduledTasks.first(where: {
-            $0.sessionID == sessionID
-        }) {
+        while let handle = concurrencyRuntime.firstScheduledTask(
+            in: sessionID
+        ) {
             try checkRuntimeCancellation()
             await handle.wait()
-            releaseScheduledTask(handle)
+            concurrencyRuntime.releaseScheduledTask(handle)
         }
     }
 
     private func cancelOwnedTasks(in sessionID: RuntimeSessionID) async {
-        while let handle = scheduledTasks.first(where: {
-            $0.sessionID == sessionID
-        }) {
+        while let handle = concurrencyRuntime.firstScheduledTask(
+            in: sessionID
+        ) {
             handle.cancel(source: .sessionPolicy)
             await handle.wait()
-            releaseScheduledTask(handle)
+            concurrencyRuntime.releaseScheduledTask(handle)
         }
     }
 
