@@ -389,6 +389,51 @@ import Testing
         #expect(mismatched == 0)
     }
 
+    // FoodTruck social-feed class: `strokeBorder(lineWidth:)` with NO
+    // style argument reads the ENVIRONMENT foreground style — the
+    // gateway used to default the missing argument to .primary, painting
+    // the avatar rings near-black instead of the .tertiary tint.
+    @MainActor
+    @Test func styleLessStrokeBorderReadsEnvironmentStyle() throws {
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Circle()
+                        .strokeBorder(lineWidth: 2)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 40, height: 40)
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 60, height: 60)
+        let interp = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            Circle()
+                .strokeBorder(lineWidth: 2)
+                .foregroundStyle(.tertiary)
+                .frame(width: 40, height: 40)
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<60 {
+            for y in 0..<60 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b, abs(a.redComponent - b.redComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        #expect(mismatched == 0)
+    }
+
     @MainActor
     private static func bitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
         let hosting = NSHostingView(

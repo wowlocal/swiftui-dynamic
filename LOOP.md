@@ -1947,3 +1947,84 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   residue 0.039% = the sorted-column header treatment (bold + sort
   chevron on "Status"). Board: FOUR rows at AE=0 + orders 0.039 +
   socialfeed 0.166 + donuts 0.437 + content (documented). Gate next.
+- 2026-07-17 donuts caption shift staked, chrome pinned (worktree
+  iteration 31): the donuts row's 0.437% is the two visible grid
+  captions sitting ~3px HIGHER on the interpreter (whole caption block
+  shifts as a unit; thumbnails pixel-match). Elimination probes — the
+  caption VStack alone, the full NavigationLink cell with a frame'd
+  stand-in child, and an erased-ZStack child — ALL match native
+  pixel-exactly (pinned: donutCellChromeMatchesNative). The residual
+  therefore lives in the real DonutView's interpreted layout inside
+  its fixed frame (suspects: scaledToFit reply of interpreted
+  resizable image layers, or the kit view's internal padding). Next
+  iteration: probe with the actual FoodTruckKit DonutView merged
+  (FTCHECK diag capture at cell scale vs a twin crop). i30 merged
+  earlier this turn-set as b55d188 (menuStyle; orders 0.492 -> 0.039;
+  fourth green close of the day, after waiting out lane-concurrency's
+  gate lock — multi-lane gate contention now a normal mode).
+- 2026-07-17 donuts class bisected to a one-command repro (worktree
+  iteration 32): the caption divergence is +3px of extra gap between
+  the (pixel-identical, 80pt) DonutView thumbnail and the title, plus
+  a lighter flavor line, appearing ONLY in the real DonutGalleryGrid.
+  Elimination matrix — ALL of these match native pixel-exactly: the
+  caption VStack; the NavigationLink cell; erased-ZStack and
+  GeometryReader stand-in children; LazyVGrid+ForEach(range) with the
+  stand-in; the REAL DonutView cell via harness probes (donut-cell,
+  AE=0); ForEach over the model array with the real DonutView
+  (donut-foreach, AE=0); a `let` binding inside the builder (unit
+  pin). The reproducing artifact: the new donut-grid harness probe —
+  DonutGalleryGrid(prefix(4), width: 700) at 700x300 — AE 1273, only
+  cell 1's caption. Ink measurements: title twin rows 177-185 vs
+  interp 180-188 (same glyphs, same x extent 58-125); thumbnail ink
+  identical (0-71). Remaining deltas to try next: NavigationLink
+  (value: donut.id) with a UUID-backed ID, and the gallery's computed
+  thumbnailSize/dynamicTypeSize reads composing with GridItem
+  alignment .top. Repro: both harnesses now capture donut-cell,
+  donut-foreach, donut-grid deterministically. Pins:
+  donutCellChromeMatchesNative (now grid-wrapped),
+  letBindingInBuilderAddsNoPhantomChild.
+- 2026-07-17 donuts class: kit eliminated, harness-context isolated
+  (worktree iteration 33): the mimic bisection removed NavigationLink
+  (still AE 1279), the builder `let` (still 1279), and the ENTIRE kit
+  DonutView — its body shape (GeometryReader > ZStack > aspectRatio(1,
+  .fit) > compositingGroup > frame(max .infinity)) with a gray circle
+  REPRODUCES BIGGER (AE 2111). Pure core. But the SAME tree as a unit
+  test (InterpreterHost.render + NSHostingView both sides) passes at
+  0 mismatches, with range AND Identifiable ForEach. Matrix: the
+  divergence needs LazyVGrid x the FTCHECK/twin harness render path —
+  while donut-cell (VStack, same harness) is AE 0. Prime suspect:
+  sub-pixel column layout — the harness pair's available width/scale
+  differs slightly, LazyVGrid's adaptive column math lands cells on
+  different fractional offsets, and the caption renders with
+  half-pixel-shifted, lighter-AA glyphs (+3px ink drop, flavor line
+  under the ink threshold). Next: dump LazyVGrid cell origins via a
+  GeometryReader overlay probe through BOTH harnesses, compare
+  fractional x/y. Probes now in both harnesses: donut-mimic (kit-free
+  repro, AE 2111), donut-cell/donut-foreach (AE 0 controls). Unit
+  pins: gridCellCaptionGapMatchesNative (grid+Identifiable),
+  letBindingInBuilderAddsNoPhantomChild, donutCellChromeMatchesNative.
+- 2026-07-17 DONUTS AE=0 — GridItem alignment (worktree iteration 34):
+  the origin-dump probe found it in one cycle — all cell x positions
+  matched but interp cell 1's thumbnail frame sat at global y 91.825
+  vs 88.5 (+3.3254px = half of its 6.65px height shortfall vs the
+  row): the GridItem CONSTRUCTOR dropped `alignment:`, so the app's
+  `.top` never reached SwiftUI and shorter cells CENTERED in their
+  row. One-line shared-constructor fix (Coerce.alignment). donut-mimic
+  0 -> the whole board: DONUTS 0.437% -> 0.000%, all four diag rows 0.
+  FIVE app screens pixel-perfect (donut-view, card-donuts,
+  card-orders, truck, donuts) + detail-donuts 0.000 through the R3
+  mutation. Pin gridItemAlignmentTopPinsUnequalCells (height-unequal
+  cells — equal heights masked the bug in every earlier probe). Board:
+  orders 0.039, socialfeed 0.166, content (artifact). Gate next.
+- 2026-07-17 SOCIALFEED AE=0 — env-styled stroke defaults (worktree
+  iteration 35): the five avatar rings rendered near-black because
+  `strokeBorder(lineWidth:)` with NO style argument defaulted to
+  .primary in the gateway — native reads the ENVIRONMENT foreground
+  style (the rings' .foregroundStyle(.tertiary) view modifier).
+  ShapeBox(insettable:) gains a strokeBorderPlainPainter and both
+  stroke gateways use the env-styled overloads when the style argument
+  is absent. Socialfeed 0.166% -> 0.000%. SIX app screens
+  pixel-perfect: donut-view, card-donuts, card-orders, truck, donuts,
+  socialfeed (+ 4 diag rows at 0). Remaining: orders 0.039% (sorted
+  Status header bold+chevron) and content (documented twin artifact).
+  Pin: styleLessStrokeBorderReadsEnvironmentStyle. Gate next.

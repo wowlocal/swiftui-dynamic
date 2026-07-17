@@ -711,8 +711,12 @@ extension ViewRegistry {
             guard let box = shapeBox else {
                 throw RuntimeError(message: ".stroke applies to shapes like Circle()")
             }
-            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
             let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
+            if args.positional(0) == nil {
+                // Same environment-styled default as strokeBorder.
+                return .native(AnyView(box.shape.stroke(lineWidth: lineWidth)))
+            }
+            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
             return .native(AnyView(box.shape.stroke(style, lineWidth: lineWidth)))
         }
         modifiers["strokeBorder"] = HostModifier(name: "strokeBorder") { value, args, _ in
@@ -724,8 +728,17 @@ extension ViewRegistry {
             guard let box = shapeBox else {
                 throw RuntimeError(message: ".strokeBorder applies to insettable shapes")
             }
-            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
             let lineWidth = try args.labeled("lineWidth").map(Coerce.cgFloat) ?? 1
+            if args.positional(0) == nil {
+                // Style-less spelling reads the ENVIRONMENT foreground
+                // style (the avatar rings' .tertiary view modifier) —
+                // defaulting to .primary paints them too dark.
+                if let plain = box.strokeBorderPlainPainter {
+                    return .native(plain(lineWidth))
+                }
+                return .native(AnyView(box.shape.stroke(lineWidth: lineWidth)))
+            }
+            let style = try Coerce.shapeStyle(args.positional(0) ?? .implicitMember("primary"))
             if let painter = box.strokeBorderPainter {
                 return .native(painter(style, lineWidth))
             }

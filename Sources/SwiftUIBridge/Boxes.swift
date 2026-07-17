@@ -70,11 +70,16 @@ final class ShapeBox {
     /// shape at construction (FoodTruck's continuous card corners flow
     /// to every ContainerRelativeShape fill/clip inside).
     let containerShapeApplier: (@MainActor (AnyView) -> AnyView)?
+    /// The style-LESS inside-stroke — native `strokeBorder(lineWidth:)`
+    /// reads the environment foreground style (the social-feed avatar
+    /// rings are .tertiary via a view modifier, not an argument).
+    let strokeBorderPlainPainter: (@MainActor (CGFloat) -> AnyView)?
 
     init(_ shape: some Shape) {
         self.shape = AnyShape(shape)
         self.strokeBorderPainter = nil
         self.containerShapeApplier = nil
+        self.strokeBorderPlainPainter = nil
     }
 
     init(insettable shape: some InsettableShape) {
@@ -84,6 +89,9 @@ final class ShapeBox {
         }
         self.containerShapeApplier = { view in
             AnyView(view.containerShape(shape))
+        }
+        self.strokeBorderPlainPainter = { lineWidth in
+            AnyView(shape.strokeBorder(lineWidth: lineWidth))
         }
     }
 }

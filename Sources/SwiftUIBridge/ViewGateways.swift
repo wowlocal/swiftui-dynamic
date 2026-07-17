@@ -329,7 +329,10 @@ extension ViewRegistry {
         constructors["GridItem"] = HostFunction(name: "GridItem") { args, _ in
             let size = try args.positional(0).map(Coerce.gridItemSize) ?? .flexible()
             let spacing = try args.labeled("spacing").map(Coerce.cgFloat)
-            return .native(GridItem(size, spacing: spacing))
+            // alignment: was silently dropped — shorter grid cells then
+            // CENTER in their row (the donuts-gallery caption drift).
+            let alignment = try args.labeled("alignment").map(Coerce.alignment)
+            return .native(GridItem(size, spacing: spacing, alignment: alignment))
         }
 
         constructors["EdgeInsets"] = HostFunction(name: "EdgeInsets") { args, _ in
