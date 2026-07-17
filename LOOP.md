@@ -1608,3 +1608,20 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   AE=0 rows hold. Upstream tolerance regression (25ad8db) still
   blocks the gate; queue is seven commits. Pin: StrokeBorderTests
   (inside-ink present, no outside leak, unfilled center).
+- 2026-07-17 tolerance contract reconciled (worktree iteration 14): the
+  25ad8db regression root was the located-rewrap invariant ("runtime
+  traps stay fatal across gateway boundaries") colliding with the
+  script-tolerance contract that had relied on the accidental
+  fatal-flag drop. Reconciled: stack-guard trips now carry budgetTrip
+  (they are resource trips, same family as the step budget), and the
+  ProgramEvaluator top-level script arm tolerates trap errors by
+  keying on !budgetTrip instead of !fatal — traps stay fatal at every
+  gateway boundary, the documented top-level script exception holds,
+  and budget/stack trips still abort. sessionScriptTolerance +
+  runawayRecursion both green. REMAINING upstream blocker, proven on a
+  pristine main merge: activeInterfaceAliasesResolveToRuntimeIntrinsics
+  fails on PURE MAIN (the committed runtime/generator emit checked-
+  continuation dispatch entries, the committed test expects 13 without
+  them, and the checked-continuation registration path SIGTRAPs — the
+  half-landed c7e1f14/6d2f294 series). Two convergence attempts hit
+  their protective traps; theirs to complete. Lane queue: nine commits.

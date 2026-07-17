@@ -322,10 +322,13 @@ extension Interpreter {
                 // sandbox); the merged unit's other files are independent.
                 continue
             } catch let scriptError as RuntimeError
-                where assumesCompiledImports && !scriptError.fatal {
+                where assumesCompiledImports && !scriptError.budgetTrip {
                 // Same doctrine for trap guards (`fatalError("Source file
                 // had no content")` in tooling): the script's crash is its
-                // own; budget/stack trips stay fatal.
+                // own. Traps stay FATAL across gateway boundaries (the
+                // located-rewrap invariant) — this top-level script arm is
+                // the documented tolerance exception. Budget/stack trips
+                // (budgetTrip) still abort the whole unit.
                 continue
             }
             switch result {
