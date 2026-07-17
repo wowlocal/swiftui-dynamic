@@ -798,6 +798,18 @@ extension Interpreter: EvalContext {
             operationExecutor: operationExecutor)
         let handle = pending.handle
         let arguments = arguments
+        let physicalKernelJob: RuntimePhysicalWorkerJob?
+        if evaluationTaskContext.isAsyncSession,
+           kind == .detached,
+           startPolicy == .enqueued {
+            physicalKernelJob = try makePhysicalSourceKernelJob(
+                closure: closure,
+                arguments: arguments,
+                entry: pending.entry,
+                priority: pending.priority)
+        } else {
+            physicalKernelJob = nil
+        }
 
         // Existing synchronous clients cannot suspend to await child work.
         // Preserve their deterministic contract while returning the same
@@ -833,6 +845,19 @@ extension Interpreter: EvalContext {
                     guard let self else {
                         throw RuntimeError(message:
                             "interpreter was released during source task")
+                    }
+                    if let physicalKernelJob,
+                       let driver = self.physicalWorkerDriver {
+                        let output = try await driver.execute([
+                            physicalKernelJob,
+                        ])
+                        guard let snapshot = output.first else {
+                            throw RuntimeError(message:
+                                "physical source kernel returned no result")
+                        }
+                        self.concurrencyRuntime
+                            .recordPhysicalSourceKernelExecution()
+                        return snapshot.materializedRuntimeValue()
                     }
                     return try await self.callBackgroundClosureSuspending(
                         closure, arguments: arguments)

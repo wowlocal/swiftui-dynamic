@@ -716,6 +716,10 @@ final class CooperativeConcurrencyRuntime {
     private(set) var asyncStreamSuspensionCount = 0
     private(set) var totalContinuationsCreated = 0
     private(set) var continuationSuspensionCount = 0
+    /// Monotonic test/diagnostic receipt for source operations that actually
+    /// crossed the checked physical-worker boundary. Planning or cooperative
+    /// fallback does not increment it.
+    private(set) var totalPhysicalSourceKernelExecutions = 0
     /// Swift callback types such as `AsyncStream.Continuation.onTermination`
     /// are nonthrowing, but evaluating their source bodies can still uncover
     /// an interpreter/runtime failure. Destruction cannot throw, so retain the
@@ -729,6 +733,10 @@ final class CooperativeConcurrencyRuntime {
     ) {
         self.clock = clock
         self.diagnostics = diagnostics
+    }
+
+    func recordPhysicalSourceKernelExecution() {
+        totalPhysicalSourceKernelExecutions += 1
     }
 
     func createEntry(

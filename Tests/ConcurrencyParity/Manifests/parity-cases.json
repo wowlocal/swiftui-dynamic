@@ -2506,5 +2506,20 @@
     "interpreterProjection": "string",
     "nativeFact": "A checked continuation whose success value is Void resumes through the zero-argument resume() convenience and returns control to its awaiting owner.",
     "notes": "The detached producer yields before calling resume(), so the assertion covers delayed Void completion and owner resumption without asserting ready-task order, a physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced void-resumed in twenty native runs."
+  },
+  {
+    "id": "parallel-literal-detached",
+    "fixture": "Fixtures/parallel-literal-detached.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelLiteralDetachedProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 2,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "Two Task.detached operations that return Sendable literals publish those exact values through their task handles after both values are awaited.",
+    "notes": "The two handles are awaited in source order, but neither worker start nor completion order is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact atlas:42 in twenty bounded runs. The interpreter compile-RED had no validated parallel execution mode or physical-source execution receipt. In opt-in mode, each admitted literal-only operation is lowered on MainActor to an immutable snapshot kernel, executed by the shared bounded physical driver, and materialized back on MainActor; the closure, environment, RuntimeValue, heap, host bridge, and evaluator never cross the worker boundary. More complex closures retain the unchanged cooperative path."
   }
 ]

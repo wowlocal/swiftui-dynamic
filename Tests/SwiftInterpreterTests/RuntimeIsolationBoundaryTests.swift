@@ -33,6 +33,11 @@ struct RuntimeIsolationBoundaryTests {
         #expect(confined.output.contains("RuntimeValue"))
     }
 
+    @Test func publicModuleExposesValidatedOptInParallelMode() throws {
+        let result = try typecheck("ParallelExecutionMode.swift")
+        #expect(result.status == 0, Comment(rawValue: result.output))
+    }
+
     @Test func nativeDetachedWorkRequiresAnActorSnapshot() throws {
         let executable = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

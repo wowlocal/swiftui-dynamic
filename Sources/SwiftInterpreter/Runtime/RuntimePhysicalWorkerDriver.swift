@@ -31,7 +31,8 @@ nonisolated struct RuntimePhysicalWorkerJob: Sendable {
     }
 }
 
-/// Stateless opt-in driver for bounded physical work.
+/// Opt-in driver for bounded physical work. Copies share one permit pool, so
+/// the configured limit applies across every concurrently submitted batch.
 ///
 /// The cooperative interpreter never constructs this driver implicitly.
 /// Callers must first project a RuntimeEntry through the checked worker-data
@@ -41,6 +42,7 @@ nonisolated struct RuntimePhysicalWorkerJob: Sendable {
 /// returning or throwing.
 nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
     let maximumParallelism: Int
+    private let permits: RuntimePhysicalWorkerPermitPool
 
     init(maximumParallelism: Int) throws {
         guard maximumParallelism > 0 else {
@@ -48,6 +50,14 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
                 maximumParallelism)
         }
         self.maximumParallelism = maximumParallelism
+        permits = RuntimePhysicalWorkerPermitPool(
+            maximumParallelism: maximumParallelism)
+    }
+
+    init(configuration: RuntimeParallelismConfiguration) {
+        maximumParallelism = configuration.maximumParallelism
+        permits = RuntimePhysicalWorkerPermitPool(
+            maximumParallelism: configuration.maximumParallelism)
     }
 
     /// Execute at most `maximumParallelism` jobs simultaneously and return
@@ -65,7 +75,7 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         ) { group in
             let initialCount = min(maximumParallelism, jobs.count)
             for index in 0..<initialCount {
-                Self.add(jobs[index], at: index, to: &group)
+                add(jobs[index], at: index, to: &group)
             }
 
             var nextIndex = initialCount
@@ -75,7 +85,7 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
                 while let result = try await group.next() {
                     results[result.index] = result.value
                     if nextIndex < jobs.count {
-                        Self.add(jobs[nextIndex], at: nextIndex, to: &group)
+                        add(jobs[nextIndex], at: nextIndex, to: &group)
                         nextIndex += 1
                     }
                 }
@@ -94,7 +104,7 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         }
     }
 
-    private static func add(
+    private func add(
         _ job: RuntimePhysicalWorkerJob,
         at index: Int,
         to group: inout ThrowingTaskGroup<IndexedWorkerResult, any Error>
@@ -102,11 +112,27 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         group.addTask(priority: job.priority.nativePriority) {
             IndexedWorkerResult(
                 index: index,
-                value: try await executeDetached(job))
+                value: try await Self.executeDetached(
+                    job, permits: permits))
         }
     }
 
     private static func executeDetached(
+        _ job: RuntimePhysicalWorkerJob,
+        permits: RuntimePhysicalWorkerPermitPool
+    ) async throws -> RuntimeWorkerValueSnapshot {
+        try await permits.acquire()
+        do {
+            let value = try await runDetached(job)
+            await permits.release()
+            return value
+        } catch {
+            await permits.release()
+            throw error
+        }
+    }
+
+    private static func runDetached(
         _ job: RuntimePhysicalWorkerJob
     ) async throws -> RuntimeWorkerValueSnapshot {
         let task = Task.detached(priority: job.priority.nativePriority) {
@@ -118,6 +144,70 @@ nonisolated struct RuntimePhysicalWorkerDriver: Sendable {
         } onCancel: {
             task.cancel()
         }
+    }
+}
+
+/// FIFO permits are shared by every batch submitted through one driver. A
+/// cancelled waiter is removed and resumed immediately, so it cannot consume
+/// a later permit or retain its job until unrelated work finishes.
+private actor RuntimePhysicalWorkerPermitPool {
+    private struct Waiter {
+        let id: UInt64
+        let continuation: CheckedContinuation<Bool, Never>
+    }
+
+    private let maximumParallelism: Int
+    private var available: Int
+    private var nextWaiterID: UInt64 = 1
+    private var waiters: [Waiter] = []
+
+    init(maximumParallelism: Int) {
+        precondition(maximumParallelism > 0)
+        self.maximumParallelism = maximumParallelism
+        available = maximumParallelism
+    }
+
+    func acquire() async throws {
+        try Task.checkCancellation()
+        if available > 0 {
+            available -= 1
+            return
+        }
+
+        let id = nextWaiterID
+        nextWaiterID &+= 1
+        let granted = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                waiters.append(Waiter(
+                    id: id, continuation: continuation))
+            }
+        } onCancel: {
+            Task { await self.cancel(id) }
+        }
+        guard granted else { throw CancellationError() }
+        // Once release() transfers a permit to this waiter, the caller owns
+        // that permit and must reach executeDetached's release path. A second
+        // cancellation check here could throw before that path and leak the
+        // slot. runDetached observes already-requested cancellation and its
+        // surrounding catch returns the permit.
+    }
+
+    func release() {
+        if !waiters.isEmpty {
+            let waiter = waiters.removeFirst()
+            waiter.continuation.resume(returning: true)
+            return
+        }
+        available += 1
+        precondition(available <= maximumParallelism)
+    }
+
+    private func cancel(_ id: UInt64) {
+        guard let index = waiters.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let waiter = waiters.remove(at: index)
+        waiter.continuation.resume(returning: false)
     }
 }
 

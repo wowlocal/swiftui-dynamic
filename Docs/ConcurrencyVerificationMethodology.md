@@ -723,6 +723,41 @@ The unchanged `task-owned-evaluator-context` case remains the source-semantic
 oracle because no interpreted closure is routed through the driver yet. This
 prerequisite does not satisfy parallel source execution, mode parity, or TSan.
 
+Its thirty-third prerequisite routes the first demand-cited source operation
+through that boundary. The exact semantic question is whether explicit
+parallel mode can execute signature-free, argument-free `Task.detached`
+closures returning Sendable literals and publish the exact values through
+`await value`, without transferring the source closure, syntax, environment,
+runtime value graph, heap, host bridge, or evaluator to a worker. The native
+fixture must compile under Swift 6 complete strict concurrency with warnings as
+errors and return exact `atlas:42` in twenty bounded runs. That result proves
+the awaited values, not worker start/completion order or physical overlap; the
+thirty-second checked-Atomic probe remains the physical-overlap oracle.
+
+The workflow is gap closure. The recorded RED is a compile failure for the
+missing validated execution-mode/configuration types, initializer overload, and
+physical-source receipt. Closing code keeps cooperative mode as the default and
+preserves the legacy public initializer signatures. Parallel admission is
+fail-closed: only a source closure expression with no authored signature,
+arguments, parameters, builder transform, or extra statements, the ordinary
+enqueued launch policy, and exactly one representable literal expression/return
+may lower. All other shapes use the unchanged cooperative evaluator before any
+worker evaluation occurs.
+
+Lowering and result materialization are MainActor-isolated. The detached native
+operation captures only a checked capability and constant snapshot kernel, and
+the shared driver-wide permit pool enforces the configured bound across
+concurrent batches. A canceled queued waiter must be removed without consuming
+a later permit. Same-source parity explicitly selects parallel mode and requires
+exactly two successful physical-source receipts so cooperative fallback cannot
+make the case accidentally green. Focused evidence also covers default-mode
+behavior, mixed supported/unsupported bodies, authored-signature fallback,
+immediate-detached launch preservation, public-module typechecking of old and
+new initializers, invalid bounds, global capacity, cancellation, and cleanup.
+This prerequisite does not claim general evaluator parallelism, captured or
+suspending closures, heap access, scheduler order, speedup, full mode parity,
+or TSan cleanliness.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

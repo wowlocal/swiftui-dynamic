@@ -150,6 +150,98 @@ struct RuntimePhysicalWorkerDriverTests {
         #expect(releasedSentinel == nil)
         #expect(try await driver.execute([]).isEmpty)
     }
+
+    @Test func concurrentBatchesShareOneGlobalWorkerBound() async throws {
+        let interpreter = Interpreter()
+        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+        let capabilities = try (0..<4).map { index in
+            try entry.makeWorkerCapability(copying: [
+                .init(name: "index", value: .native(index)),
+            ])
+        }
+        let gate = PhysicalWorkerBatchGate()
+        let jobs = capabilities.map { capability in
+            RuntimePhysicalWorkerJob(capability: capability) { capability in
+                gate.entered.wrappingAdd(
+                    1, ordering: .acquiringAndReleasing)
+                let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+                while !gate.release.load(ordering: .acquiring) {
+                    guard ContinuousClock.now < deadline else {
+                        throw PhysicalWorkerProbeError.deadline
+                    }
+                }
+                return capability.bindings[0].value
+            }
+        }
+        let driver = try RuntimePhysicalWorkerDriver(maximumParallelism: 2)
+
+        let first = Task.detached {
+            try await driver.execute(Array(jobs[0..<2]))
+        }
+        let second = Task.detached {
+            try await driver.execute(Array(jobs[2..<4]))
+        }
+        #expect(await waitUntil {
+            gate.entered.load(ordering: .acquiring) >= 2
+        })
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(gate.entered.load(ordering: .acquiring) == 2,
+            "concurrent batches crossed the driver's global worker bound")
+        gate.release.store(true, ordering: .releasing)
+
+        let firstOutput = try await first.value
+        let secondOutput = try await second.value
+        let output = firstOutput + secondOutput
+        #expect(output == [.int(0), .int(1), .int(2), .int(3)])
+    }
+
+    @Test func cancellingAQueuedBatchRemovesItsPermitWaiter() async throws {
+        let interpreter = Interpreter()
+        let entry = interpreter.concurrencyRuntime.createEntry(kind: .test)
+        let capability = try entry.makeWorkerCapability(copying: [])
+        let gate = PhysicalWorkerBatchGate()
+        let queuedStarted = Atomic<Bool>(false)
+        let blocking = RuntimePhysicalWorkerJob(
+            capability: capability
+        ) { _ in
+            gate.entered.wrappingAdd(1, ordering: .acquiringAndReleasing)
+            let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+            while !gate.release.load(ordering: .acquiring) {
+                guard ContinuousClock.now < deadline else {
+                    throw PhysicalWorkerProbeError.deadline
+                }
+            }
+            return .void
+        }
+        let queued = RuntimePhysicalWorkerJob(capability: capability) { _ in
+            queuedStarted.store(true, ordering: .releasing)
+            return .void
+        }
+        let driver = try RuntimePhysicalWorkerDriver(maximumParallelism: 1)
+        let first = Task.detached {
+            try await driver.execute([blocking])
+        }
+        #expect(await waitUntil {
+            gate.entered.load(ordering: .acquiring) == 1
+        })
+        let second = Task.detached {
+            try await driver.execute([queued])
+        }
+        await Task.yield()
+        second.cancel()
+        await #expect(throws: CancellationError.self) {
+            try await second.value
+        }
+        let startedBeforeRelease = queuedStarted.load(ordering: .acquiring)
+        #expect(!startedBeforeRelease)
+
+        gate.release.store(true, ordering: .releasing)
+        #expect(try await first.value == [.void])
+        try await Task.sleep(for: .milliseconds(20))
+        let startedAfterRelease = queuedStarted.load(ordering: .acquiring)
+        #expect(!startedAfterRelease,
+            "a cancelled permit waiter ran after capacity became available")
+    }
 }
 
 private enum PhysicalWorkerProbeError: Error, Equatable {

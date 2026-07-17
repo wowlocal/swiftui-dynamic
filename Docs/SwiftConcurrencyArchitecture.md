@@ -2915,9 +2915,12 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. Physical execution remains absent until the
-  runtime supplies confinement/synchronization plus TSan and cooperative-
-  versus-parallel semantic evidence.
+  covered. A first narrow physical path now exists behind a validated explicit
+  mode: only a signature-free, argument-free, single-literal `Task.detached`
+  closure may lower to a checked snapshot kernel. The general evaluator,
+  mutable heap, source closures, environments, actors, and host gateways remain
+  MainActor-confined; broader mode-differential and TSan evidence is still
+  required.
 
 M5 was intentionally decomposed, and its slices were ordered so that no flip to
 fail-closed rejection lands before the replacement runtime exists. The covered
@@ -3366,13 +3369,36 @@ modifiers, failable/Codable classification, and isolation facts through one
 shared closure builder. The `initializer-declaration-metadata` fixture has
 exact twenty-run parity for inherited MainActor isolation, explicit
 nonisolation, failable outcomes, and preservation across an actor hop.
-These slices separate immutable program input, mutable storage, and execution
-identity without changing scheduling. Remaining member families, call-site, and
-compiler metadata indexing remains incomplete, and mutable
-symbol materialization plus evaluator state must move fully behind the session;
-eligible source work must still be separated into pure snapshot kernels and
-routed through the checked physical driver rather than the confined entry/heap;
-cooperative-versus-parallel parity, and TSan evidence remain open.
+The core target now declares its mutable actor boundaries explicitly instead of
+depending on target-wide default isolation. `RuntimeEntry` can project only a
+checked-Sendable immutable worker capability and recursively copied value
+snapshots; every mutable heap root and opaque runtime value remains excluded.
+A bounded physical driver launches real detached workers, shares one FIFO
+permit pool across concurrent batches, drains cancellation and failure, and
+restores successful output order. Its strict checked-Atomic native probe proves
+two nonsuspending jobs physically overlap without claiming a scheduler order.
+
+The first source-kernel stage (2026-07-18) adds a public validated
+`RuntimeExecutionMode`; cooperative remains the default and the legacy public
+initializer entry points remain available. In explicit parallel mode, an
+eligible literal-only detached closure is lowered entirely on MainActor to a
+constant snapshot kernel plus an empty checked capability. The native worker
+captures only those Sendable values. Its result is materialized on MainActor,
+and an execution receipt increments only after the physical job succeeds.
+Authored signatures, capture lists, parameters, builders, immediate launch
+policies, multiple statements, and every nonliteral expression use the
+unchanged cooperative evaluator. No
+source closure, syntax node, `RuntimeValue`, environment, heap, host bridge, or
+evaluator crosses the worker boundary.
+
+Earlier metadata slices separate immutable program input, mutable storage, and
+execution identity without changing scheduling; the new literal kernel changes
+scheduling only for that admitted subset. Remaining member families, call-site
+and compiler metadata indexing remain incomplete, mutable symbol
+materialization plus evaluator state must move fully behind the session, and
+demand-cited captured/scalar-expression and suspending kernels still need safe
+lowering. A broader cooperative-versus-parallel differential board and Thread
+Sanitizer evidence remain open.
 
 ## 15. Verification gates
 

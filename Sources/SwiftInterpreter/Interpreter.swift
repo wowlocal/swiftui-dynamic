@@ -247,6 +247,8 @@ public final class Interpreter {
     public let compilerPreflight: SwiftCompilerPreflight?
     public let compilerPreflightMode: CompilerPreflightMode
     public let buildConfiguration: InterpreterBuildConfiguration
+    public let executionMode: RuntimeExecutionMode
+    let physicalWorkerDriver: RuntimePhysicalWorkerDriver?
     public internal(set) var lastCompilerPreflightResult:
         CompilerPreflightResult?
     /// Struct symbols in declaration order (used to pick the root View).
@@ -766,9 +768,20 @@ public final class Interpreter {
         return try body()
     }
 
-    public init(
+    public convenience init(
         registry: HostRegistry? = nil,
         buildConfiguration: InterpreterBuildConfiguration? = nil
+    ) {
+        self.init(
+            registry: registry,
+            buildConfiguration: buildConfiguration,
+            executionMode: .cooperative)
+    }
+
+    public init(
+        registry: HostRegistry? = nil,
+        buildConfiguration: InterpreterBuildConfiguration? = nil,
+        executionMode: RuntimeExecutionMode
     ) {
         runtimeHeap = RuntimeHeap()
         compatibilityRegistry = registry
@@ -777,16 +790,34 @@ public final class Interpreter {
         self.buildConfiguration = buildConfiguration
             ?? InterpreterBuildConfiguration(
                 platformName: Self.interpretsAsPlatform)
+        self.executionMode = executionMode
+        physicalWorkerDriver = Self.makePhysicalWorkerDriver(
+            for: executionMode)
         runtimeClock = ContinuousRuntimeClock()
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
+    }
+
+    public convenience init(
+        registry: HostRegistry? = nil,
+        compilerPreflight: SwiftCompilerPreflight,
+        compilerPreflightMode: CompilerPreflightMode = .required,
+        buildConfiguration: InterpreterBuildConfiguration? = nil
+    ) {
+        self.init(
+            registry: registry,
+            compilerPreflight: compilerPreflight,
+            compilerPreflightMode: compilerPreflightMode,
+            buildConfiguration: buildConfiguration,
+            executionMode: .cooperative)
     }
 
     public init(
         registry: HostRegistry? = nil,
         compilerPreflight: SwiftCompilerPreflight,
         compilerPreflightMode: CompilerPreflightMode = .required,
-        buildConfiguration: InterpreterBuildConfiguration? = nil
+        buildConfiguration: InterpreterBuildConfiguration? = nil,
+        executionMode: RuntimeExecutionMode
     ) {
         runtimeHeap = RuntimeHeap()
         compatibilityRegistry = registry
@@ -795,15 +826,31 @@ public final class Interpreter {
         self.buildConfiguration = buildConfiguration
             ?? InterpreterBuildConfiguration(
                 platformName: Self.interpretsAsPlatform)
+        self.executionMode = executionMode
+        physicalWorkerDriver = Self.makePhysicalWorkerDriver(
+            for: executionMode)
         runtimeClock = ContinuousRuntimeClock()
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
     }
 
-    public init(
+    public convenience init(
         registry: HostRegistry? = nil,
         runtimeClock: any RuntimeClock,
         buildConfiguration: InterpreterBuildConfiguration? = nil
+    ) {
+        self.init(
+            registry: registry,
+            runtimeClock: runtimeClock,
+            buildConfiguration: buildConfiguration,
+            executionMode: .cooperative)
+    }
+
+    public init(
+        registry: HostRegistry? = nil,
+        runtimeClock: any RuntimeClock,
+        buildConfiguration: InterpreterBuildConfiguration? = nil,
+        executionMode: RuntimeExecutionMode
     ) {
         runtimeHeap = RuntimeHeap()
         compatibilityRegistry = registry
@@ -812,9 +859,28 @@ public final class Interpreter {
         self.buildConfiguration = buildConfiguration
             ?? InterpreterBuildConfiguration(
                 platformName: Self.interpretsAsPlatform)
+        self.executionMode = executionMode
+        physicalWorkerDriver = Self.makePhysicalWorkerDriver(
+            for: executionMode)
         self.runtimeClock = runtimeClock
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
+    }
+
+    public convenience init(
+        registry: HostRegistry? = nil,
+        runtimeClock: any RuntimeClock,
+        compilerPreflight: SwiftCompilerPreflight,
+        compilerPreflightMode: CompilerPreflightMode = .required,
+        buildConfiguration: InterpreterBuildConfiguration? = nil
+    ) {
+        self.init(
+            registry: registry,
+            runtimeClock: runtimeClock,
+            compilerPreflight: compilerPreflight,
+            compilerPreflightMode: compilerPreflightMode,
+            buildConfiguration: buildConfiguration,
+            executionMode: .cooperative)
     }
 
     public init(
@@ -822,7 +888,8 @@ public final class Interpreter {
         runtimeClock: any RuntimeClock,
         compilerPreflight: SwiftCompilerPreflight,
         compilerPreflightMode: CompilerPreflightMode = .required,
-        buildConfiguration: InterpreterBuildConfiguration? = nil
+        buildConfiguration: InterpreterBuildConfiguration? = nil,
+        executionMode: RuntimeExecutionMode
     ) {
         runtimeHeap = RuntimeHeap()
         compatibilityRegistry = registry
@@ -831,9 +898,19 @@ public final class Interpreter {
         self.buildConfiguration = buildConfiguration
             ?? InterpreterBuildConfiguration(
                 platformName: Self.interpretsAsPlatform)
+        self.executionMode = executionMode
+        physicalWorkerDriver = Self.makePhysicalWorkerDriver(
+            for: executionMode)
         self.runtimeClock = runtimeClock
         concurrencyRuntime = CooperativeConcurrencyRuntime(clock: runtimeClock)
         defineGlobalBuiltins()
+    }
+
+    private static func makePhysicalWorkerDriver(
+        for mode: RuntimeExecutionMode
+    ) -> RuntimePhysicalWorkerDriver? {
+        guard case .parallel(let configuration) = mode else { return nil }
+        return RuntimePhysicalWorkerDriver(configuration: configuration)
     }
 
     var currentProgramMetadata: ParsedProgramMetadata? {
