@@ -2397,3 +2397,18 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   parallel-worker crash under gate load — 2nd attribution filed;
   lane-concurrency owes the containment under the GATE's parallel
   config). Lane remains gate-blocked; iterating continues.
+- 2026-07-17 CONTENT-ROW ARC: OWN-WINDOW CAPTURE BOUNDARY (worktree
+  iteration 55): the twin gains a flag-gated own-window probe
+  (--own-window-probe: real titled window, ordered front, runloop
+  settle, CALayer.render). Findings: CGWindowListCreateImage of one's
+  OWN window is permission-gated on modern macOS (returns blank);
+  layer-render of the ordered-front window rasterizes the DETAIL side
+  fully (truck dashboard renders correctly) but the real
+  NavigationSplitView SIDEBAR stays an empty material shell — the
+  NSVisualEffectView material and the lazily-installed outline are
+  WindowServer-composited and unreachable in-process. CONCLUSION: the
+  honest native content expectation requires ScreenCaptureKit, which
+  requires the USER to grant Screen Recording to the build terminal —
+  noted in claims as a user-action gate; until then the content row
+  remains the documented artifact (its function is fully covered by
+  detail-* rows + the live R4 board). Gate still blocked by main-red.

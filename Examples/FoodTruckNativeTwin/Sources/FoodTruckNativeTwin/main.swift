@@ -26,6 +26,56 @@ let only = argument("--panel")
 let screenSize = NSSize(width: 1000, height: 650)
 let cardSize = NSSize(width: 400, height: 300)
 
+/// Own-window probe: order a REAL titled window front, let the runloop
+/// settle so AppKit-backed containers (NavigationSplitView) install, then
+/// screenshot OUR OWN window via CGWindowListCreateImage — own-window
+/// captures are permission-exempt.
+@MainActor
+func captureOwnWindow(_ id: String, size: NSSize, _ view: some View) {
+    NSApplication.shared.setActivationPolicy(.accessory)
+    let controller = NSHostingController(
+        rootView: AnyView(view).frame(width: size.width, height: size.height))
+    let window = NSWindow(contentViewController: controller)
+    window.styleMask = [.titled]
+    window.setContentSize(size)
+    window.appearance = NSAppearance(named: .aqua)
+    window.makeKeyAndOrderFront(nil)
+    for _ in 0..<40 { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    // Own-window CG captures are permission-gated on modern macOS; the
+    // live layer tree's FIRST composite rasterizes via CALayer.render
+    // (the sweep-driver technique).
+    guard let view = window.contentView,
+          let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: max(1, Int(view.bounds.width.rounded(.up))),
+            pixelsHigh: max(1, Int(view.bounds.height.rounded(.up))),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
+        print("\(id)\tREP-NIL")
+        window.orderOut(nil)
+        return
+    }
+    rep.size = view.bounds.size
+    view.displayIfNeeded()
+    if let layer = view.layer, let context = NSGraphicsContext(bitmapImageRep: rep) {
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.cgContext.translateBy(x: 0, y: view.bounds.height)
+        context.cgContext.scaleBy(x: 1, y: -1)
+        layer.render(in: context.cgContext)
+        NSGraphicsContext.restoreGraphicsState()
+    }
+    guard let png = rep.representation(using: .png, properties: [:]) else {
+        print("\(id)\tPNG-NIL")
+        window.orderOut(nil)
+        return
+    }
+    let path = outDirectory + "/\(id).png"
+    try? png.write(to: URL(fileURLWithPath: path))
+    print("\(id)\t\(path)\t\(rep.pixelsWide)x\(rep.pixelsHigh)")
+    window.orderOut(nil)
+}
+
 @MainActor
 func capture(_ id: String, size: NSSize, _ view: some View) {
     guard only == nil || only == id else { return }
@@ -95,6 +145,10 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
         capture("socialfeed", size: screenSize, SocialFeedView())
         capture("diag-donuteditor", size: screenSize,
                 DonutEditor(donut: .constant(model.newDonut)))
+        if arguments.contains("--own-window-probe") {
+            captureOwnWindow("content-window", size: screenSize,
+                             ContentView(model: model, accountStore: accountStore))
+        }
 
         // Leaf content cards — the pixel currency while container chrome
         // stays headless-hostile on both sides.
