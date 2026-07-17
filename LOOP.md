@@ -1550,3 +1550,14 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   ComputedMarkerHintTests (typed marker + Text-boundary resolution +
   key ctor). Upstream deinit floor still holds three lane commits
   unmerged.
+- 2026-07-17 gate note (same iteration): the closing gate's suite
+  stage hangs REPRODUCIBLY at the upstream
+  requiredModeRejectsExternalActor{ComputedSetter,SubscriptSetter}
+  BeforeMutation pair (both at 0% CPU after ~89 passes; the pair
+  passes together standalone in 1.5s — a worker-parallelism deadlock
+  only under the gate's helper). Corpus RECOVERED upstream to
+  678/680; live 5/5; parity 345/0/0; the full standalone suite
+  passed 1029/1029 this session. Close-merge still deferred pending
+  one clean gate; the exact pair is flagged to the concurrency lane
+  in claims. Five lane commits queue: frozen clock, Charts gateway,
+  axis DSL + stdlib sweep, FlowLayout semantics, socialfeed pills.
