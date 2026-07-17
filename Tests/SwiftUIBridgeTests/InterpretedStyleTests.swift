@@ -329,6 +329,66 @@ import Testing
         #expect(mismatched == 0)
     }
 
+    // FoodTruck orders class: the per-row Details Menu vanished because
+    // .menuStyle was an unknown modifier (protocol-typed param, closed
+    // set per the buttonStyle doctrine) — the whole Menu subtree
+    // absorbed. The pin compares the exact OrdersTable spelling against
+    // a compiled native control.
+    @MainActor
+    @Test func borderlessMenuRendersIconOnlyLabel() throws {
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    Menu {
+                        Button(String("View Details")) {}
+                    } label: {
+                        Label(String("Details"), systemImage: String("ellipsis.circle"))
+                            .labelStyle(.iconOnly)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .foregroundColor(.secondary)
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 60, height: 40)
+        let interp = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            Menu {
+                Button("View Details") {}
+            } label: {
+                Label("Details", systemImage: "ellipsis.circle")
+                    .labelStyle(.iconOnly)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .foregroundColor(.secondary)
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<60 {
+            for y in 0..<40 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        #expect(mismatched == 0)
+    }
+
     @MainActor
     private static func bitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
         let hosting = NSHostingView(

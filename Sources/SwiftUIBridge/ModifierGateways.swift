@@ -642,6 +642,17 @@ extension ViewRegistry {
             default: return AnyView(view.buttonStyle(.automatic))
             }
         }
+        register("menuStyle") { view, args, _ in
+            guard case .implicitMember(let name)? = args.positional(0) else { return view }
+            switch name {
+            case "borderlessButton":
+                // Deprecated but still the OrdersTable spelling; the modern
+                // .button draws a bordered chrome the row must not have.
+                return AnyView(view.menuStyle(.borderlessButton))
+            case "button": return AnyView(view.menuStyle(.button))
+            default: return AnyView(view.menuStyle(.automatic))
+            }
+        }
         register("pickerStyle") { view, args, _ in
             guard case .implicitMember(let name)? = args.positional(0) else { return view }
             switch name {
