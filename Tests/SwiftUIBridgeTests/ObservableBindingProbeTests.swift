@@ -333,6 +333,12 @@ import Testing
     @MainActor
     @Test func memberComposedSplitBodyRenders() throws {
         let source = """
+        #if os(iOS)
+        extension View {
+            func storeMessagesDeferred(_ deferred: Bool) -> some View { self }
+        }
+        #endif
+
         struct Ed: View {
             @Binding var name: String
 
@@ -381,6 +387,8 @@ import Testing
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarRole(.editor)
+                // We don't want store messages to interrupt any donut editing.
+                .storeMessagesDeferred(true)
                 #endif
             }
         }

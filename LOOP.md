@@ -2316,3 +2316,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   their storm-board worker crash stays theirs (their unmerged branch
   may hold the fix). Pins pass. R4 board: 8/9 GREEN + editor
   diag-gated.
+- 2026-07-17 EDITOR LIVE-DIAG ELIMINATIONS (worktree iteration 50): the
+  one remaining R4 board RED — donuteditor lands visually (591k
+  repaint) but the absorb tracer fires on the iOS-only chain
+  '.navigationBarTitleDisplayMode.toolbarRole.storeMessagesDeferred'.
+  Eliminations this iteration: the tracer now leads with the platform
+  and proves platform=macOS AT FIRE TIME; the headless mimic saturated
+  further (app-extension member in the chain, the app's comment line
+  inside the #if block) and still renders 1338 ink with ZERO
+  diagnostics; only DonutEditor uses the chain and only under
+  #if os(iOS); the postfix-if evaluator returns the base for inactive
+  clauses. The diagnostic is LIVE-ONLY — remaining suspects: the
+  demo's whole-project merge (App.swift included; FoodTruckCheck
+  excludes it) and assumesCompiledImports-mode member resolution
+  interacting with the postfix-#if re-render path. The board stays
+  honestly RED on this step until attributed. Pins pass. Gate still
+  blocked by main-red.

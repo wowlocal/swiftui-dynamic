@@ -250,7 +250,7 @@ public final class ViewRegistry: HostRegistry {
                     if case .instance = root { wrapsView = true }
                     if wrapsView {
                         RenderDiagnostics.record(
-                            RuntimeError(message: "unbridged view modifier chain '.\(members.reversed().joined(separator: "."))' absorbed a rendered view; renders EMPTY"),
+                            RuntimeError(message: "[platform=\(Interpreter.interpretsAsPlatform)] unbridged view modifier chain '.\(members.reversed().joined(separator: "."))' absorbed a rendered view; renders EMPTY"),
                             in: "anyView")
                     }
                 }
