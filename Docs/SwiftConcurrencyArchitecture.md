@@ -1266,10 +1266,14 @@ pinned.
 Source-kernel stage (2026-07-18): cooperative remains the default. Explicit
 parallel mode admits only ordinary enqueued `Task.detached` source closures
 with no authored signature, arguments, parameters, builder transform, extra
-statements, or nonliteral expression. MainActor lowers that subset to a
-constant snapshot kernel and empty checked capability; only those Sendable
-values cross to the driver, and MainActor materializes the result. Every other
-shape retains cooperative evaluation.
+statements, or unmodeled expression. MainActor lowers literals to a constant
+snapshot kernel and empty checked capability. The first corpus-demanded scalar
+expression, CotEditor's `Task.detached { string.count }`, is admitted only when
+`string` resolves to a locally captured source `let` whose runtime value is a
+String. MainActor copies it into the checked capability and emits typed
+binding-plus-String-count IR. Mutable/global captures and every other shape
+retain cooperative evaluation; only copied Sendable values and typed IR cross
+to the driver, and MainActor materializes the result.
 
 Scoped sanitizer stage (2026-07-18): `run-concurrency-tsan.sh` owns a separate
 sanitized build cache. Its native checked-Atomic overlap executable performs
@@ -1279,9 +1283,12 @@ runtime before SwiftPM's bundle helper and rejects both a nonzero exit and the
 otherwise-zero-exit "interceptors not installed" diagnostic. A twenty-pair
 same-source test requires cooperative and parallel modes to return the same
 `atlas:42`, with zero versus two physical receipts and empty task registries.
-This receipt covers only the checked driver and constant snapshot kernel;
-future captured, suspending, actor, host, or heap-capable kernels require their
-own expanded differential and sanitizer evidence.
+A second twenty-pair test requires exact `5:9` and the same zero/two receipt
+split for the immutable-String-count kernel. All seventeen driver/source-kernel
+tests run under TSan. This receipt covers only the checked driver, constant
+snapshot kernel, and typed immutable-String-count kernel; future value shapes,
+suspending, actor, host, or heap-capable kernels require their own expanded
+differential and sanitizer evidence.
 
 ### 6.4 `EvaluationTaskContext`
 
@@ -2934,12 +2941,13 @@ Each milestone is independently gated through
   weak task-graph release, and final interpreter/runtime release; and
 - M9 is now the active cycle because its requirement-level M4 Sendable/escape,
   M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
-  covered. A first narrow physical path now exists behind a validated explicit
-  mode: only a signature-free, argument-free, single-literal `Task.detached`
-  closure may lower to a checked snapshot kernel. The general evaluator,
-  mutable heap, source closures, environments, actors, and host gateways remain
-  MainActor-confined; broader mode-differential and TSan evidence is still
-  required.
+  covered. Two narrow physical paths now exist behind a validated explicit
+  mode: a signature-free, argument-free, single-literal `Task.detached`
+  closure, and the CotEditor-cited `string.count` spelling when `string` is a
+  locally captured immutable String. Both lower to checked snapshot kernels
+  and have paired cooperative/parallel plus TSan evidence. The general
+  evaluator, mutable/global captures, heap, source closures, environments,
+  actors, and host gateways remain MainActor-confined.
 
 M5 was intentionally decomposed, and its slices were ordered so that no flip to
 fail-closed rejection lands before the replacement runtime exists. The covered
@@ -3410,14 +3418,27 @@ unchanged cooperative evaluator. No
 source closure, syntax node, `RuntimeValue`, environment, heap, host bridge, or
 evaluator crosses the worker boundary.
 
+The second source-kernel stage (2026-07-18) is demand-cited by CotEditor's
+`EditorCounter.swift:130`. Evaluator boxes now retain source binding mutability
+without changing their legacy public construction/definition signatures.
+Explicit parallel mode may lower `Task.detached { string.count }` only when the
+capture environment directly owns `string`, its source binding is `let`, and
+its runtime value is a String. MainActor recursively copies that value into the
+checked worker capability and emits a typed snapshot-expression kernel. The
+worker performs only the binding read and Swift `String.count`; mutable
+bindings, globals, authored signatures, and other expressions stay
+cooperative. Same-source mode parity and the scoped TSan board cover this new
+kernel alongside the literal kernel.
+
 Earlier metadata slices separate immutable program input, mutable storage, and
-execution identity without changing scheduling; the new literal kernel changes
-scheduling only for that admitted subset. Remaining member families, call-site
+execution identity without changing scheduling; the source kernels change
+scheduling only for their admitted subsets. Remaining member families, call-site
 and compiler metadata indexing remain incomplete, mutable symbol
 materialization plus evaluator state must move fully behind the session, and
-demand-cited captured/scalar-expression and suspending kernels still need safe
-lowering. The scoped literal-kernel differential and TSan board is green, but
-the board must expand with every future worker kernel before M9 can close.
+demand-cited value, richer scalar-expression, and suspending kernels still need
+safe lowering. The scoped literal/String-count differential and TSan board is
+green, but the board must expand with every future worker kernel before M9 can
+close.
 
 ## 15. Verification gates
 

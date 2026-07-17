@@ -2521,5 +2521,20 @@
     "expectedPhysicalSourceKernelExecutions": 2,
     "nativeFact": "Two Task.detached operations that return Sendable literals publish those exact values through their task handles after both values are awaited.",
     "notes": "The two handles are awaited in source order, but neither worker start nor completion order is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact atlas:42 in twenty bounded runs. The interpreter compile-RED had no validated parallel execution mode or physical-source execution receipt. In opt-in mode, each admitted literal-only operation is lowered on MainActor to an immutable snapshot kernel, executed by the shared bounded physical driver, and materialized back on MainActor; the closure, environment, RuntimeValue, heap, host bridge, and evaluator never cross the worker boundary. More complex closures retain the unchanged cooperative path."
+  },
+  {
+    "id": "parallel-captured-string-count",
+    "fixture": "Fixtures/parallel-captured-string-count.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await parallelCapturedStringCountProbe()",
+    "interpreterProjection": "string",
+    "interpreterExecutionMode": "parallel",
+    "interpreterMaximumParallelism": 2,
+    "expectedPhysicalSourceKernelExecutions": 2,
+    "nativeFact": "A Task.detached operation may read an immutable captured String and publish its exact grapheme count through the task handle; the result does not depend on worker start or completion order.",
+    "notes": "CotEditor demand-cites this exact spelling in Sources/Scanners/EditorCounter.swift. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact 5:9 in twenty bounded runs; every five-repetition native shard reported SHA-256 056cf461832cc0054882f24a52cbebddce0d96374179c21cc2f13e22eea43f3e. The interpreter behavioral value was already correct through cooperative fallback, but the captured RED proved explicit parallel mode recorded zero physical source executions instead of two. The common lowering now retains source let/var mutability on each Box, admits only a locally owned immutable String binding, copies it into RuntimeWorkerCapability on MainActor, and executes typed String.count IR on the bounded worker. Mutable bindings, globals, authored closure signatures, and every other expression remain cooperative; no Box, Environment, syntax, heap, host value, or evaluator crosses the worker boundary."
   }
 ]

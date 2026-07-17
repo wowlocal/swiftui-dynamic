@@ -160,6 +160,11 @@ public final class Box {
 
     private var storage: Storage
     public let referenceOwnership: ReferenceOwnership
+    /// Source binding mutability, retained independently from the mutable
+    /// storage cell used by the evaluator. Physical-worker lowering may copy
+    /// an implicit capture only when the originating binding was a `let`.
+    /// Unknown/synthetic bindings default to mutable and therefore fail safe.
+    let isMutableBinding: Bool
 
     public var value: RuntimeValue {
         get { materializedValue }
@@ -179,11 +184,23 @@ public final class Box {
     /// generic element context even when a collection is empty.
     public var declaredTypeName: String?
 
-    public init(
+    public convenience init(
         _ value: RuntimeValue, declaredTypeName: String? = nil,
         referenceOwnership: ReferenceOwnership = .strong
     ) {
+        self.init(
+            value, declaredTypeName: declaredTypeName,
+            referenceOwnership: referenceOwnership,
+            isMutableBinding: true)
+    }
+
+    init(
+        _ value: RuntimeValue, declaredTypeName: String?,
+        referenceOwnership: ReferenceOwnership,
+        isMutableBinding: Bool
+    ) {
         self.referenceOwnership = referenceOwnership
+        self.isMutableBinding = isMutableBinding
         self.declaredTypeName = declaredTypeName
         switch referenceOwnership {
         case .strong:
@@ -294,9 +311,22 @@ public final class Environment {
         declaredTypeName: String? = nil,
         referenceOwnership: ReferenceOwnership = .strong
     ) {
+        define(
+            name, value, declaredTypeName: declaredTypeName,
+            referenceOwnership: referenceOwnership,
+            isMutableBinding: true)
+    }
+
+    func define(
+        _ name: String, _ value: RuntimeValue,
+        declaredTypeName: String? = nil,
+        referenceOwnership: ReferenceOwnership = .strong,
+        isMutableBinding: Bool
+    ) {
         bindings[name] = Box(
             value.copiedForValueSemantics(), declaredTypeName: declaredTypeName,
-            referenceOwnership: referenceOwnership)
+            referenceOwnership: referenceOwnership,
+            isMutableBinding: isMutableBinding)
     }
 
     /// Bind an evaluator-owned borrow without introducing a language-level
@@ -315,6 +345,14 @@ public final class Environment {
 
     public func box(for name: String) -> Box? {
         bindings[name] ?? parent?.box(for: name)
+    }
+
+    /// A binding physically owned by this lexical environment. Unlike
+    /// `box(for:)`, this never walks into globals or another parent scope.
+    /// Worker admission uses it to distinguish an actual captured local from
+    /// a mutable program/session root reachable through the weak global tail.
+    func locallyOwnedBox(for name: String) -> Box? {
+        bindings[name]
     }
 
     /// Walks the chain but stops BEFORE `boundary` (exclusive): lets lookup

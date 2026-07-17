@@ -793,6 +793,39 @@ captured/scalar-expression and suspending kernels, actors, host calls, heap
 access, and the full parallel mode still require expanded mode-differential and
 TSan coverage.
 
+Its thirty-fifth prerequisite is a gap closure for the first demand-cited
+captured scalar expression. CotEditor's `EditorCounter.swift:130` executes
+`await Task.detached { string.count }.value`, where `string` is a local
+immutable `String`. The exact semantic question is whether that operation can
+publish the native grapheme count in explicit parallel mode while no mutable
+binding, global storage, evaluator object, or syntax node crosses the worker
+boundary. Apple Swift 6.3.3 compiled the same-source fixture in complete strict
+Swift 6 mode with warnings as errors and returned exact `5:9` in twenty
+bounded runs. Each native five-repetition shard reported SHA-256
+`056cf461832cc0054882f24a52cbebddce0d96374179c21cc2f13e22eea43f3e`;
+no worker order is asserted.
+
+The captured RED was intentionally receipt-based: interpreted behavior already
+returned `5:9` through cooperative fallback, but parallel mode recorded zero
+physical source executions instead of two. Closing code preserves the legacy
+public `Box` initializer and `Environment.define` signatures while retaining
+source `let`/`var` mutability inside each evaluator box. MainActor lowering
+admits only a locally owned immutable String binding, copies it recursively
+into `RuntimeWorkerCapability`, and emits typed binding-plus-`String.count`
+expression IR. Mutable bindings, globals, authored closure signatures, and all
+other expressions remain on the confined cooperative evaluator.
+
+Twenty paired cooperative/parallel runs preserve exact `5:9`, empty task
+registries, and zero/two receipts. The same source-kernel suite is part of the
+dedicated TSan runner, which rebuilt and passed the twenty-iteration native
+overlap probe plus all seventeen driver/source-kernel tests on four workers.
+This expands the scoped sanitizer claim only to the new immutable-String-count
+kernel; future physical kernels must extend both boards again. The canonical
+ordinary focused iteration rebuilt once, then completed 59 tests in ten
+ownership/capture/worker suites, all forty-three methodology checks, and all
+twenty parity repetitions in nineteen seconds; its post-build lanes each took
+about two seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

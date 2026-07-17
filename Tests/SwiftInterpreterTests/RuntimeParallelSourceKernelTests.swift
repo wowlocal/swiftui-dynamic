@@ -54,6 +54,61 @@ struct RuntimeParallelSourceKernelTests {
             .totalPhysicalSourceKernelExecutions == 0)
     }
 
+    @Test func immutableStringCountCaptureUsesThePhysicalExpressionKernel()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        @MainActor
+        func probe() async -> String {
+            let atlas = "atlas"
+            let foodtruck = "foodtruck"
+            let atlasCount = Task.detached { atlas.count }
+            let foodtruckCount = Task.detached { foodtruck.count }
+            let first = await atlasCount.value
+            let second = await foodtruckCount.value
+            return "\\(first):\\(second)"
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "5:9")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 2)
+    }
+
+    @Test func mutableAndGlobalStringCapturesStayOnTheConfinedEvaluator()
+        async throws
+    {
+        let parallelism = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+        let interpreter = Interpreter(
+            executionMode: .parallel(parallelism))
+
+        let value = try await interpreter.runAsync(source: """
+        let globalText = "global"
+
+        @MainActor
+        func probe() async -> String {
+            var mutableText = "atlas"
+            let mutableCount = Task.detached { mutableText.count }
+            let globalCount = Task.detached { globalText.count }
+            let first = await mutableCount.value
+            let second = await globalCount.value
+            return "\\(first):\\(second)"
+        }
+        await probe()
+        """)
+
+        #expect(value.stringValue == "5:6")
+        #expect(interpreter.concurrencyRuntime
+            .totalPhysicalSourceKernelExecutions == 0)
+    }
+
     @Test func unsupportedClosureFallsBackWithoutPartialWorkerEvaluation()
         async throws
     {
@@ -132,6 +187,38 @@ struct RuntimeParallelSourceKernelTests {
             let parallelValue = try await parallel.runAsync(source: source)
 
             #expect(cooperativeValue.stringValue == "atlas:42")
+            #expect(parallelValue.stringValue
+                == cooperativeValue.stringValue)
+            #expect(cooperative.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions == 0)
+            #expect(parallel.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions == 2)
+            #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+            #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+        }
+    }
+
+    @Test func capturedStringCountModesRemainEquivalent() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-captured-string-count.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelCapturedStringCountProbe()\n"
+        let configuration = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+
+        for _ in 0..<20 {
+            let cooperative = Interpreter()
+            let parallel = Interpreter(
+                executionMode: .parallel(configuration))
+            let cooperativeValue = try await cooperative.runAsync(
+                source: source)
+            let parallelValue = try await parallel.runAsync(source: source)
+
+            #expect(cooperativeValue.stringValue == "5:9")
             #expect(parallelValue.stringValue
                 == cooperativeValue.stringValue)
             #expect(cooperative.concurrencyRuntime

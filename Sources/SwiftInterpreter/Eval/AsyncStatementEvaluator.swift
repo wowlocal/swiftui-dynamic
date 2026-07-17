@@ -183,6 +183,7 @@ extension Interpreter {
         }
 
         let bindings = Array(variable.bindings)
+        let isMutableBinding = propertyMetadata(for: variable).isMutable
         func sharedAnnotation(startingAt index: Int) -> TypeSyntax? {
             for later in bindings[index...] {
                 if let type = later.typeAnnotation?.type { return type }
@@ -214,7 +215,9 @@ extension Interpreter {
                 }
                 for (element, elementValue) in zip(tuplePattern.elements, tuple.values) {
                     if let identifier = element.pattern.as(IdentifierPatternSyntax.self) {
-                        env.define(identifier.identifier.text, elementValue)
+                        env.define(
+                            identifier.identifier.text, elementValue,
+                            isMutableBinding: isMutableBinding)
                     }
                 }
                 continue
@@ -236,7 +239,8 @@ extension Interpreter {
                     let typeName = binding.typeAnnotation?.type.trimmedDescription
                     env.define(name, try resolveAnnotated(
                         value, annotation: binding.typeAnnotation?.type),
-                        declaredTypeName: typeName)
+                        declaredTypeName: typeName,
+                        isMutableBinding: isMutableBinding)
                 default:
                     throw error(binding, "control flow escaped local computed var")
                 }
@@ -245,7 +249,9 @@ extension Interpreter {
 
             guard let initializer = binding.initializer?.value else {
                 if let injected = try localDependencyValue(variable, in: env) {
-                    env.define(name, injected)
+                    env.define(
+                        name, injected,
+                        isMutableBinding: isMutableBinding)
                     continue
                 }
                 let annotation = (binding.typeAnnotation?.type
@@ -253,9 +259,12 @@ extension Interpreter {
                 if RuntimeOptionalValue.wrappedType(in: annotation) != nil {
                     env.define(
                         name, .none(forTypeAnnotation: annotation),
-                        declaredTypeName: annotation)
+                        declaredTypeName: annotation,
+                        isMutableBinding: isMutableBinding)
                 } else if !annotation.isEmpty {
-                    env.define(name, .void, declaredTypeName: annotation)
+                    env.define(
+                        name, .void, declaredTypeName: annotation,
+                        isMutableBinding: isMutableBinding)
                 } else {
                     throw error(binding, "'\(name)' needs an initial value")
                 }
@@ -270,7 +279,9 @@ extension Interpreter {
             let resolved = try hint.map {
                 try resolveAnnotated(value, typeName: $0)
             } ?? value
-            env.define(name, resolved, declaredTypeName: hint)
+            env.define(
+                name, resolved, declaredTypeName: hint,
+                isMutableBinding: isMutableBinding)
         }
     }
 
@@ -340,7 +351,8 @@ extension Interpreter {
                 env.define(
                     projected.name,
                     .native(asyncBinding),
-                    declaredTypeName: projected.annotation)
+                    declaredTypeName: projected.annotation,
+                    isMutableBinding: false)
             }
         }
     }

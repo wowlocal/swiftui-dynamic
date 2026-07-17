@@ -640,7 +640,8 @@ extension Interpreter {
                     name, capturedValue,
                     declaredTypeName: captureTypeName(
                         for: capturedValue, ownership: ownership),
-                    referenceOwnership: ownership)
+                    referenceOwnership: ownership,
+                    isMutableBinding: false)
             }
         }
 
