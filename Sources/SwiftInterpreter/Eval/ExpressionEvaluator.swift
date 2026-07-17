@@ -58,7 +58,8 @@ extension Interpreter {
                 }
                 let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
                 throw RuntimeError(
-                    message: located.message, line: located.line, column: located.column, fatal: true)
+                    message: located.message, line: located.line, column: located.column,
+                    fatal: true, budgetTrip: true)
             }
         }
         guard evaluationDepth < 20_000 else {
@@ -71,7 +72,8 @@ extension Interpreter {
             }
             let located = error(expr, "evaluation nesting exceeded (possible initialization cycle)")
             throw RuntimeError(
-                message: located.message, line: located.line, column: located.column, fatal: true)
+                message: located.message, line: located.line, column: located.column,
+                fatal: true, budgetTrip: true)
         }
 
         // Single jump on the node kind — this dispatch runs once per

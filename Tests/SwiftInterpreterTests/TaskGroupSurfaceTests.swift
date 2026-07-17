@@ -70,6 +70,8 @@ struct TaskGroupSurfaceTests {
             "asyncDetached": .detachedTask,
             "detach": .detachedTask,
             "extractIsolation": .extractIsolation,
+            "withCheckedContinuation": .withCheckedContinuation,
+            "withCheckedThrowingContinuation": .withCheckedThrowingContinuation,
             "withDiscardingTaskGroup": .withDiscardingTaskGroup,
             "withTaskCancellationHandler": .withTaskCancellationHandler,
             "withTaskExecutorPreference": .withTaskExecutorPreference,

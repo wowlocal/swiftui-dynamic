@@ -422,8 +422,18 @@ extension Interpreter {
             switch name {
             case "count": return .native(dict.count)
             case "isEmpty": return .native(dict.isEmpty)
-            case "keys": return .native(dict.keys)
+            // Foundation exposes the same collection as `NSDictionary.allKeys`.
+            // JSONSerialization is bridged into DictValue, so preserve that
+            // Foundation spelling instead of leaking the runtime representation.
+            case "keys", "allKeys": return .native(dict.keys)
             case "values": return .native(dict.values)
+            case "isEqual":
+                return .hostFunction(HostFunction(name: name) { args, _ in
+                    guard let other = args.positional(0) else {
+                        return .native(false)
+                    }
+                    return .native(try Builtins.areEqual(.native(dict), other))
+                })
             case "contains":
                 // Dictionary's only contains is the PREDICATE form; the
                 // element is the native (key:, value:) labeled tuple.
