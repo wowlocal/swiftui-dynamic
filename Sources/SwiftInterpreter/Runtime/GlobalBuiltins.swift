@@ -156,7 +156,11 @@ extension Interpreter {
                 function = sourceTaskExecutorPreferenceFunction(
                     name: sourceName)
             } else if intrinsic == .withCheckedContinuation {
-                function = sourceCheckedContinuationFunction(name: sourceName)
+                function = sourceCheckedContinuationFunction(
+                    name: sourceName, allowsThrowingResume: false)
+            } else if intrinsic == .withCheckedThrowingContinuation {
+                function = sourceCheckedContinuationFunction(
+                    name: sourceName, allowsThrowingResume: true)
             } else if intrinsic == .extractIsolation {
                 function = sourceExtractIsolationFunction(name: sourceName)
             } else if intrinsic == .withCurrentTaskCapability {

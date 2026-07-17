@@ -468,6 +468,7 @@ public enum ConcurrencySurfaceGenerator {
         "extractIsolation": "extractIsolation",
         "withDiscardingTaskGroup": "withDiscardingTaskGroup",
         "withCheckedContinuation": "withCheckedContinuation",
+        "withCheckedThrowingContinuation": "withCheckedThrowingContinuation",
         "withTaskCancellationHandler": "withTaskCancellationHandler",
         "withTaskExecutorPreference": "withTaskExecutorPreference",
         "withTaskGroup": "withTaskGroup",

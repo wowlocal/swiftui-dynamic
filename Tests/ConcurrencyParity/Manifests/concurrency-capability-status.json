@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "inventoryPath": "Tests/ConcurrencyParity/Manifests/generated-concurrency-api.json",
-  "inventorySHA256": "2f86a0e28504cefdcfd9c7e9559339a084d113c2f6c0915ce26bbcefddd4cc1b",
+  "inventorySHA256": "3968d822a3a4a89fa6fcf4c4d2439de332e42f1620bff9733e856611b2c36ebb",
   "statusModel": {
     "implementationStatuses": [
       "runtime-supported",
@@ -2534,17 +2534,19 @@
     },
     {
       "id": "swift-concurrency-api-v1:ace6ad5d810bcf9eda3b3214d498b783a36385621bc9361241fba14afb9f1e39",
-      "implementationStatus": "deferred",
+      "implementationStatus": "known-divergence",
       "verificationStatus": "none",
       "requirementRef": "M6/protocol-iteration-streams-and-continuations",
-      "evidenceCaseIDs": [],
+      "evidenceCaseIDs": [
+        "checked-throwing-continuation-value-error"
+      ],
       "testNames": [
-        "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership"
+        "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup"
       ],
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withCheckedThrowingContinuation declaration is generated without an adapter route, and the native Swift 6 probe selects its explicit MainActor isolation form. Runtime support remains deferred because a continuation registry must own the suspended task and its required resume executor while preserving the source error; M6 depends on the M5 identity/storage slice for executor-owned resume (2026-07-16 demand re-plan)."
+      "notes": "The public withCheckedThrowingContinuation declaration now routes its explicit isolation: nil, resume(returning:), and resume(throwing:) subset through the same runtime-owned continuation record as the nonthrowing form. Two sequential detached producers return the exact value and project the original source enum error through InterpretedThrow; both records suspend once and drain every task/session ownership edge. MainActor-specific evidence, omitted and arbitrary-source-actor isolation, resume(with:), double-resume and abandonment policy remain open, so the complete declaration stays a known divergence with verification none."
     },
     {
       "id": "swift-concurrency-api-v1:1c6b71ba2592eb2a5841edbe5c173bf0dcc5801237920669367ca47a9797fcc3",
@@ -2809,18 +2811,20 @@
       "requirementRef": "M6/protocol-iteration-streams-and-continuations",
       "evidenceCaseIDs": [
         "checked-continuation-value-resume",
-        "checked-continuation-mainactor-resume"
+        "checked-continuation-mainactor-resume",
+        "checked-throwing-continuation-value-error"
       ],
       "testNames": [
         "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
         "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
         "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
-        "CheckedContinuationRuntimeTests/arbitraryActorIsolationFailsClosedBeforeRecordCreation"
+        "CheckedContinuationRuntimeTests/arbitraryActorIsolationFailsClosedBeforeRecordCreation",
+        "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup"
       ],
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. The checked-continuation slice adds runtime-owned delayed resume(returning:) value delivery for explicit isolation: nil and MainActor.shared, contextual MainActor body execution, caller-executor restoration, bounded registry ownership, infrastructure-abort cleanup, and a fail-closed arbitrary-source-actor boundary. Throwing and unsafe continuations, omitted and arbitrary-source-actor isolation, other resume spellings, double resume, abandonment, and remaining continuation lifetime edges keep this family a known divergence."
+      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. Checked continuations add runtime-owned delayed resume(returning:) values for explicit isolation: nil and MainActor.shared, contextual MainActor body execution, caller-executor restoration, bounded registry ownership, infrastructure-abort cleanup, and a fail-closed arbitrary-source-actor boundary. The throwing form additionally projects the original resume(throwing:) source value through the common record. Unsafe continuations, omitted and arbitrary-source-actor isolation, other resume spellings, double resume, abandonment, and remaining continuation lifetime edges keep this family a known divergence."
     },
     {
       "id": "swiftui-view-owned-async-lifecycle",

@@ -1596,7 +1596,8 @@ struct ConcurrencyMethodologyTests {
         let checkedThrowing = try #require(rows.first {
             $0.name == "withCheckedThrowingContinuation"
         })
-        #expect(checkedThrowing.adapterIntrinsic == nil)
+        #expect(checkedThrowing.adapterIntrinsic
+            == "withCheckedThrowingContinuation")
         #expect(checkedThrowing.declaration.contains(
             "_Concurrency.CheckedContinuation<T, any Swift.Error>"))
         #expect(checkedThrowing.declaration.contains(
@@ -1647,8 +1648,26 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.notes.contains(
             "arbitrary source actors fail closed"))
 
-        let deferredClaims = claims.filter { $0.id != checked.id }
-        #expect(deferredClaims.count == 3)
+        let checkedThrowingClaim = try #require(claims.first {
+            $0.id == checkedThrowing.id
+        })
+        #expect(checkedThrowingClaim.implementationStatus == .knownDivergence)
+        #expect(checkedThrowingClaim.verificationStatus == .none)
+        #expect(checkedThrowingClaim.requirementRef
+            == "M6/protocol-iteration-streams-and-continuations")
+        #expect(checkedThrowingClaim.evidenceCaseIDs
+            == ["checked-throwing-continuation-value-error"])
+        #expect(checkedThrowingClaim.testNames == [
+            "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
+        ])
+        #expect(checkedThrowingClaim.gapEvidenceIDs
+            == ["async-sequence-continuation-runtime"])
+        #expect(checkedThrowingClaim.notes.contains("resume(throwing:)"))
+        #expect(checkedThrowingClaim.notes.contains("InterpretedThrow"))
+
+        let routedIDs = Set([checked.id, checkedThrowing.id])
+        let deferredClaims = claims.filter { !routedIDs.contains($0.id) }
+        #expect(deferredClaims.count == 2)
         #expect(deferredClaims.allSatisfy {
             $0.implementationStatus == .deferred
                 && $0.verificationStatus == .none
