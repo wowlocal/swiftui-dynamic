@@ -1947,3 +1947,18 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   residue 0.039% = the sorted-column header treatment (bold + sort
   chevron on "Status"). Board: FOUR rows at AE=0 + orders 0.039 +
   socialfeed 0.166 + donuts 0.437 + content (documented). Gate next.
+- 2026-07-17 donuts caption shift staked, chrome pinned (worktree
+  iteration 31): the donuts row's 0.437% is the two visible grid
+  captions sitting ~3px HIGHER on the interpreter (whole caption block
+  shifts as a unit; thumbnails pixel-match). Elimination probes — the
+  caption VStack alone, the full NavigationLink cell with a frame'd
+  stand-in child, and an erased-ZStack child — ALL match native
+  pixel-exactly (pinned: donutCellChromeMatchesNative). The residual
+  therefore lives in the real DonutView's interpreted layout inside
+  its fixed frame (suspects: scaledToFit reply of interpreted
+  resizable image layers, or the kit view's internal padding). Next
+  iteration: probe with the actual FoodTruckKit DonutView merged
+  (FTCHECK diag capture at cell scale vs a twin crop). i30 merged
+  earlier this turn-set as b55d188 (menuStyle; orders 0.492 -> 0.039;
+  fourth green close of the day, after waiting out lane-concurrency's
+  gate lock — multi-lane gate contention now a normal mode).
