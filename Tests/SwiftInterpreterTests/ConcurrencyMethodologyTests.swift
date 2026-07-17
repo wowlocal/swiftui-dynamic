@@ -1633,12 +1633,15 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.evidenceCaseIDs == [
             "checked-continuation-value-resume",
             "checked-continuation-mainactor-resume",
+            "checked-continuation-void-resume",
         ])
         #expect(checkedClaim.testNames == [
             "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
             "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
             "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
             "CheckedContinuationRuntimeTests/arbitraryActorIsolationFailsClosedBeforeRecordCreation",
+            "CheckedContinuationRuntimeTests/voidResumeUsesSameRecordAndCleanup",
+            "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess",
         ])
         #expect(checkedClaim.gapEvidenceIDs
             == ["async-sequence-continuation-runtime"])
@@ -1647,6 +1650,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.notes.contains("required resume executor"))
         #expect(checkedClaim.notes.contains(
             "arbitrary source actors fail closed"))
+        #expect(checkedClaim.notes.contains("Void resume()"))
 
         let checkedThrowingClaim = try #require(claims.first {
             $0.id == checkedThrowing.id

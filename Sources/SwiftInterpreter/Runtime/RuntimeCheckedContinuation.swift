@@ -174,9 +174,15 @@ extension Interpreter {
         guard let continuation = payload as? RuntimeCheckedContinuation,
               name == "resume" else { return nil }
         return .hostFunction(HostFunction(name: name) { arguments, _ in
+            // Swift exposes this convenience only when the success value is
+            // Void; compiler preflight owns that static member constraint.
+            if arguments.arguments.isEmpty {
+                try continuation.resume(returning: .void)
+                return .void
+            }
             guard arguments.arguments.count == 1 else {
                 throw RuntimeError(message:
-                    "CheckedContinuation.resume requires exactly one value")
+                    "CheckedContinuation.resume accepts zero or one value")
             }
             if let value = arguments.labeled("returning") {
                 try continuation.resume(returning: value)
