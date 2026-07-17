@@ -945,6 +945,12 @@ final class RegexBox {
 }
 
 func hostObjectMember(_ name: String, on value: Any) -> RuntimeValue? {
+    // Alignment's axis accessors — the FlowLayout placement math reads
+    // `alignment.horizontal.percent` through an app extension.
+    if let alignment = value as? Alignment {
+        if name == "horizontal" { return .native(alignment.horizontal) }
+        if name == "vertical" { return .native(alignment.vertical) }
+    }
     if let layout = layoutHostMember(name, on: value) { return layout }
     if let style = styleHostMember(name, on: value) { return style }
     if let column = tableColumnSpecMember(name, on: value) { return column }

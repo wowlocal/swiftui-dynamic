@@ -119,7 +119,11 @@ extension ViewRegistry {
         constructors["Capsule"] = HostFunction(name: "Capsule") { _, _ in .native(ShapeBox(insettable: Capsule())) }
         constructors["RoundedRectangle"] = HostFunction(name: "RoundedRectangle") { args, _ in
             let radius = try Coerce.cgFloat(args.labeled("cornerRadius") ?? .native(8))
-            return .native(ShapeBox(insettable: RoundedRectangle(cornerRadius: radius)))
+            let style = Coerce.roundedCornerStyle(args.labeled("style"))
+            return .native(ShapeBox(insettable: RoundedRectangle(cornerRadius: radius, style: style)))
+        }
+        constructors["ContainerRelativeShape"] = HostFunction(name: "ContainerRelativeShape") { _, _ in
+            .native(ShapeBox(insettable: ContainerRelativeShape()))
         }
 
         constructors["AnyShapeStyle"] = HostFunction(name: "AnyShapeStyle") { args, _ in

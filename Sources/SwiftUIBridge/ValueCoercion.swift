@@ -114,6 +114,14 @@ enum Coerce {
     /// A Color when the value is color-shaped: `.black`, `Color.clear`, or
     /// `.black.opacity(x)` chains. Colors are Views, so this also powers
     /// bare colors in view position.
+    /// `.continuous` corners are squircles — dropping the style renders
+    /// circular arcs and diffs as L-brackets at every corner (the
+    /// FoodTruck card chrome).
+    static func roundedCornerStyle(_ value: RuntimeValue?) -> RoundedCornerStyle {
+        if case .implicitMember("continuous")? = value { return .continuous }
+        return .circular
+    }
+
     static func colorLike(_ value: RuntimeValue) -> Color? {
         if case .host(let any) = value, let color = any as? Color { return color }
         if case .implicitMember(let name) = value {
@@ -542,7 +550,9 @@ enum Coerce {
         }
         if case .host(let any) = value, let call = any as? ImplicitMemberCall, call.name == "rect" {
             let radius = try cgFloat(call.arguments.labeled("cornerRadius") ?? .native(0))
-            return AnyShape(RoundedRectangle(cornerRadius: radius))
+            return AnyShape(RoundedRectangle(
+                cornerRadius: radius,
+                style: roundedCornerStyle(call.arguments.labeled("style"))))
         }
         if case .host(let any) = value,
            any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {

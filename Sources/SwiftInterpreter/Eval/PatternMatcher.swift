@@ -430,7 +430,12 @@ extension Interpreter {
             }
             return result
         }
-        return try relocating(node) { try Builtins.areEqual(subject, pattern) }
+        // `case .leading:` against a HOST subject — the marker resolves
+        // against the subject's type first (the infix `==` path does the
+        // same adoption), so Equatable host families match natively
+        // instead of falling to `default:`.
+        let resolvedPattern = try adoptHostType(of: subject, for: pattern, allowCalls: true)
+        return try relocating(node) { try Builtins.areEqual(subject, resolvedPattern) }
     }
 
     private func invokeCustomPatternOperator(

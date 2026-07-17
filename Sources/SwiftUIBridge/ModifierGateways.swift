@@ -190,11 +190,17 @@ extension ViewRegistry {
             return AnyView(view.clipShape(try Coerce.shape(value)))
         }
         register("containerShape") { view, args, _ in
-            guard args.positional(0) != nil else {
+            guard let raw = args.positional(0) else {
                 throw RuntimeError(message: ".containerShape needs a shape")
             }
-            // The gateway's type erasure loses InsettableShape conformance;
-            // preserve layout/content and accept the hit-test shape inertly.
+            // Insettable boxes carry the REAL modifier (captured with the
+            // concrete shape — ContainerRelativeShape fills/clips inside
+            // then resolve the continuous card corners). Erased shapes
+            // stay inert: the erasure lost InsettableShape.
+            if case .host(let any) = raw, let box = any as? ShapeBox,
+               let apply = box.containerShapeApplier {
+                return apply(view)
+            }
             return view
         }
         register("clipped") { view, _, _ in AnyView(view.clipped()) }

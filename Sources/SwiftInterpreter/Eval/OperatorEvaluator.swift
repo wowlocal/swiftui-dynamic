@@ -231,7 +231,7 @@ extension Interpreter {
         return (left, right)
     }
 
-    private func adoptHostType(of other: RuntimeValue, for value: RuntimeValue, allowCalls: Bool = true) throws -> RuntimeValue {
+    func adoptHostType(of other: RuntimeValue, for value: RuntimeValue, allowCalls: Bool = true) throws -> RuntimeValue {
         let unresolved: Bool
         switch value {
         case .implicitMember:

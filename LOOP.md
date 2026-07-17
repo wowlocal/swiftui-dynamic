@@ -1878,3 +1878,42 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   DISTINCTLY NAMED generatedMemberArrayResult and everything else to
   the plain helper, so emitted member resolution is untouched.
   Parity board verified 345/0/0 after the fix. Third gate rolling.
+- 2026-07-17 continuous card corners (worktree iteration 27, while the
+  gated merge of 69b1b7e waits on Codex's commit window): the truck
+  residue's dominant class was L-bracket diffs at every card corner —
+  `.continuous` squircles rendering as circular arcs. Three gaps wired
+  together: the RoundedRectangle constructor dropped `style:` (now a
+  shared Coerce.roundedCornerStyle, also applied to the `.rect(...)`
+  marker), `.containerShape` was inert (ShapeBox(insettable:) now
+  captures a containerShapeApplier with the CONCRETE shape — the
+  strokeBorderPainter doctrine — and the gateway applies it), and
+  ContainerRelativeShape() had no constructor (now an insettable box).
+  Truck ratchets 1.082% -> 0.986% — under 1% for the first time. R3
+  all ten green; pin continuousCornersMatchNativeSquircles asserts
+  pixel equality against a compiled native control. MERGE STATE: gate
+  GREEN on 69b1b7e; `git merge` into main still refused while Codex's
+  uncommitted continuation work sits on parity-cases.json and the two
+  continuation test files; watcher armed, merging the gated commit
+  the moment their next commit clears the overlap.
+- 2026-07-17 THE QUEUE MERGED + pill rows center (worktree iterations
+  26 close + 28): main 2adea17 = gated lane 69b1b7e (gate GREEN 1273s,
+  all boards) — the multi-day merge queue is CLOSED; the overlap
+  watcher fired the moment Codex committed and the merge went through
+  clean. Iteration 28's class was the truck strip: FlowLayout pill
+  rows placed LEADING because `alignment.horizontal.percent` absorbed
+  end-to-end — `.center` under an `: Alignment` annotation never
+  became a host value. Fixes, seam by seam: the Alignment family
+  joins the host statics (GeometryBridge, via Coerce.alignment),
+  Alignment gains horizontal/vertical accessors (hostObjectMember),
+  the family maps in bridgeHostTypeName so app extensions dispatch on
+  host values, areEqual gains a GENERIC opened-existential arm for
+  Equatable-only hosts, and matchRuntimePattern adopts the subject's
+  host type for marker patterns (the infix == path's adoption, now
+  shared) so `case .leading:` matches real values. Truck plunges
+  0.986% -> 0.113% (pill rows center across the card flows). Pins:
+  alignmentPercentMatchesNativeSwitch (all three alignments through
+  the app's exact extension switch),
+  continuousCornersMatchNativeSquircles (iteration 27). 133-test core
+  smoke + R3 all green; Mythic pre-existing failure unchanged. Next:
+  gate + close for the corners/alignment pair; remaining truck 0.113%
+  = three header icons.
