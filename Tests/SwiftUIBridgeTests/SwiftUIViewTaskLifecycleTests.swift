@@ -20,6 +20,14 @@ private struct InterpretedRefreshActionTriggerHost: View {
     }
 }
 
+private final class WeakLifecycleReference<Value: AnyObject> {
+    weak var value: Value?
+
+    init(_ value: Value) {
+        self.value = value
+    }
+}
+
 @Suite(.serialized)
 struct SwiftUIViewTaskLifecycleTests {
     private func waitUntil(
@@ -86,6 +94,11 @@ struct SwiftUIViewTaskLifecycleTests {
     private var refreshTriggerSupport: URL {
         repositoryRoot.appendingPathComponent(
             "Tests/NativeProbes/SwiftUI/ViewRefreshActionTriggerSupport.swift")
+    }
+
+    private var teardownFixture: URL {
+        repositoryRoot.appendingPathComponent(
+            "Tests/NativeProbes/SwiftUI/view-task-teardown-stress.swift")
     }
 
     private func run(
@@ -156,6 +169,7 @@ struct SwiftUIViewTaskLifecycleTests {
                 sameIDFixture.path,
                 refreshableFixture.path,
                 refreshTriggerSupport.path,
+                teardownFixture.path,
                 nativeMain.path,
                 "-o", binary.path,
             ])
@@ -169,7 +183,9 @@ struct SwiftUIViewTaskLifecycleTests {
                 == "entry=started,value:21|disappearance=started,cancelled|"
                     + "id=cancel:1,cancel:2,start:1,start:2|"
                     + "same-id=finish:first,render:first,render:same,start:first|"
-                    + "refreshable=started,finished,returned")
+                    + "refreshable=started,finished,returned|"
+                    + "teardown=cycles=32,starts=32,cancels=32,exact=true,"
+                    + "unexpected=0")
     }
 
     @Test
@@ -475,5 +491,170 @@ struct SwiftUIViewTaskLifecycleTests {
         #expect(RenderDiagnostics.errors.contains {
             $0.view == "refresh action completion"
         } == false)
+    }
+
+    @Test
+    func repeatedSwiftUITeardownReleasesEveryRuntimeSession() async throws {
+        let source = try String(contentsOf: teardownFixture, encoding: .utf8)
+        weak var weakInterpreter: Interpreter?
+        weak var weakRuntime: CooperativeConcurrencyRuntime?
+        var recordReferences: [WeakLifecycleReference<RuntimeTaskRecord>] = []
+        var handleReferences: [WeakLifecycleReference<RuntimeTaskHandle>] = []
+        var driverReferences: [WeakLifecycleReference<RuntimeNativeTaskDriver>] = []
+        var contextReferences: [WeakLifecycleReference<EvaluationTaskContext>] = []
+        var storageReferences: [
+            WeakLifecycleReference<RuntimeTaskLocalStorage>
+        ] = []
+        var sessionIDs: Set<RuntimeSessionID> = []
+        var taskIDs: Set<RuntimeTaskID> = []
+
+        do {
+            var interpreter: Interpreter? = Interpreter(registry: ViewRegistry())
+            let liveInterpreter = try #require(interpreter)
+            weakInterpreter = liveInterpreter
+            weakRuntime = liveInterpreter.concurrencyRuntime
+            try liveInterpreter.run(source: source)
+            let symbol = try #require(liveInterpreter.rootViewSymbol())
+
+            func render(id: Int) throws -> AnyView {
+                guard let interpreter else {
+                    throw RuntimeError(message:
+                        "teardown probe lost its interpreter")
+                }
+                guard case .instance(let instance) =
+                        try interpreter.instantiateForBridge(
+                            symbol,
+                            arguments: CallArguments(arguments: [
+                                .init(label: "id", value: .native(id)),
+                            ])) else {
+                    throw RuntimeError(message:
+                        "teardown probe did not instantiate")
+                }
+                return AnyView(try ViewRegistry.anyView(
+                    interpreter.evaluateBody(of: instance)))
+            }
+
+            func integerEvents(_ name: String) -> [Int] {
+                liveInterpreter.globals.lookup(name)?
+                    .arrayValue?.compactMap(\.intValue) ?? []
+            }
+
+            var hostingView: NSHostingView<AnyView>? = NSHostingView(
+                rootView: AnyView(EmptyView()))
+            var window: NSWindow? = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 160, height: 80),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false)
+            window?.contentView = hostingView
+            window?.orderFrontRegardless()
+
+            let cycles = 32
+            for id in 0..<cycles {
+                hostingView?.rootView = try render(id: id)
+                await waitUntil {
+                    integerEvents("swiftUIViewTaskTeardownStarts").count
+                        == id + 1
+                }
+                try #require(
+                    integerEvents("swiftUIViewTaskTeardownStarts").count
+                        == id + 1)
+
+                let references = try { () -> (
+                    WeakLifecycleReference<RuntimeTaskRecord>,
+                    WeakLifecycleReference<RuntimeTaskHandle>,
+                    WeakLifecycleReference<RuntimeNativeTaskDriver>,
+                    WeakLifecycleReference<EvaluationTaskContext>,
+                    WeakLifecycleReference<RuntimeTaskLocalStorage>
+                ) in
+                    let records = liveInterpreter.concurrencyRuntime.records
+                        .values.filter { $0.kind == .swiftUITask }
+                    #expect(records.count == 1)
+                    let record = try #require(records.first)
+                    #expect(sessionIDs.insert(record.sessionID).inserted)
+                    #expect(taskIDs.insert(record.id).inserted)
+                    return (
+                        WeakLifecycleReference(record),
+                        WeakLifecycleReference(
+                            try #require(record.sourceHandle)),
+                        WeakLifecycleReference(
+                            try #require(record.nativeDriver)),
+                        WeakLifecycleReference(
+                            try #require(record.evaluationContext)),
+                        WeakLifecycleReference(record.taskLocals))
+                }()
+                let (
+                    recordReference,
+                    handleReference,
+                    driverReference,
+                    contextReference,
+                    storageReference
+                ) = references
+                recordReferences.append(recordReference)
+                handleReferences.append(handleReference)
+                driverReferences.append(driverReference)
+                contextReferences.append(contextReference)
+                storageReferences.append(storageReference)
+
+                hostingView?.rootView = AnyView(EmptyView())
+                await waitUntil {
+                    integerEvents("swiftUIViewTaskTeardownCancellations").count
+                        == id + 1
+                }
+                try #require(
+                    integerEvents("swiftUIViewTaskTeardownCancellations").count
+                        == id + 1)
+                await waitUntil {
+                    liveInterpreter.concurrencyRuntime.activeRecordCount == 0
+                }
+                try #require(
+                    liveInterpreter.concurrencyRuntime.activeRecordCount == 0)
+
+                #expect(recordReference.value == nil)
+                #expect(handleReference.value == nil)
+                #expect(driverReference.value == nil)
+                #expect(contextReference.value == nil)
+                #expect(storageReference.value == nil)
+                #expect(liveInterpreter.concurrencyRuntime
+                    .activeStructuredScopeCount == 0)
+                #expect(liveInterpreter.concurrencyRuntime
+                    .activeTaskGroupCount == 0)
+                #expect(liveInterpreter.concurrencyRuntime
+                    .activeAsyncStreamCount == 0)
+                #expect(liveInterpreter.concurrencyRuntime
+                    .activeContinuationCount == 0)
+                #expect(liveInterpreter.concurrencyRuntime
+                    .activeHostOperationCount == 0)
+                #expect(liveInterpreter.scheduledTasks.isEmpty)
+            }
+
+            let expectedIDs = Array(0..<cycles)
+            #expect(sessionIDs.count == cycles)
+            #expect(taskIDs.count == cycles)
+            #expect(integerEvents("swiftUIViewTaskTeardownStarts")
+                == expectedIDs)
+            #expect(integerEvents("swiftUIViewTaskTeardownCancellations")
+                == expectedIDs)
+            #expect(integerEvents("swiftUIViewTaskTeardownUnexpected").isEmpty)
+            #expect(lifecycleDiagnostics().isEmpty)
+
+            hostingView?.rootView = AnyView(EmptyView())
+            window?.contentView = nil
+            window?.close()
+            hostingView = nil
+            window = nil
+            interpreter = nil
+        }
+
+        await waitUntil {
+            weakInterpreter == nil && weakRuntime == nil
+        }
+        #expect(weakInterpreter == nil)
+        #expect(weakRuntime == nil)
+        #expect(recordReferences.allSatisfy { $0.value == nil })
+        #expect(handleReferences.allSatisfy { $0.value == nil })
+        #expect(driverReferences.allSatisfy { $0.value == nil })
+        #expect(contextReferences.allSatisfy { $0.value == nil })
+        #expect(storageReferences.allSatisfy { $0.value == nil })
     }
 }

@@ -80,14 +80,18 @@ completion without retaining the task-local owner graph, runtime, session, or
 interpreter, and its later release is inert. The active-interface generator
 routes both unsafe continuation entry points to one shared named fail-closed
 intrinsic before body invocation or ownership allocation. The demand-scoped M6
-cycle is closed; the active cycle is now M8 SwiftUI lifecycle ownership.
-The first M8 gap-closure slice is now implemented: BridgeGen emits the active
+cycle is closed. The demand-scoped M8 SwiftUI lifecycle cycle is also covered:
+BridgeGen emits the active
 SDK `.task`, `.task(id:)`, and `.refreshable` surface, while one reusable
 adapter lets real SwiftUI own appearance/identity and enters each invocation
 through a fresh canonical `.swiftUITask` session. Same-source hosted probes
 cover async entry, logical MainActor identity, disappearance cancellation, id
 replacement, same-id preservation, refresh trigger/completion, and complete
-per-task cleanup. Repeated teardown and retained-session stress remain open.
+per-task cleanup. A 32-cycle teardown characterization additionally proves
+distinct session/task identities, complete registry draining, weak release of
+each task-owned graph, and final interpreter/runtime release. M8 remains
+provisional only because its broad M5/M7 dependencies remain partial; the
+active cycle is now M9 optional physical parallelism.
 
 The stable target separates five concerns:
 
@@ -2141,16 +2145,20 @@ Each milestone is independently gated through
   named fail-closed intrinsic before source-body invocation and runtime
   ownership;
   complete custom-executor scheduling is not required for those slices;
-- M8 view-owned async lifecycle is the active cycle. Its covered prerequisites
+- M8 view-owned async lifecycle has closed its demand-scoped cycle. Its covered prerequisites
   are M2 driver release, M5 logical executor identity, and M7 native preflight.
   Its first gap-closure slice generates the async modifier surface and covers
   `.task` runtime entry, disappearance cancellation, `.task(id:)` replacement,
   same-id task preservation, `.refreshable` completion lifetime, logical
   MainActor execution, and cleanup through actual `NSHostingView` lifecycle.
-  Teardown and retained-session stress remain in the active cycle;
-  and
-- M9 remains deferred until the ownership/isolation/lifecycle prerequisites are
-  complete.
+  Thirty-two causally sequenced teardown cycles prove distinct runtime
+  sessions, cancellation before the next appearance, complete registry drain,
+  weak task-graph release, and final interpreter/runtime release; and
+- M9 is now the active cycle because its requirement-level M4 Sendable/escape,
+  M5 executor, M7 native-preflight, and M8 lifecycle prerequisites are
+  covered. Physical execution remains absent until the
+  runtime supplies confinement/synchronization plus TSan and cooperative-
+  versus-parallel semantic evidence.
 
 M5 was intentionally decomposed, and its slices were ordered so that no flip to
 fail-closed rejection lands before the replacement runtime exists. The covered
@@ -2484,15 +2492,19 @@ Proof:
 - lifecycle-specific tests where pixels are irrelevant;
 - no task/session retention after view teardown.
 
-Current implemented slice (2026-07-17): BridgeGen maps the SDK's three
+Implemented demand-scoped cycle (2026-07-17): BridgeGen maps the SDK's three
 `() async -> Void` modifier declarations to one generated async-action tag;
 there is no handwritten `.task` name branch. The tag invokes a documented
 SwiftUI-magic adapter that creates a fresh parentless `.swiftUITask` session
 and maps native lifecycle cancellation into cooperative source cancellation.
 Strict same-source `NSHostingView` fixtures cover task-group entry, removal,
-id replacement, same-id preservation, and refresh trigger/completion in twenty
-stable native runs and matching interpreter runs. The aggregate milestone
-remains partial for repeated teardown and retained-session stress.
+id replacement, same-id preservation, refresh trigger/completion, and 32
+sequential teardown cycles in twenty stable native runs and matching
+interpreter runs. Weak references prove release of every task record, handle,
+native driver, evaluation context, and task-local store after each cancellation
+and release of the interpreter/runtime after the host graph is removed. The
+requirement is covered; M8 remains provisional only because broad M5/M7 remain
+partial, and the execution plan advances to active M9.
 
 ### Milestone 9: optional physical parallelism
 

@@ -347,23 +347,22 @@ struct ConcurrencyMethodologyTests {
         #expect(requirementRefs.contains(
             matrix.externalCapabilityAccounting.ownerRequirementRef))
         #expect(matrix.executionPlan.currentTail.id
-            == "swiftui-lifecycle-demand-cycle")
+            == "physical-parallelism-cycle")
         #expect(matrix.executionPlan.currentTail.state == "active")
-        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M8"])
+        #expect(Set(matrix.executionPlan.currentTail.milestoneIDs) == ["M9"])
         #expect(Set(matrix.executionPlan.currentTail.requirementRefs)
             .isSubset(of: requirementRefs))
         #expect(matrix.executionPlan.currentTail.requirementRefs == [
-            "M8/view-owned-async-lifecycle",
+            "M9/parallel-runtime-and-sanitizers",
         ])
         #expect(matrix.executionPlan.nextMajorCycle.id
-            == "physical-parallelism-cycle")
+            == "post-physical-parallelism-cycle")
         #expect(matrix.executionPlan.nextMajorCycle.state
-            == "queued-behind-swiftui-lifecycle-demand-cycle")
+            == "not-scheduled")
         #expect(matrix.executionPlan.nextMajorCycle.milestoneID == "M9")
         #expect(Set(matrix.executionPlan.nextMajorCycle.entryRequirementRefs)
             .isSubset(of: requirementRefs))
-        #expect(matrix.executionPlan.nextMajorCycle.entryRequirementRefs
-            == ["M9/parallel-runtime-and-sanitizers"])
+        #expect(matrix.executionPlan.nextMajorCycle.entryRequirementRefs.isEmpty)
         let requirementStatuses = Dictionary(uniqueKeysWithValues:
             matrix.milestones.flatMap { milestone in
                 milestone.requirements.map {
