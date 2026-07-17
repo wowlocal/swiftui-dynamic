@@ -379,6 +379,7 @@
           "coverage": ["success", "failure", "cancellation", "cleanup", "diagnostic"],
           "ownedCaseIDs": [
             "async-let-value",
+            "async-let-top-level",
             "async-let-tuple-pattern",
             "async-let-multiple-bindings",
             "async-let-separate-declaration-cleanup-order",
@@ -398,13 +399,13 @@
           ],
           "testNames": [],
           "evidenceByCoverage": {
-            "success": ["case:async-let-value", "case:async-let-tuple-pattern"],
+            "success": ["case:async-let-value", "case:async-let-top-level", "case:async-let-tuple-pattern"],
             "failure": ["case:async-let-value-failure", "case:async-let-throwing-scope-exit"],
             "cancellation": ["case:async-let-value-cancellation", "case:async-let-parent-cancellation-scope-exit"],
-            "cleanup": ["case:async-let-early-return-defer-order", "case:async-let-cancellation-defer-order"],
+            "cleanup": ["case:async-let-top-level", "case:async-let-early-return-defer-order", "case:async-let-cancellation-defer-order"],
             "diagnostic": ["case:async-let-missing-await-diagnostic"]
           },
-          "notes": "Value projection and normal, return, throw, cancellation, and lexical-defer cleanup paths are covered."
+          "notes": "Value projection and normal, return, throw, cancellation, and lexical-defer cleanup paths are covered. A same-source native top-level executable additionally proves that async top level owns an implicit structured scope: two top-level async-let bindings may be awaited in one expression, produce 42 exactly, and leave no task/scope ownership behind. The captured interpreter RED first lacked a root lexical frame and then treated global async-let carriers as ordinary values; async top level now uses the shared structured-scope close path and direct top-level suspending lookup recognizes those carriers."
         },
         {
           "id": "task-group-values-and-cancellation",
@@ -1278,8 +1279,8 @@
       "title": "Optional physical parallelism",
       "status": "partial",
       "dependsOn": ["M4", "M5", "M7", "M8"],
-      "ledgerEvidence": "The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. M8 closed the final lifecycle prerequisite, so the physical-parallelism cycle is active; the source-callable _swift_createJobForTestingOnly hook remains preflight-only/deferred.",
-      "ledgerRemainingWork": "Add worker synchronization or confinement, Thread Sanitizer evidence, and cooperative-versus-parallel semantic parity without exposing Box, Environment, or Instance to races.",
+      "ledgerEvidence": "The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made. ParsedProgram is immutable and Sendable and owns folded syntax, source locations, and one ParsedProgramMetadata capability containing a target-neutral all-branch ParsedDeclarationIndex, immutable callable metadata for functions, initializers, readable accessor blocks, and subscripts, immutable nominal headers for structs, classes, actors, enums, and protocols, immutable property-storage headers for every variable declaration and binding, immutable enum-case headers for every case element, immutable extension headers for every extension declaration, and immutable type-alias headers for every typealias declaration. Indexed facts include call shapes, effects, attributes, modeled declaration isolation, getter/setter bodies, custom setter names, subscript results, nominal kind/name/inheritance/generics, storage mutability, static/lazy/nonisolated/TaskLocal and weak/unowned policy, tuple elements, stored/computed classification, observer bodies/parameters, normalized/backticked case names, associated-value labels/type spellings, explicit raw expressions, extended and inherited type spellings, extension generic requirements/attributes/modifiers, alias names, full and normalized target spellings, alias generic parameters/requirements, attributes, and modifiers. Nominal, global/member/local storage, enum-case materialization, extension target resolution/conformance merging, and top-level/member/local type-alias binding consume these immutable indexes while mutable runtime symbols, values, raw-value evaluation, active-branch selection, and member materialization remain MainActor-confined on the interpreter facade. Each session resolves one build-specific top-level plan before mutable runtime-symbol materialization. Each Interpreter owns a distinct MainActor-confined RuntimeHeap that roots its actual global environment, synthesized environment models, and SwiftUI state cells. Every runAsync program entry executes through a single-use InterpreterSession binding the program, resolved declaration plan, heap, cooperative runtime, runtime entry, lazy-global mode, and completion policy. Program roots, host callbacks, SwiftUI tasks, and every source task they create carry an explicit RuntimeEntry capability rather than a raw session ID; escaped callbacks preserve their originating program-metadata snapshot. Causally controlled native parity proves callback overlap, while unchanged `extractIsolation`, async-throwing actor-subscript, custom-global-actor, actor-initialization, enum-case, matching-constraint extension, and selected type-alias parity characterize metadata semantics. The source-callable _swift_createJobForTestingOnly hook remains preflight-only/deferred.",
+      "ledgerRemainingWork": "Complete immutable indexing for remaining member families, call-site, and compiler-preflight metadata, move mutable runtime-symbol materialization and evaluation fully behind InterpreterSession, classify every heap edge for worker access, add physical-worker scheduling, Thread Sanitizer evidence, and cooperative-versus-parallel semantic parity without exposing Box, Environment, or Instance to races.",
       "requirements": [
         {
           "id": "parallel-runtime-and-sanitizers",
@@ -1292,12 +1293,62 @@
             "M7/native-diagnostic-oracles",
             "M8/view-owned-async-lifecycle"
           ],
-          "ownedCaseIDs": [],
+          "ownedCaseIDs": [
+            "host-callback-overlap",
+            "enum-case-metadata",
+            "extension-metadata",
+            "typealias-metadata"
+          ],
+      "evidenceCaseIDs": [
+        "extract-isolation-nonisolated",
+        "actor-subscript-async-exits",
+        "custom-global-actor-isolation",
+        "actor-initialization"
+          ],
           "testNames": [
-            "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred"
+            "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
+            "ParsedProgramConcurrencyTests/parsedProgramIsSendableAcrossDetachedReaders",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableDeclarationIndex",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableCallableMetadataIndex",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableNominalMetadataIndex",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendablePropertyMetadataIndex",
+        "ParsedProgramConcurrencyTests/propertyMetadataHasPureForeignSyntaxFallback",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableEnumCaseMetadataIndex",
+        "ParsedProgramConcurrencyTests/enumCaseMetadataHasPureForeignSyntaxFallback",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableExtensionMetadataIndex",
+        "ParsedProgramConcurrencyTests/extensionMetadataHasPureForeignSyntaxFallback",
+        "ParsedProgramConcurrencyTests/parsedProgramOwnsSendableTypeAliasMetadataIndex",
+        "ParsedProgramConcurrencyTests/typeAliasMetadataHasPureForeignSyntaxFallback",
+        "ParsedProgramConcurrencyTests/parsedProgramIndexesAccessorAndSubscriptMetadata",
+            "ParsedProgramConcurrencyTests/parsedProgramMetadataIsOneSendableRuntimeCapability",
+            "ParsedProgramConcurrencyTests/oneParsedProgramBacksIndependentAsyncSessions",
+            "ParsedProgramConcurrencyTests/sessionsBindBuildResolvedDeclarationPlans",
+            "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError",
+            "RuntimeHeapOwnershipTests/interpreterExposesItsActualGlobalStorageRoot",
+            "RuntimeHeapOwnershipTests/independentInterpretersDoNotShareMutableHeap",
+            "RuntimeHeapOwnershipTests/heapLifetimeIsOwnedByInterpreterFacade",
+            "InterpreterSessionOwnershipTests/sessionBindsProgramHeapRuntimePolicyAndLiveRuntimeID",
+            "InterpreterSessionOwnershipTests/sessionsHaveUniqueRuntimeIdentityAndAreSingleUse",
+            "InterpreterSessionOwnershipTests/sessionRejectsExecutionByAnotherInterpreter",
+            "InterpreterSessionOwnershipTests/sessionKeepsItsHeapAndRuntimeAliveWithoutRetainingFacade",
+            "AsyncExecutionTests/drainPolicyDoesNotWaitForAnotherSessionTasks",
+            "RuntimeEntryOwnershipTests/hostCallbackAndSpawnedTaskShareOneOwnedEntry",
+        "RuntimeEntryOwnershipTests/separateCallbacksUseDistinctEntriesAgainstTheSameHeap",
+        "EnumAndSwitchTests/rawValueEnums",
+        "EnumAndSwitchTests/switchWithAssociatedValues",
+        "TypeFeatureTests/extensionsAddMembers",
+        "RetroactiveConformanceTests/extensionConformanceCountsForCasts",
+        "StdlibTests/userSubscriptsTypealiasesAndDefer",
+        "ARCSemanticsTests/mainActorTypealiasDeinitializerRunsOnFinalRelease",
+        "ARCSemanticsTests/globalActorTypealiasDeinitializerFailsClosedAfterResolution",
+        "CorpusTests/typealiasClockSetAlgebraAndOptionalMap",
+        "BindingExtensionMethodTests/extensionMethodDispatchesOnBuiltBinding",
+        "CurrentValueSubjectStoreTests/keyPathSubscriptWritesThroughStore",
+        "ActorRuntimeTests/actorMutableStorageRequiresOwnershipWhileAllowedStorageRemainsReadable",
+        "SwiftUIViewTaskLifecycleTests/interpretedSwiftUICancelsTaskWhenViewDisappears"
           ],
           "gapEvidenceIDs": ["physical-parallel-runtime-and-sanitizers"],
-          "notes": "The physical-parallelism cycle is active now that the demand-scoped M8 lifecycle prerequisite is covered. Physical workers, ExecutorJob creation/scheduling, synchronized/confined heap components, Thread Sanitizer, and parity between cooperative and parallel modes remain unimplemented. Real Swift preflight keeps the public testing-only job hook distinct from compiler ABI exclusions."
+          "notes": "Thirteen M9 prerequisite slices are green. ParsedProgram owns immutable Sendable folded syntax, source locations, and one ParsedProgramMetadata capability containing target-neutral declaration plus all-branch callable, nominal, property, enum-case, extension, and type-alias indexes. Eight detached readers share all seven component summaries; two fresh interpreters execute one parsed program independently; legacy source entry preserves located parse errors. Callable/accessor/subscript, nominal, property-storage, enum-case, extension, and type-alias header facts are indexed once. Runtime nominal/storage/case materialization, extension target/conformance handling, and top-level/member/local alias binding consume immutable metadata while mutable runtime symbols, values, active-branch selection, and member materialization remain MainActor-confined on the interpreter facade. Sessions, RuntimeEntry, source closures, host callbacks, SwiftUI tasks, and their child tasks propagate the composite capability. The latest compile-time RED was the absent type-alias index/summary, ParsedProgram accessor, composite component, and runtime lookup. Focused GREEN covers all-scope/all-branch alias summaries, full and normalized targets, generic parameters/requirements, attributes, modifiers, nominal-versus-tuple targets, eight detached readers, session and callback provenance, pure foreign-syntax fallback, eleven directly affected tests, all forty-two methodology checks, and twenty exact selected-alias observations. FoodTruck cites conditional private top-level and member aliases; generic alias normalization retains cited corpus regressions. The claim does not infer inaccessible inactive-branch runtime behavior. Prior metadata, real SwiftUI, and causal waiting-state evidence remains green. Each Interpreter still owns a distinct MainActor-confined RuntimeHeap. This is architectural and cooperative evidence, not a physical execution claim. Remaining member families, call-site and compiler metadata indexing, mutable-symbol/evaluator migration, worker-safe heap classification, physical workers, ExecutorJob creation/scheduling, Thread Sanitizer, and parity between cooperative and parallel modes remain unimplemented. Real Swift preflight keeps the public testing-only job hook distinct from compiler ABI exclusions."
         }
       ]
     }

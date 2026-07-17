@@ -26,9 +26,9 @@ struct TaskCancellationRuntimeTests {
     @Test
     func terminalCancellationChangesOnlyCancellationState() throws {
         let runtime = CooperativeConcurrencyRuntime()
-        let session = runtime.createSession()
+        let entry = runtime.createEntry(kind: .test)
         let record = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -60,9 +60,9 @@ struct TaskCancellationRuntimeTests {
     @Test
     func structuredChildCreatedByCancelledOwnerInheritsCancellation() {
         let runtime = CooperativeConcurrencyRuntime()
-        let session = runtime.createSession()
+        let entry = runtime.createEntry(kind: .test)
         let owner = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -72,7 +72,7 @@ struct TaskCancellationRuntimeTests {
         runtime.requestCancellation(owner, source: .taskHandle)
 
         let child = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .asyncLet,
             parent: owner.id,
             priority: .medium,
@@ -80,7 +80,7 @@ struct TaskCancellationRuntimeTests {
             taskLocals: RuntimeTaskLocalStorage(),
             name: nil)
         let unstructured = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .unstructured,
             parent: owner.id,
             priority: .medium,

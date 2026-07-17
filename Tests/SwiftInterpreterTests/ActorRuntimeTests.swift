@@ -329,9 +329,9 @@ struct ActorRuntimeTests {
         var actor: Instance? = try #require(Self.instance(from: actorValue))
         let actorID = try #require(actor?.actorID)
         let runtime = interpreter.concurrencyRuntime
-        let session = runtime.createSession()
+        let entry = runtime.createEntry(kind: .test)
         let first = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -339,7 +339,7 @@ struct ActorRuntimeTests {
             taskLocals: RuntimeTaskLocalStorage(),
             name: "first")
         let second = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -400,9 +400,9 @@ struct ActorRuntimeTests {
         var actor: Instance? = try #require(Self.instance(from: actorValue))
         let actorID = try #require(actor?.actorID)
         let runtime = interpreter.concurrencyRuntime
-        let session = runtime.createSession()
+        let entry = runtime.createEntry(kind: .test)
         let blocker = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -410,7 +410,7 @@ struct ActorRuntimeTests {
             taskLocals: RuntimeTaskLocalStorage(),
             name: "blocker")
         let waiter = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -487,8 +487,9 @@ struct ActorRuntimeTests {
         var actor: Instance? = try #require(Self.instance(from: actorValue))
         let actorID = try #require(actor?.actorID)
         let runtime = interpreter.concurrencyRuntime
+        let entry = runtime.createEntry(kind: .test)
         let task = runtime.createTask(
-            sessionID: runtime.createSession(),
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -531,9 +532,9 @@ struct ActorRuntimeTests {
     func semanticSuspensionRenewsConsecutiveWorkBudget() async throws {
         let interpreter = Interpreter()
         let runtime = interpreter.concurrencyRuntime
-        let session = runtime.createSession()
+        let entry = runtime.createEntry(kind: .test)
         let task = runtime.createTask(
-            sessionID: session,
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -542,7 +543,7 @@ struct ActorRuntimeTests {
             name: "budget-renewal")
         let context = interpreter.makeEvaluationTaskContext(
             runtimeTaskID: task.id,
-            runtimeSessionID: session,
+            runtimeEntry: entry,
             isAsyncSession: true)
         runtime.bind(context, to: task)
         #expect(runtime.begin(task))

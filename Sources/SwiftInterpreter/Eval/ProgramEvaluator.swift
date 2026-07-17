@@ -36,93 +36,185 @@ extension Interpreter {
         try performCompilerPreflightIfNeeded(
             source: source,
             sources: compilerPreflightSources)
-        let sessionID = concurrencyRuntime.createSession()
+        let program = try makeParsedProgram(source: source)
+        return try await runPreparedProgramAsync(
+            program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy)
+    }
+
+    /// Execute an immutable parsed program in a fresh async runtime session.
+    /// The syntax tree may be shared by independent interpreters; evaluator
+    /// state, globals, task records, and host state remain session-confined.
+    @discardableResult
+    public func runAsync(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool = false,
+        completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
+    ) async throws -> RuntimeValue {
+        try await runAsync(
+            program: program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy,
+            compilerPreflightSources: nil)
+    }
+
+    /// Preserve native source-file boundaries during compiler preflight while
+    /// executing a reusable parsed representation of the merged module.
+    @discardableResult
+    public func runAsync(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool,
+        completionPolicy: SessionCompletionPolicy,
+        compilerPreflightSources: [CompilerPreflightSource]?
+    ) async throws -> RuntimeValue {
+        try performCompilerPreflightIfNeeded(
+            source: program.source,
+            sources: compilerPreflightSources)
+        return try await runPreparedProgramAsync(
+            program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy)
+    }
+
+    /// Bind an immutable program to this facade's explicit heap and
+    /// cooperative runtime. The returned session is single-use; preflight
+    /// occurs when `runAsync(session:)` starts it.
+    public func makeSession(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool = false,
+        completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
+    ) -> InterpreterSession {
+        compatibilityProgramMetadata = program.metadata
+        return InterpreterSession(
+            program: program,
+            heap: runtimeHeap,
+            concurrencyRuntime: concurrencyRuntime,
+            executionPlan: program.declarationIndex.resolve(
+                conditionHolds: ifConfigConditionHolds),
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy,
+            owner: self)
+    }
+
+    /// Execute a previously-created single-use session. Ownership validation
+    /// rejects accidental execution through another interpreter facade.
+    @discardableResult
+    public func runAsync(
+        session: InterpreterSession,
+        compilerPreflightSources: [CompilerPreflightSource]? = nil
+    ) async throws -> RuntimeValue {
+        try session.validateExecution(on: self)
+        try performCompilerPreflightIfNeeded(
+            source: session.program.source,
+            sources: compilerPreflightSources)
+        return try await runPreparedSessionAsync(session)
+    }
+
+    private func runPreparedProgramAsync(
+        _ program: ParsedProgram,
+        lazyTopLevelGlobals: Bool,
+        completionPolicy: SessionCompletionPolicy
+    ) async throws -> RuntimeValue {
+        let session = makeSession(
+            program: program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy)
+        return try await runPreparedSessionAsync(session)
+    }
+
+    private func runPreparedSessionAsync(
+        _ session: InterpreterSession
+    ) async throws -> RuntimeValue {
+        try session.beginExecution(on: self)
+        defer { session.finishExecution() }
+
+        let runtime = session.concurrencyRuntime
         let taskLocals = RuntimeTaskLocalStorage()
-        let root = concurrencyRuntime.createTask(
-            sessionID: sessionID, kind: .root, parent: nil,
+        let root = runtime.createTask(
+            entry: session.runtimeEntry, kind: .root, parent: nil,
             priority: RuntimeTaskPriority(Task.currentPriority),
             executorPreference: .mainActor,
             taskLocals: taskLocals,
             name: nil)
-        _ = concurrencyRuntime.begin(root)
+        _ = runtime.begin(root)
         let context = makeEvaluationTaskContext(
             runtimeTaskID: root.id,
-            runtimeSessionID: sessionID,
+            runtimeEntry: session.runtimeEntry,
             isAsyncSession: true,
             priority: root.effectivePriority,
             executor: root.executorPreference,
             taskLocals: taskLocals)
-        concurrencyRuntime.bind(context, to: root)
-        defer { concurrencyRuntime.release(root.id) }
+        runtime.bind(context, to: root)
+        defer { runtime.release(root.id) }
         return try await EvaluationTaskContext.$current.withValue(context) {
             defer { context.removeAllDynamicState() }
             do {
                 let value = try await runAsyncInCurrentTaskContext(
-                    source: source,
-                    lazyTopLevelGlobals: lazyTopLevelGlobals,
-                    completionPolicy: completionPolicy,
-                    sessionID: sessionID)
-                concurrencyRuntime.succeed(root, with: value)
+                    session: session)
+                runtime.succeed(root, with: value)
                 return value
             } catch is InterpreterSessionAbort {
-                concurrencyRuntime.requestCancellation(
+                runtime.requestCancellation(
                     root, source: .hostTask)
-                concurrencyRuntime.completeCancellation(root)
+                runtime.completeCancellation(root)
                 throw CancellationError()
             } catch is CancellationError {
-                concurrencyRuntime.requestCancellation(
+                runtime.requestCancellation(
                     root, source: .hostTask)
-                concurrencyRuntime.completeCancellation(root)
+                runtime.completeCancellation(root)
                 throw CancellationError()
             } catch {
-                concurrencyRuntime.fail(root, with: error)
+                runtime.fail(root, with: error)
                 throw error
             }
         }
     }
 
     private func runAsyncInCurrentTaskContext(
-        source: String,
-        lazyTopLevelGlobals: Bool,
-        completionPolicy: SessionCompletionPolicy,
-        sessionID: RuntimeSessionID
+        session: InterpreterSession
     ) async throws -> RuntimeValue {
         try checkRuntimeCancellation()
 
         let result: RuntimeValue
         do {
             result = try await runProgramSuspending(
-                source: source, lazyTopLevelGlobals: lazyTopLevelGlobals)
+                program: session.program,
+                executionPlan: session.executionPlan,
+                lazyTopLevelGlobals: session.lazyTopLevelGlobals)
         } catch {
-            await cancelOwnedTasks(in: sessionID)
+            await cancelOwnedTasks(in: session.id)
             throw error
         }
 
         do {
-            switch completionPolicy {
+            switch session.completionPolicy {
             case .topLevel:
                 break
             case .drainOwnedTasks:
-                try await drainOwnedTasks(in: sessionID)
+                try await drainOwnedTasks(in: session.id)
             case .cancelRemainingTasks:
-                await cancelOwnedTasks(in: sessionID)
+                await cancelOwnedTasks(in: session.id)
             }
             try checkRuntimeCancellation()
         } catch {
-            await cancelOwnedTasks(in: sessionID)
+            await cancelOwnedTasks(in: session.id)
             throw error
         }
         return result
     }
 
     private func runProgramSuspending(
-        source: String, lazyTopLevelGlobals: Bool
+        program: ParsedProgram,
+        executionPlan: ResolvedDeclarationPlan,
+        lazyTopLevelGlobals: Bool
     ) async throws -> RuntimeValue {
-        let file = try parse(source: source)
+        let file = program.syntax
+        locationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         assumesCompiledImports = lazyTopLevelGlobals
-        try collectDeclarations(from: file)
+        try collectDeclarations(from: executionPlan)
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
@@ -131,8 +223,19 @@ extension Interpreter {
         installAmbientDateNowIfShadowed()
         resolveTransitiveViewConformance()
 
+        return try await withTopLevelStructuredScopeSuspending(in: globals) {
+            try await executeTopLevelStatementsSuspending(
+                executionPlan.topLevelItems,
+                lazyTopLevelGlobals: lazyTopLevelGlobals)
+        }
+    }
+
+    private func executeTopLevelStatementsSuspending(
+        _ topLevelItems: [CodeBlockItemSyntax],
+        lazyTopLevelGlobals: Bool
+    ) async throws -> RuntimeValue {
         var last: RuntimeValue = .void
-        for item in expandedTopLevelItems(file.statements) {
+        for item in topLevelItems {
             try checkRuntimeCancellation()
             if case .stmt(let statement) = item.item,
                statement.is(DeferStmtSyntax.self) {
@@ -253,13 +356,55 @@ extension Interpreter {
         try performCompilerPreflightIfNeeded(
             source: source,
             sources: compilerPreflightSources)
-        let file = try parse(source: source)
+        let program = try makeParsedProgram(source: source)
+        return try runPreparedProgram(
+            program, lazyTopLevelGlobals: lazyTopLevelGlobals)
+    }
+
+    /// Execute an immutable parsed program using synchronous top-level
+    /// semantics. Mutable evaluator state is owned by this interpreter, not
+    /// by the shared program.
+    @discardableResult
+    public func run(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool = false
+    ) throws -> RuntimeValue {
+        try run(
+            program: program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            compilerPreflightSources: nil)
+    }
+
+    /// Preserve native source-file boundaries during compiler preflight while
+    /// executing a reusable parsed representation of the merged module.
+    @discardableResult
+    public func run(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool,
+        compilerPreflightSources: [CompilerPreflightSource]?
+    ) throws -> RuntimeValue {
+        try performCompilerPreflightIfNeeded(
+            source: program.source,
+            sources: compilerPreflightSources)
+        return try runPreparedProgram(
+            program, lazyTopLevelGlobals: lazyTopLevelGlobals)
+    }
+
+    private func runPreparedProgram(
+        _ program: ParsedProgram,
+        lazyTopLevelGlobals: Bool
+    ) throws -> RuntimeValue {
+        compatibilityProgramMetadata = program.metadata
+        let file = program.syntax
+        let executionPlan = program.declarationIndex.resolve(
+            conditionHolds: ifConfigConditionHolds)
+        locationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved
         // identifier there is an unmerged import, never a typo.
         assumesCompiledImports = lazyTopLevelGlobals
-        try collectDeclarations(from: file)
+        try collectDeclarations(from: executionPlan)
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
@@ -269,7 +414,7 @@ extension Interpreter {
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void
-        for item in expandedTopLevelItems(file.statements) {
+        for item in executionPlan.topLevelItems {
             if case .stmt(let stmt) = item.item, stmt.is(DeferStmtSyntax.self) {
                 // Top-level `defer` runs at PROCESS exit on device — the
                 // harness has no such moment; cleanup-at-exit is invisible

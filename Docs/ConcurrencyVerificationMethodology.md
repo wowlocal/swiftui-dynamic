@@ -142,6 +142,141 @@ explicitly demand-deferred. The M8 view-owned async lifecycle cycle is covered
 with repeated teardown and weak session-release evidence; M8 remains
 provisional only because broad M5/M7 are partial. Its requirement-level
 prerequisites are covered, so M9 physical parallelism is now the active cycle.
+Its first architectural prerequisite is green: one immutable `ParsedProgram`
+can cross detached readers and back independent cooperative sessions without
+sharing evaluator state. Its second prerequisite makes each interpreter's
+actual mutable storage root explicit: one MainActor-confined `RuntimeHeap`
+owns globals, synthesized environment models, and SwiftUI state cells, with
+identity, cross-interpreter isolation, and facade-lifetime coverage. This is
+still characterization only. Its third prerequisite routes every `runAsync`
+program entry through a real single-use `InterpreterSession` binding the
+program, heap, cooperative runtime, runtime ID, lazy-global mode, and
+completion policy. Compile-time RED and focused GREEN evidence cover binding,
+live-ID propagation, unique identity, foreign-facade rejection, reuse
+rejection, draining, and facade-independent heap/runtime lifetime. Existing
+same-source async-let parity is rerun as the no-semantic-change check. Its
+fourth prerequisite adds a target-neutral, all-branch, immutable Sendable
+declaration index to `ParsedProgram`; each session resolves one build-specific
+plan consumed by both mutable symbol materialization and top-level execution.
+The compile-time RED was the absent index/plan API. Focused GREEN evidence
+covers eight detached readers, distinct iOS/macOS nominal + typealias +
+extension plans from one parsed source, and 209 declaration/language/async/
+compiler-preflight tests. The fifth prerequisite replaces bare production
+runtime IDs with an explicit `RuntimeEntry` capability inherited by each source
+task. Its compile-time RED was the missing type/context capability;
+focused ownership GREEN proves callback parent/child identity, outliving-task
+retention, final release, and distinct callback entries over one confined heap.
+A causally gated Swift 6 same-source probe establishes the overlap policy in
+twenty repetitions: a second MainActor callback may run while a task from the
+first is parked and completes before that task resumes. Cooperative overlap is
+therefore supported; physical concurrent heap access remains unclaimed.
+Its sixth prerequisite removes the mutable function/initializer metadata
+caches from the facade. One immutable Sendable all-branch callable index now
+belongs to `ParsedProgram`; the program entry and escaped callbacks retain it,
+and runtime symbol construction consumes it. The compile-time RED was the
+absent index/summary/runtime-entry API. GREEN evidence covers eight detached
+readers, session and callback propagation, 145 affected runtime/language/
+compiler tests, and twenty unchanged `extract-isolation-nonisolated` native/
+interpreter repetitions under Apple Swift 6.3.3. This was an already-GREEN
+semantic characterization, not a fabricated runtime mismatch. Its seventh
+prerequisite extends the index across readable accessor blocks and subscript
+declarations. The compile-time RED was the absent accessor/subscript metadata
+API. GREEN proves getter effects, setter names, subscript parameters/results,
+observer exclusion, and detached-reader Sendability; 181 affected tests pass.
+The causal `actor-subscript-async-exits` fixture remained exact in twenty
+native/interpreter repetitions with no physical-thread claim. Its eighth
+prerequisite introduces one immutable `ParsedProgramMetadata` propagation
+capability so future indexes do not add parallel fields to every session,
+entry, and closure. The compile-time RED was the absent program/entry metadata
+API. GREEN covers detached readers, session binding, an escaped callback after
+a different program becomes the facade fallback, callback-created tasks, and
+real SwiftUI task entry. The SwiftUI cancellation check exposed a test race:
+the source `started` event precedes registration of its sleep suspension. The
+test now waits causally for both that event and runtime `.waiting`, with a
+record dump on failure. The existing `extract-isolation-nonisolated` result is
+unchanged in twenty native/interpreter repetitions. Its ninth prerequisite
+adds all-branch nominal headers to that same composite capability. The
+compile-time RED was the absent nominal index/summary API. GREEN covers all five
+nominal kinds, inactive conditional branches, nested declarations, attributes,
+inheritance, generic constraints, eight detached readers, session and escaped-
+callback provenance, and the existing struct/class/enum/actor/protocol
+materialization suites. The causal `custom-global-actor-isolation` fixture is
+unchanged in twenty native/interpreter repetitions. Its tenth prerequisite
+adds all-branch variable/property storage headers to the composite capability.
+The compile-time RED was the absent property index/summary and compatibility
+accessor API. GREEN covers `let`/`var`, static, lazy, explicit nonisolation,
+TaskLocal, weak/unowned, tuple, stored/computed, and observer metadata; eight
+detached readers; pure foreign-syntax fallback; session and escaped-callback
+provenance; 215 affected storage/declaration/actor/ARC/value tests; and twenty
+unchanged `actor-initialization` repetitions. The fixture proves synchronous
+actor initialization and first isolated-method ownership without asserting a
+physical thread. Extending immutable remaining member, call-site, and compiler
+metadata, moving mutable symbols and evaluation fully behind the session,
+worker-safe heap
+classification, physical workers, cooperative-versus-parallel differential
+evidence, and TSan remain open.
+
+Its eleventh prerequisite adds all-branch enum-case headers to the composite
+capability. The architecture workflow is a gap closure: the captured
+compile-time RED had no `ParsedEnumCaseMetadataIndex`, summary, compatibility
+accessor, or runtime lookup. The semantic workflow is an already-GREEN
+characterization: no runtime mismatch was invented. FoodTruck supplies the
+within-slice demand citations for backticked `User.default`, labeled
+`User.authenticated(username:)`, unlabeled `Panel.city(City.ID)`, conditional
+cases, and `BrandHeader.HeaderSize` Double raw values. GREEN covers exact
+all-scope/all-branch summaries, labels and type spellings, raw expressions,
+eight detached readers, pure foreign-syntax fallback, session/callback
+provenance, and enum materialization. The same source crosses an associated
+enum value through an actor and observes backticked and raw-value cases;
+Apple Swift 6.3.3 and the interpreter both produce
+`authenticated:foodtruck|default|1.0:0.5` in twenty bounded repetitions. No
+scheduler order or physical thread is inferred. Uncited case attributes and
+`indirect` semantics remain outside this slice. Remaining member families,
+call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
+heap classification, physical workers, mode-differential evidence, and TSan
+remain open.
+
+Its twelfth prerequisite adds all-branch extension headers to the composite
+capability. The architecture workflow is a gap closure: the captured compile-
+time RED had no `ParsedExtensionMetadataIndex`, summary, compatibility
+accessor, composite component, or runtime lookup. The semantic workflow is an
+already-GREEN characterization. FoodTruck supplies the within-slice demand
+citations for dotted `Donut.Topping` extensions, the retroactive
+`AuthorizationHandlingError: LocalizedError` conformance, and
+`ClosedRange where Bound: BinaryFloatingPoint`. GREEN covers exact all-scope/
+all-branch summaries, extended and inherited type spellings, generic
+requirements, attributes, modifiers, eight detached readers, pure foreign-
+syntax fallback, session/callback provenance, and existing extension
+materialization. A same-source value crosses an actor boundary after using a
+dotted conforming extension and a matching constrained extension; Apple Swift
+6.3.3 and the interpreter both produce `true:42:21` in twenty bounded
+repetitions. No behavior for a nonmatching generic constraint, scheduler
+order, or physical thread is inferred. Remaining member families, call-site/
+compiler metadata, mutable-symbol/evaluator migration, worker-safe heap
+classification, physical workers, mode-differential evidence, and TSan remain
+open.
+
+Its thirteenth prerequisite adds all-branch type-alias headers to the
+composite capability. The architecture workflow is a gap closure: the captured
+compile-time RED had no `ParsedTypeAliasMetadataIndex`, summary, compatibility
+accessor, composite component, or runtime lookup. The semantic workflow is an
+already-GREEN characterization. FoodTruck supplies demand citations for the
+conditional private top-level `ViewControllerRepresentable` and member
+`ViewController` aliases in `DetailedMapView`; corpus regressions cite generic
+aliases used as extension targets. GREEN covers exact all-scope/all-branch
+summaries, full and normalized targets, generic parameters/requirements,
+attributes, modifiers, nominal-versus-tuple targets, eight detached readers,
+pure foreign-syntax fallback, session/callback provenance, and top-level,
+member, local, generic-extension, and global-actor-alias consumers. A selected
+top-level and member alias constructs a value that crosses an actor boundary;
+Apple Swift 6.3.3 and the interpreter both produce `mac:42` in twenty bounded
+repetitions for the non-watchOS branch. The harness's legacy iOS-shaped build
+identity is not used to claim positive macOS predicate behavior; target-aware
+platform selection remains separate M7 project evidence. No inaccessible
+inactive-branch behavior, scheduler order, or physical thread is inferred.
+Remaining member families, call-site/compiler metadata, mutable-symbol/
+evaluator migration, worker-safe heap classification, physical workers, mode-
+differential evidence, and TSan remain open.
 
 ## Process and liveness isolation
 
@@ -212,8 +347,10 @@ Every closing gate writes a machine-readable receipt before temporary logs are
 removed. It includes:
 
 - repository commit and dirty/worktree fingerprints at both start and finish,
-  with any mid-run source drift forcing RED, plus parity/acceptance/capability
-  manifest digests and the inventory/status pin result;
+  computed from built-in raw Git bytes with external diff drivers and text
+  conversion disabled, with any mid-run source drift forcing RED, plus
+  parity/acceptance/capability manifest digests and the inventory/status pin
+  result;
 - selected/completed parity case IDs and repetition counts;
 - build/test Swift driver plus native-oracle compiler path/version, SDK
   path/version, targets, and flags;

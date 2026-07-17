@@ -218,8 +218,9 @@ public final class RuntimeTaskHandle {
 
     public convenience init() {
         let runtime = CooperativeConcurrencyRuntime()
+        let entry = runtime.createEntry(kind: .compatibilityTask)
         let record = runtime.createTask(
-            sessionID: runtime.createSession(),
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,

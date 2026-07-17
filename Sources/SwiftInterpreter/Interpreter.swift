@@ -130,7 +130,8 @@ public struct InterpreterBuildConfiguration: Sendable, Equatable {
 /// delegated to a `HostRegistry` (the SwiftUI bridge, or a trace registry in
 /// tests).
 public final class Interpreter {
-    public let globals = Environment()
+    public let runtimeHeap: RuntimeHeap
+    public var globals: Environment { runtimeHeap.globals }
     let concurrencyRuntime: CooperativeConcurrencyRuntime
     public let runtimeClock: any RuntimeClock
     public var registry: HostRegistry?
@@ -144,7 +145,10 @@ public final class Interpreter {
     var enumSymbols: [String: EnumSymbol] = [:]
     /// Env-object models constructed as fresh-store stand-ins (one per type,
     /// so every view reading the type sees the same instance).
-    var synthesizedEnvironmentModels: [String: Instance] = [:]
+    var synthesizedEnvironmentModels: [String: Instance] {
+        _read { yield runtimeHeap.synthesizedEnvironmentModels }
+        _modify { yield &runtimeHeap.synthesizedEnvironmentModels }
+    }
     /// Interpreted `extension View { … }` / `extension String { … }` members,
     /// keyed by the extended host type's name.
     var hostExtensionSymbols: [String: StructSymbol] = [:]
@@ -284,6 +288,7 @@ public final class Interpreter {
 
     func makeEvaluationTaskContext(
         runtimeTaskID: RuntimeTaskID? = nil,
+        runtimeEntry: RuntimeEntry? = nil,
         runtimeSessionID: RuntimeSessionID? = nil,
         isAsyncSession: Bool = false,
         priority: RuntimeTaskPriority = .medium,
@@ -295,6 +300,7 @@ public final class Interpreter {
         return EvaluationTaskContext(
             id: id,
             runtimeTaskID: runtimeTaskID,
+            runtimeEntry: runtimeEntry,
             runtimeSessionID: runtimeSessionID,
             isAsyncSession: isAsyncSession,
             priority: priority,
@@ -399,29 +405,7 @@ public final class Interpreter {
     /// per name, so calls consult this table for shape choice.
     var globalFunctionOverloads: [String: [FunctionDeclSyntax]] = [:]
 
-    /// Call-shape and closure metadata are properties of syntax declarations,
-    /// not of individual invocations. Cache them by SwiftSyntax identity so
-    /// overload dispatch never rebuilds syntax collections or descriptions.
-    struct CallableShape {
-        let parameterCount: Int
-        let labels: Set<String>
-        let wildcardCount: Int
-        let requiredLabels: [String]
-
-        func matches(_ arguments: ArgumentShape) -> Bool {
-            guard arguments.count <= parameterCount,
-                  arguments.labels.isSubset(of: labels),
-                  arguments.unlabeledCount <= wildcardCount else { return false }
-            var missingRequired = 0
-            for label in requiredLabels where !arguments.labels.contains(label) {
-                missingRequired += 1
-                if missingRequired > arguments.unlabeledTrailingCount { return false }
-            }
-            return true
-        }
-    }
-
-    struct ArgumentShape {
+    nonisolated struct ArgumentShape: Sendable {
         let count: Int
         let labels: Set<String>
         let unlabeledCount: Int
@@ -447,22 +431,11 @@ public final class Interpreter {
         }
     }
 
-    struct FunctionMetadata {
-        let parameters: [ClosureValue.Parameter]
-        let shape: CallableShape
-        let returnType: TypeSyntax?
-        let returnTypeName: String?
-        let isBuilder: Bool
-        let genericParameters: [String]
-    }
-
-    struct InitializerMetadata {
-        let parameters: [ClosureValue.Parameter]
-        let shape: CallableShape
-    }
-
-    var functionMetadataCache: [SyntaxIdentifier: FunctionMetadata] = [:]
-    var initializerMetadataCache: [SyntaxIdentifier: InitializerMetadata] = [:]
+    /// Last immutable program metadata used by the synchronous compatibility
+    /// facade. Canonical async work resolves metadata from its RuntimeEntry;
+    /// this fallback keeps post-run rendering/instantiation APIs source-
+    /// compatible without rebuilding mutable syntax caches.
+    var compatibilityProgramMetadata: ParsedProgramMetadata?
 
     /// Per-view-IDENTITY state cells: compiled SwiftUI keeps @State/
     /// @StateObject storage alive across re-renders of the same position;
@@ -481,7 +454,10 @@ public final class Interpreter {
         /// call site get distinct state (compiled SwiftUI's per-ID storage).
         let salt: String
     }
-    var viewStateCells: [ViewStateKey: Box] = [:]
+    var viewStateCells: [ViewStateKey: Box] {
+        _read { yield runtimeHeap.viewStateCells }
+        _modify { yield &runtimeHeap.viewStateCells }
+    }
     var viewIdentitySalts: [String] {
         get { evaluationTaskContext.viewIdentitySalts }
         set { evaluationTaskContext.viewIdentitySalts = newValue }
@@ -626,6 +602,7 @@ public final class Interpreter {
         registry: HostRegistry? = nil,
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
+        runtimeHeap = RuntimeHeap()
         self.registry = registry
         compilerPreflight = nil
         compilerPreflightMode = .disabled
@@ -643,6 +620,7 @@ public final class Interpreter {
         compilerPreflightMode: CompilerPreflightMode = .required,
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
+        runtimeHeap = RuntimeHeap()
         self.registry = registry
         self.compilerPreflight = compilerPreflight
         self.compilerPreflightMode = compilerPreflightMode
@@ -659,6 +637,7 @@ public final class Interpreter {
         runtimeClock: any RuntimeClock,
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
+        runtimeHeap = RuntimeHeap()
         self.registry = registry
         compilerPreflight = nil
         compilerPreflightMode = .disabled
@@ -677,6 +656,7 @@ public final class Interpreter {
         compilerPreflightMode: CompilerPreflightMode = .required,
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
+        runtimeHeap = RuntimeHeap()
         self.registry = registry
         self.compilerPreflight = compilerPreflight
         self.compilerPreflightMode = compilerPreflightMode
@@ -688,81 +668,131 @@ public final class Interpreter {
         defineGlobalBuiltins()
     }
 
-    func functionMetadata(for node: FunctionDeclSyntax) -> FunctionMetadata {
-        let identifier = Syntax(node).id
-        if let cached = functionMetadataCache[identifier] { return cached }
-        let parameters = node.signature.parameterClause.parameters
-        let returnType = node.signature.returnClause?.type
-        let returnTypeName = returnType?.trimmedDescription
-        let returnsView = returnTypeName?.contains("some View") ?? false
-        let isBuilder = returnsView || node.attributes.contains {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-        }
-        let metadata = FunctionMetadata(
-            parameters: closureParameters(from: parameters),
-            shape: callableShape(from: parameters),
-            returnType: returnType,
-            returnTypeName: returnTypeName,
-            isBuilder: isBuilder,
-            genericParameters: node.genericParameterClause?.parameters.map(\.name.text) ?? [])
-        functionMetadataCache[identifier] = metadata
-        return metadata
+    var currentProgramMetadata: ParsedProgramMetadata? {
+        evaluationTaskContext.runtimeEntry?.programMetadata
+            ?? compatibilityProgramMetadata
     }
 
-    func initializerMetadata(for node: InitializerDeclSyntax) -> InitializerMetadata {
-        let identifier = Syntax(node).id
-        if let cached = initializerMetadataCache[identifier] { return cached }
-        let parameters = node.signature.parameterClause.parameters
-        let metadata = InitializerMetadata(
-            parameters: closureParameters(from: parameters),
-            shape: callableShape(from: parameters))
-        initializerMetadataCache[identifier] = metadata
-        return metadata
+    var currentCallableMetadataIndex: ParsedCallableMetadataIndex? {
+        currentProgramMetadata?.callableMetadataIndex
     }
 
-    private func closureParameters(
-        from parameters: FunctionParameterListSyntax
-    ) -> [ClosureValue.Parameter] {
-        var result: [ClosureValue.Parameter] = []
-        result.reserveCapacity(parameters.count)
-        let backticks = CharacterSet(charactersIn: "`")
-        for parameter in parameters {
-            let firstName = parameter.firstName.text.trimmingCharacters(in: backticks)
-            result.append(ClosureValue.Parameter(
-                name: (parameter.secondName ?? parameter.firstName).text
-                    .trimmingCharacters(in: backticks),
-                label: firstName == "_" ? nil : firstName,
-                defaultValue: parameter.defaultValue?.value,
-                typeAnnotation: parameter.type,
-                isBuilderAttributed: parameter.attributes.contains {
-                    $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-                } || ClosureValue.Parameter.isBuilderAttributedType(parameter.type),
-                isVariadic: parameter.ellipsis != nil,
-                isIsolated: ClosureValue.Parameter.isIsolatedType(
-                    parameter.type)))
-        }
-        return result
+    var currentNominalMetadataIndex: ParsedNominalMetadataIndex? {
+        currentProgramMetadata?.nominalMetadataIndex
     }
 
-    private func callableShape(from parameters: FunctionParameterListSyntax) -> CallableShape {
-        var labels: Set<String> = []
-        var wildcardCount = 0
-        var requiredLabels: [String] = []
-        requiredLabels.reserveCapacity(parameters.count)
-        for parameter in parameters {
-            let label = parameter.firstName.text
-            labels.insert(label)
-            if label == "_" {
-                wildcardCount += 1
-            } else if parameter.defaultValue == nil {
-                requiredLabels.append(label)
-            }
-        }
-        return CallableShape(
-            parameterCount: parameters.count,
-            labels: labels,
-            wildcardCount: wildcardCount,
-            requiredLabels: requiredLabels)
+    var currentPropertyMetadataIndex: ParsedPropertyMetadataIndex? {
+        currentProgramMetadata?.propertyMetadataIndex
+    }
+
+    var currentEnumCaseMetadataIndex: ParsedEnumCaseMetadataIndex? {
+        currentProgramMetadata?.enumCaseMetadataIndex
+    }
+
+    var currentExtensionMetadataIndex: ParsedExtensionMetadataIndex? {
+        currentProgramMetadata?.extensionMetadataIndex
+    }
+
+    func extensionMetadata(
+        for node: ExtensionDeclSyntax
+    ) -> ParsedExtensionMetadata {
+        currentExtensionMetadataIndex?.metadata(for: node)
+            ?? ParsedExtensionMetadata(node)
+    }
+
+    var currentTypeAliasMetadataIndex: ParsedTypeAliasMetadataIndex? {
+        currentProgramMetadata?.typeAliasMetadataIndex
+    }
+
+    func typeAliasMetadata(
+        for node: TypeAliasDeclSyntax
+    ) -> ParsedTypeAliasMetadata {
+        currentTypeAliasMetadataIndex?.metadata(for: node)
+            ?? ParsedTypeAliasMetadata(node)
+    }
+
+    func enumCaseMetadata(
+        for node: EnumCaseElementSyntax
+    ) -> ParsedEnumCaseMetadata {
+        currentEnumCaseMetadataIndex?.metadata(for: node)
+            ?? ParsedEnumCaseMetadata(node)
+    }
+
+    func propertyMetadata(
+        for node: VariableDeclSyntax
+    ) -> ParsedVariablePropertyMetadata {
+        currentPropertyMetadataIndex?.metadata(for: node)
+            ?? ParsedVariablePropertyMetadata(node)
+    }
+
+    func propertyMetadata(
+        for node: PatternBindingSyntax
+    ) -> ParsedPropertyBindingMetadata {
+        currentPropertyMetadataIndex?.metadata(for: node)
+            ?? ParsedPropertyBindingMetadata(node)
+    }
+
+    func functionMetadata(
+        for node: FunctionDeclSyntax
+    ) -> ParsedFunctionMetadata {
+        currentCallableMetadataIndex?.metadata(for: node)
+            ?? ParsedFunctionMetadata(node)
+    }
+
+    func initializerMetadata(
+        for node: InitializerDeclSyntax
+    ) -> ParsedInitializerMetadata {
+        currentCallableMetadataIndex?.metadata(for: node)
+            ?? ParsedInitializerMetadata(node)
+    }
+
+    func accessorMetadata(
+        for node: AccessorBlockSyntax
+    ) -> ParsedAccessorMetadata? {
+        currentCallableMetadataIndex?.metadata(for: node)
+            ?? ParsedAccessorMetadata(node)
+    }
+
+    func subscriptMetadata(
+        for node: SubscriptDeclSyntax
+    ) -> ParsedSubscriptMetadata {
+        currentCallableMetadataIndex?.metadata(for: node)
+            ?? ParsedSubscriptMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: StructDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: ClassDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: ActorDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: EnumDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
+    }
+
+    func nominalMetadata(
+        for node: ProtocolDeclSyntax
+    ) -> ParsedNominalMetadata {
+        currentNominalMetadataIndex?.metadata(for: node)
+            ?? ParsedNominalMetadata(node)
     }
 
 }

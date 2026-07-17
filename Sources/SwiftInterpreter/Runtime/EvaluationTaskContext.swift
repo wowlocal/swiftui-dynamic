@@ -13,6 +13,7 @@ final class EvaluationTaskContext {
 
     let id: UInt64
     let runtimeTaskID: RuntimeTaskID?
+    let runtimeEntry: RuntimeEntry?
     let runtimeSessionID: RuntimeSessionID?
     let isAsyncSession: Bool
     var priority: RuntimeTaskPriority
@@ -53,6 +54,7 @@ final class EvaluationTaskContext {
     init(
         id: UInt64,
         runtimeTaskID: RuntimeTaskID? = nil,
+        runtimeEntry: RuntimeEntry? = nil,
         runtimeSessionID: RuntimeSessionID? = nil,
         isAsyncSession: Bool = false,
         priority: RuntimeTaskPriority = .medium,
@@ -60,9 +62,14 @@ final class EvaluationTaskContext {
         taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage(),
         interpreter: Interpreter
     ) {
+        precondition(
+            runtimeEntry == nil || runtimeSessionID == nil
+                || runtimeEntry?.id == runtimeSessionID,
+            "evaluation context runtime entry and session ID must agree")
         self.id = id
         self.runtimeTaskID = runtimeTaskID
-        self.runtimeSessionID = runtimeSessionID
+        self.runtimeEntry = runtimeEntry
+        self.runtimeSessionID = runtimeEntry?.id ?? runtimeSessionID
         self.isAsyncSession = isAsyncSession
         self.priority = priority
         initialExecutor = executor

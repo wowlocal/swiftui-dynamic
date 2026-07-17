@@ -174,8 +174,9 @@ struct CancellationRaceExplorationTests {
         _ schedule: CancellationRaceSchedule
     ) throws {
         let runtime = CooperativeConcurrencyRuntime()
+        let entry = runtime.createEntry(kind: .test)
         let record = runtime.createTask(
-            sessionID: runtime.createSession(),
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -220,8 +221,9 @@ struct CancellationRaceExplorationTests {
         let deadline = RuntimeInstant(nanoseconds: 10)
         let clock = ManualRuntimeClock()
         let runtime = CooperativeConcurrencyRuntime(clock: clock)
+        let entry = runtime.createEntry(kind: .test)
         let record = runtime.createTask(
-            sessionID: runtime.createSession(),
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,
@@ -324,8 +326,9 @@ struct CancellationRaceExplorationTests {
         _ schedule: CancellationRaceSchedule
     ) throws {
         let runtime = CooperativeConcurrencyRuntime()
+        let entry = runtime.createEntry(kind: .test)
         let record = runtime.createTask(
-            sessionID: runtime.createSession(),
+            entry: entry,
             kind: .unstructured,
             parent: nil,
             priority: .medium,

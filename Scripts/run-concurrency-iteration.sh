@@ -2,6 +2,10 @@
 # Build once, then run one focused concurrency slice through independent
 # prebuilt-test processes. Avoid concurrent `swift test` commands: SwiftPM
 # serializes them on the shared .build lock even when --skip-build is passed.
+# Keep AppKit/SwiftUI selections serial inside their process. Pure methodology
+# checks use Swift Testing workers. Each gate-contract check gets a separate
+# prebuilt process: two exit before gate-lock acquisition and the lock-conflict
+# check owns a unique temporary lock, so they can overlap safely.
 set -u
 set -o pipefail
 cd "$(dirname "$0")/.." || exit 2
@@ -50,7 +54,7 @@ if (( skip_build == 0 )); then
 fi
 
 work_dir=$(mktemp -d)
-typeset -a labels logs pids active_pids
+typeset -a labels logs durations pids active_pids test_labels test_logs
 
 cleanup() {
     if [[ "${CONCURRENCY_ITERATION_KEEP_LOGS:-0}" == 1 ]]; then
@@ -84,20 +88,54 @@ trap on_signal HUP INT TERM
 launch() {
     local label="$1"
     local log="$2"
+    local duration="$log.duration"
     shift 2
     labels+=("$label")
     logs+=("$log")
-    "$@" > "$log" 2>&1 &
+    durations+=("$duration")
+    (
+        integer lane_started=$SECONDS lane_status=0
+        "$@" || lane_status=$?
+        print -r -- "$(( SECONDS - lane_started ))" > "$duration"
+        exit $lane_status
+    ) > "$log" 2>&1 &
     local pid=$!
     pids+=($pid)
     active_pids+=($pid)
 }
 
-launch "targeted tests" "$work_dir/targeted.log" \
-    Scripts/run-prebuilt-tests.sh --filter "$test_filter"
-launch "methodology" "$work_dir/methodology.log" \
-    Scripts/run-prebuilt-tests.sh --no-parallel \
-        --filter "$methodology_filter"
+launch_test() {
+    local label="$1"
+    local log="$2"
+    test_labels+=("$label")
+    test_logs+=("$log")
+    launch "$@"
+}
+
+launch_test "targeted tests" "$work_dir/targeted.log" \
+    Scripts/run-prebuilt-tests.sh --no-parallel --filter "$test_filter"
+if [[ "$methodology_filter" == ConcurrencyMethodologyTests ]]; then
+    gate_methodology_filter='ConcurrencyMethodologyTests/(gateReceiptContractIsSourceBoundAndActionable|gateRejectsConcurrentWorktreeRunBeforeBuild|gateBlocksInvalidCapabilityAccountingBeforeBuild)'
+    launch_test "methodology checks" "$work_dir/methodology-checks.log" \
+        Scripts/run-prebuilt-tests.sh --parallel --num-workers "$jobs" \
+            --filter "$methodology_filter" \
+            --skip "$gate_methodology_filter"
+    typeset -a gate_methodology_tests=(
+        gateReceiptContractIsSourceBoundAndActionable
+        gateRejectsConcurrentWorktreeRunBeforeBuild
+        gateBlocksInvalidCapabilityAccountingBeforeBuild
+    )
+    for gate_test in $gate_methodology_tests; do
+        launch_test "methodology $gate_test" \
+            "$work_dir/methodology-$gate_test.log" \
+            Scripts/run-prebuilt-tests.sh --no-parallel \
+                --filter "ConcurrencyMethodologyTests/$gate_test"
+    done
+else
+    launch_test "methodology" "$work_dir/methodology.log" \
+        Scripts/run-prebuilt-tests.sh --no-parallel \
+            --filter "$methodology_filter"
+fi
 launch "focused parity" "$work_dir/parity.log" \
     Scripts/run-focused-parity.sh "$case_id" --jobs "$jobs"
 
@@ -112,17 +150,21 @@ for (( index = 1; index <= ${#pids}; index++ )); do
         failed=1
     fi
 done
-for index in 1 2; do
-    if rg -q 'Test run with 0 tests' "${logs[$index]}"; then
-        echo "${labels[$index]} matched no tests" >&2
-        tail -20 "${logs[$index]}" >&2
+for (( index = 1; index <= ${#test_logs}; index++ )); do
+    if rg -q 'Test run with 0 tests' "${test_logs[$index]}"; then
+        echo "${test_labels[$index]} matched no tests" >&2
+        tail -20 "${test_logs[$index]}" >&2
         failed=1
     fi
 done
 if (( failed != 0 )); then exit 1; fi
 
 for (( index = 1; index <= ${#logs}; index++ )); do
-    echo "${labels[$index]}:"
+    lane_duration="?"
+    if [[ -f "${durations[$index]}" ]]; then
+        lane_duration=$(<"${durations[$index]}")
+    fi
+    echo "${labels[$index]} (${lane_duration}s):"
     tail -5 "${logs[$index]}"
 done
 echo "concurrency iteration completed in $(( SECONDS - started ))s"
