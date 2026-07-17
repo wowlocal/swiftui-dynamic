@@ -2296,3 +2296,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   R3 green; 34 pins across 10 suites; corpus 678/680 unchanged.
   Scratch bisect test + temp diag rows removed; diag-donuteditor is
   the permanent row. Gate still blocked by main-red.
+- 2026-07-17 R4 MUTATIONS COMPLETE ON BOTH CHART PANELS (worktree
+  iteration 49): the board re-run after the editor arc exposed two
+  DRIVER bugs and one real class. Driver: (1) the mutate phase always
+  picked segment 1 — topfive's DEFAULT is its second segment
+  (Day/Week/Month/Year), so the mutation no-opped by index collision;
+  it now picks a segment differing from the current one
+  (topfive-mutate lands, 67,884 repainted pixels — the chart re-sorts
+  for Month). (2) truck's step re-clicks the already-selected row —
+  natively a no-op; its verdict now requires sidebar health + zero
+  fresh diagnostics instead of a repaint floor. Real class left:
+  donuteditor lands visually (591k repaint) but carries ONE live
+  diagnostic — the i44 absorb tracer reports the iOS-only chain
+  '.navigationBarTitleDisplayMode.toolbarRole.storeMessagesDeferred'
+  absorbing a rendered view under --platform macOS; either the
+  inactive-#if chain segment still evaluates in the live path or the
+  toolbar subtree absorbs — next iteration. NOTE main-red persists
+  (~3h): lane-concurrency unresponsive to three steward escalations;
+  their storm-board worker crash stays theirs (their unmerged branch
+  may hold the fix). Pins pass. R4 board: 8/9 GREEN + editor
+  diag-gated.

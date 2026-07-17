@@ -74,6 +74,10 @@ enum SweepDriver {
             case "socialfeed":
                 // The feed replaces the orders table with its own list.
                 landed = sidebarAlive && changed > 100_000
+            case "truck":
+                // Each step process STARTS on the truck panel: re-clicking
+                // the already-selected row changes nothing natively.
+                landed = sidebarAlive && !ordersTableVisible && freshDiagnostics == 0
             default:
                 landed = sidebarAlive && !ordersTableVisible && changed > 5000
                     && freshDiagnostics == 0
@@ -127,7 +131,12 @@ enum SweepDriver {
             // binding into interpreted state and the chart must repaint.
             if landed, ["saleshistory", "topfive"].contains(step.name) {
                 if let segmented = firstSegmentedControl(in: window) {
-                    segmented.selectedSegment = min(1, segmented.segmentCount - 1)
+                    // Pick a segment that DIFFERS from the current one —
+                    // topfive defaults to its second segment and selecting
+                    // it again is a native no-op.
+                    let target = segmented.selectedSegment == 1
+                        ? min(2, segmented.segmentCount - 1) : 1
+                    segmented.selectedSegment = target
                     if let action = segmented.action {
                         NSApp.sendAction(action, to: segmented.target, from: segmented)
                     }
