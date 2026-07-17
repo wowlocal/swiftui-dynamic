@@ -46,14 +46,21 @@ the interpreter still combines program/session/heap responsibilities. A
 runtime-owned mailbox now serializes actor-function segments and releases a
 complete depth-counted segment across canonical runtime waits before queuing
 the same task to reacquire it on resume. There is still no general runnable-
-executor queue or continuation registry. M6 has begun with protocol-driven
+executor queue. M6 now includes a bounded checked-continuation registry for
+the explicit-`nil` isolation, `resume(returning:)` value slice; each active
+record is owned by one task, names its required resume executor, uses the
+canonical suspension lease, and is removed on success or infrastructure abort.
+M6 began with protocol-driven
 `for await` over interpreted witnesses, including suspending mutating iterator
 copy-out, typed source-error propagation, and cooperative user-iterator
 cancellation. Early `break` and its per-iteration `defer` cleanup are also
 covered together with `continue` and `return` cleanup; protocol-extension
 defaults for both requirements are covered as well. Host-backed sequences,
 including typed opaque gateways with tracked host suspension, are covered as
-well. Cancellable streams and continuations remain open. The remaining
+well. Both stream flavors' evidenced cancellation, buffering, iterator-copy,
+and lifetime tails are covered. Throwing/unsafe continuations, broader
+isolation and resume spellings, and checked-continuation diagnostic/lifetime
+edges remain open. The remaining
 Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1329,6 +1336,17 @@ Checked continuations enforce:
 Native probes determine which properties are guaranteed and which diagnostics
 are debug implementation behavior.
 
+The current first slice implements a bounded runtime-owned record and opaque
+source carrier for `withCheckedContinuation(isolation:nil)` plus
+`resume(returning:)`. A delayed resume records
+`.waitingForContinuation(id)`, restores the owner's required logical executor,
+and closes both the registry entry and task-owner edge before returning the
+copied value. Immediate resume uses the same exactly-once transition without a
+synthetic suspension. Infrastructure cancellation may abort the internal
+native waiter so session teardown cannot hang; ordinary source cancellation
+does not resolve the continuation. Throwing/error projection, broader
+isolation, checked diagnostics/lifetime, and unsafe variants remain open.
+
 ### 6.18 Async sequences and streams
 
 `AsyncSequence` support is protocol-driven, not a collection special case.
@@ -2033,10 +2051,11 @@ Each milestone is independently gated through
   single pending-`next()` capability, and a causally overlapping call has
   process-isolated native/interpreter runtime-trap parity. Final-owner
   scope-exit cancellation and non-owning escaped producer-continuation lifetime
-  also have exact parity. Checked continuations resuming on
-  cooperative-default and MainActor executors remain active and require
-  executor-owned resume from the covered M5 identity/storage slice, not
-  complete custom-executor scheduling;
+  also have exact parity. The first checked-continuation value slice now owns
+  explicit-`nil` isolation, one detached-producer resume, required-executor
+  restoration, and teardown cleanup. MainActor-specific evidence, throwing and
+  unsafe variants, other resume spellings, and diagnostic/lifetime edges remain
+  active; complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
   the M6 slice; and
@@ -2276,8 +2295,11 @@ suspension, a second call traps in both isolated native and interpreted
 processes. Final-owner scope exit also synchronously delivers `.cancelled`
 before its caller continues. An escaped throwing producer continuation likewise
 does not retain storage, returns `.terminated` after owner release, and is inert
-on its own release. Checked-continuation ownership
-remain active rather than being inferred from those slices.
+on its own release. The first source checked-continuation slice separately owns
+a bounded runtime record, delayed value resume, required-executor restoration,
+and infrastructure-abort cleanup. Its remaining isolation, error, diagnostic,
+and lifetime edges remain active rather than being inferred from stream
+behavior.
 
 Deliverables:
 

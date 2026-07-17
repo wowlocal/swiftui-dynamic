@@ -1540,7 +1540,7 @@ struct ConcurrencyMethodologyTests {
         #expect(claim.notes.contains("known divergence"))
     }
 
-    @Test func continuationEntryPointsHaveExplicitDeferredDispositions()
+    @Test func continuationEntryPointsHaveExplicitReviewedDispositions()
     throws {
         let manifestRoot = Self.packageRoot.appendingPathComponent(
             "Tests/ConcurrencyParity/Manifests", isDirectory: true)
@@ -1579,7 +1579,6 @@ struct ConcurrencyMethodologyTests {
             $0.domain == "top-level-function"
                 && $0.container == "_Concurrency"
                 && $0.name == expected[$0.id]
-                && $0.adapterIntrinsic == nil
                 && $0.declaration.contains(
                     "isolation: isolated (any _Concurrency.Actor)? = #isolation")
                 && $0.declaration.contains("async")
@@ -1588,6 +1587,7 @@ struct ConcurrencyMethodologyTests {
         let checked = try #require(rows.first {
             $0.name == "withCheckedContinuation"
         })
+        #expect(checked.adapterIntrinsic == "withCheckedContinuation")
         #expect(checked.declaration.contains(
             "function: Swift.String = #function"))
         #expect(checked.declaration.contains(
@@ -1596,6 +1596,7 @@ struct ConcurrencyMethodologyTests {
         let checkedThrowing = try #require(rows.first {
             $0.name == "withCheckedThrowingContinuation"
         })
+        #expect(checkedThrowing.adapterIntrinsic == nil)
         #expect(checkedThrowing.declaration.contains(
             "_Concurrency.CheckedContinuation<T, any Swift.Error>"))
         #expect(checkedThrowing.declaration.contains(
@@ -1603,6 +1604,7 @@ struct ConcurrencyMethodologyTests {
         let unsafe = try #require(rows.first {
             $0.name == "withUnsafeContinuation"
         })
+        #expect(unsafe.adapterIntrinsic == nil)
         #expect(unsafe.declaration.contains("@unsafe public func"))
         #expect(unsafe.declaration.contains(
             "_Concurrency.UnsafeContinuation<T, Swift.Never>"))
@@ -1610,6 +1612,7 @@ struct ConcurrencyMethodologyTests {
         let unsafeThrowing = try #require(rows.first {
             $0.name == "withUnsafeThrowingContinuation"
         })
+        #expect(unsafeThrowing.adapterIntrinsic == nil)
         #expect(unsafeThrowing.declaration.contains("@unsafe public func"))
         #expect(unsafeThrowing.declaration.contains(
             "_Concurrency.UnsafeContinuation<T, any Swift.Error>"))
@@ -1619,7 +1622,28 @@ struct ConcurrencyMethodologyTests {
         let claims = status.interfaceOverrides.filter { expected[$0.id] != nil }
         #expect(claims.count == 4)
         #expect(Set(claims.map(\.id)) == Set(expected.keys))
-        #expect(claims.allSatisfy {
+        let checkedClaim = try #require(claims.first {
+            $0.id == checked.id
+        })
+        #expect(checkedClaim.implementationStatus == .knownDivergence)
+        #expect(checkedClaim.verificationStatus == .none)
+        #expect(checkedClaim.requirementRef
+            == "M6/protocol-iteration-streams-and-continuations")
+        #expect(checkedClaim.evidenceCaseIDs
+            == ["checked-continuation-value-resume"])
+        #expect(checkedClaim.testNames == [
+            "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
+            "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
+            "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
+        ])
+        #expect(checkedClaim.gapEvidenceIDs
+            == ["async-sequence-continuation-runtime"])
+        #expect(checkedClaim.notes.contains("explicit isolation: nil"))
+        #expect(checkedClaim.notes.contains("resume executor"))
+
+        let deferredClaims = claims.filter { $0.id != checked.id }
+        #expect(deferredClaims.count == 3)
+        #expect(deferredClaims.allSatisfy {
             $0.implementationStatus == .deferred
                 && $0.verificationStatus == .none
                 && $0.requirementRef

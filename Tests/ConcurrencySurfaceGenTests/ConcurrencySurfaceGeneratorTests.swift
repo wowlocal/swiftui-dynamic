@@ -17,6 +17,7 @@ struct ConcurrencySurfaceGeneratorTests {
             "asyncDetached": "detachedTask",
             "detach": "detachedTask",
             "extractIsolation": "extractIsolation",
+            "withCheckedContinuation": "withCheckedContinuation",
             "withDiscardingTaskGroup": "withDiscardingTaskGroup",
             "withTaskCancellationHandler": "withTaskCancellationHandler",
             "withTaskExecutorPreference": "withTaskExecutorPreference",
@@ -384,7 +385,7 @@ struct ConcurrencySurfaceGeneratorTests {
             $0.contains("nested declarations outside")
         })
         #expect(capabilities.summary.declarationCount == 171)
-        #expect(capabilities.summary.adapterRoutedDeclarationCount == 123)
+        #expect(capabilities.summary.adapterRoutedDeclarationCount == 124)
         #expect(capabilities.summary.declarationsByDomain == [
             "top-level-function": 49,
             "task-static-member": 25,
@@ -441,7 +442,7 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(capabilities.declarations.contains {
             $0.domain == "top-level-function"
                 && $0.name == "withCheckedContinuation"
-                && $0.adapterIntrinsic == nil
+                && $0.adapterIntrinsic == "withCheckedContinuation"
         })
         #expect(capabilities.declarations.contains {
             $0.domain == "task-static-member" && $0.name == "sleep"
@@ -501,6 +502,7 @@ struct ConcurrencySurfaceGeneratorTests {
         #expect(Set(inventory.topLevelFunctionDispatch.keys) == [
             "_isolatedParameter_withTaskPriorityEscalationHandler",
             "async", "asyncDetached", "detach", "extractIsolation",
+            "withCheckedContinuation",
             "withDiscardingTaskGroup",
             "withTaskCancellationHandler", "withTaskExecutorPreference",
             "withTaskGroup",
@@ -730,6 +732,11 @@ struct ConcurrencySurfaceGeneratorTests {
         operation: () async throws -> Result,
         onCancel handler: @Sendable () -> Void
     ) async rethrows -> Result { fatalError() }
+    public func withCheckedContinuation<T>(
+        isolation: isolated (any Actor)? = #isolation,
+        function: String = #function,
+        _ body: (CheckedContinuation<T, Never>) -> Void
+    ) async -> sending T { fatalError() }
     public func extractIsolation<each Arg, Result>(
         _ fn: @escaping @isolated(any)
             (repeat each Arg) async throws -> Result

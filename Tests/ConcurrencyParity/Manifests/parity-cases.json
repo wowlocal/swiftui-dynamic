@@ -2121,5 +2121,17 @@
     "interpreterProjection": "string",
     "nativeFact": "An escaped AsyncThrowingStream producer continuation does not retain unfinished stream storage: final sequence release synchronously cancels the stream, later yield is terminated, and releasing the handle is inert.",
     "notes": "All three observations are program-ordered in one MainActor task. No task scheduling, executor, or thread behavior is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced cancelled:terminated:cancelled in twenty bounded native runs. This was an already-GREEN characterization: the shared producer carrier was already weak for both stream flavors after scope-exit support landed, so no production change was required. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 37ca395c9da690fb5efa6fba8dfec52ec9ee6ddce65ce54e759749b1a8932bb2; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
+  },
+  {
+    "id": "checked-continuation-value-resume",
+    "fixture": "Fixtures/checked-continuation-value-resume.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationValueResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A one-shot checked continuation returns the exact value supplied by a detached producer after that producer yields, with explicit nil isolation from a nonisolated caller.",
+    "notes": "The exact result is causal and makes no scheduling-order, physical-thread, or parallelism claim. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced 41 in twenty bounded native runs. The interpreter RED was unresolved identifier 'withCheckedContinuation'. Generated dispatch now routes the proven explicit-isolation-nil value subset through a task-owned bounded continuation record; the detached producer exercises resume from another source task. Focused evidence observes waitingForContinuation, required-executor restoration, one record, infrastructure-abort cleanup, and empty continuation/task/scope/group/stream/host-operation/scheduler registries. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 cdc0e05905b13ba3a3ef5a18fbefc271aedd047a639102d2b4ef965cc4f8c1a7."
   }
 ]

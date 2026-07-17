@@ -155,6 +155,8 @@ extension Interpreter {
             } else if intrinsic == .withTaskExecutorPreference {
                 function = sourceTaskExecutorPreferenceFunction(
                     name: sourceName)
+            } else if intrinsic == .withCheckedContinuation {
+                function = sourceCheckedContinuationFunction(name: sourceName)
             } else if intrinsic == .extractIsolation {
                 function = sourceExtractIsolationFunction(name: sourceName)
             } else if intrinsic == .withCurrentTaskCapability {

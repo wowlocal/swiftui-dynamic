@@ -71,6 +71,17 @@ public struct RuntimeAsyncStreamID: Hashable, Sendable,
     public var description: String { "async-stream-\(rawValue)" }
 }
 
+public struct RuntimeContinuationID: Hashable, Sendable,
+    CustomStringConvertible {
+    public let rawValue: UInt64
+
+    public init(rawValue: UInt64) {
+        self.rawValue = rawValue
+    }
+
+    public var description: String { "continuation-\(rawValue)" }
+}
+
 public struct HostOperationID: Hashable, Sendable, CustomStringConvertible {
     public let rawValue: UInt64
 
@@ -288,6 +299,7 @@ public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
     case awaitingHost(HostOperationID)
     case waitingForGroup(RuntimeTaskGroupID)
     case waitingForStream(RuntimeAsyncStreamID)
+    case waitingForContinuation(RuntimeContinuationID)
     case waitingForActor(RuntimeActorID)
     case yielding
     case sleeping(until: RuntimeInstant)
@@ -299,6 +311,8 @@ public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
         case .waitingForGroup(let groupID): "waitingForGroup(\(groupID))"
         case .waitingForStream(let streamID):
             "waitingForStream(\(streamID))"
+        case .waitingForContinuation(let continuationID):
+            "waitingForContinuation(\(continuationID))"
         case .waitingForActor(let actorID): "waitingForActor(\(actorID))"
         case .yielding: "yielding"
         case .sleeping(let deadline): "sleeping(until: \(deadline))"
@@ -442,6 +456,7 @@ final class RuntimeTaskRecord {
     var structuredChildren: Set<RuntimeTaskID> = []
     var structuredScopes: Set<RuntimeStructuredScopeID> = []
     var ownedTaskGroups: Set<RuntimeTaskGroupID> = []
+    var ownedContinuations: Set<RuntimeContinuationID> = []
     var taskGroupID: RuntimeTaskGroupID?
     weak var sourceHandle: RuntimeTaskHandle?
     var nativeDriver: RuntimeNativeTaskDriver?
@@ -643,6 +658,7 @@ private final class RuntimeActorMailboxWaiter {
 
 final class CooperativeConcurrencyRuntime {
     private static let maximumActorMailboxWaiters = 1_024
+    private static let maximumLiveContinuations = 1_024
 
     let clock: any RuntimeClock
     private var nextSessionID: UInt64 = 1
@@ -651,6 +667,7 @@ final class CooperativeConcurrencyRuntime {
     private var nextStructuredScopeID: UInt64 = 1
     private var nextTaskGroupID: UInt64 = 1
     private var nextAsyncStreamID: UInt64 = 1
+    private var nextContinuationID: UInt64 = 1
     private var nextHostOperationID: UInt64 = 1
     private var nextCancellationHandlerID: UInt64 = 1
     private var nextPriorityEscalationHandlerID: UInt64 = 1
@@ -665,6 +682,9 @@ final class CooperativeConcurrencyRuntime {
     private(set) var asyncStreams: [
         RuntimeAsyncStreamID: RuntimeAsyncStreamRecord
     ] = [:]
+    private(set) var continuations: [
+        RuntimeContinuationID: RuntimeContinuationRecord
+    ] = [:]
     private(set) var hostOperations: [HostOperationID: RuntimeTaskID] = [:]
     private var hostOperationSuspensions: [
         HostOperationID: RuntimeTaskSuspensionLease
@@ -672,6 +692,8 @@ final class CooperativeConcurrencyRuntime {
     private(set) var actors: [RuntimeActorID: RuntimeActorRecord] = [:]
     private(set) var totalAsyncStreamsCreated = 0
     private(set) var asyncStreamSuspensionCount = 0
+    private(set) var totalContinuationsCreated = 0
+    private(set) var continuationSuspensionCount = 0
     /// Swift callback types such as `AsyncStream.Continuation.onTermination`
     /// are nonthrowing, but evaluating their source bodies can still uncover
     /// an interpreter/runtime failure. Destruction cannot throw, so retain the
@@ -1065,6 +1087,161 @@ final class CooperativeConcurrencyRuntime {
         asyncStreams.removeValue(forKey: id)
     }
 
+    func createContinuation(
+        ownerTaskID: RuntimeTaskID,
+        requiredExecutor: RuntimeExecutorKind
+    ) throws -> RuntimeContinuationRecord {
+        guard continuations.count < Self.maximumLiveContinuations else {
+            throw RuntimeError(
+                message: "interpreted continuation limit exceeded",
+                fatal: true)
+        }
+        guard let owner = records[ownerTaskID],
+              owner.state == .running else {
+            throw RuntimeError(
+                message: "checked continuation requires a running owner task",
+                fatal: true)
+        }
+        let id = RuntimeContinuationID(rawValue: nextContinuationID)
+        nextContinuationID += 1
+        let record = RuntimeContinuationRecord(
+            id: id,
+            ownerTaskID: ownerTaskID,
+            requiredExecutor: requiredExecutor)
+        precondition(
+            continuations.updateValue(record, forKey: id) == nil,
+            "duplicate runtime continuation ID \(id)")
+        precondition(
+            owner.ownedContinuations.insert(id).inserted,
+            "duplicate owner edge for \(id)")
+        totalContinuationsCreated += 1
+        return record
+    }
+
+    func resumeContinuation(
+        _ id: RuntimeContinuationID,
+        returning value: RuntimeValue
+    ) throws {
+        guard let record = continuations[id] else {
+            throw RuntimeError(
+                message: "checked continuation \(id) is no longer active",
+                fatal: true)
+        }
+        guard case .pending = record.state else {
+            throw RuntimeError(
+                message: "checked continuation \(id) resumed more than once",
+                fatal: true)
+        }
+        record.state = .resumed(value.copiedForValueSemantics())
+        let waiter = record.nativeWaiter
+        record.nativeWaiter = nil
+        waiter?.resume()
+    }
+
+    func awaitContinuation(
+        _ record: RuntimeContinuationRecord
+    ) async throws -> RuntimeValue {
+        precondition(
+            continuations[record.id] === record,
+            "cannot await inactive \(record.id)")
+
+        if case .pending = record.state {
+            let continuationID = record.id
+            let lease = beginTaskSuspension(
+                record.ownerTaskID,
+                for: .waitingForContinuation(continuationID))
+            record.suspensionLease = lease
+            continuationSuspensionCount += 1
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { waiter in
+                    if case .pending = record.state {
+                        precondition(
+                            record.nativeWaiter == nil,
+                            "\(record.id) installed more than one native waiter")
+                        record.nativeWaiter = waiter
+                    } else {
+                        waiter.resume()
+                    }
+                }
+            } onCancel: { [weak self] in
+                Task { @MainActor [weak self] in
+                    self?.abortContinuationForNativeCancellation(continuationID)
+                }
+            }
+            record.nativeWaiter = nil
+            await endTaskSuspension(lease)
+            record.suspensionLease = nil
+        }
+
+        let outcome = record.state
+        let ownerExecutor = records[record.ownerTaskID]?
+            .evaluationContext?.currentExecutor
+        precondition(
+            ownerExecutor == record.requiredExecutor,
+            "\(record.id) resumed on \(String(describing: ownerExecutor)) "
+                + "instead of \(record.requiredExecutor)")
+        closeContinuation(record)
+        switch outcome {
+        case .resumed(let value):
+            return value
+        case .aborted:
+            throw InterpreterSessionAbort()
+        case .pending:
+            preconditionFailure("\(record.id) woke without an outcome")
+        }
+    }
+
+    func discardContinuation(_ record: RuntimeContinuationRecord) {
+        precondition(
+            record.nativeWaiter == nil && record.suspensionLease == nil,
+            "cannot discard a suspended continuation")
+        closeContinuation(record)
+    }
+
+    private func closeContinuation(_ record: RuntimeContinuationRecord) {
+        precondition(
+            record.nativeWaiter == nil && record.suspensionLease == nil,
+            "cannot close suspended \(record.id)")
+        precondition(
+            continuations.removeValue(forKey: record.id) === record,
+            "cannot close inactive \(record.id)")
+        guard let owner = records[record.ownerTaskID] else {
+            preconditionFailure("\(record.id) lost owner \(record.ownerTaskID)")
+        }
+        precondition(
+            owner.ownedContinuations.remove(record.id) != nil,
+            "\(record.id) lost its owner edge")
+    }
+
+    private func abortContinuationForNativeCancellation(
+        _ id: RuntimeContinuationID
+    ) {
+        guard let continuation = continuations[id],
+              let owner = records[continuation.ownerTaskID],
+              owner.kind == .root || requiresSessionAbort(owner.id) else {
+            return
+        }
+        abortContinuation(continuation)
+    }
+
+    private func abortContinuationsOwned(by taskID: RuntimeTaskID) {
+        guard let owner = records[taskID] else { return }
+        for id in Array(owner.ownedContinuations) {
+            guard let continuation = continuations[id] else {
+                preconditionFailure("task \(taskID) owns inactive \(id)")
+            }
+            abortContinuation(continuation)
+        }
+    }
+
+    private func abortContinuation(_ record: RuntimeContinuationRecord) {
+        guard case .pending = record.state else { return }
+        record.state = .aborted
+        let waiter = record.nativeWaiter
+        record.nativeWaiter = nil
+        waiter?.resume()
+    }
+
     func addStructuredChild(
         _ childID: RuntimeTaskID,
         to scope: RuntimeStructuredScopeRecord
@@ -1339,6 +1516,9 @@ final class CooperativeConcurrencyRuntime {
             record.cancellation.sources.contains(source)
         record.cancellation.request(
             from: source, sequence: takeEventSequence())
+        if source == .sessionPolicy || source == .hostTask {
+            abortContinuationsOwned(by: record.id)
+        }
         // Cancellation is orthogonal to completion in Swift. A handle may be
         // cancelled after its task reaches a terminal state; that updates the
         // handle's cancellation bit without changing the immutable outcome or
@@ -1476,6 +1656,9 @@ final class CooperativeConcurrencyRuntime {
         precondition(
             records[id]?.ownedTaskGroups.isEmpty != false,
             "cannot release runtime task \(id) with an active task group")
+        precondition(
+            records[id]?.ownedContinuations.isEmpty != false,
+            "cannot release runtime task \(id) with an active continuation")
         precondition(
             asyncStreams.values.allSatisfy {
                 !$0.waitingTaskIDs.contains(id)
@@ -1667,6 +1850,7 @@ final class CooperativeConcurrencyRuntime {
     var activeStructuredScopeCount: Int { structuredScopes.count }
     var activeTaskGroupCount: Int { taskGroups.count }
     var activeAsyncStreamCount: Int { asyncStreams.count }
+    var activeContinuationCount: Int { continuations.count }
 
     private func invokeCancellationHandlers(on record: RuntimeTaskRecord) {
         // The same-source Swift 6.3.3 probe establishes inner-to-outer
