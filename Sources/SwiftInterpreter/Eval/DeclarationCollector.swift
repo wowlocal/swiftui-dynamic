@@ -913,15 +913,13 @@ extension Interpreter {
         for decl in flattenedMemberDecls(node.memberBlock.members) {
             if let caseDecl = decl.as(EnumCaseDeclSyntax.self) {
                 for element in caseDecl.elements {
-                    // `case \`default\`` — backticks normalize away, like
-                    // parameters and labels everywhere else.
-                    let caseName = element.name.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
-                    let labels: [String?] = element.parameterClause?.parameters.map { $0.firstName?.text } ?? []
-                    let associatedTypeNames = element.parameterClause?.parameters.map {
-                        $0.type.trimmedDescription
-                    } ?? []
+                    let caseMetadata = enumCaseMetadata(for: element)
+                    let caseName = caseMetadata.name
+                    let labels = caseMetadata.associatedValues.map(\.label)
+                    let associatedTypeNames = caseMetadata.associatedValues
+                        .map(\.typeName)
                     let raw: RuntimeValue
-                    if let rawExpr = element.rawValue?.value {
+                    if let rawExpr = caseMetadata.rawValue {
                         raw = try evaluate(rawExpr, in: globals)
                     } else if rawIsString {
                         raw = .native(caseName)

@@ -12,6 +12,7 @@ struct RuntimeEntryOwnershipTests {
         var observedDeclarationCounts: [Int?] = []
         var observedNominalCounts: [Int?] = []
         var observedPropertyBindingCounts: [Int?] = []
+        var observedEnumCaseCounts: [Int?] = []
         weak var observedEntry: RuntimeEntry?
         interpreter.globals.define(
             "captureRuntimeEntry",
@@ -33,10 +34,13 @@ struct RuntimeEntryOwnershipTests {
                         .nominalMetadataIndex.summary.structureCount)
                     observedPropertyBindingCounts.append(entry.programMetadata?
                         .propertyMetadataIndex.summary.bindingCount)
+                    observedEnumCaseCounts.append(entry.programMetadata?
+                        .enumCaseMetadataIndex.summary.caseElementCount)
                     return .void
                 })))
         let value = try interpreter.run(source: """
         struct OriginMarker { let value = 1 }
+        enum OriginState { case ready }
         func makeCallback() -> () -> Void {
             {
                 captureRuntimeEntry()
@@ -51,6 +55,7 @@ struct RuntimeEntryOwnershipTests {
         _ = interpreter.makeSession(program: try ParsedProgram(source: """
         struct NewerMarker { let value = 1 }
         struct NewestMarker { let value = 2 }
+        enum NewerState { case first; case second }
         func newer() {}
         func newest() {}
         """))
@@ -70,9 +75,10 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedKinds == [.hostCallback, .hostCallback])
         #expect(observedHeapMatches == [true, true])
         #expect(observedMetadata.map { $0?.functionCount } == [1, 1])
-        #expect(observedDeclarationCounts == [2, 2])
+        #expect(observedDeclarationCounts == [3, 3])
         #expect(observedNominalCounts == [1, 1])
         #expect(observedPropertyBindingCounts == [1, 1])
+        #expect(observedEnumCaseCounts == [1, 1])
         #expect(observedEntry == nil,
             "the runtime entry must release after its final task record")
     }

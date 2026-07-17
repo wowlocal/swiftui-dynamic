@@ -506,10 +506,132 @@ struct ParsedProgramConcurrencyTests {
         #expect(bindingMetadata.didSet?.parameterName == "previous")
     }
 
+    @Test func parsedProgramOwnsSendableEnumCaseMetadataIndex() async throws {
+        let program = try ParsedProgram(source: """
+        enum User {
+            case `default`
+            case authenticated(username: String)
+            case city(City.ID)
+
+            #if os(iOS)
+            case account
+            #else
+            case orders
+            #endif
+        }
+
+        enum HeaderSize: Double {
+            case standard = 1.0
+            case reduced = 0.5
+        }
+
+        func localEnum() {
+            enum Local { case item(Int) }
+        }
+        """)
+        let expected = ParsedEnumCaseMetadataIndex.Summary(
+            enumCaseDeclarationCount: 8,
+            caseElementCount: 8,
+            associatedValueCaseCount: 3,
+            associatedValueCount: 3,
+            labeledAssociatedValueCount: 1,
+            explicitRawValueCount: 2,
+            backtickedNameCount: 1)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.enumCaseMetadataIndex)
+        #expect(program.enumCaseMetadataIndex.summary == expected)
+        #expect(program.metadata.enumCaseMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.enumCaseMetadataIndex.summary }
+        }
+        var observations: [ParsedEnumCaseMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let enumerations: [EnumDeclSyntax] =
+            program.syntax.statements.compactMap {
+                guard case .decl(let declaration) = $0.item else {
+                    return nil
+                }
+                return declaration.as(EnumDeclSyntax.self)
+            }
+        let user = try #require(enumerations.first)
+        let userCases = user.memberBlock.members.compactMap {
+            $0.decl.as(EnumCaseDeclSyntax.self)?.elements.first
+        }
+        let defaultCase = try #require(userCases.first)
+        let defaultMetadata = try #require(
+            program.enumCaseMetadataIndex.metadata(for: defaultCase))
+        #expect(defaultMetadata.name == "default")
+        #expect(defaultMetadata.wasBackticked)
+        #expect(defaultMetadata.associatedValues.isEmpty)
+        #expect(defaultMetadata.rawValue == nil)
+
+        let authenticated = try #require(userCases.dropFirst().first)
+        let authenticatedMetadata = try #require(
+            program.enumCaseMetadataIndex.metadata(for: authenticated))
+        #expect(authenticatedMetadata.name == "authenticated")
+        #expect(authenticatedMetadata.associatedValues.map(\.label)
+            == ["username"])
+        #expect(authenticatedMetadata.associatedValues.map(\.typeName)
+            == ["String"])
+
+        let city = try #require(userCases.dropFirst(2).first)
+        let cityMetadata = try #require(
+            program.enumCaseMetadataIndex.metadata(for: city))
+        #expect(cityMetadata.associatedValues.map(\.label) == [nil])
+        #expect(cityMetadata.associatedValues.map(\.typeName) == ["City.ID"])
+
+        let header = try #require(enumerations.last)
+        let headerCases = header.memberBlock.members.compactMap {
+            $0.decl.as(EnumCaseDeclSyntax.self)?.elements.first
+        }
+        let standard = try #require(headerCases.first)
+        let standardMetadata = try #require(
+            program.enumCaseMetadataIndex.metadata(for: standard))
+        #expect(standardMetadata.rawValue?.trimmedDescription == "1.0")
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata?.enumCaseMetadataIndex
+            .summary == expected)
+    }
+
+    @Test func enumCaseMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        enum Foreign: Double {
+            case `default` = 0.5
+            case value(label: String)
+        }
+        """)
+        let enumeration = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(EnumDeclSyntax.self))
+        let elements = enumeration.memberBlock.members.compactMap {
+            $0.decl.as(EnumCaseDeclSyntax.self)?.elements.first
+        }
+        let defaultCase = try #require(elements.first)
+        let valueCase = try #require(elements.last)
+        let interpreter = Interpreter()
+
+        let defaultMetadata = interpreter.enumCaseMetadata(for: defaultCase)
+        #expect(defaultMetadata.name == "default")
+        #expect(defaultMetadata.wasBackticked)
+        #expect(defaultMetadata.rawValue?.trimmedDescription == "0.5")
+        let valueMetadata = interpreter.enumCaseMetadata(for: valueCase)
+        #expect(valueMetadata.associatedValues.map(\.label) == ["label"])
+        #expect(valueMetadata.associatedValues.map(\.typeName) == ["String"])
+    }
+
     @Test func parsedProgramMetadataIsOneSendableRuntimeCapability()
     async throws {
         let program = try ParsedProgram(source: """
         struct Marker {}
+        enum Phase { case ready }
         func makeValue() -> Int { 42 }
         makeValue()
         """)
@@ -523,6 +645,8 @@ struct ParsedProgramConcurrencyTests {
             == program.nominalMetadataIndex.summary)
         #expect(program.metadata.propertyMetadataIndex.summary
             == program.propertyMetadataIndex.summary)
+        #expect(program.metadata.enumCaseMetadataIndex.summary
+            == program.enumCaseMetadataIndex.summary)
 
         let readers = (0..<8).map { _ in
             Task.detached {
@@ -531,15 +655,16 @@ struct ParsedProgramConcurrencyTests {
                         .possiblePrimaryDeclarationCount,
                     program.metadata.callableMetadataIndex.summary.functionCount,
                     program.metadata.nominalMetadataIndex.summary.structureCount,
-                    program.metadata.propertyMetadataIndex.summary.bindingCount
+                    program.metadata.propertyMetadataIndex.summary.bindingCount,
+                    program.metadata.enumCaseMetadataIndex.summary.caseElementCount
                 )
             }
         }
-        var observations: [(Int, Int, Int, Int)] = []
+        var observations: [(Int, Int, Int, Int, Int)] = []
         for reader in readers {
             observations.append(await reader.value)
         }
-        #expect(observations.allSatisfy { $0 == (2, 1, 1, 0) })
+        #expect(observations.allSatisfy { $0 == (3, 1, 1, 0, 1) })
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
@@ -549,6 +674,8 @@ struct ParsedProgramConcurrencyTests {
             .summary == program.nominalMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.propertyMetadataIndex
             .summary == program.propertyMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.enumCaseMetadataIndex
+            .summary == program.enumCaseMetadataIndex.summary)
         #expect(try await interpreter.runAsync(session: session).intValue == 42)
     }
 

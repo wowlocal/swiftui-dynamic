@@ -685,6 +685,17 @@ public final class Interpreter {
         currentProgramMetadata?.propertyMetadataIndex
     }
 
+    var currentEnumCaseMetadataIndex: ParsedEnumCaseMetadataIndex? {
+        currentProgramMetadata?.enumCaseMetadataIndex
+    }
+
+    func enumCaseMetadata(
+        for node: EnumCaseElementSyntax
+    ) -> ParsedEnumCaseMetadata {
+        currentEnumCaseMetadataIndex?.metadata(for: node)
+            ?? ParsedEnumCaseMetadata(node)
+    }
+
     func propertyMetadata(
         for node: VariableDeclSyntax
     ) -> ParsedVariablePropertyMetadata {

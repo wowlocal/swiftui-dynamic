@@ -205,6 +205,22 @@ existing actor-initialization oracle cover the boundary. Swift 6 actor
 initialization parity remains unchanged in twenty repetitions; this is not a
 physical-worker claim.
 
+The eleventh prerequisite adds an immutable, all-branch
+`ParsedEnumCaseMetadataIndex` to the composite capability. Every enum-case
+element is indexed by syntax identity across top-level, nested, local, and
+inactive conditional-compilation regions. The index owns normalized and
+backticked names, associated-value labels and type spellings, and explicit raw
+value expressions. Enum symbol construction consumes those immutable headers
+with a pure fallback for foreign or synthetic syntax; selection of active
+`#if` declarations, implicit String/Int raw values, and evaluation of explicit
+raw expressions remain session-owned. The demand depth is bounded to spellings
+cited by FoodTruck's `User`, `Panel`, and `BrandHeader.HeaderSize`; attributes
+and `indirect` semantics are not claimed. Eight detached readers, session and
+callback provenance, enum regressions, and a same-source actor-crossing oracle
+cover the boundary. Swift 6 and the interpreter produce
+`authenticated:foodtruck|default|1.0:0.5` in twenty repetitions without a
+scheduler-order or physical-worker claim.
+
 The stable target separates five concerns:
 
 ```text
@@ -583,6 +599,7 @@ public struct ParsedProgram: Sendable {
     let declarations: DeclarationIndex
     let nominalMetadata: NominalMetadataIndex
     let propertyMetadata: PropertyMetadataIndex
+    let enumCaseMetadata: EnumCaseMetadataIndex
     let callMetadata: CallMetadataIndex
     let isolationMetadata: IsolationIndex
     let sourceLocations: SourceLocationIndex
@@ -598,7 +615,8 @@ Current implementation stage (2026-07-17): `ParsedProgram` owns the folded
 syntax, source-location index, and one public immutable
 `ParsedProgramMetadata` capability. That value owns the public
 `ParsedDeclarationIndex`, `ParsedCallableMetadataIndex`,
-`ParsedNominalMetadataIndex`, and `ParsedPropertyMetadataIndex`;
+`ParsedNominalMetadataIndex`, `ParsedPropertyMetadataIndex`, and
+`ParsedEnumCaseMetadataIndex`;
 compatibility accessors on `ParsedProgram`
 expose the same values. The declaration index
 classifies all possible top-level primary declarations, aliases, and
@@ -617,8 +635,12 @@ nominal symbol construction consumes it. The property index records every
 variable declaration and binding's immutable storage header, including
 mutability, static/lazy/nonisolated/TaskLocal and reference-ownership policy,
 tuple layout, stored/computed classification, and observer bodies. Global,
-member, enum-static, and local storage materialization consumes it. Remaining
-member metadata, call-site semantic resolution, and the compiler-preflight
+member, enum-static, and local storage materialization consumes it.
+The enum-case index records normalized/backticked names, associated-value
+labels and type spellings, and explicit raw expressions in every lexical and
+conditional region. Enum symbol materialization consumes those headers while
+the session owns active-branch selection and raw-value evaluation. Remaining
+member families, call-site semantic resolution, and the compiler-preflight
 fingerprint remain target work.
 
 ### 6.2 `InterpreterSession`
@@ -2733,9 +2755,9 @@ distinct callback IDs over one heap, and final release. A causal same-source
 probe establishes cooperative overlap against the confined heap in twenty
 native/interpreter repetitions. `ParsedProgram` additionally owns one immutable
 `ParsedProgramMetadata` capability containing its declaration and all-branch
-callable, nominal, and property indexes; the runtime no longer stores mutable
-function/initializer metadata caches on the facade. Sessions and escaped
-callbacks retain the originating capability through `RuntimeEntry`, and eight
+callable, nominal, property, and enum-case indexes; the runtime no longer
+stores mutable function/initializer metadata caches on the facade. Sessions
+and escaped callbacks retain the originating capability through `RuntimeEntry`, and eight
 detached readers exercise one snapshot under Swift 6 strict concurrency.
 Existing `extractIsolation` parity characterizes the no-semantic-change result
 for plain explicitly nonisolated async declarations. The same index now owns
@@ -2754,8 +2776,13 @@ global, member, enum-static, and local materialization consume mutability,
 static/lazy/nonisolated/TaskLocal, reference-ownership, tuple, accessor-kind,
 and observer facts from that index with a pure foreign-syntax fallback. The
 actor-initialization fixture remains exact in twenty repetitions.
+The composite additionally owns enum-case headers; enum symbol materialization
+uses normalized/backticked names, associated labels/type spellings, and raw
+expressions from that index while evaluating raw values inside the session.
+The `enum-case-metadata` fixture remains exact in twenty native/interpreter
+repetitions.
 These slices separate immutable program input, mutable storage, and execution
-identity without changing scheduling. Remaining member, call-site, and
+identity without changing scheduling. Remaining member families, call-site, and
 compiler metadata indexing remains incomplete, and mutable
 symbol materialization plus evaluator state must move fully behind the session;
 worker-safe heap classification, physical worker scheduling,

@@ -216,6 +216,26 @@ worker-safe heap
 classification, physical workers, cooperative-versus-parallel differential
 evidence, and TSan remain open.
 
+Its eleventh prerequisite adds all-branch enum-case headers to the composite
+capability. The architecture workflow is a gap closure: the captured
+compile-time RED had no `ParsedEnumCaseMetadataIndex`, summary, compatibility
+accessor, or runtime lookup. The semantic workflow is an already-GREEN
+characterization: no runtime mismatch was invented. FoodTruck supplies the
+within-slice demand citations for backticked `User.default`, labeled
+`User.authenticated(username:)`, unlabeled `Panel.city(City.ID)`, conditional
+cases, and `BrandHeader.HeaderSize` Double raw values. GREEN covers exact
+all-scope/all-branch summaries, labels and type spellings, raw expressions,
+eight detached readers, pure foreign-syntax fallback, session/callback
+provenance, and enum materialization. The same source crosses an associated
+enum value through an actor and observes backticked and raw-value cases;
+Apple Swift 6.3.3 and the interpreter both produce
+`authenticated:foodtruck|default|1.0:0.5` in twenty bounded repetitions. No
+scheduler order or physical thread is inferred. Uncited case attributes and
+`indirect` semantics remain outside this slice. Remaining member families,
+call-site/compiler metadata, mutable-symbol/evaluator migration, worker-safe
+heap classification, physical workers, mode-differential evidence, and TSan
+remain open.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

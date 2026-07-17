@@ -98,8 +98,8 @@ with the detailed design in
 - **Active cycle — M9 optional physical parallelism (2026-07-17):** first
   separate immutable parsed-program metadata, session-owned mutable state, and
   runtime-entry identity. Declaration, callable/accessor/subscript, nominal,
-  and property-storage headers are now immutable Sendable indexes; remaining
-  member/call-site/compiler metadata, session migration, heap-edge
+  property-storage, and enum-case headers are now immutable Sendable indexes;
+  remaining member-family/call-site/compiler metadata, session migration, heap-edge
   classification, workers, mode-differential parity, and TSan are still open.
 - **Covered demand cycles:** M5 actor identity/mailboxes and storage
   confinement, M6 protocol sequences/streams/checked continuations, and M8
