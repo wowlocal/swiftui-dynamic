@@ -8791,3 +8791,30 @@ parallel-execution claim follows.
 The canonical parallel iteration completed seven targeted tests in four
 suites, all forty-two methodology checks, and all twenty exact parity
 repetitions on four workers in 1.8 seconds.
+
+### Closure invocation activates lexical program provenance
+
+The twenty-ninth M9 prerequisite separates a run's ownership entry from the
+program capability of a retained source closure. `RuntimeEntry` continues to
+own session lifetime, cancellation, and task ancestry. Both closure-invocation
+paths now push `ClosureValue.programState` onto the current
+`EvaluationTaskContext` before resolving isolation, defaults, overloads, or
+nested declarations, and pop it on every exit. Current state, plan, metadata,
+source map, and host registry prefer that task-owned lexical frame. This
+matters when compatibility globals from program A are called while program B
+owns the active session.
+
+Two minimal REDs pin the defect. The suspending case declared an actor and
+global async function in one run, then called the retained function from a
+second run; it failed by accessing actor storage without its executor. The
+seeded actor-mailbox board independently reproduced the same loss at
+`0xac705eed00000001`. The synchronous case retained two global overloads and
+returned `int` instead of the required `string` because the newer empty state
+hid the old overload table. Both are GREEN through the shared lexical-state
+stack, and all 64 actor-mailbox schedules drain every runtime edge. A compiled
+strict Swift 6 actor probe produced sorted `1:2` in twenty runs across
+`Task.yield()`, establishing serialization of mutable actor state but not an
+analogue for interpreter session reuse. The focused two-worker regression
+board also preserves source-trap containment, SwiftUI task lifecycle, async
+initializers, bounded task groups, and cancellation stress. No physical
+parallelism, worker-thread placement, or total ready-task order is claimed.

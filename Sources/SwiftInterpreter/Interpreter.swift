@@ -545,8 +545,13 @@ public final class Interpreter {
     /// Canonical runtime work selects its exact state from RuntimeEntry.
     var compatibilityProgramState: RuntimeProgramState?
 
+    private var lexicalProgramState: RuntimeProgramState? {
+        evaluationTaskContext.programStateFrames.last
+    }
+
     var currentProgramState: RuntimeProgramState? {
-        evaluationTaskContext.runtimeEntry?.programState
+        lexicalProgramState
+            ?? evaluationTaskContext.runtimeEntry?.programState
             ?? compatibilityProgramState
     }
 
@@ -805,14 +810,16 @@ public final class Interpreter {
     }
 
     var currentProgramMetadata: ParsedProgramMetadata? {
-        evaluationTaskContext.runtimeEntry?.programMetadata
+        lexicalProgramState?.programPlan?.metadata
+            ?? evaluationTaskContext.runtimeEntry?.programMetadata
             ?? currentProgramPlan?.metadata
             ?? compatibilityProgramMetadata
     }
 
     var currentProgramPlan: ResolvedProgramPlan? {
-        evaluationTaskContext.runtimeEntry?.programPlan
-            ?? currentProgramState?.programPlan
+        lexicalProgramState?.programPlan
+            ?? evaluationTaskContext.runtimeEntry?.programPlan
+            ?? compatibilityProgramState?.programPlan
             ?? compatibilityProgramPlan
     }
 

@@ -626,6 +626,26 @@ The canonical parallel iteration completed seven targeted tests in four
 suites, all forty-two methodology checks, and all twenty exact parity
 repetitions on four workers in 1.8 seconds.
 
+Its twenty-ninth prerequisite verifies closure-origin program provenance on
+ordinary evaluator calls, not only on host-created runtime entries. The RED
+must use one interpreter and two runs: program A declares the retained closure
+and the actor/overload metadata it needs; program B contains only the call.
+The suspending assertion requires actor-isolated storage to remain executor-
+owned after `Task.yield()`. The synchronous assertion requires overload
+selection from A. A result obtained from B's newly prepared state is the bug.
+
+The common mechanism is a task-owned LIFO of lexical
+`RuntimeProgramState` capabilities entered before invocation resolution and
+left on every exit. `RuntimeEntry` remains the ownership/cancellation
+capability and must not be replaced merely to change lexical lookup. Focused
+cleanup requires the frame stack and every runtime registry to be empty. A
+strict Swift 6 probe with two actor calls must return sorted `1:2` in twenty
+bounded compiled runs; this is an invariant claim about actor serialization,
+not a cross-program Swift feature or a task-order claim. Closing evidence must
+include both minimal provenance tests, the exact actor replay seed, the full
+64-seed actor board, and the parallel trap/SwiftUI/task-group/cancellation
+regression board.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

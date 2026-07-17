@@ -707,6 +707,11 @@ extension Interpreter {
         node: Syntax?,
         contextualExecutor: RuntimeExecutorKind? = nil
     ) throws -> RuntimeValue {
+        let programState = closure.programState
+        evaluationTaskContext.enterProgramState(programState)
+        defer {
+            evaluationTaskContext.leaveProgramState(programState)
+        }
         let invocation = try resolvedInvocation(
             for: closure, arguments: args)
         let effectiveArguments = invocation.arguments

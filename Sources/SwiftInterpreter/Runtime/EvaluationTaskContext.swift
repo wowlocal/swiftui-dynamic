@@ -55,6 +55,11 @@ final class EvaluationTaskContext {
     var dependencyInFlight: Set<String> = []
 
     var callStackNames: [String] = []
+    /// Lexical program capabilities selected by the currently executing
+    /// source closures. A runtime entry owns the session/task lifetime, but a
+    /// closure retained in the shared heap may originate in an older program
+    /// state and must resolve declarations against that exact state.
+    var programStateFrames: [RuntimeProgramState] = []
     var lexicalOwnerFrames: [AnyObject] = []
     /// Static executor context of the currently evaluated source declaration.
     /// A `nil` frame is intentional: a plain/nonisolated declaration may run
@@ -111,6 +116,7 @@ final class EvaluationTaskContext {
             && activeCollisionProperties.isEmpty
             && dependencyInFlight.isEmpty
             && callStackNames.isEmpty
+            && programStateFrames.isEmpty
             && lexicalOwnerFrames.isEmpty
             && lexicalExecutorFrames.isEmpty
             && expectedAnnotationStack.isEmpty
@@ -120,6 +126,19 @@ final class EvaluationTaskContext {
             && taskLocals.isEmpty
             && currentExecutor == initialExecutor
             && !deferredExtensionRetry
+    }
+
+    func enterProgramState(_ state: RuntimeProgramState?) {
+        guard let state else { return }
+        programStateFrames.append(state)
+    }
+
+    func leaveProgramState(_ state: RuntimeProgramState?) {
+        guard let state else { return }
+        precondition(
+            programStateFrames.last === state,
+            "closure program-state frames must unwind in LIFO order")
+        programStateFrames.removeLast()
     }
 
     /// Break task-owned capture graphs as soon as evaluation completes. The
@@ -145,6 +164,7 @@ final class EvaluationTaskContext {
         activeCollisionProperties.removeAll(keepingCapacity: false)
         dependencyInFlight.removeAll(keepingCapacity: false)
         callStackNames.removeAll(keepingCapacity: false)
+        programStateFrames.removeAll(keepingCapacity: false)
         lexicalOwnerFrames.removeAll(keepingCapacity: false)
         lexicalExecutorFrames.removeAll(keepingCapacity: false)
         expectedAnnotationStack.removeAll(keepingCapacity: false)

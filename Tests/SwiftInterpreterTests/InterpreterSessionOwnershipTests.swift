@@ -95,6 +95,58 @@ struct InterpreterSessionOwnershipTests {
         })
     }
 
+    @Test func retainedClosureActivatesItsOriginatingProgramState() async throws {
+        let interpreter = Interpreter()
+        _ = try await interpreter.runAsync(source: """
+        actor SessionCounter {
+            var value = 0
+
+            func next() async -> Int {
+                await Task.yield()
+                value += 1
+                return value
+            }
+        }
+
+        func nextFromOrigin() async -> Int {
+            let counter = SessionCounter()
+            return await counter.next()
+        }
+
+        0
+        """)
+
+        let value = try await interpreter.runAsync(source: """
+        await nextFromOrigin()
+        """)
+
+        #expect(value.intValue == 1)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeActorCount == 0)
+    }
+
+    @Test func retainedClosureUsesOriginatingStateForSynchronousDispatch()
+    throws {
+        let interpreter = Interpreter()
+        _ = try interpreter.run(source: """
+        func selected(_ value: String) -> String { "string" }
+        func selected(_ value: Int) -> String { "int" }
+
+        func selectFromOrigin() -> String {
+            selected("origin")
+        }
+
+        0
+        """)
+
+        let value = try interpreter.run(source: """
+        selectFromOrigin()
+        """)
+
+        #expect(value.stringValue == "string")
+        #expect(interpreter.evaluationTaskContext.programStateFrames.isEmpty)
+    }
+
     @Test func sessionsHaveUniqueRuntimeIdentityAndAreSingleUse() async throws {
         let interpreter = Interpreter()
         let program = try ParsedProgram(source: "42")

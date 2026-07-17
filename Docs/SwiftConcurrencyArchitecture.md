@@ -638,6 +638,38 @@ The canonical parallel iteration completed seven targeted tests in four
 suites, all forty-two methodology checks, and all twenty exact parity
 repetitions on four workers in 1.8 seconds.
 
+The twenty-ninth prerequisite distinguishes session ownership from lexical
+program provenance. A `RuntimeEntry` owns the lifetime, cancellation domain,
+and task graph of the run that is currently executing. It is not necessarily
+the source program that created every closure reachable from the shared heap:
+compatibility runs deliberately leave global functions and values available
+to later runs. Every synchronous and suspending closure invocation therefore
+pushes the closure's retained `RuntimeProgramState` onto a task-owned LIFO
+stack in `EvaluationTaskContext`. Declaration state, resolved plan, metadata,
+source map, and host registry resolve through that lexical frame for the whole
+dynamic call, including default arguments and nested closure formation. The
+frame is removed on every normal, throwing, and cancellation exit; task
+cleanup requires the stack to be empty.
+
+The deterministic RED reused one `Interpreter`: the first program declared an
+actor and a global async function, and the second program invoked that retained
+function. Before the change, the second session's empty state won over the
+closure's originating state, so the actor method lost its lexical owner and
+read mutable storage without a mailbox lease. The minimal test failed with
+`actor-isolated mutable property ... accessed without owning its executor`;
+the existing actor-mailbox board reproduced it at seed
+`0xac705eed00000001`. A synchronous companion selected the wrong global
+overload (`int` instead of `string`), proving both evaluator entry paths had
+the same provenance defect. A strict Swift 6 probe ran two actor calls through
+`Task.yield()` and produced the invariant sorted result `1:2` in twenty
+compiled executions. That probe establishes actor serialization across
+suspension; it does not claim that Swift has the interpreter's cross-program
+compatibility model. The focused two-worker board completed both provenance
+regressions, all 64 actor-mailbox schedules, trap containment, SwiftUI task
+lifecycle, async-initializer, task-group, and cancellation stress checks. The
+heap and evaluator remain MainActor-confined; no physical-worker, Sendable
+heap, or scheduler-order claim follows.
+
 The stable target separates five concerns:
 
 ```text
@@ -672,6 +704,7 @@ InterpreterSession ─────────────── HostGatewayRunt
                          │
                          ▼
                 EvaluationTaskContext
+                ├── lexical program-state stack
                 ├── lexical environments
                 ├── evaluator frames
                 ├── type-context stacks

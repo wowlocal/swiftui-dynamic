@@ -1351,6 +1351,8 @@
             "RuntimeHeapOwnershipTests/heapLifetimeIsOwnedByInterpreterFacade",
             "InterpreterSessionOwnershipTests/sessionBindsProgramHeapRuntimePolicyAndLiveRuntimeID",
             "InterpreterSessionOwnershipTests/sessionsOwnDistinctMutableDeclarationState",
+            "InterpreterSessionOwnershipTests/retainedClosureActivatesItsOriginatingProgramState",
+            "InterpreterSessionOwnershipTests/retainedClosureUsesOriginatingStateForSynchronousDispatch",
             "InterpreterSessionOwnershipTests/sessionsHaveUniqueRuntimeIdentityAndAreSingleUse",
             "InterpreterSessionOwnershipTests/sessionRejectsExecutionByAnotherInterpreter",
             "InterpreterSessionOwnershipTests/sessionKeepsItsHeapAndRuntimeAliveWithoutRetainingFacade",
