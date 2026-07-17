@@ -15,13 +15,24 @@ enum SweepDriver {
     /// 6 Donut Editor, 7 Top 5, 8 "Cities" header, 9-11 cities.
     static let steps: [(name: String, row: Int)] = [
         ("orders", 1),
+        ("socialfeed", 2),
+        ("saleshistory", 3),
         ("donuts", 5),
+        ("donuteditor", 6),
+        ("topfive", 7),
+        ("cupertino", 9),
+        ("london", 11),
         ("truck", 0),
     ]
 
     static func run(outDirectory: String) async {
         try? FileManager.default.createDirectory(
             atPath: outDirectory, withIntermediateDirectories: true)
+        // DEMO_SWEEP_STEP=<name> runs ONE navigation in a fresh process:
+        // layer rasterization is only trustworthy for the FIRST re-render
+        // after initial compositing, so the r4 script loops panels through
+        // separate processes instead of chaining them.
+        let selected = ProcessInfo.processInfo.environment["DEMO_SWEEP_STEP"]
         // Let the project interpret and the window settle.
         try? await Task.sleep(nanoseconds: 8_000_000_000)
         guard let window = NSApp.windows.first(where: { $0.isVisible }) else {
@@ -37,7 +48,9 @@ enum SweepDriver {
 
         var previous = capture("sweep-0-initial", window: window, outDirectory: outDirectory)
         var allGreen = previous != nil
-        for (index, step) in steps.enumerated() {
+        var reportedDiagnostics = RenderDiagnostics.errors.count
+        let plan = selected.map { name in steps.filter { $0.name == name } } ?? steps
+        for (index, step) in plan.enumerated() {
             click(window: window, row: step.row)
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             // Re-renders can grow the window; captures must stay comparable.
@@ -53,16 +66,23 @@ enum SweepDriver {
             let rowCounts = tableRowCounts(in: window)
             let sidebarAlive = rowCounts.contains(12)
             let ordersTableVisible = rowCounts.contains { $0 >= 20 }
+            let freshDiagnostics = RenderDiagnostics.errors.count - reportedDiagnostics
             let landed: Bool
             switch step.name {
             case "orders":
                 landed = sidebarAlive && ordersTableVisible && changed > 100_000
-            case "donuts":
-                landed = sidebarAlive && !ordersTableVisible && changed > 100_000
+            case "socialfeed":
+                // The feed replaces the orders table with its own list.
+                landed = sidebarAlive && changed > 100_000
             default:
                 landed = sidebarAlive && !ordersTableVisible && changed > 5000
+                    && freshDiagnostics == 0
             }
             print("SWEEP \(step.name) changed=\(changed) tables=\(rowCounts) diag=\(RenderDiagnostics.errors.count) landed=\(landed)")
+            for entry in RenderDiagnostics.errors.suffix(max(0, RenderDiagnostics.errors.count - reportedDiagnostics)).prefix(6) {
+                print("SWEEP-DIAG \(step.name) \(entry.view): \(entry.error.message.prefix(110))")
+            }
+            reportedDiagnostics = RenderDiagnostics.errors.count
             allGreen = allGreen && landed
             previous = current
         }

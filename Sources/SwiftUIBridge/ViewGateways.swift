@@ -77,6 +77,37 @@ extension ViewRegistry {
             return .native(try self.anyViewResolving(value, ctx))
         }
 
+        constructors["AsyncImage"] = HostFunction(name: "AsyncImage") { args, ctx in
+            let url = args.labeled("url")?.hostPayload as? URL
+            let contentClosure = args.firstUnlabeledClosure
+            let placeholderClosure = args.closure(labeled: "placeholder")
+            guard let interpreter = ctx as? Interpreter,
+                  contentClosure != nil || placeholderClosure != nil else {
+                if let scale = try args.labeled("scale").map(Coerce.cgFloat) {
+                    return .native(AnyView(AsyncImage(url: url, scale: scale)))
+                }
+                return .native(AnyView(AsyncImage(url: url)))
+            }
+            // Builder closures evaluate at PHASE time — the image exists
+            // only after the load — via the deferred-invocation pattern
+            // Button actions use. The loaded image crosses as an ImageBox
+            // so interpreted modifiers (.resizable...) keep working.
+            @MainActor func evaluate(_ closure: ClosureValue?, _ argument: RuntimeValue?) -> AnyView {
+                guard let closure else { return AnyView(EmptyView()) }
+                let views = (try? interpreter.callBuilderClosure(
+                    closure, arguments: argument.map { [$0] } ?? [])) ?? []
+                let anyViews = views.compactMap { try? Self.anyView($0) }
+                if anyViews.count == 1 { return anyViews[0] }
+                if anyViews.isEmpty { return AnyView(EmptyView()) }
+                return AnyView(VStack { Self.indexed(anyViews) })
+            }
+            return .native(AnyView(AsyncImage(url: url) { image in
+                evaluate(contentClosure, .native(ImageBox(image)))
+            } placeholder: {
+                evaluate(placeholderClosure, nil)
+            }))
+        }
+
         constructors["Spacer"] = HostFunction(name: "Spacer") { _, _ in
             .native(AnyView(Spacer()))
         }
@@ -137,14 +168,18 @@ extension ViewRegistry {
         }
 
         constructors["LinearGradient"] = HostFunction(name: "LinearGradient") { args, _ in
-            guard let colorsArg = args.labeled("colors")?.arrayValue else {
-                throw RuntimeError(message: "LinearGradient needs colors: [...]")
-            }
-            let colors = try colorsArg.map(Coerce.color)
             let start = try Coerce.unitPoint(args.labeled("startPoint") ?? .implicitMember("top"))
             let end = try Coerce.unitPoint(args.labeled("endPoint") ?? .implicitMember("bottom"))
             // Raw, not AnyView-wrapped: it must stay usable as a ShapeStyle
             // (`.fill(...)`) and converts to a view lazily in anyView().
+            if let stopsArg = args.labeled("stops") {
+                let stops = try Coerce.gradientStops(stopsArg)
+                return .native(LinearGradient(stops: stops, startPoint: start, endPoint: end))
+            }
+            guard let colorsArg = args.labeled("colors")?.arrayValue else {
+                throw RuntimeError(message: "LinearGradient needs colors: [...] or stops: [...]")
+            }
+            let colors = try colorsArg.map(Coerce.color)
             return .native(LinearGradient(colors: colors, startPoint: start, endPoint: end))
         }
 

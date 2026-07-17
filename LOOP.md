@@ -2086,3 +2086,26 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   "parallel test workers failed" (lane-concurrency regression, three
   reproductions, attribution in claims) — i37/i38 tips are gate-blocked
   until main heals; MERGE-READY will cover both.
+- 2026-07-17 CITIES RENDER LIVE — full-sidebar R4 sweep, one process per
+  panel (worktree iteration 39): extending the sweep to all nine sidebar
+  navigations found the class chain in CityView — no bridge for
+  LinearGradient(stops:startPoint:endPoint:) and no builder-closure
+  gateway for AsyncImage(url:content:placeholder:); both city rows
+  failed hard (no repaint, hard diagnostics). Fixes (policy-compliant):
+  Coerce.gradientStop/gradientStops shared coercions (accepting
+  .init(color:location:) markers) + a stops: arm on the existing
+  LinearGradient gateway; a handwritten AsyncImage gateway (sanctioned
+  builder-closure tier) that defers interpreted content/placeholder
+  closures to PHASE time with the loaded image crossing as an ImageBox.
+  Sweep architecture: one PROCESS per panel (offscreen layer
+  rasterization is only trustworthy for the first re-render after
+  compositing), fresh-diagnostic gating per step. R4 board: 7/9 GREEN —
+  orders 422k, socialfeed 294k, donuts 810k, donuteditor 585k,
+  cupertino/london 305k repainted pixels, truck back-nav. Remaining 2:
+  saleshistory (43x "mark foregroundStyle shape not bridged") and
+  topfive (8x "AxisValueLabel format shape not bridged") — the Charts
+  bridge classes, next. R2 board intact (orders re-verified AE=0
+  fresh-vs-fresh; the 110px scare was a stale twin PNG's font-AA drift).
+  Pins: GradientStopsAndAsyncImageProbeTests (stops gradient AE=0,
+  AsyncImage placeholder AE=0). Gate still blocked by main-red
+  (lane-concurrency parallel-worker regression).

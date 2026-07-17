@@ -399,6 +399,29 @@ enum Coerce {
         }
     }
 
+    /// `Gradient.Stop(color:location:)` / `.init(color:location:)` — the
+    /// dynamic element of every `stops:` gradient form.
+    static func gradientStop(_ value: RuntimeValue) throws -> Gradient.Stop {
+        if case .host(let any) = value, let stop = any as? Gradient.Stop {
+            return stop
+        }
+        if case .host(let any) = value, let call = any as? ImplicitMemberCall,
+           let colorArg = call.arguments.labeled("color"),
+           let locationArg = call.arguments.labeled("location") {
+            return Gradient.Stop(
+                color: try color(colorArg),
+                location: try cgFloat(locationArg))
+        }
+        throw RuntimeError(message: "expected a Gradient.Stop like .init(color:location:), got \(value.stringified)")
+    }
+
+    static func gradientStops(_ value: RuntimeValue) throws -> [Gradient.Stop] {
+        guard let array = value.arrayValue else {
+            throw RuntimeError(message: "expected an array of Gradient.Stop values")
+        }
+        return try array.map(gradientStop)
+    }
+
     static func textAlignment(_ value: RuntimeValue) throws -> TextAlignment {
         guard case .implicitMember(let name) = value else {
             throw RuntimeError(message: "expected .leading/.center/.trailing")
