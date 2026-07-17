@@ -2183,6 +2183,18 @@
     "notes": "The two continuation calls are sequential, and each detached producer yields before resume(with:), so value precedes error causally without asserting producer scheduling order, physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced value:29|error:failed in twenty bounded native runs. The interpreter RED timed out on repetition one because the detached producer rejected the unrouted with: label and left the owner parked. The common Result carrier adapter now delegates success and failure to the existing returning and throwing terminal transitions. Focused evidence records two canonical suspensions and complete cleanup, compiler preflight rejects a non-Result argument, and native/interpreter parity is 20/20 with canonical native-observation SHA-256 6400bcdc43bd6c03163fe44074b7e214559b9b36dbabb3a06017c268cb703c4e."
   },
   {
+    "id": "checked-continuation-result-spellings",
+    "fixture": "Fixtures/checked-continuation-result-spellings.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationResultSpellingsProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A nonthrowing checked continuation maps Result<Int, Never>.success to its exact value, while a checked throwing continuation maps existential Result<Int, any Error> success and failure to the exact value and original source error through resume(with:).",
+    "notes": "The three continuation calls are sequential, and each detached producer yields before resume(with:), so the output is causally ordered without asserting producer scheduling order, physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced never:31|any-success:37|any-error:failed in twenty bounded native runs. This was an already-GREEN characterization: the common Result carrier already delegated nonthrowing Result<Int, Never> success and existential Result<Int, any Error> success/failure to the established terminal transitions, so no production change was required. Focused evidence records three canonical suspensions, exact value/error projection, complete cleanup, and successful compiler preflight for both spellings. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 5983e5accbf237aacb90f6930d587fc78001990db22efdb2f89d538c7b4a22d2."
+  },
+  {
     "id": "checked-continuation-void-resume",
     "fixture": "Fixtures/checked-continuation-void-resume.swift",
     "mode": "runtime",

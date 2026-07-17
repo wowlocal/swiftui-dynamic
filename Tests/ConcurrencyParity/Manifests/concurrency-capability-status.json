@@ -2520,6 +2520,7 @@
       "evidenceCaseIDs": [
         "checked-continuation-value-resume",
         "checked-continuation-mainactor-resume",
+        "checked-continuation-result-spellings",
         "checked-continuation-void-resume"
       ],
       "testNames": [
@@ -2527,13 +2528,15 @@
         "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
         "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
         "CheckedContinuationRuntimeTests/arbitraryActorIsolationFailsClosedBeforeRecordCreation",
+        "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
         "CheckedContinuationRuntimeTests/voidResumeUsesSameRecordAndCleanup",
-        "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess"
+        "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess",
+        "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck"
       ],
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withCheckedContinuation declaration now routes its explicit isolation: nil and MainActor.shared, resume(returning:) value, and explicit-nil Void resume() subsets through a runtime-owned continuation record. A detached source producer resumes one parked owner task; a contextually isolated synchronous body hops from a @concurrent caller to logical MainActor, then restores that caller before suspension and returns on its required resume executor. Normal completion and infrastructure cancellation remove continuation/task/session ownership, while arbitrary source actors fail closed before record creation. Same-source native/interpreter parity covers all three delayed shapes, and compiler preflight rejects zero-argument resume() when the success type is not Void. Omitted isolation, arbitrary source actors, nonthrowing resume(with:), double-resume and abandonment policy remain open; the complete declaration therefore stays a known divergence with verification none."
+      "notes": "The public withCheckedContinuation declaration now routes its explicit isolation: nil and MainActor.shared, resume(returning:) value, explicit-nil Void resume(), and nonthrowing Result<T, Never> resume(with:) subsets through a runtime-owned continuation record. A detached source producer resumes one parked owner task; a contextually isolated synchronous body hops from a @concurrent caller to logical MainActor, then restores that caller before suspension and returns on its required resume executor. Result success delegates to the same returning terminal transition. Normal completion and infrastructure cancellation remove continuation/task/session ownership, while arbitrary source actors fail closed before record creation. Same-source native/interpreter parity covers all four delayed shapes; compiler preflight accepts the Result<T, Never> spelling and rejects zero-argument resume() when the success type is not Void. Omitted isolation, arbitrary source actors, double-resume and abandonment policy remain open; the complete declaration therefore stays a known divergence with verification none."
     },
     {
       "id": "swift-concurrency-api-v1:ace6ad5d810bcf9eda3b3214d498b783a36385621bc9361241fba14afb9f1e39",
@@ -2543,18 +2546,21 @@
       "evidenceCaseIDs": [
         "checked-throwing-continuation-value-error",
         "checked-throwing-continuation-mainactor-error",
-        "checked-throwing-continuation-result-resume"
+        "checked-throwing-continuation-result-resume",
+        "checked-continuation-result-spellings"
       ],
       "testNames": [
         "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
         "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
         "CheckedContinuationRuntimeTests/resultResumeUsesReturningAndThrowingTransitions",
-        "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument"
+        "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
+        "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
+        "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck"
       ],
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "The public withCheckedThrowingContinuation declaration now routes explicit isolation: nil for resume(returning:), resume(throwing:), and concrete-error Result resume(with:), plus MainActor.shared for a delayed source-error resume, through the same runtime-owned continuation record as the nonthrowing form. Contextual MainActor body execution restores the @concurrent caller's cooperative required executor before exact source-error catch. Result success and failure delegate to the existing returning and throwing terminal transitions through InterpretedThrow, and every evidenced path drains task/session ownership. Compiler preflight rejects a non-Result argument. Omitted and arbitrary-source-actor isolation, nonthrowing and existential-error Result spellings, double-resume and abandonment policy remain open, so the complete declaration stays a known divergence with verification none."
+      "notes": "The public withCheckedThrowingContinuation declaration now routes explicit isolation: nil for resume(returning:), resume(throwing:), concrete-error Result resume(with:), and existential Result<T, any Error> resume(with:), plus MainActor.shared for a delayed source-error resume, through the same runtime-owned continuation record as the nonthrowing form. Contextual MainActor body execution restores the @concurrent caller's cooperative required executor before exact source-error catch. Result success and failure delegate to the existing returning and throwing terminal transitions through InterpretedThrow, and every evidenced path drains task/session ownership. Compiler preflight accepts the existential Result spelling and rejects a non-Result argument. Omitted and arbitrary-source-actor isolation, double-resume and abandonment policy remain open, so the complete declaration stays a known divergence with verification none."
     },
     {
       "id": "swift-concurrency-api-v1:1c6b71ba2592eb2a5841edbe5c173bf0dcc5801237920669367ca47a9797fcc3",
@@ -2823,6 +2829,7 @@
         "checked-throwing-continuation-value-error",
         "checked-throwing-continuation-mainactor-error",
         "checked-throwing-continuation-result-resume",
+        "checked-continuation-result-spellings",
         "checked-continuation-void-resume"
       ],
       "testNames": [
@@ -2833,14 +2840,16 @@
         "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
         "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
         "CheckedContinuationRuntimeTests/resultResumeUsesReturningAndThrowingTransitions",
+        "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
         "CheckedContinuationRuntimeTests/voidResumeUsesSameRecordAndCleanup",
         "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess",
-        "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument"
+        "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
+        "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck"
       ],
       "gapEvidenceIDs": [
         "async-sequence-continuation-runtime"
       ],
-      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. Checked continuations add runtime-owned delayed resume(returning:) values for explicit isolation: nil and MainActor.shared, zero-argument Void resume(), contextual MainActor body execution, caller-executor restoration, bounded registry ownership, infrastructure-abort cleanup, and a fail-closed arbitrary-source-actor boundary. The throwing form additionally projects the original resume(throwing:) source value, has exact MainActor body and caller-restoration evidence for its error path, and maps concrete-error Result success/failure through resume(with:) to the same terminal transitions. Unsafe continuations, omitted and arbitrary-source-actor isolation, remaining Result spellings, double resume, abandonment, and remaining continuation lifetime edges keep this family a known divergence."
+      "notes": "Protocol iteration and the evidenced AsyncStream/AsyncThrowingStream surface have runtime parity. Checked continuations add runtime-owned delayed resume(returning:) values for explicit isolation: nil and MainActor.shared, zero-argument Void resume(), nonthrowing Result<T, Never> resume(with:), contextual MainActor body execution, caller-executor restoration, bounded registry ownership, infrastructure-abort cleanup, and a fail-closed arbitrary-source-actor boundary. The throwing form additionally projects the original resume(throwing:) source value, has exact MainActor body and caller-restoration evidence for its error path, and maps both concrete-error and existential Result<T, any Error> success/failure through resume(with:) to the same terminal transitions. Unsafe continuations, omitted and arbitrary-source-actor isolation, double resume, abandonment, and remaining continuation lifetime edges keep this family a known divergence."
     },
     {
       "id": "swiftui-view-owned-async-lifecycle",
