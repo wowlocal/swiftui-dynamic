@@ -2028,3 +2028,19 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   socialfeed (+ 4 diag rows at 0). Remaining: orders 0.039% (sorted
   Status header bold+chevron) and content (documented twin artifact).
   Pin: styleLessStrokeBorderReadsEnvironmentStyle. Gate next.
+- 2026-07-17 ORDERS AE=0 — sortable Table headers (worktree iteration
+  36): the Table gateway dropped the app's `sortOrder:` binding, so
+  the sorted column's native header treatment (bold title + direction
+  chevron) never rendered — the last 253 diff pixels on orders. The
+  gateway now coerces the binding via Coerce.bindingBox and builds
+  REAL sortable TableColumns: TableShimRow gains nonisolated c0-c5
+  sort keys, every column is typed sortUsing: a shim KeyPathComparator,
+  and a translated Binding maps the app's KeyPathComparatorBox array
+  to the shim comparators (get -> header state) and back (set -> header
+  clicks rewrite the app's box so it re-sorts; writes on keyPath-less
+  columns are dropped — native marks those columns unsortable).
+  Orders 0.039% -> 0.000%. SEVEN app screens pixel-perfect; only
+  content (documented twin artifact) remains on the R2 board. R3 all
+  ten scenarios 0.000% (detail-orders floor 0.039 -> 0.000).
+  Pin: TableSortHeaderProbeTests.sortedColumnHeaderMatchesNative.
+  Gate next.
