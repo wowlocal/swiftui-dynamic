@@ -216,19 +216,14 @@ public final class ViewRegistry: HostRegistry {
             return .native(marks)
         }
         let anyViews = try views.map(Self.anyView)
-        // Section-carrying builder output stays a FAN so section-aware
-        // containers (Form) can unpack the raw values — the donut editor's
-        // grouped sections. Everything else keeps the conservative VStack
-        // composition (custom-Layout content splicing consumes fans
-        // specially; the full TupleView sibling-semantics arc is queued).
-        let carriesSections = views.contains { value in
-            if case .host(let any) = value, any is SectionSpec { return true }
-            return false
-        }
-        if carriesSections {
-            return .native(ForEachFan(views: anyViews, rawValues: views))
-        }
-        return .native(AnyView(VStack { Self.indexed(anyViews) }))
+        // Multi-view builder output is a TupleView in native SwiftUI: the
+        // members SPLICE as siblings of whatever container the value lands
+        // in (variadic-tree expansion reaches through custom view bodies).
+        // The fan carrier preserves that — containers and custom Layouts
+        // splice fan.views, section-aware containers (Form) unpack the raw
+        // values, and anyView degrades to an indexed ForEach, which SwiftUI
+        // expands into the enclosing container exactly like a TupleView.
+        return .native(ForEachFan(views: anyViews, rawValues: views))
     }
 
     // MARK: - Helpers shared by gateways

@@ -2412,3 +2412,21 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   noted in claims as a user-action gate; until then the content row
   remains the documented artifact (its function is fully covered by
   detail-* rows + the live R4 board). Gate still blocked by main-red.
+- 2026-07-18 TUPLEVIEW SIBLING SEMANTICS: makeGroup fans ALWAYS (worktree
+  iteration 56): multi-view builder output (a custom View's multi-statement
+  body, a @ViewBuilder computed property) is a TupleView natively — its
+  members SPLICE as siblings of the enclosing container through the
+  variadic tree. makeGroup's conservative VStack wrapper collapsed them
+  into one vertical child (HStack laid an interpreted pair out
+  vertically, 1779 differing px in the probe). Now every multi-view
+  grouping returns the ForEachFan carrier: containers and custom Layouts
+  splice fan.views, Form unpacks rawValues, anyView degrades to an
+  indexed ForEach that SwiftUI expands exactly like a TupleView — probes
+  AE=0 vs compiled-native twins of both paths
+  (TupleViewSpliceProbeTests). Boards: R2 unchanged (all 0.000 + content
+  artifact), R3 ten/ten 0.000, full swift test green in isolation.
+  LESSON: never run the bitmap-probe test suite concurrently with the R2
+  capture board — GUI contention produced 13 phantom probe failures.
+  Gate RED with main's known parallel-worker signature (same hung set as
+  the two clean-main bisects; lane-concurrency owes the fix) — lane
+  stack remains gate-blocked, exonerated.
