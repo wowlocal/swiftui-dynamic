@@ -1425,9 +1425,11 @@ throwing-stream `next()` now synchronously delivers `.cancelled` before
 resuming that call with terminal `nil`; the task may return normally while its
 cancellation bit remains set. Positive-capacity `.bufferingNewest` now reports
 remaining capacity after insertion, evicts and returns the oldest element once
-full, and retains only the newest values. `.bufferingOldest`, zero-capacity
-buffering, iterator-copy, and throwing-stream lifetime edges remain fail-closed
-or open. Source checked continuations are not yet claimed.
+full, and retains only the newest values. Its `.bufferingOldest` counterpart
+reports the same capacity, preserves the first values, and returns each newly
+rejected element. Zero-capacity buffering, iterator-copy, and throwing-stream
+lifetime edges remain fail-closed or open. Source checked continuations are not
+yet claimed.
 
 ### 6.19 Host gateway runtime
 
@@ -2013,9 +2015,9 @@ Each milestone is independently gated through
   nil, and rejected post-finish yield are also covered. Failure finish adds the
   associated source error callback and later exact rethrow. A cancelled parked
   consumer also receives `.cancelled` synchronously before terminal `nil`.
-  Positive-capacity `.bufferingNewest` result/eviction/retention semantics are
-  covered as well. Its remaining buffering policies, iterator-copy, and
-  lifetime semantics plus
+  Positive-capacity `.bufferingNewest` result/eviction/retention and
+  `.bufferingOldest` result/rejection/retention semantics are covered as well.
+  Its zero-capacity buffering, iterator-copy, and lifetime semantics plus
   checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
@@ -2248,8 +2250,10 @@ delivers `.finished(error)` with the original source value before that value is
 re-thrown after the prior element drains. Cancelling a parked throwing-stream
 consumer synchronously delivers `.cancelled` before terminal `nil`, matching
 the nonthrowing storage edge. Positive-capacity `.bufferingNewest` also reports
-the same capacity, eviction, and retention semantics through the shared kernel.
-The remaining buffering policies, iterator-copy, and lifetime edges plus
+the same capacity, eviction, and retention semantics through the shared kernel;
+positive-capacity `.bufferingOldest` preserves the first values and returns
+each later rejected element. Zero-capacity buffering, iterator-copy, and
+lifetime edges plus
 checked-continuation ownership
 remain active rather than being inferred from those slices.
 

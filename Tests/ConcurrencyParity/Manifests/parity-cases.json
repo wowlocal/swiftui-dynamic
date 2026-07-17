@@ -2059,5 +2059,17 @@
     "interpreterProjection": "string",
     "nativeFact": "AsyncThrowingStream bufferingNewest(2) retains the newest two unconsumed values, reports remaining capacity after successful insertion, returns each displaced oldest value once full, and drains only the retained values before terminal nil.",
     "notes": "Every producer operation precedes iteration in one MainActor task. Sequential next calls make the yield results, eviction semantics, retained-value order, and terminal nil deterministic without task-order or physical-executor claims. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact output enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true in twenty bounded runs. The interpreter RED was the explicit blanket diagnostic rejecting every bounded AsyncThrowingStream policy. The shared storage kernel now accepts only the proven positive-capacity bufferingNewest subset; bufferingOldest and zero capacity stay fail-closed. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 94d8669f69f6d2b253081259b081438fe1602acc67a8d2158bf00165c7923f7b; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
+  },
+  {
+    "id": "async-throwing-stream-buffering-oldest",
+    "fixture": "Fixtures/async-throwing-stream-buffering-oldest.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamBufferingOldestProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncThrowingStream bufferingOldest(2) retains the first two unconsumed values, reports remaining capacity after successful insertion, returns each newly rejected value once full, and drains only the retained values before terminal nil.",
+    "notes": "Every producer operation precedes iteration in one MainActor task. Sequential next calls make the yield results, rejection semantics, retained-value order, and terminal nil deterministic without task-order or physical-executor claims. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced exact output enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true in twenty bounded runs. The interpreter RED was the explicit policy capability diagnostic. The shared storage kernel now accepts both proven positive-capacity policies while zero capacity stays fail-closed. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 6272b53c8b144fdc2dcd1a634e3d61f188df3a54ed9f5297cb29e1690bd0db68; focused evidence records one stream, no consumer suspension, and complete ownership cleanup."
   }
 ]

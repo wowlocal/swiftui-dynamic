@@ -116,10 +116,8 @@ private enum RuntimeAsyncStreamBufferingPolicy {
         switch self {
         case .unbounded:
             true
-        case .bufferingNewest(let limit):
+        case .bufferingOldest(let limit), .bufferingNewest(let limit):
             limit > 0
-        case .bufferingOldest:
-            false
         }
     }
 
