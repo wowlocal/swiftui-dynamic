@@ -1804,3 +1804,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   6-hourly — DateBins thresholds correct, label width/collision
   suspected). Merge queue: still waiting on the upstream alias-test
   update; corpus floor accounting artifact worth a harness look.
+- 2026-07-17 axis thresholds are real dates (worktree iteration 25):
+  the weather chart's "label elision" was never elision — `DateBins(
+  unit:.hour, by:3, range:).thresholds` absorbed under
+  assumesCompiledImports (unknown host member -> ChainedImplicitCall),
+  so AxisMarks silently fell back to `.automatic` and rendered the
+  6-hourly default where native draws 3-hourly. A compiled native
+  control probe at identical size proved native renders all 8 labels.
+  Policy-shaped fix: BridgeGen now sweeps the Charts swiftinterface
+  with DateBins as a receiver seed (NumberBins stays out — generic
+  over Value), and generatedMemberResult gains an element-wise array
+  boundary so SDK arrays enter the interpreter's array plane
+  (`thresholds.count`/subscripts work like any interpreted array;
+  Calendar.monthSymbols etc. now cross as real arrays too — pins
+  updated to the better boundary). Truck ratchets 1.257% -> 1.082%,
+  detail-truck follows, axis labels match native 3-hourly. Pins:
+  GeneratedChartsMemberTests.dateBinsThresholdsMatchNative (interp
+  thresholds == native count/first/last), DateBins receiver seed in
+  the generated-property validation sweep. Remaining truck residue
+  ~1.08%: corner brackets, small icon tints, caption strip. Merge
+  queue unchanged (upstream alias test).

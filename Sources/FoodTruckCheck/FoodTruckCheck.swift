@@ -531,6 +531,36 @@ struct FoodTruckCheckMain {
                 }
             }
             """
+            let diagAxisDecl = """
+
+            struct __AxisProbe: View {
+                var range: ClosedRange<Date> {
+                    let start = Date(timeIntervalSince1970: 1784192400)
+                    return start...start.addingTimeInterval(24 * 3600)
+                }
+                var body: some View {
+                    Chart {
+                        LineMark(
+                            x: .value(String("Date"), range.lowerBound),
+                            y: .value(String("Temperature"), 55.0)
+                        )
+                        LineMark(
+                            x: .value(String("Date"), range.upperBound),
+                            y: .value(String("Temperature"), 85.0)
+                        )
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: DateBins(unit: .hour, by: 3, range: range).thresholds) { _ in
+                            AxisValueLabel(format: .dateTime.hour())
+                            AxisTick()
+                            AxisGridLine()
+                        }
+                    }
+                }
+            }
+            """
+            capturePNG("diag-axis", source: probeMergeBase + diagAxisDecl + probeApp(
+                "__AxisProbe().frame(width: 400, height: 200).background(Color.white)"), size: cardSize)
             capturePNG("diag-symbol", source: probeMergeBase + diagSymbolDecl + probeApp(
                 "__SymbolProbe().frame(width: 200, height: 80).background(Color.gray)"), size: cardSize)
             capturePNG("diag-annotation", source: probeMergeBase + diagAnnotationDecl + probeApp(

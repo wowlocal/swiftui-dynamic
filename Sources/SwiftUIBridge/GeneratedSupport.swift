@@ -622,6 +622,13 @@ func generatedMemberResult<Wrapped>(_ value: Wrapped?) -> RuntimeValue {
     .native(value)
 }
 
+/// SDK arrays cross into the interpreter's array plane element-wise —
+/// `DateBins.thresholds: [Date]` must answer `.count`/subscripts/iteration
+/// like any interpreted array, not ride as an opaque host payload.
+func generatedMemberResult<Element>(_ value: [Element]) -> RuntimeValue {
+    .array(value.map { RuntimeValue.native($0 as Any) })
+}
+
 func generatedMemberResult(_ value: Any) -> RuntimeValue {
     .native(value)
 }

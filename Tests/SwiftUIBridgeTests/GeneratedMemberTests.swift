@@ -1,3 +1,4 @@
+import Charts
 import Foundation
 import Testing
 import SwiftInterpreter
@@ -113,7 +114,10 @@ import SwiftInterpreter
             return
         }
         let months = try symbols.read(from: .native(calendar), in: interpreter)
-        #expect((months.hostPayload as? [String])?.count == 12)
+        // SDK arrays cross the generated boundary element-wise (the
+        // interpreter array plane), not as opaque host payloads.
+        #expect(months.arrayValue?.count == 12)
+        #expect(months.arrayValue?.first?.stringValue?.isEmpty == false)
 
         let request = URLRequest(url: URL(string: "https://example.com")!)
         let carrier = URLRequestBox(request: request)
@@ -462,6 +466,9 @@ import SwiftInterpreter
             "Calendar": Calendar(identifier: .gregorian),
             "CharacterSet": CharacterSet.alphanumerics,
             "Data": Data([1, 2, 3, 4]),
+            "DateBins": DateBins(
+                unit: .hour, by: 3,
+                range: seedDate...seedDate.addingTimeInterval(24 * 3600)),
             "Date": seedDate,
             "DateComponents": dateComponents,
             "DateInterval": DateInterval(start: seedDate, duration: 3_600),
