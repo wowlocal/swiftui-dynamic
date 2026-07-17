@@ -2195,6 +2195,18 @@
     "notes": "The three continuation calls are sequential, and each detached producer yields before resume(with:), so the output is causally ordered without asserting producer scheduling order, physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced never:31|any-success:37|any-error:failed in twenty bounded native runs. This was an already-GREEN characterization: the common Result carrier already delegated nonthrowing Result<Int, Never> success and existential Result<Int, any Error> success/failure to the established terminal transitions, so no production change was required. Focused evidence records three canonical suspensions, exact value/error projection, complete cleanup, and successful compiler preflight for both spellings. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 5983e5accbf237aacb90f6930d587fc78001990db22efdb2f89d538c7b4a22d2."
   },
   {
+    "id": "checked-continuation-omitted-isolation",
+    "fixture": "Fixtures/checked-continuation-omitted-isolation.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationOmittedIsolationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Omitted checked-continuation isolation evaluates the #isolation default in the caller's lexical context: nil preserves a @concurrent nonisolated caller lane, while MainActor.shared keeps a MainActor caller, body, and resumed catch on MainActor.",
+    "notes": "The nonthrowing and throwing calls are sequential, and each detached producer yields before resume, so exact lane triples are causal without asserting producer scheduling order, physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced nonisolated=worker:worker:worker|main=main:main:main in twenty bounded native runs. The interpreter RED rejected the first call because withCheckedContinuation required an explicit isolation argument. Omitted isolation now materializes #isolation once through the shared caller-lexical-isolation kernel before the existing nil/MainActor validation; it therefore preserves nonisolated nil and MainActor defaults without silently converting an arbitrary source actor to nil. Focused evidence covers two canonical suspensions, exact lane restoration, complete cleanup, and fail-closed omitted arbitrary-actor isolation before record creation. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 62b25d7d6a1744bcea392ca81dca119864b5725b5f893c232ee9fbccbe24ed7e."
+  },
+  {
     "id": "checked-continuation-void-resume",
     "fixture": "Fixtures/checked-continuation-void-resume.swift",
     "mode": "runtime",

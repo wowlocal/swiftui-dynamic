@@ -136,11 +136,13 @@ extension Interpreter {
     ) async throws -> RuntimeValue {
         let task = try requireCanonicalActiveRuntimeTask(
             for: api)
-        guard let isolation = arguments.labeled("isolation") else {
-            throw RuntimeError(message:
-                "\(api) currently requires an explicit "
-                    + "isolation argument")
-        }
+        // Swift's default is `#isolation`, evaluated once in the caller's
+        // lexical source isolation. Reuse the same materialization kernel as
+        // defaulted isolated parameters instead of treating omission as nil:
+        // MainActor callers must retain MainActor, while nonisolated callers
+        // produce the optional-none value.
+        let isolation = try arguments.labeled("isolation")
+            ?? currentSourceIsolationValue()
         let bodyExecutor: RuntimeExecutorKind?
         if isolation.isNil {
             bodyExecutor = nil
