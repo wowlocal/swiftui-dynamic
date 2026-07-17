@@ -109,6 +109,16 @@ heap, evaluator, declarations, and runtime registries remain MainActor-
 confined; `Environment`, `Box`, and `Instance` have not been made `Sendable`.
 This is an ownership characterization, not a physical-parallelism claim.
 
+The third prerequisite makes `runAsync` construct and execute through a real
+single-use `InterpreterSession`. That object binds one `ParsedProgram`, the
+facade's `RuntimeHeap`, the cooperative runtime, one `RuntimeSessionID`, lazy-
+global mode, and completion policy. The live root task carries exactly that
+ID; foreign-facade execution and reuse are rejected; and the session keeps its
+heap/runtime capabilities alive without retaining the facade. Other callback
+entries still allocate raw runtime session IDs, declaration/evaluator state
+still lives on the facade, and overlapping facade sessions are not claimed
+safe. This remains MainActor-confined ownership work, not worker execution.
+
 The stable target separates five concerns:
 
 ```text
@@ -511,6 +521,17 @@ public final class InterpreterSession {
 The existing public `Interpreter` facade may initially own or forward to a
 session to preserve API compatibility.
 
+Current implementation stage (2026-07-17): every `runAsync(source:)` and
+`runAsync(program:)` entry constructs the public single-use session above and
+executes through it. `makeSession(program:)` plus `runAsync(session:)` exposes
+the same path for explicit ownership. Focused tests prove unique IDs, the live
+root task's ID, policy/program/heap/runtime binding, foreign-facade rejection,
+single-use state, complete runtime draining, and heap/runtime lifetime after
+facade release. The session intentionally remains MainActor-confined and holds
+a weak facade reference because declaration collection and evaluation have not
+yet moved out of `Interpreter`; host callback and SwiftUI task entries still
+need migration to this boundary.
+
 ### 6.3 `RuntimeHeap`
 
 The runtime heap contains long-lived language storage:
@@ -537,9 +558,10 @@ parallel execution, every heap access must be classified as:
 Current implementation stage (2026-07-17): `RuntimeHeap` is the explicit
 MainActor-confined owner of the global environment, synthesized environment
 models, and SwiftUI state cells. The legacy `Interpreter.globals` surface
-forwards to that same root. Declaration metadata, the explicit session
-boundary, runtime registries, and worker-safe access policy remain separate
-M9 work; no heap object is currently handed to a physical worker.
+forwards to that same root. The explicit `runAsync` session binds this heap,
+but declaration/evaluator migration, callback-session unification, runtime
+registry isolation, and worker-safe access policy remain separate M9 work; no
+heap object is currently handed to a physical worker.
 
 ### 6.4 `EvaluationTaskContext`
 
@@ -2561,11 +2583,16 @@ sessions while keeping globals and runtime records separate. Legacy
 Each `Interpreter` also owns one explicit, MainActor-confined `RuntimeHeap`
 that roots the actual global environment, synthesized environment models, and
 SwiftUI state cells; focused tests prove identity, cross-interpreter isolation,
-and facade-owned lifetime. These slices separate immutable program input from
-mutable storage without changing scheduling. Declaration collection, an
-explicit `InterpreterSession`, worker-safe heap classification, physical
-worker scheduling, cooperative-versus-parallel parity, and TSan evidence
-remain open.
+and facade-owned lifetime. Every `runAsync` program entry now executes through
+a real single-use `InterpreterSession` binding that program, heap, cooperative
+runtime, runtime ID, lazy-global mode, and completion policy; focused tests
+prove live-ID propagation, ownership validation, single-use state, draining,
+and facade-independent heap/runtime lifetime. These slices separate immutable
+program input, mutable storage, and execution identity without changing
+scheduling. Declaration collection and evaluator state must still move behind
+the session; raw-ID callback entries, overlapping facade sessions, worker-safe
+heap classification, physical worker scheduling, cooperative-versus-parallel
+parity, and TSan evidence remain open.
 
 ## 15. Verification gates
 

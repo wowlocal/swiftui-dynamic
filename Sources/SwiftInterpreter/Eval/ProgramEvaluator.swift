@@ -77,86 +77,124 @@ extension Interpreter {
             completionPolicy: completionPolicy)
     }
 
+    /// Bind an immutable program to this facade's explicit heap and
+    /// cooperative runtime. The returned session is single-use; preflight
+    /// occurs when `runAsync(session:)` starts it.
+    public func makeSession(
+        program: ParsedProgram,
+        lazyTopLevelGlobals: Bool = false,
+        completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
+    ) -> InterpreterSession {
+        InterpreterSession(
+            program: program,
+            heap: runtimeHeap,
+            concurrencyRuntime: concurrencyRuntime,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy,
+            owner: self)
+    }
+
+    /// Execute a previously-created single-use session. Ownership validation
+    /// rejects accidental execution through another interpreter facade.
+    @discardableResult
+    public func runAsync(
+        session: InterpreterSession,
+        compilerPreflightSources: [CompilerPreflightSource]? = nil
+    ) async throws -> RuntimeValue {
+        try session.validateExecution(on: self)
+        try performCompilerPreflightIfNeeded(
+            source: session.program.source,
+            sources: compilerPreflightSources)
+        return try await runPreparedSessionAsync(session)
+    }
+
     private func runPreparedProgramAsync(
         _ program: ParsedProgram,
         lazyTopLevelGlobals: Bool,
         completionPolicy: SessionCompletionPolicy
     ) async throws -> RuntimeValue {
-        let sessionID = concurrencyRuntime.createSession()
+        let session = makeSession(
+            program: program,
+            lazyTopLevelGlobals: lazyTopLevelGlobals,
+            completionPolicy: completionPolicy)
+        return try await runPreparedSessionAsync(session)
+    }
+
+    private func runPreparedSessionAsync(
+        _ session: InterpreterSession
+    ) async throws -> RuntimeValue {
+        try session.beginExecution(on: self)
+        defer { session.finishExecution() }
+
+        let runtime = session.concurrencyRuntime
         let taskLocals = RuntimeTaskLocalStorage()
-        let root = concurrencyRuntime.createTask(
-            sessionID: sessionID, kind: .root, parent: nil,
+        let root = runtime.createTask(
+            sessionID: session.id, kind: .root, parent: nil,
             priority: RuntimeTaskPriority(Task.currentPriority),
             executorPreference: .mainActor,
             taskLocals: taskLocals,
             name: nil)
-        _ = concurrencyRuntime.begin(root)
+        _ = runtime.begin(root)
         let context = makeEvaluationTaskContext(
             runtimeTaskID: root.id,
-            runtimeSessionID: sessionID,
+            runtimeSessionID: session.id,
             isAsyncSession: true,
             priority: root.effectivePriority,
             executor: root.executorPreference,
             taskLocals: taskLocals)
-        concurrencyRuntime.bind(context, to: root)
-        defer { concurrencyRuntime.release(root.id) }
+        runtime.bind(context, to: root)
+        defer { runtime.release(root.id) }
         return try await EvaluationTaskContext.$current.withValue(context) {
             defer { context.removeAllDynamicState() }
             do {
                 let value = try await runAsyncInCurrentTaskContext(
-                    program: program,
-                    lazyTopLevelGlobals: lazyTopLevelGlobals,
-                    completionPolicy: completionPolicy,
-                    sessionID: sessionID)
-                concurrencyRuntime.succeed(root, with: value)
+                    session: session)
+                runtime.succeed(root, with: value)
                 return value
             } catch is InterpreterSessionAbort {
-                concurrencyRuntime.requestCancellation(
+                runtime.requestCancellation(
                     root, source: .hostTask)
-                concurrencyRuntime.completeCancellation(root)
+                runtime.completeCancellation(root)
                 throw CancellationError()
             } catch is CancellationError {
-                concurrencyRuntime.requestCancellation(
+                runtime.requestCancellation(
                     root, source: .hostTask)
-                concurrencyRuntime.completeCancellation(root)
+                runtime.completeCancellation(root)
                 throw CancellationError()
             } catch {
-                concurrencyRuntime.fail(root, with: error)
+                runtime.fail(root, with: error)
                 throw error
             }
         }
     }
 
     private func runAsyncInCurrentTaskContext(
-        program: ParsedProgram,
-        lazyTopLevelGlobals: Bool,
-        completionPolicy: SessionCompletionPolicy,
-        sessionID: RuntimeSessionID
+        session: InterpreterSession
     ) async throws -> RuntimeValue {
         try checkRuntimeCancellation()
 
         let result: RuntimeValue
         do {
             result = try await runProgramSuspending(
-                program: program,
-                lazyTopLevelGlobals: lazyTopLevelGlobals)
+                program: session.program,
+                lazyTopLevelGlobals: session.lazyTopLevelGlobals)
         } catch {
-            await cancelOwnedTasks(in: sessionID)
+            await cancelOwnedTasks(in: session.id)
             throw error
         }
 
         do {
-            switch completionPolicy {
+            switch session.completionPolicy {
             case .topLevel:
                 break
             case .drainOwnedTasks:
-                try await drainOwnedTasks(in: sessionID)
+                try await drainOwnedTasks(in: session.id)
             case .cancelRemainingTasks:
-                await cancelOwnedTasks(in: sessionID)
+                await cancelOwnedTasks(in: session.id)
             }
             try checkRuntimeCancellation()
         } catch {
-            await cancelOwnedTasks(in: sessionID)
+            await cancelOwnedTasks(in: session.id)
             throw error
         }
         return result

@@ -2922,12 +2922,16 @@
         "ParsedProgramConcurrencyTests/sourceEntryStillReturnsLocatedRuntimeParseError",
         "RuntimeHeapOwnershipTests/interpreterExposesItsActualGlobalStorageRoot",
         "RuntimeHeapOwnershipTests/independentInterpretersDoNotShareMutableHeap",
-        "RuntimeHeapOwnershipTests/heapLifetimeIsOwnedByInterpreterFacade"
+        "RuntimeHeapOwnershipTests/heapLifetimeIsOwnedByInterpreterFacade",
+        "InterpreterSessionOwnershipTests/sessionBindsProgramHeapRuntimePolicyAndLiveRuntimeID",
+        "InterpreterSessionOwnershipTests/sessionsHaveUniqueRuntimeIdentityAndAreSingleUse",
+        "InterpreterSessionOwnershipTests/sessionRejectsExecutionByAnotherInterpreter",
+        "InterpreterSessionOwnershipTests/sessionKeepsItsHeapAndRuntimeAliveWithoutRetainingFacade"
       ],
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Two M9 prerequisites are green: parsed/operator-folded syntax and its source-location index live in an immutable Sendable ParsedProgram reusable across detached readers and independent cooperative sessions, and each Interpreter owns a distinct explicit MainActor-confined RuntimeHeap rooted at its actual globals, synthesized environment models, and SwiftUI state cells. This is not a physical execution claim. Declaration metadata, the explicit session boundary, worker-safe heap classification, and runtime registries remain MainActor hosted; the interpreter still has no opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence until ownership and synchronization are implemented."
+      "notes": "Three M9 prerequisites are green: parsed/operator-folded syntax and its source-location index live in an immutable Sendable ParsedProgram reusable across detached readers and independent cooperative sessions; each Interpreter owns a distinct explicit MainActor-confined RuntimeHeap rooted at its actual globals, synthesized environment models, and SwiftUI state cells; and every runAsync program entry executes through a single-use InterpreterSession binding the program, heap, cooperative runtime, runtime ID, lazy-global mode, and completion policy. Focused evidence covers live identity, ownership/reuse rejection, draining, and heap/runtime lifetime. This is not a physical execution claim. Declaration metadata and evaluation remain on the facade, callback entries still use raw runtime IDs, overlapping facade sessions lack a worker-safe policy, and the interpreter still has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
     }
   ]
 }

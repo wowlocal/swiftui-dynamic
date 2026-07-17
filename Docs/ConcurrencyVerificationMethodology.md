@@ -148,9 +148,17 @@ sharing evaluator state. Its second prerequisite makes each interpreter's
 actual mutable storage root explicit: one MainActor-confined `RuntimeHeap`
 owns globals, synthesized environment models, and SwiftUI state cells, with
 identity, cross-interpreter isolation, and facade-lifetime coverage. This is
-still characterization only. An explicit session boundary, declaration
-metadata separation, worker-safe heap classification, physical workers,
-cooperative-versus-parallel differential evidence, and TSan remain open.
+still characterization only. Its third prerequisite routes every `runAsync`
+program entry through a real single-use `InterpreterSession` binding the
+program, heap, cooperative runtime, runtime ID, lazy-global mode, and
+completion policy. Compile-time RED and focused GREEN evidence cover binding,
+live-ID propagation, unique identity, foreign-facade rejection, reuse
+rejection, draining, and facade-independent heap/runtime lifetime. Existing
+same-source async-let parity is rerun as the no-semantic-change check. Moving
+declarations/evaluation fully behind the session, unifying raw-ID callback
+entries, overlapping-session policy, worker-safe heap classification,
+physical workers, cooperative-versus-parallel differential evidence, and TSan
+remain open.
 
 ## Process and liveness isolation
 
