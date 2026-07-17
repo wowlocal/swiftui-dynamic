@@ -95,21 +95,20 @@ The machine-readable source of truth is
 with the detailed design in
 [`Docs/SwiftConcurrencyArchitecture.md`](Docs/SwiftConcurrencyArchitecture.md).
 
-- **Active cycle — M5 actor runtime (demand-ordered, 2026-07-16):** actor
-  identity/storage and serial executor hops first, scoped to the measured
-  demand shapes (`@MainActor` isolation and user-declared global actors of
-  the FoodTruck StoreActor shape); then reentrancy/resume ownership, isolated
-  parameters, and arbitrary global actors; then per-feature fail-closed flips
-  of the class-like compatibility path — never a global up-front rejection
-  while corpus/FoodTruck ratchets run through it.
-- **Queued demand slice — M6 async sequences and continuations:** protocol
-  `for await` iteration, `AsyncStream`, and checked continuations resuming on
-  cooperative-default/MainActor executors, gated on the M5 identity/storage
-  slice rather than full M5 closure; M8 view-owned `.task` lifecycle follows.
+- **Active cycle — M9 optional physical parallelism (2026-07-17):** first
+  separate immutable parsed-program metadata, session-owned mutable state, and
+  runtime-entry identity. Declaration, callable/accessor/subscript, nominal,
+  and property-storage headers are now immutable Sendable indexes; remaining
+  member/call-site/compiler metadata, session migration, heap-edge
+  classification, workers, mode-differential parity, and TSan are still open.
+- **Covered demand cycles:** M5 actor identity/mailboxes and storage
+  confinement, M6 protocol sequences/streams/checked continuations, and M8
+  SwiftUI-owned `.task` lifecycle have scoped executable evidence. Their broad
+  dependency milestones retain the explicit partial/provisional statuses in
+  the acceptance manifest.
 - **Demand-deferred:** the remaining M4 executor-preference/repeated-wait
   surface has zero measured corpus/FoodTruck demand and reopens only on a
-  cited real-program failure; optional M9 physical parallelism stays deferred
-  until ownership and isolation are stable.
+  cited real-program failure.
 
 Actor support is complete only when every M5 requirement and its M4/M7
 dependencies are covered; parsing an `actor` declaration or running it through

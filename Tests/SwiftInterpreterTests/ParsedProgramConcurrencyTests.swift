@@ -376,6 +376,136 @@ struct ParsedProgramConcurrencyTests {
             .summary == expected)
     }
 
+    @Test func parsedProgramOwnsSendablePropertyMetadataIndex() async throws {
+        let program = try ParsedProgram(source: """
+        final class Delegate {}
+
+        struct IndexedStorage {
+            let immutable = 1
+            weak var delegate: Delegate?
+            lazy var cached = 2
+            nonisolated(unsafe) static var shared = 3
+
+            var observed = 0 {
+                willSet(next) {}
+                didSet(previous) {}
+            }
+
+            var computed: Int {
+                get { 4 }
+                set(replacement) {}
+            }
+
+            @TaskLocal static var token: Int?
+            let (left, right): (Int, String) = (1, "right")
+
+            #if os(iOS)
+            unowned var selectedOwner: Delegate
+            #else
+            var selected = 9
+            #endif
+        }
+
+        func localStorage() {
+            var local = 0
+            local += 1
+        }
+        """)
+        let expected = ParsedPropertyMetadataIndex.Summary(
+            variableDeclarationCount: 11,
+            bindingCount: 11,
+            storedBindingCount: 10,
+            computedBindingCount: 1,
+            observedStoredBindingCount: 1,
+            mutableBindingCount: 9,
+            staticBindingCount: 2,
+            lazyBindingCount: 1,
+            explicitlyNonisolatedBindingCount: 1,
+            taskLocalBindingCount: 1,
+            referenceManagedBindingCount: 2)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.propertyMetadataIndex)
+        #expect(program.propertyMetadataIndex.summary == expected)
+        #expect(program.metadata.propertyMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.propertyMetadataIndex.summary }
+        }
+        var observations: [ParsedPropertyMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let structures: [StructDeclSyntax] = program.syntax.statements.compactMap {
+            guard case .decl(let declaration) = $0.item else { return nil }
+            return declaration.as(StructDeclSyntax.self)
+        }
+        let structure = try #require(structures.first)
+        let variables = structure.memberBlock.members.compactMap {
+            $0.decl.as(VariableDeclSyntax.self)
+        }
+        let observed = try #require(variables.first {
+            $0.bindings.first?.pattern.trimmedDescription == "observed"
+        })
+        let observedMetadata = try #require(
+            program.propertyMetadataIndex.metadata(for: observed))
+        #expect(observedMetadata.isMutable)
+        #expect(!observedMetadata.isStatic)
+        #expect(!observedMetadata.isLazy)
+        #expect(!observedMetadata.isNonisolated)
+        let observedBinding = try #require(observed.bindings.first)
+        let observedBindingMetadata = try #require(
+            program.propertyMetadataIndex.metadata(for: observedBinding))
+        #expect(!observedBindingMetadata.isComputed)
+        #expect(observedBindingMetadata.willSet?.parameterName == "next")
+        #expect(observedBindingMetadata.didSet?.parameterName == "previous")
+
+        let tuple = try #require(variables.first {
+            $0.bindings.first?.pattern.is(TuplePatternSyntax.self) == true
+        })
+        let tupleBinding = try #require(tuple.bindings.first)
+        let tupleMetadata = try #require(
+            program.propertyMetadataIndex.metadata(for: tupleBinding))
+        #expect(tupleMetadata.patternKind == .tuple)
+        #expect(tupleMetadata.tupleElements.map { $0.name }
+            == ["left", "right"])
+        #expect(tupleMetadata.tupleElements.map {
+            $0.typeAnnotation?.trimmedDescription
+        } == ["Int", "String"])
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata?.propertyMetadataIndex
+            .summary == expected)
+    }
+
+    @Test func propertyMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        weak var foreign: NSObject? {
+            willSet(next) {}
+            didSet(previous) {}
+        }
+        """)
+        let declaration = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(VariableDeclSyntax.self))
+        let binding = try #require(declaration.bindings.first)
+        let interpreter = Interpreter()
+
+        let declarationMetadata = interpreter.propertyMetadata(
+            for: declaration)
+        let bindingMetadata = interpreter.propertyMetadata(for: binding)
+        #expect(declarationMetadata.isMutable)
+        #expect(!declarationMetadata.isLazy)
+        #expect(declarationMetadata.referenceOwnership == .weak)
+        #expect(bindingMetadata.identifierName == "foreign")
+        #expect(!bindingMetadata.isComputed)
+        #expect(bindingMetadata.willSet?.parameterName == "next")
+        #expect(bindingMetadata.didSet?.parameterName == "previous")
+    }
+
     @Test func parsedProgramMetadataIsOneSendableRuntimeCapability()
     async throws {
         let program = try ParsedProgram(source: """
@@ -391,6 +521,8 @@ struct ParsedProgramConcurrencyTests {
             == program.callableMetadataIndex.summary)
         #expect(program.metadata.nominalMetadataIndex.summary
             == program.nominalMetadataIndex.summary)
+        #expect(program.metadata.propertyMetadataIndex.summary
+            == program.propertyMetadataIndex.summary)
 
         let readers = (0..<8).map { _ in
             Task.detached {
@@ -398,15 +530,16 @@ struct ParsedProgramConcurrencyTests {
                     program.metadata.declarationIndex.summary
                         .possiblePrimaryDeclarationCount,
                     program.metadata.callableMetadataIndex.summary.functionCount,
-                    program.metadata.nominalMetadataIndex.summary.structureCount
+                    program.metadata.nominalMetadataIndex.summary.structureCount,
+                    program.metadata.propertyMetadataIndex.summary.bindingCount
                 )
             }
         }
-        var observations: [(Int, Int, Int)] = []
+        var observations: [(Int, Int, Int, Int)] = []
         for reader in readers {
             observations.append(await reader.value)
         }
-        #expect(observations.allSatisfy { $0 == (2, 1, 1) })
+        #expect(observations.allSatisfy { $0 == (2, 1, 1, 0) })
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
@@ -414,6 +547,8 @@ struct ParsedProgramConcurrencyTests {
             .summary == program.callableMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.nominalMetadataIndex
             .summary == program.nominalMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.propertyMetadataIndex
+            .summary == program.propertyMetadataIndex.summary)
         #expect(try await interpreter.runAsync(session: session).intValue == 42)
     }
 

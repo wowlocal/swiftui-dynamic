@@ -201,9 +201,18 @@ nominal kinds, inactive conditional branches, nested declarations, attributes,
 inheritance, generic constraints, eight detached readers, session and escaped-
 callback provenance, and the existing struct/class/enum/actor/protocol
 materialization suites. The causal `custom-global-actor-isolation` fixture is
-unchanged in twenty native/interpreter repetitions. Extending immutable
-property-storage/member, call-site, and compiler metadata, moving mutable
-symbols and evaluation fully behind the session, worker-safe heap
+unchanged in twenty native/interpreter repetitions. Its tenth prerequisite
+adds all-branch variable/property storage headers to the composite capability.
+The compile-time RED was the absent property index/summary and compatibility
+accessor API. GREEN covers `let`/`var`, static, lazy, explicit nonisolation,
+TaskLocal, weak/unowned, tuple, stored/computed, and observer metadata; eight
+detached readers; pure foreign-syntax fallback; session and escaped-callback
+provenance; 215 affected storage/declaration/actor/ARC/value tests; and twenty
+unchanged `actor-initialization` repetitions. The fixture proves synchronous
+actor initialization and first isolated-method ownership without asserting a
+physical thread. Extending immutable remaining member, call-site, and compiler
+metadata, moving mutable symbols and evaluation fully behind the session,
+worker-safe heap
 classification, physical workers, cooperative-versus-parallel differential
 evidence, and TSan remain open.
 

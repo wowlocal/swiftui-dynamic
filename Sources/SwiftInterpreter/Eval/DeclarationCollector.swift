@@ -66,22 +66,24 @@ extension Interpreter {
     private func collectGlobalVariable(
         _ declaration: VariableDeclSyntax
     ) throws {
+        let declarationMetadata = propertyMetadata(for: declaration)
         if isHoistableGlobal(declaration) {
             // Top-level globals are LAZY (real Swift semantics for non-main
             // files): forward and cross-file references work, initializers
             // run on first read.
-            let ownership = ReferenceOwnership(
-                modifiers: declaration.modifiers)
+            let ownership = declarationMetadata.referenceOwnership
             for binding in declaration.bindings {
-                guard let identifier = binding.pattern.as(
-                    IdentifierPatternSyntax.self) else { continue }
+                let bindingMetadata = propertyMetadata(for: binding)
+                guard let name = bindingMetadata.identifierName else {
+                    continue
+                }
                 globals.define(
-                    identifier.identifier.text,
+                    name,
                     .native(LazyGlobal(
-                        initializer: binding.initializer?.value,
-                        annotation: binding.typeAnnotation?.type)),
+                        initializer: bindingMetadata.initializer,
+                        annotation: bindingMetadata.typeAnnotation)),
                     declaredTypeName:
-                        binding.typeAnnotation?.type.trimmedDescription,
+                        bindingMetadata.typeAnnotation?.trimmedDescription,
                     referenceOwnership: ownership)
             }
             return
@@ -91,28 +93,27 @@ extension Interpreter {
         // accessor runs on every read. Observer-only globals (didSet) are
         // stored, with observers currently inert.
         for binding in declaration.bindings {
-            guard let identifier = binding.pattern.as(
-                    IdentifierPatternSyntax.self),
+            let bindingMetadata = propertyMetadata(for: binding)
+            guard let name = bindingMetadata.identifierName,
                   let accessorBlock = binding.accessorBlock else { continue }
-            if let accessors = parseAccessors(of: accessorBlock) {
+            if bindingMetadata.isComputed,
+               let accessors = parseAccessors(of: accessorBlock) {
                 globals.define(
-                    identifier.identifier.text,
+                    name,
                     .native(ComputedGlobal(
                         accessor: accessors.getter,
-                        annotation: binding.typeAnnotation?.type)),
+                        annotation: bindingMetadata.typeAnnotation)),
                     declaredTypeName:
-                        binding.typeAnnotation?.type.trimmedDescription)
+                        bindingMetadata.typeAnnotation?.trimmedDescription)
             } else {
-                let ownership = ReferenceOwnership(
-                    modifiers: declaration.modifiers)
                 globals.define(
-                    identifier.identifier.text,
+                    name,
                     .native(LazyGlobal(
-                        initializer: binding.initializer?.value,
-                        annotation: binding.typeAnnotation?.type)),
+                        initializer: bindingMetadata.initializer,
+                        annotation: bindingMetadata.typeAnnotation)),
                     declaredTypeName:
-                        binding.typeAnnotation?.type.trimmedDescription,
-                    referenceOwnership: ownership)
+                        bindingMetadata.typeAnnotation?.trimmedDescription,
+                    referenceOwnership: declarationMetadata.referenceOwnership)
             }
         }
     }
@@ -654,6 +655,7 @@ extension Interpreter {
     }
 
     private func collectProperties(_ varDecl: VariableDeclSyntax, into symbol: StructSymbol) throws {
+        let declarationMetadata = propertyMetadata(for: varDecl)
         let (wrapper, environmentObjectType) = propertyWrapper(of: varDecl.attributes)
         // `@Environment(AppData.self) var appData` carries its type in the
         // attribute, not an annotation — synthesize one so injection-by-type
@@ -683,25 +685,22 @@ extension Interpreter {
                 if queryDefault != nil { break }
             }
         }
-        let hasBuilderAttribute = varDecl.attributes.contains {
-            // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-        }
-        let isStaticDecl = isStatic(varDecl.modifiers)
-        let isTaskLocal = hasAttribute(
-            varDecl.attributes, named: "TaskLocal")
+        let hasBuilderAttribute = declarationMetadata.hasBuilderAttribute
+        let isStaticDecl = declarationMetadata.isStatic
+        let isTaskLocal = declarationMetadata.isTaskLocal
         if isTaskLocal {
             guard isStaticDecl else {
                 throw error(varDecl, "@TaskLocal properties must be static")
             }
-            guard varDecl.bindingSpecifier.text == "var" else {
+            guard declarationMetadata.isMutable else {
                 throw error(varDecl, "@TaskLocal properties must be declared with var")
             }
         }
 
         for binding in varDecl.bindings {
+            let bindingMetadata = propertyMetadata(for: binding)
             if isTaskLocal,
-               !binding.pattern.is(IdentifierPatternSyntax.self) {
+               bindingMetadata.patternKind != .identifier {
                 throw error(
                     binding,
                     "@TaskLocal requires a single identifier binding")
@@ -709,43 +708,31 @@ extension Interpreter {
             // Tuple-pattern stored properties (`let (first, second, third):
             // (A, B, C)`) declare each element; annotations split when the
             // tuple type's arity matches.
-            if let tuplePattern = binding.pattern.as(TuplePatternSyntax.self) {
-                let elements = Array(tuplePattern.elements)
-                let tupleTypes: [TypeSyntax?]
-                if let tupleType = binding.typeAnnotation?.type.as(TupleTypeSyntax.self),
-                   tupleType.elements.count == elements.count {
-                    tupleTypes = tupleType.elements.map { $0.type }
-                } else {
-                    tupleTypes = Array(repeating: nil, count: elements.count)
-                }
-                for (element, elementType) in zip(elements, tupleTypes) {
-                    guard let ident = element.pattern.as(IdentifierPatternSyntax.self) else { continue }
+            if bindingMetadata.patternKind == .tuple {
+                for element in bindingMetadata.tupleElements {
                     symbol.storedProperties.append(StructSymbol.StoredProperty(
-                        name: ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                        name: element.name,
                         wrapper: .none,
                         initializer: nil,
-                        typeAnnotation: elementType,
+                        typeAnnotation: element.typeAnnotation,
                         isBuilderClosure: false,
-                        isMutable: varDecl.bindingSpecifier.text == "var",
-                        isNonisolated: varDecl.modifiers.contains {
-                            $0.name.text == "nonisolated"
-                        }
+                        isMutable: declarationMetadata.isMutable,
+                        isNonisolated: declarationMetadata.isNonisolated
                     ))
                 }
                 continue
             }
-            guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
+            guard let name = bindingMetadata.identifierName else {
                 throw error(binding, "unsupported property pattern")
             }
-            let name = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
             if isTaskLocal {
                 guard binding.accessorBlock == nil else {
                     throw error(
                         binding,
                         "@TaskLocal '\(name)' must be a stored property")
                 }
-                let initializer = binding.initializer?.value
-                let annotation = binding.typeAnnotation?.type
+                let initializer = bindingMetadata.initializer
+                let annotation = bindingMetadata.typeAnnotation
                 if initializer == nil,
                    RuntimeOptionalValue.wrappedType(
                     in: annotation?.trimmedDescription ?? "") == nil {
@@ -763,19 +750,19 @@ extension Interpreter {
             // A binding with an accessor block is computed only if it has a
             // getter; willSet/didSet-only observers mean a stored property
             // whose observers run on assignment (see the write funnel).
-            if let accessorBlock = binding.accessorBlock,
+            if bindingMetadata.isComputed,
+               let accessorBlock = binding.accessorBlock,
                let accessors = parseAccessors(of: accessorBlock) {
                 declLexicalOwners[binding.id] = symbol
-                let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
+                let returnsView = bindingMetadata.typeAnnotation?
+                    .trimmedDescription.contains("some View") ?? false
                 let computed = ComputedProperty(
                     accessor: accessors.getter,
                     isBuilder: hasBuilderAttribute || returnsView,
                     setter: accessors.setter,
-                    typeAnnotation: binding.typeAnnotation?.type,
+                    typeAnnotation: bindingMetadata.typeAnnotation,
                     declarationID: binding.id,
-                    isNonisolated: varDecl.modifiers.contains {
-                        $0.name.text == "nonisolated"
-                    },
+                    isNonisolated: declarationMetadata.isNonisolated,
                     isAsync: accessors.isGetterAsync,
                     isThrowing: accessors.isGetterThrowing
                 )
@@ -785,14 +772,14 @@ extension Interpreter {
                     symbol.computedProperties[name] = computed
                 }
             } else if isStaticDecl {
-                let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
+                let referenceOwnership = declarationMetadata.referenceOwnership
                 symbol.staticStoragePolicies[name] = .init(
-                    typeName: binding.typeAnnotation?.type.trimmedDescription,
+                    typeName: bindingMetadata.typeAnnotation?.trimmedDescription,
                     referenceOwnership: referenceOwnership)
-                if let initializer = binding.initializer?.value {
+                if let initializer = bindingMetadata.initializer {
                     symbol.staticProperties[name] = .init(
                         initializer: initializer,
-                        typeAnnotation: binding.typeAnnotation?.type,
+                        typeAnnotation: bindingMetadata.typeAnnotation,
                         referenceOwnership: referenceOwnership
                     )
                 } else if let wrapper = varDecl.attributes.compactMap({ $0.as(AttributeSyntax.self) }).first(where: {
@@ -811,41 +798,31 @@ extension Interpreter {
                 // real SwiftUI defaults it false (optionals stay nil via the
                 // uninitialized-optional rule).
                 var stateLikeDefault: ExprSyntax?
-                if binding.initializer == nil,
+                if bindingMetadata.initializer == nil,
                    hasAttribute(varDecl.attributes, named: "FocusState"),
-                   binding.typeAnnotation?.type.trimmedDescription == "Bool" {
+                   bindingMetadata.typeAnnotation?.trimmedDescription == "Bool" {
                     stateLikeDefault = ExprSyntax(BooleanLiteralExprSyntax(literal: .keyword(.false)))
                 }
                 var stored = StructSymbol.StoredProperty(
                     name: name,
                     wrapper: wrapper,
-                    initializer: binding.initializer?.value ?? queryDefault ?? stateLikeDefault,
-                    typeAnnotation: binding.typeAnnotation?.type ?? syntheticAnnotation,
+                    initializer: bindingMetadata.initializer ?? queryDefault ?? stateLikeDefault,
+                    typeAnnotation: bindingMetadata.typeAnnotation ?? syntheticAnnotation,
                     isBuilderClosure: hasBuilderAttribute,
-                    isMutable: varDecl.bindingSpecifier.text == "var",
-                    isNonisolated: varDecl.modifiers.contains {
-                        $0.name.text == "nonisolated"
-                    }
+                    isMutable: declarationMetadata.isMutable,
+                    isNonisolated: declarationMetadata.isNonisolated
                 )
-                stored.referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
-                stored.isLazy = varDecl.modifiers.contains { $0.name.text == "lazy" }
+                stored.referenceOwnership = declarationMetadata.referenceOwnership
+                stored.isLazy = declarationMetadata.isLazy
                 // `var timeline: Filter = .home { didSet { … } }` — the
                 // fetch-trigger genre lives in observers.
-                if let accessorBlock = binding.accessorBlock,
-                   case .accessors(let list) = accessorBlock.accessors {
-                    for accessor in list {
-                        guard let body = accessor.body?.statements else { continue }
-                        switch accessor.accessorSpecifier.tokenKind {
-                        case .keyword(.willSet):
-                            stored.willSetBody = body
-                            stored.willSetParameter = accessor.parameters?.name.text ?? "newValue"
-                        case .keyword(.didSet):
-                            stored.didSetBody = body
-                            stored.didSetParameter = accessor.parameters?.name.text ?? "oldValue"
-                        default:
-                            break
-                        }
-                    }
+                if let observer = bindingMetadata.willSet {
+                    stored.willSetBody = observer.body
+                    stored.willSetParameter = observer.parameterName
+                }
+                if let observer = bindingMetadata.didSet {
+                    stored.didSetBody = observer.body
+                    stored.didSetParameter = observer.parameterName
                 }
                 symbol.storedProperties.append(stored)
             }
@@ -988,24 +965,22 @@ extension Interpreter {
             return
         }
         if let varDecl = decl.as(VariableDeclSyntax.self) {
-            let hasBuilderAttribute = varDecl.attributes.contains {
-            // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-            }
-            let isStaticDecl = isStatic(varDecl.modifiers)
-            let isTaskLocal = hasAttribute(
-                varDecl.attributes, named: "TaskLocal")
+            let declarationMetadata = propertyMetadata(for: varDecl)
+            let hasBuilderAttribute = declarationMetadata.hasBuilderAttribute
+            let isStaticDecl = declarationMetadata.isStatic
+            let isTaskLocal = declarationMetadata.isTaskLocal
             if isTaskLocal {
                 guard isStaticDecl else {
                     throw error(varDecl, "@TaskLocal properties must be static")
                 }
-                guard varDecl.bindingSpecifier.text == "var" else {
+                guard declarationMetadata.isMutable else {
                     throw error(
                         varDecl, "@TaskLocal properties must be declared with var")
                 }
             }
             for binding in varDecl.bindings {
-                guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                let bindingMetadata = propertyMetadata(for: binding)
+                guard let memberName = bindingMetadata.identifierName else {
                     if isTaskLocal {
                         throw error(
                             binding,
@@ -1013,17 +988,14 @@ extension Interpreter {
                     }
                     continue
                 }
-                // Backticked members (`static var \`default\``) normalize,
-                // like cases and struct properties everywhere else.
-                let memberName = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
                 if isTaskLocal {
                     guard binding.accessorBlock == nil else {
                         throw error(
                             binding,
                             "@TaskLocal '\(memberName)' must be a stored property")
                     }
-                    let initializer = binding.initializer?.value
-                    let annotation = binding.typeAnnotation?.type
+                    let initializer = bindingMetadata.initializer
+                    let annotation = bindingMetadata.typeAnnotation
                     if initializer == nil,
                        RuntimeOptionalValue.wrappedType(
                         in: annotation?.trimmedDescription ?? "") == nil {
@@ -1039,16 +1011,18 @@ extension Interpreter {
                             typeAnnotation: annotation)
                     continue
                 }
-                if let accessorBlock = binding.accessorBlock,
+                if bindingMetadata.isComputed,
+                   let accessorBlock = binding.accessorBlock,
                    let accessors = parseAccessors(of: accessorBlock) {
                     declLexicalOwners[binding.id] = symbol
-                    let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
+                    let returnsView = bindingMetadata.typeAnnotation?
+                        .trimmedDescription.contains("some View") ?? false
                     if isStaticDecl {
                         symbol.staticComputedProperties[memberName] = ComputedProperty(
                             accessor: accessors.getter,
                             isBuilder: hasBuilderAttribute || returnsView,
                             setter: accessors.setter,
-                            typeAnnotation: binding.typeAnnotation?.type,
+                            typeAnnotation: bindingMetadata.typeAnnotation,
                             declarationID: binding.id,
                             isAsync: accessors.isGetterAsync,
                             isThrowing: accessors.isGetterThrowing
@@ -1059,20 +1033,21 @@ extension Interpreter {
                         accessor: accessors.getter,
                         isBuilder: hasBuilderAttribute || returnsView,
                         setter: accessors.setter,
-                        typeAnnotation: binding.typeAnnotation?.type,
+                        typeAnnotation: bindingMetadata.typeAnnotation,
                         declarationID: binding.id,
                         isAsync: accessors.isGetterAsync,
                         isThrowing: accessors.isGetterThrowing
                     )
                 } else if isStaticDecl {
-                    let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
+                    let referenceOwnership = declarationMetadata.referenceOwnership
                     symbol.staticStoragePolicies[memberName] = .init(
-                        typeName: binding.typeAnnotation?.type.trimmedDescription,
+                        typeName: bindingMetadata.typeAnnotation?
+                            .trimmedDescription,
                         referenceOwnership: referenceOwnership)
-                    if let initializer = binding.initializer?.value {
+                    if let initializer = bindingMetadata.initializer {
                         symbol.staticProperties[memberName] = .init(
                             initializer: initializer,
-                            typeAnnotation: binding.typeAnnotation?.type,
+                            typeAnnotation: bindingMetadata.typeAnnotation,
                             referenceOwnership: referenceOwnership
                         )
                     } else {

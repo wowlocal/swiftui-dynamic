@@ -164,8 +164,8 @@ subscript success and source-error exits remains exact. Nominal/property
 storage metadata, call-site resolution, and compiler fingerprints remain open.
 
 The eighth prerequisite consolidates propagation behind one
-`ParsedProgramMetadata` capability. It owns the declaration and callable
-indexes today and is the sole syntax-derived metadata edge carried by program
+`ParsedProgramMetadata` capability. It initially owns the declaration and
+callable indexes and is the sole syntax-derived metadata edge carried by program
 sessions, runtime entries, source closures, synchronous host callbacks, and
 SwiftUI tasks. Future nominal, call-site, isolation, or compiler indexes extend
 this value without adding another parallel field to every ownership object.
@@ -185,8 +185,25 @@ synthetic syntax; mutable members and enum raw-value evaluation remain
 session-owned. Eight detached readers, callback provenance after preparing a
 different program, and the existing canonical custom-global-actor tests cover
 the boundary. Swift 6 custom-global-actor parity remains unchanged in twenty
-repetitions. Property-storage/member metadata, call-site resolution, and
-compiler fingerprints remain open.
+repetitions. Property-storage metadata is handled by the next prerequisite;
+remaining member metadata, call-site resolution, and compiler fingerprints
+remain open.
+
+The tenth prerequisite adds an immutable, all-branch
+`ParsedPropertyMetadataIndex` to the same composite capability. Every variable
+declaration and pattern binding is indexed by syntax identity across top-level,
+member, local, nested, and inactive conditional-compilation regions. The index
+owns `let`/`var`, `static`/`class`, `lazy`, explicit `nonisolated`, `@TaskLocal`,
+weak/unowned storage-edge policy, identifier and tuple storage shapes,
+stored-versus-computed classification, and `willSet`/`didSet` bodies plus custom
+parameter names. Global, struct/class/actor, enum-static, and local storage
+materialization consume these immutable facts with a pure fallback for foreign
+or synthetic syntax. Mutable boxes, static values, wrapper evaluation, and the
+runtime symbol graph remain session/facade-owned. Eight detached readers,
+session and callback provenance, storage/observer/ARC regressions, and the
+existing actor-initialization oracle cover the boundary. Swift 6 actor
+initialization parity remains unchanged in twenty repetitions; this is not a
+physical-worker claim.
 
 The stable target separates five concerns:
 
@@ -565,6 +582,7 @@ public struct ParsedProgram: Sendable {
     let syntax: SourceFileSyntax
     let declarations: DeclarationIndex
     let nominalMetadata: NominalMetadataIndex
+    let propertyMetadata: PropertyMetadataIndex
     let callMetadata: CallMetadataIndex
     let isolationMetadata: IsolationIndex
     let sourceLocations: SourceLocationIndex
@@ -579,8 +597,9 @@ task-specific state.
 Current implementation stage (2026-07-17): `ParsedProgram` owns the folded
 syntax, source-location index, and one public immutable
 `ParsedProgramMetadata` capability. That value owns the public
-`ParsedDeclarationIndex`, `ParsedCallableMetadataIndex`, and
-`ParsedNominalMetadataIndex`; compatibility accessors on `ParsedProgram`
+`ParsedDeclarationIndex`, `ParsedCallableMetadataIndex`,
+`ParsedNominalMetadataIndex`, and `ParsedPropertyMetadataIndex`;
+compatibility accessors on `ParsedProgram`
 expose the same values. The declaration index
 classifies all possible top-level primary declarations, aliases, and
 extensions across nested conditional regions. A session resolves exactly one
@@ -594,9 +613,13 @@ nonisolation. Mutable runtime symbol materialization remains
 session/facade-owned. The nominal index records struct/class/actor/enum/
 protocol kind, name, inherited type spellings, attributes, and generic header
 constraints across top-level, nested, local, and conditional declarations;
-nominal symbol construction consumes it. Property-storage/member metadata,
-call-site semantic resolution, and the compiler-preflight fingerprint remain
-target work.
+nominal symbol construction consumes it. The property index records every
+variable declaration and binding's immutable storage header, including
+mutability, static/lazy/nonisolated/TaskLocal and reference-ownership policy,
+tuple layout, stored/computed classification, and observer bodies. Global,
+member, enum-static, and local storage materialization consumes it. Remaining
+member metadata, call-site semantic resolution, and the compiler-preflight
+fingerprint remain target work.
 
 ### 6.2 `InterpreterSession`
 
@@ -2710,7 +2733,7 @@ distinct callback IDs over one heap, and final release. A causal same-source
 probe establishes cooperative overlap against the confined heap in twenty
 native/interpreter repetitions. `ParsedProgram` additionally owns one immutable
 `ParsedProgramMetadata` capability containing its declaration and all-branch
-callable indexes; the runtime no longer stores mutable
+callable, nominal, and property indexes; the runtime no longer stores mutable
 function/initializer metadata caches on the facade. Sessions and escaped
 callbacks retain the originating capability through `RuntimeEntry`, and eight
 detached readers exercise one snapshot under Swift 6 strict concurrency.
@@ -2726,8 +2749,13 @@ two transitions. The composite capability now also owns an all-branch nominal
 header index for structs, classes, actors, enums, and protocols; runtime symbol
 construction consumes its names, inheritance, attributes, and generic facts.
 The existing custom-global-actor fixture remains exact in twenty repetitions.
+The composite also owns all-branch variable/property storage headers;
+global, member, enum-static, and local materialization consume mutability,
+static/lazy/nonisolated/TaskLocal, reference-ownership, tuple, accessor-kind,
+and observer facts from that index with a pure foreign-syntax fallback. The
+actor-initialization fixture remains exact in twenty repetitions.
 These slices separate immutable program input, mutable storage, and execution
-identity without changing scheduling. Property-storage/member, call-site, and
+identity without changing scheduling. Remaining member, call-site, and
 compiler metadata indexing remains incomplete, and mutable
 symbol materialization plus evaluator state must move fully behind the session;
 worker-safe heap classification, physical worker scheduling,

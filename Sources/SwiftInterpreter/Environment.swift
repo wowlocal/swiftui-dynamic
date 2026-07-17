@@ -3,7 +3,7 @@ import SwiftSyntax
 /// The ownership carried by a Swift storage edge. Reference ownership belongs
 /// to the variable/property/capture slot, not to `RuntimeValue`: the same class
 /// value may be held strongly in one box and weakly in another.
-public enum ReferenceOwnership: Equatable {
+public nonisolated enum ReferenceOwnership: Sendable, Equatable {
     case strong
     case weak
     case unowned

@@ -105,7 +105,8 @@ extension Interpreter {
             // bindings share the NEXT annotation in their run (initializers
             // break the run).
             let allBindings = Array(varDecl.bindings)
-            let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
+            let referenceOwnership = propertyMetadata(
+                for: varDecl).referenceOwnership
             func sharedAnnotation(startingAt index: Int) -> TypeSyntax? {
                 for later in allBindings[index...] {
                     if let type = later.typeAnnotation?.type { return type }

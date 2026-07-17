@@ -7,7 +7,8 @@ import SwiftParserDiagnostics
 ///
 /// Parsing, operator folding, and target-neutral metadata discovery happen
 /// once. The resulting SwiftSyntax tree, source-location index, declaration
-/// plan, callable metadata, and nominal headers are immutable and `Sendable`,
+/// plan, callable metadata, nominal headers, and property-storage headers are
+/// immutable and `Sendable`,
 /// so independent sessions may share them without sharing evaluator or
 /// runtime-symbol state.
 public nonisolated struct ParsedProgram: Sendable {
@@ -30,6 +31,9 @@ public nonisolated struct ParsedProgram: Sendable {
     }
     public var nominalMetadataIndex: ParsedNominalMetadataIndex {
         metadata.nominalMetadataIndex
+    }
+    public var propertyMetadataIndex: ParsedPropertyMetadataIndex {
+        metadata.propertyMetadataIndex
     }
     let syntax: SourceFileSyntax
     let locationConverter: SourceLocationConverter

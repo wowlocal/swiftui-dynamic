@@ -11,6 +11,7 @@ struct RuntimeEntryOwnershipTests {
         var observedMetadata: [ParsedCallableMetadataIndex.Summary?] = []
         var observedDeclarationCounts: [Int?] = []
         var observedNominalCounts: [Int?] = []
+        var observedPropertyBindingCounts: [Int?] = []
         weak var observedEntry: RuntimeEntry?
         interpreter.globals.define(
             "captureRuntimeEntry",
@@ -30,10 +31,12 @@ struct RuntimeEntryOwnershipTests {
                         .possiblePrimaryDeclarationCount)
                     observedNominalCounts.append(entry.programMetadata?
                         .nominalMetadataIndex.summary.structureCount)
+                    observedPropertyBindingCounts.append(entry.programMetadata?
+                        .propertyMetadataIndex.summary.bindingCount)
                     return .void
                 })))
         let value = try interpreter.run(source: """
-        struct OriginMarker {}
+        struct OriginMarker { let value = 1 }
         func makeCallback() -> () -> Void {
             {
                 captureRuntimeEntry()
@@ -46,8 +49,8 @@ struct RuntimeEntryOwnershipTests {
         """)
         let closure = try #require(value.closureValue)
         _ = interpreter.makeSession(program: try ParsedProgram(source: """
-        struct NewerMarker {}
-        struct NewestMarker {}
+        struct NewerMarker { let value = 1 }
+        struct NewestMarker { let value = 2 }
         func newer() {}
         func newest() {}
         """))
@@ -69,6 +72,7 @@ struct RuntimeEntryOwnershipTests {
         #expect(observedMetadata.map { $0?.functionCount } == [1, 1])
         #expect(observedDeclarationCounts == [2, 2])
         #expect(observedNominalCounts == [1, 1])
+        #expect(observedPropertyBindingCounts == [1, 1])
         #expect(observedEntry == nil,
             "the runtime entry must release after its final task record")
     }

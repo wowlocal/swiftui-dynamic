@@ -681,6 +681,24 @@ public final class Interpreter {
         currentProgramMetadata?.nominalMetadataIndex
     }
 
+    var currentPropertyMetadataIndex: ParsedPropertyMetadataIndex? {
+        currentProgramMetadata?.propertyMetadataIndex
+    }
+
+    func propertyMetadata(
+        for node: VariableDeclSyntax
+    ) -> ParsedVariablePropertyMetadata {
+        currentPropertyMetadataIndex?.metadata(for: node)
+            ?? ParsedVariablePropertyMetadata(node)
+    }
+
+    func propertyMetadata(
+        for node: PatternBindingSyntax
+    ) -> ParsedPropertyBindingMetadata {
+        currentPropertyMetadataIndex?.metadata(for: node)
+            ?? ParsedPropertyBindingMetadata(node)
+    }
+
     func functionMetadata(
         for node: FunctionDeclSyntax
     ) -> ParsedFunctionMetadata {
