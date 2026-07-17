@@ -2683,13 +2683,14 @@
       "requirementRef": "M4/async-let-values-and-cleanup",
       "evidenceCaseIDs": [
         "async-let-value",
+        "async-let-top-level",
         "async-let-throwing-scope-exit",
         "async-let-cancellation-defer-order",
         "async-let-missing-await-diagnostic"
       ],
       "testNames": [],
       "gapEvidenceIDs": [],
-      "notes": "Async-let values, failure, cancellation, lexical cleanup, and diagnostics are covered."
+      "notes": "Async-let values, failure, cancellation, lexical cleanup, and diagnostics are covered. A real top-level Swift 6 executable now has exact parity for two awaited top-level bindings and complete root-scope cleanup after a captured missing-scope/global-carrier RED."
     },
     {
       "id": "task-group-core-semantics",

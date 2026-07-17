@@ -180,6 +180,7 @@ evidence that remains covered.
 | `task-cancellation-handler-pre-cancelled` | exact | Registering a handler in an already-cancelled task invokes it immediately, in that task's cancelled dynamic context, before the operation begins | Native/interpreter parity in 20 repetitions: `1,true,true,operation-cancelled`; MainActor prevents operation entry before the two pre-start cancellation requests |
 | `task-cancellation-handler-nested` | exact | Simultaneously active nested handlers run once from inner to outer before the cancelled operation resumes | Native/interpreter parity in 20 repetitions: `inner,outer,operation`; a MainActor started barrier fixes the cancel-time happens-before edges without asserting independent task scheduling |
 | `task-cancellation-handler-scope-exit` | exact | A handler is inactive after its operation returns or throws, so later cancellation does not invoke it | Native/interpreter parity in 20 repetitions; MainActor exit barriers place cancellation strictly after each unwind, and the runtime regression observes zero registrations at both exit points |
+| `async-let-top-level` | exact | Async top level owns an implicit structured scope, so two top-level async-let bindings are legal and one awaited expression receives both values | Native/interpreter parity in 20 repetitions: `42`; the same source is compiled as a real top-level executable, all task/scope registries drain, and child start/finish order, simultaneous execution, and physical threads are not asserted |
 | `async-let-throwing-defer-order` | exact | A throwing scope unwinds `defer` and unread async-let cleanup in reverse lexical registration order, joining the cancelled child before propagating the owner error | Native/interpreter parity in 20 repetitions for both registration orders: `child-start,scope-throw,child-cancelled,defer,caught\|child-start,scope-throw,defer,child-cancelled,caught` |
 | `async-let-early-return-defer-order` | exact | An early return unwinds `defer` and unread async-let cleanup in reverse lexical registration order, joining the cancelled child before the caller receives the returned value | Native/interpreter parity in 20 repetitions for both registration orders: `child-start,early-return,child-cancelled,defer,returned\|child-start,early-return,defer,child-cancelled,returned` |
 | `async-let-cancellation-defer-order` | exact | Cancelling an owner preserves reverse lexical registration order between `defer` and unread async-let cleanup, joins the child before returning the owner value, and leaves cancellation observable on both tasks | Native/interpreter parity in 20 repetitions for both registration orders: `scope-exit,child-complete,defer,returned:cancelled\|scope-exit,defer,child-complete,returned:cancelled` |
@@ -1469,6 +1470,27 @@ and `ConcurrencyParityTests` pass 7/7. The full suite passes 769 tests in 147
 suites. `Scripts/gate.sh` is green with 769/769 suite tests, the unchanged
 678/680 project-corpus ratchet, 5/5 live-data scenarios, and API parity at 345
 match / 0 diverge / 0 interpreter errors / 17 unstable / 0 no-twin.
+
+### M4 async let at async top level
+
+`async-let-top-level.swift` is compiled without the parity harness's ordinary
+`@main` wrapper, so both native and interpreted sides execute the same real
+top-level declarations. Apple Swift 6.3.3 accepts two top-level `async let`
+bindings and one `await left + right` expression; twenty bounded runs returned
+`42` exactly (native digest
+`7ccb4ce538b9bd1c674c07721448ce37bb27bbf7fa6e50ecb9c065aaf870d16c`).
+No child order, overlap, or physical-thread behavior is inferred from that
+result.
+
+The interpreter was RED before execution with `async let requires an active
+structured scope`. After adding the root frame, a second RED showed that
+suspending identifier lookup excluded `globals`, so `await` propagated an
+opaque async-let carrier instead of joining it. Async top level now uses the
+same structured-scope close path as function and closure bodies, and direct
+top-level lookup recognizes its global carriers. The differential is GREEN in
+20/20 fresh processes and the harness verifies empty task, structured-scope,
+group, stream, continuation, host-operation, and scheduler registries after
+every run.
 
 ### M4 throwing async-let value
 

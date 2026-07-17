@@ -753,6 +753,19 @@
     "notes": "The child marks entry and waits behind an explicit gate. The parent cannot open that gate until the child has started, and it reads the binding only after opening it. Exact output is child-start,parent-open,child-end,value; no unconstrained ready-task order is asserted."
   },
   {
+    "id": "async-let-top-level",
+    "fixture": "Fixtures/async-let-top-level.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "nativeTopLevel": true,
+    "interpreterEntry": "",
+    "interpreterProjection": "string",
+    "nativeFact": "Top-level async code supplies an implicit structured scope, so two async-let bindings are legal and awaiting both produces their exact values.",
+    "notes": "The native side compiles this same source as a real top-level executable instead of adding the ordinary @main wrapper. Exact output is 42; the result dependency is asserted, while child start/finish order, simultaneous execution, and physical threads are deliberately unspecified."
+  },
+  {
     "id": "async-let-tuple-pattern",
     "fixture": "Fixtures/async-let-tuple-pattern.swift",
     "mode": "runtime",

@@ -28,6 +28,7 @@ private struct ConcurrencyParityCase: Decodable {
     let assertion: ParityAssertionKind
     let repetitions: Int
     let timeoutSeconds: TimeInterval
+    let nativeTopLevel: Bool?
     let interpreterEntry: String?
     let interpreterProjection: String?
     let allowedOutputs: [String]?
@@ -362,17 +363,22 @@ private enum ConcurrencyParityHarness {
         let binary = directory.appendingPathComponent("probe")
         let fixture = parityRoot.appendingPathComponent(parityCase.fixture)
         let wrapper = parityRoot.appendingPathComponent("Support/NativeMain.swift")
+        var compilerArguments = [
+            "swiftc",
+            "-swift-version", "6",
+            "-strict-concurrency=complete",
+        ]
+        if parityCase.nativeTopLevel == true {
+            compilerArguments.append(fixture.path)
+        } else {
+            compilerArguments.append(contentsOf: [
+                "-parse-as-library", fixture.path, wrapper.path,
+            ])
+        }
+        compilerArguments.append(contentsOf: ["-o", binary.path])
         let compile = run(
             URL(fileURLWithPath: "/usr/bin/xcrun"),
-            [
-                "swiftc",
-                "-swift-version", "6",
-                "-strict-concurrency=complete",
-                "-parse-as-library",
-                fixture.path,
-                wrapper.path,
-                "-o", binary.path,
-            ],
+            compilerArguments,
             timeout: 30)
         _ = try successful(compile, operation: "compile \(parityCase.id)")
 

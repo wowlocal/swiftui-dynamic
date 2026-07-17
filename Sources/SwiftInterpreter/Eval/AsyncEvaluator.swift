@@ -359,7 +359,9 @@ extension Interpreter {
     private func asyncLetBinding(
         named name: String, in env: Environment
     ) throws -> RuntimeAsyncLetBinding? {
-        guard let box = env.box(for: name, before: globals) else { return nil }
+        let box = env.box(for: name, before: globals)
+            ?? (env === globals ? globals.box(for: name) : nil)
+        guard let box else { return nil }
         return try force(box).hostPayload as? RuntimeAsyncLetBinding
     }
 

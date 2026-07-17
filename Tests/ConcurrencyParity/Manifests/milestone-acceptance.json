@@ -379,6 +379,7 @@
           "coverage": ["success", "failure", "cancellation", "cleanup", "diagnostic"],
           "ownedCaseIDs": [
             "async-let-value",
+            "async-let-top-level",
             "async-let-tuple-pattern",
             "async-let-multiple-bindings",
             "async-let-separate-declaration-cleanup-order",
@@ -398,13 +399,13 @@
           ],
           "testNames": [],
           "evidenceByCoverage": {
-            "success": ["case:async-let-value", "case:async-let-tuple-pattern"],
+            "success": ["case:async-let-value", "case:async-let-top-level", "case:async-let-tuple-pattern"],
             "failure": ["case:async-let-value-failure", "case:async-let-throwing-scope-exit"],
             "cancellation": ["case:async-let-value-cancellation", "case:async-let-parent-cancellation-scope-exit"],
-            "cleanup": ["case:async-let-early-return-defer-order", "case:async-let-cancellation-defer-order"],
+            "cleanup": ["case:async-let-top-level", "case:async-let-early-return-defer-order", "case:async-let-cancellation-defer-order"],
             "diagnostic": ["case:async-let-missing-await-diagnostic"]
           },
-          "notes": "Value projection and normal, return, throw, cancellation, and lexical-defer cleanup paths are covered."
+          "notes": "Value projection and normal, return, throw, cancellation, and lexical-defer cleanup paths are covered. A same-source native top-level executable additionally proves that async top level owns an implicit structured scope: two top-level async-let bindings may be awaited in one expression, produce 42 exactly, and leave no task/scope ownership behind. The captured interpreter RED first lacked a root lexical frame and then treated global async-let carriers as ordinary values; async top level now uses the shared structured-scope close path and direct top-level suspending lookup recognizes those carriers."
         },
         {
           "id": "task-group-values-and-cancellation",

@@ -179,6 +179,16 @@ extension Interpreter {
         installAmbientDateNowIfShadowed()
         resolveTransitiveViewConformance()
 
+        return try await withTopLevelStructuredScopeSuspending(in: globals) {
+            try await executeTopLevelStatementsSuspending(
+                file, lazyTopLevelGlobals: lazyTopLevelGlobals)
+        }
+    }
+
+    private func executeTopLevelStatementsSuspending(
+        _ file: SourceFileSyntax,
+        lazyTopLevelGlobals: Bool
+    ) async throws -> RuntimeValue {
         var last: RuntimeValue = .void
         for item in expandedTopLevelItems(file.statements) {
             try checkRuntimeCancellation()
