@@ -14,8 +14,9 @@ struct TaskCompletionRuntimeTests {
         do {
             let runtime = CooperativeConcurrencyRuntime()
             weakRuntime = runtime
+            let entry = runtime.createEntry(kind: .test)
             let record = runtime.createTask(
-                sessionID: runtime.createSession(),
+                entry: entry,
                 kind: .unstructured,
                 parent: nil,
                 priority: .medium,

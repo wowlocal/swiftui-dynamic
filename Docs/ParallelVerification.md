@@ -185,16 +185,39 @@ A 2026-07-17 focused measurement on the 20-repetition
 and 4.73 seconds with four repetition workers. Both executions compiled real
 Swift and completed all 20 interpreted fresh-process observations; the latter
 traded additional aggregate CPU for a 3.1x inner-loop wall-time reduction.
-The 39-test methodology suite took 12.40 seconds with `--no-parallel` and
-12.65 seconds with four workers, so its focused form stays sequential: cheap
-manifest assertions do not amortize worker startup. Its whole-board validator
-now captures large subprocess output in files rather than calling
-`waitUntilExit()` before draining a pipe; at 138 runtime cases the JSON receipt
-can fill the pipe buffer and turn an otherwise sub-second test into an
-unbounded wait.
-The concurrency-iteration helper therefore invokes its methodology selection
-with `--no-parallel`; process-level parallelism is reserved for the targeted
-lane and the explicitly sharded native/interpreter parity repetitions.
+The original 39-test methodology suite took 12.40 seconds with `--no-parallel`
+and 12.65 seconds with four workers: parallel workers could not compensate for
+repeated whole-source scans. Its whole-board validator now captures large
+subprocess output in files rather than calling `waitUntilExit()` before
+draining a pipe; at 138 runtime cases the JSON receipt can fill the pipe buffer
+and turn an otherwise sub-second test into an unbounded wait.
+
+At 41 tests, two accounting checks had grown to about 5.35 seconds each because
+every cited test name rescanned the joined 2.1 MB Swift test source. Building a
+test-function-name set once per check reduced the complete serial methodology
+lane from 14.99 to 4.97 seconds. The concurrency-iteration helper separates the
+three tests that invoke `gate.sh` and at that point ran the other 38 with four
+prebuilt workers. Each gate-contract test has its own process: the toolchain
+and accounting failures exit before lock acquisition, while the lock-conflict
+test supplies a unique temporary lock. This preserves the lock contract while
+letting all three overlap. The ordinary 38-test lane takes 0.88 seconds; the
+three gate processes take about 2.54 seconds together instead of 3.98 seconds
+serially, so they remain the honest critical path. The runner prints every
+lane's elapsed time to make future regressions visible.
+
+A later 42nd methodology contract caught a dirty-tree scaling failure in that
+parallel design. Each gate process computed the source fingerprint twice with
+plain `git diff`, which honored the user's external `difftastic` driver. On
+the enum-metadata change, one configured diff took 0.73–0.77 seconds versus
+0.01 seconds for built-in raw Git output; six contending configured passes
+stretched the three gate-contract lanes to about 28.5 seconds and the whole
+iteration to 29 seconds. `compute_worktree_fingerprint` now uses `--no-pager`,
+`--no-ext-diff`, and `--no-textconv`. This is both deterministic—the receipt
+hash no longer depends on external diff/textconv presentation hooks—and
+faster. The same four-lane iteration returned to 3 seconds, with each gate
+contract at 1.35–1.38 seconds; the new static contract keeps the built-in
+command pinned.
+
 For the 20-repetition checked-throwing-continuation slice on the same reference
 host, a warm-bundle iteration with the two relevant methodology checks took
 5.3 seconds; the pre-commit form with all 39 methodology tests took 12.9
@@ -332,7 +355,9 @@ independently bounds the worker processes launched by each check executable.
 
 The gate writes its receipt on both GREEN and RED exit before deleting
 temporary logs. It recomputes the commit and dirty-worktree fingerprint at
-completion; any drift during verification turns an otherwise GREEN run RED.
+completion from built-in raw Git bytes; any drift during verification turns
+an otherwise GREEN run RED. External diff drivers, pagers, and text conversion
+cannot alter the fingerprint or its cost.
 The JSON receipt records both source snapshots, parity/acceptance-manifest
 digests and parity counts, plus the generated concurrency-inventory and
 authored-status digests, pin result, scope flag, and resolved status counts.

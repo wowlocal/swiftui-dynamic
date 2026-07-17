@@ -93,12 +93,176 @@ each task-owned graph, and final interpreter/runtime release. M8 remains
 provisional only because its broad M5/M7 dependencies remain partial; the
 active cycle is now M9 optional physical parallelism.
 
+The first M9 prerequisite slice is implemented: `ParsedProgram` now owns the
+immutable parsed/operator-folded syntax tree and source-location index, is
+strictly `Sendable`, and may be reused by independent interpreter sessions.
+Eight detached readers and two concurrent cooperative sessions exercise the
+same instance without sharing evaluator state. It now also owns a target-
+neutral, all-conditional-branch `ParsedDeclarationIndex`; mutable runtime
+symbols and the runtime heap do not belong in this value.
+
+The second prerequisite makes that mutable boundary explicit. Each
+`Interpreter` now owns exactly one `RuntimeHeap`, and its global environment,
+synthesized environment models, and SwiftUI state cells are rooted there.
+Independent interpreters have distinct heaps, the compatibility `globals` API
+exposes the actual heap root, and releasing the facade releases the heap. The
+heap, evaluator, declarations, and runtime registries remain MainActor-
+confined; `Environment`, `Box`, and `Instance` have not been made `Sendable`.
+This is an ownership characterization, not a physical-parallelism claim.
+
+The third prerequisite makes `runAsync` construct and execute through a real
+single-use `InterpreterSession`. That object binds one `ParsedProgram`, the
+facade's `RuntimeHeap`, the cooperative runtime, one runtime entry, lazy-
+global mode, and completion policy. The live root task carries exactly that
+entry; foreign-facade execution and reuse are rejected; and the session keeps
+its heap/runtime capabilities alive without retaining the facade. Declaration
+and evaluator state still lives on the facade. This remains MainActor-confined
+ownership work, not worker execution.
+
+The fourth prerequisite moves top-level declaration discovery out of the
+evaluator. Parsing now classifies every possible nominal, function, global,
+typealias, and extension once, including every conditional-compilation branch.
+Each session resolves that immutable index once against its own build identity,
+and both declaration materialization and top-level execution consume the same
+resolved plan. Eight detached readers share the index, while one parsed source
+resolves different iOS/macOS nominal + typealias + extension plans correctly.
+The resulting mutable `StructSymbol`/`EnumSymbol` graphs are still created per
+facade/session on MainActor; member, call, isolation, and compiler-preflight
+metadata have not all moved into `ParsedProgram` yet.
+
+The fifth prerequisite replaces bare production `RuntimeSessionID` ownership
+with an explicit `RuntimeEntry` capability. Program roots, synchronous host
+callbacks, SwiftUI-owned async entries, and every source task they create now
+retain one entry object that binds its unique ID, entry kind, interpreter, and
+heap. A completed callback root may release while its unstructured tasks keep
+the entry and heap alive. Distinct callback entries may overlap cooperatively
+against the same MainActor-confined heap: a causally gated Swift 6 probe proves
+a second callback can resume a task parked by the first and completes before
+that task continues on MainActor. This defines the current overlap policy; it
+does not authorize physical concurrent heap access.
+
+The sixth prerequisite moves function and initializer call metadata out of
+mutable facade caches. `ParsedProgram` now owns one immutable, Sendable,
+all-branch `ParsedCallableMetadataIndex` containing parameter/call shapes,
+return and builder facts, generic names, effects, declaration attributes, and
+the currently modeled explicit isolation flags. A program `RuntimeEntry`
+retains that index, and escaped source closures carry the capability into
+fresh host-callback and SwiftUI entries. Eight detached readers observe one
+snapshot, while focused ownership tests prove sessions and callback-created
+tasks keep the originating program's metadata. Existing native parity for
+plain explicitly nonisolated async declarations remains exact; this slice does
+not claim complete member/accessor, call-site, or compiler metadata.
+
+The seventh prerequisite extends that same index across readable accessor
+blocks and subscript declarations. Getter bodies, `async`/`throws` effects,
+setter bodies and custom parameter names, subscript parameters/call shapes,
+result types, and explicit nonisolation are now parsed once. Computed-property,
+local/global accessor, and subscript materialization consume the immutable
+index; observer-only `willSet`/`didSet` blocks remain storage metadata rather
+than readable accessors. Swift 6 parity for controlled async-throwing actor
+subscript success and source-error exits remains exact. Nominal/property
+storage metadata, call-site resolution, and compiler fingerprints remain open.
+
+The eighth prerequisite consolidates propagation behind one
+`ParsedProgramMetadata` capability. It initially owns the declaration and
+callable indexes and is the sole syntax-derived metadata edge carried by program
+sessions, runtime entries, source closures, synchronous host callbacks, and
+SwiftUI tasks. Future nominal, call-site, isolation, or compiler indexes extend
+this value without adding another parallel field to every ownership object.
+Eight detached readers, session-entry assertions, a callback invoked after the
+facade prepares a different program, and real SwiftUI lifecycle coverage prove
+that the originating snapshot is retained. This is an ownership refactor; the
+native `extractIsolation` observation remains unchanged.
+
+The ninth prerequisite adds an immutable, all-branch
+`ParsedNominalMetadataIndex` to that composite capability. Struct, class,
+actor, enum, and protocol headers are indexed once, including nested/local
+declarations and inactive conditional branches. Each entry owns its language
+kind, name, inherited type spellings, declaration attributes, and generic
+parameter constraints. Struct/class/actor/enum symbol construction and
+protocol-inheritance registration consume the index, with a pure fallback for
+synthetic syntax; mutable members and enum raw-value evaluation remain
+session-owned. Eight detached readers, callback provenance after preparing a
+different program, and the existing canonical custom-global-actor tests cover
+the boundary. Swift 6 custom-global-actor parity remains unchanged in twenty
+repetitions. Property-storage metadata is handled by the next prerequisite;
+remaining member metadata, call-site resolution, and compiler fingerprints
+remain open.
+
+The tenth prerequisite adds an immutable, all-branch
+`ParsedPropertyMetadataIndex` to the same composite capability. Every variable
+declaration and pattern binding is indexed by syntax identity across top-level,
+member, local, nested, and inactive conditional-compilation regions. The index
+owns `let`/`var`, `static`/`class`, `lazy`, explicit `nonisolated`, `@TaskLocal`,
+weak/unowned storage-edge policy, identifier and tuple storage shapes,
+stored-versus-computed classification, and `willSet`/`didSet` bodies plus custom
+parameter names. Global, struct/class/actor, enum-static, and local storage
+materialization consume these immutable facts with a pure fallback for foreign
+or synthetic syntax. Mutable boxes, static values, wrapper evaluation, and the
+runtime symbol graph remain session/facade-owned. Eight detached readers,
+session and callback provenance, storage/observer/ARC regressions, and the
+existing actor-initialization oracle cover the boundary. Swift 6 actor
+initialization parity remains unchanged in twenty repetitions; this is not a
+physical-worker claim.
+
+The eleventh prerequisite adds an immutable, all-branch
+`ParsedEnumCaseMetadataIndex` to the composite capability. Every enum-case
+element is indexed by syntax identity across top-level, nested, local, and
+inactive conditional-compilation regions. The index owns normalized and
+backticked names, associated-value labels and type spellings, and explicit raw
+value expressions. Enum symbol construction consumes those immutable headers
+with a pure fallback for foreign or synthetic syntax; selection of active
+`#if` declarations, implicit String/Int raw values, and evaluation of explicit
+raw expressions remain session-owned. The demand depth is bounded to spellings
+cited by FoodTruck's `User`, `Panel`, and `BrandHeader.HeaderSize`; attributes
+and `indirect` semantics are not claimed. Eight detached readers, session and
+callback provenance, enum regressions, and a same-source actor-crossing oracle
+cover the boundary. Swift 6 and the interpreter produce
+`authenticated:foodtruck|default|1.0:0.5` in twenty repetitions without a
+scheduler-order or physical-worker claim.
+
+The twelfth prerequisite adds an immutable, all-branch
+`ParsedExtensionMetadataIndex` to the same composite capability. Every
+extension declaration is indexed by syntax identity across nested and inactive
+conditional-compilation regions. The index owns the extended type spelling,
+inherited conformances, generic `where` requirements, attributes, and
+modifiers. Extension target resolution and retroactive conformance merging
+consume those immutable headers with a pure fallback for foreign or synthetic
+syntax; active-branch selection, member materialization, and supported generic-
+constraint behavior remain session-owned. FoodTruck bounds the slice with
+dotted `Donut.Topping` extensions, the retroactive
+`AuthorizationHandlingError: LocalizedError` conformance, and
+`ClosedRange where Bound: BinaryFloatingPoint`. Eight detached readers,
+session and callback provenance, existing extension regressions, and a
+same-source actor-crossing oracle cover the boundary. Swift 6 and the
+interpreter produce `true:42:21` in twenty repetitions. Nonmatching generic
+constraints, scheduler order, and physical workers are not claimed.
+
+The thirteenth prerequisite adds an immutable, all-branch
+`ParsedTypeAliasMetadataIndex` to the composite capability. Every typealias is
+indexed by syntax identity across top-level, member, local, nested, and
+inactive conditional-compilation regions. The index owns the alias name, full
+target spelling, normalized lookup target, generic parameters and
+requirements, attributes, modifiers, and nominal-versus-tuple/function target
+classification. Top-level alias heads and values, member aliases, local
+aliases, and lexical-name discovery consume those immutable headers with a
+pure fallback for foreign or synthetic syntax; active-branch selection and
+binding into mutable runtime symbols remain session-owned. FoodTruck bounds
+the slice with the conditional private top-level and member aliases in
+`DetailedMapView`, while cited corpus regressions cover generic alias
+normalization. Eight detached readers, session and callback provenance, alias/
+deinitializer regressions, and a same-source actor-crossing oracle cover the
+boundary. Swift 6 and the interpreter produce `mac:42` in twenty repetitions
+for the selected non-watchOS branch. Inaccessible inactive-branch behavior,
+scheduler order, and physical workers are not claimed.
+
 The stable target separates five concerns:
 
 ```text
 Immutable ParsedProgram
-          │
-          ▼
+          └── ParsedProgramMetadata
+                    │
+                    ▼
 InterpreterSession ─────────────── HostGatewayRuntime
           │                               │
           ├── RuntimeHeap                 │
@@ -106,7 +270,10 @@ InterpreterSession ─────────────── HostGatewayRunt
           │     ├── class storage         │
           │     └── actor storage         │
           │                               │
-          └── ConcurrencyRuntime ◀────────┘
+          └── RuntimeEntry ◀──────────────┘
+                    │
+                    ▼
+              ConcurrencyRuntime
                 ├── TaskRecord graph
                 ├── StructuredScope graph
                 ├── Executor registry
@@ -465,6 +632,11 @@ Conceptual interface:
 public struct ParsedProgram: Sendable {
     let syntax: SourceFileSyntax
     let declarations: DeclarationIndex
+    let nominalMetadata: NominalMetadataIndex
+    let propertyMetadata: PropertyMetadataIndex
+    let enumCaseMetadata: EnumCaseMetadataIndex
+    let extensionMetadata: ExtensionMetadataIndex
+    let typeAliasMetadata: TypeAliasMetadataIndex
     let callMetadata: CallMetadataIndex
     let isolationMetadata: IsolationIndex
     let sourceLocations: SourceLocationIndex
@@ -475,6 +647,49 @@ public struct ParsedProgram: Sendable {
 SwiftSyntax values may require an internal immutable wrapper rather than direct
 `Sendable` conformance. The semantic requirement is immutability and absence of
 task-specific state.
+
+Current implementation stage (2026-07-17): `ParsedProgram` owns the folded
+syntax, source-location index, and one public immutable
+`ParsedProgramMetadata` capability. That value owns the public
+`ParsedDeclarationIndex`, `ParsedCallableMetadataIndex`,
+`ParsedNominalMetadataIndex`, `ParsedPropertyMetadataIndex`, and
+`ParsedEnumCaseMetadataIndex`, `ParsedExtensionMetadataIndex`, and
+`ParsedTypeAliasMetadataIndex`;
+compatibility accessors on `ParsedProgram`
+expose the same values. The declaration index
+classifies all possible top-level primary declarations, aliases, and
+extensions across nested conditional regions. A session resolves exactly one
+ordered build-specific plan; the collector no longer rescans the source or
+re-evaluates top-level `#if` regions in three separate passes. The callable
+index records all-branch function/initializer parameter shapes, effects,
+return/builder/generic facts, attributes, and the modeled declaration-level
+isolation flags once. It also records readable accessor getter/setter bodies
+and effects plus subscript parameters, call shapes, result types, and explicit
+nonisolation. Mutable runtime symbol materialization remains
+session/facade-owned. The nominal index records struct/class/actor/enum/
+protocol kind, name, inherited type spellings, attributes, and generic header
+constraints across top-level, nested, local, and conditional declarations;
+nominal symbol construction consumes it. The property index records every
+variable declaration and binding's immutable storage header, including
+mutability, static/lazy/nonisolated/TaskLocal and reference-ownership policy,
+tuple layout, stored/computed classification, and observer bodies. Global,
+member, enum-static, and local storage materialization consumes it.
+The enum-case index records normalized/backticked names, associated-value
+labels and type spellings, and explicit raw expressions in every lexical and
+conditional region. Enum symbol materialization consumes those headers while
+the session owns active-branch selection and raw-value evaluation.
+The extension index records extended type spellings, inherited conformances,
+generic requirements, attributes, and modifiers across every conditional
+branch. Extension target resolution and conformance merging consume those
+headers while the session owns branch selection and member materialization.
+Nonmatching generic-constraint selection remains outside the implemented
+claim. The type-alias index records alias names, full and normalized target
+spellings, generic parameters and requirements, attributes, modifiers, and
+nominal-target classification across every lexical and conditional region.
+Top-level, member, and local alias binding consumes those headers while the
+session owns active-branch selection and mutable symbol lookup. Remaining
+member families, call-site semantic resolution, and the compiler-preflight
+fingerprint remain target work.
 
 ### 6.2 `InterpreterSession`
 
@@ -494,6 +709,22 @@ public final class InterpreterSession {
 
 The existing public `Interpreter` facade may initially own or forward to a
 session to preserve API compatibility.
+
+Current implementation stage (2026-07-17): every `runAsync(source:)` and
+`runAsync(program:)` entry constructs the public single-use session above and
+executes through it. `makeSession(program:)` plus `runAsync(session:)` exposes
+the same path for explicit ownership. Focused tests prove unique IDs, the live
+root task's ID, policy/program/heap/runtime binding, foreign-facade rejection,
+single-use state, complete runtime draining, and heap/runtime lifetime after
+facade release. The session also binds the one build-resolved declaration plan
+used by runtime-symbol materialization and top-level execution. Its root task
+and evaluation context retain the same explicit `RuntimeEntry`, including the
+program's immutable `ParsedProgramMetadata` capability. Host callbacks
+and SwiftUI tasks create distinct entry capabilities through that same runtime
+mechanism, and all source tasks inherit the object rather than only copying its
+numeric ID. The session intentionally remains MainActor-confined and holds a
+weak facade reference because mutable symbol collection and evaluation have
+not yet moved out of `Interpreter`.
 
 ### 6.3 `RuntimeHeap`
 
@@ -517,6 +748,14 @@ parallel execution, every heap access must be classified as:
 - protected by a synchronization primitive;
 - copied across the boundary;
 - rejected as non-`Sendable`.
+
+Current implementation stage (2026-07-17): `RuntimeHeap` is the explicit
+MainActor-confined owner of the global environment, synthesized environment
+models, and SwiftUI state cells. The legacy `Interpreter.globals` surface
+forwards to that same root. The explicit `runAsync` session binds this heap,
+but declaration/evaluator migration, callback-session unification, runtime
+registry isolation, and worker-safe access policy remain separate M9 work; no
+heap object is currently handed to a physical worker.
 
 ### 6.4 `EvaluationTaskContext`
 
@@ -1690,8 +1929,9 @@ suspensions inline.
 
 All retained synchronous framework closures use one host-callback adapter. It
 creates the logical entry, binds task-local/runtime context, executes the
-closure synchronously, releases the entry after its own dynamic state is
-clean, and reports an uncaught callback error through bridge diagnostics.
+closure synchronously, releases its root after the root's dynamic state is
+clean, and reports an uncaught callback error through bridge diagnostics. The
+entry itself remains owned by any source tasks that outlive the callback.
 Buttons, generated actions, gestures, bindings, lifecycle event modifiers,
 and Objective-C completions share this path. Queued GCD deliveries retain
 their own deterministic/wall-clock bridge policy and require a separate
@@ -1705,6 +1945,16 @@ The current synchronous rendering compatibility path remains separate. A view
 task must use the canonical concurrency runtime even when it was created by a
 synchronous render pass.
 
+Current overlap policy (2026-07-17): each external invocation receives a
+distinct `RuntimeEntry`, while tasks created by that invocation retain and
+inherit it. Multiple entries may be live cooperatively on one facade and share
+its heap because every interpreter instruction and heap access is still
+MainActor-confined. Existing completion-policy evidence proves one program
+entry does not drain another entry's task, while the callback probe proves a
+later callback can resume an earlier entry. Entries must not execute
+heap-touching evaluator work on physical workers. The later worker-safe
+classification must preserve this overlap rather than rejecting it wholesale.
+
 ## 7. Ownership and isolation matrix
 
 | Component | Mutable? | Initial owner | Parallel target |
@@ -1712,6 +1962,8 @@ synchronous render pass.
 | `ParsedProgram` | No | Session | Immutable/Sendable |
 | Declaration metadata | No after build | Program | Immutable/Sendable |
 | `InterpreterSession` | Yes | Cooperative runtime | Actor or explicit synchronization |
+| `RuntimeEntry` | Weak owner edge only | External invocation/source-task graph | Immutable identity; heap capability follows heap policy |
+| `RuntimeHeap` | Yes | Interpreter session/facade | Executor-confined or synchronized by edge class |
 | Global environment | Yes | Runtime heap | Executor-confined or synchronized |
 | `EvaluationTaskContext` | Yes | One task | Never shared concurrently |
 | Lexical `Environment` | Yes | Owning task/closure | Capture rules plus executor checks |
@@ -2528,6 +2780,74 @@ Proof:
 
 - parallel stress tests have no races or invariant violations;
 - semantic parity is unchanged between cooperative and parallel runtime modes.
+
+Implemented prerequisite slices (2026-07-17): parsing, operator folding, and
+target-neutral top-level declaration discovery now produce a reusable immutable
+`ParsedProgram`. Its SwiftSyntax tree, location converter, and all-branch
+declaration index cross strict-concurrency detached-task boundaries as
+`Sendable`; each session resolves one build-specific plan, and fresh
+interpreters can execute one parsed program independently while keeping
+globals, mutable symbols, and runtime records separate. Legacy `run(source:)`
+still maps parse failures to the same located `RuntimeError`.
+Each `Interpreter` also owns one explicit, MainActor-confined `RuntimeHeap`
+that roots the actual global environment, synthesized environment models, and
+SwiftUI state cells; focused tests prove identity, cross-interpreter isolation,
+and facade-owned lifetime. Every `runAsync` program entry now executes through
+a real single-use `InterpreterSession` binding that program, heap, cooperative
+runtime, runtime entry, lazy-global mode, and completion policy; focused tests
+prove live-ID propagation, ownership validation, single-use state, draining,
+and facade-independent heap/runtime lifetime. Program roots, host callbacks,
+SwiftUI tasks, and every source task they create now retain an explicit
+`RuntimeEntry`; focused ownership tests prove callback parent/child identity,
+distinct callback IDs over one heap, and final release. A causal same-source
+probe establishes cooperative overlap against the confined heap in twenty
+native/interpreter repetitions. `ParsedProgram` additionally owns one immutable
+`ParsedProgramMetadata` capability containing its declaration and all-branch
+callable, nominal, property, enum-case, extension, and type-alias indexes; the
+runtime no longer stores mutable function/initializer metadata caches on the facade.
+Sessions and escaped callbacks retain the originating capability through
+`RuntimeEntry`, and eight detached readers exercise one snapshot under Swift 6
+strict concurrency.
+Existing `extractIsolation` parity characterizes the no-semantic-change result
+for plain explicitly nonisolated async declarations. The same index now owns
+readable getter/setter metadata and subscript parameter/result/isolation facts;
+computed/local/global accessors and subscript materialization consume it rather
+than rescanning syntax. Controlled async-throwing actor-subscript native parity
+remains exact. A real SwiftUI cancellation lifecycle test proves the same
+capability reaches `.swiftUITask`; its wait now causally requires both the
+source `started` event and the runtime `.waiting` state instead of racing those
+two transitions. The composite capability now also owns an all-branch nominal
+header index for structs, classes, actors, enums, and protocols; runtime symbol
+construction consumes its names, inheritance, attributes, and generic facts.
+The existing custom-global-actor fixture remains exact in twenty repetitions.
+The composite also owns all-branch variable/property storage headers;
+global, member, enum-static, and local materialization consume mutability,
+static/lazy/nonisolated/TaskLocal, reference-ownership, tuple, accessor-kind,
+and observer facts from that index with a pure foreign-syntax fallback. The
+actor-initialization fixture remains exact in twenty repetitions.
+The composite additionally owns enum-case headers; enum symbol materialization
+uses normalized/backticked names, associated labels/type spellings, and raw
+expressions from that index while evaluating raw values inside the session.
+The `enum-case-metadata` fixture remains exact in twenty native/interpreter
+repetitions.
+The composite now also owns all-branch extension headers. Extension target
+resolution and retroactive conformance merging consume the indexed extended
+type and inherited-type spellings, while generic requirements, attributes,
+and modifiers remain available as immutable program facts. The
+`extension-metadata` fixture remains exact in twenty native/interpreter
+repetitions for the demand-cited matching-constraint subset.
+The composite additionally owns all-branch type-alias headers. Alias head
+registration and top-level, member, local, and lexical-name binding consume
+the indexed source and normalized target spellings. The `typealias-metadata`
+fixture remains exact in twenty native/interpreter repetitions for the
+selected non-watchOS branch, while target-aware project selection remains M7
+evidence.
+These slices separate immutable program input, mutable storage, and execution
+identity without changing scheduling. Remaining member families, call-site, and
+compiler metadata indexing remains incomplete, and mutable
+symbol materialization plus evaluator state must move fully behind the session;
+worker-safe heap classification, physical worker scheduling,
+cooperative-versus-parallel parity, and TSan evidence remain open.
 
 ## 15. Verification gates
 

@@ -5,7 +5,7 @@ import SwiftSyntax
 /// captured environment has `self` bound. `isBuilder` marks `@ViewBuilder`
 /// functions and `some View` returns — their bodies evaluate in builder mode.
 public final class ClosureValue {
-    public struct Parameter {
+    public nonisolated struct Parameter: Sendable {
         public let name: String
         /// External argument label (nil for `_` and closure parameters).
         public let label: String?
@@ -130,6 +130,14 @@ public final class ClosureValue {
     /// which a nonisolated factory happened to run. APIs whose parameters
     /// inherit actor context use it independently from task lineage/locals.
     public var lexicalExecutor: RuntimeExecutorKind?
+    /// Immutable source-program capability retained by escaped callbacks. A
+    /// fresh host/runtime entry can therefore recover every indexed
+    /// declaration fact without consulting whichever program the facade ran
+    /// most recently.
+    public internal(set) var programMetadata: ParsedProgramMetadata?
+    public var callableMetadataIndex: ParsedCallableMetadataIndex? {
+        programMetadata?.callableMetadataIndex
+    }
 
     public init(
         parameters: [Parameter],
@@ -137,7 +145,8 @@ public final class ClosureValue {
         captured: Environment,
         isBuilder: Bool = false,
         returnType: TypeSyntax? = nil,
-        returnTypeName: String? = nil
+        returnTypeName: String? = nil,
+        programMetadata: ParsedProgramMetadata? = nil
     ) {
         self.parameters = parameters
         self.body = body
@@ -146,6 +155,7 @@ public final class ClosureValue {
         self.returnType = returnType
         self.returnTypeName = returnTypeName ?? returnType?.trimmedDescription
         self.builderReturnsArray = self.returnTypeName?.hasPrefix("[") == true
+        self.programMetadata = programMetadata
     }
 }
 

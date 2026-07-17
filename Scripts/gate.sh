@@ -94,7 +94,8 @@ release_gate_lock() {
 
 compute_worktree_fingerprint() {
     {
-        git diff --binary HEAD 2>/dev/null || true
+        git --no-pager diff --no-ext-diff --no-textconv --binary HEAD \
+            2>/dev/null || true
         git ls-files --others --exclude-standard 2>/dev/null \
             | while IFS= read -r file; do
                 echo "$file"

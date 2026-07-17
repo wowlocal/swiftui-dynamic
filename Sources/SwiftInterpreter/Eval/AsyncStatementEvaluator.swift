@@ -10,6 +10,36 @@ private struct AsyncLetProjectedBinding {
 extension Interpreter {
     // MARK: - Suspension-aware statements
 
+    /// Swift's async top level is itself a lexical structured scope. Keep the
+    /// frame generic so top-level `async let` uses the same ownership, join,
+    /// cancellation, and cleanup mechanism as a function or closure body.
+    func withTopLevelStructuredScopeSuspending<T>(
+        in env: Environment,
+        _ body: () async throws -> T
+    ) async throws -> T {
+        let structuredScope = RuntimeStructuredScopeFrame(
+            ownerTaskID: evaluationTaskContext.runtimeTaskID)
+        evaluationTaskContext.structuredScopeFrames.append(structuredScope)
+        defer {
+            precondition(
+                evaluationTaskContext.structuredScopeFrames.last
+                    .map { $0 === structuredScope } == true,
+                "structured scope frames must unwind in lexical order")
+            evaluationTaskContext.structuredScopeFrames.removeLast()
+        }
+
+        do {
+            let result = try await body()
+            await closeStructuredScope(
+                structuredScope, deferredBodies: [], in: env)
+            return result
+        } catch {
+            await closeStructuredScope(
+                structuredScope, deferredBodies: [], in: env)
+            throw error
+        }
+    }
+
     func executeBlockSuspending(
         _ items: CodeBlockItemListSyntax, in env: Environment
     ) async throws -> StatementResult {

@@ -1,123 +1,118 @@
 import Foundation
 import SwiftSyntax
 
-/// Pass 1: hoist struct/enum/function declarations from a parsed file into the
-/// global environment; pass 2 merges extensions into the collected symbols.
+/// Materialize one build-resolved immutable declaration plan into mutable
+/// session symbols. Pass 1 hoists nominal/function/global declarations into
+/// the global environment; pass 2 merges extensions into those symbols.
 /// Top-level `let`/`var` and expressions are executed in source order by
 /// `Interpreter.run` afterwards.
 extension Interpreter {
-    /// Flattens active `#if` clauses into the top-level item stream.
-    func expandedTopLevelItems(_ items: CodeBlockItemListSyntax) -> [CodeBlockItemSyntax] {
-        var out: [CodeBlockItemSyntax] = []
-        for item in items {
-            if case .decl(let decl) = item.item,
-               let ifConfig = decl.as(IfConfigDeclSyntax.self) {
-                if let clause = activeIfConfigClause(ifConfig),
-                   case .statements(let nested)? = clause.elements {
-                    out += expandedTopLevelItems(nested)
-                }
-                continue
-            }
-            out.append(item)
-        }
-        return out
-    }
-
-    func collectDeclarations(from file: SourceFileSyntax) throws {
+    func collectDeclarations(
+        from plan: ResolvedDeclarationPlan
+    ) throws {
         pendingDeinitializerIsolationChecks.removeAll(keepingCapacity: true)
-        for item in expandedTopLevelItems(file.statements) {
-            guard case .decl(let decl) = item.item else { continue }
-            if let structDecl = decl.as(StructDeclSyntax.self) {
-                try collectStruct(structDecl)
-            } else if let classDecl = decl.as(ClassDeclSyntax.self) {
-                try collectClass(classDecl)
-            } else if let actorDecl = decl.as(ActorDeclSyntax.self) {
-                try collectActor(actorDecl)
-            } else if let enumDecl = decl.as(EnumDeclSyntax.self) {
-                try collectEnum(enumDecl)
-            } else if let protocolDecl = decl.as(ProtocolDeclSyntax.self) {
+        for declaration in plan.primaryDeclarations {
+            switch declaration {
+            case .structure(let declaration):
+                try collectStruct(declaration)
+            case .classType(let declaration):
+                try collectClass(declaration)
+            case .actor(let declaration):
+                try collectActor(declaration)
+            case .enumeration(let declaration):
+                try collectEnum(declaration)
+            case .protocolType(let declaration):
                 // Only the INHERITANCE is recorded (requirements carry no
                 // bodies; defaults live in the protocol's extensions).
-                protocolInheritance[protocolDecl.name.text] =
-                    protocolDecl.inheritanceClause?.inheritedTypes.map {
-                        $0.type.trimmedDescription
-                    } ?? []
-            } else if let funcDecl = decl.as(FunctionDeclSyntax.self) {
-                try defineFunction(funcDecl, in: globals)
-            } else if let varDecl = decl.as(VariableDeclSyntax.self), isHoistableGlobal(varDecl) {
-                // Top-level globals are LAZY (real Swift semantics for
-                // non-main files): forward and cross-file references work,
-                // initializers run on first read.
-                let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
-                for binding in varDecl.bindings {
-                    guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
-                    globals.define(
-                        ident.identifier.text,
-                        .native(LazyGlobal(
-                            initializer: binding.initializer?.value,
-                            annotation: binding.typeAnnotation?.type)),
-                        declaredTypeName: binding.typeAnnotation?.type.trimmedDescription,
-                        referenceOwnership: referenceOwnership)
-                }
-            } else if let varDecl = decl.as(VariableDeclSyntax.self) {
-                // `var uptime: String { … }` at file scope — a computed
-                // global; the accessor runs on every read. Observer-only
-                // globals (didSet) are STORED (observers inert).
-                for binding in varDecl.bindings {
-                    guard let ident = binding.pattern.as(IdentifierPatternSyntax.self),
-                          let accessorBlock = binding.accessorBlock else { continue }
-                    if let accessors = parseAccessors(of: accessorBlock) {
-                        globals.define(
-                            ident.identifier.text,
-                            .native(ComputedGlobal(
-                                accessor: accessors.getter,
-                                annotation: binding.typeAnnotation?.type)),
-                            declaredTypeName: binding.typeAnnotation?.type.trimmedDescription)
-                    } else {
-                        let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
-                        globals.define(
-                            ident.identifier.text,
-                            .native(LazyGlobal(
-                                initializer: binding.initializer?.value,
-                                annotation: binding.typeAnnotation?.type)),
-                            declaredTypeName: binding.typeAnnotation?.type.trimmedDescription,
-                            referenceOwnership: referenceOwnership)
-                    }
-                }
+                let metadata = nominalMetadata(for: declaration)
+                protocolInheritance[metadata.name] =
+                    metadata.inheritedTypeNames
+            case .function(let declaration):
+                try defineFunction(declaration, in: globals)
+            case .variable(let declaration):
+                try collectGlobalVariable(declaration)
             }
         }
         // Alias HEADS first: `typealias LoadableSubject<T> = Binding<…>`
         // makes `extension LoadableSubject` a Binding extension — the
         // mapping must exist before extensions collect.
-        for item in expandedTopLevelItems(file.statements) {
-            guard case .decl(let decl) = item.item,
-                  let alias = decl.as(TypeAliasDeclSyntax.self) else { continue }
-            var target = alias.initializer.value.trimmedDescription
-            if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
-            target = target.trimmingCharacters(in: .whitespaces)
-            if target.first?.isUppercase == true, !target.contains("(") {
-                aliasHeads[alias.name.text] = target
+        for alias in plan.typeAliases {
+            let metadata = typeAliasMetadata(for: alias)
+            if metadata.isNominalTarget {
+                aliasHeads[metadata.name] = metadata.lookupTargetName
             }
         }
-        for item in expandedTopLevelItems(file.statements) {
-            guard case .decl(let decl) = item.item,
-                  let extensionDecl = decl.as(ExtensionDeclSyntax.self) else { continue }
-            try collectExtension(extensionDecl)
+        for declaration in plan.extensionDeclarations {
+            try collectExtension(declaration)
         }
         // `typealias BlockMatrixType = BlockMatrix<IdentifiedBlock>` — the
         // alias resolves to the target TYPE (generic arguments dropped, like
         // everywhere else). Tuple/function aliases stay inert.
-        for item in expandedTopLevelItems(file.statements) {
-            guard case .decl(let decl) = item.item,
-                  let alias = decl.as(TypeAliasDeclSyntax.self) else { continue }
-            var target = alias.initializer.value.trimmedDescription
-            if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
-            target = target.trimmingCharacters(in: .whitespaces)
-            if globals.lookup(alias.name.text) == nil, let value = globals.lookup(target) {
-                globals.define(alias.name.text, value)
+        for alias in plan.typeAliases {
+            let metadata = typeAliasMetadata(for: alias)
+            let target = metadata.lookupTargetName
+            if globals.lookup(metadata.name) == nil,
+               let value = globals.lookup(target) {
+                globals.define(metadata.name, value)
             }
-            if enumSymbols[alias.name.text] == nil, let enumSymbol = enumSymbols[target] {
-                enumSymbols[alias.name.text] = enumSymbol
+            if enumSymbols[metadata.name] == nil,
+               let enumSymbol = enumSymbols[target] {
+                enumSymbols[metadata.name] = enumSymbol
+            }
+        }
+    }
+
+    private func collectGlobalVariable(
+        _ declaration: VariableDeclSyntax
+    ) throws {
+        let declarationMetadata = propertyMetadata(for: declaration)
+        if isHoistableGlobal(declaration) {
+            // Top-level globals are LAZY (real Swift semantics for non-main
+            // files): forward and cross-file references work, initializers
+            // run on first read.
+            let ownership = declarationMetadata.referenceOwnership
+            for binding in declaration.bindings {
+                let bindingMetadata = propertyMetadata(for: binding)
+                guard let name = bindingMetadata.identifierName else {
+                    continue
+                }
+                globals.define(
+                    name,
+                    .native(LazyGlobal(
+                        initializer: bindingMetadata.initializer,
+                        annotation: bindingMetadata.typeAnnotation)),
+                    declaredTypeName:
+                        bindingMetadata.typeAnnotation?.trimmedDescription,
+                    referenceOwnership: ownership)
+            }
+            return
+        }
+
+        // `var uptime: String { … }` at file scope — a computed global; the
+        // accessor runs on every read. Observer-only globals (didSet) are
+        // stored, with observers currently inert.
+        for binding in declaration.bindings {
+            let bindingMetadata = propertyMetadata(for: binding)
+            guard let name = bindingMetadata.identifierName,
+                  let accessorBlock = binding.accessorBlock else { continue }
+            if bindingMetadata.isComputed,
+               let accessors = parseAccessors(of: accessorBlock) {
+                globals.define(
+                    name,
+                    .native(ComputedGlobal(
+                        accessor: accessors.getter,
+                        annotation: bindingMetadata.typeAnnotation)),
+                    declaredTypeName:
+                        bindingMetadata.typeAnnotation?.trimmedDescription)
+            } else {
+                globals.define(
+                    name,
+                    .native(LazyGlobal(
+                        initializer: bindingMetadata.initializer,
+                        annotation: bindingMetadata.typeAnnotation)),
+                    declaredTypeName:
+                        bindingMetadata.typeAnnotation?.trimmedDescription,
+                    referenceOwnership: declarationMetadata.referenceOwnership)
             }
         }
     }
@@ -453,25 +448,28 @@ extension Interpreter {
         globals.define(symbol.name, .type(symbol))
     }
 
-    private func recordGenericParameters(_ clause: GenericParameterClauseSyntax?, into symbol: StructSymbol) {
-        guard let clause else { return }
-        for parameter in clause.parameters {
-            symbol.genericParameters[parameter.name.text] =
-                parameter.inheritedType?.trimmedDescription ?? ""
-            symbol.orderedGenericParameters.append(parameter.name.text)
+    private func recordGenericParameters(
+        _ parameters: [ParsedNominalMetadata.GenericParameter],
+        into symbol: StructSymbol
+    ) {
+        for parameter in parameters {
+            symbol.genericParameters[parameter.name] =
+                parameter.inheritedTypeName ?? ""
+            symbol.orderedGenericParameters.append(parameter.name)
         }
     }
 
     func makeStructSymbol(_ node: StructDeclSyntax) throws -> StructSymbol {
-        let inherited = node.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
-        let symbol = StructSymbol(name: node.name.text, conformsToView: inherited.contains("View"))
-        recordGenericParameters(node.genericParameterClause, into: symbol)
+        let metadata = nominalMetadata(for: node)
+        let inherited = metadata.inheritedTypeNames
+        let symbol = StructSymbol(
+            name: metadata.name,
+            conformsToView: inherited.contains("View"))
+        recordGenericParameters(metadata.genericParameters, into: symbol)
         symbol.isRepresentable = inherited.contains { $0.hasSuffix("Representable") }
         symbol.conformsToShape = inherited.contains("Shape") || inherited.contains("InsettableShape")
         symbol.conformances = inherited
-        symbol.attributeNames = node.attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-        }
+        symbol.attributeNames = metadata.attributeNames
         symbol.observableViaMacro = symbol.attributeNames.contains("Observable")
         try collectStructMembers(node.memberBlock, into: symbol)
         return symbol
@@ -488,32 +486,42 @@ extension Interpreter {
     ]
 
     private func collectClass(_ node: ClassDeclSyntax) throws {
-        registerTypeSymbol(try makeClassLikeSymbol(
-            name: node.name.text, inheritanceClause: node.inheritanceClause,
-            memberBlock: node.memberBlock, attributes: node.attributes))
+        registerTypeSymbol(try makeClassLikeSymbol(node))
     }
 
     /// Actors share the nominal-member collector with classes but retain their
     /// language kind. Instance allocation assigns the runtime actor identity;
     /// isolated member closures then enter that actor's logical executor.
     private func collectActor(_ node: ActorDeclSyntax) throws {
-        registerTypeSymbol(try makeClassLikeSymbol(
-            name: node.name.text, inheritanceClause: node.inheritanceClause,
-            memberBlock: node.memberBlock, attributes: node.attributes,
-            isActor: true))
+        registerTypeSymbol(try makeClassLikeSymbol(node))
     }
 
     func makeClassLikeSymbol(
-        name: String,
-        inheritanceClause: InheritanceClauseSyntax?,
-        memberBlock: MemberBlockSyntax,
-        attributes: AttributeListSyntax,
-        isActor: Bool = false
+        _ node: ClassDeclSyntax
     ) throws -> StructSymbol {
-        let inherited = inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
-        let symbol = StructSymbol(name: name, conformsToView: inherited.contains("View"))
+        try makeClassLikeSymbol(
+            metadata: nominalMetadata(for: node),
+            memberBlock: node.memberBlock)
+    }
+
+    func makeClassLikeSymbol(
+        _ node: ActorDeclSyntax
+    ) throws -> StructSymbol {
+        try makeClassLikeSymbol(
+            metadata: nominalMetadata(for: node),
+            memberBlock: node.memberBlock)
+    }
+
+    private func makeClassLikeSymbol(
+        metadata: ParsedNominalMetadata,
+        memberBlock: MemberBlockSyntax
+    ) throws -> StructSymbol {
+        let inherited = metadata.inheritedTypeNames
+        let symbol = StructSymbol(
+            name: metadata.name,
+            conformsToView: inherited.contains("View"))
         symbol.isClass = true
-        symbol.isActor = isActor
+        symbol.isActor = metadata.kind == .actor
         symbol.conformances = inherited
         // A superclass, if present, is first in the clause; protocols follow.
         if let first = inherited.first, !Self.knownProtocols.contains(first),
@@ -521,9 +529,7 @@ extension Interpreter {
             symbol.superclassName = first
         }
         symbol.conformsToObservableObject = inherited.contains("ObservableObject")
-        symbol.attributeNames = attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-        }
+        symbol.attributeNames = metadata.attributeNames
         symbol.observableViaMacro = symbol.attributeNames.contains("Observable")
         try collectStructMembers(memberBlock, into: symbol)
         return symbol
@@ -571,43 +577,36 @@ extension Interpreter {
             } else if let alias = member.decl.as(TypeAliasDeclSyntax.self) {
                 // Member typealiases resolve like nested types (bare name
                 // when unclaimed); generic arguments drop.
-                var target = alias.initializer.value.trimmedDescription
-                if let angle = target.firstIndex(of: "<") { target = String(target[..<angle]) }
-                target = target.trimmingCharacters(in: .whitespaces)
+                let metadata = typeAliasMetadata(for: alias)
+                let target = metadata.lookupTargetName
                 if let value = globals.lookup(target) {
-                    symbol.nestedTypes[alias.name.text] = value
-                    if globals.lookup(alias.name.text) == nil {
-                        globals.define(alias.name.text, value)
+                    symbol.nestedTypes[metadata.name] = value
+                    if globals.lookup(metadata.name) == nil {
+                        globals.define(metadata.name, value)
                     }
                 } else {
                     // The target may only exist after the extension pass
                     // (`typealias API = TestWebRepository.API` where API is
                     // declared by a LATER `extension TestWebRepository`) —
                     // retry once every type exists.
-                    pendingMemberAliases.append((symbol, alias.name.text, target))
+                    pendingMemberAliases.append((
+                        symbol, metadata.name, target))
                 }
-                if enumSymbols[alias.name.text] == nil, let enumSymbol = enumSymbols[target] {
-                    enumSymbols[alias.name.text] = enumSymbol
+                if enumSymbols[metadata.name] == nil,
+                   let enumSymbol = enumSymbols[target] {
+                    enumSymbols[metadata.name] = enumSymbol
                 }
             } else if let subscriptDecl = member.decl.as(SubscriptDeclSyntax.self),
                       let accessorBlock = subscriptDecl.accessorBlock,
                       let accessors = parseAccessors(of: accessorBlock) {
                 declLexicalOwners[subscriptDecl.id] = symbol
-                let parameters = subscriptDecl.parameterClause.parameters.map { param in
-                    ClosureValue.Parameter(
-                        name: (param.secondName ?? param.firstName).text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                        label: param.firstName.text == "_" ? nil : param.firstName.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
-                        defaultValue: param.defaultValue?.value,
-                        typeAnnotation: param.type
-                    )
-                }
+                let metadata = subscriptMetadata(for: subscriptDecl)
                 symbol.subscripts.append(.init(
-                    parameters: parameters, getter: accessors.getter,
+                    parameters: metadata.parameters,
+                    getter: accessors.getter,
                     setter: accessors.setter,
-                    resultTypeName: subscriptDecl.returnClause.type.trimmedDescription,
-                    isNonisolated: subscriptDecl.modifiers.contains {
-                        $0.name.text == "nonisolated"
-                    },
+                    resultTypeName: metadata.resultTypeName,
+                    isNonisolated: metadata.isNonisolated,
                     declarationID: subscriptDecl.id,
                     isAsync: accessors.isGetterAsync,
                     isThrowing: accessors.isGetterThrowing))
@@ -637,15 +636,10 @@ extension Interpreter {
             } else if let nestedClass = member.decl.as(ClassDeclSyntax.self) {
                 // Nested classes (UserPreferences.Storage) register like
                 // nested structs — reference-typed.
-                let nestedSymbol = try makeClassLikeSymbol(
-                    name: nestedClass.name.text, inheritanceClause: nestedClass.inheritanceClause,
-                    memberBlock: nestedClass.memberBlock, attributes: nestedClass.attributes)
+                let nestedSymbol = try makeClassLikeSymbol(nestedClass)
                 registerNestedType(nestedSymbol, in: symbol)
             } else if let nestedActor = member.decl.as(ActorDeclSyntax.self) {
-                let nestedSymbol = try makeClassLikeSymbol(
-                    name: nestedActor.name.text, inheritanceClause: nestedActor.inheritanceClause,
-                    memberBlock: nestedActor.memberBlock,
-                    attributes: nestedActor.attributes, isActor: true)
+                let nestedSymbol = try makeClassLikeSymbol(nestedActor)
                 registerNestedType(nestedSymbol, in: symbol)
             }
         }
@@ -661,6 +655,7 @@ extension Interpreter {
     }
 
     private func collectProperties(_ varDecl: VariableDeclSyntax, into symbol: StructSymbol) throws {
+        let declarationMetadata = propertyMetadata(for: varDecl)
         let (wrapper, environmentObjectType) = propertyWrapper(of: varDecl.attributes)
         // `@Environment(AppData.self) var appData` carries its type in the
         // attribute, not an annotation — synthesize one so injection-by-type
@@ -690,25 +685,22 @@ extension Interpreter {
                 if queryDefault != nil { break }
             }
         }
-        let hasBuilderAttribute = varDecl.attributes.contains {
-            // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-        }
-        let isStaticDecl = isStatic(varDecl.modifiers)
-        let isTaskLocal = hasAttribute(
-            varDecl.attributes, named: "TaskLocal")
+        let hasBuilderAttribute = declarationMetadata.hasBuilderAttribute
+        let isStaticDecl = declarationMetadata.isStatic
+        let isTaskLocal = declarationMetadata.isTaskLocal
         if isTaskLocal {
             guard isStaticDecl else {
                 throw error(varDecl, "@TaskLocal properties must be static")
             }
-            guard varDecl.bindingSpecifier.text == "var" else {
+            guard declarationMetadata.isMutable else {
                 throw error(varDecl, "@TaskLocal properties must be declared with var")
             }
         }
 
         for binding in varDecl.bindings {
+            let bindingMetadata = propertyMetadata(for: binding)
             if isTaskLocal,
-               !binding.pattern.is(IdentifierPatternSyntax.self) {
+               bindingMetadata.patternKind != .identifier {
                 throw error(
                     binding,
                     "@TaskLocal requires a single identifier binding")
@@ -716,43 +708,31 @@ extension Interpreter {
             // Tuple-pattern stored properties (`let (first, second, third):
             // (A, B, C)`) declare each element; annotations split when the
             // tuple type's arity matches.
-            if let tuplePattern = binding.pattern.as(TuplePatternSyntax.self) {
-                let elements = Array(tuplePattern.elements)
-                let tupleTypes: [TypeSyntax?]
-                if let tupleType = binding.typeAnnotation?.type.as(TupleTypeSyntax.self),
-                   tupleType.elements.count == elements.count {
-                    tupleTypes = tupleType.elements.map { $0.type }
-                } else {
-                    tupleTypes = Array(repeating: nil, count: elements.count)
-                }
-                for (element, elementType) in zip(elements, tupleTypes) {
-                    guard let ident = element.pattern.as(IdentifierPatternSyntax.self) else { continue }
+            if bindingMetadata.patternKind == .tuple {
+                for element in bindingMetadata.tupleElements {
                     symbol.storedProperties.append(StructSymbol.StoredProperty(
-                        name: ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`")),
+                        name: element.name,
                         wrapper: .none,
                         initializer: nil,
-                        typeAnnotation: elementType,
+                        typeAnnotation: element.typeAnnotation,
                         isBuilderClosure: false,
-                        isMutable: varDecl.bindingSpecifier.text == "var",
-                        isNonisolated: varDecl.modifiers.contains {
-                            $0.name.text == "nonisolated"
-                        }
+                        isMutable: declarationMetadata.isMutable,
+                        isNonisolated: declarationMetadata.isNonisolated
                     ))
                 }
                 continue
             }
-            guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
+            guard let name = bindingMetadata.identifierName else {
                 throw error(binding, "unsupported property pattern")
             }
-            let name = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
             if isTaskLocal {
                 guard binding.accessorBlock == nil else {
                     throw error(
                         binding,
                         "@TaskLocal '\(name)' must be a stored property")
                 }
-                let initializer = binding.initializer?.value
-                let annotation = binding.typeAnnotation?.type
+                let initializer = bindingMetadata.initializer
+                let annotation = bindingMetadata.typeAnnotation
                 if initializer == nil,
                    RuntimeOptionalValue.wrappedType(
                     in: annotation?.trimmedDescription ?? "") == nil {
@@ -770,19 +750,19 @@ extension Interpreter {
             // A binding with an accessor block is computed only if it has a
             // getter; willSet/didSet-only observers mean a stored property
             // whose observers run on assignment (see the write funnel).
-            if let accessorBlock = binding.accessorBlock,
+            if bindingMetadata.isComputed,
+               let accessorBlock = binding.accessorBlock,
                let accessors = parseAccessors(of: accessorBlock) {
                 declLexicalOwners[binding.id] = symbol
-                let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
+                let returnsView = bindingMetadata.typeAnnotation?
+                    .trimmedDescription.contains("some View") ?? false
                 let computed = ComputedProperty(
                     accessor: accessors.getter,
                     isBuilder: hasBuilderAttribute || returnsView,
                     setter: accessors.setter,
-                    typeAnnotation: binding.typeAnnotation?.type,
+                    typeAnnotation: bindingMetadata.typeAnnotation,
                     declarationID: binding.id,
-                    isNonisolated: varDecl.modifiers.contains {
-                        $0.name.text == "nonisolated"
-                    },
+                    isNonisolated: declarationMetadata.isNonisolated,
                     isAsync: accessors.isGetterAsync,
                     isThrowing: accessors.isGetterThrowing
                 )
@@ -792,14 +772,14 @@ extension Interpreter {
                     symbol.computedProperties[name] = computed
                 }
             } else if isStaticDecl {
-                let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
+                let referenceOwnership = declarationMetadata.referenceOwnership
                 symbol.staticStoragePolicies[name] = .init(
-                    typeName: binding.typeAnnotation?.type.trimmedDescription,
+                    typeName: bindingMetadata.typeAnnotation?.trimmedDescription,
                     referenceOwnership: referenceOwnership)
-                if let initializer = binding.initializer?.value {
+                if let initializer = bindingMetadata.initializer {
                     symbol.staticProperties[name] = .init(
                         initializer: initializer,
-                        typeAnnotation: binding.typeAnnotation?.type,
+                        typeAnnotation: bindingMetadata.typeAnnotation,
                         referenceOwnership: referenceOwnership
                     )
                 } else if let wrapper = varDecl.attributes.compactMap({ $0.as(AttributeSyntax.self) }).first(where: {
@@ -818,41 +798,31 @@ extension Interpreter {
                 // real SwiftUI defaults it false (optionals stay nil via the
                 // uninitialized-optional rule).
                 var stateLikeDefault: ExprSyntax?
-                if binding.initializer == nil,
+                if bindingMetadata.initializer == nil,
                    hasAttribute(varDecl.attributes, named: "FocusState"),
-                   binding.typeAnnotation?.type.trimmedDescription == "Bool" {
+                   bindingMetadata.typeAnnotation?.trimmedDescription == "Bool" {
                     stateLikeDefault = ExprSyntax(BooleanLiteralExprSyntax(literal: .keyword(.false)))
                 }
                 var stored = StructSymbol.StoredProperty(
                     name: name,
                     wrapper: wrapper,
-                    initializer: binding.initializer?.value ?? queryDefault ?? stateLikeDefault,
-                    typeAnnotation: binding.typeAnnotation?.type ?? syntheticAnnotation,
+                    initializer: bindingMetadata.initializer ?? queryDefault ?? stateLikeDefault,
+                    typeAnnotation: bindingMetadata.typeAnnotation ?? syntheticAnnotation,
                     isBuilderClosure: hasBuilderAttribute,
-                    isMutable: varDecl.bindingSpecifier.text == "var",
-                    isNonisolated: varDecl.modifiers.contains {
-                        $0.name.text == "nonisolated"
-                    }
+                    isMutable: declarationMetadata.isMutable,
+                    isNonisolated: declarationMetadata.isNonisolated
                 )
-                stored.referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
-                stored.isLazy = varDecl.modifiers.contains { $0.name.text == "lazy" }
+                stored.referenceOwnership = declarationMetadata.referenceOwnership
+                stored.isLazy = declarationMetadata.isLazy
                 // `var timeline: Filter = .home { didSet { … } }` — the
                 // fetch-trigger genre lives in observers.
-                if let accessorBlock = binding.accessorBlock,
-                   case .accessors(let list) = accessorBlock.accessors {
-                    for accessor in list {
-                        guard let body = accessor.body?.statements else { continue }
-                        switch accessor.accessorSpecifier.tokenKind {
-                        case .keyword(.willSet):
-                            stored.willSetBody = body
-                            stored.willSetParameter = accessor.parameters?.name.text ?? "newValue"
-                        case .keyword(.didSet):
-                            stored.didSetBody = body
-                            stored.didSetParameter = accessor.parameters?.name.text ?? "oldValue"
-                        default:
-                            break
-                        }
-                    }
+                if let observer = bindingMetadata.willSet {
+                    stored.willSetBody = observer.body
+                    stored.willSetParameter = observer.parameterName
+                }
+                if let observer = bindingMetadata.didSet {
+                    stored.didSetBody = observer.body
+                    stored.didSetParameter = observer.parameterName
                 }
                 symbol.storedProperties.append(stored)
             }
@@ -933,28 +903,23 @@ extension Interpreter {
     }
 
     private func makeEnumSymbol(_ node: EnumDeclSyntax) throws -> EnumSymbol {
-        let symbol = EnumSymbol(name: node.name.text)
-        symbol.conformances = node.inheritanceClause?.inheritedTypes.map {
-            $0.type.trimmedDescription
-        } ?? []
-        symbol.attributeNames = node.attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-        }
+        let metadata = nominalMetadata(for: node)
+        let symbol = EnumSymbol(name: metadata.name)
+        symbol.conformances = metadata.inheritedTypeNames
+        symbol.attributeNames = metadata.attributeNames
         let rawIsString = symbol.conformances.contains("String")
 
         var nextIntRaw = 0
         for decl in flattenedMemberDecls(node.memberBlock.members) {
             if let caseDecl = decl.as(EnumCaseDeclSyntax.self) {
                 for element in caseDecl.elements {
-                    // `case \`default\`` — backticks normalize away, like
-                    // parameters and labels everywhere else.
-                    let caseName = element.name.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
-                    let labels: [String?] = element.parameterClause?.parameters.map { $0.firstName?.text } ?? []
-                    let associatedTypeNames = element.parameterClause?.parameters.map {
-                        $0.type.trimmedDescription
-                    } ?? []
+                    let caseMetadata = enumCaseMetadata(for: element)
+                    let caseName = caseMetadata.name
+                    let labels = caseMetadata.associatedValues.map(\.label)
+                    let associatedTypeNames = caseMetadata.associatedValues
+                        .map(\.typeName)
                     let raw: RuntimeValue
-                    if let rawExpr = element.rawValue?.value {
+                    if let rawExpr = caseMetadata.rawValue {
                         raw = try evaluate(rawExpr, in: globals)
                     } else if rawIsString {
                         raw = .native(caseName)
@@ -998,24 +963,22 @@ extension Interpreter {
             return
         }
         if let varDecl = decl.as(VariableDeclSyntax.self) {
-            let hasBuilderAttribute = varDecl.attributes.contains {
-            // @ViewBuilder plus custom @resultBuilders (@ActionBuilder …).
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
-            }
-            let isStaticDecl = isStatic(varDecl.modifiers)
-            let isTaskLocal = hasAttribute(
-                varDecl.attributes, named: "TaskLocal")
+            let declarationMetadata = propertyMetadata(for: varDecl)
+            let hasBuilderAttribute = declarationMetadata.hasBuilderAttribute
+            let isStaticDecl = declarationMetadata.isStatic
+            let isTaskLocal = declarationMetadata.isTaskLocal
             if isTaskLocal {
                 guard isStaticDecl else {
                     throw error(varDecl, "@TaskLocal properties must be static")
                 }
-                guard varDecl.bindingSpecifier.text == "var" else {
+                guard declarationMetadata.isMutable else {
                     throw error(
                         varDecl, "@TaskLocal properties must be declared with var")
                 }
             }
             for binding in varDecl.bindings {
-                guard let ident = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                let bindingMetadata = propertyMetadata(for: binding)
+                guard let memberName = bindingMetadata.identifierName else {
                     if isTaskLocal {
                         throw error(
                             binding,
@@ -1023,17 +986,14 @@ extension Interpreter {
                     }
                     continue
                 }
-                // Backticked members (`static var \`default\``) normalize,
-                // like cases and struct properties everywhere else.
-                let memberName = ident.identifier.text.trimmingCharacters(in: CharacterSet(charactersIn: "`"))
                 if isTaskLocal {
                     guard binding.accessorBlock == nil else {
                         throw error(
                             binding,
                             "@TaskLocal '\(memberName)' must be a stored property")
                     }
-                    let initializer = binding.initializer?.value
-                    let annotation = binding.typeAnnotation?.type
+                    let initializer = bindingMetadata.initializer
+                    let annotation = bindingMetadata.typeAnnotation
                     if initializer == nil,
                        RuntimeOptionalValue.wrappedType(
                         in: annotation?.trimmedDescription ?? "") == nil {
@@ -1049,16 +1009,18 @@ extension Interpreter {
                             typeAnnotation: annotation)
                     continue
                 }
-                if let accessorBlock = binding.accessorBlock,
+                if bindingMetadata.isComputed,
+                   let accessorBlock = binding.accessorBlock,
                    let accessors = parseAccessors(of: accessorBlock) {
                     declLexicalOwners[binding.id] = symbol
-                    let returnsView = binding.typeAnnotation?.type.trimmedDescription.contains("some View") ?? false
+                    let returnsView = bindingMetadata.typeAnnotation?
+                        .trimmedDescription.contains("some View") ?? false
                     if isStaticDecl {
                         symbol.staticComputedProperties[memberName] = ComputedProperty(
                             accessor: accessors.getter,
                             isBuilder: hasBuilderAttribute || returnsView,
                             setter: accessors.setter,
-                            typeAnnotation: binding.typeAnnotation?.type,
+                            typeAnnotation: bindingMetadata.typeAnnotation,
                             declarationID: binding.id,
                             isAsync: accessors.isGetterAsync,
                             isThrowing: accessors.isGetterThrowing
@@ -1069,20 +1031,21 @@ extension Interpreter {
                         accessor: accessors.getter,
                         isBuilder: hasBuilderAttribute || returnsView,
                         setter: accessors.setter,
-                        typeAnnotation: binding.typeAnnotation?.type,
+                        typeAnnotation: bindingMetadata.typeAnnotation,
                         declarationID: binding.id,
                         isAsync: accessors.isGetterAsync,
                         isThrowing: accessors.isGetterThrowing
                     )
                 } else if isStaticDecl {
-                    let referenceOwnership = ReferenceOwnership(modifiers: varDecl.modifiers)
+                    let referenceOwnership = declarationMetadata.referenceOwnership
                     symbol.staticStoragePolicies[memberName] = .init(
-                        typeName: binding.typeAnnotation?.type.trimmedDescription,
+                        typeName: bindingMetadata.typeAnnotation?
+                            .trimmedDescription,
                         referenceOwnership: referenceOwnership)
-                    if let initializer = binding.initializer?.value {
+                    if let initializer = bindingMetadata.initializer {
                         symbol.staticProperties[memberName] = .init(
                             initializer: initializer,
-                            typeAnnotation: binding.typeAnnotation?.type,
+                            typeAnnotation: bindingMetadata.typeAnnotation,
                             referenceOwnership: referenceOwnership
                         )
                     } else {
@@ -1119,9 +1082,7 @@ extension Interpreter {
                 globals.define(nestedSymbol.name, .type(nestedSymbol))
             }
         } else if let nestedClass = decl.as(ClassDeclSyntax.self) {
-            let nestedSymbol = try makeClassLikeSymbol(
-                name: nestedClass.name.text, inheritanceClause: nestedClass.inheritanceClause,
-                memberBlock: nestedClass.memberBlock, attributes: nestedClass.attributes)
+            let nestedSymbol = try makeClassLikeSymbol(nestedClass)
             symbol.nestedTypes[nestedSymbol.name] = .type(nestedSymbol)
             structSymbols.append(nestedSymbol)
             globals.define("\(symbol.name).\(nestedSymbol.name)", .type(nestedSymbol))
@@ -1136,10 +1097,11 @@ extension Interpreter {
     /// `extension Thing: Marker {}` — RETROACTIVE conformances join the
     /// symbol like declaration-site ones (checked casts and the render
     /// pipeline's view-ness both read symbol.conformances).
-    private func mergeExtensionConformances(_ node: ExtensionDeclSyntax, into symbol: StructSymbol) {
-        guard let inherited = node.inheritanceClause?.inheritedTypes else { return }
-        for type in inherited {
-            let name = type.type.trimmedDescription
+    private func mergeExtensionConformances(
+        _ metadata: ParsedExtensionMetadata,
+        into symbol: StructSymbol
+    ) {
+        for name in metadata.inheritedTypeNames {
             if !symbol.conformances.contains(name) {
                 symbol.conformances.append(name)
             }
@@ -1151,7 +1113,8 @@ extension Interpreter {
     }
 
     private func collectExtension(_ node: ExtensionDeclSyntax) throws {
-        let typeName = node.extendedType.trimmedDescription
+        let metadata = extensionMetadata(for: node)
+        let typeName = metadata.extendedTypeName
         // A DOTTED extended type that doesn't resolve yet may be declared
         // by a LATER extension in the same pass (`extension Pixel.Event`
         // in a file sorting before `extension Pixel { enum Event }`) —
@@ -1175,15 +1138,12 @@ extension Interpreter {
         }
         switch extended {
         case .type(let symbol):
-            mergeExtensionConformances(node, into: symbol)
+            mergeExtensionConformances(metadata, into: symbol)
             try collectStructMembers(node.memberBlock, into: symbol)
         case .enumType(let symbol):
-            if let inherited = node.inheritanceClause?.inheritedTypes {
-                for type in inherited {
-                    let name = type.type.trimmedDescription
-                    if !symbol.conformances.contains(name) {
-                        symbol.conformances.append(name)
-                    }
+            for name in metadata.inheritedTypeNames {
+                if !symbol.conformances.contains(name) {
+                    symbol.conformances.append(name)
                 }
             }
             for decl in flattenedMemberDecls(node.memberBlock.members) {
@@ -1234,30 +1194,22 @@ extension Interpreter {
             captured: captured,
             isBuilder: metadata.isBuilder,
             returnType: metadata.returnType,
-            returnTypeName: metadata.returnTypeName
+            returnTypeName: metadata.returnTypeName,
+            programMetadata: currentProgramMetadata
         )
         closure.functionDeclID = node.id
         let lexicalOwner = declLexicalOwners[node.id]
         closure.lexicalOwner = lexicalOwner
         closure.genericParameters = metadata.genericParameters
         closure.debugName = node.name.text
-        let parameterLabels = node.signature.parameterClause.parameters
-            .map { $0.firstName.text + ":" }
-            .joined()
-        closure.sourceFunctionName =
-            "\(node.name.text)(\(parameterLabels))"
-        let isAnyNonisolated = node.modifiers.contains {
-            $0.name.text == "nonisolated"
-        }
-        closure.isExplicitlyNonisolated = node.modifiers.contains {
-            $0.trimmedDescription == "nonisolated"
-        }
+        closure.sourceFunctionName = metadata.sourceFunctionName
+        let isAnyNonisolated = metadata.isAnyNonisolated
+        closure.isExplicitlyNonisolated = metadata.isExplicitlyNonisolated
         closure.executorPreference = functionExecutorPreference(
-            node, lexicalOwner: lexicalOwner)
+            metadata, lexicalOwner: lexicalOwner)
         if !isAnyNonisolated {
             closure.globalActorAttributeCandidates =
-                functionAttributeNames(node)
-                + lexicalAttributeNames(of: lexicalOwner)
+                metadata.attributeNames + lexicalAttributeNames(of: lexicalOwner)
         }
         if closure.executorPreference == nil,
            !isAnyNonisolated,
@@ -1278,17 +1230,16 @@ extension Interpreter {
     /// their caller's executor. User-declared global actors are resolved
     /// lazily from `globalActorAttributeCandidates` at invocation.
     private func functionExecutorPreference(
-        _ node: FunctionDeclSyntax,
+        _ metadata: ParsedFunctionMetadata,
         lexicalOwner: AnyObject?
     ) -> RuntimeExecutorKind? {
-        let attributes = functionAttributeNames(node)
-        if attributes.contains("concurrent") {
+        if metadata.isConcurrent {
             return .cooperativeDefault
         }
-        if node.modifiers.contains(where: { $0.name.text == "nonisolated" }) {
+        if metadata.isAnyNonisolated {
             return nil
         }
-        if attributes.contains("MainActor") {
+        if metadata.isMainActor {
             return .mainActor
         }
         if let owner = lexicalOwner as? StructSymbol,
@@ -1296,15 +1247,6 @@ extension Interpreter {
             return .mainActor
         }
         return nil
-    }
-
-    private func functionAttributeNames(
-        _ node: FunctionDeclSyntax
-    ) -> [String] {
-        node.attributes.compactMap {
-            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-                .split(separator: ".").last.map(String.init)
-        }
     }
 
     private func lexicalAttributeNames(of owner: AnyObject?) -> [String] {
@@ -1328,30 +1270,19 @@ extension Interpreter {
         isGetterAsync: Bool,
         isGetterThrowing: Bool
     )? {
-        switch accessorBlock.accessors {
-        case .getter(let items):
-            return (items, nil, false, false)
-        case .accessors(let list):
-            var getter: CodeBlockItemListSyntax?
-            var setter: ComputedProperty.Setter?
-            var isGetterAsync = false
-            var isGetterThrowing = false
-            for accessor in list {
-                guard let body = accessor.body?.statements else { continue }
-                switch accessor.accessorSpecifier.tokenKind {
-                case .keyword(.get):
-                    getter = body
-                    isGetterAsync = accessor.effectSpecifiers?.asyncSpecifier != nil
-                    isGetterThrowing = accessor.effectSpecifiers?.throwsClause != nil
-                case .keyword(.set):
-                    setter = .init(body: body, parameterName: accessor.parameters?.name.text ?? "newValue")
-                default:
-                    break // willSet/didSet observers are inert
-                }
-            }
-            guard let getter else { return nil }
-            return (getter, setter, isGetterAsync, isGetterThrowing)
+        guard let metadata = accessorMetadata(for: accessorBlock) else {
+            return nil
         }
+        let setter = metadata.setter.map {
+            ComputedProperty.Setter(
+                body: $0.body,
+                parameterName: $0.parameterName)
+        }
+        return (
+            metadata.getter,
+            setter,
+            metadata.isAsync,
+            metadata.isThrowing)
     }
 
     /// Wrapper kind plus, for `@Environment(Type.self)`, the type name that

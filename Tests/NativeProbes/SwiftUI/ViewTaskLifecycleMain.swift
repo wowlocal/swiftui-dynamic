@@ -14,6 +14,7 @@ struct ViewTaskLifecycleMain {
             styleMask: [.borderless],
             backing: .buffered,
             defer: false)
+        window.animationBehavior = .none
         window.contentView = hostingView
         window.orderFrontRegardless()
         return (hostingView, window)

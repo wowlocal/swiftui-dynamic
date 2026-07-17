@@ -1,4 +1,4 @@
-import SwiftInterpreter
+@testable import SwiftInterpreter
 import Testing
 @testable import SwiftUIBridge
 
@@ -82,6 +82,72 @@ struct HostCallbackAdapterTests {
         #expect(RenderDiagnostics.errors.first?.view == "Button action")
         #expect(RenderDiagnostics.errors.first?.error.message.contains(
             "missingCallbackFunction") == true)
+    }
+
+    @Test func runtimeBackedActionContainsExplicitSourceTraps() throws {
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let cases = [
+            ("fatalError(\"button-fatal\")", "fatalError: button-fatal"),
+            ("preconditionFailure(\"button-precondition\")",
+                "preconditionFailure: button-precondition"),
+            ("precondition(false, \"button-trap\")",
+                "precondition failed: button-trap"),
+        ]
+
+        for (body, expected) in cases {
+            let interpreter = Interpreter()
+            let action = try interpreter.run(source: """
+            func makeAction() -> () -> Void {
+                { \(body) }
+            }
+            makeAction()
+            """)
+            let callback = InterpretedHostCallback(
+                closure: try #require(action.closureValue),
+                context: interpreter,
+                diagnosticContext: "Button action")
+
+            callback.call()
+
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(RenderDiagnostics.errors.last?.error.message == expected)
+            #expect(RenderDiagnostics.errors.last?.error.fatal == true)
+        }
+        #expect(RenderDiagnostics.errors.count == cases.count)
+    }
+
+    @Test func swiftUITaskContainsExplicitSourceTraps() async throws {
+        RenderDiagnostics.reset()
+        defer { RenderDiagnostics.reset() }
+        let cases = [
+            ("fatalError(\"task-fatal\")", "fatalError: task-fatal"),
+            ("preconditionFailure(\"task-precondition\")",
+                "preconditionFailure: task-precondition"),
+            ("precondition(false, \"task-trap\")",
+                "precondition failed: task-trap"),
+        ]
+
+        for (body, expected) in cases {
+            let interpreter = Interpreter()
+            let action = try interpreter.run(source: """
+            func makeAction() -> () async -> Void {
+                { \(body) }
+            }
+            makeAction()
+            """)
+            let callback = InterpretedSwiftUITaskCallback(
+                closure: try #require(action.closureValue),
+                context: interpreter,
+                diagnosticContext: "SwiftUI async trap containment probe")
+
+            await callback.call()
+
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(RenderDiagnostics.errors.last?.error.message == expected)
+            #expect(RenderDiagnostics.errors.last?.error.fatal == true)
+        }
+        #expect(RenderDiagnostics.errors.count == cases.count)
     }
 
     @Test func callbackPreservesConcurrentAndMainActorExecutorHops() async throws {

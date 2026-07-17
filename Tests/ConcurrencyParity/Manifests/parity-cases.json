@@ -110,6 +110,42 @@
     "notes": "Exact output is none:owned:5 in all 20 Swift 6.3.3 runs. The fixture proves initialization isolation, retained state, and post-initialization mailbox ownership without asserting physical threads or unrelated message order."
   },
   {
+    "id": "enum-case-metadata",
+    "fixture": "Fixtures/enum-case-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await enumCaseMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Backticked enum case names, labeled associated values, and explicit Double raw values retain their source meaning when an enum value crosses an actor boundary.",
+    "notes": "Exact output is authenticated:foodtruck|default|1.0:0.5 in all repetitions. FoodTruck cites these spellings in User, Panel, and BrandHeader.HeaderSize; no scheduler order or physical thread is asserted."
+  },
+  {
+    "id": "extension-metadata",
+    "fixture": "Fixtures/extension-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await extensionMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A dotted extension can add a retroactive conformance and method, while a matching constrained extension contributes its method when the value crosses an actor boundary.",
+    "notes": "Exact output is true:42:21 in all repetitions. FoodTruck cites dotted, conforming, and generic-where extension headers; no nonmatching-constraint, scheduler-order, or physical-thread claim is made."
+  },
+  {
+    "id": "typealias-metadata",
+    "fixture": "Fixtures/typealias-metadata.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await typeAliasMetadataProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Active conditional top-level and member type aliases denote the selected concrete type when a value crosses an actor boundary.",
+    "notes": "Exact output is mac:42 in all repetitions. Native runs use the pinned macOS target and both executions select the non-watchOS branch. FoodTruck cites conditional private top-level and member aliases in DetailedMapView; no inaccessible inactive-branch, positive-macOS-predicate, scheduler-order, or physical-thread claim is made."
+  },
+  {
     "id": "actor-isolated-deinitializer",
     "fixture": "Fixtures/actor-isolated-deinitializer.swift",
     "mode": "runtime",
@@ -751,6 +787,19 @@
     "interpreterProjection": "string",
     "nativeFact": "An async-let initializer starts as a structured child before the parent reads the binding, and awaiting that binding suspends until the child produces its value.",
     "notes": "The child marks entry and waits behind an explicit gate. The parent cannot open that gate until the child has started, and it reads the binding only after opening it. Exact output is child-start,parent-open,child-end,value; no unconstrained ready-task order is asserted."
+  },
+  {
+    "id": "async-let-top-level",
+    "fixture": "Fixtures/async-let-top-level.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "nativeTopLevel": true,
+    "interpreterEntry": "",
+    "interpreterProjection": "string",
+    "nativeFact": "Top-level async code supplies an implicit structured scope, so two async-let bindings are legal and awaiting both produces their exact values.",
+    "notes": "The native side compiles this same source as a real top-level executable instead of adding the ordinary @main wrapper. Exact output is 42; the result dependency is asserted, while child start/finish order, simultaneous execution, and physical threads are deliberately unspecified."
   },
   {
     "id": "async-let-tuple-pattern",
@@ -1477,6 +1526,18 @@
     "interpreterProjection": "host-callback-global-string:parityHostCallbackProbe:phase",
     "nativeFact": "A synchronous MainActor callback publishes its inline mutation before returning, while an unstructured task created by that callback continues through Swift concurrency and may use structured task groups.",
     "notes": "The interpreter entry deliberately returns before the callback fires, matching a retained SwiftUI Button action. Exact output started,done-3 proves both synchronous callback semantics and independently scheduled concurrency-runtime work; no physical worker-thread identity is asserted."
+  },
+  {
+    "id": "host-callback-overlap",
+    "fixture": "Fixtures/host-callback-overlap.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "parityInterpreterHostCallbackOverlap()",
+    "interpreterProjection": "host-callback-overlap-global-string:parityHostCallbackOverlapProbe:events:worker-started",
+    "nativeFact": "A MainActor task created by one synchronous callback may remain suspended while a later callback enters, observes and mutates the same actor-isolated state, and resumes it; the later callback completes before that task continues on MainActor.",
+    "notes": "The harness waits for the first callback's task to publish worker-started before invoking the same retained callback again. Continuation resume is synchronous but MainActor serialization forces second-return before worker-resumed, so the exact three snapshots are causal and assert no unrelated scheduler or physical-thread order. Apple Swift 6.3.3 strict-concurrency compilation produced the same result in twenty bounded runs."
   },
   {
     "id": "task-read-missing-await-diagnostic",

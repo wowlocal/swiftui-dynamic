@@ -359,7 +359,9 @@ extension Interpreter {
     private func asyncLetBinding(
         named name: String, in env: Environment
     ) throws -> RuntimeAsyncLetBinding? {
-        guard let box = env.box(for: name, before: globals) else { return nil }
+        let box = env.box(for: name, before: globals)
+            ?? (env === globals ? globals.box(for: name) : nil)
+        guard let box else { return nil }
         return try force(box).hostPayload as? RuntimeAsyncLetBinding
     }
 
@@ -922,7 +924,8 @@ extension Interpreter {
                     let closure = ClosureValue(
                         parameters: initializerMetadata(for: chosen).parameters,
                         body: body.statements,
-                        captured: env)
+                        captured: env,
+                        programMetadata: currentProgramMetadata)
                     closure.debugName = "extInit:\(function.name)"
                     _ = try await callWithArgumentsSuspending(
                         closure, args: arguments, node: Syntax(node))
