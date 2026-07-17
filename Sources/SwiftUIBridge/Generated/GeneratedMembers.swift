@@ -42,7 +42,7 @@ extension GeneratedMembers {
             (base as? Calendar).map { generatedMemberResult($0.description) }
         })
         registerProperty(&t, "var Calendar.eraSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.eraSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.eraSymbols) }
         })
         registerProperty(&t, "var Calendar.firstWeekday: Int { get set }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.firstWeekday) }
@@ -69,7 +69,7 @@ extension GeneratedMembers {
             return copy
         })
         registerProperty(&t, "var Calendar.longEraSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.longEraSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.longEraSymbols) }
         })
         registerProperty(&t, "var Calendar.minimumDaysInFirstWeek: Int { get set }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.minimumDaysInFirstWeek) }
@@ -81,40 +81,40 @@ extension GeneratedMembers {
             return copy
         })
         registerProperty(&t, "var Calendar.monthSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.monthSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.monthSymbols) }
         })
         registerProperty(&t, "var Calendar.pmSymbol: String { get }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.pmSymbol) }
         })
         registerProperty(&t, "var Calendar.quarterSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.quarterSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.quarterSymbols) }
         })
         registerProperty(&t, "var Calendar.shortMonthSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.shortMonthSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.shortMonthSymbols) }
         })
         registerProperty(&t, "var Calendar.shortQuarterSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.shortQuarterSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.shortQuarterSymbols) }
         })
         registerProperty(&t, "var Calendar.shortStandaloneMonthSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.shortStandaloneMonthSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.shortStandaloneMonthSymbols) }
         })
         registerProperty(&t, "var Calendar.shortStandaloneQuarterSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.shortStandaloneQuarterSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.shortStandaloneQuarterSymbols) }
         })
         registerProperty(&t, "var Calendar.shortStandaloneWeekdaySymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.shortStandaloneWeekdaySymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.shortStandaloneWeekdaySymbols) }
         })
         registerProperty(&t, "var Calendar.shortWeekdaySymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.shortWeekdaySymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.shortWeekdaySymbols) }
         })
         registerProperty(&t, "var Calendar.standaloneMonthSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.standaloneMonthSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.standaloneMonthSymbols) }
         })
         registerProperty(&t, "var Calendar.standaloneQuarterSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.standaloneQuarterSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.standaloneQuarterSymbols) }
         })
         registerProperty(&t, "var Calendar.standaloneWeekdaySymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.standaloneWeekdaySymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.standaloneWeekdaySymbols) }
         })
         registerProperty(&t, "var Calendar.timeZone: TimeZone { get set }", get: { base in
             (base as? Calendar).map { generatedMemberResult($0.timeZone) }
@@ -126,19 +126,19 @@ extension GeneratedMembers {
             return copy
         })
         registerProperty(&t, "var Calendar.veryShortMonthSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.veryShortMonthSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.veryShortMonthSymbols) }
         })
         registerProperty(&t, "var Calendar.veryShortStandaloneMonthSymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.veryShortStandaloneMonthSymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.veryShortStandaloneMonthSymbols) }
         })
         registerProperty(&t, "var Calendar.veryShortStandaloneWeekdaySymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.veryShortStandaloneWeekdaySymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.veryShortStandaloneWeekdaySymbols) }
         })
         registerProperty(&t, "var Calendar.veryShortWeekdaySymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.veryShortWeekdaySymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.veryShortWeekdaySymbols) }
         })
         registerProperty(&t, "var Calendar.weekdaySymbols: [String] { get }", get: { base in
-            (base as? Calendar).map { generatedMemberResult($0.weekdaySymbols) }
+            (base as? Calendar).map { generatedMemberArrayResult($0.weekdaySymbols) }
         })
         registerProperty(&t, "var CharacterSet.bitmapRepresentation: Data { get }", get: { base in
             (base as? CharacterSet).map { generatedMemberResult($0.bitmapRepresentation) }
@@ -195,7 +195,7 @@ extension GeneratedMembers {
             (base as? DateBins).map { generatedMemberResult($0.startIndex) }
         })
         registerProperty(&t, "var DateBins.thresholds: [Date] { get }", get: { base in
-            (base as? DateBins).map { generatedMemberResult($0.thresholds) }
+            (base as? DateBins).map { generatedMemberArrayResult($0.thresholds) }
         })
         registerProperty(&t, "var DateComponents.calendar: Calendar? { get set }", get: { base in
             (base as? DateComponents).map { generatedMemberResult($0.calendar) }
@@ -564,7 +564,7 @@ extension GeneratedMembers {
             (base as? Locale).map { generatedMemberResult($0.alternateQuotationEndDelimiter) }
         })
         registerProperty(&t, "var Locale.availableNumberingSystems: [Locale.NumberingSystem] { get }", get: { base in
-            (base as? Locale).map { generatedMemberResult($0.availableNumberingSystems) }
+            (base as? Locale).map { generatedMemberArrayResult($0.availableNumberingSystems) }
         })
         registerProperty(&t, "var Locale.calendar: Calendar { get }", get: { base in
             (base as? Locale).map { generatedMemberResult($0.calendar) }
@@ -780,7 +780,7 @@ extension GeneratedMembers {
             (base as? URL).map { generatedMemberResult($0.path) }
         })
         registerProperty(&t, "var URL.pathComponents: [String] { get }", get: { base in
-            (base as? URL).map { generatedMemberResult($0.pathComponents) }
+            (base as? URL).map { generatedMemberArrayResult($0.pathComponents) }
         })
         registerProperty(&t, "var URL.pathExtension: String { get }", get: { base in
             (base as? URL).map { generatedMemberResult($0.pathExtension) }

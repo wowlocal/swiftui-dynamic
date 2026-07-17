@@ -1569,11 +1569,21 @@ print("wrote \(enumsPath) (\(emittedSDKEnumTypes.count) enum types)")
 
 // MARK: - Emit members
 
+/// Array-typed contracts box element-wise into the interpreter's array
+/// plane (`DateBins.thresholds`); every other return keeps its host
+/// typing. The choice is made HERE at emit time — a type-directed
+/// overload would re-rank member resolution inside the emitted closures
+/// (Sequence.dropLast beating IndexPath.dropLast).
+func memberResultCall(_ returnType: String) -> String {
+    returnType.hasPrefix("[") && returnType.hasSuffix("]") && !returnType.contains(":")
+        ? "generatedMemberArrayResult" : "generatedMemberResult"
+}
+
 func memberPropertyCode(_ property: MemberProperty) -> String {
     if property.isSettable {
         return """
             registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get set }", get: { base in
-                (base as? \(property.type)).map { generatedMemberResult($0.\(property.name)) }
+                (base as? \(property.type)).map { \(memberResultCall(property.returnType))($0.\(property.name)) }
             }, mutate: { base, newValue in
                 guard var copy = base as? \(property.type) else {
                     throw RuntimeError(message: "generated \(property.type).\(property.name) mutation received the wrong receiver", fatal: true)
@@ -1585,7 +1595,7 @@ func memberPropertyCode(_ property: MemberProperty) -> String {
     }
     return """
             registerProperty(&t, "var \(property.type).\(property.name): \(property.returnType) { get }", get: { base in
-                (base as? \(property.type)).map { generatedMemberResult($0.\(property.name)) }
+                (base as? \(property.type)).map { \(memberResultCall(property.returnType))($0.\(property.name)) }
             })
     """
 }
@@ -1607,7 +1617,7 @@ func memberMethodCode(_ variant: MemberVariant) -> String {
         .joined(separator: ", ")
     return """
             registerMethod(&t, "\(declaration)", [\(specs)]) { base, v in
-                generatedMemberResult((base as! \(variant.type)).\(variant.name)(\(argList)))
+                \(memberResultCall(variant.returnType))((base as! \(variant.type)).\(variant.name)(\(argList)))
             }
     """
 }

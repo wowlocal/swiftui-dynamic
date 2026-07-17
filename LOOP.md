@@ -1824,3 +1824,18 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   the generated-property validation sweep. Remaining truck residue
   ~1.08%: corner brackets, small icon tints, caption strip. Merge
   queue unchanged (upstream alias test).
+- 2026-07-17 merge-close gates + array-boundary refinement (worktree
+  iteration 26, in flight): upstream alias test went GREEN after
+  merging main 16bab0c — the queue's blocker is gone. Close-gate
+  attempt 1: RED on task-priority-escalation fixture TIMEOUTS (load
+  flake — passes isolated, exit 0; same suite green under load in the
+  i23 gate). Attempt 2: tests green, live 5/5, corpus 678/680 AT
+  FLOOR, but API parity 344/1: the generic [Element] overload of
+  generatedMemberResult re-ranked overload resolution inside emitted
+  closures — Sequence.dropLast() -> [Int] beat IndexPath's own
+  dropLast() -> IndexPath on the exact-generic-parameter match,
+  violating the host contract. Fix: the boxing choice moved to EMIT
+  time — BridgeGen routes array-typed contracts (non-optional) to the
+  DISTINCTLY NAMED generatedMemberArrayResult and everything else to
+  the plain helper, so emitted member resolution is untouched.
+  Parity board verified 345/0/0 after the fix. Third gate rolling.

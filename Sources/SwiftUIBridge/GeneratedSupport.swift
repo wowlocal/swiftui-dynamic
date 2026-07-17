@@ -624,8 +624,12 @@ func generatedMemberResult<Wrapped>(_ value: Wrapped?) -> RuntimeValue {
 
 /// SDK arrays cross into the interpreter's array plane element-wise —
 /// `DateBins.thresholds: [Date]` must answer `.count`/subscripts/iteration
-/// like any interpreted array, not ride as an opaque host payload.
-func generatedMemberResult<Element>(_ value: [Element]) -> RuntimeValue {
+/// like any interpreted array, not ride as an opaque host payload. The
+/// DISTINCT name is load-bearing: BridgeGen picks it at emit time for
+/// array-typed contracts only, so it never re-ranks member overload
+/// resolution inside emitted closures (Sequence.dropLast would otherwise
+/// beat IndexPath.dropLast on the [Element] parameter match).
+func generatedMemberArrayResult<Element>(_ value: [Element]) -> RuntimeValue {
     .array(value.map { RuntimeValue.native($0 as Any) })
 }
 
