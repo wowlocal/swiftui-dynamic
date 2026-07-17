@@ -114,6 +114,14 @@ enum Coerce {
     /// A Color when the value is color-shaped: `.black`, `Color.clear`, or
     /// `.black.opacity(x)` chains. Colors are Views, so this also powers
     /// bare colors in view position.
+    /// `.continuous` corners are squircles — dropping the style renders
+    /// circular arcs and diffs as L-brackets at every corner (the
+    /// FoodTruck card chrome).
+    static func roundedCornerStyle(_ value: RuntimeValue?) -> RoundedCornerStyle {
+        if case .implicitMember("continuous")? = value { return .continuous }
+        return .circular
+    }
+
     static func colorLike(_ value: RuntimeValue) -> Color? {
         if case .host(let any) = value, let color = any as? Color { return color }
         if case .implicitMember(let name) = value {
@@ -205,8 +213,13 @@ enum Coerce {
             }
         }
         if case .implicitMember(let name) = value {
-            if let color = colorNamed(name) { return AnyShapeStyle(color) }
             switch name {
+            // In a STYLE position the hierarchy names are HIERARCHICAL
+            // styles deriving from the current primary (the accent-tinted
+            // card-header icons) — Color.primary/.secondary are only for
+            // COLOR positions (Coerce.color).
+            case "primary": return AnyShapeStyle(HierarchicalShapeStyle.primary)
+            case "secondary": return AnyShapeStyle(HierarchicalShapeStyle.secondary)
             case "tertiary": return AnyShapeStyle(.tertiary)
             case "quaternary": return AnyShapeStyle(.quaternary)
             case "ultraThinMaterial": return AnyShapeStyle(.ultraThinMaterial)
@@ -217,6 +230,7 @@ enum Coerce {
             case "bar": return AnyShapeStyle(.bar)
             default: break
             }
+            if let color = colorNamed(name) { return AnyShapeStyle(color) }
         }
         throw RuntimeError(message: "expected a color/gradient/material, got \(value.stringified)")
     }
@@ -542,7 +556,9 @@ enum Coerce {
         }
         if case .host(let any) = value, let call = any as? ImplicitMemberCall, call.name == "rect" {
             let radius = try cgFloat(call.arguments.labeled("cornerRadius") ?? .native(0))
-            return AnyShape(RoundedRectangle(cornerRadius: radius))
+            return AnyShape(RoundedRectangle(
+                cornerRadius: radius,
+                style: roundedCornerStyle(call.arguments.labeled("style"))))
         }
         if case .host(let any) = value,
            any is InertCallable || any is ChainedImplicitCall || any is ImplicitMemberCall {

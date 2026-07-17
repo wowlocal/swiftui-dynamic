@@ -65,16 +65,25 @@ final class ShapeBox {
     /// shape is Insettable (erasure loses the conformance; FoodTruck's
     /// tile outlines need the true inset, not a centered approximation).
     let strokeBorderPainter: (@MainActor (AnyShapeStyle, CGFloat) -> AnyView)?
+    /// Real `.containerShape(_:)`, same doctrine: the modifier's generic
+    /// is InsettableShape-bound, so the applier captures the CONCRETE
+    /// shape at construction (FoodTruck's continuous card corners flow
+    /// to every ContainerRelativeShape fill/clip inside).
+    let containerShapeApplier: (@MainActor (AnyView) -> AnyView)?
 
     init(_ shape: some Shape) {
         self.shape = AnyShape(shape)
         self.strokeBorderPainter = nil
+        self.containerShapeApplier = nil
     }
 
     init(insettable shape: some InsettableShape) {
         self.shape = AnyShape(shape)
         self.strokeBorderPainter = { style, lineWidth in
             AnyView(shape.strokeBorder(style, lineWidth: lineWidth))
+        }
+        self.containerShapeApplier = { view in
+            AnyView(view.containerShape(shape))
         }
     }
 }

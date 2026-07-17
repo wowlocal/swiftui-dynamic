@@ -218,6 +218,117 @@ import Testing
         #expect(indigoPixels > 20)
     }
 
+    // FoodTruck card-chrome class: `.continuous` corners are squircles.
+    // The constructor used to drop `style:` and containerShape was inert,
+    // so ContainerRelativeShape card fills rendered circular arcs —
+    // L-bracket diffs at every card corner.
+    @MainActor
+    @Test func continuousCornersMatchNativeSquircles() throws {
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    VStack(spacing: 0) {
+                        Text(String("card"))
+                            .frame(width: 64, height: 44)
+                            .background()
+                            .clipShape(ContainerRelativeShape())
+                    }
+                    .containerShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 80, height: 60)
+        let interp = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            VStack(spacing: 0) {
+                Text("card")
+                    .frame(width: 64, height: 44)
+                    .background()
+                    .clipShape(ContainerRelativeShape())
+            }
+            .containerShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<80 {
+            for y in 0..<60 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        #expect(mismatched == 0)
+    }
+
+    // FoodTruck card-header class: in a STYLE position `.secondary` is
+    // the HIERARCHICAL style deriving from the current primary — the
+    // funnel used to hand back the concrete Color.secondary, so header
+    // icons rendered gray instead of the accent-derived tint. The pin
+    // compares against a compiled native control of the exact header
+    // shape (icon .foregroundStyle(.secondary) under .foregroundColor(
+    // .accentColor)).
+    @MainActor
+    @Test func hierarchicalSecondaryDerivesFromAccent() throws {
+        let source = """
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    HStack(spacing: 4) {
+                        Image(systemName: String("shippingbox"))
+                            .foregroundStyle(.secondary)
+                        Text(String("New Orders"))
+                    }
+                    .font(.headline)
+                    .imageScale(.large)
+                    .foregroundColor(.accentColor)
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 160, height: 40)
+        let interp = Self.bitmap(view, size: size)
+        let native = Self.bitmap(AnyView(
+            HStack(spacing: 4) {
+                Image(systemName: "shippingbox")
+                    .foregroundStyle(.secondary)
+                Text("New Orders")
+            }
+            .font(.headline)
+            .imageScale(.large)
+            .foregroundColor(.accentColor)
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<160 {
+            for y in 0..<40 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        #expect(mismatched == 0)
+    }
+
     @MainActor
     private static func bitmap(_ view: AnyView, size: NSSize) -> NSBitmapImageRep {
         let hosting = NSHostingView(
