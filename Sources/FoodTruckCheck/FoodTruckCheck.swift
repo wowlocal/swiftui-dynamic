@@ -469,6 +469,29 @@ struct FoodTruckCheckMain {
                 "Text(model.dailyOrderSummaries(cityID: City.cupertino.id).first!.sales.sorted { $0.key < $1.key }.map { String(describing: $0.key) + String(\":\") + String(describing: $0.value) }.joined(separator: String(\",\"))).font(.system(size: 14)).background(Color.white)"), size: cardSize)
             capturePNG("diag-weather", source: probeMergeBase + probeApp(
                 "TruckWeatherCard(location: CLLocation(latitude: 37.3, longitude: -122.0)).padding(10).background(Color.white)"), size: cardSize)
+            let diagAnnotationDecl = """
+
+            struct __AnnotationProbe: View {
+                var body: some View {
+                    Chart {
+                        RectangleMark(
+                            x: .value(String("X"), 1.0),
+                            yStart: .value(String("Y"), 0.0),
+                            yEnd: .value(String("Y"), 5.0),
+                            width: .fixed(6)
+                        )
+                        .annotation(position: .top, alignment: .bottom, spacing: 5) {
+                            Image(systemName: String("moon.circle.fill"))
+                                .imageScale(.large)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, .indigo)
+                        }
+                    }
+                }
+            }
+            """
+            capturePNG("diag-annotation", source: probeMergeBase + diagAnnotationDecl + probeApp(
+                "__AnnotationProbe().frame(width: 200, height: 150).background(Color.white)"), size: cardSize)
             capturePNG("diag-chart", source: probeMergeBase + diagChartDecl + probeApp(
                 "__ChartProbe().frame(width: 300, height: 200).background(Color.white)"), size: cardSize)
             capturePNG("diag-layout", source: probeMergeBase + probeApp(

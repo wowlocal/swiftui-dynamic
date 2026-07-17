@@ -1738,3 +1738,16 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   annotation builder). The `.shadow(.drop)` pillar style remains the
   other truck residue. Upstream alias-test completion still gates the
   seventeen-commit merge.
+- 2026-07-17 annotation icon narrowed to the palette layers (worktree
+  iteration 22): the isolation probe (diag-annotation) proves the
+  annotation ARM works — the icon is placed at the pillar top — but it
+  paints ALL-WHITE (visible only as a gap across the gridline): the
+  palette two-layer styling isn't taking effect, so
+  foregroundStyle(.white, .indigo) shows only the primary white layer.
+  Suspects, in order: the env-propagated symbolRenderingMode not
+  reaching the descendant Image through the AnyView wrapping, or the
+  generated two-arg foregroundStyle applying to the wrapper instead of
+  the symbol layers. Next probe: palette variants side-by-side
+  (.multicolor, plain .foregroundStyle(.indigo), unwrapped Image).
+  Upstream alias-test completion still gates the eighteen-commit
+  merge.
