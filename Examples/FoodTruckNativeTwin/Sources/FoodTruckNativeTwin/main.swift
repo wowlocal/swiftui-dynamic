@@ -130,7 +130,14 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
                 VStack {
                     ForEach(Array(model.donuts.prefix(1))) { donut in
                         VStack {
-                            DonutView(donut: donut)
+                            GeometryReader { proxy in
+                                    ZStack {
+                                        Circle().fill(Color.gray)
+                                    }
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .compositingGroup()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
                                 .frame(width: 80, height: 80)
                             VStack {
                                 Text(donut.name)
@@ -146,6 +153,10 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
                 .padding(10).background(Color.white))
+
+        capture("donut-mimic", size: NSSize(width: 700, height: 300),
+                MimicGrid(donuts: Array(model.donuts.prefix(4)))
+                    .background(Color.white))
 
         // R3 function scenarios (Scripts/foodtruck-r3-spec.md): mutate
         // through the model's OWN public API, then re-capture — the
@@ -211,3 +222,38 @@ let app = NSApplication.shared
 let delegate = TwinDelegate()
 app.delegate = delegate
 app.run()
+
+
+struct MimicGrid: View {
+    var donuts: [Donut]
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 20, alignment: .top)], spacing: 20) {
+            ForEach(donuts) { donut in
+                VStack {
+                    VStack {
+                        GeometryReader { proxy in
+                                    ZStack {
+                                        Circle().fill(Color.gray)
+                                    }
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .compositingGroup()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                            .frame(width: 80, height: 80)
+                        VStack {
+                                                        Text(donut.name)
+                            HStack(spacing: 4) {
+                                donut.flavors.mostPotentFlavor.image
+                                Text(donut.flavors.mostPotentFlavor.name)
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        }
+                        .multilineTextAlignment(.center)
+                    }
+                }
+            }
+        }
+        .padding()
+    }
+}

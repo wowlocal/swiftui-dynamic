@@ -463,7 +463,14 @@ struct FoodTruckCheckMain {
             VStack {
                 ForEach(Array(model.donuts.prefix(1))) { donut in
                     VStack {
-                        DonutView(donut: donut)
+                        GeometryReader { proxy in
+                                    ZStack {
+                                        Circle().fill(Color.gray)
+                                    }
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .compositingGroup()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
                             .frame(width: 80, height: 80)
                         VStack {
                             Text(donut.name)
@@ -482,6 +489,45 @@ struct FoodTruckCheckMain {
             """
             capturePNG("donut-foreach", source: probeMergeBase + probeApp(donutForEachBody),
                        size: NSSize(width: 200, height: 200))
+            let mimicDecl = """
+
+            struct MimicGrid: View {
+                var donuts: [Donut]
+                var body: some View {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 20, alignment: .top)], spacing: 20) {
+                        ForEach(donuts) { donut in
+                            VStack {
+                                VStack {
+                                    GeometryReader { proxy in
+                                    ZStack {
+                                        Circle().fill(Color.gray)
+                                    }
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .compositingGroup()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                                        .frame(width: 80, height: 80)
+                                    VStack {
+                                                                                Text(donut.name)
+                                        HStack(spacing: 4) {
+                                            donut.flavors.mostPotentFlavor.image
+                                            Text(donut.flavors.mostPotentFlavor.name)
+                                        }
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    }
+                                    .multilineTextAlignment(.center)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            }
+            """
+            capturePNG("donut-mimic", source: probeMergeBase + mimicDecl + probeApp(
+                "MimicGrid(donuts: Array(model.donuts.prefix(4))).background(Color.white)"),
+                       size: NSSize(width: 700, height: 300))
             capturePNG("donut-grid", source: probeMergeBase + probeApp(
                 "DonutGalleryGrid(donuts: Array(model.donuts.prefix(4)), width: 700).background(Color.white)"),
                        size: NSSize(width: 700, height: 300))

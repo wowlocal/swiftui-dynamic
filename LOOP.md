@@ -1983,3 +1983,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   donut-foreach, donut-grid deterministically. Pins:
   donutCellChromeMatchesNative (now grid-wrapped),
   letBindingInBuilderAddsNoPhantomChild.
+- 2026-07-17 donuts class: kit eliminated, harness-context isolated
+  (worktree iteration 33): the mimic bisection removed NavigationLink
+  (still AE 1279), the builder `let` (still 1279), and the ENTIRE kit
+  DonutView — its body shape (GeometryReader > ZStack > aspectRatio(1,
+  .fit) > compositingGroup > frame(max .infinity)) with a gray circle
+  REPRODUCES BIGGER (AE 2111). Pure core. But the SAME tree as a unit
+  test (InterpreterHost.render + NSHostingView both sides) passes at
+  0 mismatches, with range AND Identifiable ForEach. Matrix: the
+  divergence needs LazyVGrid x the FTCHECK/twin harness render path —
+  while donut-cell (VStack, same harness) is AE 0. Prime suspect:
+  sub-pixel column layout — the harness pair's available width/scale
+  differs slightly, LazyVGrid's adaptive column math lands cells on
+  different fractional offsets, and the caption renders with
+  half-pixel-shifted, lighter-AA glyphs (+3px ink drop, flavor line
+  under the ink threshold). Next: dump LazyVGrid cell origins via a
+  GeometryReader overlay probe through BOTH harnesses, compare
+  fractional x/y. Probes now in both harnesses: donut-mimic (kit-free
+  repro, AE 2111), donut-cell/donut-foreach (AE 0 controls). Unit
+  pins: gridCellCaptionGapMatchesNative (grid+Identifiable),
+  letBindingInBuilderAddsNoPhantomChild, donutCellChromeMatchesNative.
