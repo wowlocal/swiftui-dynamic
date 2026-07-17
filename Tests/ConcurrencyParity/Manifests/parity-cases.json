@@ -1939,5 +1939,17 @@
     "interpreterProjection": "string",
     "nativeFact": "AsyncStream.Iterator is a value type whose copies have independent mutating-next access while sharing the same stream storage. Two copies may park concurrently, and two yields resume them with one distinct element each.",
     "notes": "Each task creates a local mutable iterator from the same seed value, then signals immediately before next(isolation: #isolation). The explicit isolation argument is required by strict Swift 6 sendability checking and keeps both calls on MainActor. The parent waits until both are parked, yields 4 and 6, and sorts the two results; no consumer assignment or resume order is asserted. Apple Swift 6.3.3 compiled with warnings as errors, and twenty native/interpreter runs produced exact output 4:6:2 with canonical native-observation SHA-256 594fcb32181db21eab266d2a8ba6ccdbb8183487d482a5db80bee4e6990e9062. Focused evidence requires two real stream suspensions and complete cleanup."
+  },
+  {
+    "id": "async-stream-scope-termination",
+    "fixture": "Fixtures/async-stream-scope-termination.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamScopeTerminationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "When an unfinished AsyncStream and its continuation lose their last references at function scope exit, storage deinitialization synchronously invokes onTermination(.cancelled) before the caller continues.",
+    "notes": "The nested function discards the only sequence value and does not let its builder continuation escape. The outer function reads the callback-owned state immediately after the nested call, making scope-release ordering observable without scheduler assumptions. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output cancelled with canonical native-observation SHA-256 a78cb0e23e5bae8b901c6a25188a7d0233033b9177f49a4996a46316f8083d52. The captured interpreter RED was none: storage ARC closed the runtime record but omitted the source callback. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup."
   }
 ]

@@ -424,6 +424,7 @@ final class RuntimeTaskRecord {
     }
     var cancellationHandlerInvocationCount = 0
     var cancellationHandlerFailure: Error?
+    var nonthrowingCallbackFailure: Error?
     fileprivate var priorityEscalationHandlers: [
         RuntimePriorityEscalationHandlerRegistration
     ] = []
@@ -671,6 +672,12 @@ final class CooperativeConcurrencyRuntime {
     private(set) var actors: [RuntimeActorID: RuntimeActorRecord] = [:]
     private(set) var totalAsyncStreamsCreated = 0
     private(set) var asyncStreamSuspensionCount = 0
+    /// Swift callback types such as `AsyncStream.Continuation.onTermination`
+    /// are nonthrowing, but evaluating their source bodies can still uncover
+    /// an interpreter/runtime failure. Destruction cannot throw, so retain the
+    /// first such failure until the owning evaluator reaches a throwing safe
+    /// point instead of silently discarding it from `deinit`.
+    private var pendingUnownedNonthrowingCallbackFailure: Error?
 
     init(clock: any RuntimeClock = ContinuousRuntimeClock()) {
         self.clock = clock
@@ -680,6 +687,36 @@ final class CooperativeConcurrencyRuntime {
         let id = RuntimeSessionID(rawValue: nextSessionID)
         nextSessionID += 1
         return id
+    }
+
+    func recordNonthrowingCallbackFailure(
+        _ error: Error,
+        taskID: RuntimeTaskID?
+    ) {
+        if let taskID, let record = records[taskID] {
+            if record.nonthrowingCallbackFailure == nil {
+                record.nonthrowingCallbackFailure = error
+            }
+            return
+        }
+        if pendingUnownedNonthrowingCallbackFailure == nil {
+            pendingUnownedNonthrowingCallbackFailure = error
+        }
+    }
+
+    func throwNonthrowingCallbackFailure(
+        for taskID: RuntimeTaskID?
+    ) throws {
+        if let taskID,
+           let failure = records[taskID]?.nonthrowingCallbackFailure {
+            records[taskID]?.nonthrowingCallbackFailure = nil
+            throw failure
+        }
+        guard let failure = pendingUnownedNonthrowingCallbackFailure else {
+            return
+        }
+        pendingUnownedNonthrowingCallbackFailure = nil
+        throw failure
     }
 
     func registerActor(_ instance: Instance) -> RuntimeActorID {

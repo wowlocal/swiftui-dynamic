@@ -45,6 +45,7 @@ enum RuntimeAsyncStreamYieldResult {
 
 final class RuntimeAsyncStreamStorage {
     weak var runtime: CooperativeConcurrencyRuntime?
+    weak var callbackOwner: Interpreter?
     let id: RuntimeAsyncStreamID
     let elementTypeName: String
     private var buffered: [RuntimeValue] = []
@@ -55,9 +56,11 @@ final class RuntimeAsyncStreamStorage {
 
     init(
         runtime: CooperativeConcurrencyRuntime,
+        callbackOwner: Interpreter,
         elementTypeName: String
     ) {
         self.runtime = runtime
+        self.callbackOwner = callbackOwner
         self.elementTypeName = elementTypeName
         id = runtime.createAsyncStream()
     }
@@ -67,6 +70,20 @@ final class RuntimeAsyncStreamStorage {
         precondition(
             waiters.isEmpty,
             "an AsyncStream storage cannot die with suspended consumers")
+        if !terminal, let handler = onTermination {
+            // The final sequence/iterator/continuation release owns native
+            // AsyncStream's implicit cancellation edge. Run the callback
+            // before releasing the runtime record, synchronously with ARC.
+            onTermination = nil
+            let taskID = callbackOwner?.evaluationTaskContext.runtimeTaskID
+            do {
+                _ = try callbackOwner?.callRuntimeAsyncStreamTermination(
+                    handler, value: .cancelled)
+            } catch {
+                runtime?.recordNonthrowingCallbackFailure(
+                    error, taskID: taskID)
+            }
+        }
         runtime?.closeAsyncStream(id)
     }
 
@@ -255,6 +272,7 @@ extension Interpreter {
             }
             let storage = RuntimeAsyncStreamStorage(
                 runtime: self.concurrencyRuntime,
+                callbackOwner: self,
                 elementTypeName: elementType)
             let continuation = RuntimeAsyncStreamContinuation(
                 storage: storage)
@@ -413,5 +431,18 @@ extension Interpreter {
         default:
             false
         }
+    }
+
+    /// Internal source callback entry for synchronous runtime destruction.
+    /// Unlike an external host event, this remains inside the ambient source
+    /// task and therefore must not reset that task's evaluation budget.
+    fileprivate func callRuntimeAsyncStreamTermination(
+        _ handler: ClosureValue,
+        value: RuntimeAsyncStreamTermination
+    ) throws -> RuntimeValue {
+        let arguments = CallArguments(arguments: [
+            .init(label: nil, value: .native(value))
+        ])
+        return try callWithArguments(handler, args: arguments, node: nil)
     }
 }

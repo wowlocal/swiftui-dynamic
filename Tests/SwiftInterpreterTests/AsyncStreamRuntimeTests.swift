@@ -148,4 +148,61 @@ struct AsyncStreamRuntimeTests {
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
     }
+
+    @Test func scopeExitCancelsStorageBeforeCallerContinues() async throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/async-stream-scope-termination.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait asyncStreamScopeTerminationProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue == "cancelled")
+        #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 1)
+        #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func scopeExitDoesNotSwallowTerminationCallbackFailure() async {
+        let interpreter = Interpreter()
+
+        do {
+            _ = try await interpreter.runAsync(source: """
+                @MainActor
+                func failFromTermination() async {
+                    func scopedStream() {
+                        _ = AsyncStream<Int> { continuation in
+                            continuation.onTermination = { _ in
+                                fatalError("termination callback failed")
+                            }
+                        }
+                    }
+                    scopedStream()
+                }
+
+                await failFromTermination()
+                """)
+            Issue.record("scope-exit termination failure was swallowed")
+        } catch let error as RuntimeError {
+            #expect(error.message
+                == "fatalError: termination callback failed")
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+
+        #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 1)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
 }
