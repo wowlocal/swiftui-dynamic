@@ -664,24 +664,19 @@ extension Interpreter {
         of call: FunctionCallExprSyntax, in env: Environment
     ) async throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
-        for labeled in call.arguments {
-            let value = try await evaluateSuspending(labeled.expression, in: env)
+        for argument in callSiteMetadata(for: call).arguments {
+            let value: RuntimeValue
+            if let trailingClosure = argument.trailingClosure {
+                value = .closure(try makeClosure(trailingClosure, in: env))
+            } else {
+                value = try await evaluateSuspending(argument.expression, in: env)
+            }
             arguments.append(.init(
-                label: labeled.label?.text,
+                label: argument.label,
                 value: value,
+                isTrailing: argument.isTrailing,
                 sourceProvenance: callArgumentSourceProvenance(
-                    of: labeled.expression, value: value, in: env)))
-        }
-        if let trailing = call.trailingClosure {
-            arguments.append(.init(
-                label: nil, value: .closure(try makeClosure(trailing, in: env)),
-                isTrailing: true))
-        }
-        for extra in call.additionalTrailingClosures {
-            arguments.append(.init(
-                label: extra.label.text,
-                value: .closure(try makeClosure(extra.closure, in: env)),
-                isTrailing: true))
+                    of: argument, value: value, in: env)))
         }
         return CallArguments(arguments: arguments)
     }
@@ -701,7 +696,7 @@ extension Interpreter {
         guard !mutating.isEmpty,
               let method = chooseFunction(from: mutating, for: arguments)
                 ?? mutating.first,
-              let body = method.body,
+              let body = functionMetadata(for: method).body,
               case .instance(let working) = current.copiedForValueSemantics()
         else { return nil }
 
@@ -763,7 +758,7 @@ extension Interpreter {
                         base: baseValue, member: name, arguments: args))
                 }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body,
                         captured: instanceMethodEnvironment(instance))
@@ -776,7 +771,7 @@ extension Interpreter {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body, captured: selfEnvironment(.type(symbol)))
                     return try await invokeSuspending(
@@ -790,7 +785,7 @@ extension Interpreter {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if let method = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = method.body {
+                   let body = functionMetadata(for: method).body {
                     let closure = makeFunctionClosure(
                         method, body: body,
                         captured: selfEnvironment(.enumType(symbol)))
@@ -818,7 +813,7 @@ extension Interpreter {
                     let own = (instance.symbol.methods[name] ?? [])
                         .filter { !activeFunctionBodies.contains($0.id) }
                     if let method = chooseFunction(from: own, for: args),
-                       let body = method.body {
+                       let body = functionMetadata(for: method).body {
                         let closure = makeFunctionClosure(
                             method, body: body,
                             captured: instanceMethodEnvironment(instance))
@@ -841,7 +836,7 @@ extension Interpreter {
                 let args = try await collectArgumentsSuspending(of: call, in: env)
                 let available = overloads.filter { !activeFunctionBodies.contains($0.id) }
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = function.body {
+                   let body = functionMetadata(for: function).body {
                     let closure = makeFunctionClosure(function, body: body, captured: globals)
                     return try await invokeSuspending(
                         .closure(closure), with: args, node: call)
@@ -856,7 +851,7 @@ extension Interpreter {
                     ? overloads.filter { !activeFunctionBodies.contains($0.id) }
                     : overloads
                 if let function = chooseFunction(from: available, for: args) ?? available.first,
-                   let body = function.body {
+                   let body = functionMetadata(for: function).body {
                     let methodEnvironment = methodIsMutating(function)
                         ? selfEnvironment(.instance(instance))
                         : instanceMethodEnvironment(instance)
@@ -900,7 +895,7 @@ extension Interpreter {
             where instance.symbol.methods["callAsFunction"] != nil:
             if let overloads = instance.symbol.methods["callAsFunction"],
                let method = chooseFunction(from: overloads, for: arguments) ?? overloads.first,
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body,
                     captured: instanceMethodEnvironment(instance))
@@ -912,21 +907,22 @@ extension Interpreter {
         case .hostFunction(let function):
             if let extensionSymbol = hostExtensionSymbols[function.name] {
                 let available = extensionSymbol.initializers.filter {
-                    !activeInitializers.contains($0.id) && !Interpreter.isCodableInit($0)
+                    !activeInitializers.contains($0.id)
+                        && !isCodableInitializer($0)
                 }
                 if let chosen = available.first(where: {
                     extensionInitFits($0, args: arguments)
-                }), let body = chosen.body {
+                }), let body = initializerMetadata(for: chosen).body {
                     let inserted = activeInitializers.insert(chosen.id).inserted
                     defer { if inserted { activeInitializers.remove(chosen.id) } }
                     let env = Environment(parent: globals)
                     env.define("self", .void)
-                    let closure = ClosureValue(
-                        parameters: initializerMetadata(for: chosen).parameters,
-                        body: body.statements,
+                    let closure = makeInitializerClosure(
+                        chosen,
+                        body: body,
                         captured: env,
-                        programMetadata: currentProgramMetadata)
-                    closure.debugName = "extInit:\(function.name)"
+                        debugName: "extInit:\(function.name)",
+                        fallbackLexicalOwner: extensionSymbol)
                     _ = try await callWithArgumentsSuspending(
                         closure, args: arguments, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void
@@ -963,6 +959,11 @@ extension Interpreter {
         node: Syntax?,
         contextualExecutor: RuntimeExecutorKind? = nil
     ) async throws -> RuntimeValue {
+        let programState = closure.programState
+        evaluationTaskContext.enterProgramState(programState)
+        defer {
+            evaluationTaskContext.leaveProgramState(programState)
+        }
         let invocation = try resolvedInvocation(
             for: closure, arguments: args)
         let effectiveArguments = invocation.arguments

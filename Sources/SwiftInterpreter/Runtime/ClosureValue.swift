@@ -135,6 +135,13 @@ public final class ClosureValue {
     /// declaration fact without consulting whichever program the facade ran
     /// most recently.
     public internal(set) var programMetadata: ParsedProgramMetadata?
+    /// Immutable target-specific declaration/member selection retained with
+    /// the source closure. External callback entries reuse this exact object
+    /// rather than resolving branches through current facade state.
+    public internal(set) var programPlan: ResolvedProgramPlan?
+    /// MainActor-confined mutable declaration materialization associated with
+    /// `programPlan`. Escaped host callbacks reuse this exact capability.
+    var programState: RuntimeProgramState?
     public var callableMetadataIndex: ParsedCallableMetadataIndex? {
         programMetadata?.callableMetadataIndex
     }
@@ -146,7 +153,8 @@ public final class ClosureValue {
         isBuilder: Bool = false,
         returnType: TypeSyntax? = nil,
         returnTypeName: String? = nil,
-        programMetadata: ParsedProgramMetadata? = nil
+        programMetadata: ParsedProgramMetadata? = nil,
+        programPlan: ResolvedProgramPlan? = nil
     ) {
         self.parameters = parameters
         self.body = body
@@ -155,7 +163,8 @@ public final class ClosureValue {
         self.returnType = returnType
         self.returnTypeName = returnTypeName ?? returnType?.trimmedDescription
         self.builderReturnsArray = self.returnTypeName?.hasPrefix("[") == true
-        self.programMetadata = programMetadata
+        self.programPlan = programPlan
+        self.programMetadata = programPlan?.metadata ?? programMetadata
     }
 }
 

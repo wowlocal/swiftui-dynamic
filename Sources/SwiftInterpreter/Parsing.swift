@@ -7,10 +7,10 @@ import SwiftParserDiagnostics
 ///
 /// Parsing, operator folding, and target-neutral metadata discovery happen
 /// once. The resulting SwiftSyntax tree, source-location index, declaration
-/// plan, callable metadata, nominal headers, property-storage headers, and
-/// enum-case, extension, and type-alias headers are immutable and `Sendable`,
-/// so independent sessions may share them without sharing evaluator or
-/// runtime-symbol state.
+/// plan, callable/call-site metadata, member plans, nominal headers, property-
+/// storage headers, and enum-case, extension, type-alias, and deinitializer
+/// headers are immutable and `Sendable`, so independent sessions may share
+/// them without sharing evaluator or runtime-symbol state.
 public nonisolated struct ParsedProgram: Sendable {
     public struct ParseFailure: Error, CustomStringConvertible, Sendable {
         public let message: String
@@ -29,6 +29,12 @@ public nonisolated struct ParsedProgram: Sendable {
     public var callableMetadataIndex: ParsedCallableMetadataIndex {
         metadata.callableMetadataIndex
     }
+    public var callSiteMetadataIndex: ParsedCallSiteMetadataIndex {
+        metadata.callSiteMetadataIndex
+    }
+    public var memberMetadataIndex: ParsedMemberMetadataIndex {
+        metadata.memberMetadataIndex
+    }
     public var nominalMetadataIndex: ParsedNominalMetadataIndex {
         metadata.nominalMetadataIndex
     }
@@ -43,6 +49,9 @@ public nonisolated struct ParsedProgram: Sendable {
     }
     public var typeAliasMetadataIndex: ParsedTypeAliasMetadataIndex {
         metadata.typeAliasMetadataIndex
+    }
+    public var deinitializerMetadataIndex: ParsedDeinitializerMetadataIndex {
+        metadata.deinitializerMetadataIndex
     }
     let syntax: SourceFileSyntax
     let locationConverter: SourceLocationConverter
@@ -95,6 +104,18 @@ public nonisolated struct ParsedProgram: Sendable {
         locationConverter = converter
     }
 
+    /// Resolve every target-dependent declaration and member branch once,
+    /// without entering an interpreter or touching mutable runtime state.
+    public func resolve(
+        buildConfiguration: InterpreterBuildConfiguration
+    ) -> ResolvedProgramPlan {
+        ResolvedProgramPlan(
+            metadata: metadata,
+            buildConfiguration: buildConfiguration,
+            fileName: fileName,
+            locationConverter: locationConverter)
+    }
+
     public static func isToleratedParseRecovery(_ message: String) -> Bool {
         message.contains("extraneous whitespace")
             // The `(@MainActor() -> Void)?` no-space family: the attribute
@@ -135,7 +156,7 @@ extension Interpreter {
 
     public func parse(source: String) throws -> SourceFileSyntax {
         let program = try makeParsedProgram(source: source)
-        locationConverter = program.locationConverter
+        compatibilityLocationConverter = program.locationConverter
         return program.syntax
     }
 

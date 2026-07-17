@@ -4,24 +4,19 @@ import SwiftSyntax
 extension Interpreter {
     func collectArguments(of call: FunctionCallExprSyntax, in env: Environment) throws -> CallArguments {
         var arguments: [CallArguments.Argument] = []
-        for labeled in call.arguments {
-            let value = try evaluate(labeled.expression, in: env)
+        for argument in callSiteMetadata(for: call).arguments {
+            let value: RuntimeValue
+            if let trailingClosure = argument.trailingClosure {
+                value = .closure(try makeClosure(trailingClosure, in: env))
+            } else {
+                value = try evaluate(argument.expression, in: env)
+            }
             arguments.append(.init(
-                label: labeled.label?.text,
+                label: argument.label,
                 value: value,
+                isTrailing: argument.isTrailing,
                 sourceProvenance: callArgumentSourceProvenance(
-                    of: labeled.expression, value: value, in: env)))
-        }
-        if let trailing = call.trailingClosure {
-            arguments.append(.init(
-                label: nil, value: .closure(try makeClosure(trailing, in: env)),
-                isTrailing: true))
-        }
-        for extra in call.additionalTrailingClosures {
-            arguments.append(.init(
-                label: extra.label.text,
-                value: .closure(try makeClosure(extra.closure, in: env)),
-                isTrailing: true))
+                    of: argument, value: value, in: env)))
         }
         return CallArguments(arguments: arguments)
     }
@@ -31,16 +26,16 @@ extension Interpreter {
     /// local alias, or conversion is deliberately unknown until function
     /// values carry isolation identity themselves.
     func callArgumentSourceProvenance(
-        of expression: ExprSyntax,
+        of argument: ParsedCallArgumentMetadata,
         value: RuntimeValue,
         in env: Environment
     ) -> CallArgumentSourceProvenance {
         guard let functionID = value.closureValue?.functionDeclID,
-              let reference = expression.as(DeclReferenceExprSyntax.self),
-              env.box(for: reference.baseName.text, before: globals) == nil,
-              globalFunctionOverloads[reference.baseName.text]?.contains(where: {
+              let referenceName = argument.directUnqualifiedReferenceName,
+              env.box(for: referenceName, before: globals) == nil,
+              globalFunctionOverloads[referenceName]?.contains(where: {
                 $0.id == functionID
-                    && $0.signature.effectSpecifiers?.asyncSpecifier != nil
+                    && functionMetadata(for: $0).isAsync
               }) == true else {
             return .unknown
         }
@@ -109,7 +104,7 @@ extension Interpreter {
             // — instances invoke through callAsFunction.
             if let overloads = instance.symbol.methods["callAsFunction"],
                let method = chooseFunction(from: overloads, for: args) ?? overloads.first,
-               let body = method.body {
+               let body = functionMetadata(for: method).body {
                 let closure = makeFunctionClosure(
                     method, body: body, captured: instanceMethodEnvironment(instance))
                 return try callWithArguments(closure, args: args, node: Syntax(node))
@@ -162,26 +157,27 @@ extension Interpreter {
             // body runs with a writable `self` like enum inits.
             if let extensionSymbol = hostExtensionSymbols[function.name] {
                 let available = extensionSymbol.initializers.filter {
-                    !activeInitializers.contains($0.id) && !Interpreter.isCodableInit($0)
+                    !activeInitializers.contains($0.id)
+                        && !isCodableInitializer($0)
                 }
                 // POSITIVE type match required: every argument's runtime
                 // type must satisfy the parameter annotation (`is`
                 // semantics). Merely label-shaped fits chain-walked the
                 // merge's MANY one-arg Text inits 152 deep in
                 // apple-browsers before reaching the registry.
-                if let chosen = available.first(where: { extensionInitFits($0, args: args) }),
-                   let body = chosen.body {
+                if let chosen = available.first(where: {
+                    extensionInitFits($0, args: args)
+                }), let body = initializerMetadata(for: chosen).body {
                     let inserted = activeInitializers.insert(chosen.id).inserted
                     defer { if inserted { activeInitializers.remove(chosen.id) } }
                     let env = Environment(parent: globals)
                     env.define("self", .void)
-                    let parameters = initializerMetadata(for: chosen).parameters
-                    let closure = ClosureValue(
-                        parameters: parameters,
-                        body: body.statements,
+                    let closure = makeInitializerClosure(
+                        chosen,
+                        body: body,
                         captured: env,
-                        programMetadata: currentProgramMetadata)
-                    closure.debugName = "extInit:\(function.name)"
+                        debugName: "extInit:\(function.name)",
+                        fallbackLexicalOwner: extensionSymbol)
                     _ = try callWithArguments(closure, args: args, node: Syntax(node))
                     let assigned = env.lookup("self") ?? .void
                     if case .void = assigned {
@@ -210,7 +206,8 @@ extension Interpreter {
             // Codable inits (init(from: Decoder)) are decoder-only — a
             // positional value tries RAW-VALUE matching instead.
             let constructible = symbol.initializers.filter {
-                !Interpreter.isCodableInit($0) && !activeInitializers.contains($0.id)
+                !isCodableInitializer($0)
+                    && !activeInitializers.contains($0.id)
             }
             if constructible.isEmpty, args.arguments.count == 1,
                let raw = args.positional(0) {
@@ -234,24 +231,24 @@ extension Interpreter {
             }
             if !constructible.isEmpty {
                 let chosen = chooseInitializer(from: constructible, for: args)
-                guard let body = chosen.body else {
+                let metadata = initializerMetadata(for: chosen)
+                guard let body = metadata.body else {
                     throw error(node, "init of '\(symbol.name)' has no body")
                 }
                 let bracketed = activeInitializers.insert(chosen.id).inserted
                 defer { if bracketed { activeInitializers.remove(chosen.id) } }
                 let env = Environment(parent: globals)
                 env.define("self", .void)
-                let parameters = initializerMetadata(for: chosen).parameters
-                let closure = ClosureValue(
-                    parameters: parameters,
-                    body: body.statements,
+                let closure = makeInitializerClosure(
+                    chosen,
+                    body: body,
                     captured: env,
-                    programMetadata: currentProgramMetadata)
-                closure.debugName = "enumInit:\(symbol.name)"
+                    debugName: "enumInit:\(symbol.name)",
+                    fallbackLexicalOwner: symbol)
                 _ = try callWithArguments(closure, args: args, node: Syntax(node))
                 let assigned = env.lookup("self") ?? .void
                 let initialized = try resolveAnnotated(assigned, typeName: symbol.name)
-                return chosen.optionalMark != nil
+                return metadata.isFailable
                     ? initialized.liftedToOptional(wrappedTypeName: symbol.name)
                     : initialized
             }
@@ -401,7 +398,7 @@ extension Interpreter {
             for item in items {
                 guard case .decl(let declaration) = item.item else { continue }
                 if let function = declaration.as(FunctionDeclSyntax.self) {
-                    bound.insert(function.name.text)
+                    bound.insert(functionMetadata(for: function).name)
                 } else if let type = declaration.as(StructDeclSyntax.self) {
                     bound.insert(type.name.text)
                 } else if let type = declaration.as(ClassDeclSyntax.self) {
@@ -467,11 +464,14 @@ extension Interpreter {
                 return
             }
             if let function = node.as(FunctionDeclSyntax.self) {
-                guard let body = function.body else { return }
+                guard let body = functionMetadata(for: function).body else {
+                    return
+                }
+                let metadata = functionMetadata(for: function)
                 var functionBound = bound
-                functionBound.insert(function.name.text)
-                for parameter in function.signature.parameterClause.parameters {
-                    functionBound.insert((parameter.secondName ?? parameter.firstName).text)
+                functionBound.insert(metadata.name)
+                for parameter in metadata.parameters {
+                    functionBound.insert(parameter.name)
                 }
                 collectItems(body.statements, bound: functionBound)
                 return
@@ -689,7 +689,9 @@ extension Interpreter {
         let value = ClosureValue(
             parameters: parameters, body: closure.statements,
             captured: captured,
-            programMetadata: currentProgramMetadata)
+            programMetadata: currentProgramMetadata,
+            programPlan: currentProgramPlan)
+        value.programState = currentProgramState
         value.lexicalExecutor = currentLexicalExecutor
         // A closure carries its declaration's lexical type even when a host
         // bridge invokes it later from a different member context. Capturing
@@ -705,6 +707,11 @@ extension Interpreter {
         node: Syntax?,
         contextualExecutor: RuntimeExecutorKind? = nil
     ) throws -> RuntimeValue {
+        let programState = closure.programState
+        evaluationTaskContext.enterProgramState(programState)
+        defer {
+            evaluationTaskContext.leaveProgramState(programState)
+        }
         let invocation = try resolvedInvocation(
             for: closure, arguments: args)
         let effectiveArguments = invocation.arguments
@@ -1052,13 +1059,16 @@ extension Interpreter {
                 // @…Builder parameter collects its block's items when
                 // called instead of returning the last expression.
                 if parameter.isBuilderAttributed, case .closure(let c) = resolved, !c.isBuilder {
-                    resolved = .closure(ClosureValue(
+                    let builderClosure = ClosureValue(
                         parameters: c.parameters, body: c.body, captured: c.captured,
                         isBuilder: true,
                         returnType: parameter.builderReturnType ?? c.returnType,
                         returnTypeName: parameter.builderReturnTypeName ?? c.returnTypeName,
-                        programMetadata: c.programMetadata
-                    ))
+                        programMetadata: c.programMetadata,
+                        programPlan: c.programPlan
+                    )
+                    builderClosure.programState = c.programState
+                    resolved = .closure(builderClosure)
                 }
                 env.define(
                     parameter.name, resolved,

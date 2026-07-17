@@ -130,6 +130,14 @@ struct ParsedProgramConcurrencyTests {
         #expect(macSession.executionPlan.extensionDeclarations.count == 1)
         #expect(iosSession.executionPlan.topLevelItems.count == 4)
         #expect(macSession.executionPlan.topLevelItems.count == 4)
+        #expect(iosSession.programPlan === iosSession.runtimeEntry.programPlan)
+        #expect(macSession.programPlan === macSession.runtimeEntry.programPlan)
+        #expect(iosSession.programPlan.metadata === program.metadata)
+        #expect(macSession.programPlan.metadata === program.metadata)
+        #expect(iosSession.programPlan.buildConfiguration
+            == ios.buildConfiguration)
+        #expect(macSession.programPlan.buildConfiguration
+            == mac.buildConfiguration)
 
         let iosValue = try await ios.runAsync(session: iosSession)
         let macValue = try await mac.runAsync(session: macSession)
@@ -137,10 +145,91 @@ struct ParsedProgramConcurrencyTests {
         #expect(macValue.intValue == 21)
     }
 
+    @Test nonisolated func parsedProgramResolvesOneSendableTargetPlan()
+    async throws {
+        let program = try ParsedProgram(source: """
+        struct Selected {
+            #if os(iOS)
+            static let platform = "ios"
+            struct Nested {}
+            #else
+            static func platform() -> String { "mac" }
+            class Nested {}
+            #endif
+        }
+        #if os(iOS)
+        typealias Alias = Selected
+        extension Selected { static let extensionValue = 1 }
+        #else
+        typealias Alias = Selected.Nested
+        extension Selected { static func extensionValue() -> Int { 2 } }
+        #endif
+        """, fileName: "TargetPlan.swift")
+        let iosConfiguration = InterpreterBuildConfiguration(
+            platformName: "iOS", activeCompilationConditions: [])
+        let macConfiguration = InterpreterBuildConfiguration(
+            platformName: "macOS", activeCompilationConditions: [])
+
+        func requireSendable<T: Sendable>(_: T) {}
+        let readers = [
+            Task.detached {
+                program.resolve(buildConfiguration: iosConfiguration)
+            },
+            Task.detached {
+                program.resolve(buildConfiguration: macConfiguration)
+            },
+        ]
+        let iosPlan = await readers[0].value
+        let macPlan = await readers[1].value
+        requireSendable(iosPlan)
+        requireSendable(macPlan)
+
+        let nominal = try #require(
+            program.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        #expect(iosPlan.metadata === program.metadata)
+        #expect(macPlan.metadata === program.metadata)
+        #expect(iosPlan.fileName == "TargetPlan.swift")
+        #expect(macPlan.fileName == "TargetPlan.swift")
+        #expect(iosPlan.buildConfiguration == iosConfiguration)
+        #expect(macPlan.buildConfiguration == macConfiguration)
+        #expect(iosPlan.declarationPlan.primaryDeclarations.count == 1)
+        #expect(macPlan.declarationPlan.primaryDeclarations.count == 1)
+        #expect(iosPlan.declarationPlan.typeAliases.count == 1)
+        #expect(macPlan.declarationPlan.typeAliases.count == 1)
+        #expect(iosPlan.declarationPlan.extensionDeclarations.count == 1)
+        #expect(macPlan.declarationPlan.extensionDeclarations.count == 1)
+        let expectedSummary = ResolvedProgramPlan.Summary(
+            activeTopLevelItemCount: 3,
+            activePrimaryDeclarationCount: 1,
+            activeTypeAliasCount: 1,
+            activeExtensionCount: 1,
+            resolvedMemberBlockCount: 5,
+            resolvedMemberDeclarationCount: 4)
+        #expect(iosPlan.summary == expectedSummary)
+        #expect(macPlan.summary == expectedSummary)
+        let iosMembers = try #require(
+            iosPlan.memberDeclarations(in: nominal.memberBlock))
+        let macMembers = try #require(
+            macPlan.memberDeclarations(in: nominal.memberBlock))
+        let expectedIOSKinds: [ParsedMemberDeclaration.Kind] = [
+            .variable, .structure,
+        ]
+        let expectedMacKinds: [ParsedMemberDeclaration.Kind] = [
+            .function, .classType,
+        ]
+        #expect(iosMembers.map(\.kind) == expectedIOSKinds)
+        #expect(macMembers.map(\.kind) == expectedMacKinds)
+    }
+
     @Test func parsedProgramOwnsSendableCallableMetadataIndex() async throws {
         let program = try ParsedProgram(source: """
         @MainActor
         func mainActorValue(_ input: Int = 1) async -> Int { input }
+
+        protocol BodylessAPI {
+            func requiredValue()
+        }
 
         struct Worker {
             init(seed: Int) {}
@@ -168,13 +257,16 @@ struct ParsedProgramConcurrencyTests {
         await mainActorValue(42)
         """)
         let expected = ParsedCallableMetadataIndex.Summary(
-            functionCount: 4,
+            functionCount: 5,
             initializerCount: 1,
             asyncFunctionCount: 3,
             throwingFunctionCount: 1,
             explicitlyNonisolatedFunctionCount: 1,
             mainActorFunctionCount: 1,
             concurrentFunctionCount: 1,
+            typeMemberFunctionCount: 0,
+            modifiedFunctionCount: 1,
+            bodylessFunctionCount: 1,
             readableAccessorCount: 2,
             subscriptCount: 1,
             asyncGetterCount: 1,
@@ -198,6 +290,392 @@ struct ParsedProgramConcurrencyTests {
         #expect(session.runtimeEntry.callableMetadataIndex?.summary == expected)
         let result = try await interpreter.runAsync(session: session)
         #expect(result.intValue == 42)
+    }
+
+    @Test func callableMetadataOwnsFunctionPlacement() throws {
+        let program = try ParsedProgram(source: """
+        func globalValue() {}
+
+        protocol BodylessAPI {
+            func requiredValue()
+        }
+
+        class Owner {
+            static func typeValue(label: String) {}
+            class func inheritedTypeValue() {}
+            func instanceValue() {}
+
+            #if os(iOS)
+            static func conditionalValue() {}
+            #else
+            func conditionalValue() {}
+            #endif
+        }
+        """)
+
+        #expect(program.callableMetadataIndex.summary
+            .typeMemberFunctionCount == 3)
+        #expect(program.callableMetadataIndex.summary
+            .modifiedFunctionCount == 3)
+        #expect(program.callableMetadataIndex.summary
+            .bodylessFunctionCount == 1)
+
+        let protocols: [ProtocolDeclSyntax] =
+            program.syntax.statements.compactMap {
+                $0.item.as(DeclSyntax.self)?.as(ProtocolDeclSyntax.self)
+            }
+        let bodylessProtocol = try #require(protocols.first)
+        let requirement = try #require(
+            bodylessProtocol.memberBlock.members.first?.decl
+                .as(FunctionDeclSyntax.self))
+        let requirementMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: requirement))
+        #expect(requirementMetadata.body == nil)
+
+        let owners: [ClassDeclSyntax] =
+            program.syntax.statements.compactMap {
+                guard case .decl(let declaration) = $0.item else {
+                    return nil
+                }
+                return declaration.as(ClassDeclSyntax.self)
+            }
+        let owner = try #require(owners.first)
+        let functions = owner.memberBlock.members.compactMap {
+            $0.decl.as(FunctionDeclSyntax.self)
+        }
+        let typeFunction = try #require(functions.first)
+        let typeMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: typeFunction))
+        #expect(typeMetadata.name == "typeValue")
+        #expect(typeMetadata.body?.statements.count == 0)
+        #expect(typeMetadata.modifierNames == ["static"])
+        #expect(typeMetadata.isTypeMember)
+
+        let classFunction = try #require(functions.dropFirst().first)
+        let classMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: classFunction))
+        #expect(classMetadata.name == "inheritedTypeValue")
+        #expect(classMetadata.modifierNames == ["class"])
+        #expect(classMetadata.isTypeMember)
+
+        let instanceFunction = try #require(functions.dropFirst(2).first)
+        let instanceMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: instanceFunction))
+        #expect(instanceMetadata.name == "instanceValue")
+        #expect(instanceMetadata.modifierNames.isEmpty)
+        #expect(!instanceMetadata.isTypeMember)
+    }
+
+    @Test nonisolated func parsedProgramOwnsSendableCallSiteMetadataIndex()
+    async throws {
+        let program = try ParsedProgram(source: """
+        func operation() async {}
+        func route(
+            operation: () async -> Void,
+            value: Int,
+            onSuccess: () -> Void,
+            onFailure: () -> Void
+        ) {}
+
+        route(operation: operation, value: 1) {
+        } onFailure: {
+        }
+
+        #if os(iOS)
+        route(operation: operation, value: 2) {
+        } onFailure: {
+        }
+        #else
+        route(operation: operation, value: 3) {
+        } onFailure: {
+        }
+        #endif
+        """)
+        let expected = ParsedCallSiteMetadataIndex.Summary(
+            callCount: 3,
+            ordinaryArgumentCount: 6,
+            trailingClosureCount: 3,
+            additionalTrailingClosureCount: 3,
+            directReferenceArgumentCount: 3)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.callSiteMetadataIndex)
+        #expect(program.callSiteMetadataIndex.summary == expected)
+        #expect(program.metadata.callSiteMetadataIndex.summary == expected)
+
+        let topLevelCalls = program.syntax.statements.compactMap {
+            $0.item.as(ExprSyntax.self)?.as(FunctionCallExprSyntax.self)
+        }
+        let call = try #require(topLevelCalls.first)
+        let metadata = try #require(
+            program.callSiteMetadataIndex.metadata(for: call))
+        #expect(metadata.arguments.map(\.label)
+            == ["operation", "value", nil, "onFailure"])
+        #expect(metadata.arguments.map(\.isTrailing)
+            == [false, false, true, true])
+        #expect(metadata.arguments.map(\.isAdditionalTrailingClosure)
+            == [false, false, false, true])
+        #expect(metadata.arguments.first?.directUnqualifiedReferenceName
+            == "operation")
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.callSiteMetadataIndex.summary }
+        }
+        var observations: [ParsedCallSiteMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+    }
+
+    @Test func callablePlacementHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        struct Foreign {
+            static func build() {}
+        }
+        """)
+        let nominal = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        let declaration = try #require(
+            nominal.memberBlock.members.first?.decl
+                .as(FunctionDeclSyntax.self))
+        let metadata = Interpreter().functionMetadata(for: declaration)
+
+        #expect(metadata.name == "build")
+        #expect(metadata.body?.statements.count == 0)
+        #expect(metadata.modifierNames == ["static"])
+        #expect(metadata.isTypeMember)
+    }
+
+    @Test func callSiteMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        consume(operation: operation) {
+        } completion: {
+        }
+        """)
+        let calls = foreignProgram.syntax.statements.compactMap {
+            $0.item.as(ExprSyntax.self)?.as(FunctionCallExprSyntax.self)
+        }
+        let call = try #require(calls.first)
+        let metadata = Interpreter().callSiteMetadata(for: call)
+
+        #expect(metadata.arguments.map(\.label)
+            == ["operation", nil, "completion"])
+        #expect(metadata.arguments.map(\.isTrailing)
+            == [false, true, true])
+        #expect(metadata.arguments.first?.directUnqualifiedReferenceName
+            == "operation")
+    }
+
+    @Test func parsedProgramOwnsSendableMemberMetadataIndex()
+    async throws {
+        let program = try ParsedProgram(source: """
+        struct Owner {
+            let value: Int
+            init(value: Int) { self.value = value }
+            func read() -> Int { value }
+            subscript(index: Int) -> Int { value + index }
+            typealias Value = Int
+            #if os(iOS)
+            static let platform = "ios"
+            struct Nested {}
+            #elseif os(macOS)
+            static let platform = "mac"
+            class Nested {}
+            #else
+            static let platform = "other"
+            actor Nested {}
+            #endif
+        }
+        enum Phase {
+            #if os(iOS)
+            case ready
+            #else
+            case waiting
+            #endif
+        }
+        final class Lifetime { deinit {} }
+        protocol API { func required() }
+        """)
+        let expected = ParsedMemberMetadataIndex.Summary(
+            memberBlockCount: 7,
+            possibleMemberDeclarationCount: 15,
+            conditionalRegionCount: 2,
+            conditionalClauseCount: 5,
+            variableCount: 4,
+            functionCount: 2,
+            initializerCount: 1,
+            deinitializerCount: 1,
+            subscriptCount: 1,
+            typeAliasCount: 1,
+            enumCaseDeclarationCount: 2,
+            nestedNominalCount: 3,
+            otherDeclarationCount: 0)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.memberMetadataIndex)
+        #expect(program.memberMetadataIndex.summary == expected)
+        #expect(program.metadata.memberMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.memberMetadataIndex.summary }
+        }
+        var observations: [ParsedMemberMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let owner = try #require(
+            program.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        let metadata = try #require(
+            program.memberMetadataIndex.metadata(for: owner.memberBlock))
+        let ios = Interpreter(buildConfiguration: .init(
+            platformName: "iOS", activeCompilationConditions: []))
+        let mac = Interpreter(buildConfiguration: .init(
+            platformName: "macOS", activeCompilationConditions: []))
+        let iosKinds = metadata.resolve(conditionHolds: {
+            ios.ifConfigConditionHolds($0)
+        }).map(\.kind)
+        let macKinds = metadata.resolve(conditionHolds: {
+            mac.ifConfigConditionHolds($0)
+        }).map(\.kind)
+        let expectedIOSKinds: [ParsedMemberDeclaration.Kind] = [
+            .variable, .initializer, .function, .subscriptDeclaration,
+            .typeAlias, .variable, .structure,
+        ]
+        let expectedMacKinds: [ParsedMemberDeclaration.Kind] = [
+            .variable, .initializer, .function, .subscriptDeclaration,
+            .typeAlias, .variable, .classType,
+        ]
+        #expect(iosKinds == expectedIOSKinds)
+        #expect(macKinds == expectedMacKinds)
+    }
+
+    @Test func memberMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        struct Foreign {
+            #if os(iOS)
+            static let value = 1
+            #else
+            static func value() -> Int { 2 }
+            #endif
+        }
+        """)
+        let nominal = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        let interpreter = Interpreter(buildConfiguration: .init(
+            platformName: "macOS", activeCompilationConditions: []))
+        let declarations = interpreter.memberDeclarations(
+            in: nominal.memberBlock)
+
+        let expectedKinds: [ParsedMemberDeclaration.Kind] = [.function]
+        #expect(declarations.map(\.kind) == expectedKinds)
+    }
+
+    @Test func initializerMetadataOwnsDeclarationFacts() throws {
+        let program = try ParsedProgram(source: """
+        @MainActor
+        class Owner {
+            @available(*, deprecated)
+            @MainActor
+            required init(label: String) {}
+
+            convenience init?(value: Int) {
+                self.init(label: String(value))
+            }
+
+            nonisolated init(worker: Bool) {}
+
+            #if os(iOS)
+            init(platform: Int) async throws {}
+            #else
+            private init(platform: String) {}
+            #endif
+        }
+
+        struct Decoded {
+            init(from decoder: Decoder) {}
+        }
+        """)
+
+        #expect(program.callableMetadataIndex.summary.initializerCount == 6)
+        #expect(program.callableMetadataIndex.summary
+            .failableInitializerCount == 1)
+        #expect(program.callableMetadataIndex.summary
+            .explicitlyNonisolatedInitializerCount == 1)
+        #expect(program.callableMetadataIndex.summary
+            .modifiedInitializerCount == 4)
+        #expect(program.callableMetadataIndex.summary
+            .attributedInitializerCount == 1)
+
+        let owners: [ClassDeclSyntax] =
+            program.syntax.statements.compactMap {
+                $0.item.as(DeclSyntax.self)?.as(ClassDeclSyntax.self)
+            }
+        let owner = try #require(owners.first)
+        let initializers = owner.memberBlock.members.compactMap {
+            $0.decl.as(InitializerDeclSyntax.self)
+        }
+        let mainActor = try #require(initializers.first)
+        let mainActorMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: mainActor))
+        #expect(mainActorMetadata.body?.statements.count == 0)
+        #expect(mainActorMetadata.attributeNames == ["available", "MainActor"])
+        #expect(mainActorMetadata.modifierNames == ["required"])
+        #expect(mainActorMetadata.isMainActor)
+        #expect(!mainActorMetadata.isFailable)
+
+        let failable = try #require(initializers.dropFirst().first)
+        let failableMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: failable))
+        #expect(failableMetadata.modifierNames == ["convenience"])
+        #expect(failableMetadata.isFailable)
+
+        let nonisolated = try #require(initializers.dropFirst(2).first)
+        let nonisolatedMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: nonisolated))
+        #expect(nonisolatedMetadata.modifierNames == ["nonisolated"])
+        #expect(nonisolatedMetadata.isAnyNonisolated)
+        #expect(nonisolatedMetadata.isExplicitlyNonisolated)
+
+        let decodedTypes: [StructDeclSyntax] =
+            program.syntax.statements.compactMap {
+                $0.item.as(DeclSyntax.self)?.as(StructDeclSyntax.self)
+            }
+        let decoded = try #require(decodedTypes.first)
+        let decodedInitializer = try #require(
+            decoded.memberBlock.members.first?.decl
+                .as(InitializerDeclSyntax.self))
+        let decodedMetadata = try #require(
+            program.callableMetadataIndex.metadata(for: decodedInitializer))
+        #expect(decodedMetadata.isCodable)
+    }
+
+    @Test func initializerMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        struct Foreign {
+            @available(*, deprecated)
+            nonisolated init?(value: Int) {}
+        }
+        """)
+        let nominal = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(StructDeclSyntax.self))
+        let declaration = try #require(
+            nominal.memberBlock.members.first?.decl
+                .as(InitializerDeclSyntax.self))
+        let metadata = Interpreter().initializerMetadata(for: declaration)
+
+        #expect(metadata.body?.statements.count == 0)
+        #expect(metadata.attributeNames == ["available"])
+        #expect(metadata.modifierNames == ["nonisolated"])
+        #expect(metadata.isFailable)
+        #expect(metadata.isExplicitlyNonisolated)
+        #expect(!metadata.isCodable)
     }
 
     @Test nonisolated func parsedProgramIndexesAccessorAndSubscriptMetadata()
@@ -823,10 +1301,120 @@ struct ParsedProgramConcurrencyTests {
         #expect(metadata.isNominalTarget)
     }
 
+    @Test func parsedProgramOwnsSendableDeinitializerMetadataIndex()
+    async throws {
+        let program = try ParsedProgram(source: """
+        @MainActor
+        final class Owner {
+            deinit { _ = "ordinary" }
+        }
+        final class MainOwned {
+            @MainActor deinit {}
+        }
+        @MainActor final class IsolatedOwned {
+            isolated deinit {}
+        }
+        actor Worker {
+            nonisolated deinit {}
+        }
+        #if os(iOS)
+        final class Conditional {
+            @Namespace.TeardownActor deinit {}
+        }
+        #else
+        final class Conditional {
+            deinit {}
+        }
+        #endif
+        """)
+        let expected = ParsedDeinitializerMetadataIndex.Summary(
+            deinitializerCount: 6,
+            attributedDeinitializerCount: 2,
+            modifiedDeinitializerCount: 2,
+            isolatedModifierCount: 1,
+            nonisolatedModifierCount: 1,
+            bodyStatementCount: 1)
+
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(program.deinitializerMetadataIndex)
+        #expect(program.deinitializerMetadataIndex.summary == expected)
+        #expect(program.metadata.deinitializerMetadataIndex.summary == expected)
+
+        let readers = (0..<8).map { _ in
+            Task.detached { program.deinitializerMetadataIndex.summary }
+        }
+        var observations: [ParsedDeinitializerMetadataIndex.Summary] = []
+        for reader in readers {
+            observations.append(await reader.value)
+        }
+        #expect(observations == Array(repeating: expected, count: 8))
+
+        let classes: [ClassDeclSyntax] =
+            program.syntax.statements.compactMap {
+                guard case .decl(let declaration) = $0.item else {
+                    return nil
+                }
+                return declaration.as(ClassDeclSyntax.self)
+            }
+        let owner = try #require(classes.first)
+        let ownerDeinitializer = try #require(
+            owner.memberBlock.members.compactMap {
+                $0.decl.as(DeinitializerDeclSyntax.self)
+            }.first)
+        let ownerMetadata = try #require(
+            program.deinitializerMetadataIndex.metadata(
+                for: ownerDeinitializer))
+        #expect(ownerMetadata.attributeTypeNames.isEmpty)
+        #expect(ownerMetadata.modifierNames.isEmpty)
+        #expect(!ownerMetadata.requiresIsolationResolution)
+        #expect(ownerMetadata.body?.statements.count == 1)
+
+        let mainOwned = try #require(classes.dropFirst().first)
+        let mainOwnedDeinitializer = try #require(
+            mainOwned.memberBlock.members.compactMap {
+                $0.decl.as(DeinitializerDeclSyntax.self)
+            }.first)
+        let mainOwnedMetadata = try #require(
+            program.deinitializerMetadataIndex.metadata(
+                for: mainOwnedDeinitializer))
+        #expect(mainOwnedMetadata.attributeTypeNames == ["MainActor"])
+        #expect(mainOwnedMetadata.requiresIsolationResolution)
+
+        let interpreter = Interpreter()
+        let session = interpreter.makeSession(program: program)
+        #expect(session.runtimeEntry.programMetadata?
+            .deinitializerMetadataIndex.summary == expected)
+    }
+
+    @Test func deinitializerMetadataHasPureForeignSyntaxFallback() throws {
+        let foreignProgram = try ParsedProgram(source: """
+        final class Foreign {
+            @Namespace.TeardownActor deinit { _ = "foreign" }
+        }
+        """)
+        let nominal = try #require(
+            foreignProgram.syntax.statements.first?.item
+                .as(DeclSyntax.self)?.as(ClassDeclSyntax.self))
+        let declaration = try #require(
+            nominal.memberBlock.members.first?.decl
+                .as(DeinitializerDeclSyntax.self))
+        let interpreter = Interpreter()
+
+        let metadata = interpreter.deinitializerMetadata(for: declaration)
+        #expect(metadata.attributeTypeNames == ["Namespace.TeardownActor"])
+        #expect(metadata.modifierNames.isEmpty)
+        #expect(metadata.requiresIsolationResolution)
+        #expect(metadata.body?.statements.count == 1)
+    }
+
     @Test func parsedProgramMetadataIsOneSendableRuntimeCapability()
     async throws {
         let program = try ParsedProgram(source: """
-        struct Marker {}
+        struct Marker {
+            final class Lifetime { deinit {} }
+            static func typeValue() -> Int { 42 }
+            init?() { return nil }
+        }
         enum Phase { case ready }
         extension Phase {}
         typealias MarkerAlias = Marker
@@ -840,6 +1428,10 @@ struct ParsedProgramConcurrencyTests {
             == program.declarationIndex.summary)
         #expect(program.metadata.callableMetadataIndex.summary
             == program.callableMetadataIndex.summary)
+        #expect(program.metadata.callSiteMetadataIndex.summary
+            == program.callSiteMetadataIndex.summary)
+        #expect(program.metadata.memberMetadataIndex.summary
+            == program.memberMetadataIndex.summary)
         #expect(program.metadata.nominalMetadataIndex.summary
             == program.nominalMetadataIndex.summary)
         #expect(program.metadata.propertyMetadataIndex.summary
@@ -850,6 +1442,8 @@ struct ParsedProgramConcurrencyTests {
             == program.extensionMetadataIndex.summary)
         #expect(program.metadata.typeAliasMetadataIndex.summary
             == program.typeAliasMetadataIndex.summary)
+        #expect(program.metadata.deinitializerMetadataIndex.summary
+            == program.deinitializerMetadataIndex.summary)
 
         let readers = (0..<8).map { _ in
             Task.detached {
@@ -857,11 +1451,22 @@ struct ParsedProgramConcurrencyTests {
                     program.metadata.declarationIndex.summary
                         .possiblePrimaryDeclarationCount,
                     program.metadata.callableMetadataIndex.summary.functionCount,
+                    program.metadata.callSiteMetadataIndex.summary.callCount,
+                    program.metadata.memberMetadataIndex.summary
+                        .memberBlockCount,
+                    program.metadata.callableMetadataIndex.summary
+                        .typeMemberFunctionCount,
+                    program.metadata.callableMetadataIndex.summary
+                        .initializerCount,
+                    program.metadata.callableMetadataIndex.summary
+                        .failableInitializerCount,
                     program.metadata.nominalMetadataIndex.summary.structureCount,
                     program.metadata.propertyMetadataIndex.summary.bindingCount,
                     program.metadata.enumCaseMetadataIndex.summary.caseElementCount,
                     program.metadata.extensionMetadataIndex.summary.extensionCount,
-                    program.metadata.typeAliasMetadataIndex.summary.typeAliasCount
+                    program.metadata.typeAliasMetadataIndex.summary.typeAliasCount,
+                    program.metadata.deinitializerMetadataIndex.summary
+                        .deinitializerCount
                 ]
             }
         }
@@ -869,13 +1474,17 @@ struct ParsedProgramConcurrencyTests {
         for reader in readers {
             observations.append(await reader.value)
         }
-        #expect(observations.allSatisfy { $0 == [3, 1, 1, 0, 1, 1, 1] })
+        #expect(observations.allSatisfy {
+            $0 == [3, 2, 1, 4, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+        })
 
         let interpreter = Interpreter()
         let session = interpreter.makeSession(program: program)
         #expect(session.runtimeEntry.programMetadata === program.metadata)
         #expect(session.runtimeEntry.programMetadata?.callableMetadataIndex
             .summary == program.callableMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.memberMetadataIndex
+            .summary == program.memberMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.nominalMetadataIndex
             .summary == program.nominalMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.propertyMetadataIndex
@@ -886,6 +1495,8 @@ struct ParsedProgramConcurrencyTests {
             .summary == program.extensionMetadataIndex.summary)
         #expect(session.runtimeEntry.programMetadata?.typeAliasMetadataIndex
             .summary == program.typeAliasMetadataIndex.summary)
+        #expect(session.runtimeEntry.programMetadata?.deinitializerMetadataIndex
+            .summary == program.deinitializerMetadataIndex.summary)
         #expect(try await interpreter.runAsync(session: session).intValue == 42)
     }
 

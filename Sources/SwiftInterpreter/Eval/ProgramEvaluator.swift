@@ -44,8 +44,9 @@ extension Interpreter {
     }
 
     /// Execute an immutable parsed program in a fresh async runtime session.
-    /// The syntax tree may be shared by independent interpreters; evaluator
-    /// state, globals, task records, and host state remain session-confined.
+    /// The syntax tree may be shared by independent interpreters. Mutable
+    /// declaration registries are session-owned; globals, task records, and
+    /// host state remain confined to the owning interpreter/runtime.
     @discardableResult
     public func runAsync(
         program: ParsedProgram,
@@ -85,13 +86,24 @@ extension Interpreter {
         lazyTopLevelGlobals: Bool = false,
         completionPolicy: SessionCompletionPolicy = .drainOwnedTasks
     ) -> InterpreterSession {
+        let programPlan = program.resolve(
+            buildConfiguration: buildConfiguration)
+        let programState = RuntimeProgramState(
+            programPlan: programPlan,
+            assumesCompiledImports: lazyTopLevelGlobals,
+            hostRegistry: registry,
+            hostExtensionParent: compatibilityProgramState?
+                .hostExtensionLineageAnchor)
+        compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
+        compatibilityProgramState = programState
+        compatibilityLocationConverter = program.locationConverter
         return InterpreterSession(
             program: program,
             heap: runtimeHeap,
             concurrencyRuntime: concurrencyRuntime,
-            executionPlan: program.declarationIndex.resolve(
-                conditionHolds: ifConfigConditionHolds),
+            programState: programState,
+            programPlan: programPlan,
             lazyTopLevelGlobals: lazyTopLevelGlobals,
             completionPolicy: completionPolicy,
             owner: self)
@@ -138,7 +150,7 @@ extension Interpreter {
             taskLocals: taskLocals,
             name: nil)
         _ = runtime.begin(root)
-        let context = makeEvaluationTaskContext(
+        let context = runtime.makeEvaluationTaskContext(
             runtimeTaskID: root.id,
             runtimeEntry: session.runtimeEntry,
             isAsyncSession: true,
@@ -210,17 +222,15 @@ extension Interpreter {
         lazyTopLevelGlobals: Bool
     ) async throws -> RuntimeValue {
         let file = program.syntax
-        locationConverter = program.locationConverter
+        compatibilityLocationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
-        assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: executionPlan)
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
         resolveActorExecutorRequirements()
         resolvePendingDeinitializerIsolation()
-        installAmbientDateNowIfShadowed()
         resolveTransitiveViewConformance()
 
         return try await withTopLevelStructuredScopeSuspending(in: globals) {
@@ -307,22 +317,22 @@ extension Interpreter {
     private func drainOwnedTasks(
         in sessionID: RuntimeSessionID
     ) async throws {
-        while let handle = scheduledTasks.first(where: {
-            $0.sessionID == sessionID
-        }) {
+        while let handle = concurrencyRuntime.firstScheduledTask(
+            in: sessionID
+        ) {
             try checkRuntimeCancellation()
             await handle.wait()
-            releaseScheduledTask(handle)
+            concurrencyRuntime.releaseScheduledTask(handle)
         }
     }
 
     private func cancelOwnedTasks(in sessionID: RuntimeSessionID) async {
-        while let handle = scheduledTasks.first(where: {
-            $0.sessionID == sessionID
-        }) {
+        while let handle = concurrencyRuntime.firstScheduledTask(
+            in: sessionID
+        ) {
             handle.cancel(source: .sessionPolicy)
             await handle.wait()
-            releaseScheduledTask(handle)
+            concurrencyRuntime.releaseScheduledTask(handle)
         }
     }
 
@@ -394,23 +404,30 @@ extension Interpreter {
         _ program: ParsedProgram,
         lazyTopLevelGlobals: Bool
     ) throws -> RuntimeValue {
+        let programPlan = program.resolve(
+            buildConfiguration: buildConfiguration)
+        let programState = RuntimeProgramState(
+            programPlan: programPlan,
+            assumesCompiledImports: lazyTopLevelGlobals,
+            hostRegistry: registry,
+            hostExtensionParent: compatibilityProgramState?
+                .hostExtensionLineageAnchor)
+        compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
+        compatibilityProgramState = programState
         let file = program.syntax
-        let executionPlan = program.declarationIndex.resolve(
-            conditionHolds: ifConfigConditionHolds)
-        locationConverter = program.locationConverter
+        let executionPlan = programPlan.declarationPlan
+        compatibilityLocationConverter = program.locationConverter
         try validateTargetConditionalCompilationQueries(in: file)
         steps = 0
         // Merged multi-file units COMPILE on device: an unresolved
         // identifier there is an unmerged import, never a typo.
-        assumesCompiledImports = lazyTopLevelGlobals
         try collectDeclarations(from: executionPlan)
         processDeferredExtensions()
         resolvePendingMemberAliases()
         reconcileStrandedExtensions()
         resolveActorExecutorRequirements()
         resolvePendingDeinitializerIsolation()
-        installAmbientDateNowIfShadowed()
         resolveTransitiveViewConformance()
 
         var last: RuntimeValue = .void
@@ -490,24 +507,4 @@ extension Interpreter {
         return last
     }
 
-    /// The frozen-clock shadowing hook: if the program declares
-    /// `extension Date { static var now }`, bare `.now` markers resolved
-    /// by BRIDGE coercions (dateArg-style Date positions) must see the
-    /// program's value, not the wall clock.
-    func installAmbientDateNowIfShadowed() {
-        guard let hostSymbol = hostExtensionSymbols["Date"],
-              hostSymbol.staticComputedProperties["now"] != nil else {
-            Interpreter.ambientDateNowProvider = nil
-            return
-        }
-        Interpreter.ambientDateNowProvider = { [weak self] in
-            guard let self,
-                  let symbol = self.hostExtensionSymbols["Date"],
-                  let value = try? self.staticMember("now", of: symbol),
-                  case .host(let any) = value, let date = any as? Date else {
-                return Date()
-            }
-            return date
-        }
-    }
 }

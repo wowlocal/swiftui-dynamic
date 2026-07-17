@@ -98,10 +98,34 @@ with the detailed design in
 - **Active cycle — M9 optional physical parallelism (2026-07-17):** first
   separate immutable parsed-program metadata, session-owned mutable state, and
   runtime-entry identity. Declaration, callable/accessor/subscript, nominal,
-  property-storage, enum-case, extension, and type-alias headers are now
-  immutable Sendable indexes;
-  remaining member-family/call-site/compiler metadata, session migration, heap-edge
-  classification, workers, mode-differential parity, and TSan are still open.
+  property-storage, enum-case, extension, type-alias, and deinitializer
+  headers plus function bodies/placement, initializer declaration/isolation,
+  call-site argument structure/provenance, and all-branch conditional member
+  plans are now immutable Sendable indexes. Each session owns one immutable
+  target-resolved program plan, and runtime entries plus escaped closures retain
+  that exact plan across callbacks and SwiftUI/source tasks. Each prepared
+  program also owns a distinct MainActor-confined `RuntimeProgramState`; its
+  session, entries, and escaped closures retain the originating mutable symbol
+  and declaration registries even after the facade prepares another program.
+  The resolved plan also owns file identity and its immutable source map, so
+  escaped callbacks keep native-like diagnostic and `#line` provenance after
+  suspension or a later facade run. The cooperative runtime now strongly owns
+  session-scheduled unstructured and detached task handles through completion;
+  the interpreter facade exposes only a compatibility inspection view. The
+  runtime also allocates every asynchronous evaluator-context identity; only
+  the synchronous facade context keeps reserved ID `0`. Evaluator contexts
+  identify their owning runtime rather than retaining or identifying the
+  interpreter facade; explicit host re-entry capabilities remain separate.
+  The native-stack guard cache is task-owned too and is keyed by the stable
+  numeric ID of its supplying pthread, so a Swift task that resumes on another
+  worker cannot reuse the previous thread's stack geometry. Prepared program
+  state also captures its exact host registry; escaped callbacks and SwiftUI/
+  source tasks cannot be redirected by later facade reconfiguration. Host
+  coercions likewise resolve interpreted static members through their bound
+  program entry instead of process-wide mutable lookup state.
+  Remaining member semantics, call-site semantic resolution, compiler
+  metadata, evaluator/session migration, heap-edge classification, workers,
+  mode-differential parity, and TSan are still open.
 - **Covered demand cycles:** M5 actor identity/mailboxes and storage
   confinement, M6 protocol sequences/streams/checked continuations, and M8
   SwiftUI-owned `.task` lifecycle have scoped executable evidence. Their broad

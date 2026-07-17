@@ -7,8 +7,8 @@ import Testing
 /// `.now` marker in a Date ARGUMENT position resolved through the
 /// bridge's dateArg to the WALL CLOCK, bypassing the program's
 /// `extension Date { static var now }` shadow (the frozen clock). The
-/// ambient provider (installed per run when the shadow exists) routes
-/// every dateArg-style coercion through the program's value.
+/// task-bound evaluation context routes every dateArg-style coercion through
+/// the exact program entry that supplied the host call.
 @Suite struct AmbientDateNowTests {
     @MainActor
     @Test func dateByAddingComponentsAndWeekend() throws {
@@ -35,5 +35,35 @@ import Testing
               "native-weekend=", Calendar.current.isDateInWeekend(nativeDay))
         #expect(interpreter.globals.lookup("stamp")?.doubleValue == nativeDay.timeIntervalSince1970)
         #expect(interpreter.globals.lookup("weekend")?.boolValue == Calendar.current.isDateInWeekend(nativeDay))
+    }
+
+    @MainActor
+    @Test func escapedCallbackKeepsItsProgramStaticShadow() throws {
+        let source = """
+        extension Date {
+            static var now: Date {
+                Date(timeIntervalSince1970: 1784228400)
+            }
+        }
+        func makeCallback() -> () -> Double {
+            {
+                Calendar.current.startOfDay(for: .now)
+                    .timeIntervalSince1970
+            }
+        }
+        makeCallback()
+        """
+        let interpreter = Interpreter(registry: ViewRegistry())
+        let value = try interpreter.run(source: source)
+        let callback = try #require(value.closureValue)
+
+        _ = try interpreter.run(source: "let newerProgram = true")
+        let callbackValue = try interpreter.callHostCallback(
+            callback, arguments: [])
+
+        let expected = Calendar.current.startOfDay(
+            for: Date(timeIntervalSince1970: 1784228400))
+            .timeIntervalSince1970
+        #expect(callbackValue.doubleValue == expected)
     }
 }
