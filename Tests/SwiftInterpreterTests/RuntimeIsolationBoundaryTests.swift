@@ -58,6 +58,21 @@ struct RuntimeIsolationBoundaryTests {
             Comment(rawValue: rejected.output))
     }
 
+    @Test func nativeDetachedTasksCanOverlapPhysically() throws {
+        let executable = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: executable) }
+
+        let compiled = try runSwiftCompiler(
+            fixtureName: "NativeDetachedOverlap.swift",
+            arguments: ["-parse-as-library", "-o", executable.path])
+        #expect(compiled.status == 0, Comment(rawValue: compiled.output))
+        let executed = try run(executable.path, arguments: [])
+        #expect(executed.status == 0, Comment(rawValue: executed.output))
+        #expect(executed.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            == "overlap:2")
+    }
+
     private func typecheck(_ fixtureName: String) throws -> TypecheckResult {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

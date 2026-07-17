@@ -702,6 +702,27 @@ the semantic characterization: this architectural slice does not claim that
 source evaluation has moved to physical workers. Physical scheduling,
 cooperative-versus-parallel parity, and TSan remain separate closing work.
 
+Its thirty-second prerequisite turns that data boundary into an actual, still
+internal physical-worker driver. The native probe must compile under complete
+strict concurrency without blocking APIs or unchecked Sendable wrappers. Two
+`Task.detached` jobs share only `Synchronization.Atomic` state; the first spins
+without suspension until release, so observing both entries first proves
+physical overlap rather than cooperative interleaving. The probe is bounded
+and must print exact `overlap:2` in twenty runs. No particular pthread, start
+order, or completion order is asserted.
+
+The runtime workflow is gap closure: tests first fail to compile because the
+job, driver, and configuration-error types do not exist. Closing code accepts
+only `RuntimeWorkerCapability`, an async Sendable operation, and a
+`RuntimeWorkerValueSnapshot` result. A configured bound limits real detached
+tasks; successful output is restored to input order; parent cancellation must
+cancel the detached task; one job failure must cancel a suspended sibling; and
+scope exit must release operation captures. Invalid nonpositive bounds fail as
+typed values. All waits are deadline-bounded and use checked-Sendable atomics.
+The unchanged `task-owned-evaluator-context` case remains the source-semantic
+oracle because no interpreted closure is routed through the driver yet. This
+prerequisite does not satisfy parallel source execution, mode parity, or TSan.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

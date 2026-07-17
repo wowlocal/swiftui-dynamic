@@ -1251,6 +1251,19 @@ Nested rejection reports the exact value path and returns no partial
 capability. This is a fail-closed data boundary for future pure worker kernels,
 not permission to run the evaluator or touch the heap on a physical worker.
 
+Physical-driver stage (2026-07-18): `RuntimePhysicalWorkerDriver` is an
+explicit, stateless, bounded executor for those capabilities. Each active slot
+owns one real `Task.detached`; a throwing task group limits simultaneous slots,
+preserves input order on success, forwards structured cancellation into the
+detached native task, cancels siblings on failure, and drains every slot before
+scope exit. Invalid bounds fail as values. Tests use checked-Sendable atomics:
+two nonsuspending spin jobs must enter before release, proving physical overlap,
+while a third remains outside a two-worker bound. Cancellation, sibling
+failure, empty input, and operation-capture release are separately pinned.
+The cooperative interpreter does not create this driver implicitly and no
+source closure is eligible yet; this proves a safe physical execution
+mechanism, not parallel interpreted evaluation.
+
 ### 6.4 `EvaluationTaskContext`
 
 Every source task owns exactly one context:
@@ -3357,8 +3370,8 @@ These slices separate immutable program input, mutable storage, and execution
 identity without changing scheduling. Remaining member families, call-site, and
 compiler metadata indexing remains incomplete, and mutable
 symbol materialization plus evaluator state must move fully behind the session;
-worker scheduling must consume the checked copied-value capability rather than
-the confined entry/heap; physical worker scheduling,
+eligible source work must still be separated into pure snapshot kernels and
+routed through the checked physical driver rather than the confined entry/heap;
 cooperative-versus-parallel parity, and TSan evidence remain open.
 
 ## 15. Verification gates
