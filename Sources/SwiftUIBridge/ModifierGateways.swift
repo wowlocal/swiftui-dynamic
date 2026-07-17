@@ -39,6 +39,8 @@ extension ViewRegistry {
             let height = try args.labeled("height").map(Coerce.cgFloat)
             let minWidth = try args.labeled("minWidth").map(Coerce.cgFloat)
             let minHeight = try args.labeled("minHeight").map(Coerce.cgFloat)
+            let idealWidth = try args.labeled("idealWidth").map(Coerce.cgFloat)
+            let idealHeight = try args.labeled("idealHeight").map(Coerce.cgFloat)
             let maxWidth = try args.labeled("maxWidth").map(Coerce.cgFloat)
             let maxHeight = try args.labeled("maxHeight").map(Coerce.cgFloat)
             let alignment = try args.labeled("alignment").map(Coerce.alignment) ?? .center
@@ -47,14 +49,16 @@ extension ViewRegistry {
             if width != nil || height != nil {
                 result = AnyView(result.frame(width: width, height: height, alignment: alignment))
             }
-            if minWidth != nil || minHeight != nil || maxWidth != nil || maxHeight != nil {
+            if minWidth != nil || minHeight != nil || idealWidth != nil || idealHeight != nil
+                || maxWidth != nil || maxHeight != nil {
                 result = AnyView(result.frame(
-                    minWidth: minWidth, maxWidth: maxWidth,
-                    minHeight: minHeight, maxHeight: maxHeight,
+                    minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
+                    minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
                     alignment: alignment
                 ))
             }
-            if width == nil && height == nil && minWidth == nil && minHeight == nil && maxWidth == nil && maxHeight == nil {
+            if width == nil && height == nil && minWidth == nil && minHeight == nil
+                && idealWidth == nil && idealHeight == nil && maxWidth == nil && maxHeight == nil {
                 throw RuntimeError(message: ".frame needs width/height/min/max arguments")
             }
             return result

@@ -209,10 +209,30 @@ extension ViewRegistry {
         constructors["AxisGridLine"] = HostFunction(name: "AxisGridLine") { _, _ in
             .native(AnyAxisMark(erasing: AxisGridLine()))
         }
-        constructors["AxisValueLabel"] = HostFunction(name: "AxisValueLabel") { args, _ in
+        constructors["AxisValueLabel"] = HostFunction(name: "AxisValueLabel") { args, ctx in
+            // Content-closure form: the enclosing AxisMarks pass already
+            // bound the axis value, so the interpreted builder evaluates
+            // NOW and the label hosts real views (the top-five donut axis).
+            if let closure = args.firstUnlabeledClosure, let interpreter = ctx as? Interpreter {
+                let views = try interpreter.callBuilderClosure(closure, arguments: [])
+                let anyViews = views.compactMap { try? Self.anyView($0) }
+                let content: AnyView = anyViews.count == 1
+                    ? anyViews[0]
+                    : AnyView(VStack { Self.indexed(anyViews) })
+                return .native(AnyAxisMark(erasing: AxisValueLabel { content }))
+            }
             if let format = args.labeled("format") {
                 if let style = dateFormatStyle(format) {
                     return .native(AnyAxisMark(erasing: AxisValueLabel(format: style)))
+                }
+                // IntegerFormatStyle<Int>() reaches the bridge as a stub
+                // standing for its type. Bridged plottables are
+                // Double-backed, so the integer look renders through a
+                // fraction-0 floating format — the same label strings.
+                if case .host(let any) = format, let stub = any as? UIKitStub,
+                   stub.roles.contains(where: { $0.hasPrefix("IntegerFormatStyle") }) {
+                    return .native(AnyAxisMark(erasing: AxisValueLabel(
+                        format: FloatingPointFormatStyle<Double>().precision(.fractionLength(0)))))
                 }
                 throw RuntimeError(message: "AxisValueLabel format shape not bridged yet")
             }

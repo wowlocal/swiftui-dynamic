@@ -2126,3 +2126,23 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   Pin: InterpretedChartTests.seriesColoredMarksMatchNative (AE=0 vs
   native). Gate still blocked by main-red; steward has made the
   worker-isolation fix lane-concurrency's drop-everything priority.
+- 2026-07-17 R4 SWEEP BOARD FULLY GREEN — top-five axis labels (worktree
+  iteration 41): the last sweep class chained three gaps in
+  TopDonutSalesChart's axes — AxisValueLabel(format:
+  IntegerFormatStyle<Int>()) reached the bridge as an inert stub
+  (thrown), the AxisValueLabel { } content-closure form rendered empty
+  labels, and the closure content's .frame(idealWidth: 80) had no
+  gateway arm. Fixes: the integer look bridges through a fraction-0
+  FloatingPointFormatStyle<Double> (bridged plottables are
+  Double-backed — identical label strings, pixel-verified); closure
+  labels evaluate their interpreted builders through the standard
+  builder path; the frame gateway gains idealWidth/idealHeight in its
+  flexible arm. Top-five renders live: gradient bars, value
+  annotations, integer y-axis, per-donut x labels. ALL NINE sidebar
+  navigations land with 0 diagnostics — the R4 interactive sidebar
+  sweep is green end to end. Residue noted: DonutView thumbnails
+  inside axis labels look absent in the live capture (no diagnostics;
+  future pixel-row work). All 23 pins across 8 suites pass; fresh
+  R2 board intact (orders 0.000 fresh-vs-fresh). Pin:
+  InterpretedChartTests.integerAxisAndClosureLabelsMatchNative (AE=0).
+  Gate still blocked by main-red.

@@ -312,3 +312,94 @@ extension InterpretedChartTests {
         return rep
     }
 }
+
+extension InterpretedChartTests {
+    // The topfive live class: AxisValueLabel(format: IntegerFormatStyle<Int>())
+    // reached the bridge as an inert stub (thrown), the content-closure form
+    // rendered empty, and the closure content's .frame(idealWidth:) had no
+    // gateway arm. The integer look bridges through a fraction-0 floating
+    // format (bridged plottables are Double-backed — same label strings),
+    // closure labels evaluate their interpreted builders, and frame gains
+    // ideal dimensions.
+    @MainActor
+    @Test func integerAxisAndClosureLabelsMatchNative() throws {
+        let source = """
+        struct P2: View {
+            var body: some View {
+                Chart {
+                    BarMark(x: .value(String("X"), String("A")), y: .value(String("Y"), 250.0))
+                    BarMark(x: .value(String("X"), String("B")), y: .value(String("Y"), 500.0))
+                }
+                .chartYAxis {
+                    AxisMarks { value in
+                        AxisGridLine()
+                        AxisTick()
+                        AxisValueLabel(format: IntegerFormatStyle<Int>())
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks { value in
+                        AxisValueLabel {
+                            Text(String("donut"))
+                                .frame(idealWidth: 80)
+                        }
+                    }
+                }
+                .background(Color.white)
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    P2()
+                }
+            }
+        }
+        """
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 300, height: 200)
+        let interp = Self.chartBitmap(view, size: size)
+        let native = Self.chartBitmap(AnyView(
+            Chart {
+                BarMark(x: .value("X", "A"), y: .value("Y", 250))
+                BarMark(x: .value("X", "B"), y: .value("Y", 500))
+            }
+            .chartYAxis {
+                AxisMarks { _ in
+                    AxisGridLine()
+                    AxisTick()
+                    AxisValueLabel(format: IntegerFormatStyle<Int>())
+                }
+            }
+            .chartXAxis {
+                AxisMarks { _ in
+                    AxisValueLabel {
+                        Text("donut")
+                            .frame(idealWidth: 80)
+                    }
+                }
+            }
+            .background(Color.white)
+        ), size: size)
+        var mismatched = 0
+        for x in 0..<300 {
+            for y in 0..<200 {
+                let a = interp.colorAt(x: x, y: y)
+                let b = native.colorAt(x: x, y: y)
+                if let a, let b,
+                   abs(a.redComponent - b.redComponent) > 0.02
+                    || abs(a.blueComponent - b.blueComponent) > 0.02 {
+                    mismatched += 1
+                }
+            }
+        }
+        print("PROBE integer-axis-closure-labels mismatched:", mismatched)
+        #expect(mismatched == 0)
+    }
+}
