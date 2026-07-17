@@ -2011,5 +2011,17 @@
     "interpreterProjection": "string",
     "nativeFact": "An empty AsyncThrowingStream consumer suspends, receives a yielded value, and then observes the exact source error supplied to finish(throwing:) after draining that value.",
     "notes": "The MainActor producer starts with Task.yield before delivering one value and a typed source error. The exact count, sum, and case-specific catch avoid unrelated task-order or physical-executor claims. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output 1:2:caught with canonical native-observation SHA-256 b35c84ff9dee12339f6f150c9f5074154bc4ee6c478e988f675c468f1f291d56. The captured interpreter RED was the missing AsyncThrowingStream constructor diagnostic. Focused evidence requires one created stream, at least one consumer suspension, and complete stream/task/scope/group/host-operation/scheduler cleanup. Normal finish, termination callbacks, bounded buffering, and throwing-stream lifetime edges remain fail-closed or open."
+  },
+  {
+    "id": "async-throwing-stream-finish-termination",
+    "fixture": "Fixtures/async-throwing-stream-finish-termination.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncThrowingStreamFinishTerminationProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncThrowingStream normal finish synchronously invokes one onTermination(.finished(nil)) callback before returning, preserves a prior buffered value, makes repeated terminal reads nil, and makes a later yield return terminated.",
+    "notes": "The builder performs every producer operation synchronously and records an event immediately after finish returns. Three sequential iterator reads then expose the buffered value and stable terminal state without task-order or physical-executor claims. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output 3:true:true:finished(nil),after-finish:terminated with canonical native-observation SHA-256 c208018808dc13933512c4d0274986274461222cfafc3806ebfcfd65d880f944. The captured interpreter RED was assignment rejection for AsyncThrowingStream.Continuation.onTermination. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup. Failure/cancellation callback payloads and implicit lifetime termination remain fail-closed or open."
   }
 ]

@@ -30,6 +30,15 @@ fileprivate enum RuntimeAsyncStreamFlavor {
         return false
     }
 
+    var terminationCallbackTypeName: String {
+        switch self {
+        case .nonthrowing:
+            "@Sendable (AsyncStream.Continuation.Termination) -> Void"
+        case .throwing:
+            "@Sendable (AsyncThrowingStream.Continuation.Termination) -> Void"
+        }
+    }
+
     func sequenceTypeName(elementTypeName: String) -> String {
         switch self {
         case .nonthrowing:
@@ -48,6 +57,22 @@ private enum RuntimeAsyncStreamTermination: CustomStringConvertible {
         switch self {
         case .cancelled: "cancelled"
         case .finished: "finished"
+        }
+    }
+}
+
+private enum RuntimeAsyncThrowingStreamTermination: CustomStringConvertible {
+    case cancelled
+    case finished(RuntimeValue?)
+
+    var description: String {
+        switch self {
+        case .cancelled:
+            "cancelled"
+        case .finished(nil):
+            "finished(nil)"
+        case .finished(let failure?):
+            "finished(Optional(\(failure.debugStringified)))"
         }
     }
 }
@@ -142,9 +167,17 @@ final class RuntimeAsyncStreamStorage {
             // before releasing the runtime record, synchronously with ARC.
             onTermination = nil
             let taskID = callbackOwner?.evaluationTaskContext.runtimeTaskID
+            if flavor.isThrowing {
+                runtime?.recordNonthrowingCallbackFailure(
+                    RuntimeError(message:
+                        "AsyncThrowingStream implicit termination is not yet supported"),
+                    taskID: taskID)
+                runtime?.closeAsyncStream(id)
+                return
+            }
             do {
                 _ = try callbackOwner?.callRuntimeAsyncStreamTermination(
-                    handler, value: .cancelled)
+                    handler, value: cancelledTerminationValue)
             } catch {
                 runtime?.recordNonthrowingCallbackFailure(
                     error, taskID: taskID)
@@ -228,6 +261,11 @@ final class RuntimeAsyncStreamStorage {
         failure: RuntimeValue? = nil
     ) throws {
         guard !terminal else { return }
+        if flavor.isThrowing, failure != nil, onTermination != nil {
+            onTermination = nil
+            throw RuntimeError(message:
+                "AsyncThrowingStream failure termination callback is not yet supported")
+        }
         terminal = true
         terminalFailure = failure?.copiedForValueSemantics()
         let handler = onTermination
@@ -237,7 +275,7 @@ final class RuntimeAsyncStreamStorage {
             do {
                 _ = try context.callClosure(
                     handler,
-                    arguments: [.native(RuntimeAsyncStreamTermination.finished)])
+                    arguments: [finishedTerminationValue(failure: failure)])
             } catch {
                 handlerFailure = error
             }
@@ -257,6 +295,11 @@ final class RuntimeAsyncStreamStorage {
 
     func cancel(in context: EvalContext) throws {
         guard !terminal else { return }
+        if flavor.isThrowing, onTermination != nil {
+            onTermination = nil
+            throw RuntimeError(message:
+                "AsyncThrowingStream cancellation callback is not yet supported")
+        }
         let handler = onTermination
         onTermination = nil
         var handlerFailure: Error?
@@ -264,7 +307,7 @@ final class RuntimeAsyncStreamStorage {
             do {
                 _ = try context.callClosure(
                     handler,
-                    arguments: [.native(RuntimeAsyncStreamTermination.cancelled)])
+                    arguments: [cancelledTerminationValue])
             } catch {
                 handlerFailure = error
             }
@@ -275,6 +318,26 @@ final class RuntimeAsyncStreamStorage {
             try finish(in: context)
         }
         if let handlerFailure { throw handlerFailure }
+    }
+
+    private var cancelledTerminationValue: RuntimeValue {
+        switch flavor {
+        case .nonthrowing:
+            .native(RuntimeAsyncStreamTermination.cancelled)
+        case .throwing:
+            .native(RuntimeAsyncThrowingStreamTermination.cancelled)
+        }
+    }
+
+    private func finishedTerminationValue(
+        failure: RuntimeValue?
+    ) -> RuntimeValue {
+        switch flavor {
+        case .nonthrowing:
+            .native(RuntimeAsyncStreamTermination.finished)
+        case .throwing:
+            .native(RuntimeAsyncThrowingStreamTermination.finished(failure))
+        }
     }
 
     func closeIfPossible() {
@@ -489,22 +552,17 @@ extension Interpreter {
                     arguments, context in
                     let failure = Self.runtimeOptionalPayload(
                         arguments.labeled("throwing"))
-                    if continuation.flavor.isThrowing, failure == nil {
-                        throw RuntimeError(message:
-                            "AsyncThrowingStream normal finish is not yet supported")
-                    }
                     try continuation.storage?.finish(
                         in: context, failure: failure)
                     return .void
                 })
             case "onTermination":
-                guard !continuation.flavor.isThrowing else { return nil }
                 return .optional(
                     continuation.storage?.getOnTermination().map {
                         .closure($0)
                     },
                     wrappedTypeName:
-                        "@Sendable (AsyncStream.Continuation.Termination) -> Void")
+                        continuation.flavor.terminationCallbackTypeName)
             default:
                 break
             }
@@ -563,8 +621,7 @@ extension Interpreter {
         to value: RuntimeValue
     ) throws -> Bool {
         guard name == "onTermination",
-              let continuation = payload as? RuntimeAsyncStreamContinuation,
-              !continuation.flavor.isThrowing else {
+              let continuation = payload as? RuntimeAsyncStreamContinuation else {
             return false
         }
         if value.isNil {
@@ -580,18 +637,16 @@ extension Interpreter {
         }
         guard let handler = candidate.closureValue else {
             throw RuntimeError(message:
-                "AsyncStream.Continuation.onTermination requires a closure or nil")
+                "\(continuation.flavor.baseName).Continuation.onTermination "
+                    + "requires a closure or nil")
         }
         continuation.storage?.setOnTermination(handler)
         return true
     }
 
     func hasRuntimeAsyncStreamMember(_ name: String, on payload: Any) -> Bool {
-        guard name == "onTermination",
-              let continuation = payload as? RuntimeAsyncStreamContinuation else {
-            return false
-        }
-        return !continuation.flavor.isThrowing
+        name == "onTermination"
+            && payload is RuntimeAsyncStreamContinuation
     }
 
     private static func runtimeOptionalPayload(
@@ -648,10 +703,10 @@ extension Interpreter {
     /// task and therefore must not reset that task's evaluation budget.
     fileprivate func callRuntimeAsyncStreamTermination(
         _ handler: ClosureValue,
-        value: RuntimeAsyncStreamTermination
+        value: RuntimeValue
     ) throws -> RuntimeValue {
         let arguments = CallArguments(arguments: [
-            .init(label: nil, value: .native(value))
+            .init(label: nil, value: value)
         ])
         return try callWithArguments(handler, args: arguments, node: nil)
     }

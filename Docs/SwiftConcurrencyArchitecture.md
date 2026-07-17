@@ -1415,8 +1415,11 @@ after a waiter receives its prior value, the next `next()` rethrows the error
 through `InterpretedThrow`. Exact evidence covers one suspended unbounded
 consumer, one delivered value, case-specific failure projection, and complete
 cleanup.
-Normal finish, throwing termination/cancellation callbacks, bounded buffering,
-and throwing-stream lifetime edges remain fail-closed or open. Source checked
+Normal throwing-stream finish now also has exact evidence: it synchronously
+delivers `.finished(nil)` to one registered callback, preserves a buffered
+value, produces stable terminal nil, and rejects later yield. Failure and
+cancellation callback payloads, bounded buffering, iterator-copy, and
+throwing-stream lifetime edges remain fail-closed or open. Source checked
 continuations are not yet claimed.
 
 ### 6.19 Host gateway runtime
@@ -1999,8 +2002,10 @@ Each milestone is independently gated through
   `.bufferingNewest(2)` plus `.bufferingOldest(2)` result/retention semantics
   and both zero-capacity boundaries. The shared kernel also owns one unbounded
   `AsyncThrowingStream` suspended-consumer/value/source-error/cleanup slice;
-  its remaining finish, termination, buffering, iterator-copy, and lifetime
-  semantics plus checked continuations resuming on
+  normal finish, `.finished(nil)` callback timing, buffered retention, stable
+  nil, and rejected post-finish yield are also covered. Its remaining failure
+  and cancellation callbacks, buffering, iterator-copy, and lifetime semantics
+  plus checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
   complete custom-executor scheduling;
@@ -2226,9 +2231,10 @@ remain explicitly unsupported. The first unbounded throwing-stream slice also
 suspends an empty consumer, delivers one value, then rethrows the exact source
 error supplied to `finish(throwing:)` after that value drains, using the same
 runtime record and cleanup kernel. Normal throwing finish,
-termination/cancellation callbacks, bounded buffering, iterator-copy, and
-lifetime edges plus checked-continuation ownership remain active rather than
-being inferred from that slice.
+`.finished(nil)` callback timing, buffered retention, stable nil, and rejected
+post-terminal yield are covered separately. Failure/cancellation callbacks,
+bounded buffering, iterator-copy, and lifetime edges plus checked-continuation
+ownership remain active rather than being inferred from those slices.
 
 Deliverables:
 
