@@ -93,6 +93,8 @@ final class TwinDelegate: NSObject, NSApplicationDelegate {
         capture("donuts", size: screenSize, DonutGallery(model: model))
         capture("orders", size: screenSize, OrdersView(model: model))
         capture("socialfeed", size: screenSize, SocialFeedView())
+        capture("diag-donuteditor", size: screenSize,
+                DonutEditor(donut: .constant(model.newDonut)))
 
         // Leaf content cards — the pixel currency while container chrome
         // stays headless-hostile on both sides.

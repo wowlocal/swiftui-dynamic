@@ -2210,3 +2210,24 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   correctly ("NAME=New Donut" probe); the empty viewer pane is
   asset-empty on BOTH sides by doctrine. 30 tests across 5 suites
   pass; R2/R3 within floors. Gate still blocked by main-red.
+- 2026-07-17 EDITOR BLANK NARROWED TO A MINIMAL REPRO (worktree
+  iteration 45): the twin-side diag-donuteditor row now exists — NATIVE
+  renders the editor form fully headless (name field, six flavor
+  gauges with values, ingredient pickers; left viewer pane asset-empty
+  by doctrine), so the interp blank is a REAL class, not a live-only
+  artifact. Elimination matrix (all probes kept): editorContent in a
+  grouped Form standalone RENDERS through the interpreter (gauges from
+  i43's range forms working); donutViewer renders (asset-empty);
+  real-viewer + simple-right splits render; simple-left + REAL
+  form/editorContent inside the split = BLANK RIGHT PANE. A saturated
+  structural mimic (ZStack + #if-in-builder + #if-in-modifier-chain +
+  member composition + toolbar/ToolbarTitleMenu + navigationTitle +
+  formStyle(.grouped) + the exact frame chain) renders 1338 ink under
+  macOS platform — the app's SHAPE is fine; the delta is the REAL
+  sectioned editorContent volume inside the grouped (List-backed) Form
+  under HSplitView pane sizing. Next: bisect editorContent's sections
+  inside the split (suspect: NSTableView-backed grouped form collapsing
+  in the split pane headless while native negotiates minWidth).
+  Probes: memberComposedSplitBodyRenders (macOS-forced),
+  editorSplitShapeBisect, form-bisect, wrapper-bisect. Gate still
+  blocked by main-red.

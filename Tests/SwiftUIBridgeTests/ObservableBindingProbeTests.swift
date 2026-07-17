@@ -199,6 +199,181 @@ import Testing
     }
 
     @MainActor
+    @Test func noArgBackgroundAndLayoutPriorityRender() throws {
+        for (name, body) in [
+            ("bg-noarg", "Text(String(\"MARK\")).background()"),
+            ("layout-priority", "Text(String(\"MARK\")).layoutPriority(1)"),
+            ("combined", "Text(String(\"MARK\")).background().layoutPriority(1)"),
+        ] {
+            let source = """
+            @main
+            struct P: App {
+                var body: some Scene {
+                    WindowGroup {
+                        \(body)
+                    }
+                }
+            }
+            """
+            RenderDiagnostics.reset()
+            let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+            guard case .success(let view) = rendered else {
+                print("PROBE wrapper-bisect \(name): RENDER FAILED")
+                continue
+            }
+            let rep = Self.bitmap(view, size: NSSize(width: 300, height: 100))
+            var ink = 0
+            for x in 0..<300 { for y in 0..<100 {
+                if let c = rep.colorAt(x: x, y: y), c.brightnessComponent < 0.88 { ink += 1 }
+            } }
+            print("PROBE wrapper-bisect \(name): ink=\(ink) diags=\(RenderDiagnostics.errors.count) \(RenderDiagnostics.errors.first.map { String($0.error.message.prefix(60)) } ?? "")")
+        }
+    }
+
+    @MainActor
+    @Test func editorSplitShapeBisect() throws {
+        let leftFull = """
+        Circle().fill(Color.gray)
+                .frame(minWidth: 100, maxWidth: .infinity, minHeight: 100, maxHeight: .infinity)
+                .listRowInsets(.init())
+                .padding(.horizontal, 40)
+                .padding(.vertical)
+                .background()
+                .layoutPriority(1)
+        """
+        let leftNoInsets = """
+        Circle().fill(Color.gray)
+                .frame(minWidth: 100, maxWidth: .infinity, minHeight: 100, maxHeight: .infinity)
+                .padding(.horizontal, 40)
+                .padding(.vertical)
+                .background()
+                .layoutPriority(1)
+        """
+        let leftEmpty = """
+        EmptyView()
+                .frame(minWidth: 100, maxWidth: .infinity, minHeight: 100, maxHeight: .infinity)
+                .padding(.horizontal, 40)
+                .padding(.vertical)
+                .background()
+                .layoutPriority(1)
+        """
+        for (name, left) in [("split-full", leftFull), ("split-noinsets", leftNoInsets), ("split-emptyleft", leftEmpty)] {
+            let source = """
+            @main
+            struct P: App {
+                var body: some Scene {
+                    WindowGroup {
+                        HSplitView {
+                            \(left)
+                            Form { Text(String("RIGHT")) }
+                                .formStyle(.grouped)
+                                .padding()
+                                .frame(minWidth: 300, idealWidth: 350, maxHeight: .infinity, alignment: .top)
+                        }
+                    }
+                }
+            }
+            """
+            RenderDiagnostics.reset()
+            let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+            guard case .success(let view) = rendered else {
+                print("PROBE split-shape \(name): RENDER FAILED")
+                continue
+            }
+            let rep = Self.bitmap(view, size: NSSize(width: 700, height: 300))
+            var ink = 0
+            for x in 0..<700 { for y in 0..<300 {
+                if let c = rep.colorAt(x: x, y: y), c.brightnessComponent < 0.88 { ink += 1 }
+            } }
+            print("PROBE split-shape \(name): ink=\(ink) diags=\(RenderDiagnostics.errors.count) \(RenderDiagnostics.errors.first.map { String($0.error.message.prefix(70)) } ?? "")")
+        }
+    }
+
+    @MainActor
+    @Test func memberComposedSplitBodyRenders() throws {
+        let source = """
+        struct Ed: View {
+            @Binding var name: String
+
+            var viewer: some View {
+                EmptyView()
+                    .frame(minWidth: 100, maxWidth: .infinity, minHeight: 100, maxHeight: .infinity)
+                    .padding(.horizontal, 40)
+                    .padding(.vertical)
+                    .background()
+            }
+
+            @ViewBuilder
+            var content: some View {
+                Section(String("Donut")) {
+                    TextField(String("Name"), text: $name, prompt: Text(String("Donut Name")))
+                }
+            }
+
+            var body: some View {
+                ZStack {
+                    #if os(macOS)
+                    HSplitView {
+                        viewer
+                            .layoutPriority(1)
+                        Form {
+                            content
+                        }
+                        .formStyle(.grouped)
+                        .padding()
+                        .frame(minWidth: 300, idealWidth: 350, maxHeight: .infinity, alignment: .top)
+                    }
+                    #else
+                    Text(String("IOS BRANCH"))
+                    #endif
+                }
+                .toolbar {
+                    ToolbarTitleMenu {
+                        Button {
+
+                        } label: {
+                            Label(String("My Action"), systemImage: String("star"))
+                        }
+                    }
+                }
+                .navigationTitle(name)
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarRole(.editor)
+                #endif
+            }
+        }
+
+        @main
+        struct P: App {
+            @State private var name: String = "New Donut"
+            var body: some Scene {
+                WindowGroup {
+                    Ed(name: $name)
+                }
+            }
+        }
+        """
+        RenderDiagnostics.reset()
+        let previousPlatform = Interpreter.interpretsAsPlatform
+        Interpreter.interpretsAsPlatform = "macOS"
+        defer { Interpreter.interpretsAsPlatform = previousPlatform }
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let rep = Self.bitmap(view, size: NSSize(width: 700, height: 300))
+        var ink = 0
+        for x in 0..<700 { for y in 0..<300 {
+            if let c = rep.colorAt(x: x, y: y), c.brightnessComponent < 0.88 { ink += 1 }
+        } }
+        print("PROBE member-composed-split ink:", ink, "diags:", RenderDiagnostics.errors.count,
+              RenderDiagnostics.errors.first.map { String($0.error.message.prefix(70)) } ?? "")
+        #expect(ink > 200)
+    }
+
+    @MainActor
     @Test func harnessControlPlainText() throws {
         let source = """
         @main

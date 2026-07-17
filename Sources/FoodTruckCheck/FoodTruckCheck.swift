@@ -437,12 +437,12 @@ struct FoodTruckCheckMain {
             capturePNG("diag-donuteditor", source: probeMergeBase + probeApp(
                 "DonutEditor(donut: $model.newDonut)"), size: screenSize)
             capturePNG("diag-editorviewer", source: probeMergeBase + probeApp(
-                "Text(String(\"NAME=\") + model.newDonut.name).font(.largeTitle)"), size: screenSize)
+                "Form { DonutEditor(donut: $model.newDonut).editorContent }.formStyle(.grouped)"), size: screenSize)
             capturePNG("diag-editorsplit", source: probeMergeBase + probeApp(
                 """
                 HSplitView {
                     Text(String("LEFT")).frame(maxWidth: .infinity, maxHeight: .infinity).layoutPriority(1)
-                    Form { Text(String("RIGHT")) }
+                    Form { DonutEditor(donut: $model.newDonut).editorContent }
                         .formStyle(.grouped)
                         .padding()
                         .frame(minWidth: 300, idealWidth: 350, maxHeight: .infinity, alignment: .top)
