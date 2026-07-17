@@ -57,13 +57,14 @@ enum RuntimeAsyncStreamYieldResult: CustomStringConvertible {
 
 private enum RuntimeAsyncStreamBufferingPolicy {
     case unbounded
+    case bufferingOldest(Int)
     case bufferingNewest(Int)
 
     func remainingCapacity(bufferedCount: Int) -> Int {
         switch self {
         case .unbounded:
             Int.max
-        case .bufferingNewest(let limit):
+        case .bufferingOldest(let limit), .bufferingNewest(let limit):
             max(0, limit - bufferedCount)
         }
     }
@@ -159,6 +160,12 @@ final class RuntimeAsyncStreamStorage {
         case .unbounded:
             buffered.append(delivered)
             return .enqueued(remaining: Int.max)
+        case .bufferingOldest(let limit):
+            guard buffered.count < limit else {
+                return .dropped(delivered)
+            }
+            buffered.append(delivered)
+            return .enqueued(remaining: limit - buffered.count)
         case .bufferingNewest(let limit):
             guard buffered.count < limit else {
                 let dropped = buffered.removeFirst()
@@ -484,7 +491,7 @@ extension Interpreter {
         if call.name == "unbounded", call.arguments.arguments.isEmpty {
             return .unbounded
         }
-        guard call.name == "bufferingNewest",
+        guard ["bufferingOldest", "bufferingNewest"].contains(call.name),
               let limit = call.arguments.positional(0)?.intValue,
               call.arguments.arguments.count == 1 else {
             throw RuntimeError(message:
@@ -492,7 +499,10 @@ extension Interpreter {
         }
         guard limit > 0 else {
             throw RuntimeError(message:
-                "AsyncStream buffering policy '.bufferingNewest(\(limit))' is unsupported")
+                "AsyncStream buffering policy '.\(call.name)(\(limit))' is unsupported")
+        }
+        if call.name == "bufferingOldest" {
+            return .bufferingOldest(limit)
         }
         return .bufferingNewest(limit)
     }

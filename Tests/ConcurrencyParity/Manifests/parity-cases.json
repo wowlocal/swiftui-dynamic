@@ -1975,5 +1975,17 @@
     "interpreterProjection": "string",
     "nativeFact": "AsyncStream bufferingNewest(2) retains at most the two newest unconsumed values. The first two yields report decreasing remaining capacity, each later yield reports the oldest value it displaced, and iteration receives only 3 then 4 before terminal nil.",
     "notes": "All four yields occur synchronously in the builder before iteration, so buffer state and eviction order are deterministic. YieldResult is rendered directly to preserve its remaining-capacity and dropped-element payloads; no task order or physical executor behavior is asserted. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true with canonical native-observation SHA-256 cc694ba7c7410fafe79768c883e7b3072fc461257e94b6b5b1da4bfa050533f8. The captured interpreter RED was the fail-closed diagnostic that only .unbounded buffering was supported. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup."
+  },
+  {
+    "id": "async-stream-buffering-oldest",
+    "fixture": "Fixtures/async-stream-buffering-oldest.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamBufferingOldestProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncStream bufferingOldest(2) retains at most the first two unconsumed values. The first two yields report decreasing remaining capacity, each later yield reports the new value it rejected, and iteration receives only 1 then 2 before terminal nil.",
+    "notes": "All four yields occur synchronously in the builder before iteration, so buffer state and rejection order are deterministic. YieldResult is rendered directly to preserve its remaining-capacity and dropped-element payloads; no task order or physical executor behavior is asserted. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true with canonical native-observation SHA-256 ce750f2131b0fb4526ee96775de38a23ab5c0b853f4a751b1f11993b223052f0. The captured interpreter RED was the fail-closed diagnostic that .bufferingOldest was unsupported. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup."
   }
 ]
