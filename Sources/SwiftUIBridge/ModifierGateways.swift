@@ -111,12 +111,14 @@ extension ViewRegistry {
 
         // MARK: Color & effects
 
-        let foreground: @MainActor (AnyView, CallArguments, EvalContext) throws -> AnyView = { view, args, _ in
+        // foregroundStyle lives in the generated tier (arities 1-3 —
+        // palette symbols need the secondary/tertiary layers). Only the
+        // deprecated foregroundColor, absent from the swept interfaces,
+        // stays handwritten.
+        register("foregroundColor") { view, args, _ in
             guard let value = args.positional(0) else { throw RuntimeError(message: "missing style argument") }
             return AnyView(view.foregroundStyle(try Coerce.shapeStyle(value)))
         }
-        register("foregroundStyle", foreground)
-        register("foregroundColor", foreground)
 
         register("background") { [unowned self] view, args, ctx in
             if args.isEmpty {
