@@ -583,6 +583,36 @@ The canonical parallel iteration completed ten targeted tests in five suites,
 all forty-two methodology checks, and all twenty exact parity repetitions on
 four workers in 2.1 seconds.
 
+The twenty-seventh prerequisite makes the host bridge a prepared-program
+capability instead of mutable evaluator-global state. `RuntimeProgramState`
+captures the `HostRegistry` selected when the program or session is prepared.
+Sessions, runtime entries, and escaped closures already retain that same state,
+so program roots, synchronous host callbacks, SwiftUI tasks, and descendant
+source tasks now resolve host APIs from their originating capability. The
+facade's public `registry` remains the compatibility/default selection for
+future preparation; changing it cannot redirect an entry that is already
+bound to a program.
+
+The semantic RED prepared a callback using an `origin` registry, changed the
+facade to `newer`, ran a newer program successfully through that registry, then
+invoked the old callback. Before the change it incorrectly returned `newer`;
+the common program-state mechanism now returns `origin`. A separately compiled
+Apple Swift 6.3.3 dependency-capture probe returns exact `origin,newer` in
+three runs: a closure retains the capability supplied at formation while a
+later active selection changes independently. This is a capture/provenance
+guarantee, not a claim that native Swift has a `HostRegistry` abstraction.
+
+The unchanged `host-callback-overlap` same-source fixture remains exact in
+twenty native/interpreter repetitions. Every native shard reports SHA-256
+`4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652`.
+Focused tests cover inline callback and descendant-task entry sharing, source
+map plus registry provenance, distinct session state, session lifetime, and
+real SwiftUI task entry/cancellation. Registries and their values remain
+MainActor-confined; this establishes ownership, not worker safety.
+The canonical parallel iteration completed eight targeted tests in three
+suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 2.2 seconds.
+
 The stable target separates five concerns:
 
 ```text

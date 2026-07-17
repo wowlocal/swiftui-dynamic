@@ -226,4 +226,67 @@ struct RuntimeEntryOwnershipTests {
             #expect(runtimeError.column == 9)
         }
     }
+
+    @Test func escapedCallbackUsesItsOriginatingHostRegistry() throws {
+        var originRegistry: RegistryIdentityProbe? = RegistryIdentityProbe(
+            "origin")
+        weak let retainedOriginRegistry = originRegistry
+        let interpreter = Interpreter(registry: originRegistry)
+        let value = try interpreter.run(source: """
+            func makeCallback() -> () -> String {
+                { registryIdentity() }
+            }
+            makeCallback()
+            """)
+        let closure = try #require(value.closureValue)
+
+        let newerRegistry = RegistryIdentityProbe("newer")
+        interpreter.registry = newerRegistry
+        originRegistry = nil
+        #expect(retainedOriginRegistry != nil)
+        #expect(try interpreter.run(source: "registryIdentity()").stringValue
+            == "newer")
+
+        let callbackValue = try interpreter.callHostCallback(
+            closure, arguments: [])
+        #expect(callbackValue.stringValue == "origin")
+
+        let unbridgedInterpreter = Interpreter()
+        let unbridgedValue = try unbridgedInterpreter.run(source: """
+            func makeCallback() -> () -> String {
+                { registryIdentity() }
+            }
+            makeCallback()
+            """)
+        let unbridgedClosure = try #require(unbridgedValue.closureValue)
+        unbridgedInterpreter.registry = newerRegistry
+        #expect(throws: RuntimeError.self) {
+            try unbridgedInterpreter.callHostCallback(
+                unbridgedClosure, arguments: [])
+        }
+    }
+}
+
+private final class RegistryIdentityProbe: HostRegistry {
+    private let identityFunction: HostFunction
+
+    init(_ identity: String) {
+        identityFunction = HostFunction(name: "registryIdentity") { _, _ in
+            .native(identity)
+        }
+    }
+
+    func cFunction(named name: String) -> HostFunction? {
+        name == "registryIdentity" ? identityFunction : nil
+    }
+
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
 }

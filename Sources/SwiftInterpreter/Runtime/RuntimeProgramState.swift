@@ -19,6 +19,10 @@ final class RuntimeProgramState {
     /// `nil` belongs only to the empty pre-run compatibility state.
     let programPlan: ResolvedProgramPlan?
     let assumesCompiledImports: Bool
+    /// Host APIs are part of the prepared program capability. Escaped source
+    /// closures retain this state, so later facade reconfiguration cannot
+    /// redirect an old callback into a different bridge registry.
+    let hostRegistry: HostRegistry?
 
     var structSymbols: [StructSymbol] = []
     var enumSymbols: [String: EnumSymbol] = [:]
@@ -35,9 +39,11 @@ final class RuntimeProgramState {
 
     init(
         programPlan: ResolvedProgramPlan? = nil,
-        assumesCompiledImports: Bool = false
+        assumesCompiledImports: Bool = false,
+        hostRegistry: HostRegistry? = nil
     ) {
         self.programPlan = programPlan
         self.assumesCompiledImports = assumesCompiledImports
+        self.hostRegistry = hostRegistry
     }
 }

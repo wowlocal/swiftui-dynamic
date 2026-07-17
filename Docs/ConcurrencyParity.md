@@ -8741,3 +8741,26 @@ not evidence of, physical parallel execution.
 The canonical parallel iteration completed ten targeted tests in five suites,
 all forty-two methodology checks, and all twenty exact parity repetitions on
 four workers in 2.1 seconds.
+
+### Prepared programs own their host registry
+
+The twenty-seventh M9 prerequisite binds the selected `HostRegistry` into
+`RuntimeProgramState`. That state was already the retained mutable capability
+shared by sessions, runtime entries, and escaped closures. Evaluator lookups
+now use the current entry's captured registry; the facade registry is only the
+default when preparing a later program. Host callbacks, their descendant
+tasks, and SwiftUI tasks therefore cannot drift to a newer bridge selection.
+
+The focused semantic RED returned `newer` when an `origin` callback was invoked
+after facade reconfiguration. It now returns `origin`, while a newly prepared
+program independently returns `newer`. A compiled Apple Swift 6.3.3 probe
+confirms the analogous explicit dependency-capture result `origin,newer` in
+three runs. The unchanged `host-callback-overlap` fixture preserves exact
+native/interpreter semantics in twenty repetitions, with every native shard
+reporting SHA-256
+`4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652`.
+Focused runtime and SwiftUI tests cover the full entry propagation and cleanup
+path. The registry remains MainActor-confined and is not declared Sendable.
+The canonical parallel iteration completed eight targeted tests in three
+suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 2.2 seconds.

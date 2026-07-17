@@ -118,7 +118,9 @@ with the detailed design in
   interpreter facade; explicit host re-entry capabilities remain separate.
   The native-stack guard cache is task-owned too and is keyed by the stable
   numeric ID of its supplying pthread, so a Swift task that resumes on another
-  worker cannot reuse the previous thread's stack geometry.
+  worker cannot reuse the previous thread's stack geometry. Prepared program
+  state also captures its exact host registry; escaped callbacks and SwiftUI/
+  source tasks cannot be redirected by later facade reconfiguration.
   Remaining member semantics, call-site semantic resolution, compiler
   metadata, evaluator/session migration, heap-edge classification, workers,
   mode-differential parity, and TSan are still open.

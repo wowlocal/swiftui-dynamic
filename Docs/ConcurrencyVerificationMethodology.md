@@ -578,6 +578,31 @@ The canonical parallel iteration completed ten targeted tests in five suites,
 all forty-two methodology checks, and all twenty exact parity repetitions on
 four workers in 2.1 seconds.
 
+Its twenty-seventh prerequisite verifies host-registry provenance across
+program replacement. The required semantic RED creates an escaped callback
+under registry A, changes the facade default to registry B, proves a newly
+prepared program sees B, and then invokes the old callback. Returning B from
+that callback is the bug; returning A proves the callback's retained
+`RuntimeProgramState` owns the selection. The implementation must route all
+active evaluator registry access through the current runtime entry's program
+state, with the facade value used only as the default for future preparation.
+
+A strict Apple Swift 6.3.3 probe separately pins ordinary dependency capture:
+a callback formed with capability `origin`, followed by active capability
+`newer`, returns exact `origin,newer` in three compiled executions. The
+same-source concurrency oracle is the unchanged `host-callback-overlap` case.
+Its explicit continuation gate makes the three snapshots causal; native Swift
+and the interpreter remain exact in twenty bounded repetitions with canonical
+native SHA-256
+`4b1da57b3c315b718431c1f2b0fd875d7b3de0d2e66f35b46a79762815ea2652`
+per shard. Focused coverage must include escaped source-map and registry
+provenance, callback/descendant-task entry sharing, session ownership/lifetime,
+and real SwiftUI task entry plus cancellation. No Sendable registry or
+physical-worker claim is allowed.
+The canonical parallel iteration completed eight targeted tests in three
+suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 2.2 seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

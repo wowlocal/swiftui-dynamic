@@ -90,7 +90,8 @@ extension Interpreter {
             buildConfiguration: buildConfiguration)
         let programState = RuntimeProgramState(
             programPlan: programPlan,
-            assumesCompiledImports: lazyTopLevelGlobals)
+            assumesCompiledImports: lazyTopLevelGlobals,
+            hostRegistry: registry)
         compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
         compatibilityProgramState = programState
@@ -406,7 +407,8 @@ extension Interpreter {
             buildConfiguration: buildConfiguration)
         let programState = RuntimeProgramState(
             programPlan: programPlan,
-            assumesCompiledImports: lazyTopLevelGlobals)
+            assumesCompiledImports: lazyTopLevelGlobals,
+            hostRegistry: registry)
         compatibilityProgramPlan = programPlan
         compatibilityProgramMetadata = program.metadata
         compatibilityProgramState = programState

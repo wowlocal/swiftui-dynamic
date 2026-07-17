@@ -229,7 +229,19 @@ public final class Interpreter {
     public var globals: Environment { runtimeHeap.globals }
     let concurrencyRuntime: CooperativeConcurrencyRuntime
     public let runtimeClock: any RuntimeClock
-    public var registry: HostRegistry?
+    /// Compatibility/default bridge for future program preparation. Runtime
+    /// entries resolve the exact registry captured by their program state.
+    private var compatibilityRegistry: HostRegistry?
+    public var registry: HostRegistry? {
+        get {
+            if let programState =
+                evaluationTaskContext.runtimeEntry?.programState {
+                return programState.hostRegistry
+            }
+            return compatibilityRegistry
+        }
+        set { compatibilityRegistry = newValue }
+    }
     public let compilerPreflight: SwiftCompilerPreflight?
     public let compilerPreflightMode: CompilerPreflightMode
     public let buildConfiguration: InterpreterBuildConfiguration
@@ -733,7 +745,7 @@ public final class Interpreter {
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
         runtimeHeap = RuntimeHeap()
-        self.registry = registry
+        compatibilityRegistry = registry
         compilerPreflight = nil
         compilerPreflightMode = .disabled
         self.buildConfiguration = buildConfiguration
@@ -751,7 +763,7 @@ public final class Interpreter {
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
         runtimeHeap = RuntimeHeap()
-        self.registry = registry
+        compatibilityRegistry = registry
         self.compilerPreflight = compilerPreflight
         self.compilerPreflightMode = compilerPreflightMode
         self.buildConfiguration = buildConfiguration
@@ -768,7 +780,7 @@ public final class Interpreter {
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
         runtimeHeap = RuntimeHeap()
-        self.registry = registry
+        compatibilityRegistry = registry
         compilerPreflight = nil
         compilerPreflightMode = .disabled
         self.buildConfiguration = buildConfiguration
@@ -787,7 +799,7 @@ public final class Interpreter {
         buildConfiguration: InterpreterBuildConfiguration? = nil
     ) {
         runtimeHeap = RuntimeHeap()
-        self.registry = registry
+        compatibilityRegistry = registry
         self.compilerPreflight = compilerPreflight
         self.compilerPreflightMode = compilerPreflightMode
         self.buildConfiguration = buildConfiguration
