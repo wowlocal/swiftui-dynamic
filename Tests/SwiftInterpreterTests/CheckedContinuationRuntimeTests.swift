@@ -517,6 +517,73 @@ struct CheckedContinuationRuntimeTests {
         }
     }
 
+    @Test
+    func escapedResumedTokensReleaseOwnerGraphAndRuntimeWithoutWarnings()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/"
+                + "checked-continuation-escaped-token-lifetime.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\ntry await checkedContinuationEscapedTokenLifetimeProbe()\n"
+        weak var weakInterpreter: Interpreter?
+        weak var weakRuntime: CooperativeConcurrencyRuntime?
+        var escapedTokens: [RuntimeCheckedContinuation] = []
+        var retainedDiagnostics: RuntimeDiagnosticSink?
+
+        do {
+            let interpreter = Interpreter()
+            weakInterpreter = interpreter
+            weakRuntime = interpreter.concurrencyRuntime
+            retainedDiagnostics = interpreter.concurrencyRuntime.diagnostics
+
+            let value = try await interpreter.runAsync(source: source)
+
+            #expect(value.stringValue
+                == "true:47:true:true|true:53:true:true")
+            for name in [
+                "checkedContinuationEscapedNonthrowingToken",
+                "checkedContinuationEscapedThrowingToken",
+            ] {
+                let value = try #require(
+                    interpreter.globals.lookup(name)?.unwrappedOptionalOrSelf)
+                guard case .host(let payload) = value,
+                      let token = payload as? RuntimeCheckedContinuation else {
+                    Issue.record("\(name) did not retain a continuation token")
+                    continue
+                }
+                escapedTokens.append(token)
+            }
+
+            #expect(escapedTokens.count == 2)
+            #expect(
+                interpreter.concurrencyRuntime.diagnostics.warnings.isEmpty)
+            #expect(
+                interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+            #expect(
+                interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
+            #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(
+                interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
+
+        #expect(weakInterpreter == nil)
+        #expect(weakRuntime == nil)
+        #expect(escapedTokens.count == 2)
+        #expect(retainedDiagnostics?.warnings.isEmpty == true)
+        escapedTokens.removeAll()
+        #expect(retainedDiagnostics?.warnings.isEmpty == true)
+    }
+
     @Test func sourceActorIsolationOwnsBodyReentersAndCleansUp()
         async throws
     {

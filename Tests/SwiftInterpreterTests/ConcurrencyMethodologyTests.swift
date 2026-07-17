@@ -1626,14 +1626,15 @@ struct ConcurrencyMethodologyTests {
         let checkedClaim = try #require(claims.first {
             $0.id == checked.id
         })
-        #expect(checkedClaim.implementationStatus == .knownDivergence)
-        #expect(checkedClaim.verificationStatus == .none)
+        #expect(checkedClaim.implementationStatus == .runtimeSupported)
+        #expect(checkedClaim.verificationStatus == .nativeParity)
         #expect(checkedClaim.requirementRef
             == "M6/protocol-iteration-streams-and-continuations")
         #expect(checkedClaim.evidenceCaseIDs == [
             "checked-continuation-value-resume",
             "checked-continuation-double-resume",
             "checked-continuation-abandonment",
+            "checked-continuation-escaped-token-lifetime",
             "checked-continuation-mainactor-resume",
             "checked-continuation-omitted-isolation",
             "checked-continuation-result-spellings",
@@ -1644,6 +1645,7 @@ struct ConcurrencyMethodologyTests {
             "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
             "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
             "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
+            "CheckedContinuationRuntimeTests/escapedResumedTokensReleaseOwnerGraphAndRuntimeWithoutWarnings",
             "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
             "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
@@ -1653,8 +1655,7 @@ struct ConcurrencyMethodologyTests {
             "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess",
             "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck",
         ])
-        #expect(checkedClaim.gapEvidenceIDs
-            == ["async-sequence-continuation-runtime"])
+        #expect(checkedClaim.gapEvidenceIDs.isEmpty)
         #expect(checkedClaim.notes.contains(
             "explicit isolation: nil and MainActor.shared"))
         #expect(checkedClaim.notes.contains("required resume executor"))
@@ -1665,19 +1666,23 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.notes.contains("caller lexical isolation"))
         #expect(checkedClaim.notes.contains("double resume"))
         #expect(checkedClaim.notes.contains("successful-process misuse warning"))
-        #expect(checkedClaim.notes.contains("Escaped-token lifetime remains open"))
+        #expect(checkedClaim.notes.contains("task-local object"))
+        #expect(checkedClaim.notes.contains("runtime, session, or interpreter"))
+        #expect(checkedClaim.notes.contains("inert"))
+        #expect(checkedClaim.notes.contains("runtime-supported with native parity"))
 
         let checkedThrowingClaim = try #require(claims.first {
             $0.id == checkedThrowing.id
         })
-        #expect(checkedThrowingClaim.implementationStatus == .knownDivergence)
-        #expect(checkedThrowingClaim.verificationStatus == .none)
+        #expect(checkedThrowingClaim.implementationStatus == .runtimeSupported)
+        #expect(checkedThrowingClaim.verificationStatus == .nativeParity)
         #expect(checkedThrowingClaim.requirementRef
             == "M6/protocol-iteration-streams-and-continuations")
         #expect(checkedThrowingClaim.evidenceCaseIDs == [
             "checked-throwing-continuation-value-error",
             "checked-throwing-continuation-double-resume",
             "checked-throwing-continuation-abandonment",
+            "checked-continuation-escaped-token-lifetime",
             "checked-throwing-continuation-mainactor-error",
             "checked-throwing-continuation-source-actor-isolation",
             "checked-continuation-omitted-isolation",
@@ -1688,6 +1693,7 @@ struct ConcurrencyMethodologyTests {
             "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
             "CheckedContinuationRuntimeTests/doubleResumeIsFatalAcrossCheckedFormsAndCleansUp",
             "CheckedContinuationRuntimeTests/abandonedTokensWarnAcrossCheckedFormsAndCancelRemainingDrains",
+            "CheckedContinuationRuntimeTests/escapedResumedTokensReleaseOwnerGraphAndRuntimeWithoutWarnings",
             "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
             "CheckedContinuationRuntimeTests/throwingSourceActorIsolationRestoresErrorAndCleansUp",
             "CheckedContinuationRuntimeTests/omittedIsolationUsesCallerLexicalContextAndCleansUp",
@@ -1696,8 +1702,7 @@ struct ConcurrencyMethodologyTests {
             "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
             "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck",
         ])
-        #expect(checkedThrowingClaim.gapEvidenceIDs
-            == ["async-sequence-continuation-runtime"])
+        #expect(checkedThrowingClaim.gapEvidenceIDs.isEmpty)
         #expect(checkedThrowingClaim.notes.contains("resume(throwing:)"))
         #expect(checkedThrowingClaim.notes.contains("MainActor"))
         #expect(checkedThrowingClaim.notes.contains("source-actor"))
@@ -1709,8 +1714,12 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.notes.contains("caller lexical isolation"))
         #expect(checkedThrowingClaim.notes.contains("double resume"))
         #expect(checkedThrowingClaim.notes.contains("misuse-warning canary"))
+        #expect(checkedThrowingClaim.notes.contains("task-local object"))
         #expect(checkedThrowingClaim.notes.contains(
-            "Escaped-token lifetime remains open"))
+            "runtime, session, or interpreter"))
+        #expect(checkedThrowingClaim.notes.contains("inert"))
+        #expect(checkedThrowingClaim.notes.contains(
+            "runtime-supported with native parity"))
 
         let routedIDs = Set([checked.id, checkedThrowing.id])
         let deferredClaims = claims.filter { !routedIDs.contains($0.id) }

@@ -75,8 +75,10 @@ also preserve Swift's fatal invariant when either checked form is resumed more
 than once, including through source `do`/`catch`. Both checked forms now emit
 Swift's successful-process misuse warning when the final unresumed source token
 is released; the waiting task stays suspended and explicit host teardown
-remains separate. Unsafe continuations and checked-continuation escaped-token
-lifetime remain open.
+remains separate. A resumed checked token may remain escaped after owner
+completion without retaining the task-local owner graph, runtime, session, or
+interpreter, and its later release is inert. Only fail-closed diagnostics for
+the unsafe continuation entry points remain open.
 The remaining Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1392,8 +1394,10 @@ diagnostic; fatal runtime invariants bypass source `do`/`catch`. Final release
 of an unresumed checked token instead emits a successful-process runtime
 warning through a diagnostic sink that does not retain the session, leaves the
 waiting task parked, and never enters source `catch`; infrastructure abort
-invalidates the token before host cleanup. Escaped-token lifetime and unsafe
-variants remain open.
+invalidates the token before host cleanup. After successful resume and owner
+completion, an escaped token retains neither the task-local owner graph nor the
+runtime/session/interpreter; its later release is inert. Unsafe variants remain
+open only for explicit fail-closed diagnostics.
 
 ### 6.18 Async sequences and streams
 
@@ -2121,8 +2125,9 @@ Each milestone is independently gated through
   Both checked forms diagnose double resume as a fatal runtime invariant even
   inside source `do`/`catch`. They also diagnose final-token abandonment as a
   successful-process warning while leaving the owner suspended; host teardown
-  is explicit and occurs after observation. Unsafe variants plus escaped-token
-  lifetime diagnostics remain active;
+  is explicit and occurs after observation. Resumed-token lifetime is covered:
+  a retained escaped token does not own the completed task graph or runtime and
+  is inert on release. Only unsafe-variant fail-closed diagnostics remain;
   complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
@@ -2394,12 +2399,14 @@ path. Both checked forms now have process-isolated parity for Swift's fatal
 double-resume invariant, including its escape from source `do`/`catch`, and for
 Swift's nonfatal final-token abandonment warning. The latter leaves the source
 task suspended and uses explicit infrastructure cancellation only after the
-warning observation. Escaped-token lifetime remains active rather than being
-inferred from the covered resume paths or stream behavior.
+warning observation. Escaped resumed-token lifetime now has direct causal
+native/interpreter evidence: a retained token does not keep the completed
+task-local owner graph, runtime, session, or interpreter alive and is inert on
+release.
 
 Closure directive (steering 2026-07-17): the demand-cited portion of this
-slice is covered. The in-flight escaped-token lifetime diagnostic completes
-the active tail. Unsafe-continuation variants fall under the section 14
+slice is covered, including the escaped resumed-token lifetime tail.
+Unsafe-continuation variants fall under the section 14
 within-slice depth cap — with no demand citation on record they land as
 fail-closed diagnostics with one parity case each, not as characterize+support
 series. With those terminal items resolved the cycle closes, and the
