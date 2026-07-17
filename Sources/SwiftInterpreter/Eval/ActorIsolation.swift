@@ -130,7 +130,7 @@ extension Interpreter {
         }
     }
 
-    private func executorSelectedByIsolatedValue(
+    func executorSelectedByIsolatedValue(
         _ value: RuntimeValue,
         parameterName: String
     ) throws -> RuntimeExecutorKind {

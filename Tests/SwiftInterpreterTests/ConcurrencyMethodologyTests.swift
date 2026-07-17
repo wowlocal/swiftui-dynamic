@@ -1629,17 +1629,23 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.verificationStatus == .none)
         #expect(checkedClaim.requirementRef
             == "M6/protocol-iteration-streams-and-continuations")
-        #expect(checkedClaim.evidenceCaseIDs
-            == ["checked-continuation-value-resume"])
+        #expect(checkedClaim.evidenceCaseIDs == [
+            "checked-continuation-value-resume",
+            "checked-continuation-mainactor-resume",
+        ])
         #expect(checkedClaim.testNames == [
             "CheckedContinuationRuntimeTests/detachedProducerResumesValueAndClosesRuntimeRecord",
             "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
             "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
+            "CheckedContinuationRuntimeTests/arbitraryActorIsolationFailsClosedBeforeRecordCreation",
         ])
         #expect(checkedClaim.gapEvidenceIDs
             == ["async-sequence-continuation-runtime"])
-        #expect(checkedClaim.notes.contains("explicit isolation: nil"))
-        #expect(checkedClaim.notes.contains("resume executor"))
+        #expect(checkedClaim.notes.contains(
+            "explicit isolation: nil and MainActor.shared"))
+        #expect(checkedClaim.notes.contains("required resume executor"))
+        #expect(checkedClaim.notes.contains(
+            "arbitrary source actors fail closed"))
 
         let deferredClaims = claims.filter { $0.id != checked.id }
         #expect(deferredClaims.count == 3)

@@ -691,11 +691,16 @@ extension Interpreter {
         return value
     }
 
-    func callWithArguments(_ closure: ClosureValue, args: CallArguments, node: Syntax?) throws -> RuntimeValue {
+    func callWithArguments(
+        _ closure: ClosureValue,
+        args: CallArguments,
+        node: Syntax?,
+        contextualExecutor: RuntimeExecutorKind? = nil
+    ) throws -> RuntimeValue {
         let invocation = try resolvedInvocation(
             for: closure, arguments: args)
         let effectiveArguments = invocation.arguments
-        let calleeExecutor = invocation.executor
+        let calleeExecutor = contextualExecutor ?? invocation.executor
         try requireSynchronousActorInvocationAccess(to: calleeExecutor)
         callDepth += 1
         defer { callDepth -= 1 }
@@ -706,7 +711,8 @@ extension Interpreter {
         defer { evaluationTaskContext.currentExecutor = previousExecutor }
         lexicalExecutorFrames.append(
             closure.functionDeclID == nil
-                ? closure.lexicalExecutor : calleeExecutor)
+                ? contextualExecutor ?? closure.lexicalExecutor
+                : calleeExecutor)
         defer { lexicalExecutorFrames.removeLast() }
         var insertedFrame: ExtensionFrame?
         if let frame = closure.extensionFrame, activeExtensionFrames.insert(frame).inserted {

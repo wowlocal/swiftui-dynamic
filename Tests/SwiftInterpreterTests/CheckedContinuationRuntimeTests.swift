@@ -50,18 +50,30 @@ struct CheckedContinuationRuntimeTests {
                     while !gate.isOpen { await Task.yield() }
                     return .void
                 })))
+        interpreter.globals.define(
+            "checkedContinuationExecutorLane",
+            .hostFunction(HostFunction(
+                name: "checkedContinuationExecutorLane"
+            ) { _, context in
+                .native(context.sourceExecutor.isMainActor ? "main" : "worker")
+            }))
         let evaluation = Task {
             try await interpreter.runAsync(source: """
-                nonisolated func controlledContinuationValue() async -> Int {
-                    let value: Int = await withCheckedContinuation(
-                        isolation: nil
+                @concurrent
+                nonisolated
+                func controlledContinuationValue() async -> String {
+                    let entered = checkedContinuationExecutorLane()
+                    let bodyLane: String = await withCheckedContinuation(
+                        isolation: MainActor.shared
                     ) { continuation in
+                        let lane = checkedContinuationExecutorLane()
                         Task.detached {
                             await waitForContinuationProducerGate()
-                            continuation.resume(returning: 17)
+                            continuation.resume(returning: lane)
                         }
                     }
-                    return value
+                    let resumed = checkedContinuationExecutorLane()
+                    return "\\(entered)|\\(bodyLane)|\\(resumed)"
                 }
 
                 await controlledContinuationValue()
@@ -91,13 +103,13 @@ struct CheckedContinuationRuntimeTests {
         #expect(owner.suspension == reason)
         #expect(owner.suspensionHistory.last == reason)
         #expect(continuation.suspensionLease?.reason == reason)
-        #expect(owner.evaluationContext?.currentExecutor
-            == continuation.requiredExecutor)
+        #expect(continuation.requiredExecutor == .cooperativeDefault)
+        #expect(owner.evaluationContext?.currentExecutor == .cooperativeDefault)
 
         gate.isOpen = true
         let value = try await evaluation.value
 
-        #expect(value.intValue == 17)
+        #expect(value.stringValue == "worker|main|worker")
         #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 1)
         #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 1)
         #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
@@ -145,6 +157,34 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
         #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
         #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func arbitraryActorIsolationFailsClosedBeforeRecordCreation()
+        async throws
+    {
+        let interpreter = Interpreter()
+        do {
+            _ = try await interpreter.runAsync(source: """
+                actor ContinuationIsolationActor {}
+
+                let isolation = ContinuationIsolationActor()
+                await withCheckedContinuation(isolation: isolation) {
+                    continuation in
+                    continuation.resume(returning: 1)
+                }
+                """)
+            Issue.record(
+                "arbitrary actor isolation was silently treated as MainActor")
+        } catch {
+            #expect(String(describing: error).contains(
+                "currently supports only nil or MainActor isolation"))
+        }
+
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 0)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
         #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
     }
