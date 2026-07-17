@@ -80,9 +80,12 @@ across isolated processes.
 For the complete concurrency inner loop, use
 `Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER`. It builds the test
 bundle once, then runs the focused parity case, targeted tests, and methodology
-suite concurrently through direct prebuilt-bundle processes. This avoids the
-shared SwiftPM planning lock that serializes concurrent `swift test` commands;
-pass `--skip-build` only when the bundle is already current.
+suite concurrently through direct prebuilt-bundle processes. During the edit
+loop, `--methodology-filter 'RELEVANT_TEST|ACCEPTANCE_TEST'` limits that lane to
+the checks affected by the slice; omit the option for the complete 39-test
+methodology gate before committing. This avoids the shared SwiftPM planning
+lock that serializes concurrent `swift test` commands; pass `--skip-build` only
+when the bundle is already current.
 
 ## Concurrency roadmap
 
