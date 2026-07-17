@@ -60,6 +60,17 @@ public struct RuntimeTaskGroupID: Hashable, Sendable,
     public var description: String { "task-group-\(rawValue)" }
 }
 
+public struct RuntimeAsyncStreamID: Hashable, Sendable,
+    CustomStringConvertible {
+    public let rawValue: UInt64
+
+    public init(rawValue: UInt64) {
+        self.rawValue = rawValue
+    }
+
+    public var description: String { "async-stream-\(rawValue)" }
+}
+
 public struct HostOperationID: Hashable, Sendable, CustomStringConvertible {
     public let rawValue: UInt64
 
@@ -276,6 +287,7 @@ public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
     case awaitingTask(RuntimeTaskID)
     case awaitingHost(HostOperationID)
     case waitingForGroup(RuntimeTaskGroupID)
+    case waitingForStream(RuntimeAsyncStreamID)
     case waitingForActor(RuntimeActorID)
     case yielding
     case sleeping(until: RuntimeInstant)
@@ -285,6 +297,8 @@ public enum RuntimeSuspension: Hashable, Sendable, CustomStringConvertible {
         case .awaitingTask(let taskID): "awaitingTask(\(taskID))"
         case .awaitingHost(let operationID): "awaitingHost(\(operationID))"
         case .waitingForGroup(let groupID): "waitingForGroup(\(groupID))"
+        case .waitingForStream(let streamID):
+            "waitingForStream(\(streamID))"
         case .waitingForActor(let actorID): "waitingForActor(\(actorID))"
         case .yielding: "yielding"
         case .sleeping(let deadline): "sleeping(until: \(deadline))"
@@ -549,6 +563,18 @@ final class RuntimeTaskGroupRecord {
     }
 }
 
+/// Runtime ownership for one live AsyncStream storage. Source values own the
+/// storage itself; this record owns only task-wait edges, so registering a
+/// stream cannot extend its source lifetime.
+final class RuntimeAsyncStreamRecord {
+    let id: RuntimeAsyncStreamID
+    var waitingTaskIDs: Set<RuntimeTaskID> = []
+
+    init(id: RuntimeAsyncStreamID) {
+        self.id = id
+    }
+}
+
 /// Stable runtime identity for one source actor instance. The source reference
 /// graph owns the instance and its property boxes; the runtime record remains
 /// non-owning so registering an executor cannot extend source actor lifetime.
@@ -623,6 +649,7 @@ final class CooperativeConcurrencyRuntime {
     private var nextActorID: UInt64 = 1
     private var nextStructuredScopeID: UInt64 = 1
     private var nextTaskGroupID: UInt64 = 1
+    private var nextAsyncStreamID: UInt64 = 1
     private var nextHostOperationID: UInt64 = 1
     private var nextCancellationHandlerID: UInt64 = 1
     private var nextPriorityEscalationHandlerID: UInt64 = 1
@@ -634,11 +661,16 @@ final class CooperativeConcurrencyRuntime {
     private(set) var taskGroups: [
         RuntimeTaskGroupID: RuntimeTaskGroupRecord
     ] = [:]
+    private(set) var asyncStreams: [
+        RuntimeAsyncStreamID: RuntimeAsyncStreamRecord
+    ] = [:]
     private(set) var hostOperations: [HostOperationID: RuntimeTaskID] = [:]
     private var hostOperationSuspensions: [
         HostOperationID: RuntimeTaskSuspensionLease
     ] = [:]
     private(set) var actors: [RuntimeActorID: RuntimeActorRecord] = [:]
+    private(set) var totalAsyncStreamsCreated = 0
+    private(set) var asyncStreamSuspensionCount = 0
 
     init(clock: any RuntimeClock = ContinuousRuntimeClock()) {
         self.clock = clock
@@ -939,6 +971,61 @@ final class CooperativeConcurrencyRuntime {
             owner.ownedTaskGroups.insert(id).inserted,
             "duplicate owner edge for task group \(id)")
         return group
+    }
+
+    func createAsyncStream() -> RuntimeAsyncStreamID {
+        let id = RuntimeAsyncStreamID(rawValue: nextAsyncStreamID)
+        nextAsyncStreamID += 1
+        let record = RuntimeAsyncStreamRecord(id: id)
+        precondition(
+            asyncStreams.updateValue(record, forKey: id) == nil,
+            "duplicate async stream ID \(id)")
+        totalAsyncStreamsCreated += 1
+        return id
+    }
+
+    func beginWaitingForAsyncStream(
+        _ streamID: RuntimeAsyncStreamID,
+        taskID: RuntimeTaskID
+    ) -> RuntimeTaskSuspensionLease {
+        guard let stream = asyncStreams[streamID],
+              let task = records[taskID], task.state == .running else {
+            preconditionFailure(
+                "task \(taskID) cannot wait on inactive \(streamID)")
+        }
+        precondition(
+            stream.waitingTaskIDs.insert(taskID).inserted,
+            "task \(taskID) is already waiting on \(streamID)")
+        asyncStreamSuspensionCount += 1
+        return beginTaskSuspension(
+            taskID, for: .waitingForStream(streamID))
+    }
+
+    func endWaitingForAsyncStream(
+        _ streamID: RuntimeAsyncStreamID,
+        taskID: RuntimeTaskID,
+        lease: RuntimeTaskSuspensionLease
+    ) async {
+        guard let stream = asyncStreams[streamID] else {
+            preconditionFailure(
+                "task \(taskID) resumed from inactive \(streamID)")
+        }
+        precondition(
+            stream.waitingTaskIDs.remove(taskID) != nil,
+            "task \(taskID) was not waiting on \(streamID)")
+        await endTaskSuspension(lease)
+    }
+
+    func asyncStreamHasWaiters(_ id: RuntimeAsyncStreamID) -> Bool {
+        asyncStreams[id]?.waitingTaskIDs.isEmpty == false
+    }
+
+    func closeAsyncStream(_ id: RuntimeAsyncStreamID) {
+        guard let stream = asyncStreams[id] else { return }
+        precondition(
+            stream.waitingTaskIDs.isEmpty,
+            "cannot close \(id) with active consumers")
+        asyncStreams.removeValue(forKey: id)
     }
 
     func addStructuredChild(
@@ -1353,6 +1440,11 @@ final class CooperativeConcurrencyRuntime {
             records[id]?.ownedTaskGroups.isEmpty != false,
             "cannot release runtime task \(id) with an active task group")
         precondition(
+            asyncStreams.values.allSatisfy {
+                !$0.waitingTaskIDs.contains(id)
+            },
+            "cannot release runtime task \(id) with an async-stream wait")
+        precondition(
             !actors.values.contains {
                 $0.executorOwnerTaskID == id
                     || $0.mailbox.contains { $0.taskID == id }
@@ -1537,6 +1629,7 @@ final class CooperativeConcurrencyRuntime {
     }
     var activeStructuredScopeCount: Int { structuredScopes.count }
     var activeTaskGroupCount: Int { taskGroups.count }
+    var activeAsyncStreamCount: Int { asyncStreams.count }
 
     private func invokeCancellationHandlers(on record: RuntimeTaskRecord) {
         // The same-source Swift 6.3.3 probe establishes inner-to-outer

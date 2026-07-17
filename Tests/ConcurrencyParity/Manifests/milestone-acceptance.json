@@ -884,8 +884,8 @@
       "title": "Async sequences and continuations",
       "status": "partial",
       "dependsOn": ["M5"],
-      "ledgerEvidence": "Protocol-level `for await` dispatches `makeAsyncIterator()` and suspending `next()` witnesses through the ordinary evaluator/executor path for interpreted values, protocol-extension defaults, and typed opaque host gateways. Exact same-source parity covers finite success, typed source failure, cooperative user-iterator cancellation, `break`/`continue`/`return` plus per-iteration and function-level `defer` cleanup, real source and host suspension, iterator state, terminal `nil`, host-operation ownership, and registry cleanup. Task-group iteration remains separate M4 evidence.",
-      "ledgerRemainingWork": "Implement `AsyncStream`/`AsyncThrowingStream` and checked continuations on cooperative-default and MainActor executors with termination, cancellable-consumer, double-resume, abandonment, lifetime, and cleanup evidence.",
+      "ledgerEvidence": "Protocol-level `for await` dispatches `makeAsyncIterator()` and suspending `next()` witnesses through the ordinary evaluator/executor path for interpreted values, protocol-extension defaults, and typed opaque host gateways. Exact same-source parity covers finite success, typed source failure, cooperative user-iterator cancellation, `break`/`continue`/`return` plus per-iteration and function-level `defer` cleanup, real source and host suspension, iterator state, terminal `nil`, host-operation ownership, and registry cleanup. The first unbounded `AsyncStream` slice adds runtime-owned empty-stream suspension, two producer yields, finish-to-`nil`, and complete record cleanup. Task-group iteration remains separate M4 evidence.",
+      "ledgerRemainingWork": "Complete `AsyncStream` cancellation, termination callbacks, producer/consumer lifetime, iterator copies, and buffering policies; then implement `AsyncThrowingStream` and checked continuations on cooperative-default and MainActor executors with error, double-resume, abandonment, lifetime, and cleanup evidence.",
       "requirements": [
         {
           "id": "protocol-iteration-streams-and-continuations",
@@ -900,7 +900,8 @@
             "protocol-async-sequence-early-exit",
             "protocol-async-sequence-return-continue",
             "protocol-async-sequence-default-witnesses",
-            "host-bridged-async-sequence"
+            "host-bridged-async-sequence",
+            "async-stream-suspended-consumer"
           ],
           "evidenceCaseIDs": [
             "task-group-iteration",
@@ -908,10 +909,11 @@
           ],
           "testNames": [
             "CompilerPreflightTests/publicContinuationEntryPointsTypecheckButRemainDeferredUntilResumeOwnership",
-            "AsyncExecutionTests/protocolForAwaitPreservesMutatingIteratorAcrossSuspension"
+            "AsyncExecutionTests/protocolForAwaitPreservesMutatingIteratorAcrossSuspension",
+            "AsyncStreamRuntimeTests/suspendedConsumerResumesAndDrainsRuntime"
           ],
           "gapEvidenceIDs": ["async-sequence-continuation-runtime"],
-          "notes": "The first protocol-level slice is a gap closure: before the production change, the async statement evaluator accepted only concrete RuntimeTaskGroup values and diagnosed a user AsyncSequence as a non-iterable instance; an initial direct witness call then exposed a second RED by losing mutating iterator state. The shared runtime now dispatches makeAsyncIterator and suspending next witnesses and reuses the ordinary async mutating-method copy-in/copy-out kernel. Exact same-source parity and focused cleanup evidence cover the finite success path. Follow-up characterizations prove typed source-failure projection, Swift's cooperative user-iterator cancellation rule, all three streaming control-flow exits, protocol-extension default witnesses for both requirements, and a StoreKit-shaped opaque host sequence: cancellation during next does not terminate a general loop automatically; break stops before another request; continue runs its body defer before requesting again; return stops requests while unwinding body- and function-level defers before caller resumption; defaults retain mutating iterator state across suspension; and typed host make/next gateways use the same loop while every async next owns a tracked host operation through terminal nil and cleanup. No production change was required for those characterizations. Group-specific iteration remains M4 evidence. Streams (including cancellable consumers) and continuations remain open. The four generated public continuation entry points retain their strict native signature/isolation probe but no adapter route or runtime claim."
+          "notes": "The first protocol-level slice is a gap closure: before the production change, the async statement evaluator accepted only concrete RuntimeTaskGroup values and diagnosed a user AsyncSequence as a non-iterable instance; an initial direct witness call then exposed a second RED by losing mutating iterator state. The shared runtime now dispatches makeAsyncIterator and suspending next witnesses and reuses the ordinary async mutating-method copy-in/copy-out kernel. Exact same-source parity and focused cleanup evidence cover the finite success path. Follow-up characterizations prove typed source-failure projection, Swift's cooperative user-iterator cancellation rule, all three streaming control-flow exits, protocol-extension default witnesses for both requirements, and a StoreKit-shaped opaque host sequence. The first AsyncStream gap closure captures constructor absence as RED, then adds a general interpreter-owned unbounded storage, continuation, iterator, waitingForStream suspension lease, one-consumer resume per yield, finish-to-nil, and cleanup. Twenty native/interpreter runs produce 2:6; focused evidence observes a real empty-stream suspension and empty stream/task/scope/group/host-operation/scheduler registries. Non-unbounded policies fail closed. The unchanged pinned swiftlang async_stream.swift file independently anchors two-yield/finish/terminal-nil semantics but stays needs-adapter because StdlibUnittest and its broader throwing/buffering/termination surface are not yet supported. Group-specific iteration remains M4 evidence. Consumer cancellation, termination callbacks, producer/consumer lifetime, iterator copies, bounded buffering, AsyncThrowingStream, and continuations remain open. The four generated public continuation entry points retain their strict native signature/isolation probe but no adapter route or runtime claim."
         }
       ]
     },

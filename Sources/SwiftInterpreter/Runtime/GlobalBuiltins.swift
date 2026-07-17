@@ -128,6 +128,9 @@ extension Interpreter {
             }
             throw RuntimeError(message: "Task needs an operation closure")
         }
+        globals.define(
+            "AsyncStream",
+            .hostFunction(sourceAsyncStreamFunction()))
         for sourceName in GeneratedConcurrencySurface
                 .topLevelFunctionDispatch.keys.sorted() {
             guard let intrinsic = GeneratedConcurrencySurface

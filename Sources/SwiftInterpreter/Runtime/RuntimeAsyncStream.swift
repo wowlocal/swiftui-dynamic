@@ -1,0 +1,316 @@
+import Foundation
+
+/// Source-facing metadata for interpreter-owned concurrency carriers. Keeping
+/// this beside the runtime values lets type and protocol checks stay generic;
+/// evaluator dispatch still keys on concrete capabilities, never source names.
+protocol RuntimeConcurrencyHostValue: AnyObject {
+    var sourceTypeName: String { get }
+    var sourceProtocolNames: [String] { get }
+}
+
+private enum RuntimeAsyncStreamNext {
+    case value(RuntimeValue)
+    case finished
+}
+
+private final class RuntimeAsyncStreamWaiter {
+    let taskID: RuntimeTaskID
+    let continuation: CheckedContinuation<RuntimeAsyncStreamNext, Never>
+
+    init(
+        taskID: RuntimeTaskID,
+        continuation: CheckedContinuation<RuntimeAsyncStreamNext, Never>
+    ) {
+        self.taskID = taskID
+        self.continuation = continuation
+    }
+}
+
+enum RuntimeAsyncStreamYieldResult {
+    case enqueued
+    case terminated
+}
+
+final class RuntimeAsyncStreamStorage {
+    weak var runtime: CooperativeConcurrencyRuntime?
+    let id: RuntimeAsyncStreamID
+    let elementTypeName: String
+    private var buffered: [RuntimeValue] = []
+    private var waiters: [RuntimeAsyncStreamWaiter] = []
+    private var terminal = false
+    private var closed = false
+
+    init(
+        runtime: CooperativeConcurrencyRuntime,
+        elementTypeName: String
+    ) {
+        self.runtime = runtime
+        self.elementTypeName = elementTypeName
+        id = runtime.createAsyncStream()
+    }
+
+    isolated deinit {
+        guard !closed else { return }
+        precondition(
+            waiters.isEmpty,
+            "an AsyncStream storage cannot die with suspended consumers")
+        runtime?.closeAsyncStream(id)
+    }
+
+    fileprivate func poll() -> RuntimeAsyncStreamNext? {
+        if !buffered.isEmpty {
+            let value = buffered.removeFirst()
+            closeIfPossible()
+            return .value(value)
+        }
+        guard terminal else { return nil }
+        closeIfPossible()
+        return .finished
+    }
+
+    fileprivate func wait(
+        taskID: RuntimeTaskID
+    ) async -> RuntimeAsyncStreamNext {
+        await withCheckedContinuation { continuation in
+            if let immediate = poll() {
+                continuation.resume(returning: immediate)
+                return
+            }
+            precondition(
+                !waiters.contains { $0.taskID == taskID },
+                "one task cannot await the same AsyncStream twice")
+            waiters.append(RuntimeAsyncStreamWaiter(
+                taskID: taskID,
+                continuation: continuation))
+        }
+    }
+
+    func yield(_ value: RuntimeValue) -> RuntimeAsyncStreamYieldResult {
+        guard !terminal else { return .terminated }
+        let delivered = value.copiedForValueSemantics()
+        if !waiters.isEmpty {
+            let waiter = waiters.removeFirst()
+            waiter.continuation.resume(returning: .value(delivered))
+        } else {
+            buffered.append(delivered)
+        }
+        return .enqueued
+    }
+
+    func finish() {
+        guard !terminal else { return }
+        terminal = true
+        let pending = waiters
+        waiters.removeAll(keepingCapacity: false)
+        for waiter in pending {
+            waiter.continuation.resume(returning: .finished)
+        }
+        closeIfPossible()
+    }
+
+    func cancel() {
+        finish()
+    }
+
+    func closeIfPossible() {
+        guard !closed, terminal, buffered.isEmpty, waiters.isEmpty else {
+            return
+        }
+        guard let runtime else {
+            closed = true
+            return
+        }
+        guard !runtime.asyncStreamHasWaiters(id) else { return }
+        runtime.closeAsyncStream(id)
+        closed = true
+    }
+}
+
+final class RuntimeAsyncStreamSequence: RuntimeConcurrencyHostValue {
+    let storage: RuntimeAsyncStreamStorage
+
+    init(storage: RuntimeAsyncStreamStorage) {
+        self.storage = storage
+    }
+
+    var sourceTypeName: String {
+        "AsyncStream<\(storage.elementTypeName)>"
+    }
+
+    var sourceProtocolNames: [String] { ["AsyncSequence"] }
+}
+
+final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue {
+    let storage: RuntimeAsyncStreamStorage
+    var isAwaitingNext = false
+
+    init(storage: RuntimeAsyncStreamStorage) {
+        self.storage = storage
+    }
+
+    var sourceTypeName: String {
+        "AsyncStream<\(storage.elementTypeName)>.Iterator"
+    }
+
+    var sourceProtocolNames: [String] { ["AsyncIteratorProtocol"] }
+}
+
+final class RuntimeAsyncStreamContinuation: RuntimeConcurrencyHostValue {
+    let storage: RuntimeAsyncStreamStorage
+
+    init(storage: RuntimeAsyncStreamStorage) {
+        self.storage = storage
+    }
+
+    var sourceTypeName: String {
+        "AsyncStream<\(storage.elementTypeName)>.Continuation"
+    }
+
+    var sourceProtocolNames: [String] { ["Sendable"] }
+}
+
+extension Interpreter {
+    func sourceAsyncStreamFunction() -> HostFunction {
+        HostFunction(name: "AsyncStream") { [weak self] arguments, context in
+            guard let self else {
+                throw RuntimeError(message:
+                    "interpreter was released while creating AsyncStream")
+            }
+            if let policy = arguments.labeled("bufferingPolicy"),
+               !Self.isUnboundedAsyncStreamPolicy(policy) {
+                throw RuntimeError(message:
+                    "AsyncStream currently supports only .unbounded buffering")
+            }
+            guard let build = arguments.lastUnlabeledClosure else {
+                throw RuntimeError(message:
+                    "AsyncStream requires a continuation builder closure")
+            }
+            let specializedElementType = arguments
+                .labeled("__genericArguments")?.stringValue
+            let explicitElementType = arguments.positional(0)?
+                .hostPayload as? HostTypeMarker
+            guard let elementType = specializedElementType
+                    ?? explicitElementType?.name,
+                  !elementType.isEmpty,
+                  !elementType.contains(",") else {
+                throw RuntimeError(message:
+                    "AsyncStream currently requires one explicit element type")
+            }
+            let storage = RuntimeAsyncStreamStorage(
+                runtime: self.concurrencyRuntime,
+                elementTypeName: elementType)
+            let continuation = RuntimeAsyncStreamContinuation(
+                storage: storage)
+            _ = try context.callClosure(
+                build, arguments: [.native(continuation)])
+            return .native(RuntimeAsyncStreamSequence(storage: storage))
+        }
+    }
+
+    func runtimeAsyncStreamMember(
+        _ name: String,
+        on payload: Any
+    ) -> RuntimeValue? {
+        if let sequence = payload as? RuntimeAsyncStreamSequence,
+           name == "makeAsyncIterator" {
+            return .hostFunction(HostFunction(name: name) { _, _ in
+                .native(RuntimeAsyncStreamIterator(
+                    storage: sequence.storage))
+            })
+        }
+        if let iterator = payload as? RuntimeAsyncStreamIterator,
+           name == "next" {
+            return .hostFunction(HostFunction(
+                name: name,
+                tracksHostOperation: false,
+                asyncInvoke: { [weak self, weak iterator] _, _ in
+                    guard let self, let iterator else {
+                        throw RuntimeError(message:
+                            "AsyncStream iterator was released while awaiting next()")
+                    }
+                    guard !iterator.isAwaitingNext else {
+                        throw RuntimeError(
+                            message: "attempt to await AsyncStream.Iterator.next() concurrently",
+                            fatal: true)
+                    }
+                    iterator.isAwaitingNext = true
+                    defer { iterator.isAwaitingNext = false }
+                    let value = try await self.nextRuntimeAsyncStreamValue(
+                        from: iterator.storage)
+                    return .optional(
+                        value,
+                        wrappedTypeName: iterator.storage.elementTypeName)
+                }))
+        }
+        if let continuation = payload as? RuntimeAsyncStreamContinuation {
+            switch name {
+            case "yield":
+                return .hostFunction(HostFunction(name: name) {
+                    arguments, _ in
+                    guard let value = arguments.positional(0) else {
+                        throw RuntimeError(message:
+                            "AsyncStream.Continuation.yield requires a value")
+                    }
+                    return .native(continuation.storage.yield(value))
+                })
+            case "finish":
+                return .hostFunction(HostFunction(name: name) { _, _ in
+                    continuation.storage.finish()
+                    return .void
+                })
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    private func nextRuntimeAsyncStreamValue(
+        from storage: RuntimeAsyncStreamStorage
+    ) async throws -> RuntimeValue? {
+        guard storage.runtime === concurrencyRuntime else {
+            throw RuntimeError(message:
+                "AsyncStream belongs to a released interpreter runtime")
+        }
+        if let immediate = storage.poll() {
+            switch immediate {
+            case .value(let value): return value
+            case .finished: return nil
+            }
+        }
+
+        let task = try requireCanonicalActiveRuntimeTask(
+            for: "AsyncStream.Iterator.next")
+        let lease = concurrencyRuntime.beginWaitingForAsyncStream(
+            storage.id, taskID: task.id)
+        let cancellationHandler = concurrencyRuntime.addCancellationHandler(
+            to: task.id
+        ) { [weak storage] in
+            storage?.cancel()
+        }
+        let next = await storage.wait(taskID: task.id)
+        concurrencyRuntime.removeCancellationHandler(
+            cancellationHandler, from: task.id)
+        await concurrencyRuntime.endWaitingForAsyncStream(
+            storage.id, taskID: task.id, lease: lease)
+        storage.closeIfPossible()
+
+        switch next {
+        case .value(let value): return value
+        case .finished: return nil
+        }
+    }
+
+    private static func isUnboundedAsyncStreamPolicy(
+        _ value: RuntimeValue
+    ) -> Bool {
+        switch value {
+        case .implicitMember("unbounded"):
+            true
+        case .host(let call as ImplicitMemberCall):
+            call.name == "unbounded"
+        default:
+            false
+        }
+    }
+}

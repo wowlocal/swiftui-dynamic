@@ -966,10 +966,11 @@ private enum ConcurrencyParityHarness {
               interpreter.concurrencyRuntime.activeRecordCount == 0,
               interpreter.concurrencyRuntime.activeStructuredScopeCount == 0,
               interpreter.concurrencyRuntime.activeTaskGroupCount == 0,
+              interpreter.concurrencyRuntime.activeAsyncStreamCount == 0,
               interpreter.concurrencyRuntime.activeHostOperationCount == 0
         else {
             throw RuntimeError(message:
-                "case '\(parityCase.id)' leaked task/scope/group/host runtime ownership")
+                "case '\(parityCase.id)' leaked task/scope/group/stream/host runtime ownership")
         }
 
         if hostSequenceRegistry.nextCallCount > 0 {

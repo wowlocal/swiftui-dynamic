@@ -1879,5 +1879,17 @@
     "interpreterProjection": "string",
     "nativeFact": "For-await over an SDK-owned opaque AsyncSequence calls its host-gateway makeAsyncIterator() once and repeatedly awaits the host iterator's next() until nil. Three suspending values are delivered exactly once, and the terminal fourth next() ends iteration.",
     "notes": "The shared native support models an SDK sequence while the interpreter receives only typed HostRegistry contracts for the opaque sequence and iterator carriers. Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native runs produced exact output 3:12. Focused interpreter evidence additionally requires all four next() calls to own tracked host operations and leaves the host-operation and task/scope/group registries empty. No fixture ID or carrier name is recognized by production code."
+  },
+  {
+    "id": "async-stream-suspended-consumer",
+    "fixture": "Fixtures/async-stream-suspended-consumer.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamSuspendedConsumerProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An unbounded AsyncStream builder returns immediately, its producer task yields two values across real suspensions, and a for-await consumer that starts before the first yield resumes once per value before finish terminates iteration at nil.",
+    "notes": "Apple Swift 6.3.3 strict-concurrency compilation succeeded with warnings as errors, and twenty bounded native/interpreter runs produced exact output 2:6 with canonical native-observation SHA-256 5c90df842175db3c82f1151ac4cdbb285bc67a7e6f4136a0f0db96ea56d63b49. The MainActor producer begins with Task.yield so the consumer reaches an empty stream and must enter the runtime-owned waitingForStream suspension before delivery. Focused evidence requires one stream record to be created and every stream/task/scope/group/host-operation/scheduler registry to drain. The semantic subset is adapted from the unchanged pinned swiftlang async_stream.swift oracle (SHA-256 940c49ec9cfe4a0292f13757e0a56be5a601618fd5ecaae6d489ce9952569447); that full upstream file still needs an adapter because it imports StdlibUnittest and covers unsupported surface. No unrelated task order or physical-thread behavior is asserted."
   }
 ]

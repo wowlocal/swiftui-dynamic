@@ -305,6 +305,9 @@ extension Interpreter: EvalContext {
 
     public func hostTypeName(of value: RuntimeValue) -> String {
         if case .host(let any) = value {
+            if let concurrency = any as? RuntimeConcurrencyHostValue {
+                return concurrency.sourceTypeName
+            }
             if let marker = any as? HostTypeMarker { return marker.name + ".Type" }
             if let typeName = registry?.hostTypeName(of: any) { return typeName }
         }
@@ -326,6 +329,10 @@ extension Interpreter: EvalContext {
             return true
         }
         if case .host(let any) = value {
+            if let concurrency = any as? RuntimeConcurrencyHostValue,
+               concurrency.sourceProtocolNames.contains(protocolName) {
+                return true
+            }
             return registry?.hostProtocolCandidates(of: any)
                 .contains(protocolName) == true
         }

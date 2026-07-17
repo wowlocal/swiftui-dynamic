@@ -1377,8 +1377,16 @@ now have exact evidence for default `makeAsyncIterator()` and mutating async
 host-backed sequence has separate exact evidence: parsed factory, iterator,
 and async-next gateway contracts feed this same dispatch path, each `next()`
 owns a runtime host operation, and terminal `nil` drains every registry.
-Cancellable stream registries and continuation ownership
-are not inherited from this success claim.
+The first stream slice implements an interpreter-owned unbounded
+`AsyncStream<Element>` storage, producer continuation, iterator, and runtime
+wait registry. An empty `next()` moves the current task to
+`.waitingForStream(streamID)` under a suspension lease; `yield` resumes one
+consumer, `finish` resumes all remaining consumers with terminal `nil`, and
+the record closes only after the buffer and wait edges drain. Construction
+accepts an explicit element specialization, and unsupported buffering policies
+fail closed instead of being ignored. This slice does not yet claim
+termination callbacks, consumer-cancellation parity, iterator-copy behavior,
+bounded buffering, `AsyncThrowingStream`, or source checked continuations.
 
 ### 6.19 Host gateway runtime
 
@@ -1951,10 +1959,13 @@ Each milestone is independently gated through
   over interpreted witnesses are covered together with early `break` and
   `continue`/`return` plus per-iteration and function-level `defer` cleanup;
   protocol-extension defaults for both requirements and typed opaque
-  host-bridged iteration are also covered; cancellable `AsyncStream`
-  consumers and checked continuations resuming on cooperative-default and
-  MainActor executors require executor-owned resume from the covered M5
-  identity/storage slice, not complete custom-executor scheduling;
+  host-bridged iteration are also covered. The first unbounded `AsyncStream`
+  producer/consumer slice now owns empty-stream suspension, value delivery,
+  finish-to-`nil`, and cleanup; cancellable consumers, termination/lifetime,
+  buffering, `AsyncThrowingStream`, and checked continuations resuming on
+  cooperative-default and MainActor executors remain active and require
+  executor-owned resume from the covered M5 identity/storage slice, not
+  complete custom-executor scheduling;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
   the M6 slice; and
@@ -2152,8 +2163,11 @@ cooperative cancellation of a consuming task while `next()` is suspended and
 cleanup plus protocol-extension defaults for both requirements are also
 characterized. Typed opaque host sequences of the StoreKit update-stream shape
 also dispatch through the same requirements with runtime-owned host
-suspension. Every remaining item in this paragraph stays in the active
-requirement rather than being inferred from those slices.
+suspension. The first unbounded `AsyncStream` slice also suspends an empty
+consumer in a runtime-owned stream registry, delivers two producer values, and
+terminates at `nil` after `finish()` with complete cleanup. Cancellation,
+termination handlers, bounded buffering, throwing streams, and continuation
+ownership remain active rather than being inferred from that slice.
 
 Deliverables:
 
