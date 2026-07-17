@@ -1389,6 +1389,9 @@ extension Interpreter {
             // but standard-library dispatch receives the typed RuntimeValue
             // before any compatibility boxing occurs.
             let any = baseValue.hostPayload!
+            if let member = runtimeAsyncStreamMember(name, on: any) {
+                return member
+            }
             if let projection = any as? RuntimeTaskLocalProjection {
                 if name == "get" {
                     return .hostFunction(HostFunction(

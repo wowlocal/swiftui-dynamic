@@ -101,6 +101,7 @@ swift build --build-tests
 Scripts/run-prebuilt-tests.sh --no-parallel --filter 'ARCSemanticsTests'
 Scripts/run-prebuilt-tests.sh --parallel --num-workers 6 \
   --filter 'SwiftUpstreamParityTests'
+Scripts/run-focused-parity.sh protocol-async-sequence-cancellation --jobs 4
 ```
 
 Independent read-only selections may run concurrently because they do not
@@ -108,6 +109,20 @@ contend for the SwiftPM workspace lock; suites that intentionally share an
 external fixture still need their documented isolation. Rebuild once after
 production or test source changes. Use the full source-bound gate only at an
 integration or milestone boundary.
+
+The focused parity runner is specifically for the one-case semantic loop. It
+selects exactly one runtime fixture from the manifest, divides that fixture's
+declared repetitions among independent prebuilt test processes, and validates
+one receipt from every worker. The aggregate is RED for an unknown/non-runtime
+case, an invalid worker count, a missing or duplicate receipt, a malformed
+digest, a mismatched case selection, or any repetition total other than the
+manifest's exact count. The ordinary closing gate never sets the focused
+repetition override and continues to require every case and every manifest
+repetition through its separate whole-board validator.
+Workers receive equal-sized repetition slices so exact-case native digests can
+also be compared across processes. If `--jobs` does not divide the manifest
+count, the runner uses the largest lower divisor (for example, 20 repetitions
+with `--jobs 6` use five workers).
 
 ## Gate stages and resource budget
 
@@ -146,6 +161,19 @@ Reference measurements on 2026-07-14:
 - the five-scenario `LiveCheck --jobs 4` run took 430.49 wall seconds and
   445.68 CPU seconds. That near-1:1 ratio is evidence of an indivisible tail,
   not a reason to allocate more live workers.
+
+A 2026-07-17 focused measurement on the 20-repetition
+`protocol-async-sequence-cancellation` case took 14.88 seconds in one process
+and 4.73 seconds with four repetition workers. Both executions compiled real
+Swift and completed all 20 interpreted fresh-process observations; the latter
+traded additional aggregate CPU for a 3.1x inner-loop wall-time reduction.
+The 39-test methodology suite took 12.40 seconds with `--no-parallel` and
+12.65 seconds with four workers, so its focused form stays sequential: cheap
+manifest assertions do not amortize worker startup. Its whole-board validator
+now captures large subprocess output in files rather than calling
+`waitUntilExit()` before draining a pipe; at 138 runtime cases the JSON receipt
+can fill the pipe buffer and turn an otherwise sub-second test into an
+unbounded wait.
 
 The runtime manifest subsequently grew from the early benchmark to 135 cases
 and 2,662 isolated repetitions. A 2026-07-17 closing receipt showed the

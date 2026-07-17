@@ -53,6 +53,10 @@ extension Interpreter {
     func writeHostMember(
         _ name: String, on value: Any, to newValue: RuntimeValue
     ) throws -> Bool {
+        if try writeRuntimeAsyncStreamMember(
+            name, on: value, to: newValue) {
+            return true
+        }
         if let property = registry?.hostProperty(named: name, on: value) {
             if property.signature.isSettable {
                 let assigned = try property.signature.returnType.map {
@@ -77,7 +81,8 @@ extension Interpreter {
     /// Shape probe used while resolving lvalues. It intentionally avoids
     /// invoking a typed getter merely to discover writability.
     func hasHostMember(_ name: String, on value: Any) -> Bool {
-        registry?.hostProperty(named: name, on: value) != nil
+        hasRuntimeAsyncStreamMember(name, on: value)
+            || registry?.hostProperty(named: name, on: value) != nil
             || registry?.hostMember(name, on: value) != nil
     }
 }

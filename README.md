@@ -73,6 +73,16 @@ For the full repository gate, including parallel test, corpus, API-parity, and
 live-data evaluation, run `Scripts/gate.sh`. Its process-sharding model,
 resource knobs, and tuning procedure are documented in
 [`Docs/ParallelVerification.md`](Docs/ParallelVerification.md).
+For a single manifest-backed concurrency parity case during development,
+build tests once and use `Scripts/run-focused-parity.sh CASE_ID --jobs 4`;
+the runner preserves the manifest's full repetition count while splitting it
+across isolated processes.
+For the complete concurrency inner loop, use
+`Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER`. It builds the test
+bundle once, then runs the focused parity case, targeted tests, and methodology
+suite concurrently through direct prebuilt-bundle processes. This avoids the
+shared SwiftPM planning lock that serializes concurrent `swift test` commands;
+pass `--skip-build` only when the bundle is already current.
 
 ## Concurrency roadmap
 

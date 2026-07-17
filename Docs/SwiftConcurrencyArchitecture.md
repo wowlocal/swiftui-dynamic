@@ -49,8 +49,11 @@ the same task to reacquire it on resume. There is still no general runnable-
 executor queue or continuation registry. M6 has begun with protocol-driven
 `for await` over interpreted witnesses, including suspending mutating iterator
 copy-out, typed source-error propagation, and cooperative user-iterator
-cancellation; early-exit paths, host-backed sequences, cancellable streams,
-and continuations remain open. The remaining
+cancellation. Early `break` and its per-iteration `defer` cleanup are also
+covered together with `continue` and `return` cleanup; protocol-extension
+defaults for both requirements are covered as well. Host-backed sequences,
+including typed opaque gateways with tracked host suspension, are covered as
+well. Cancellable streams and continuations remain open. The remaining
 Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1360,11 +1363,80 @@ iteration: after a controlled suspension the iterator may resume, observe the
 request, return an element, and later return `nil`, while the successful task
 and its handle remain marked cancelled. This is cooperative iterator behavior,
 not evidence for `AsyncStream` consumer termination.
+An iterator with no terminal `nil` path proves the first early-exit slice:
+`break` after the second suspended element causes the current iteration's
+`defer` to run and reaches post-loop code without a third `next()` request.
+The companion control-flow slice proves that `continue` runs its iteration
+defer before requesting again, while `return` stops requests and unwinds the
+current body defer plus the enclosing function defer before caller resumption.
 Compiler preflight owns conformance legality. Runtime dispatch remains
 value-based so protocol-extension witnesses and generated host methods can use
-the same path once their focused evidence lands. Early-exit/defer, host
-bridging, cancellable stream registries, and continuation ownership
-are not inherited from this success claim.
+the same path once their focused evidence lands. Refining-protocol extensions
+now have exact evidence for default `makeAsyncIterator()` and mutating async
+`next()` witnesses with suspension-aware iterator copy-out. An opaque
+host-backed sequence has separate exact evidence: parsed factory, iterator,
+and async-next gateway contracts feed this same dispatch path, each `next()`
+owns a runtime host operation, and terminal `nil` drains every registry.
+The first stream slice implements an interpreter-owned unbounded
+`AsyncStream<Element>` storage, producer continuation, iterator, and runtime
+wait registry. An empty `next()` moves the current task to
+`.waitingForStream(streamID)` under a suspension lease; `yield` resumes one
+consumer, `finish` resumes all remaining consumers with terminal `nil`, and
+the record closes only after the buffer and wait edges drain. Cancelling a task
+parked in `next()` synchronously invokes the installed termination closure with
+`.cancelled` before making that call return `nil`; the callback registration is
+one-shot and is cleared at termination. Explicit `finish()` similarly invokes
+one `.finished` callback synchronously before returning, retains values already
+buffered, makes later `next()` calls stably return `nil`, and rejects later
+`yield` calls as `.terminated`. Construction accepts an explicit element
+specialization and stores an explicit buffering policy. The evidenced
+`.bufferingNewest(2)` path reports remaining capacity after successful inserts,
+evicts and returns the oldest buffered element once full, and retains only the
+newest values. The companion `.bufferingOldest(2)` path rejects and returns the
+new element once full while preserving the first buffered values. At capacity
+zero both policies keep no buffer and return the supplied value as `.dropped`.
+Unknown policies and negative capacities still fail closed. Multiple
+independently-created iterators may own simultaneous wait edges on one storage,
+and `finish()` resumes all of them with terminal `nil`.
+Iterator carriers opt into the interpreter's generic host value-semantics
+boundary: each source copy owns a distinct mutable `next()` token while all
+copies retain the same stream storage. Sequence and iterator carriers own that
+storage; producer continuations are non-owning handles. When the last unfinished
+sequence/iterator owner is released, storage destruction invokes the one-shot
+`.cancelled` callback synchronously before closing its runtime record. An
+escaped producer handle then returns `.terminated` from `yield`, and releasing
+it cannot invoke termination again. Because destruction cannot throw, an
+interpreter failure from this source-level nonthrowing callback is retained by
+the concurrency runtime and surfaced at the next throwing evaluator safe point.
+The first `AsyncThrowingStream<Element, Error>` slice reuses this same
+flavor-aware storage, waiter, suspension, producer-handle, iterator-carrier, and
+cleanup kernel. Its terminal state may retain an original source error value;
+after a waiter receives its prior value, the next `next()` rethrows the error
+through `InterpretedThrow`. Exact evidence covers one suspended unbounded
+consumer, one delivered value, case-specific failure projection, and complete
+cleanup.
+Normal throwing-stream finish now also has exact evidence: it synchronously
+delivers `.finished(nil)` to one registered callback, preserves a buffered
+value, produces stable terminal nil, and rejects later yield. Failure finish
+has companion evidence: `.finished(error)` carries the original source
+value synchronously before return, iteration drains the prior value then
+rethrows that error, and later yield is terminated. Cancelling a task parked in
+throwing-stream `next()` now synchronously delivers `.cancelled` before
+resuming that call with terminal `nil`; the task may return normally while its
+cancellation bit remains set. Positive-capacity `.bufferingNewest` now reports
+remaining capacity after insertion, evicts and returns the oldest element once
+full, and retains only the newest values. Its `.bufferingOldest` counterpart
+reports the same capacity, preserves the first values, and returns each newly
+rejected element. At capacity zero both policies retain no element and return
+the supplied value as `.dropped`. Unlike `AsyncStream`, a throwing stream owns
+one pending-`next()` capability in shared storage: after one copied iterator
+has suspended, a second copied iterator call is a runtime trap. The capability
+is storage-wide rather than attached to a source carrier, and its fatal error
+metadata survives gateway source-location attachment. Final release of an
+unfinished throwing-stream sequence/iterator also synchronously delivers the
+flavor-correct `.cancelled` callback before storage destruction closes its
+record. Escaped throwing producer-handle lifetime remains open. Source checked
+continuations are not yet claimed.
 
 ### 6.19 Host gateway runtime
 
@@ -1720,6 +1792,8 @@ Assertion kinds:
 - `partial-order`: named events satisfy precedence constraints;
 - `predicate`: both outputs satisfy the same invariant checker;
 - `diagnostic`: compiler failure category and source position;
+- `runtime-trap`: each isolated process exits nonzero and contains its
+  authored diagnostic fragment; timeout is a failure, never a trap;
 - `stress`: no deadlock, crash, leak threshold, or invariant failure.
 
 ### 12.3 Native compilation
@@ -1934,11 +2008,34 @@ Each milestone is independently gated through
   while its broad M4/M7 dependencies remain partial;
 - the M6 demand slice is active and partial. Finite success, typed source
   failure, and cooperative user-iterator cancellation for protocol `for await`
-  over interpreted witnesses are covered; early-exit and host-bridged
-  iteration, cancellable `AsyncStream` consumers, and
-  checked continuations resuming on cooperative-default and
-  MainActor executors require executor-owned resume from the covered M5
-  identity/storage slice, not complete custom-executor scheduling;
+  over interpreted witnesses are covered together with early `break` and
+  `continue`/`return` plus per-iteration and function-level `defer` cleanup;
+  protocol-extension defaults for both requirements and typed opaque
+  host-bridged iteration are also covered. The first unbounded `AsyncStream`
+  producer/consumer slice now owns empty-stream suspension, value delivery,
+  finish-to-`nil`, one-shot `.finished`/`.cancelled` callback ordering,
+  stable terminal reads, rejected post-finish yield, multiple parked consumers,
+  independent and copied iterators, scope-exit cancellation termination,
+  non-owning escaped producer handles, and exact positive-capacity
+  `.bufferingNewest(2)` plus `.bufferingOldest(2)` result/retention semantics
+  and both zero-capacity boundaries. The shared kernel also owns one unbounded
+  `AsyncThrowingStream` suspended-consumer/value/source-error/cleanup slice;
+  normal finish, `.finished(nil)` callback timing, buffered retention, stable
+  nil, and rejected post-finish yield are also covered. Failure finish adds the
+  associated source error callback and later exact rethrow. A cancelled parked
+  consumer also receives `.cancelled` synchronously before terminal `nil`.
+  Positive-capacity `.bufferingNewest` result/eviction/retention and
+  `.bufferingOldest` result/rejection/retention semantics are covered as well.
+  At capacity zero both policies return the supplied value as `.dropped` and
+  retain nothing. Copied throwing-stream iterators also share the storage's
+  single pending-`next()` capability, and a causally overlapping call has
+  process-isolated native/interpreter runtime-trap parity. Final-owner
+  scope-exit cancellation also has exact parity; escaped producer-continuation
+  lifetime plus
+  checked continuations resuming on
+  cooperative-default and MainActor executors remain active and require
+  executor-owned resume from the covered M5 identity/storage slice, not
+  complete custom-executor scheduling;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
   the M6 slice; and
@@ -2001,7 +2098,8 @@ Deliverables:
 - reusable native/interpreter runner;
 - compiler fingerprinting;
 - bounded process execution;
-- exact, allowed-set, partial-order, predicate, and diagnostic assertions;
+- exact, allowed-set, partial-order, predicate, diagnostic, and process-isolated
+  runtime-trap assertions;
 - initial `Docs/ConcurrencyParity.md` ledger;
 - existing async tests classified by whether they have a native baseline.
 
@@ -2131,9 +2229,53 @@ demand slice covers protocol `for await` iteration,
 cooperative-default and MainActor executors, including host-bridged async
 sequences of the StoreKit update-stream shape, before the remaining surface.
 The finite interpreted-witness success and typed-error paths are covered;
-cooperative cancellation of a consuming task while `next()` is suspended is
-also characterized. Every remaining item in this paragraph stays in the active
-requirement rather than being inferred from those first slices.
+cooperative cancellation of a consuming task while `next()` is suspended and
+`break`/`continue`/`return` with per-iteration and function-level `defer`
+cleanup plus protocol-extension defaults for both requirements are also
+characterized. Typed opaque host sequences of the StoreKit update-stream shape
+also dispatch through the same requirements with runtime-owned host
+suspension. The first unbounded `AsyncStream` slice also suspends an empty
+consumer in a runtime-owned stream registry, delivers two producer values, and
+terminates at `nil` after `finish()` with complete cleanup. A controlled
+follow-up cancels a parked consumer and proves the one-shot `.cancelled`
+termination callback occurs before `next()` resumes with `nil`. Another exact
+characterization proves explicit `finish()` invokes `.finished` before
+returning, retains buffered values, produces stable terminal `nil`, and rejects
+post-terminal yield. Two independently-created iterators are also proven to
+park simultaneously and drain from one `finish()`. Value-copied iterators also
+own independent mutable next tokens while sharing storage and distributing
+yielded elements. Releasing the final unfinished storage reference at scope
+exit synchronously invokes `.cancelled` before the caller continues.
+An escaped producer continuation does not extend that lifetime, returns
+`.terminated` from later `yield`, and cannot invoke the callback again when it
+is released. A synchronous bounded-buffer probe additionally proves that
+`.bufferingNewest(2)` reports remaining capacities `1` then `0`, returns the
+displaced values `1` then `2`, and drains only `3`, `4`, then `nil`.
+Its `.bufferingOldest(2)` counterpart reports the same capacities, rejects and
+returns new values `3` then `4`, and drains only `1`, `2`, then `nil`.
+At capacity zero both policies return the supplied element as `.dropped`, keep
+no buffered value, and read terminal `nil` after finish. Negative capacities
+remain explicitly unsupported. The first unbounded throwing-stream slice also
+suspends an empty consumer, delivers one value, then rethrows the exact source
+error supplied to `finish(throwing:)` after that value drains, using the same
+runtime record and cleanup kernel. Normal throwing finish,
+`.finished(nil)` callback timing, buffered retention, stable nil, and rejected
+post-terminal yield are covered separately. Failure finish also synchronously
+delivers `.finished(error)` with the original source value before that value is
+re-thrown after the prior element drains. Cancelling a parked throwing-stream
+consumer synchronously delivers `.cancelled` before terminal `nil`, matching
+the nonthrowing storage edge. Positive-capacity `.bufferingNewest` also reports
+the same capacity, eviction, and retention semantics through the shared kernel;
+positive-capacity `.bufferingOldest` preserves the first values and returns
+each later rejected element. At capacity zero both policies return the supplied
+element as `.dropped`, keep no value, and read terminal `nil`. A copied-iterator
+probe additionally proves that one throwing stream permits only one pending
+`next()` across copies: after `Task.immediate` causally reaches the first
+suspension, a second call traps in both isolated native and interpreted
+processes. Final-owner scope exit also synchronously delivers `.cancelled`
+before its caller continues. Escaped throwing producer-continuation lifetime
+plus checked-continuation ownership
+remain active rather than being inferred from those slices.
 
 Deliverables:
 
@@ -2522,6 +2664,11 @@ After implementation report:
 Verification:
 - Every iteration runs the new native differential case and relevant test
   filter.
+- Prefer `Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER` for that
+  inner loop: it performs one build and then runs focused parity, the targeted
+  suite, and methodology concurrently against the prebuilt bundle. Do not try
+  to parallelize several `swift test --skip-build` commands; SwiftPM still
+  serializes them on its shared build-directory planning lock.
 - Every milestone runs AsyncExecutionTests, HostSignatureTests, all concurrency
   parity tests, full swift test, and Scripts/gate.sh when available.
 - Run fresh-process cleanup checks for task/continuation/static-state leaks.

@@ -533,7 +533,7 @@ extension Interpreter {
                         from: pending.receiver, in: context),
                     true)
             } catch let runtime as RuntimeError where runtime.line == 0 {
-                throw error(node, runtime.message)
+                throw error(node, locating: runtime)
             }
 
         case .optional(let optional):
@@ -943,7 +943,7 @@ extension Interpreter {
                 }
                 return try await function.invokeSuspending(arguments, self)
             } catch let runtime as RuntimeError where runtime.line == 0 {
-                throw error(node, runtime.message)
+                throw error(node, locating: runtime)
             }
 
         default:

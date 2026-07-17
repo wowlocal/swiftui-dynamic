@@ -113,6 +113,14 @@ extension Interpreter {
                 return protocolReaches(conformance, target: typeName, seen: &seen)
             }
         case .host(let any):
+            if let concurrency = any as? RuntimeConcurrencyHostValue {
+                let observed = concurrency.sourceTypeName
+                let nominal = observed.firstIndex(of: "<").map {
+                    String(observed[..<$0])
+                } ?? observed
+                return HostSignature.equivalentTypeName(observed, typeName)
+                    || HostSignature.equivalentTypeName(nominal, typeName)
+            }
             if any is String || any is NSString { return ["String", "NSString"].contains(typeName) }
             if any is Date { return ["Date", "NSDate"].contains(typeName) }
             if any is URL { return ["URL", "NSURL"].contains(typeName) }
@@ -335,7 +343,7 @@ extension Interpreter {
                 do {
                     return try modifier.apply(target, args, self)
                 } catch let e as RuntimeError where e.line == 0 {
-                    throw error(call, e.message)
+                    throw error(call, locating: e)
                 }
             }
         }
@@ -645,7 +653,7 @@ extension Interpreter {
                 do {
                     return try measure.invoke(args, self)
                 } catch let e as RuntimeError where e.line == 0 {
-                    throw error(call, e.message)
+                    throw error(call, locating: e)
                 }
             }
         }

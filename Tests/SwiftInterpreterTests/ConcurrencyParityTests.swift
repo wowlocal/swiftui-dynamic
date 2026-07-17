@@ -14,6 +14,7 @@ private enum ParityAssertionKind: String, Decodable {
     case allowedSet = "allowed-set"
     case partialOrder = "partial-order"
     case predicate
+    case runtimeTrap = "runtime-trap"
     case diagnostic
     case interpreterDiagnostic = "interpreter-diagnostic"
     case stress
@@ -32,6 +33,8 @@ private struct ConcurrencyParityCase: Decodable {
     let requiredEvents: [String]?
     let precedes: [[String]]?
     let predicate: String?
+    let nativeTrapContains: [String]?
+    let interpreterTrapContains: [String]?
     let diagnosticContains: [String]?
     let diagnosticLine: Int?
     let interpreterDiagnosticContains: [String]?
@@ -121,11 +124,109 @@ private struct DetachedHostCallback: @unchecked Sendable {
     }
 }
 
+/// Opaque test carriers stand in for an SDK-owned AsyncSequence and iterator.
+/// Their only source-visible surface is the typed HostRegistry contract below.
+private final class ParityHostAsyncSequenceCarrier {}
+
+private final class ParityHostAsyncIteratorCarrier {
+    var index = 0
+}
+
+private final class ParityHostAsyncSequenceRegistry: HostRegistry {
+    weak var interpreter: Interpreter?
+    private let makeIteratorSignature: HostSignature
+    private let nextSignature: HostSignature
+    private(set) var nextCallCount = 0
+    private(set) var trackedNextCallCount = 0
+
+    init() throws {
+        makeIteratorSignature = try HostSignature(parsing:
+            "func ParityHostAsyncSequence.makeAsyncIterator() -> ParityHostAsyncIterator")
+        nextSignature = try HostSignature(parsing:
+            "mutating func ParityHostAsyncIterator.next() async -> Int?")
+    }
+
+    func hostMember(_ name: String, on value: Any) -> RuntimeValue? {
+        if name == "makeAsyncIterator",
+           value is ParityHostAsyncSequenceCarrier,
+           let function = try? HostFunction(
+                signature: makeIteratorSignature,
+                invoke: { _, _ in
+                    .native(ParityHostAsyncIteratorCarrier())
+                }) {
+            return .hostFunction(function)
+        }
+        if name == "next",
+           let iterator = value as? ParityHostAsyncIteratorCarrier,
+           let function = try? HostFunction(
+                signature: nextSignature,
+                asyncInvoke: { [weak self] _, _ in
+                    guard let self, let interpreter = self.interpreter else {
+                        throw RuntimeError(message:
+                            "host AsyncSequence registry lost its interpreter")
+                    }
+                    self.nextCallCount += 1
+                    if interpreter.concurrencyRuntime
+                        .activeHostOperationCount == 1 {
+                        self.trackedNextCallCount += 1
+                    }
+                    await Task.yield()
+                    let values = [2, 4, 6]
+                    guard iterator.index < values.count else {
+                        return .none(wrappedTypeName: "Int")
+                    }
+                    let value = values[iterator.index]
+                    iterator.index += 1
+                    return .some(.native(value), wrappedTypeName: "Int")
+                }) {
+            return .hostFunction(function)
+        }
+        return nil
+    }
+
+    func hostMethod(_ name: String, on value: Any) -> RuntimeValue? {
+        hostMember(name, on: value)
+    }
+
+    func hostTypeName(of value: Any) -> String? {
+        if value is ParityHostAsyncSequenceCarrier {
+            return "ParityHostAsyncSequence"
+        }
+        if value is ParityHostAsyncIteratorCarrier {
+            return "ParityHostAsyncIterator"
+        }
+        return nil
+    }
+
+    func hostProtocolCandidates(of value: Any) -> [String] {
+        if value is ParityHostAsyncSequenceCarrier {
+            return ["AsyncSequence"]
+        }
+        if value is ParityHostAsyncIteratorCarrier {
+            return ["AsyncIteratorProtocol"]
+        }
+        return []
+    }
+
+    func cFunction(named name: String) -> HostFunction? { nil }
+    func absorbedCValue(named name: String) -> RuntimeValue? { nil }
+    func storeBlob(_ value: RuntimeValue, at path: String) {}
+    func constructor(named name: String) -> HostFunction? { nil }
+    func modifier(named name: String) -> HostModifier? { nil }
+    func isViewValue(_ value: RuntimeValue) -> Bool { false }
+    func makeRenderable(
+        instance: Instance, interpreter: Interpreter
+    ) -> RuntimeValue { .void }
+    func makeGroup(_ views: [RuntimeValue]) throws -> RuntimeValue { .void }
+}
+
 private enum ConcurrencyParityHarness {
     private static let childCaseEnvironmentVariable =
         "DYNAMIC_SWIFT_PARITY_CHILD_CASE_ID"
     private static let childOutputEnvironmentVariable =
         "DYNAMIC_SWIFT_PARITY_CHILD_OUTPUT_PATH"
+    private static let focusedRepetitionsEnvironmentVariable =
+        "DYNAMIC_SWIFT_PARITY_FOCUSED_REPETITIONS"
     private static let shardSummaryPrefix = "@@concurrency-parity-summary "
 
     static let packageRoot: URL = {
@@ -196,6 +297,36 @@ private enum ConcurrencyParityHarness {
         }
     }
 
+    static func effectiveRepetitionCount(
+        manifestCount: Int,
+        overrideValue: String?
+    ) throws -> Int {
+        let boundedManifestCount = max(1, manifestCount)
+        guard let overrideValue else { return boundedManifestCount }
+        guard let overrideCount = Int(overrideValue),
+              overrideCount > 0,
+              overrideCount <= boundedManifestCount else {
+            throw RuntimeError(message:
+                "focused parity repetitions must be in 1..."
+                    + "\(boundedManifestCount), got '\(overrideValue)'")
+        }
+        return overrideCount
+    }
+
+    static func focusedRepetitionCount(
+        for parityCase: ConcurrencyParityCase
+    ) throws -> Int {
+        try effectiveRepetitionCount(
+            manifestCount: parityCase.repetitions,
+            overrideValue: ProcessInfo.processInfo.environment[
+                focusedRepetitionsEnvironmentVariable])
+    }
+
+    static var hasFocusedRepetitionOverride: Bool {
+        ProcessInfo.processInfo.environment[
+            focusedRepetitionsEnvironmentVariable] != nil
+    }
+
     static func fingerprint() throws -> ConcurrencyToolchainFingerprint {
         let xcrun = URL(fileURLWithPath: "/usr/bin/xcrun")
         let swiftc = try successful(
@@ -218,7 +349,8 @@ private enum ConcurrencyParityHarness {
     }
 
     static func nativeOutputs(
-        for parityCase: ConcurrencyParityCase
+        for parityCase: ConcurrencyParityCase,
+        repetitions: Int? = nil
     ) throws -> [String] {
         let directory = try makeTemporaryDirectory(for: parityCase.id)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -241,10 +373,19 @@ private enum ConcurrencyParityHarness {
         _ = try successful(compile, operation: "compile \(parityCase.id)")
 
         var outputs: [String] = []
-        let repetitionCount = max(1, parityCase.repetitions)
+        let repetitionCount = max(1, repetitions ?? parityCase.repetitions)
         for repetition in 0..<repetitionCount {
             let execution = run(
                 binary, [], timeout: parityCase.timeoutSeconds)
+            if parityCase.assertion == .runtimeTrap {
+                try validateRuntimeTrap(
+                    execution,
+                    requiredFragments: parityCase.nativeTrapContains,
+                    operation: "run native trap \(parityCase.id) repetition "
+                        + "\(repetition + 1)/\(repetitionCount)")
+                outputs.append("runtime-trap")
+                continue
+            }
             let successfulExecution = try successful(
                 execution,
                 operation: "run \(parityCase.id) repetition "
@@ -321,6 +462,17 @@ private enum ConcurrencyParityHarness {
                 ],
                 timeout: parityCase.timeoutSeconds,
                 environment: environment)
+            if parityCase.assertion == .runtimeTrap {
+                try validateRuntimeTrap(
+                    execution,
+                    requiredFragments: parityCase.interpreterTrapContains,
+                    operation: "run interpreted trap \(parityCase.id) repetition "
+                        + "\(repetition + 1)/\(repetitionCount)")
+                observations.append(.init(
+                    kind: .runtimeError,
+                    text: "runtime-trap"))
+                continue
+            }
             _ = try successful(
                 execution,
                 operation: "run interpreted parity child \(parityCase.id) "
@@ -400,7 +552,9 @@ private enum ConcurrencyParityHarness {
         let fixture = parityRoot.appendingPathComponent(parityCase.fixture)
         let source = try String(contentsOf: fixture, encoding: .utf8)
             + "\n" + entry + "\n"
-        let interpreter = Interpreter()
+        let hostSequenceRegistry = try ParityHostAsyncSequenceRegistry()
+        let interpreter = Interpreter(registry: hostSequenceRegistry)
+        hostSequenceRegistry.interpreter = interpreter
         var waitStarted = false
         var expectedDetachedContextID: UInt64?
         var hostGatewayEvents: [String] = []
@@ -423,6 +577,14 @@ private enum ConcurrencyParityHarness {
         var taskLocalRecordStorageMatched = true
         let parityTaskLocalKey = RuntimeTaskLocalKey(
             rawValue: "ConcurrencyParity.value")
+        interpreter.globals.define(
+            "parityHostAsyncSequence",
+            .hostFunction(try HostFunction(
+                declaration:
+                    "func parityHostAsyncSequence() -> ParityHostAsyncSequence"
+            ) { _, _ in
+                .native(ParityHostAsyncSequenceCarrier())
+            }))
         interpreter.globals.define("parityYield", .hostFunction(HostFunction(
             name: "parityYield",
             asyncInvoke: { arguments, _ in
@@ -826,10 +988,20 @@ private enum ConcurrencyParityHarness {
               interpreter.scheduledTasks.isEmpty,
               interpreter.concurrencyRuntime.activeRecordCount == 0,
               interpreter.concurrencyRuntime.activeStructuredScopeCount == 0,
-              interpreter.concurrencyRuntime.activeTaskGroupCount == 0
+              interpreter.concurrencyRuntime.activeTaskGroupCount == 0,
+              interpreter.concurrencyRuntime.activeAsyncStreamCount == 0,
+              interpreter.concurrencyRuntime.activeHostOperationCount == 0
         else {
             throw RuntimeError(message:
-                "case '\(parityCase.id)' leaked task/scope/group runtime ownership")
+                "case '\(parityCase.id)' leaked task/scope/group/stream/host runtime ownership")
+        }
+
+        if hostSequenceRegistry.nextCallCount > 0 {
+            guard hostSequenceRegistry.nextCallCount == 4,
+                  hostSequenceRegistry.trackedNextCallCount == 4 else {
+                throw RuntimeError(message:
+                    "case '\(parityCase.id)' did not route every host iterator next() through a tracked suspension")
+            }
         }
 
         if !taskLocalStorageByTask.isEmpty {
@@ -957,6 +1129,8 @@ private enum ConcurrencyParityHarness {
                     ? nil
                     : "stress output '\(output)' differs from native terminal '\(expected)'"
             }
+        case .runtimeTrap:
+            return ["runtime traps require process-isolated observations"]
         case .diagnostic:
             return ["diagnostics are validated from compiler status/stderr"]
         case .interpreterDiagnostic:
@@ -971,6 +1145,20 @@ private enum ConcurrencyParityHarness {
         native: [String],
         interpreted: [InterpretedParityObservation]
     ) -> [String] {
+        if parityCase.assertion == .runtimeTrap {
+            var problems: [String] = []
+            if native.isEmpty
+                || native.contains(where: { $0 != "runtime-trap" }) {
+                problems.append("native runtime trap was not stable")
+            }
+            if interpreted.isEmpty
+                || interpreted.contains(where: {
+                    $0.kind != .runtimeError || $0.text != "runtime-trap"
+                }) {
+                problems.append("interpreter runtime trap was not stable")
+            }
+            return problems
+        }
         guard parityCase.assertion == .interpreterDiagnostic else {
             var problems = interpreted.compactMap { observation in
                 observation.kind == .value ? nil
@@ -1067,15 +1255,43 @@ private enum ConcurrencyParityHarness {
         return result
     }
 
+    private static func validateRuntimeTrap(
+        _ result: ParityProcessResult,
+        requiredFragments: [String]?,
+        operation: String
+    ) throws {
+        let diagnostics = [result.standardError, result.standardOutput]
+            .map(\.trimmed).filter { !$0.isEmpty }.joined(separator: "\n")
+        if result.timedOut {
+            throw RuntimeError(message:
+                "\(operation) timed out"
+                    + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
+        }
+        guard result.status != 0 else {
+            throw RuntimeError(message:
+                "\(operation) unexpectedly completed"
+                    + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
+        }
+        guard let requiredFragments, !requiredFragments.isEmpty else {
+            throw RuntimeError(message:
+                "\(operation) has no required trap diagnostic fragments")
+        }
+        for fragment in requiredFragments where
+            !diagnostics.contains(fragment) {
+            throw RuntimeError(message:
+                "\(operation) did not contain '\(fragment)'"
+                    + (diagnostics.isEmpty ? "" : ":\n\(diagnostics)"))
+        }
+    }
+
     static func emitShardReceipt(
         shard: ConcurrencyParityShard,
+        selectedRepetitionsByCase: [String: Int],
         completedIDs: [String],
         completedRepetitionsByCase: [String: Int],
         nativeObservationSHA256ByCase: [String: String]
     ) {
         let selectedIDs = shard.cases.map(\.id)
-        let selectedRepetitionsByCase = Dictionary(uniqueKeysWithValues:
-            shard.cases.map { ($0.id, max(1, $0.repetitions)) })
         let receipt = ConcurrencyParityShardReceipt(
             version: 1,
             shardIndex: shard.index,
@@ -1344,23 +1560,36 @@ struct ConcurrencyParityTests {
         #expect(!allCases.isEmpty)
         let shard = try ConcurrencyParityHarness.runtimeShard(
             from: allCases)
+        if ConcurrencyParityHarness.hasFocusedRepetitionOverride,
+           shard.cases.count != 1 {
+            throw RuntimeError(message:
+                "focused parity repetition override requires exactly one case")
+        }
+        let selectedRepetitionsByCase = try Dictionary(uniqueKeysWithValues:
+            shard.cases.map { parityCase in
+                (parityCase.id, try ConcurrencyParityHarness
+                    .focusedRepetitionCount(for: parityCase))
+            })
         var completedIDs: [String] = []
         var completedRepetitionsByCase: [String: Int] = [:]
         var nativeObservationSHA256ByCase: [String: String] = [:]
         defer {
             ConcurrencyParityHarness.emitShardReceipt(
                 shard: shard,
+                selectedRepetitionsByCase: selectedRepetitionsByCase,
                 completedIDs: completedIDs,
                 completedRepetitionsByCase: completedRepetitionsByCase,
                 nativeObservationSHA256ByCase: nativeObservationSHA256ByCase)
         }
 
         for parityCase in shard.cases {
+            let expectedRepetitions = try #require(
+                selectedRepetitionsByCase[parityCase.id])
             let native = try ConcurrencyParityHarness.nativeOutputs(
-                for: parityCase)
+                for: parityCase, repetitions: expectedRepetitions)
             let interpreted = try ConcurrencyParityHarness
-                .interpretedObservations(for: parityCase)
-            let expectedRepetitions = max(1, parityCase.repetitions)
+                .interpretedObservations(
+                    for: parityCase, repetitions: expectedRepetitions)
             guard native.count == expectedRepetitions,
                   interpreted.count == expectedRepetitions else {
                 throw RuntimeError(message:
@@ -1513,6 +1742,25 @@ struct ConcurrencyParityTests {
         #expect(selectedIDs.sorted() == cases.map(\.id).sorted())
     }
 
+    @Test func focusedRepetitionOverrideIsBoundedByTheManifest() throws {
+        #expect(try ConcurrencyParityHarness.effectiveRepetitionCount(
+            manifestCount: 20, overrideValue: nil) == 20)
+        #expect(try ConcurrencyParityHarness.effectiveRepetitionCount(
+            manifestCount: 20, overrideValue: "5") == 5)
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.effectiveRepetitionCount(
+                manifestCount: 20, overrideValue: "0")
+        }
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.effectiveRepetitionCount(
+                manifestCount: 20, overrideValue: "21")
+        }
+        #expect(throws: RuntimeError.self) {
+            try ConcurrencyParityHarness.effectiveRepetitionCount(
+                manifestCount: 20, overrideValue: "not-a-number")
+        }
+    }
+
     @Test
     func assertionEngineDetectsDivergenceAndSupportsNonExactRules() throws {
         let exactMismatch = ConcurrencyParityHarness.violations(
@@ -1590,6 +1838,22 @@ struct ConcurrencyParityTests {
             native: ["deinit"],
             interpreted: [.init(kind: .runtimeError, text: message)])
         #expect(typedDiagnostic.isEmpty)
+
+        let trapCase = try #require(
+            ConcurrencyParityHarness.loadCases().first {
+                $0.id == "async-throwing-stream-copied-iterators"
+            })
+        let matchingTrap = ConcurrencyParityHarness.observationViolations(
+            for: trapCase,
+            native: ["runtime-trap"],
+            interpreted: [.init(
+                kind: .runtimeError, text: "runtime-trap")])
+        #expect(matchingTrap.isEmpty)
+        let disguisedTrap = ConcurrencyParityHarness.observationViolations(
+            for: trapCase,
+            native: ["runtime-trap"],
+            interpreted: [.init(kind: .value, text: "runtime-trap")])
+        #expect(!disguisedTrap.isEmpty)
     }
 
     @Test func nativeObservationDigestIsOrderIndependentAndContentSensitive() throws {

@@ -58,7 +58,7 @@ evidence that remains covered.
 | M3 suspension and clocks | complete | Runtime-owned task waits, host suspension, cancellable sleep, yield progress, cancellation-handler timing and cleanup through both the modern and deprecated public overloads, and seeded replayable cancellation-race exploration have native parity and focused runtime coverage. | None; M4 may proceed. |
 | M4 structured concurrency | partial | Async-let ownership and lexical cleanup plus nonthrowing and throwing task-group joining, iteration, cancellation, all four public group-scope declarations for their evidenced default-isolation subsets, all eight generated `isEmpty`/`isCancelled` state properties, all four `cancelAll()` declarations, all four canonical `addTask(priority:operation:)`, all four canonical `addTaskUnlessCancelled(priority:operation:)`, all eight named add declarations without executor preference for their evidenced nonisolated subsets with task-owned names preserved, all eight `addTask` executor-preference declarations for their explicit-nil nonisolated subsets with non-nil preferences rejected by a shared guard and arbitrary-actor executor divergences recorded, all eight `addTaskUnlessCancelled` executor-preference declarations for active explicit-nil acceptance and post-cancellation rejection without child creation, with the shared non-nil guard and arbitrary-actor executor divergences recorded, and all eight `addImmediateTask`/`addImmediateTaskUnlessCancelled` declarations for their explicit-nil inherited-MainActor subsets with synchronous-prefix execution, Task.name, join, and cancellation-before-preference-validation evidence while non-nil preference and arbitrary-actor divergences remain recorded, all four ordinary/throwing group `next()` declarations, both deprecated `spawn()`, both deprecated `async()`, both deprecated conditional `add()` aliases, both deprecated `asyncUnlessCancelled()` aliases, and both deprecated `spawnUnlessCancelled()` aliases, explicit ordinary and throwing `makeAsyncIterator()` capabilities plus all six generated iterator `next`/`cancel` rows with value-semantic terminal state, default plus explicit-MainActor `waitForAll()` behavior, and `ThrowingTaskGroup.nextResult()` result projection with the arbitrary-actor executor gaps recorded, nested Task/async-let/group ownership, child-created unstructured lifetime, task-local and executor inheritance, error projection, draining, bounded stress, replayable cancellation storms, weak lifetime release, and process-isolated RSS/heap plateaus have native parity, focused runtime evidence, or an explicit negative disposition. | All currently generated task-group declarations have explicit dispositions and the target-aware escaped-capability boundary is covered. The remaining repeated-wait/new-work, non-nil TaskExecutor preference, and arbitrary-actor operation-executor semantics are demand-deferred (2026-07-16): they reopen only on a cited real-program failure; positive claims still require executable evidence and negative/deferred claims still require owned gap or deferral evidence. |
 | M5 actor support and executor architecture | provisional | Logical cooperative-default and MainActor executor identity, source hops, caller restoration, detached-task lane identity, distinct source-actor runtime IDs, weak actor-record cleanup, canonical user-declared global-actor mapping through static shared, struct- and enum-backed arbitrary global-actor capability propagation through `#isolation` and defaulted isolated dispatch, depth-counted mailbox ownership for synchronous and async actor-function plus externally awaited synchronous computed-getter and subscript-getter segments, throwing computed-getter failure cleanup, async-throwing computed/subscript-getter success/source-error/cancellation reacquisition cleanup with caller restoration, actor computed-property and subscript-setter confinement to already-owned segments, controlled suspension release/reacquisition and actor reentrancy, task-local propagation through actor hops and suspension, retained queued actor messages after task cancellation, cross-actor throwing and cancellation-observing function hops with caller restoration, explicit plus defaulted/optional source-actor, MainActor, custom-global-actor, and nil isolated-parameter dispatch, explicit waitingForActor handoff/cleanup, replayable seeded mailbox stress with complete runtime draining, mutable stored-property confinement with Swift-compatible immutable-let and nonisolated exceptions, MainActor-owned deinitializer execution, fail-closed source-actor/user-global-actor deinitializer boundaries, and fail-closed custom actor-executor dispatch are covered. | The demand-scoped M5 actor cycle is covered. M5 remains provisional while its broad M4 and M7 prerequisite milestones retain explicitly owned partial-surface gaps; custom actor-executor scheduling and physical workers are not claimed. |
-| M6 async sequences/continuations | partial | Protocol-level `for await` dispatches `makeAsyncIterator()` and suspending mutating `next()` witnesses through the ordinary evaluator/executor path. Exact same-source parity covers finite success, typed source failure, cooperative user-iterator cancellation, real suspension, iterator value-state copy-out, terminal `nil`, and registry cleanup. Task-group iteration remains separate M4 evidence. | Add early-exit, protocol-default, and host-bridged sequence coverage; then implement `AsyncStream`/`AsyncThrowingStream` and checked continuations on cooperative-default and MainActor executors with termination, cancellable-consumer, double-resume, abandonment, lifetime, and cleanup evidence. |
+| M6 async sequences/continuations | partial | Protocol-level `for await` dispatches `makeAsyncIterator()` and suspending `next()` witnesses through the ordinary evaluator/executor path for interpreted values, protocol-extension defaults, and typed opaque host gateways. Exact same-source parity covers finite success, typed source failure, cooperative user-iterator cancellation, `break`/`continue`/`return` plus per-iteration and function-level `defer` cleanup, real source and host suspension, iterator state, terminal `nil`, host-operation ownership, and registry cleanup. `AsyncStream` now has runtime-owned empty-stream suspension, producer yield/finish, synchronous one-shot `.finished` and `.cancelled` callbacks, cancellation-before-terminal-`nil`, stable repeated terminal reads, rejected post-finish yield, independent and copied iterators parked concurrently on shared storage, final-owner scope-exit cancellation, non-owning escaped producer handles that become terminated, exact positive-capacity and zero-capacity `.bufferingNewest`/`.bufferingOldest` result/retention semantics, and complete record cleanup. The shared storage kernel now also covers an unbounded `AsyncThrowingStream` suspended consumer, value-before-terminal source-error projection, normal and failure finish with synchronous `.finished(nil)`/`.finished(error)`, cancellation with synchronous `.cancelled` before terminal `nil`, exact positive-capacity and zero-capacity `.bufferingNewest`/`.bufferingOldest` result/retention semantics, buffered-value retention, stable terminal nil, rejected post-finish yield, final-owner scope-exit cancellation, and cleanup. Copied throwing-stream iterators share one pending-`next()` capability per stream; overlapping calls trap, with fatal semantics preserved across gateway source-location attachment. Task-group iteration remains separate M4 evidence. | Complete escaped-producer-continuation lifetime semantics for `AsyncThrowingStream`; then implement checked continuations on cooperative-default and MainActor executors with double-resume, abandonment, lifetime, and cleanup evidence. Negative stream capacities remain explicitly unsupported. |
 | M7 compiler preflight | partial | The production interpreter now has explicit required and diagnostics-only compiler preflight, a bounded source/toolchain/SDK/target/gateway cache, registry-bound compiled host modules with separately fingerprinted compiler modes, a generated SDK re-export surface, multi-file project checking, pinned TaskGroup, Sendable, effectful-property, and imported-type-isolation diagnostics, compiler-backed fail-closed filtering of inactive `swiftinterface` conditional-compilation branches before declaration collection, generated active-SDK top-level/Task/selected-nominal/task-group plus nested group-iterator declaration metadata, typed synthetic top-level and receiver-qualified callable/property declarations, fail-closed synthetic nominal struct/class/enum declarations that preserve enclosing attributes, authored implementation/verification dispositions for all 36 currently generated Task instance/static rows including native-parity `Task.name` and all four `Task.immediate`/`Task.immediateDetached` declarations for their evidenced explicit-`nil`, inherited-MainActor subsets, both `withUnsafeCurrentTask` overloads and all nine `UnsafeCurrentTask` member rows, both deprecated public top-level `async(priority:operation:)` overloads for their evidenced inherited-MainActor subset, all four deprecated public top-level `asyncDetached`/`detach` overloads for their evidenced nonisolated subset, both public top-level withTaskCancellationHandler overloads, both macOS 26 task-priority-escalation handler declarations for their evidenced cooperative and explicit-`nil` subsets, the `withTaskExecutorPreference` declaration for its explicit-`nil`, no-ambient-custom-executor, bare-unqualified-direct-global-async-nil-operation-executor-preference-explicitly-nonisolated-operation subset, the `extractIsolation` declaration for synchronous non-invoking reflection of bare unqualified direct global async plain-explicit-nonisolated declarations including `@concurrent` while aliases, conversions, member references, and actor identity fail closed, all four public top-level task-group scope rows, plus seventy-seven task-group and iterator state, cancellation, wait, nextResult, spawn, async, add, canonical addTask, canonical addTaskUnlessCancelled, named add, executor-preference addTask, executor-preference addTaskUnlessCancelled, immediate add, asyncUnlessCancelled, spawnUnlessCancelled, makeAsyncIterator, next, and cancel rows, all four public checked/unsafe continuation entry points explicitly deferred to M6 behind M5 resume ownership, and exact exclusions for 26 compiler/runtime ABI top-level hooks with the distinct public job-testing hook deferred to M9. Current accounting is 171/171 reviewed: 51 runtime-supported, 20 diagnosed-unsupported, 69 known divergences, 26 excluded compiler ABI, five deferred, and zero unreviewed. | Target-aware project manifests are covered. Keep M7 partial while the generated inventory scope is explicitly incomplete and known-divergent or deferred declarations retain owned gap dispositions. |
 | M8 SwiftUI lifecycle | partial | Retained synchronous host callbacks enter canonical runtime-owned tasks and preserve inline state mutation; nested detached/group execution has native parity. | Generate ordinary async modifier exposure and add reusable view-owned task identity, cancellation, and teardown semantics under the SwiftUI-magic rule. |
 | M9 physical parallelism | deferred | The core remains cooperatively scheduled and main-actor hosted; no physical parallelism claim is made, and the source-callable _swift_createJobForTestingOnly hook is explicitly deferred with the executor-job runtime. | After M5, M7, and M8 stabilize ownership, add worker synchronization, Thread Sanitizer, and cooperative-versus-parallel semantic parity. |
@@ -127,6 +127,29 @@ evidence that remains covered.
 | `protocol-async-sequence-iteration` | exact | `for await` obtains a user-defined `AsyncSequence` iterator and repeatedly awaits its mutating `next()` until `nil`; a real suspension inside `next()` neither duplicates nor skips elements | Native/interpreter parity in 20 repetitions: `3:6`; the count and commutative sum avoid scheduler-order claims, and focused evidence proves iterator value-state copy-out plus empty task/scope/group registries |
 | `protocol-async-sequence-throwing` | exact | A typed source error thrown by mutating `AsyncIterator.next()` after two suspending successes terminates `for try await` without delivering a third element and reaches its case-specific outer catch unchanged | Native/interpreter parity in 20 repetitions: `2:3:caught`; this was characterization of the general witness path, so no production change was required |
 | `protocol-async-sequence-cancellation` | exact | Cancelling a task while a user `AsyncIterator.next()` is suspended does not itself terminate `for await`; the resumed iterator observes the request, may return an element, and the task may complete successfully while remaining marked cancelled | Native/interpreter parity in 20 repetitions: `1:7:true:true`; a MainActor gate fixes entry-before-cancel-before-resume without asserting unrelated task order, and this was characterization requiring no production change |
+| `protocol-async-sequence-early-exit` | exact | `break` stops a protocol `for await` before another `next()` request, and the current iteration's `defer` runs before post-loop code just like the prior normally completed iteration | Native/interpreter parity in 20 repetitions: `12:2:next-1,defer-1,next-2,defer-2,after`; the iterator has no terminal `nil`, each `next()` really suspends, and this was characterization requiring no production change |
+| `protocol-async-sequence-return-continue` | exact | `continue` runs the current iteration's `defer` before requesting the next element; `return` stops requests, unwinds the current body and enclosing function defers, then resumes the caller | Native/interpreter parity in 20 repetitions: `returned-3:3:next-1,continue-1,defer-1,next-2,body-2,defer-2,next-3,return-3,defer-3,consumer-defer,after`; the iterator has no terminal `nil`, every `next()` suspends, and this was characterization requiring no production change |
+| `protocol-async-sequence-default-witnesses` | exact | Refining-protocol extensions provide both `makeAsyncIterator()` and mutating async `next()` defaults; concrete conformers declare only associated types and state, while `for await` dispatches the defaults through suspension to terminal `nil` | Native/interpreter parity in 20 repetitions: `3:6`; the successful default `next()` suspends on every element, preserves value-state copy-out, and this was characterization requiring no production change |
+| `host-bridged-async-sequence` | exact | `for await` consumes an opaque SDK-owned host sequence through typed `makeAsyncIterator()` and suspending `next()` gateway contracts until the host returns terminal `nil` | Native/interpreter parity in 20 repetitions: `3:12`; all four interpreted `next()` calls own runtime-tracked host operations, and completion leaves host-operation/task/scope/group registries empty |
+| `async-stream-suspended-consumer` | exact | An unbounded `AsyncStream` consumer that reaches an empty stream suspends until a producer yields two values, then terminates at `nil` after `finish()` | Native/interpreter parity in 20 repetitions: `2:6`; focused evidence observes a runtime-owned stream suspension and complete stream/task/scope/group/host-operation/scheduler cleanup; unsupported buffering policies fail closed |
+| `async-stream-cancelled-consumer` | exact | Cancelling a task parked in empty-stream `next()` invokes `onTermination(.cancelled)` synchronously before resuming that `next()` with `nil`; the task can return normally while remaining marked cancelled | Native/interpreter parity in 20 repetitions: `true:true:cancelled:cancelled`; runtime stream wait, cancellation-handler, stream record, task, and scheduler ownership all drain |
+| `async-stream-finish-termination` | exact | `finish()` synchronously invokes one `.finished` callback before returning, preserves buffered elements, makes repeated terminal reads return `nil`, ignores repeated finish, and makes later yield return `.terminated` | Native/interpreter parity in 20 repetitions: `3:true:true:finished,after-finish:terminated`; no production change was required |
+| `async-stream-multiple-consumers` | exact | Two independent iterators may park concurrently on one empty stream, and one `finish()` resumes both with terminal `nil` | Native/interpreter parity in 20 repetitions: `true:true:2`; focused evidence observes at least two stream suspensions and complete ownership cleanup; no consumer resume order is claimed |
+| `async-stream-copied-iterators` | exact | Value copies of one iterator own independent mutating-`next` access while sharing stream storage, so both may park and receive distinct yielded elements | Native/interpreter parity in 20 repetitions: `4:6:2`; a generic `HostValueSemantic` copy boundary replaces the erroneous shared mutable carrier; result assignment and resume order are not claimed |
+| `async-stream-scope-termination` | exact | Releasing the last unfinished sequence/iterator owner at nested-function exit synchronously invokes `onTermination(.cancelled)` before the caller reads callback-owned state | Native/interpreter parity in 20 repetitions: `cancelled`; storage deinit now owns the implicit cancellation edge, closes the runtime record, and defers impossible nonthrowing-callback failures to the next evaluator safe point instead of swallowing them |
+| `async-stream-escaped-continuation-lifetime` | exact | An escaped producer continuation does not retain unfinished stream storage: sequence scope exit invokes `.cancelled`, later yield returns `.terminated`, and releasing the handle is inert | Native/interpreter parity in 20 repetitions: `cancelled:terminated:cancelled`; the continuation carrier is now a non-owning handle while sequence and iterator carriers own storage |
+| `async-stream-buffering-newest` | exact | `.bufferingNewest(2)` retains the two newest unconsumed elements; successful yields report decreasing remaining capacity, later yields report the oldest displaced element, and iteration drains only `3`, `4`, then `nil` | Native/interpreter parity in 20 repetitions: `enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true`; focused evidence observes no consumer suspension and complete ownership cleanup |
+| `async-stream-buffering-oldest` | exact | `.bufferingOldest(2)` retains the first two unconsumed elements; successful yields report decreasing remaining capacity, later yields report the newly rejected element, and iteration drains only `1`, `2`, then `nil` | Native/interpreter parity in 20 repetitions: `enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true`; focused evidence observes no consumer suspension and complete ownership cleanup |
+| `async-stream-zero-capacity` | exact | `.bufferingNewest(0)` and `.bufferingOldest(0)` retain no unconsumed value; each yield reports the supplied element as dropped, and the first post-finish iterator read is `nil` | Native/interpreter parity in 20 repetitions: `newest:dropped(1):true|oldest:dropped(2):true`; focused evidence observes two stream records, no consumer suspension, and complete ownership cleanup |
+| `async-throwing-stream-suspended-failure` | exact | An empty unbounded `AsyncThrowingStream` consumer suspends, receives one yielded value, then observes the exact source error passed to `finish(throwing:)` after that value drains | Native/interpreter parity in 20 repetitions: `1:2:caught`; the shared stream record owns the suspension and source-error terminal outcome, then every runtime registry drains |
+| `async-throwing-stream-finish-termination` | exact | Normal `finish()` synchronously invokes one `.finished(nil)` callback before returning, preserves a buffered value, makes repeated terminal reads `nil`, and makes a later yield `.terminated` | Native/interpreter parity in 20 repetitions: `3:true:true:finished(nil),after-finish:terminated`; focused evidence observes no consumer suspension and complete ownership cleanup |
+| `async-throwing-stream-failure-termination` | exact | `finish(throwing:)` synchronously invokes one `.finished(error)` callback containing the supplied source error before returning, preserves a buffered value, rethrows that error next, and terminates later yields | Native/interpreter parity in 20 repetitions: `5:caught:finished-error,after-finish:terminated`; focused evidence observes no consumer suspension and complete ownership cleanup |
+| `async-throwing-stream-cancelled-consumer` | exact | Cancelling a task parked in empty throwing-stream `next()` synchronously invokes `onTermination(.cancelled)` before that call returns `nil`; the task may return normally while remaining marked cancelled | Native/interpreter parity in 20 repetitions: `true:true:cancelled:cancelled`; focused evidence observes one stream suspension and complete ownership cleanup |
+| `async-throwing-stream-buffering-newest` | exact | `.bufferingNewest(2)` retains the newest two unconsumed elements; successful yields report decreasing remaining capacity, later yields return the oldest displaced element, and iteration drains only `3`, `4`, then `nil` | Native/interpreter parity in 20 repetitions: `enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true`; focused evidence observes no consumer suspension and complete ownership cleanup |
+| `async-throwing-stream-buffering-oldest` | exact | `.bufferingOldest(2)` retains the first two unconsumed elements; successful yields report decreasing remaining capacity, later yields return the newly rejected element, and iteration drains only `1`, `2`, then `nil` | Native/interpreter parity in 20 repetitions: `enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true`; focused evidence observes no consumer suspension and complete ownership cleanup |
+| `async-throwing-stream-zero-capacity` | exact | `.bufferingNewest(0)` and `.bufferingOldest(0)` retain no unconsumed element; each yield returns the supplied element as dropped, and the first post-finish read is `nil` | Native/interpreter parity in 20 repetitions: `newest:dropped(1):true|oldest:dropped(2):true`; focused evidence observes two stream records, no consumer suspension, and complete ownership cleanup |
+| `async-throwing-stream-copied-iterators` | runtime trap | Once one copied iterator has suspended in `next()`, invoking `next()` through another copy of the same throwing-stream iterator traps with `attempt to await next() on more than one task` | Native/interpreter process-isolated trap parity in 20 repetitions; `Task.immediate` establishes the first suspension causally, each side must exit nonzero with its owned diagnostic fragment, timeout is never accepted as a trap, and the canonical normalized native digest is `cab2a56c7fb9ca7135a95cc59a16b937f0a71d903ac195d2c7c79892126dea01` |
+| `async-throwing-stream-scope-termination` | exact | Releasing the last unfinished throwing-stream sequence/iterator owner at nested-function exit synchronously invokes `onTermination(.cancelled)` before the caller reads callback-owned state | Native/interpreter parity in 20 repetitions: `cancelled`; the shared flavor-aware storage deinit now supplies the throwing termination value, preserves impossible callback failures for the next safe point, closes its record, and leaves every runtime registry empty; canonical native digest `165b1dc6bc0549403e963d0309882cc678f0ef9ff759b898171790b9d9641cc1` |
 | `task-local-declaration` | exact | Distinct source `@TaskLocal` declarations with the same member name retain separate identities; synchronous and suspending `withValue` scopes restore correctly, ordinary tasks inherit, and detached tasks do not | Native/interpreter parity in 20 repetitions; three task-owned storage objects are observed and explicitly empty after completion |
 | `task-local-implicit-optional-default` | exact | An optional `@TaskLocal` may omit its initializer; its implicit default is `nil`, and a scoped binding restores that `nil` after exit | Native/interpreter parity in 20 repetitions: `nil,bound,nil`; non-optional declarations without a default remain diagnosed |
 | `task-local-inheritance` | exact | A scoped task-local binding is inherited by an unstructured `Task`, absent from `Task.detached`, and restored after a nested binding exits | Native/interpreter parity in 20 repetitions: `parent,parent:child:parent,default`; every interpreted task owns distinct storage and completion clears it |
@@ -6696,3 +6719,552 @@ No production change was needed, and no physical-thread or unrelated ready-task
 order is claimed. Automatic consumer termination for `AsyncStream` is a
 separate M6 question; early-exit cleanup, default witnesses, host bridging,
 streams, and continuations remain open.
+
+The next characterization covers the first early-exit path. Its iterator has
+no terminal `nil`: each `next()` records its ordinal, really suspends with
+`Task.yield()`, and returns another integer forever. The loop records values 1
+and 2, installs one body-local `defer` per iteration, and breaks on 2. Apple
+Swift 6.3.3 and the interpreter both produced
+`12:2:next-1,defer-1,next-2,defer-2,after` in all twenty bounded runs. This
+proves that `break` prevents a third `next()` request and that the breaking
+iteration's defer completes before post-loop code, without claiming unrelated
+scheduler order or physical threads. The canonical twenty-observation native
+SHA-256 is
+`4c2b2bfbeefbaaa83bf8568535bed2e681ed7b0a24c4aced214ab627f6c20eef`.
+The general streaming loop was already correct, so no production change or
+fabricated RED was needed. `return`/`continue`, protocol-extension defaults,
+host bridging, streams, and continuations remain open.
+
+The companion control-flow characterization uses another nonterminating
+iterator. Value 1 records `continue`, value 2 completes normally, and value 3
+returns from an inner consumer to an outer caller. Every `next()` suspends.
+Swift 6.3.3 and the interpreter produced the exact twenty-run observation
+`returned-3:3:next-1,continue-1,defer-1,next-2,body-2,defer-2,next-3,return-3,defer-3,consumer-defer,after`.
+Thus `continue` runs its iteration defer before requesting value 2; `return`
+prevents a fourth request, then unwinds the value-3 defer and consumer defer
+before the caller records `after`. The canonical native-observation SHA-256 is
+`7cccd6b0587a78d2fe388df081ca38c6051f4564f89ae67144104ec3f8794113`.
+This was also already correct through the shared streaming/body funnels, so no
+production change was needed. Protocol-extension defaults, host bridging,
+streams, and continuations remain open.
+
+The protocol-default characterization removes callable implementations from
+both concrete types. A refining `AsyncSequence` protocol extension supplies
+`makeAsyncIterator()`, and a refining `AsyncIteratorProtocol` extension
+supplies mutating async `next()`; the concrete sequence and iterator declare
+only associated-type witnesses and stored state. Apple Swift 6.3.3 and the
+interpreter produced `3:6` in all twenty runs while each successful default
+`next()` suspended with `Task.yield()`. The canonical native-observation
+SHA-256 is
+`7ecad08059eb64d34d9a6f0ed689f83f410c385f80b40a1590867991086cae68`.
+This confirms that ordinary transitive protocol-extension lookup feeds the
+same make/next and mutating copy-out funnels; no concrete-name route or
+production change was added. Host bridging, streams, and continuations remain
+open.
+
+The host-bridge slice replaces both source values with opaque SDK-owned
+carriers. Native support exposes a finite `AsyncSequence` of 2, 4, and 6; the
+interpreter sees only parsed host declarations for the factory,
+`makeAsyncIterator()`, and `mutating next() async -> Int?`, plus nominal and
+protocol metadata from the test registry. The shared protocol loop therefore
+cannot inspect the carrier or fixture name. It invokes the same ordinary
+member and suspending-call funnels that generated StoreKit gateways use.
+
+Apple Swift 6.3.3 and the interpreter produced `3:12` in all twenty bounded
+runs. The canonical native-observation SHA-256 is
+`bc358f17e71f8d3e32b52119816eed247bd9c796dc3a8a0411f0ffcb659d4a98`.
+Focused white-box assertions prove one tracked host operation for each of the
+three values and the terminal `nil` request, followed by empty
+host-operation, task, structured-scope, task-group, and scheduler registries.
+No production change or fixture-specific route was required. `AsyncStream`,
+`AsyncThrowingStream`, and continuation ownership remain open.
+
+### M6 unbounded `AsyncStream` suspended-consumer foundation
+
+The first stream gap closure adapts one deterministic semantic subset from the
+unchanged pinned swiftlang
+`test/Concurrency/Runtime/async_stream.swift` oracle: a continuation yields two
+values, calls `finish()`, and the iterator observes terminal `nil`. The upstream
+file is pinned at Swift commit `064859e4…` with SHA-256
+`940c49ec9cfe4a0292f13757e0a56be5a601618fd5ecaae6d489ce9952569447`.
+It remains `needs-adapter` rather than being falsely admitted as a direct test:
+it imports Swift's internal `StdlibUnittest` module and also exercises throwing
+streams, buffering, termination callbacks, deinitialization, and multiple
+consumer behavior outside this slice.
+
+The same-source `async-stream-suspended-consumer.swift` probe begins its
+MainActor producer with `Task.yield()`. This establishes that the consumer
+reaches an empty stream before either value is available, without asserting an
+unrelated scheduler order. Apple Swift 6.3.3 compiled the probe in Swift 6
+complete-strict mode with warnings as errors. Native and interpreted execution
+both produced `2:6` in all twenty bounded repetitions; the canonical native
+observation SHA-256 is
+`5c90df842175db3c82f1151ac4cdbb285bc67a7e6f4136a0f0db96ea56d63b49`.
+
+The captured RED was the interpreter diagnostic that `AsyncStream` had no
+constructor. The general repair adds interpreter-owned unbounded stream
+storage, producer continuation and iterator capabilities, and a runtime stream
+record that owns task wait edges without retaining source storage. Empty
+`next()` acquires a `.waitingForStream(streamID)` suspension lease; `yield`
+resumes one consumer; `finish()` releases pending consumers with terminal
+`nil`; and the record closes only after buffered values and runtime waits
+drain. Type/protocol metadata and member dispatch are capability-based, with no
+fixture or carrier-name route. Unsupported buffering policies produce an
+explicit diagnostic rather than silently behaving as unbounded.
+
+Focused white-box evidence observes one created stream, at least one real
+stream suspension, and empty stream, task, structured-scope, task-group,
+host-operation, and scheduler registries after completion. This is not a full
+`AsyncStream` claim: consumer cancellation, termination callbacks,
+producer/consumer lifetime, iterator copies, bounded buffering,
+`AsyncThrowingStream`, and source continuation ownership remain open.
+
+### M6 cancelled `AsyncStream` consumer and termination ordering
+
+The next bounded probe parks a MainActor child in an empty
+`AsyncStream.Iterator.next()`. The child sets `enteredNext` immediately before
+the await; MainActor run-to-suspension prevents the parent from observing that
+flag until `next()` has actually yielded the executor. The parent then cancels
+the child. Swift 6.3.3 invokes the installed `onTermination` closure with
+`.cancelled` before resuming `next()` with `nil`; the child returns normally
+while `Task.isCancelled` remains true. Twenty native runs and twenty
+interpreted runs all produced `true:true:cancelled:cancelled`, with canonical
+native-observation SHA-256
+`56a7e6749ac968b86afc193b51e0a60609748b599aff47a818c4c729d5c17616`.
+
+The captured RED was precise: the existing stream reached the builder and
+failed only because assignment to `Continuation.onTermination` was missing.
+The repair adds a capability-based writable continuation property and stores
+one source closure in stream storage. The runtime's existing cancellation
+registration invokes it synchronously in the cancelling context, clears it
+before invocation, and only then transitions the stream to terminal state and
+releases the parked consumer. This also preserves Swift's edge case in which a
+cancellation callback itself yields or finishes before the outer cancellation
+finishes the stream. Legal callbacks are nonthrowing; an interpreter failure is
+retained by the task cancellation machinery rather than swallowed.
+
+Focused evidence observes a real stream suspension and complete cleanup of
+the stream record, waiter edge, cancellation registration, source tasks,
+structured scopes, groups, host operations, and scheduler. Explicit-finish
+callback ordering, deinit/lifetime termination, iterator copies,
+post-terminal yield results, multiple consumers, bounded buffering,
+`AsyncThrowingStream`, and source continuations remain open.
+
+### M6 value-copied `AsyncStream.Iterator`
+
+The copied-iterator probe creates one seed iterator, then two MainActor tasks
+each place a source-level value copy into a local mutable variable. Both call
+`next(isolation: #isolation)`; the explicit isolation argument is required by
+strict Swift 6 sendability checking and makes the executor contract explicit.
+After both tasks are parked, the producer yields 4 and 6 and finishes. The
+results are sorted so neither waiter assignment nor resume order is claimed.
+
+Native Swift returned `4:6:2` in twenty runs. The interpreter RED instead
+reported `attempt to await AsyncStream.Iterator.next() concurrently`: both
+source copies still referenced one carrier and therefore one mutable guard.
+The repair does not remove that safety guard. `RuntimeAsyncStreamIterator`
+opts into the existing general `HostValueSemantic` protocol, so every source
+storage copy creates a distinct mutable iterator token while retaining the
+same stream storage. Native/interpreter parity is now 20/20 with canonical
+native-observation SHA-256
+`594fcb32181db21eab266d2a8ba6ccdbb8183487d482a5db80bee4e6990e9062`.
+
+Focused evidence requires two real stream suspensions, distinct delivery of 4
+and 6, and complete stream/task/scope/group/host-operation/scheduler cleanup.
+This is a general value-ownership correction, not a fixture or AsyncStream
+source-name branch. Deinit/lifetime termination, bounded buffering,
+`AsyncThrowingStream`, and source continuations remain open.
+
+### M6 explicit `AsyncStream.finish()` termination characterization
+
+The explicit-finish probe installs `onTermination`, buffers value 3, calls
+`finish()`, records an event immediately after that call returns, attempts to
+yield 99, and calls `finish()` again. It then consumes the buffered value and
+requests terminal state twice. Swift 6.3.3 and the interpreter both produced
+`3:true:true:finished,after-finish:terminated` in all twenty repetitions. The
+canonical native-observation SHA-256 is
+`e5c5b4559a7c0e21a670c4febbf08d3bff2709e4d9580c49d0b93b5b69404f2b`.
+
+The trace proves `.finished` is delivered synchronously before `finish()`
+returns and only once, values buffered before termination remain consumable,
+terminal `nil` is stable across repeated `next()` calls, and a post-terminal
+yield returns `.terminated` without adding value 99. The cancellation slice's
+general storage mechanism was already correct, so this was characterization
+without a production change or fabricated RED. Focused evidence also requires
+zero stream suspensions for the fully buffered path and complete cleanup of
+stream, task, scope, group, host-operation, and scheduler registries.
+
+Deinit/lifetime termination, iterator-copy and multiple-consumer behavior,
+bounded buffering, `AsyncThrowingStream`, and source continuations remain open.
+
+### M6 multiple parked `AsyncStream` consumers
+
+The pinned swiftlang stream suite explicitly checks that `finish()` releases
+multiple consumers. The local same-source adapter creates two independent
+iterators over one empty stream. Each MainActor child increments a shared count
+immediately before `next()`; the parent cannot observe count 2 until both calls
+have yielded the actor. One continuation then calls `finish()`.
+
+Swift 6.3.3 and the interpreter produced `true:true:2` in all twenty bounded
+runs. The canonical native-observation SHA-256 is
+`4b4ba4ee7f6ceb999b5122aea7f8ca85d6e4269f859552649e79676f384f2090`.
+Both tasks receive terminal `nil`; their relative resume order is deliberately
+absent from the observation. Focused evidence requires at least two
+runtime-owned `.waitingForStream` suspensions and complete cleanup of both wait
+edges, the stream record, source tasks, scopes, groups, host operations, and
+scheduler. The existing waiter queue was already general, so this was another
+characterization with no production change.
+
+Deinit/lifetime termination, copied-iterator behavior, bounded buffering,
+`AsyncThrowingStream`, and source continuations remain open.
+
+### M6 unfinished `AsyncStream` scope-exit termination
+
+The lifetime probe creates an unfinished stream in a nested function, installs
+`onTermination`, discards the only sequence value, and lets the builder
+continuation die with the call frame. The outer function reads callback-owned
+state immediately after the nested call. This makes final-release ordering
+observable without a sleep, task race, or scheduler-order assertion.
+
+Apple Swift 6.3.3 compiled the same source in Swift 6 complete-strict mode with
+warnings as errors and returned `cancelled` in twenty bounded runs. The
+interpreter RED returned `none`: host ARC destroyed storage and removed its
+runtime record, but destruction omitted the implicit cancellation callback.
+The runtime now invokes the one-shot `.cancelled` callback synchronously from
+unfinished storage deinit before closing the record. A source callback is
+nonthrowing, but any defensive interpreter failure is retained and surfaced at
+the next throwing evaluator safe point instead of being discarded by deinit.
+
+Native/interpreter parity is 20/20 with canonical native-observation SHA-256
+`a78cb0e23e5bae8b901c6a25188a7d0233033b9177f49a4996a46316f8083d52`.
+Focused evidence requires one created stream, zero consumer suspensions, and
+empty stream, task, structured-scope, task-group, host-operation, and scheduler
+registries after completion. Bounded buffering, `AsyncThrowingStream`, and
+source checked continuations remain open after the lifetime follow-up below.
+
+### M6 non-owning escaped `AsyncStream` producer continuation
+
+The follow-up lifetime probe retains the builder continuation outside a nested
+function while discarding the only sequence value. It reads termination as
+soon as that function returns, calls `yield(9)` through the retained producer
+handle, releases the handle, and reads termination again. This separates the
+sequence/storage owner edge from producer-handle lifetime without a task or
+scheduler assumption.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned `cancelled:terminated:cancelled` in twenty
+bounded runs. The interpreter RED was `none:enqueued:cancelled`: its producer
+continuation strongly retained storage, postponed implicit cancellation, and
+accepted an element for a stream with no sequence or iterator owner.
+
+The general ownership repair makes producer continuations non-owning handles;
+sequence and iterator carriers retain storage. Owner release now invokes the
+one-shot `.cancelled` callback immediately, an escaped handle reports
+`.terminated` from later `yield`, and releasing it cannot fire termination
+again. Native/interpreter parity is 20/20 with canonical native-observation
+SHA-256
+`7ca384f8a0176ff57fa4e3c0055a1ff7783123568a4e7552a39be27fae5a3e20`.
+Focused evidence records one stream, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. Remaining bounded
+buffering policies, `AsyncThrowingStream`, and source checked continuations
+remain open.
+
+### M6 `AsyncStream.bufferingNewest` capacity and eviction
+
+The bounded-buffer probe performs four synchronous yields into
+`.bufferingNewest(2)` before creating an iterator. It renders every
+`YieldResult` and then drains the stream, so capacity, displaced-element, and
+retained-value semantics are observable without task-order assumptions.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned
+`enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true`
+in twenty bounded runs. The interpreter RED was its prior fail-closed
+diagnostic that only `.unbounded` buffering was supported.
+
+The general stream storage now owns an explicit buffering policy. Successful
+bounded yields report the capacity remaining after insertion;
+`.bufferingNewest` evicts and returns the oldest buffered element once full.
+Native/interpreter parity is 20/20 with canonical native-observation SHA-256
+`cc694ba7c7410fafe79768c883e7b3072fc461257e94b6b5b1da4bfa050533f8`.
+Focused evidence records one stream, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. The
+`.bufferingOldest` follow-up is recorded below; zero-capacity boundaries,
+`AsyncThrowingStream`, and source checked continuations remain open.
+
+### M6 `AsyncStream.bufferingOldest` retention and rejection
+
+The companion bounded-buffer probe performs four synchronous yields into
+`.bufferingOldest(2)` before creating an iterator. It renders every
+`YieldResult` and drains the stream, isolating retained-versus-rejected values
+without task-order assumptions.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned
+`enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true`
+in twenty bounded runs. The interpreter RED was its explicit fail-closed
+diagnostic that `.bufferingOldest` was unsupported.
+
+The existing policy-owned storage now accepts the oldest-retaining policy.
+Successful inserts report remaining capacity; once full, later yields reject
+and return the new element while preserving the existing buffer.
+Native/interpreter parity is 20/20 with canonical native-observation SHA-256
+`ce750f2131b0fb4526ee96775de38a23ab5c0b853f4a751b1f11993b223052f0`.
+Focused evidence records one stream, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. The zero-capacity
+follow-up is recorded below; `AsyncThrowingStream` and source checked
+continuations remain open.
+
+### M6 zero-capacity `AsyncStream` buffering
+
+The boundary probe creates `.bufferingNewest(0)` and `.bufferingOldest(0)`
+streams sequentially. Each builder yields one distinct value and finishes
+before iteration. Rendering the yield result plus the first iterator read
+fully exposes zero-capacity retention without scheduler assumptions.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned
+`newest:dropped(1):true|oldest:dropped(2):true` in twenty bounded runs. The
+interpreter RED was its explicit fail-closed diagnostic for
+`.bufferingNewest(0)`.
+
+Both bounded policies now treat capacity zero as a permanent empty buffer and
+return the newly supplied value from `.dropped`. Native/interpreter parity is
+20/20 with canonical native-observation SHA-256
+`835466db10fcdaa4c20da208c0dbea51584198f6d47292fdf4096c8310702079`.
+Focused evidence records two streams, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. All nonnegative
+`AsyncStream` buffering-policy shapes are now covered; negative capacities
+remain explicitly unsupported. `AsyncThrowingStream` and source checked
+continuations remain open.
+
+### M6 unbounded `AsyncThrowingStream` source failure
+
+The first throwing-stream probe creates an empty unbounded stream whose
+MainActor producer yields once only after a suspension and then calls
+`finish(throwing:)` with a source enum case. The consumer records the delivered
+value and uses a case-specific catch, so value-before-error ordering and error
+identity are observable without unrelated scheduler claims.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned `1:2:caught` in twenty bounded runs. The
+interpreter RED was its missing `AsyncThrowingStream` constructor diagnostic.
+
+The stream runtime now has a shared flavor-aware storage kernel. Both stream
+families use the same buffer, waiter, suspension lease, producer handle,
+iterator carrier, and cleanup ownership; a throwing terminal retains the original
+`RuntimeValue`, and the next request rethrows it as `InterpretedThrow` after
+the already-delivered waiter value completes. Native/interpreter parity is
+20/20 with canonical native-observation
+SHA-256
+`b35c84ff9dee12339f6f150c9f5074154bc4ee6c478e988f675c468f1f291d56`.
+Focused evidence records one stream, at least one consumer suspension, and
+empty stream/task/scope/group/host-operation/scheduler registries. Normal
+finish, throwing termination/cancellation callbacks, bounded buffering,
+iterator-copy, and lifetime edges remain fail-closed or open; checked
+continuations remain open.
+
+### M6 normal `AsyncThrowingStream.finish()` termination
+
+The normal-finish probe installs `onTermination`, synchronously yields one
+value, calls `finish()`, records an event immediately after the call, and
+attempts one later yield. Three sequential iterator reads expose retained
+buffer state and stable terminal nil without scheduler assumptions.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned
+`3:true:true:finished(nil),after-finish:terminated` in twenty bounded runs. The
+interpreter RED rejected assignment to the throwing continuation's
+`onTermination` property.
+
+The flavor-aware storage now constructs the throwing stream's `.finished(nil)`
+termination value, invokes its callback synchronously before returning from
+normal finish, clears the callback one-shot, preserves buffered values, and
+rejects post-terminal yield. Native/interpreter parity is 20/20 with canonical
+native-observation SHA-256
+`c208018808dc13933512c4d0274986274461222cfafc3806ebfcfd65d880f944`.
+Focused evidence records one stream, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. Failure and
+cancellation callback payloads, bounded buffering, iterator-copy, and lifetime
+edges remain fail-closed or open; checked continuations remain open.
+
+### M6 failing `AsyncThrowingStream.finish(throwing:)` termination
+
+The companion finish probe installs `onTermination`, synchronously buffers one
+value, calls `finish(throwing:)` with a source enum case, records an event after
+return, and attempts a later yield. The callback reduces its associated error
+to whether it contains the `stopped` case, avoiding module-qualified rendering
+differences while retaining error identity.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned
+`5:caught:finished-error,after-finish:terminated` in twenty bounded runs. The
+interpreter RED was its explicit fail-closed diagnostic for a failure
+termination callback.
+
+The throwing termination carrier now preserves the original `RuntimeValue` in
+`.finished(error)`. Storage invokes the callback synchronously and one-shot,
+then iteration drains the prior value and rethrows the same source error;
+post-terminal yield remains rejected. Native/interpreter parity is 20/20 with
+canonical native-observation SHA-256
+`f1ab4a6a9520f687349a779caf3d418c77cd925a5b9011cf4d98167001453935`.
+Focused evidence records one stream, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. Cancellation is
+covered by the next slice; bounded buffering, iterator-copy, and lifetime
+edges remain fail-closed or open; checked continuations remain open.
+
+### M6 cancelled `AsyncThrowingStream` consumer
+
+The cancellation probe creates an empty unbounded throwing stream, installs an
+`onTermination` callback, and starts a MainActor child that marks entry
+immediately before awaiting `next()`. MainActor run-to-suspension makes the
+parent's observation of that marker a causal proof that the consumer has
+parked; cancellation then records callback ordering, terminal `nil`, and the
+task's still-set cancellation bit without asserting physical executor order.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned `true:true:cancelled:cancelled` in twenty
+bounded runs. The interpreter RED timed out: its explicit fail-closed guard
+discarded the throwing callback and exited cancellation without resolving the
+parked waiter.
+
+Throwing and nonthrowing streams now share the same cancellation kernel. It
+selects the flavor-specific `.cancelled` carrier, invokes the callback
+synchronously and one-shot, and only then finishes the waiter with terminal
+`nil`. Native/interpreter parity is 20/20 with canonical native-observation
+SHA-256
+`8248bec5de22875ebe62a306cd31b2da279ff76a8ae4e49dbe34dbb67c77ea93`.
+Focused evidence records one stream, at least one consumer suspension, and
+empty stream/task/scope/group/host-operation/scheduler registries. Bounded
+buffering, iterator-copy, and lifetime edges remain fail-closed or open;
+checked continuations remain open.
+
+### M6 `AsyncThrowingStream.bufferingNewest` capacity and eviction
+
+The first bounded throwing-stream probe performs four synchronous yields into
+`.bufferingNewest(2)`, records every `YieldResult`, finishes normally, and then
+reads sequentially to terminal `nil`. Program order proves every compared edge;
+no task scheduling or physical executor observation participates.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned
+`enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true`
+in twenty bounded runs. The interpreter RED was its blanket fail-closed
+diagnostic for every bounded throwing-stream policy.
+
+The flavor-aware constructor now admits the proven positive-capacity
+`.bufferingNewest` subset into the existing shared policy-owned storage. Its
+successful yields report capacity after insertion, full-buffer yields evict
+and return the oldest element, and iteration retains only the two newest
+values. Native/interpreter parity is 20/20 with canonical native-observation
+SHA-256
+`94d8669f69f6d2b253081259b081438fe1602acc67a8d2158bf00165c7923f7b`.
+Focused evidence records one stream, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. Throwing-stream
+`.bufferingOldest`, zero-capacity buffering, iterator-copy, and lifetime edges
+remain fail-closed or open; checked continuations remain open.
+
+### M6 `AsyncThrowingStream.bufferingOldest` retention and rejection
+
+The companion bounded probe performs four synchronous yields into
+`.bufferingOldest(2)`, records every `YieldResult`, finishes normally, and then
+reads sequentially to terminal `nil`. Program order makes the retention and
+rejection edges exact without asserting scheduler behavior.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned
+`enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true`
+in twenty bounded runs. The interpreter RED was the policy capability
+diagnostic that still rejected `.bufferingOldest`.
+
+The same flavor-aware storage kernel now admits both proven positive-capacity
+policies. `.bufferingOldest` reports capacity after successful insertion,
+preserves the first elements once full, and returns each newly rejected value.
+Native/interpreter parity is 20/20 with canonical native-observation SHA-256
+`6272b53c8b144fdc2dcd1a634e3d61f188df3a54ed9f5297cb29e1690bd0db68`.
+Focused evidence records one stream, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. Zero-capacity
+throwing buffering, iterator-copy, and lifetime edges remain fail-closed or
+open; checked continuations remain open.
+
+### M6 zero-capacity `AsyncThrowingStream` buffering
+
+The boundary probe creates separate `.bufferingNewest(0)` and
+`.bufferingOldest(0)` throwing streams. Each performs one synchronous yield
+and normal finish before a sequential iterator read, making the yield result
+and empty terminal state exact without scheduler assumptions.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned
+`newest:dropped(1):true|oldest:dropped(2):true` in twenty bounded runs. The
+interpreter RED was the remaining zero-capacity capability guard.
+
+The temporary throwing-policy guard is now gone: both stream flavors share the
+same unbounded and nonnegative bounded-policy kernel, while the common parser
+continues to reject negative and unknown policies. At capacity zero neither
+policy retains a value and each returns the supplied element as `.dropped`.
+Native/interpreter parity is 20/20 with canonical native-observation SHA-256
+`72fec1663febaddef370e266d91916d3a79842c423b27d3dea3ed16093cadd0b`.
+Focused evidence records two streams, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. Throwing-stream
+iterator-copy and lifetime edges remain open; checked continuations remain
+open.
+
+### M6 copied `AsyncThrowingStream.Iterator` overlap trap
+
+The probe copies one iterator, then uses `Task.immediate` to run the first
+copy through the synchronous prefix of `next()` to its real empty-stream
+suspension before construction returns. Calling `next()` through the second
+copy is therefore causally overlapping; no sleep, waiter-count guess, or
+physical-executor ordering is asserted.
+
+Apple Swift 6.3.3 compiled the probe in Swift 6 complete-strict mode with
+warnings as errors. All twenty bounded native processes terminated with the
+runtime diagnostic `attempt to await next() on more than one task`. The first
+interpreter observation instead timed out with its first consumer parked,
+capturing the missing per-stream pending-next capability as RED.
+
+The stream storage now owns one pending throwing-`next()` token, while the
+nonthrowing `AsyncStream` iterator-copy behavior remains unchanged. A second
+overlapping throwing-stream call raises a fatal runtime error. The general
+gateway location helper also preserves `fatal` and `budgetTrip` metadata when
+pinning an unlocated runtime failure to source, so source `try?`/`catch` cannot
+turn a runtime trap into an ordinary error. The parity harness gained a
+reusable `runtime-trap` assertion: native and interpreted observations run in
+isolated processes, must exit nonzero, must contain their authored diagnostic
+fragments, and a timeout is a failure rather than a successful trap.
+
+Native/interpreter trap parity is 20/20 with canonical normalized native
+SHA-256
+`cab2a56c7fb9ca7135a95cc59a16b937f0a71d903ac195d2c7c79892126dea01`.
+Focused cleanup evidence observes the first real stream suspension followed by
+empty stream/task/scope/group/host-operation/scheduler registries after the
+fatal failure escapes. Throwing-stream lifetime remains open; checked
+continuations remain open.
+
+### M6 unfinished `AsyncThrowingStream` scope-exit termination
+
+The lifetime probe constructs an unfinished throwing stream in a nested
+function, installs `onTermination`, and lets both the sequence and its builder
+continuation die at return. The caller immediately reads callback-owned state.
+That gives an exact ARC edge without a task, sleep, scheduler-order assumption,
+executor claim, or physical-thread claim.
+
+Apple Swift 6.3.3 compiled the source in Swift 6 complete-strict mode with
+warnings as errors and returned `cancelled` in twenty bounded runs. The
+interpreter RED was its explicit `AsyncThrowingStream implicit termination is
+not yet supported` diagnostic.
+
+The storage destructor no longer has a throwing-flavor exclusion. Both stream
+flavors now use the same final-owner cancellation path, with the flavor-aware
+`.cancelled` value passed synchronously before the runtime record closes.
+Because destruction cannot throw, an interpreter failure from the source-level
+nonthrowing callback is still retained for the owning task's next throwing safe
+point rather than swallowed.
+
+Native/interpreter parity is 20/20 with canonical native-observation SHA-256
+`165b1dc6bc0549403e963d0309882cc678f0ef9ff759b898171790b9d9641cc1`.
+Focused evidence records one stream, zero consumer suspensions, and empty
+stream/task/scope/group/host-operation/scheduler registries. Escaped throwing
+producer-continuation lifetime remains the last stream-lifetime slice; checked
+continuations remain open.

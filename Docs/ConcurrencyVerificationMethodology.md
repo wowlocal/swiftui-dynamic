@@ -173,6 +173,13 @@ force that alternative, or by a separately committed compiler/interface
 contract explicitly identified in the manifest. An interpreter-only outcome
 must not become permitted merely to avoid asserting scheduler order.
 
+Runtime traps use a distinct process-isolated assertion. Each native and
+interpreted child must terminate with a nonzero status and contain its authored
+diagnostic fragment. A successful exit, missing fragment, or deadline
+termination fails the case; a hang is never normalized into a trap. This
+assertion is reserved for native behavior that cannot be expressed as a
+catchable source error.
+
 `stress` means more than process completion. Every stress case names a checked
 invariant or expected terminal sentinel. Race exploration uses recorded seeds
 and prints the replay seed on failure. The required suite grows by milestone:

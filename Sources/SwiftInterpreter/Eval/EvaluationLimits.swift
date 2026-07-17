@@ -10,6 +10,21 @@ extension Interpreter {
         return RuntimeError(message: message, line: location.line, column: location.column)
     }
 
+    /// Attach a source location without changing the failure's control-flow
+    /// semantics. Runtime traps must remain fatal across gateway boundaries.
+    func error(
+        _ node: some SyntaxProtocol,
+        locating source: RuntimeError
+    ) -> RuntimeError {
+        let located = error(node, source.message)
+        return RuntimeError(
+            message: located.message,
+            line: located.line,
+            column: located.column,
+            fatal: source.fatal,
+            budgetTrip: source.budgetTrip)
+    }
+
     func tick(_ node: some SyntaxProtocol) throws {
         steps += 1
         // Task cancellation lookup is appreciably more expensive than the
@@ -57,6 +72,8 @@ extension Interpreter {
     /// Only root-host cancellation or session teardown aborts the evaluator at
     /// arbitrary safe points.
     func checkRuntimeCancellation() throws {
+        try concurrencyRuntime.throwNonthrowingCallbackFailure(
+            for: evaluationTaskContext.runtimeTaskID)
         guard let taskID = evaluationTaskContext.runtimeTaskID else {
             guard Task.isCancelled else { return }
             throw InterpreterSessionAbort()
