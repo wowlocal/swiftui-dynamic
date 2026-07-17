@@ -333,6 +333,42 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func omittedIsolationUsesCallerLexicalContextAndCleansUp()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/"
+                + "checked-continuation-omitted-isolation.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait checkedContinuationOmittedIsolationProbe()\n"
+        let interpreter = Interpreter()
+        interpreter.globals.define(
+            "parityCurrentExecutorLane",
+            .hostFunction(HostFunction(
+                name: "parityCurrentExecutorLane"
+            ) { _, context in
+                .native(context.sourceExecutor.isMainActor ? "main" : "worker")
+            }))
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "nonisolated=worker:worker:worker|main=main:main:main")
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 2)
+        #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 2)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
     @Test func hostCancellationAbortsWaitAndCleansRegistry() async throws {
         let interpreter = Interpreter()
         let evaluation = Task {
@@ -392,6 +428,37 @@ struct CheckedContinuationRuntimeTests {
                 """)
             Issue.record(
                 "arbitrary actor isolation was silently treated as MainActor")
+        } catch {
+            #expect(String(describing: error).contains(
+                "currently supports only nil or MainActor isolation"))
+        }
+
+        #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 0)
+        #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func omittedArbitraryActorIsolationFailsClosedBeforeRecordCreation()
+        async throws
+    {
+        let interpreter = Interpreter()
+        do {
+            _ = try await interpreter.runAsync(source: """
+                actor OmittedContinuationIsolationActor {
+                    func value() async -> Int {
+                        await withCheckedContinuation { continuation in
+                            continuation.resume(returning: 1)
+                        }
+                    }
+                }
+
+                let actor = OmittedContinuationIsolationActor()
+                await actor.value()
+                """)
+            Issue.record(
+                "omitted source-actor isolation was silently treated as nil")
         } catch {
             #expect(String(describing: error).contains(
                 "currently supports only nil or MainActor isolation"))
