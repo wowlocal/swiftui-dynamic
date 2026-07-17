@@ -1394,13 +1394,15 @@ ignored. Multiple independently-created iterators may own simultaneous wait
 edges on one storage, and `finish()` resumes all of them with terminal `nil`.
 Iterator carriers opt into the interpreter's generic host value-semantics
 boundary: each source copy owns a distinct mutable `next()` token while all
-copies retain the same stream storage. When the last unfinished sequence,
-iterator, and continuation reference is released, storage destruction invokes
-the one-shot `.cancelled` callback synchronously before closing its runtime
-record. Because destruction cannot throw, an interpreter failure from this
-source-level nonthrowing callback is retained by the concurrency runtime and
-surfaced at the next throwing evaluator safe point. The current slices do not
-yet claim escaped-producer lifetime, bounded buffering, `AsyncThrowingStream`,
+copies retain the same stream storage. Sequence and iterator carriers own that
+storage; producer continuations are non-owning handles. When the last unfinished
+sequence/iterator owner is released, storage destruction invokes the one-shot
+`.cancelled` callback synchronously before closing its runtime record. An
+escaped producer handle then returns `.terminated` from `yield`, and releasing
+it cannot invoke termination again. Because destruction cannot throw, an
+interpreter failure from this source-level nonthrowing callback is retained by
+the concurrency runtime and surfaced at the next throwing evaluator safe point.
+The current slices do not yet claim bounded buffering, `AsyncThrowingStream`,
 or source checked continuations.
 
 ### 6.19 Host gateway runtime
@@ -1979,7 +1981,7 @@ Each milestone is independently gated through
   finish-to-`nil`, one-shot `.finished`/`.cancelled` callback ordering,
   stable terminal reads, rejected post-finish yield, multiple parked consumers,
   independent and copied iterators, scope-exit cancellation termination, and
-  cleanup; escaped-producer lifetime, buffering, `AsyncThrowingStream`, and
+  non-owning escaped producer handles; buffering, `AsyncThrowingStream`, and
   checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
@@ -2193,9 +2195,10 @@ park simultaneously and drain from one `finish()`. Value-copied iterators also
 own independent mutable next tokens while sharing storage and distributing
 yielded elements. Releasing the final unfinished storage reference at scope
 exit synchronously invokes `.cancelled` before the caller continues.
-Escaped-producer lifetime, bounded buffering, throwing streams, and
-continuation ownership remain active rather than being inferred from those
-slices.
+An escaped producer continuation does not extend that lifetime, returns
+`.terminated` from later `yield`, and cannot invoke the callback again when it
+is released. Bounded buffering, throwing streams, and checked-continuation
+ownership remain active rather than being inferred from those slices.
 
 Deliverables:
 

@@ -230,14 +230,19 @@ final class RuntimeAsyncStreamIterator: RuntimeConcurrencyHostValue,
 }
 
 final class RuntimeAsyncStreamContinuation: RuntimeConcurrencyHostValue {
-    let storage: RuntimeAsyncStreamStorage
+    /// Producer handles do not own native AsyncStream lifetime. The sequence
+    /// and its iterators retain storage; once those owners disappear, this
+    /// handle remains usable only to report terminal/no-op outcomes.
+    weak var storage: RuntimeAsyncStreamStorage?
+    let elementTypeName: String
 
     init(storage: RuntimeAsyncStreamStorage) {
         self.storage = storage
+        elementTypeName = storage.elementTypeName
     }
 
     var sourceTypeName: String {
-        "AsyncStream<\(storage.elementTypeName)>.Continuation"
+        "AsyncStream<\(elementTypeName)>.Continuation"
     }
 
     var sourceProtocolNames: [String] { ["Sendable"] }
@@ -326,16 +331,19 @@ extension Interpreter {
                         throw RuntimeError(message:
                             "AsyncStream.Continuation.yield requires a value")
                     }
-                    return .native(continuation.storage.yield(value))
+                    guard let storage = continuation.storage else {
+                        return .native(RuntimeAsyncStreamYieldResult.terminated)
+                    }
+                    return .native(storage.yield(value))
                 })
             case "finish":
                 return .hostFunction(HostFunction(name: name) { _, context in
-                    try continuation.storage.finish(in: context)
+                    try continuation.storage?.finish(in: context)
                     return .void
                 })
             case "onTermination":
                 return .optional(
-                    continuation.storage.getOnTermination().map {
+                    continuation.storage?.getOnTermination().map {
                         .closure($0)
                     },
                     wrappedTypeName:
@@ -397,7 +405,7 @@ extension Interpreter {
             return false
         }
         if value.isNil {
-            continuation.storage.setOnTermination(nil)
+            continuation.storage?.setOnTermination(nil)
             return true
         }
         let candidate: RuntimeValue
@@ -411,7 +419,7 @@ extension Interpreter {
             throw RuntimeError(message:
                 "AsyncStream.Continuation.onTermination requires a closure or nil")
         }
-        continuation.storage.setOnTermination(handler)
+        continuation.storage?.setOnTermination(handler)
         return true
     }
 

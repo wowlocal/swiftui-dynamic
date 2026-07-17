@@ -1951,5 +1951,17 @@
     "interpreterProjection": "string",
     "nativeFact": "When an unfinished AsyncStream and its continuation lose their last references at function scope exit, storage deinitialization synchronously invokes onTermination(.cancelled) before the caller continues.",
     "notes": "The nested function discards the only sequence value and does not let its builder continuation escape. The outer function reads the callback-owned state immediately after the nested call, making scope-release ordering observable without scheduler assumptions. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output cancelled with canonical native-observation SHA-256 a78cb0e23e5bae8b901c6a25188a7d0233033b9177f49a4996a46316f8083d52. The captured interpreter RED was none: storage ARC closed the runtime record but omitted the source callback. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup."
+  },
+  {
+    "id": "async-stream-escaped-continuation-lifetime",
+    "fixture": "Fixtures/async-stream-escaped-continuation-lifetime.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamEscapedContinuationLifetimeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "An escaped AsyncStream producer continuation does not own the unfinished stream's lifetime. Releasing the final sequence/iterator owner synchronously invokes onTermination(.cancelled); a later yield through the still-live continuation returns .terminated, and releasing that handle does not invoke the callback again.",
+    "notes": "The nested function discards its only sequence value while storing the builder continuation in an outer state object. The caller records termination immediately after sequence scope exit, calls yield through the escaped handle, releases that handle, and records termination again. These edges require no tasks, sleeps, or scheduler-order assumptions. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output cancelled:terminated:cancelled with canonical native-observation SHA-256 7ca384f8a0176ff57fa4e3c0055a1ff7783123568a4e7552a39be27fae5a3e20. The captured interpreter RED was none:enqueued:cancelled because its continuation carrier incorrectly retained storage. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup."
   }
 ]
