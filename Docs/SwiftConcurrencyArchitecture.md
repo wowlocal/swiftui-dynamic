@@ -1435,8 +1435,10 @@ is storage-wide rather than attached to a source carrier, and its fatal error
 metadata survives gateway source-location attachment. Final release of an
 unfinished throwing-stream sequence/iterator also synchronously delivers the
 flavor-correct `.cancelled` callback before storage destruction closes its
-record. Escaped throwing producer-handle lifetime remains open. Source checked
-continuations are not yet claimed.
+record. The producer continuation is non-owning for this flavor too: an escaped
+handle observes `.terminated` after final sequence/iterator release and cannot
+invoke termination again when it dies. Source checked continuations are not
+yet claimed.
 
 ### 6.19 Host gateway runtime
 
@@ -2030,9 +2032,8 @@ Each milestone is independently gated through
   retain nothing. Copied throwing-stream iterators also share the storage's
   single pending-`next()` capability, and a causally overlapping call has
   process-isolated native/interpreter runtime-trap parity. Final-owner
-  scope-exit cancellation also has exact parity; escaped producer-continuation
-  lifetime plus
-  checked continuations resuming on
+  scope-exit cancellation and non-owning escaped producer-continuation lifetime
+  also have exact parity. Checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
   complete custom-executor scheduling;
@@ -2273,8 +2274,9 @@ probe additionally proves that one throwing stream permits only one pending
 `next()` across copies: after `Task.immediate` causally reaches the first
 suspension, a second call traps in both isolated native and interpreted
 processes. Final-owner scope exit also synchronously delivers `.cancelled`
-before its caller continues. Escaped throwing producer-continuation lifetime
-plus checked-continuation ownership
+before its caller continues. An escaped throwing producer continuation likewise
+does not retain storage, returns `.terminated` after owner release, and is inert
+on its own release. Checked-continuation ownership
 remain active rather than being inferred from those slices.
 
 Deliverables:
