@@ -1962,3 +1962,24 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   earlier this turn-set as b55d188 (menuStyle; orders 0.492 -> 0.039;
   fourth green close of the day, after waiting out lane-concurrency's
   gate lock — multi-lane gate contention now a normal mode).
+- 2026-07-17 donuts class bisected to a one-command repro (worktree
+  iteration 32): the caption divergence is +3px of extra gap between
+  the (pixel-identical, 80pt) DonutView thumbnail and the title, plus
+  a lighter flavor line, appearing ONLY in the real DonutGalleryGrid.
+  Elimination matrix — ALL of these match native pixel-exactly: the
+  caption VStack; the NavigationLink cell; erased-ZStack and
+  GeometryReader stand-in children; LazyVGrid+ForEach(range) with the
+  stand-in; the REAL DonutView cell via harness probes (donut-cell,
+  AE=0); ForEach over the model array with the real DonutView
+  (donut-foreach, AE=0); a `let` binding inside the builder (unit
+  pin). The reproducing artifact: the new donut-grid harness probe —
+  DonutGalleryGrid(prefix(4), width: 700) at 700x300 — AE 1273, only
+  cell 1's caption. Ink measurements: title twin rows 177-185 vs
+  interp 180-188 (same glyphs, same x extent 58-125); thumbnail ink
+  identical (0-71). Remaining deltas to try next: NavigationLink
+  (value: donut.id) with a UUID-backed ID, and the gallery's computed
+  thumbnailSize/dynamicTypeSize reads composing with GridItem
+  alignment .top. Repro: both harnesses now capture donut-cell,
+  donut-foreach, donut-grid deterministically. Pins:
+  donutCellChromeMatchesNative (now grid-wrapped),
+  letBindingInBuilderAddsNoPhantomChild.

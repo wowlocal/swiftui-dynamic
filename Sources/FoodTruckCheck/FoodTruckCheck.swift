@@ -440,6 +440,51 @@ struct FoodTruckCheckMain {
                 "TruckOrdersCard(model: model).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("donut-view", source: probeMergeBase + probeApp(
                 "DonutView(donut: model.donuts[0]).padding(10).background(Color.white)"), size: cardSize)
+            let donutCellBody = """
+            VStack {
+                DonutView(donut: model.donuts[0])
+                    .frame(width: 80, height: 80)
+                VStack {
+                    Text(model.donuts[0].name)
+                    HStack(spacing: 4) {
+                        model.donuts[0].flavors.mostPotentFlavor.image
+                        Text(model.donuts[0].flavors.mostPotentFlavor.name)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+            }
+            .padding(10).background(Color.white)
+            """
+            capturePNG("donut-cell", source: probeMergeBase + probeApp(donutCellBody),
+                       size: NSSize(width: 200, height: 200))
+            let donutForEachBody = """
+            VStack {
+                ForEach(Array(model.donuts.prefix(1))) { donut in
+                    VStack {
+                        DonutView(donut: donut)
+                            .frame(width: 80, height: 80)
+                        VStack {
+                            Text(donut.name)
+                            HStack(spacing: 4) {
+                                donut.flavors.mostPotentFlavor.image
+                                Text(donut.flavors.mostPotentFlavor.name)
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        }
+                        .multilineTextAlignment(.center)
+                    }
+                }
+            }
+            .padding(10).background(Color.white)
+            """
+            capturePNG("donut-foreach", source: probeMergeBase + probeApp(donutForEachBody),
+                       size: NSSize(width: 200, height: 200))
+            capturePNG("donut-grid", source: probeMergeBase + probeApp(
+                "DonutGalleryGrid(donuts: Array(model.donuts.prefix(4)), width: 700).background(Color.white)"),
+                       size: NSSize(width: 700, height: 300))
             capturePNG("diag-navlink", source: probeMergeBase + probeApp(
                 "NavigationLink(value: Panel.orders) { Label(String(\"New Orders\"), systemImage: String(\"shippingbox\")) }.background(Color.white)"), size: cardSize)
             capturePNG("diag-label", source: probeMergeBase + probeApp(

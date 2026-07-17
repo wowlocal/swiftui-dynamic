@@ -17,11 +17,17 @@ import Testing
         struct P: App {
             var body: some Scene {
                 WindowGroup {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 20, alignment: .top)], spacing: 20) {
+                    ForEach(0..<1) { _ in
                     NavigationLink(value: 1) {
                         VStack {
-                            ZStack {
-                                Circle().fill(Color.gray)
-                                Circle().fill(Color.white).frame(width: 12, height: 12)
+                            GeometryReader { proxy in
+                                ZStack {
+                                    Circle().fill(Color.gray)
+                                }
+                                .aspectRatio(1, contentMode: .fit)
+                                .compositingGroup()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
                             .frame(width: 40, height: 40)
                             VStack {
@@ -37,6 +43,8 @@ import Testing
                         }
                     }
                     .buttonStyle(.plain)
+                    }
+                    }
                 }
             }
         }
@@ -49,11 +57,17 @@ import Testing
         let size = NSSize(width: 160, height: 130)
         let interp = Self.bitmap(view, size: size)
         let native = Self.bitmap(AnyView(
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 20, alignment: .top)], spacing: 20) {
+            ForEach(0..<1) { _ in
             NavigationLink(value: 1) {
                 VStack {
-                    ZStack {
-                        Circle().fill(Color.gray)
-                        Circle().fill(Color.white).frame(width: 12, height: 12)
+                    GeometryReader { _ in
+                        ZStack {
+                            Circle().fill(Color.gray)
+                        }
+                        .aspectRatio(1, contentMode: .fit)
+                        .compositingGroup()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                     .frame(width: 40, height: 40)
                     VStack {
@@ -69,6 +83,8 @@ import Testing
                 }
             }
             .buttonStyle(.plain)
+            }
+            }
         ), size: size)
         var mismatched = 0
         for x in 0..<160 {
