@@ -1987,5 +1987,17 @@
     "interpreterProjection": "string",
     "nativeFact": "AsyncStream bufferingOldest(2) retains at most the first two unconsumed values. The first two yields report decreasing remaining capacity, each later yield reports the new value it rejected, and iteration receives only 1 then 2 before terminal nil.",
     "notes": "All four yields occur synchronously in the builder before iteration, so buffer state and rejection order are deterministic. YieldResult is rendered directly to preserve its remaining-capacity and dropped-element payloads; no task order or physical executor behavior is asserted. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true with canonical native-observation SHA-256 ce750f2131b0fb4526ee96775de38a23ab5c0b853f4a751b1f11993b223052f0. The captured interpreter RED was the fail-closed diagnostic that .bufferingOldest was unsupported. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup."
+  },
+  {
+    "id": "async-stream-zero-capacity",
+    "fixture": "Fixtures/async-stream-zero-capacity.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamZeroCapacityProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Both bufferingNewest(0) and bufferingOldest(0) retain no unconsumed value. Each yield reports the newly supplied element as dropped, finish is terminal, and the first iterator read returns nil.",
+    "notes": "Each zero-capacity stream is produced and drained sequentially on MainActor. The only yield occurs synchronously before iteration, so rejection and terminal state are deterministic and no task order or physical executor behavior is asserted. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output newest:dropped(1):true|oldest:dropped(2):true with canonical native-observation SHA-256 835466db10fcdaa4c20da208c0dbea51584198f6d47292fdf4096c8310702079. The captured interpreter RED was its explicit fail-closed diagnostic for .bufferingNewest(0). Focused evidence requires two created streams, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup. Negative capacities remain explicitly unsupported."
   }
 ]

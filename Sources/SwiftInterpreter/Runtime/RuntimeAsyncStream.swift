@@ -168,6 +168,7 @@ final class RuntimeAsyncStreamStorage {
             return .enqueued(remaining: limit - buffered.count)
         case .bufferingNewest(let limit):
             guard buffered.count < limit else {
+                if limit == 0 { return .dropped(delivered) }
                 let dropped = buffered.removeFirst()
                 buffered.append(delivered)
                 return .dropped(dropped)
@@ -497,7 +498,7 @@ extension Interpreter {
             throw RuntimeError(message:
                 "AsyncStream buffering policy '.\(call.name)' is unsupported")
         }
-        guard limit > 0 else {
+        guard limit >= 0 else {
             throw RuntimeError(message:
                 "AsyncStream buffering policy '.\(call.name)(\(limit))' is unsupported")
         }

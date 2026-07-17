@@ -52,21 +52,21 @@ struct AsyncStreamRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
-    @Test func unverifiedZeroCapacityBoundaryFailsClosed() async throws {
+    @Test func negativeBufferingCapacityFailsClosed() async throws {
         let interpreter = Interpreter()
         do {
             try await interpreter.runAsync(source: """
-                let stream = AsyncStream<Int>(bufferingPolicy: .bufferingNewest(0)) {
+                let stream = AsyncStream<Int>(bufferingPolicy: .bufferingNewest(-1)) {
                     continuation in
                     continuation.finish()
                 }
                 var iterator = stream.makeAsyncIterator()
                 await iterator.next()
                 """)
-            Issue.record("unverified zero-capacity behavior was silently accepted")
+            Issue.record("negative buffering capacity was silently accepted")
         } catch let error as RuntimeError {
             #expect(error.message
-                == "AsyncStream buffering policy '.bufferingNewest(0)' is unsupported")
+                == "AsyncStream buffering policy '.bufferingNewest(-1)' is unsupported")
         }
 
         #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 0)
@@ -294,6 +294,31 @@ struct AsyncStreamRuntimeTests {
         #expect(value.stringValue
             == "enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(3)|dropped(4)=>1,2,true")
         #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 1)
+        #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func zeroCapacityPoliciesDropEveryValueWithExactResults() async throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/async-stream-zero-capacity.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait asyncStreamZeroCapacityProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "newest:dropped(1):true|oldest:dropped(2):true")
+        #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 2)
         #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount == 0)
         #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)

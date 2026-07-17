@@ -1393,8 +1393,9 @@ specialization and stores an explicit buffering policy. The evidenced
 `.bufferingNewest(2)` path reports remaining capacity after successful inserts,
 evicts and returns the oldest buffered element once full, and retains only the
 newest values. The companion `.bufferingOldest(2)` path rejects and returns the
-new element once full while preserving the first buffered values. Unknown
-policies still fail closed. Multiple
+new element once full while preserving the first buffered values. At capacity
+zero both policies keep no buffer and return the supplied value as `.dropped`.
+Unknown policies and negative capacities still fail closed. Multiple
 independently-created iterators may own simultaneous wait edges on one storage,
 and `finish()` resumes all of them with terminal `nil`.
 Iterator carriers opt into the interpreter's generic host value-semantics
@@ -1407,8 +1408,8 @@ escaped producer handle then returns `.terminated` from `yield`, and releasing
 it cannot invoke termination again. Because destruction cannot throw, an
 interpreter failure from this source-level nonthrowing callback is retained by
 the concurrency runtime and surfaced at the next throwing evaluator safe point.
-The current slices do not yet claim zero-capacity policy boundaries,
-`AsyncThrowingStream`, or source checked continuations.
+The current slices do not yet claim `AsyncThrowingStream` or source checked
+continuations.
 
 ### 6.19 Host gateway runtime
 
@@ -1987,8 +1988,9 @@ Each milestone is independently gated through
   stable terminal reads, rejected post-finish yield, multiple parked consumers,
   independent and copied iterators, scope-exit cancellation termination,
   non-owning escaped producer handles, and exact positive-capacity
-  `.bufferingNewest(2)` plus `.bufferingOldest(2)` result/retention semantics;
-  zero-capacity boundaries, `AsyncThrowingStream`, and checked continuations resuming on
+  `.bufferingNewest(2)` plus `.bufferingOldest(2)` result/retention semantics
+  and both zero-capacity boundaries; `AsyncThrowingStream` and checked
+  continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
   complete custom-executor scheduling;
@@ -2208,8 +2210,10 @@ is released. A synchronous bounded-buffer probe additionally proves that
 displaced values `1` then `2`, and drains only `3`, `4`, then `nil`.
 Its `.bufferingOldest(2)` counterpart reports the same capacities, rejects and
 returns new values `3` then `4`, and drains only `1`, `2`, then `nil`.
-Zero-capacity boundaries, throwing streams, and checked-continuation ownership
-remain active rather than being inferred from those slices.
+At capacity zero both policies return the supplied element as `.dropped`, keep
+no buffered value, and read terminal `nil` after finish. Negative capacities
+remain explicitly unsupported. Throwing streams and checked-continuation
+ownership remain active rather than being inferred from those slices.
 
 Deliverables:
 
