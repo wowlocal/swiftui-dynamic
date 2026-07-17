@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SwiftInterpreter
 
@@ -108,5 +109,37 @@ struct RuntimeParallelSourceKernelTests {
         #expect(value.stringValue == "immediate")
         #expect(interpreter.concurrencyRuntime
             .totalPhysicalSourceKernelExecutions == 0)
+    }
+
+    @Test func cooperativeAndParallelModesRemainEquivalent() async throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = root.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/parallel-literal-detached.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait parallelLiteralDetachedProbe()\n"
+        let configuration = try RuntimeParallelismConfiguration(
+            maximumParallelism: 2)
+
+        for _ in 0..<20 {
+            let cooperative = Interpreter()
+            let parallel = Interpreter(
+                executionMode: .parallel(configuration))
+            let cooperativeValue = try await cooperative.runAsync(
+                source: source)
+            let parallelValue = try await parallel.runAsync(source: source)
+
+            #expect(cooperativeValue.stringValue == "atlas:42")
+            #expect(parallelValue.stringValue
+                == cooperativeValue.stringValue)
+            #expect(cooperative.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions == 0)
+            #expect(parallel.concurrencyRuntime
+                .totalPhysicalSourceKernelExecutions == 2)
+            #expect(cooperative.concurrencyRuntime.activeRecordCount == 0)
+            #expect(parallel.concurrencyRuntime.activeRecordCount == 0)
+        }
     }
 }

@@ -2974,6 +2974,35 @@ struct ConcurrencyMethodologyTests {
                     + "of a user-configured external diff or text conversion"))
     }
 
+    @Test func physicalParallelismTSanBoardIsSourceBound() throws {
+        let script = try String(
+            contentsOf: Self.packageRoot.appendingPathComponent(
+                "Scripts/run-concurrency-tsan.sh"),
+            encoding: .utf8)
+
+        for required in [
+            "--scratch-path \"$scratch_path\"",
+            "--sanitize thread",
+            "-sanitize=thread",
+            "TSAN_OPTIONS='halt_on_error=1:exitcode=66'",
+            "PREBUILT_TEST_DYLD_INSERT_LIBRARIES=\"$inserted_libraries\"",
+            "Tests/RuntimeIsolation/NativeDetachedOverlap.swift",
+            "\"$native_dir/overlap\" 20",
+            "PREBUILT_TEST_SCRATCH_PATH=\"$scratch_path\"",
+            "RuntimePhysicalWorkerDriverTests|RuntimeParallelSourceKernelTests",
+            "Interceptors are not working|interceptors not installed",
+            "run_with_deadline 60",
+            "run_with_deadline 600",
+            "-MPOSIX=setsid",
+            "kill -KILL -- \"-$pid\"",
+        ] {
+            #expect(script.contains(required),
+                Comment(rawValue: "TSan board lost required contract: \(required)"))
+        }
+        #expect(!script.contains("swift test"),
+            "cached TSan execution must bypass SwiftPM planning")
+    }
+
     @Test func gateReceiptContractIsSourceBoundAndActionable() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(

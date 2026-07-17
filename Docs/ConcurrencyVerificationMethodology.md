@@ -758,6 +758,41 @@ This prerequisite does not claim general evaluator parallelism, captured or
 suspending closures, heap access, scheduler order, speedup, full mode parity,
 or TSan cleanliness.
 
+Its thirty-fourth prerequisite establishes a scoped runtime-mode differential
+and Thread Sanitizer board before admitting richer worker kernels. This is an
+already-GREEN characterization, not a semantic gap closure: the production
+driver and literal source kernel passed the first manual sanitized run, so no
+runtime RED or behavior change is invented. The exact questions are whether
+the demand-cited literal fixture returns the same value in cooperative and
+parallel modes with distinct zero/two physical receipts, and whether the
+currently admitted physical boundary reports any data race under TSan.
+
+The existing checked-Atomic native overlap fixture remains the physical oracle.
+It compiles under Swift 6 complete strict concurrency with warnings as errors
+and `-sanitize=thread`, performs twenty bounded overlap repetitions within one
+instrumented process, and prints exact `overlap:2`. One process avoids paying
+sanitizer startup twenty times without weakening the repetition count. The
+same-source mode test reads the committed `parallel-literal-detached` fixture
+and performs twenty paired interpreter runs. Each pair must return exact
+`atlas:42`, drain both task registries, record zero physical kernels in default
+cooperative mode, and exactly two in explicit parallel mode.
+
+The sanitizer runner uses an independent `.build-tsan` cache and executes the
+prebuilt driver/source-kernel suites with parallel workers. SwiftPM's testing
+helper loads a Mach-O test bundle dynamically, so the TSan runtime must be
+inserted before the helper starts. The first direct-prebuilt attempt exposed a
+false-green hazard: TSan printed "interceptors not installed" but the helper
+exited zero. The committed runner passes the runtime path through the protected
+shell boundary, sets `DYLD_INSERT_LIBRARIES` immediately before the helper, and
+fails on either interceptor diagnostic regardless of exit status. A
+methodology test pins those source-level requirements. Build work has a
+600-second wall deadline; native and prebuilt execution each have 60 seconds,
+and timeout terminates the isolated process group rather than leaving compiler
+or test descendants alive. This receipt is scoped:
+captured/scalar-expression and suspending kernels, actors, host calls, heap
+access, and the full parallel mode still require expanded mode-differential and
+TSan coverage.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

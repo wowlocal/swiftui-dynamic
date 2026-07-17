@@ -1252,17 +1252,36 @@ capability. This is a fail-closed data boundary for future pure worker kernels,
 not permission to run the evaluator or touch the heap on a physical worker.
 
 Physical-driver stage (2026-07-18): `RuntimePhysicalWorkerDriver` is an
-explicit, stateless, bounded executor for those capabilities. Each active slot
-owns one real `Task.detached`; a throwing task group limits simultaneous slots,
-preserves input order on success, forwards structured cancellation into the
-detached native task, cancels siblings on failure, and drains every slot before
-scope exit. Invalid bounds fail as values. Tests use checked-Sendable atomics:
-two nonsuspending spin jobs must enter before release, proving physical overlap,
-while a third remains outside a two-worker bound. Cancellation, sibling
-failure, empty input, and operation-capture release are separately pinned.
-The cooperative interpreter does not create this driver implicitly and no
-source closure is eligible yet; this proves a safe physical execution
-mechanism, not parallel interpreted evaluation.
+explicit bounded executor for those capabilities. Each active slot owns one
+real `Task.detached`; one shared FIFO permit pool enforces the configured limit
+across concurrent batches, while each throwing task group preserves input order
+on success, forwards structured cancellation into the detached native task,
+cancels siblings on failure, and drains every slot before scope exit. Invalid
+bounds fail as values. Tests use checked-Sendable atomics: two nonsuspending
+spin jobs must enter before release, proving physical overlap, while a third
+remains outside a two-worker bound. Cancellation, queued-waiter removal,
+sibling failure, empty input, and operation-capture release are separately
+pinned.
+
+Source-kernel stage (2026-07-18): cooperative remains the default. Explicit
+parallel mode admits only ordinary enqueued `Task.detached` source closures
+with no authored signature, arguments, parameters, builder transform, extra
+statements, or nonliteral expression. MainActor lowers that subset to a
+constant snapshot kernel and empty checked capability; only those Sendable
+values cross to the driver, and MainActor materializes the result. Every other
+shape retains cooperative evaluation.
+
+Scoped sanitizer stage (2026-07-18): `run-concurrency-tsan.sh` owns a separate
+sanitized build cache. Its native checked-Atomic overlap executable performs
+twenty bounded repetitions in one process, and its prebuilt test bundle runs
+the driver plus source-kernel suites in parallel. The runner loads the TSan
+runtime before SwiftPM's bundle helper and rejects both a nonzero exit and the
+otherwise-zero-exit "interceptors not installed" diagnostic. A twenty-pair
+same-source test requires cooperative and parallel modes to return the same
+`atlas:42`, with zero versus two physical receipts and empty task registries.
+This receipt covers only the checked driver and constant snapshot kernel;
+future captured, suspending, actor, host, or heap-capable kernels require their
+own expanded differential and sanitizer evidence.
 
 ### 6.4 `EvaluationTaskContext`
 
@@ -3397,8 +3416,8 @@ scheduling only for that admitted subset. Remaining member families, call-site
 and compiler metadata indexing remain incomplete, mutable symbol
 materialization plus evaluator state must move fully behind the session, and
 demand-cited captured/scalar-expression and suspending kernels still need safe
-lowering. A broader cooperative-versus-parallel differential board and Thread
-Sanitizer evidence remain open.
+lowering. The scoped literal-kernel differential and TSan board is green, but
+the board must expand with every future worker kernel before M9 can close.
 
 ## 15. Verification gates
 

@@ -6,9 +6,15 @@ set -u
 set -o pipefail
 cd "$(dirname "$0")/.." || exit 2
 
-bundle="$PWD/.build/debug/DynamicSwiftUIPackageTests.xctest/Contents/MacOS/DynamicSwiftUIPackageTests"
+scratch_path=${PREBUILT_TEST_SCRATCH_PATH:-.build}
+if [[ "$scratch_path" == /* ]]; then
+    scratch_root="$scratch_path"
+else
+    scratch_root="$PWD/$scratch_path"
+fi
+bundle="$scratch_root/debug/DynamicSwiftUIPackageTests.xctest/Contents/MacOS/DynamicSwiftUIPackageTests"
 if [[ ! -f "$bundle" ]]; then
-    echo "prebuilt test bundle is missing; run 'swift build --build-tests'" >&2
+    echo "prebuilt test bundle is missing under '$scratch_path'; run 'swift build --build-tests --scratch-path $scratch_path'" >&2
     exit 2
 fi
 
@@ -41,7 +47,10 @@ if [[ -n "${DYLD_FRAMEWORK_PATH:-}" ]]; then
     framework_path="$framework_path:$DYLD_FRAMEWORK_PATH"
 fi
 
-exec env DYLD_LIBRARY_PATH="$library_path" \
-    DYLD_FRAMEWORK_PATH="$framework_path" \
-    "$helper" --test-bundle-path "$bundle" --skip-build \
+export DYLD_LIBRARY_PATH="$library_path"
+export DYLD_FRAMEWORK_PATH="$framework_path"
+if [[ -n "${PREBUILT_TEST_DYLD_INSERT_LIBRARIES:-}" ]]; then
+    export DYLD_INSERT_LIBRARIES="$PREBUILT_TEST_DYLD_INSERT_LIBRARIES"
+fi
+exec "$helper" --test-bundle-path "$bundle" --skip-build \
     "$@" "$bundle" --testing-library swift-testing
