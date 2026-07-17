@@ -216,6 +216,17 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func continuationResultResumeSpellingsTypecheck() throws {
+        let source = try Self.fixture(
+            "checked-continuation-result-spellings.swift")
+        let result = try Self.activePreflight().preflight(
+            source: source,
+            fileName: "checked-continuation-result-spellings.swift")
+
+        #expect(result.succeeded, Comment(rawValue: result.standardError))
+    }
+
+    @Test
     func multiFilePreflightPreservesFileScopedPrivateDeclarations() throws {
         let engine = try Self.activePreflight()
         let sources = try [

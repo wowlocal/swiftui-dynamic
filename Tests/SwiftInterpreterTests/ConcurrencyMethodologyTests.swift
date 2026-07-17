@@ -1633,6 +1633,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.evidenceCaseIDs == [
             "checked-continuation-value-resume",
             "checked-continuation-mainactor-resume",
+            "checked-continuation-result-spellings",
             "checked-continuation-void-resume",
         ])
         #expect(checkedClaim.testNames == [
@@ -1640,8 +1641,10 @@ struct ConcurrencyMethodologyTests {
             "CheckedContinuationRuntimeTests/delayedResumeOwnsCanonicalSuspensionAndExecutor",
             "CheckedContinuationRuntimeTests/hostCancellationAbortsWaitAndCleansRegistry",
             "CheckedContinuationRuntimeTests/arbitraryActorIsolationFailsClosedBeforeRecordCreation",
+            "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
             "CheckedContinuationRuntimeTests/voidResumeUsesSameRecordAndCleanup",
             "CompilerPreflightTests/continuationVoidResumeConstraintRejectsNonVoidSuccess",
+            "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck",
         ])
         #expect(checkedClaim.gapEvidenceIDs
             == ["async-sequence-continuation-runtime"])
@@ -1651,6 +1654,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedClaim.notes.contains(
             "arbitrary source actors fail closed"))
         #expect(checkedClaim.notes.contains("Void resume()"))
+        #expect(checkedClaim.notes.contains("Result<T, Never>"))
 
         let checkedThrowingClaim = try #require(claims.first {
             $0.id == checkedThrowing.id
@@ -1663,12 +1667,15 @@ struct ConcurrencyMethodologyTests {
             "checked-throwing-continuation-value-error",
             "checked-throwing-continuation-mainactor-error",
             "checked-throwing-continuation-result-resume",
+            "checked-continuation-result-spellings",
         ])
         #expect(checkedThrowingClaim.testNames == [
             "CheckedContinuationRuntimeTests/throwingValueAndSourceErrorShareRecordCleanup",
             "CheckedContinuationRuntimeTests/throwingMainActorErrorRestoresCallerAndCleansUp",
             "CheckedContinuationRuntimeTests/resultResumeUsesReturningAndThrowingTransitions",
+            "CheckedContinuationRuntimeTests/resultResumeSpellingsShareTerminalTransitions",
             "CompilerPreflightTests/continuationResultResumeRejectsNonResultArgument",
+            "CompilerPreflightTests/continuationResultResumeSpellingsTypecheck",
         ])
         #expect(checkedThrowingClaim.gapEvidenceIDs
             == ["async-sequence-continuation-runtime"])
@@ -1676,6 +1683,7 @@ struct ConcurrencyMethodologyTests {
         #expect(checkedThrowingClaim.notes.contains("MainActor"))
         #expect(checkedThrowingClaim.notes.contains("cooperative"))
         #expect(checkedThrowingClaim.notes.contains("Result resume(with:)"))
+        #expect(checkedThrowingClaim.notes.contains("Result<T, any Error>"))
         #expect(checkedThrowingClaim.notes.contains("InterpretedThrow"))
 
         let routedIDs = Set([checked.id, checkedThrowing.id])
