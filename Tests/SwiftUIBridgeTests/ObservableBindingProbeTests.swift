@@ -415,6 +415,49 @@ import Testing
     }
 
     @MainActor
+    @Test func feedListSectionsRender() throws {
+        let source = """
+        struct PostRow: View {
+            let index: Int
+            var body: some View {
+                Section {
+                    Text(String("POST ") + String(index))
+                }
+            }
+        }
+
+        @main
+        struct P: App {
+            var body: some Scene {
+                WindowGroup {
+                    List {
+                        Section(String("Posts")) {
+                            ForEach(0..<3) { index in
+                                PostRow(index: index)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        RenderDiagnostics.reset()
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let rep = Self.bitmap(view, size: NSSize(width: 400, height: 300))
+        var ink = 0
+        for x in 0..<400 { for y in 0..<300 {
+            if let c = rep.colorAt(x: x, y: y), c.brightnessComponent < 0.88 { ink += 1 }
+        } }
+        print("PROBE feed-sections ink:", ink, "diags:", RenderDiagnostics.errors.count,
+              RenderDiagnostics.errors.first.map { String($0.error.message.prefix(70)) } ?? "")
+        #expect(ink > 300)
+    }
+
+    @MainActor
     @Test func harnessControlPlainText() throws {
         let source = """
         @main

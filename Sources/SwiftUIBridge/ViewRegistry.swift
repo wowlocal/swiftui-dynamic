@@ -154,7 +154,7 @@ public final class ViewRegistry: HostRegistry {
     public func isViewValue(_ value: RuntimeValue) -> Bool {
         if case .host(let any) = value {
             if any is AnyView || any is TextBox || any is ImageBox || any is ShapeBox || any is LinearGradient
-                || any is PathDrawStub || any is ForEachFan {
+                || any is PathDrawStub || any is ForEachFan || any is SectionSpec {
                 return true
             }
         }
@@ -206,6 +206,18 @@ public final class ViewRegistry: HostRegistry {
             return .native(marks)
         }
         let anyViews = try views.map(Self.anyView)
+        // Section-carrying builder output stays a FAN so section-aware
+        // containers (Form) can unpack the raw values — the donut editor's
+        // grouped sections. Everything else keeps the conservative VStack
+        // composition (custom-Layout content splicing consumes fans
+        // specially; the full TupleView sibling-semantics arc is queued).
+        let carriesSections = views.contains { value in
+            if case .host(let any) = value, any is SectionSpec { return true }
+            return false
+        }
+        if carriesSections {
+            return .native(ForEachFan(views: anyViews, rawValues: views))
+        }
         return .native(AnyView(VStack { Self.indexed(anyViews) }))
     }
 
@@ -243,6 +255,12 @@ public final class ViewRegistry: HostRegistry {
                     }
                 }
                 return AnyView(EmptyView())
+            }
+            if let spec = any as? SectionSpec {
+                if let header = spec.header {
+                    return AnyView(Section { Self.indexed(spec.rows) } header: { header })
+                }
+                return AnyView(Section { Self.indexed(spec.rows) })
             }
             if let box = any as? TextBox { return AnyView(box.text) }
             if let box = any as? ImageBox { return AnyView(box.image) }

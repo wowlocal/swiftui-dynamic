@@ -322,8 +322,47 @@ extension ViewRegistry {
         }
 
         constructors["Form"] = HostFunction(name: "Form") { args, ctx in
-            let content = try Self.builderContent(args, ctx)
-            return .native(AnyView(Form { Self.indexed(content) }))
+            // Sections rebuild UN-ERASED inside the Form's own builder so
+            // grouped styling boxes them separately with outside headers;
+            // bare-row runs batch into anonymous groups like native.
+            guard let closure = args.closure(labeled: "content") ?? args.lastUnlabeledClosure else {
+                throw RuntimeError(message: "missing content closure")
+            }
+            let values = try ctx.callBuilderClosure(closure, arguments: [])
+            var specs: [SectionSpec] = []
+            var pendingRows: [AnyView] = []
+            @MainActor func collect(_ value: RuntimeValue) throws {
+                if case .host(let any) = value, let spec = any as? SectionSpec {
+                    if !pendingRows.isEmpty {
+                        specs.append(SectionSpec(header: nil, rows: pendingRows))
+                        pendingRows = []
+                    }
+                    specs.append(spec)
+                    return
+                }
+                // @ViewBuilder members arrive as fans — unpack the raw
+                // builder output so their sections stay sections.
+                if case .host(let any) = value, let fan = any as? ForEachFan,
+                   let raw = fan.rawValues {
+                    for element in raw { try collect(element) }
+                    return
+                }
+                pendingRows.append(try Self.anyView(value))
+            }
+            for value in values { try collect(value) }
+            if !pendingRows.isEmpty {
+                specs.append(SectionSpec(header: nil, rows: pendingRows))
+            }
+            let sections = specs
+            return .native(AnyView(Form {
+                ForEach(sections.indices, id: \.self) { index in
+                    Section {
+                        Self.indexed(sections[index].rows)
+                    } header: {
+                        sections[index].header ?? AnyView(EmptyView())
+                    }
+                }
+            }))
         }
 
         constructors["Grid"] = HostFunction(name: "Grid") { args, ctx in
@@ -357,10 +396,11 @@ extension ViewRegistry {
             } else if let title = args.positional(0)?.stringValue {
                 header = AnyView(Text(title))
             }
-            if let header {
-                return .native(AnyView(Section { Self.indexed(content) } header: { header }))
-            }
-            return .native(AnyView(Section { Self.indexed(content) }))
+            // A SPEC, not an AnyView: Form/List grouped styling must SEE
+            // Section structure, and AnyView erasure hides it. Containers
+            // that understand sections rebuild them un-erased; anyView()
+            // renders the spec as a real Section for every other position.
+            return .native(SectionSpec(header: header, rows: content))
         }
 
         constructors["LazyVGrid"] = HostFunction(name: "LazyVGrid") { args, ctx in
@@ -834,6 +874,14 @@ private final class GeometryContentCarrier: @unchecked Sendable {
         }
         return result
     }
+}
+
+/// Section carrier: Form/List grouped styling needs REAL Section structure
+/// in their builders; AnyView erasure flattens it (headers became centered
+/// inline rows in the donut editor).
+struct SectionSpec {
+    let header: AnyView?
+    let rows: [AnyView]
 }
 
 /// Column spec + rows collector for the Table gateway.

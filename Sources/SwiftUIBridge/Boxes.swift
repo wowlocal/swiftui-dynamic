@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftInterpreter
 
 /// AttributedString styling — `var s = AttributedString("…"); if let range =
 /// s.range(of: "x") { s[range].foregroundColor = .white }` — backed by the
@@ -101,8 +102,13 @@ final class ShapeBox {
 /// indexed ForEach for every ordinary consumer.
 final class ForEachFan {
     let views: [AnyView]
+    /// The UNCOMPOSED builder output when this fan carries a @ViewBuilder
+    /// member's result — section-aware containers (Form) unpack the raw
+    /// values so SectionSpecs survive to their builders.
+    let rawValues: [RuntimeValue]?
 
-    init(views: [AnyView]) {
+    init(views: [AnyView], rawValues: [RuntimeValue]? = nil) {
         self.views = views
+        self.rawValues = rawValues
     }
 }

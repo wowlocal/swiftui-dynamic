@@ -436,18 +436,6 @@ struct FoodTruckCheckMain {
                 "SocialFeedView()"), size: screenSize)
             capturePNG("diag-donuteditor", source: probeMergeBase + probeApp(
                 "DonutEditor(donut: $model.newDonut)"), size: screenSize)
-            capturePNG("diag-editorviewer", source: probeMergeBase + probeApp(
-                "Form { DonutEditor(donut: $model.newDonut).editorContent }.formStyle(.grouped)"), size: screenSize)
-            capturePNG("diag-editorsec-pure", source: probeMergeBase + probeApp(
-                """
-                HSplitView {
-                    Text(String("LEFT")).frame(maxWidth: .infinity, maxHeight: .infinity).layoutPriority(1)
-                    Form { Section(String("Head")) { Text(String("RIGHT MARKER")) } }
-                        .formStyle(.grouped)
-                        .padding()
-                        .frame(minWidth: 300, idealWidth: 350, maxHeight: .infinity, alignment: .top)
-                }
-                """), size: screenSize)
             capturePNG("card-donuts", source: probeMergeBase + probeApp(
                 "TruckDonutsCard(donuts: Array(model.donuts.prefix(15))).padding(10).background(Color.white)"), size: cardSize)
             capturePNG("card-orders", source: probeMergeBase + probeApp(

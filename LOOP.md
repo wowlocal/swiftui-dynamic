@@ -2275,3 +2275,24 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   Section-in-grouped-Form structure) — next. 12 selection pins pass;
   R2 main rows 0.000; R3 green. Gate still blocked by main-red
   (steward's third escalation to lane-concurrency pending).
+- 2026-07-17 DONUT EDITOR PIXEL-PERFECT — Section structure survives to
+  containers (worktree iteration 48): three coordinated changes finish
+  the editor arc. (1) Section gateway returns a SectionSpec CARRIER
+  instead of an erased AnyView — Form/List grouped styling must SEE
+  section structure and AnyView hides it; anyView(SectionSpec) renders
+  a real Section for every other position. (2) The Form gateway
+  rebuilds sections UN-ERASED inside its own builder (ForEach of real
+  Sections; bare-row runs batch into anonymous groups like native),
+  unpacking @ViewBuilder-member fans. (3) makeGroup returns a
+  raw-carrying fan when the builder output contains sections
+  (conservative VStack otherwise — custom-Layout content splicing
+  consumes fans specially; the full TupleView sibling-semantics arc is
+  queued). Regression chase: socialfeed went 100% blank because
+  isViewValue did not recognize SectionSpec — builder statement
+  collection dropped sections; one-line fix restored it. BOARD:
+  diag-donuteditor AE=0 — the editor is PIXEL-IDENTICAL to native
+  (from 100% blank at i43). ALL rows 0.000 (content artifact aside):
+  truck, donuts, orders, socialfeed, cards, donut-grid/view, editor.
+  R3 green; 34 pins across 10 suites; corpus 678/680 unchanged.
+  Scratch bisect test + temp diag rows removed; diag-donuteditor is
+  the permanent row. Gate still blocked by main-red.
