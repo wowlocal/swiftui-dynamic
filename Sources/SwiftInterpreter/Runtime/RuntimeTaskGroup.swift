@@ -12,6 +12,7 @@ enum RuntimeTaskGroupKind: CaseIterable, Equatable, Sendable {
         case .withThrowingDiscardingTaskGroup: self = .throwingDiscarding
         case .unstructuredTask, .detachedTask, .extractIsolation,
              .withCheckedContinuation,
+             .withCheckedThrowingContinuation,
              .withTaskCancellationHandler,
              .withTaskPriorityEscalationHandler,
              .withTaskExecutorPreference,

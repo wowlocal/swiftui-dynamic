@@ -1122,6 +1122,22 @@ final class CooperativeConcurrencyRuntime {
         _ id: RuntimeContinuationID,
         returning value: RuntimeValue
     ) throws {
+        try resolveContinuation(
+            id, as: .resumed(value.copiedForValueSemantics()))
+    }
+
+    func resumeContinuation(
+        _ id: RuntimeContinuationID,
+        throwing value: RuntimeValue
+    ) throws {
+        try resolveContinuation(
+            id, as: .failed(value.copiedForValueSemantics()))
+    }
+
+    private func resolveContinuation(
+        _ id: RuntimeContinuationID,
+        as outcome: RuntimeContinuationState
+    ) throws {
         guard let record = continuations[id] else {
             throw RuntimeError(
                 message: "checked continuation \(id) is no longer active",
@@ -1132,7 +1148,7 @@ final class CooperativeConcurrencyRuntime {
                 message: "checked continuation \(id) resumed more than once",
                 fatal: true)
         }
-        record.state = .resumed(value.copiedForValueSemantics())
+        record.state = outcome
         let waiter = record.nativeWaiter
         record.nativeWaiter = nil
         waiter?.resume()
@@ -1184,6 +1200,8 @@ final class CooperativeConcurrencyRuntime {
         switch outcome {
         case .resumed(let value):
             return value
+        case .failed(let value):
+            throw InterpretedThrow(value: value)
         case .aborted:
             throw InterpreterSessionAbort()
         case .pending:

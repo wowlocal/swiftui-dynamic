@@ -175,6 +175,26 @@ struct CompilerPreflightTests {
     }
 
     @Test
+    func continuationVoidResumeConstraintRejectsNonVoidSuccess() throws {
+        let result = try Self.activePreflight().preflight(source: """
+        nonisolated func invalidContinuationVoidResume() async -> Int {
+            await withCheckedContinuation(
+                isolation: nil
+            ) { (continuation: CheckedContinuation<Int, Never>) in
+                continuation.resume()
+            }
+        }
+        """)
+
+        #expect(!result.succeeded)
+        #expect(result.diagnostics.contains {
+            $0.severity == .error
+                && $0.message.contains(
+                    "resume()' requires the types 'Int' and '()' be equivalent")
+        }, Comment(rawValue: result.standardError))
+    }
+
+    @Test
     func multiFilePreflightPreservesFileScopedPrivateDeclarations() throws {
         let engine = try Self.activePreflight()
         let sources = try [

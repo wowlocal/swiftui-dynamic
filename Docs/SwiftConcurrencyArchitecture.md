@@ -46,12 +46,15 @@ the interpreter still combines program/session/heap responsibilities. A
 runtime-owned mailbox now serializes actor-function segments and releases a
 complete depth-counted segment across canonical runtime waits before queuing
 the same task to reacquire it on resume. There is still no general runnable-
-executor queue. M6 now includes a bounded checked-continuation registry for
-the explicit-`nil` and `MainActor.shared` isolation,
-`resume(returning:)` value slices; contextual MainActor body execution is
-temporary, each active record is owned by one task and names the caller's
-required resume executor, and the canonical suspension lease removes every
-edge on success or infrastructure abort.
+executor queue. M6 now includes a bounded checked-continuation registry. The
+nonthrowing form owns the explicit-`nil` and `MainActor.shared` isolation,
+`resume(returning:)` value slices plus explicit-`nil` zero-argument Void
+`resume()`; the throwing form shares the same record for explicit-`nil` value
+return and exact source-error projection through `resume(throwing:)`.
+Contextual MainActor body execution is temporary, each
+active record is owned by one task and names the caller's required resume
+executor, and the canonical suspension lease removes every edge on success,
+source failure, or infrastructure abort.
 M6 began with protocol-driven
 `for await` over interpreted witnesses, including suspending mutating iterator
 copy-out, typed source-error propagation, and cooperative user-iterator
@@ -60,9 +63,9 @@ covered together with `continue` and `return` cleanup; protocol-extension
 defaults for both requirements are covered as well. Host-backed sequences,
 including typed opaque gateways with tracked host suspension, are covered as
 well. Both stream flavors' evidenced cancellation, buffering, iterator-copy,
-and lifetime tails are covered. Throwing/unsafe continuations, broader
-isolation and resume spellings, and checked-continuation diagnostic/lifetime
-edges remain open. The remaining
+and lifetime tails are covered. Throwing-continuation MainActor isolation,
+unsafe continuations, broader isolation, Result-based resume, and checked-
+continuation diagnostic/lifetime edges remain open. The remaining
 Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
@@ -1340,18 +1343,27 @@ are debug implementation behavior.
 
 The current slice implements a bounded runtime-owned record and opaque source
 carrier for `withCheckedContinuation` with explicit `nil` or
-`MainActor.shared` isolation plus `resume(returning:)`. A contextual executor
+`MainActor.shared` isolation plus `resume(returning:)`; its explicit-`nil`
+Void slice also maps zero-argument `resume()` to the same resumed terminal
+transition. Compiler preflight owns Swift's static `Success == Void` member
+constraint, while the runtime implements the already-selected valid call.
+`withCheckedThrowingContinuation` shares that record for explicit `nil`
+isolation, `resume(returning:)`, and `resume(throwing:)`; a distinct failed
+terminal outcome retains the copied source error and projects it only after
+the runtime has closed the continuation ownership edges. A contextual executor
 override runs the synchronous MainActor body and restores the caller before
 waiting, so a delayed resume records `.waitingForContinuation(id)` with the
 caller's required logical executor rather than the temporary body executor.
 Resume restores that owner executor and closes both the registry entry and
-task-owner edge before returning the copied value. Immediate resume uses the
-same exactly-once transition without a synthetic suspension. Infrastructure
+task-owner edge before returning the copied value or throwing the original
+source value through `InterpretedThrow`. Immediate resume uses the same
+exactly-once transition without a synthetic suspension. Infrastructure
 cancellation may abort the internal native waiter so session teardown cannot
 hang; ordinary source cancellation does not resolve the continuation.
-Arbitrary source actors fail closed before record creation. Throwing/error
-projection, omitted and arbitrary-source-actor isolation, other resume
-spellings, checked diagnostics/lifetime, and unsafe variants remain open.
+Arbitrary source actors fail closed before record creation. Throwing
+MainActor-specific evidence, omitted and arbitrary-source-actor isolation,
+Result-based resume, checked diagnostics/lifetime, and unsafe variants
+remain open.
 
 ### 6.18 Async sequences and streams
 
@@ -1461,8 +1473,9 @@ unfinished throwing-stream sequence/iterator also synchronously delivers the
 flavor-correct `.cancelled` callback before storage destruction closes its
 record. The producer continuation is non-owning for this flavor too: an escaped
 handle observes `.terminated` after final sequence/iterator release and cannot
-invoke termination again when it dies. Source checked continuations are not
-yet claimed.
+invoke termination again when it dies. Source checked continuations use the
+separate runtime-owned continuation record described in Section 6.17; stream
+producer handles are not evidence for their resume or lifetime rules.
 
 ### 6.19 Host gateway runtime
 
@@ -2060,8 +2073,12 @@ Each milestone is independently gated through
   also have exact parity. The checked-continuation value slices now own
   explicit-`nil` and `MainActor.shared` isolation, detached-producer resume,
   contextual MainActor body execution, caller-executor restoration, and
-  teardown cleanup. Throwing and unsafe variants, omitted and arbitrary-source-
-  actor isolation, other resume spellings, and diagnostic/lifetime edges remain
+  teardown cleanup. The checked throwing form additionally owns explicit-`nil`
+  value resume and exact source-error projection through `resume(throwing:)`.
+  The nonthrowing explicit-`nil` Void slice owns zero-argument `resume()`
+  through the same terminal transition and cleanup path.
+  Throwing MainActor isolation, unsafe variants, omitted and arbitrary-source-
+  actor isolation, Result-based resume, and diagnostic/lifetime edges remain
   active; complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
@@ -2305,9 +2322,12 @@ does not retain storage, returns `.terminated` after owner release, and is inert
 on its own release. The source checked-continuation slices separately own a
 bounded runtime record, delayed value resume for explicit `nil` and
 `MainActor.shared` isolation, contextual MainActor body execution,
-caller-executor restoration, and infrastructure-abort cleanup. Their remaining
-isolation, error, diagnostic, and lifetime edges remain active rather than
-being inferred from stream behavior.
+caller-executor restoration, and infrastructure-abort cleanup. The throwing
+form shares that record for explicit-`nil` value return and exact source-error
+projection; the nonthrowing explicit-`nil` Void slice maps zero-argument
+`resume()` to that same successful terminal path. Throwing MainActor isolation
+and the remaining isolation, Result-based resume, diagnostic, and lifetime
+edges remain active rather than being inferred from stream behavior.
 
 Deliverables:
 
@@ -2698,9 +2718,12 @@ Verification:
   filter.
 - Prefer `Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER` for that
   inner loop: it performs one build and then runs focused parity, the targeted
-  suite, and methodology concurrently against the prebuilt bundle. Do not try
-  to parallelize several `swift test --skip-build` commands; SwiftPM still
-  serializes them on its shared build-directory planning lock.
+  suite, and methodology concurrently against the prebuilt bundle. Repeated
+  edits may pass `--methodology-filter` for the affected disposition and
+  acceptance checks; the pre-commit run omits it and executes the complete
+  methodology suite. Do not try to parallelize several
+  `swift test --skip-build` commands; SwiftPM still serializes them on its
+  shared build-directory planning lock.
 - Every milestone runs AsyncExecutionTests, HostSignatureTests, all concurrency
   parity tests, full swift test, and Scripts/gate.sh when available.
 - Run fresh-process cleanup checks for task/continuation/static-state leaks.

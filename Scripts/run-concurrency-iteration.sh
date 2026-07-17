@@ -7,7 +7,7 @@ set -o pipefail
 cd "$(dirname "$0")/.." || exit 2
 
 usage() {
-    echo "usage: Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER [--jobs N] [--skip-build]" >&2
+    echo "usage: Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER [--jobs N] [--methodology-filter REGEX] [--skip-build]" >&2
 }
 
 if (( $# < 2 )); then usage; exit 2; fi
@@ -15,12 +15,17 @@ case_id="$1"
 test_filter="$2"
 shift 2
 jobs=${FOCUSED_PARITY_JOBS:-4}
+methodology_filter=${CONCURRENCY_METHODOLOGY_FILTER:-ConcurrencyMethodologyTests}
 skip_build=0
 while (( $# > 0 )); do
     case "$1" in
         --jobs)
             if (( $# < 2 )); then usage; exit 2; fi
             jobs="$2"
+            shift 2 ;;
+        --methodology-filter)
+            if (( $# < 2 )); then usage; exit 2; fi
+            methodology_filter="$2"
             shift 2 ;;
         --skip-build)
             skip_build=1
@@ -32,6 +37,10 @@ while (( $# > 0 )); do
 done
 if [[ "$jobs" != <-> ]] || (( jobs < 1 )); then
     echo "iteration jobs must be a positive integer, got '$jobs'" >&2
+    exit 2
+fi
+if [[ -z "$methodology_filter" ]]; then
+    echo "methodology filter must not be empty" >&2
     exit 2
 fi
 
@@ -87,7 +96,8 @@ launch() {
 launch "targeted tests" "$work_dir/targeted.log" \
     Scripts/run-prebuilt-tests.sh --filter "$test_filter"
 launch "methodology" "$work_dir/methodology.log" \
-    Scripts/run-prebuilt-tests.sh --filter ConcurrencyMethodologyTests
+    Scripts/run-prebuilt-tests.sh --no-parallel \
+        --filter "$methodology_filter"
 launch "focused parity" "$work_dir/parity.log" \
     Scripts/run-focused-parity.sh "$case_id" --jobs "$jobs"
 

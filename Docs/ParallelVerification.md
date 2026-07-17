@@ -102,6 +102,8 @@ Scripts/run-prebuilt-tests.sh --no-parallel --filter 'ARCSemanticsTests'
 Scripts/run-prebuilt-tests.sh --parallel --num-workers 6 \
   --filter 'SwiftUpstreamParityTests'
 Scripts/run-focused-parity.sh protocol-async-sequence-cancellation --jobs 4
+Scripts/run-concurrency-iteration.sh CASE_ID TEST_FILTER --skip-build \
+  --methodology-filter 'RELEVANT_METHOD_TEST|milestoneAcceptanceMatrixIsCompleteAndConsistent'
 ```
 
 Independent read-only selections may run concurrently because they do not
@@ -109,6 +111,13 @@ contend for the SwiftPM workspace lock; suites that intentionally share an
 external fixture still need their documented isolation. Rebuild once after
 production or test source changes. Use the full source-bound gate only at an
 integration or milestone boundary.
+
+The concurrency-iteration runner keeps the complete methodology suite as its
+safe default. During repeated RED/GREEN edits, pass one regular expression that
+selects the affected surface-disposition test plus the acceptance-matrix test.
+Run the command once without `--methodology-filter` before committing. This
+keeps the semantic guard in the inner loop without re-running unrelated API
+disposition checks on every edit.
 
 The focused parity runner is specifically for the one-case semantic loop. It
 selects exactly one runtime fixture from the manifest, divides that fixture's
@@ -174,6 +183,14 @@ now captures large subprocess output in files rather than calling
 `waitUntilExit()` before draining a pipe; at 138 runtime cases the JSON receipt
 can fill the pipe buffer and turn an otherwise sub-second test into an
 unbounded wait.
+The concurrency-iteration helper therefore invokes its methodology selection
+with `--no-parallel`; process-level parallelism is reserved for the targeted
+lane and the explicitly sharded native/interpreter parity repetitions.
+For the 20-repetition checked-throwing-continuation slice on the same reference
+host, a warm-bundle iteration with the two relevant methodology checks took
+5.3 seconds; the pre-commit form with all 39 methodology tests took 12.9
+seconds. Rebuilding the test bundle after source changes remained a separate
+13-second incremental cost.
 
 The runtime manifest subsequently grew from the early benchmark to 135 cases
 and 2,662 isolated repetitions. A 2026-07-17 closing receipt showed the

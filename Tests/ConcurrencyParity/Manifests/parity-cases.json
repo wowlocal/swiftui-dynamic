@@ -2145,5 +2145,29 @@
     "interpreterProjection": "string",
     "nativeFact": "An explicit MainActor isolation argument hops a @concurrent nonisolated caller to MainActor for the checked-continuation body, then restores that caller's cooperative executor after a causally delayed detached producer supplies the value.",
     "notes": "The task-value gate forces the detached producer to suspend before a separate controller opens it. Exact output worker|main|worker proves caller entry, the contextually isolated continuation body, and caller-executor restoration after resume; no ready-task order, producer physical thread, or parallel execution is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced the exact output in twenty native runs."
+  },
+  {
+    "id": "checked-throwing-continuation-value-error",
+    "fixture": "Fixtures/checked-throwing-continuation-value-error.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedThrowingContinuationValueErrorProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "Two sequential checked throwing continuations project the exact value supplied through resume(returning:) and the original source error supplied through resume(throwing:) into its matching catch.",
+    "notes": "Each continuation has its own detached producer, which yields before resuming. Program order between the two awaits fixes value before error, but no producer scheduling order, physical thread, or parallel execution is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced value:23|error:failed in twenty native runs."
+  },
+  {
+    "id": "checked-continuation-void-resume",
+    "fixture": "Fixtures/checked-continuation-void-resume.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationVoidResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "A checked continuation whose success value is Void resumes through the zero-argument resume() convenience and returns control to its awaiting owner.",
+    "notes": "The detached producer yields before calling resume(), so the assertion covers delayed Void completion and owner resumption without asserting ready-task order, a physical thread, or parallel execution. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced void-resumed in twenty native runs."
   }
 ]

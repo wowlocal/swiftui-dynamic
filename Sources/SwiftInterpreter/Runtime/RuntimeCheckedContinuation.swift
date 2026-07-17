@@ -4,14 +4,17 @@
 final class RuntimeCheckedContinuation: RuntimeConcurrencyHostValue {
     weak var runtime: CooperativeConcurrencyRuntime?
     let id: RuntimeContinuationID
+    let allowsThrowingResume: Bool
     private var didResume = false
 
     init(
         runtime: CooperativeConcurrencyRuntime,
-        id: RuntimeContinuationID
+        id: RuntimeContinuationID,
+        allowsThrowingResume: Bool
     ) {
         self.runtime = runtime
         self.id = id
+        self.allowsThrowingResume = allowsThrowingResume
     }
 
     var sourceTypeName: String { "CheckedContinuation" }
@@ -31,11 +34,31 @@ final class RuntimeCheckedContinuation: RuntimeConcurrencyHostValue {
         try runtime.resumeContinuation(id, returning: value)
         didResume = true
     }
+
+    func resume(throwing value: RuntimeValue) throws {
+        guard allowsThrowingResume else {
+            throw RuntimeError(message:
+                "nonthrowing checked continuation cannot resume with an error")
+        }
+        guard !didResume else {
+            throw RuntimeError(
+                message: "checked continuation \(id) resumed more than once",
+                fatal: true)
+        }
+        guard let runtime else {
+            throw RuntimeError(
+                message: "checked continuation \(id) outlived its runtime",
+                fatal: true)
+        }
+        try runtime.resumeContinuation(id, throwing: value)
+        didResume = true
+    }
 }
 
 enum RuntimeContinuationState {
     case pending
     case resumed(RuntimeValue)
+    case failed(RuntimeValue)
     case aborted
 }
 
@@ -63,7 +86,8 @@ final class RuntimeContinuationRecord {
 extension Interpreter {
     func sourceCheckedContinuationFunction(
         name: String = RuntimeConcurrencyFunctionIntrinsic
-            .withCheckedContinuation.rawValue
+            .withCheckedContinuation.rawValue,
+        allowsThrowingResume: Bool = false
     ) -> HostFunction {
         HostFunction(
             name: name,
@@ -73,18 +97,23 @@ extension Interpreter {
                     throw RuntimeError(message:
                         "interpreter was released during checked continuation")
                 }
-                return try await withSourceCheckedContinuation(arguments)
+                return try await withSourceCheckedContinuation(
+                    arguments,
+                    api: name,
+                    allowsThrowingResume: allowsThrowingResume)
             })
     }
 
     private func withSourceCheckedContinuation(
-        _ arguments: CallArguments
+        _ arguments: CallArguments,
+        api: String,
+        allowsThrowingResume: Bool
     ) async throws -> RuntimeValue {
         let task = try requireCanonicalActiveRuntimeTask(
-            for: "withCheckedContinuation")
+            for: api)
         guard let isolation = arguments.labeled("isolation") else {
             throw RuntimeError(message:
-                "withCheckedContinuation currently requires an explicit "
+                "\(api) currently requires an explicit "
                     + "isolation argument")
         }
         let bodyExecutor: RuntimeExecutorKind?
@@ -95,13 +124,13 @@ extension Interpreter {
                     .unwrappedOptionalOrSelf,
                   !actor.isNil else {
                 throw RuntimeError(message:
-                    "withCheckedContinuation isolation requires an actor")
+                    "\(api) isolation requires an actor")
             }
             let executor = try executorSelectedByIsolatedValue(
                 actor, parameterName: "isolation")
             guard executor == .mainActor else {
                 throw RuntimeError(message:
-                    "withCheckedContinuation currently supports only nil "
+                    "\(api) currently supports only nil "
                         + "or MainActor isolation")
             }
             bodyExecutor = executor
@@ -109,11 +138,11 @@ extension Interpreter {
         if let function = arguments.labeled("function"),
            function.stringValue == nil {
             throw RuntimeError(message:
-                "withCheckedContinuation(function:) requires a String")
+                "\(api)(function:) requires a String")
         }
         guard let body = arguments.firstUnlabeledClosure else {
             throw RuntimeError(message:
-                "withCheckedContinuation needs a body closure")
+                "\(api) needs a body closure")
         }
 
         let record = try concurrencyRuntime.createContinuation(
@@ -121,7 +150,8 @@ extension Interpreter {
             requiredExecutor: evaluationTaskContext.currentExecutor)
         let continuation = RuntimeCheckedContinuation(
             runtime: concurrencyRuntime,
-            id: record.id)
+            id: record.id,
+            allowsThrowingResume: allowsThrowingResume)
         do {
             _ = try callWithArguments(
                 body,
@@ -144,14 +174,27 @@ extension Interpreter {
         guard let continuation = payload as? RuntimeCheckedContinuation,
               name == "resume" else { return nil }
         return .hostFunction(HostFunction(name: name) { arguments, _ in
-            guard arguments.arguments.count == 1,
-                  let value = arguments.labeled("returning") else {
-                throw RuntimeError(message:
-                    "CheckedContinuation.resume currently requires "
-                        + "returning: value")
+            // Swift exposes this convenience only when the success value is
+            // Void; compiler preflight owns that static member constraint.
+            if arguments.arguments.isEmpty {
+                try continuation.resume(returning: .void)
+                return .void
             }
-            try continuation.resume(returning: value)
-            return .void
+            guard arguments.arguments.count == 1 else {
+                throw RuntimeError(message:
+                    "CheckedContinuation.resume accepts zero or one value")
+            }
+            if let value = arguments.labeled("returning") {
+                try continuation.resume(returning: value)
+                return .void
+            }
+            if let value = arguments.labeled("throwing") {
+                try continuation.resume(throwing: value)
+                return .void
+            }
+            throw RuntimeError(message:
+                "CheckedContinuation.resume currently requires returning: "
+                    + "or throwing:")
         })
     }
 }
