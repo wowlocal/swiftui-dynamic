@@ -153,8 +153,7 @@ extension Interpreter {
             isAsyncSession: true,
             priority: root.effectivePriority,
             executor: root.executorPreference,
-            taskLocals: taskLocals,
-            interpreter: self)
+            taskLocals: taskLocals)
         runtime.bind(context, to: root)
         defer { runtime.release(root.id) }
         return try await EvaluationTaskContext.$current.withValue(context) {

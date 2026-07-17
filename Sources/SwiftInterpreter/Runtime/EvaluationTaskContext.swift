@@ -18,7 +18,7 @@ final class EvaluationTaskContext {
     let isAsyncSession: Bool
     var priority: RuntimeTaskPriority
     let taskLocals: RuntimeTaskLocalStorage
-    weak var interpreter: Interpreter?
+    weak var concurrencyRuntime: CooperativeConcurrencyRuntime?
     let initialExecutor: RuntimeExecutorKind
     var currentExecutor: RuntimeExecutorKind
 
@@ -60,7 +60,7 @@ final class EvaluationTaskContext {
         priority: RuntimeTaskPriority = .medium,
         executor: RuntimeExecutorKind = .mainActor,
         taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage(),
-        interpreter: Interpreter
+        concurrencyRuntime: CooperativeConcurrencyRuntime
     ) {
         precondition(
             runtimeEntry == nil || runtimeSessionID == nil
@@ -75,7 +75,7 @@ final class EvaluationTaskContext {
         initialExecutor = executor
         currentExecutor = executor
         self.taskLocals = taskLocals
-        self.interpreter = interpreter
+        self.concurrencyRuntime = concurrencyRuntime
     }
 
     var isDynamicallyEmpty: Bool {

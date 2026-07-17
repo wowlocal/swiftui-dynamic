@@ -113,7 +113,9 @@ with the detailed design in
   session-scheduled unstructured and detached task handles through completion;
   the interpreter facade exposes only a compatibility inspection view. The
   runtime also allocates every asynchronous evaluator-context identity; only
-  the synchronous facade context keeps reserved ID `0`.
+  the synchronous facade context keeps reserved ID `0`. Evaluator contexts
+  identify their owning runtime rather than retaining or identifying the
+  interpreter facade; explicit host re-entry capabilities remain separate.
   Remaining member semantics, call-site semantic resolution, compiler
   metadata, evaluator/session migration, heap-edge classification, workers,
   mode-differential parity, and TSan are still open.

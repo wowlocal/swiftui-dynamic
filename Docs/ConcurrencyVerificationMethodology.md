@@ -528,6 +528,31 @@ The canonical parallel iteration completed nine targeted tests in seven
 suites, all forty-two methodology checks, and all twenty predicate parity
 repetitions on four workers in 2.1 seconds.
 
+Its twenty-fifth prerequisite verifies that evaluator contexts identify their
+owning runtime rather than a facade. The compile-time RED required
+`makeEvaluationTaskContext()` without an interpreter argument and a weak
+runtime capability on the resulting context. The focused ownership tests must
+prove that retaining a context does not retain the facade, that the context's
+runtime remains identifiable, and that a foreign-runtime ambient context is
+not selected by another interpreter. Explicit `TaskBoundEvalContext` host
+ownership remains unchanged because retained host callbacks need a real re-
+entry capability.
+
+The semantic workflow is an already-GREEN characterization using
+`detached-host-context-reentry`. Apple Swift 6.3.3 establishes exact output
+`lost,preserved`: `Task.detached` first observes the default TaskLocal value,
+then an explicitly captured value is rebound around an async callback. Native
+Swift and the interpreter match in twenty bounded repetitions before and after
+the ownership change; every native shard reports SHA-256
+`dfe2ffa3bba5229691693999686926094a6ab74bf6414514dfd18ce8d2b6a1fb`.
+The closing focused filter includes context ID allocation/selection, facade
+release, source-task cleanup, stale-context rejection, callback/task entry,
+session lifetime, and real SwiftUI async entry. No implicit detached
+inheritance, worker thread, or physical-parallelism claim is allowed.
+The canonical parallel iteration completed nine targeted tests in six suites,
+all forty-two methodology checks, and all twenty exact parity repetitions on
+four workers in 1.9 seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

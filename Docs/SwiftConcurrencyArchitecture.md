@@ -525,6 +525,33 @@ The canonical parallel iteration completed nine ownership/context tests in
 seven suites, all forty-two methodology checks, and all twenty predicate
 parity repetitions on four workers in 2.1 seconds.
 
+The twenty-fifth prerequisite removes the remaining weak facade identity from
+`EvaluationTaskContext`. Each asynchronous or compatibility context now keeps
+only a weak `CooperativeConcurrencyRuntime` capability. The runtime factory no
+longer accepts an `Interpreter`, and `Interpreter.evaluationTaskContext`
+selects an ambient context only when its runtime identity matches the facade's
+runtime. A context from another interpreter therefore cannot become the
+facade's dynamic evaluator state. `TaskBoundEvalContext` deliberately remains
+the explicit host capability that owns an interpreter while a retained host
+callback must be able to re-enter it.
+
+The architectural RED was compile-time: creating a context still required an
+`interpreter:` argument, and the context had no runtime-identity capability.
+The focused test now creates a context from the runtime alone, proves the
+facade deallocates while that context remains, and proves a foreign-runtime
+ambient context falls back to compatibility ID `0`. The semantic workflow
+reuses `detached-host-context-reentry`: native Swift and the interpreter both
+produce exact output `lost,preserved` in twenty bounded repetitions before and
+after migration. All four native shards report SHA-256
+`dfe2ffa3bba5229691693999686926094a6ab74bf6414514dfd18ce8d2b6a1fb`.
+This proves that `Task.detached` does not inherit the bound value while an
+explicitly captured host capability can rebind it around an async callback.
+It does not make the evaluator facade-independent during active evaluation or
+claim physical parallelism.
+The canonical parallel iteration completed nine ownership/re-entry tests in
+six suites, all forty-two methodology checks, and all twenty exact parity
+repetitions on four workers in 1.9 seconds.
+
 The stable target separates five concerns:
 
 ```text
@@ -692,10 +719,12 @@ task completion clears it. `withParkedEvaluatorFrames` no longer exists.
 
 The remaining ceiling is one level higher: sessions now own distinct mutable
 `RuntimeProgramState` declaration registries, and the cooperative runtime owns
-session-scheduled task handles plus async evaluator-context identities, but
-`Interpreter` still combines the evaluator, compatibility facade, and shared
-`RuntimeHeap`. Overlapping entries therefore select the correct program state
-while still sharing MainActor-confined global/view heap storage. Moving
+session-scheduled task handles plus async evaluator-context identities and
+capability matching. Contexts no longer point back to the facade, but
+`Interpreter` still combines the evaluator, compatibility surface, and shared
+`RuntimeHeap`; explicit `TaskBoundEvalContext` host capabilities retain it when
+re-entry is required. Overlapping entries therefore select the correct program
+state while still sharing MainActor-confined global/view heap storage. Moving
 evaluation behind the session and classifying every heap edge remain required
 before executor-neutral or parallel operation.
 

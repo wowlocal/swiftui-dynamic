@@ -484,7 +484,7 @@
     "interpreterEntry": "await detachedHostContextProbe()",
     "interpreterProjection": "string",
     "nativeFact": "Task.detached does not inherit a TaskLocal value, but an explicitly captured value can be rebound around an async callback and remains visible inside that callback.",
-    "notes": "The interpreter twin uses a real native detached task and verifies that TaskBoundEvalContext rebinds the exact originating EvaluationTaskContext ID."
+    "notes": "The interpreter twin uses a real native detached task and verifies that TaskBoundEvalContext rebinds the exact originating EvaluationTaskContext ID. EvaluationTaskContext identifies its owning CooperativeConcurrencyRuntime without retaining or identifying an Interpreter facade; TaskBoundEvalContext remains the explicit host re-entry owner."
   },
   {
     "id": "async-initializer-context",

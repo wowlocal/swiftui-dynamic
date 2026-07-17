@@ -395,11 +395,11 @@ public final class Interpreter {
         return compatibilityLocationConverter
     }
     private lazy var synchronousEvaluationTaskContext = EvaluationTaskContext(
-        id: 0, interpreter: self)
+        id: 0, concurrencyRuntime: concurrencyRuntime)
 
     var evaluationTaskContext: EvaluationTaskContext {
         if let current = EvaluationTaskContext.current,
-           current.interpreter === self {
+           current.concurrencyRuntime === concurrencyRuntime {
             return current
         }
         return synchronousEvaluationTaskContext

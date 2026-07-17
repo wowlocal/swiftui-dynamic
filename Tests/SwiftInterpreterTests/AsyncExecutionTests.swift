@@ -1209,8 +1209,7 @@ struct AsyncExecutionTests {
         let staleContext = interpreter.concurrencyRuntime.makeEvaluationTaskContext(
             runtimeTaskID: RuntimeTaskID(rawValue: 999),
             runtimeSessionID: RuntimeSessionID(rawValue: 999),
-            isAsyncSession: true,
-            interpreter: interpreter)
+            isAsyncSession: true)
         let boundContext = TaskBoundEvalContext(
             interpreter: interpreter, evaluationContext: staleContext)
 

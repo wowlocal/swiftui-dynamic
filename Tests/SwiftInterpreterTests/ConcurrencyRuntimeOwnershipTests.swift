@@ -3,14 +3,44 @@ import Testing
 
 @Suite("Concurrency runtime ownership")
 struct ConcurrencyRuntimeOwnershipTests {
+    @Test func evaluationContextUsesRuntimeIdentityWithoutRetainingFacade() {
+        var interpreter: Interpreter? = Interpreter()
+        guard let runtime = interpreter?.concurrencyRuntime else {
+            Issue.record("interpreter did not create a concurrency runtime")
+            return
+        }
+        weak let releasedInterpreter = interpreter
+
+        let context = runtime.makeEvaluationTaskContext()
+        #expect(context.concurrencyRuntime === runtime)
+
+        interpreter = nil
+        #expect(releasedInterpreter == nil)
+        #expect(context.concurrencyRuntime === runtime)
+    }
+
+    @Test func ambientContextIsSelectedByRuntimeIdentity() {
+        let first = Interpreter()
+        let second = Interpreter()
+        let context = first.concurrencyRuntime.makeEvaluationTaskContext()
+
+        let firstObserved = EvaluationTaskContext.$current.withValue(context) {
+            first.currentEvaluationTaskContextID
+        }
+        let secondObserved = EvaluationTaskContext.$current.withValue(context) {
+            second.currentEvaluationTaskContextID
+        }
+
+        #expect(firstObserved == context.id)
+        #expect(secondObserved == 0)
+    }
+
     @Test func runtimeAllocatesUniqueEvaluationContextIdentities() {
         let interpreter = Interpreter()
         let runtime = interpreter.concurrencyRuntime
 
-        let first = runtime.makeEvaluationTaskContext(
-            interpreter: interpreter)
-        let second = runtime.makeEvaluationTaskContext(
-            interpreter: interpreter)
+        let first = runtime.makeEvaluationTaskContext()
+        let second = runtime.makeEvaluationTaskContext()
 
         #expect(first.id != 0)
         #expect(second.id != 0)

@@ -746,8 +746,7 @@ final class CooperativeConcurrencyRuntime {
         isAsyncSession: Bool = false,
         priority: RuntimeTaskPriority = .medium,
         executor: RuntimeExecutorKind = .mainActor,
-        taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage(),
-        interpreter: Interpreter
+        taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage()
     ) -> EvaluationTaskContext {
         let id = nextEvaluationTaskContextID
         nextEvaluationTaskContextID += 1
@@ -760,7 +759,7 @@ final class CooperativeConcurrencyRuntime {
             priority: priority,
             executor: executor,
             taskLocals: taskLocals,
-            interpreter: interpreter)
+            concurrencyRuntime: self)
     }
 
     func requireTaskCapacity() throws {

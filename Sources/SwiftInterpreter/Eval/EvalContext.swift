@@ -390,8 +390,7 @@ extension Interpreter: EvalContext {
             isAsyncSession: true,
             priority: record.effectivePriority,
             executor: record.executorPreference,
-            taskLocals: taskLocals,
-            interpreter: self)
+            taskLocals: taskLocals)
         concurrencyRuntime.bind(context, to: record)
         defer {
             context.removeAllDynamicState()
@@ -842,8 +841,7 @@ extension Interpreter: EvalContext {
             isAsyncSession: true,
             priority: record.effectivePriority,
             executor: record.executorPreference,
-            taskLocals: pending.taskLocals,
-            interpreter: self)
+            taskLocals: pending.taskLocals)
         concurrencyRuntime.bind(taskContext, to: record)
         let operation: @MainActor @Sendable () async -> Void = {
             [weak self, weak handle] in

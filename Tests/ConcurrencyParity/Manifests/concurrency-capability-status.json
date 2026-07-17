@@ -2930,7 +2930,8 @@
       "with-task-executor-preference-nil",
       "source-provenance-after-suspension",
       "task-handle-deallocation",
-      "task-owned-evaluator-context"
+      "task-owned-evaluator-context",
+      "detached-host-context-reentry"
       ],
       "testNames": [
         "CompilerPreflightTests/publicConcurrencyTestingJobHookTypechecksButRemainsDeferred",
@@ -2979,6 +2980,8 @@
       "RuntimeEntryOwnershipTests/escapedCallbackUsesItsOriginatingSourceMap",
       "ConcurrencyRuntimeOwnershipTests/runtimeRetainsScheduledHandleUntilCanonicalRelease",
       "ConcurrencyRuntimeOwnershipTests/runtimeAllocatesUniqueEvaluationContextIdentities",
+      "ConcurrencyRuntimeOwnershipTests/evaluationContextUsesRuntimeIdentityWithoutRetainingFacade",
+      "ConcurrencyRuntimeOwnershipTests/ambientContextIsSelectedByRuntimeIdentity",
       "ConcurrencyParityTests/sourceTasksOwnDistinctEvaluatorContexts",
       "EnumAndSwitchTests/rawValueEnums",
         "EnumAndSwitchTests/switchWithAssociatedValues",
@@ -3003,7 +3006,7 @@
       "gapEvidenceIDs": [
         "physical-parallel-runtime-and-sanitizers"
       ],
-      "notes": "Twenty-four M9 prerequisites are green. ParsedProgram owns immutable all-branch declaration/member metadata and resolves one immutable Sendable target plan with file identity and source map before mutable symbol materialization. Each prepared program owns one MainActor-confined RuntimeProgramState, and its session, RuntimeEntry, and escaped closures retain the exact plan and state across host callbacks, SwiftUI tasks, compatibility tasks, and source tasks. CooperativeConcurrencyRuntime strongly owns session-scheduled unstructured and detached handles until canonical release and now allocates every asynchronous EvaluationTaskContext identity through one factory; Interpreter exposes only read-only handle inspection and reserves context ID 0 for synchronous compatibility. Distinct-session materialization, callback/task identity, cross-program source provenance, discarded-handle operation lifetime, 100-task evaluator-context isolation and cleanup, actor/subscript/deinitializer propagation, explicit-trap containment, and real SwiftUI lifecycle tests cover this confined ownership boundary. Source provenance remains exact at line 5, task-handle lifetime remains exact at completed,active, and the task-owned-context fixture preserves the complete 100-event multiset in twenty native/interpreter repetitions without asserting completion order. A clean focused gate passed nine relevant tests in seven suites. The canonical parallel iteration completed nine targeted tests in seven suites, all forty-two methodology checks, and all twenty predicate parity repetitions on four workers in 2.1 seconds. Scheduler order, physical threads, and physical parallelism are not claimed. Cooperative overlap is supported on the confined heap; physical concurrent heap access is not. Evaluation contexts still weakly reach the facade, remaining member semantics, call-site semantic resolution, compiler metadata, mutable value graphs, and evaluation are confined, and the interpreter has no heap classification, opt-in physical-worker mode, cooperative-versus-parallel semantic board, or Thread Sanitizer evidence."
+      "notes": "Twenty-five M9 prerequisites are green. ParsedProgram owns immutable all-branch declaration/member metadata and resolves one immutable Sendable target plan with file identity and source map before mutable symbol materialization. Each prepared program owns one MainActor-confined RuntimeProgramState, and its session, RuntimeEntry, and escaped closures retain the exact plan and state across callbacks and tasks. CooperativeConcurrencyRuntime strongly owns session-scheduled handles, allocates every asynchronous EvaluationTaskContext identity, and is now the context's weak identity capability; contexts no longer retain or identify Interpreter. Ambient selection rejects foreign-runtime contexts, while TaskBoundEvalContext remains the explicit host re-entry owner. Distinct-session materialization, callback/task identity, cross-program provenance, discarded-handle lifetime, 100-task context isolation/cleanup, detached callback re-entry, facade release, actor propagation, trap containment, and real SwiftUI lifecycle cover this confined ownership boundary. The detached re-entry fixture remains exact at lost,preserved in twenty repetitions with native SHA-256 dfe2ffa3bba5229691693999686926094a6ab74bf6414514dfd18ce8d2b6a1fb per shard, and a clean focused gate passed nine relevant tests in six suites. The canonical parallel iteration completed nine targeted tests in six suites, all forty-two methodology checks, and all twenty exact parity repetitions on four workers in 1.9 seconds. Scheduler order, physical threads, and physical parallelism are not claimed. Cooperative overlap is supported on the confined heap; active evaluation, explicit host re-entry, mutable value graphs, and remaining metadata are still facade/MainActor-confined, with no heap classification, opt-in physical-worker mode, cooperative-versus-parallel board, or Thread Sanitizer evidence."
     }
   ]
 }

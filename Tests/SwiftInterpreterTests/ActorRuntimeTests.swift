@@ -544,8 +544,7 @@ struct ActorRuntimeTests {
         let context = runtime.makeEvaluationTaskContext(
             runtimeTaskID: task.id,
             runtimeEntry: entry,
-            isAsyncSession: true,
-            interpreter: interpreter)
+            isAsyncSession: true)
         runtime.bind(context, to: task)
         #expect(runtime.begin(task))
 
