@@ -70,9 +70,11 @@ defaults for both requirements are covered as well. Host-backed sequences,
 including typed opaque gateways with tracked host suspension, are covered as
 well. Both stream flavors' evidenced cancellation, buffering, iterator-copy,
 and lifetime tails are covered. Checked nonthrowing and throwing continuations
-now cover explicit and caller-defaulted source actors. Unsafe continuations
-and checked-continuation diagnostic/lifetime edges remain open. The remaining
-Task API work is a
+now cover explicit and caller-defaulted source actors. Checked continuations
+also preserve Swift's fatal invariant when either checked form is resumed more
+than once, including through source `do`/`catch`. Unsafe continuations and
+checked-continuation abandonment/escaped-token lifetime edges remain open.
+The remaining Task API work is a
 bounded M4/M7 closeout tail. The next major runtime cycle is actor/executor
 architecture built on scheduler/session ownership, not broader
 name-dispatched Task API surface.
@@ -1381,8 +1383,10 @@ cancellation may abort the internal native waiter so session teardown cannot
 hang; ordinary source cancellation does not resolve the continuation. Omitted
 `#isolation` is materialized once from caller lexical isolation before executor
 selection. The nonthrowing and throwing explicit plus caller-defaulted
-source-actor shapes have exact native parity; checked diagnostics/lifetime and
-unsafe variants remain open.
+source-actor shapes have exact native parity. Both checked forms also have
+process-isolated native/interpreted parity for the fatal double-resume
+diagnostic; fatal runtime invariants bypass source `do`/`catch`. Abandonment,
+escaped-token lifetime, and unsafe variants remain open.
 
 ### 6.18 Async sequences and streams
 
@@ -2104,7 +2108,9 @@ Each milestone is independently gated through
   The nonthrowing explicit-`nil` Void slice owns zero-argument `resume()`
   and `Result<T, Never>` success through the same terminal transition and
   cleanup path.
-  Unsafe variants and remaining diagnostic/lifetime edges remain active;
+  Both checked forms diagnose double resume as a fatal runtime invariant even
+  inside source `do`/`catch`. Unsafe variants plus abandonment and
+  escaped-token lifetime diagnostics remain active;
   complete custom-executor scheduling is not required for those slices;
 - M8 view-owned async lifecycle has only covered prerequisites left
   (M2 driver release, M5 logical executor identity, M7 preflight) and follows
@@ -2358,8 +2364,10 @@ and concrete-error plus existential-error Result success/failure through
 `resume(with:)`;
 the nonthrowing explicit-`nil` Void slice maps zero-argument
 `resume()` and `Result<T, Never>` success to that same successful terminal
-path. The remaining diagnostic/lifetime edges remain active rather than being
-inferred from the covered resume paths or stream behavior.
+path. Both checked forms now have process-isolated parity for Swift's fatal
+double-resume invariant, including its escape from source `do`/`catch`.
+Abandonment and escaped-token lifetime diagnostics remain active rather than
+being inferred from the covered resume paths or stream behavior.
 
 Deliverables:
 

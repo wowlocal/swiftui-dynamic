@@ -2135,6 +2135,26 @@
     "notes": "The exact result is causal and makes no scheduling-order, physical-thread, or parallelism claim. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced 41 in twenty bounded native runs. The interpreter RED was unresolved identifier 'withCheckedContinuation'. Generated dispatch now routes the proven explicit-isolation-nil value subset through a task-owned bounded continuation record; the detached producer exercises resume from another source task. Focused evidence observes waitingForContinuation, required-executor restoration, one record, infrastructure-abort cleanup, and empty continuation/task/scope/group/stream/host-operation/scheduler registries. Native/interpreter parity is 20/20 with canonical native-observation SHA-256 cdc0e05905b13ba3a3ef5a18fbefc271aedd047a639102d2b4ef965cc4f8c1a7."
   },
   {
+    "id": "checked-continuation-double-resume",
+    "fixture": "Fixtures/checked-continuation-double-resume.swift",
+    "mode": "runtime",
+    "assertion": "runtime-trap",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedContinuationDoubleResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeTrapContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "tried to resume its continuation more than once"
+    ],
+    "interpreterTrapContains": [
+      "checked continuation",
+      "resumed more than once"
+    ],
+    "nativeFact": "A checked nonthrowing continuation accepts its first returning resume and traps the process synchronously when the same token is resumed a second time; the second value is never returned to source.",
+    "notes": "Both resume calls are program-ordered in the continuation body, so the trap requires no scheduler, executor, physical-thread, or parallelism claim. This is the self-contained same-source adapter for the unchanged pinned swiftlang checked_continuation.swift oracle, whose StdlibUnittest test independently expects a crash for the same returning-then-returning misuse. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors; native and interpreted execution trapped in all twenty bounded isolated runs. This was an already-GREEN characterization: the source carrier already rejected the second resume as a fatal invariant, so no production change was required for this form. Focused evidence records one created record, no suspension, and complete ownership cleanup. Canonical native-observation SHA-256: 14011640abe8a0f135e2a1f33df41bcb1fd9839ed9365f7d30e03fb19e1ce64e."
+  },
+  {
     "id": "checked-continuation-mainactor-resume",
     "fixture": "Fixtures/checked-continuation-mainactor-resume.swift",
     "mode": "runtime",
@@ -2157,6 +2177,26 @@
     "interpreterProjection": "string",
     "nativeFact": "Two sequential checked throwing continuations project the exact value supplied through resume(returning:) and the original source error supplied through resume(throwing:) into its matching catch.",
     "notes": "Each continuation has its own detached producer, which yields before resuming. Program order between the two awaits fixes value before error, but no producer scheduling order, physical thread, or parallel execution is asserted. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and produced value:23|error:failed in twenty native runs."
+  },
+  {
+    "id": "checked-throwing-continuation-double-resume",
+    "fixture": "Fixtures/checked-throwing-continuation-double-resume.swift",
+    "mode": "runtime",
+    "assertion": "runtime-trap",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await checkedThrowingContinuationDoubleResumeProbe()",
+    "interpreterProjection": "string",
+    "nativeTrapContains": [
+      "SWIFT TASK CONTINUATION MISUSE",
+      "tried to resume its continuation more than once"
+    ],
+    "interpreterTrapContains": [
+      "checked continuation",
+      "resumed more than once"
+    ],
+    "nativeFact": "A checked throwing continuation accepts its first returning resume and traps the process synchronously when the same token is then resumed by throwing; the second terminal outcome cannot be caught as a source error.",
+    "notes": "Both resume calls are program-ordered in the continuation body, so the trap requires no scheduler, executor, physical-thread, or parallelism claim. This is the self-contained same-source adapter for the unchanged pinned swiftlang checked_continuation.swift oracle, whose StdlibUnittest test independently expects a crash for the same returning-then-throwing misuse. Apple Swift 6.3.3 compiled the fixture in Swift 6 complete-strict mode with warnings as errors and trapped in twenty bounded runs. The interpreter RED was a successful child exit: async do/catch converted the fatal second-resume invariant into a source-catchable error. The common suspending do/catch boundary now rethrows every fatal RuntimeError, matching the synchronous evaluator and try? boundary; no continuation-name special case was added. Native/interpreter runtime-trap parity is 20/20 with canonical native-observation SHA-256 d9182563ed7f04da65516cc3b3cd55b5936278384e7cf2a8dc502e0eef4ce6ef. Focused evidence covers both checked forms, one record and zero suspensions per immediate misuse, and complete ownership cleanup."
   },
   {
     "id": "checked-throwing-continuation-mainactor-error",

@@ -115,6 +115,16 @@ the executable task-group fixtures by checking the isolation contract directly
 against swiftlang source without treating the interpreter's generated routing
 table as semantic proof.
 
+The pinned inventory also tracks
+`test/Concurrency/Runtime/checked_continuation.swift` as `needs-adapter`
+because the upstream crash harness depends on `StdlibUnittest`. The
+self-contained parity fixtures
+`checked-continuation-double-resume.swift` and
+`checked-throwing-continuation-double-resume.swift` adapt only its two
+double-resume crash shapes. Each source is compiled as real Swift and run in a
+separate native/interpreted process so a fatal invariant cannot be mistaken for
+a catchable source error.
+
 The corpus is checked in so normal test runs do not need network access. To
 refresh it reproducibly, run:
 

@@ -64,6 +64,54 @@ struct CheckedContinuationRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
+    @Test func doubleResumeIsFatalAcrossCheckedFormsAndCleansUp()
+        async throws
+    {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let cases = [
+            (
+                fixture: "checked-continuation-double-resume.swift",
+                entry: "await checkedContinuationDoubleResumeProbe()"
+            ),
+            (
+                fixture: "checked-throwing-continuation-double-resume.swift",
+                entry: "await checkedThrowingContinuationDoubleResumeProbe()"
+            ),
+        ]
+
+        for item in cases {
+            let fixture = packageRoot.appendingPathComponent(
+                "Tests/ConcurrencyParity/Fixtures/" + item.fixture)
+            let source = try String(contentsOf: fixture, encoding: .utf8)
+                + "\n\(item.entry)\n"
+            let interpreter = Interpreter()
+
+            do {
+                _ = try await interpreter.runAsync(source: source)
+                Issue.record("double resume did not remain a fatal invariant")
+            } catch let error as RuntimeError {
+                #expect(error.fatal)
+                #expect(error.message.contains("checked continuation"))
+                #expect(error.message.contains("resumed more than once"))
+            } catch {
+                Issue.record("unexpected double-resume error: \(error)")
+            }
+
+            #expect(interpreter.concurrencyRuntime.totalContinuationsCreated == 1)
+            #expect(interpreter.concurrencyRuntime.continuationSuspensionCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeContinuationCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
+    }
+
     @Test func resultResumeUsesReturningAndThrowingTransitions()
         async throws
     {
