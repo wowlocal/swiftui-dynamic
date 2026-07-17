@@ -1389,9 +1389,12 @@ one-shot and is cleared at termination. Explicit `finish()` similarly invokes
 one `.finished` callback synchronously before returning, retains values already
 buffered, makes later `next()` calls stably return `nil`, and rejects later
 `yield` calls as `.terminated`. Construction accepts an explicit element
-specialization, and unsupported buffering policies fail closed instead of being
-ignored. Multiple independently-created iterators may own simultaneous wait
-edges on one storage, and `finish()` resumes all of them with terminal `nil`.
+specialization and stores an explicit buffering policy. The evidenced
+`.bufferingNewest(2)` path reports remaining capacity after successful inserts,
+evicts and returns the oldest buffered element once full, and retains only the
+newest values; unknown policies still fail closed. Multiple
+independently-created iterators may own simultaneous wait edges on one storage,
+and `finish()` resumes all of them with terminal `nil`.
 Iterator carriers opt into the interpreter's generic host value-semantics
 boundary: each source copy owns a distinct mutable `next()` token while all
 copies retain the same stream storage. Sequence and iterator carriers own that
@@ -1402,8 +1405,8 @@ escaped producer handle then returns `.terminated` from `yield`, and releasing
 it cannot invoke termination again. Because destruction cannot throw, an
 interpreter failure from this source-level nonthrowing callback is retained by
 the concurrency runtime and surfaced at the next throwing evaluator safe point.
-The current slices do not yet claim bounded buffering, `AsyncThrowingStream`,
-or source checked continuations.
+The current slices do not yet claim `.bufferingOldest`, zero-capacity policy
+boundaries, `AsyncThrowingStream`, or source checked continuations.
 
 ### 6.19 Host gateway runtime
 
@@ -1980,9 +1983,10 @@ Each milestone is independently gated through
   producer/consumer slice now owns empty-stream suspension, value delivery,
   finish-to-`nil`, one-shot `.finished`/`.cancelled` callback ordering,
   stable terminal reads, rejected post-finish yield, multiple parked consumers,
-  independent and copied iterators, scope-exit cancellation termination, and
-  non-owning escaped producer handles; buffering, `AsyncThrowingStream`, and
-  checked continuations resuming on
+  independent and copied iterators, scope-exit cancellation termination,
+  non-owning escaped producer handles, and exact `.bufferingNewest(2)`
+  capacity/eviction/result semantics; `.bufferingOldest`, zero-capacity
+  boundaries, `AsyncThrowingStream`, and checked continuations resuming on
   cooperative-default and MainActor executors remain active and require
   executor-owned resume from the covered M5 identity/storage slice, not
   complete custom-executor scheduling;
@@ -2197,8 +2201,12 @@ yielded elements. Releasing the final unfinished storage reference at scope
 exit synchronously invokes `.cancelled` before the caller continues.
 An escaped producer continuation does not extend that lifetime, returns
 `.terminated` from later `yield`, and cannot invoke the callback again when it
-is released. Bounded buffering, throwing streams, and checked-continuation
-ownership remain active rather than being inferred from those slices.
+is released. A synchronous bounded-buffer probe additionally proves that
+`.bufferingNewest(2)` reports remaining capacities `1` then `0`, returns the
+displaced values `1` then `2`, and drains only `3`, `4`, then `nil`.
+`.bufferingOldest`, zero-capacity boundaries, throwing streams, and
+checked-continuation ownership remain active rather than being inferred from
+those slices.
 
 Deliverables:
 

@@ -28,12 +28,12 @@ struct AsyncStreamRuntimeTests {
         #expect(interpreter.scheduledTasks.isEmpty)
     }
 
-    @Test func unsupportedBufferingPolicyFailsClosed() async throws {
+    @Test func unknownBufferingPolicyFailsClosed() async throws {
         let interpreter = Interpreter()
 
         do {
             try await interpreter.runAsync(source: """
-                let stream = AsyncStream<Int>(bufferingPolicy: .bufferingNewest(1)) {
+                let stream = AsyncStream<Int>(bufferingPolicy: .unsupported(1)) {
                     continuation in
                     continuation.finish()
                 }
@@ -43,13 +43,44 @@ struct AsyncStreamRuntimeTests {
             Issue.record("unsupported buffering policy was silently accepted")
         } catch let error as RuntimeError {
             #expect(error.message
-                == "AsyncStream currently supports only .unbounded buffering")
+                == "AsyncStream buffering policy '.unsupported' is unsupported")
         }
 
         #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 0)
         #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
         #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
         #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func unverifiedBufferingBoundariesFailClosed() async throws {
+        let policies = [
+            (source: ".bufferingOldest(1)", diagnostic:
+                "AsyncStream buffering policy '.bufferingOldest' is unsupported"),
+            (source: ".bufferingNewest(0)", diagnostic:
+                "AsyncStream buffering policy '.bufferingNewest(0)' is unsupported")
+        ]
+
+        for policy in policies {
+            let interpreter = Interpreter()
+            do {
+                try await interpreter.runAsync(source: """
+                    let stream = AsyncStream<Int>(bufferingPolicy: \(policy.source)) {
+                        continuation in
+                        continuation.finish()
+                    }
+                    var iterator = stream.makeAsyncIterator()
+                    await iterator.next()
+                    """)
+                Issue.record("unverified buffering behavior was silently accepted")
+            } catch let error as RuntimeError {
+                #expect(error.message == policy.diagnostic)
+            }
+
+            #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 0)
+            #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+            #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+            #expect(interpreter.scheduledTasks.isEmpty)
+        }
     }
 
     @Test func cancelledConsumerRunsTerminationBeforeReturningNil() async throws {
@@ -220,6 +251,31 @@ struct AsyncStreamRuntimeTests {
         let value = try await interpreter.runAsync(source: source)
 
         #expect(value.stringValue == "cancelled:terminated:cancelled")
+        #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 1)
+        #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeRecordCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeStructuredScopeCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeTaskGroupCount == 0)
+        #expect(interpreter.concurrencyRuntime.activeHostOperationCount == 0)
+        #expect(interpreter.scheduledTasks.isEmpty)
+    }
+
+    @Test func bufferingNewestEvictsOldestValuesWithExactResults() async throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let fixture = packageRoot.appendingPathComponent(
+            "Tests/ConcurrencyParity/Fixtures/async-stream-buffering-newest.swift")
+        let source = try String(contentsOf: fixture, encoding: .utf8)
+            + "\nawait asyncStreamBufferingNewestProbe()\n"
+        let interpreter = Interpreter()
+
+        let value = try await interpreter.runAsync(source: source)
+
+        #expect(value.stringValue
+            == "enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true")
         #expect(interpreter.concurrencyRuntime.totalAsyncStreamsCreated == 1)
         #expect(interpreter.concurrencyRuntime.asyncStreamSuspensionCount == 0)
         #expect(interpreter.concurrencyRuntime.activeAsyncStreamCount == 0)

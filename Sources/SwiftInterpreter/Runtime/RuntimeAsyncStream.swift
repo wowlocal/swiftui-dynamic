@@ -38,9 +38,35 @@ private final class RuntimeAsyncStreamWaiter {
     }
 }
 
-enum RuntimeAsyncStreamYieldResult {
-    case enqueued
+enum RuntimeAsyncStreamYieldResult: CustomStringConvertible {
+    case enqueued(remaining: Int)
+    case dropped(RuntimeValue)
     case terminated
+
+    var description: String {
+        switch self {
+        case .enqueued(let remaining):
+            "enqueued(remaining: \(remaining))"
+        case .dropped(let value):
+            "dropped(\(value.debugStringified))"
+        case .terminated:
+            "terminated"
+        }
+    }
+}
+
+private enum RuntimeAsyncStreamBufferingPolicy {
+    case unbounded
+    case bufferingNewest(Int)
+
+    func remainingCapacity(bufferedCount: Int) -> Int {
+        switch self {
+        case .unbounded:
+            Int.max
+        case .bufferingNewest(let limit):
+            max(0, limit - bufferedCount)
+        }
+    }
 }
 
 final class RuntimeAsyncStreamStorage {
@@ -48,19 +74,22 @@ final class RuntimeAsyncStreamStorage {
     weak var callbackOwner: Interpreter?
     let id: RuntimeAsyncStreamID
     let elementTypeName: String
+    private let bufferingPolicy: RuntimeAsyncStreamBufferingPolicy
     private var buffered: [RuntimeValue] = []
     private var waiters: [RuntimeAsyncStreamWaiter] = []
     private var onTermination: ClosureValue?
     private var terminal = false
     private var closed = false
 
-    init(
+    fileprivate init(
         runtime: CooperativeConcurrencyRuntime,
         callbackOwner: Interpreter,
+        bufferingPolicy: RuntimeAsyncStreamBufferingPolicy,
         elementTypeName: String
     ) {
         self.runtime = runtime
         self.callbackOwner = callbackOwner
+        self.bufferingPolicy = bufferingPolicy
         self.elementTypeName = elementTypeName
         id = runtime.createAsyncStream()
     }
@@ -71,8 +100,8 @@ final class RuntimeAsyncStreamStorage {
             waiters.isEmpty,
             "an AsyncStream storage cannot die with suspended consumers")
         if !terminal, let handler = onTermination {
-            // The final sequence/iterator/continuation release owns native
-            // AsyncStream's implicit cancellation edge. Run the callback
+            // The final sequence/iterator release owns native AsyncStream's
+            // implicit cancellation edge. Run the callback
             // before releasing the runtime record, synchronously with ARC.
             onTermination = nil
             let taskID = callbackOwner?.evaluationTaskContext.runtimeTaskID
@@ -121,10 +150,24 @@ final class RuntimeAsyncStreamStorage {
         if !waiters.isEmpty {
             let waiter = waiters.removeFirst()
             waiter.continuation.resume(returning: .value(delivered))
-        } else {
-            buffered.append(delivered)
+            return .enqueued(remaining:
+                bufferingPolicy.remainingCapacity(
+                    bufferedCount: buffered.count))
         }
-        return .enqueued
+
+        switch bufferingPolicy {
+        case .unbounded:
+            buffered.append(delivered)
+            return .enqueued(remaining: Int.max)
+        case .bufferingNewest(let limit):
+            guard buffered.count < limit else {
+                let dropped = buffered.removeFirst()
+                buffered.append(delivered)
+                return .dropped(dropped)
+            }
+            buffered.append(delivered)
+            return .enqueued(remaining: limit - buffered.count)
+        }
     }
 
     func setOnTermination(_ handler: ClosureValue?) {
@@ -255,11 +298,8 @@ extension Interpreter {
                 throw RuntimeError(message:
                     "interpreter was released while creating AsyncStream")
             }
-            if let policy = arguments.labeled("bufferingPolicy"),
-               !Self.isUnboundedAsyncStreamPolicy(policy) {
-                throw RuntimeError(message:
-                    "AsyncStream currently supports only .unbounded buffering")
-            }
+            let bufferingPolicy = try Self.runtimeAsyncStreamBufferingPolicy(
+                arguments.labeled("bufferingPolicy"))
             guard let build = arguments.lastUnlabeledClosure else {
                 throw RuntimeError(message:
                     "AsyncStream requires a continuation builder closure")
@@ -278,6 +318,7 @@ extension Interpreter {
             let storage = RuntimeAsyncStreamStorage(
                 runtime: self.concurrencyRuntime,
                 callbackOwner: self,
+                bufferingPolicy: bufferingPolicy,
                 elementTypeName: elementType)
             let continuation = RuntimeAsyncStreamContinuation(
                 storage: storage)
@@ -428,17 +469,32 @@ extension Interpreter {
             && payload is RuntimeAsyncStreamContinuation
     }
 
-    private static func isUnboundedAsyncStreamPolicy(
-        _ value: RuntimeValue
-    ) -> Bool {
-        switch value {
-        case .implicitMember("unbounded"):
-            true
-        case .host(let call as ImplicitMemberCall):
-            call.name == "unbounded"
-        default:
-            false
+    private static func runtimeAsyncStreamBufferingPolicy(
+        _ value: RuntimeValue?
+    ) throws -> RuntimeAsyncStreamBufferingPolicy {
+        guard let value else { return .unbounded }
+        if case .implicitMember("unbounded") = value {
+            return .unbounded
         }
+        guard case .host(let any) = value,
+              let call = any as? ImplicitMemberCall else {
+            throw RuntimeError(message:
+                "AsyncStream buffering policy is unsupported")
+        }
+        if call.name == "unbounded", call.arguments.arguments.isEmpty {
+            return .unbounded
+        }
+        guard call.name == "bufferingNewest",
+              let limit = call.arguments.positional(0)?.intValue,
+              call.arguments.arguments.count == 1 else {
+            throw RuntimeError(message:
+                "AsyncStream buffering policy '.\(call.name)' is unsupported")
+        }
+        guard limit > 0 else {
+            throw RuntimeError(message:
+                "AsyncStream buffering policy '.bufferingNewest(\(limit))' is unsupported")
+        }
+        return .bufferingNewest(limit)
     }
 
     /// Internal source callback entry for synchronous runtime destruction.

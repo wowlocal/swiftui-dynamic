@@ -1963,5 +1963,17 @@
     "interpreterProjection": "string",
     "nativeFact": "An escaped AsyncStream producer continuation does not own the unfinished stream's lifetime. Releasing the final sequence/iterator owner synchronously invokes onTermination(.cancelled); a later yield through the still-live continuation returns .terminated, and releasing that handle does not invoke the callback again.",
     "notes": "The nested function discards its only sequence value while storing the builder continuation in an outer state object. The caller records termination immediately after sequence scope exit, calls yield through the escaped handle, releases that handle, and records termination again. These edges require no tasks, sleeps, or scheduler-order assumptions. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output cancelled:terminated:cancelled with canonical native-observation SHA-256 7ca384f8a0176ff57fa4e3c0055a1ff7783123568a4e7552a39be27fae5a3e20. The captured interpreter RED was none:enqueued:cancelled because its continuation carrier incorrectly retained storage. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup."
+  },
+  {
+    "id": "async-stream-buffering-newest",
+    "fixture": "Fixtures/async-stream-buffering-newest.swift",
+    "mode": "runtime",
+    "assertion": "exact",
+    "repetitions": 20,
+    "timeoutSeconds": 5,
+    "interpreterEntry": "await asyncStreamBufferingNewestProbe()",
+    "interpreterProjection": "string",
+    "nativeFact": "AsyncStream bufferingNewest(2) retains at most the two newest unconsumed values. The first two yields report decreasing remaining capacity, each later yield reports the oldest value it displaced, and iteration receives only 3 then 4 before terminal nil.",
+    "notes": "All four yields occur synchronously in the builder before iteration, so buffer state and eviction order are deterministic. YieldResult is rendered directly to preserve its remaining-capacity and dropped-element payloads; no task order or physical executor behavior is asserted. Apple Swift 6.3.3 compiled in Swift 6 complete-strict mode with warnings as errors, and twenty bounded native/interpreter runs produced exact output enqueued(remaining: 1)|enqueued(remaining: 0)|dropped(1)|dropped(2)=>3,4,true with canonical native-observation SHA-256 cc694ba7c7410fafe79768c883e7b3072fc461257e94b6b5b1da4bfa050533f8. The captured interpreter RED was the fail-closed diagnostic that only .unbounded buffering was supported. Focused evidence requires one created stream, zero consumer suspensions, and complete stream/task/scope/group/host-operation/scheduler cleanup."
   }
 ]
