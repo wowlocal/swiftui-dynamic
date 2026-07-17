@@ -396,7 +396,6 @@ public final class Interpreter {
     }
     private lazy var synchronousEvaluationTaskContext = EvaluationTaskContext(
         id: 0, interpreter: self)
-    private var nextEvaluationTaskContextID: UInt64 = 1
 
     var evaluationTaskContext: EvaluationTaskContext {
         if let current = EvaluationTaskContext.current,
@@ -404,29 +403,6 @@ public final class Interpreter {
             return current
         }
         return synchronousEvaluationTaskContext
-    }
-
-    func makeEvaluationTaskContext(
-        runtimeTaskID: RuntimeTaskID? = nil,
-        runtimeEntry: RuntimeEntry? = nil,
-        runtimeSessionID: RuntimeSessionID? = nil,
-        isAsyncSession: Bool = false,
-        priority: RuntimeTaskPriority = .medium,
-        executor: RuntimeExecutorKind = .mainActor,
-        taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage()
-    ) -> EvaluationTaskContext {
-        let id = nextEvaluationTaskContextID
-        nextEvaluationTaskContextID += 1
-        return EvaluationTaskContext(
-            id: id,
-            runtimeTaskID: runtimeTaskID,
-            runtimeEntry: runtimeEntry,
-            runtimeSessionID: runtimeSessionID,
-            isAsyncSession: isAsyncSession,
-            priority: priority,
-            executor: executor,
-            taskLocals: taskLocals,
-            interpreter: self)
     }
 
     /// White-box identity used by concurrency ownership and host re-entry

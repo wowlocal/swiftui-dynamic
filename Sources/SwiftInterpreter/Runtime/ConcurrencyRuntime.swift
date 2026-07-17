@@ -667,6 +667,7 @@ final class CooperativeConcurrencyRuntime {
     let diagnostics: RuntimeDiagnosticSink
     private var nextSessionID: UInt64 = 1
     private var nextTaskID: UInt64 = 1
+    private var nextEvaluationTaskContextID: UInt64 = 1
     private var nextActorID: UInt64 = 1
     private var nextStructuredScopeID: UInt64 = 1
     private var nextTaskGroupID: UInt64 = 1
@@ -735,6 +736,30 @@ final class CooperativeConcurrencyRuntime {
             programState: programState,
             programPlan: programPlan,
             programMetadata: programMetadata,
+            interpreter: interpreter)
+    }
+
+    func makeEvaluationTaskContext(
+        runtimeTaskID: RuntimeTaskID? = nil,
+        runtimeEntry: RuntimeEntry? = nil,
+        runtimeSessionID: RuntimeSessionID? = nil,
+        isAsyncSession: Bool = false,
+        priority: RuntimeTaskPriority = .medium,
+        executor: RuntimeExecutorKind = .mainActor,
+        taskLocals: RuntimeTaskLocalStorage = RuntimeTaskLocalStorage(),
+        interpreter: Interpreter
+    ) -> EvaluationTaskContext {
+        let id = nextEvaluationTaskContextID
+        nextEvaluationTaskContextID += 1
+        return EvaluationTaskContext(
+            id: id,
+            runtimeTaskID: runtimeTaskID,
+            runtimeEntry: runtimeEntry,
+            runtimeSessionID: runtimeSessionID,
+            isAsyncSession: isAsyncSession,
+            priority: priority,
+            executor: executor,
+            taskLocals: taskLocals,
             interpreter: interpreter)
     }
 

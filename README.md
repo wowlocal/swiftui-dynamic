@@ -111,7 +111,9 @@ with the detailed design in
   escaped callbacks keep native-like diagnostic and `#line` provenance after
   suspension or a later facade run. The cooperative runtime now strongly owns
   session-scheduled unstructured and detached task handles through completion;
-  the interpreter facade exposes only a compatibility inspection view.
+  the interpreter facade exposes only a compatibility inspection view. The
+  runtime also allocates every asynchronous evaluator-context identity; only
+  the synchronous facade context keeps reserved ID `0`.
   Remaining member semantics, call-site semantic resolution, compiler
   metadata, evaluator/session migration, heap-edge classification, workers,
   mode-differential parity, and TSan are still open.

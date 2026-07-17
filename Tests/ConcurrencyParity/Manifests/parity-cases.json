@@ -460,7 +460,7 @@
     "interpreterProjection": "instance-string-array:values",
     "predicate": "same-event-multiset",
     "nativeFact": "One hundred sibling MainActor tasks retain the lexical nested type and local index belonging to their own invocation across a forced yield; only completion order is unspecified.",
-    "notes": "Native support and the interpreter harness both provide parityYield(_:) as an identity gateway with one real Task.yield suspension."
+    "notes": "Native support and the interpreter harness both provide parityYield(_:) as an identity gateway with one real Task.yield suspension. Every interpreted async context identity is allocated by CooperativeConcurrencyRuntime; completion order and ordered shard digests remain deliberately unspecified."
   },
   {
     "id": "task-context-cancellation",

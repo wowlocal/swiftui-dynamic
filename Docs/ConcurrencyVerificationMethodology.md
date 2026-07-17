@@ -505,6 +505,29 @@ The canonical parallel iteration completed eleven targeted tests in four
 suites, all forty-two methodology checks, and all twenty parity repetitions on
 four workers in 1.9 seconds.
 
+Its twenty-fourth prerequisite verifies runtime ownership of evaluator-context
+identity allocation. The architecture workflow captured a compile-time RED:
+`CooperativeConcurrencyRuntime` had no context factory, while `Interpreter`
+owned the monotonic counter and constructed every program-root, callback, and
+source-task context. Production async entry points must now use one runtime
+factory; only the facade's synchronous compatibility context may retain the
+reserved ID `0`.
+
+The semantic workflow is an already-GREEN characterization using the unchanged
+`task-owned-evaluator-context` fixture. Apple Swift 6.3.3 and the interpreter
+each preserve the same 100-event multiset across a forced `Task.yield()` in
+twenty bounded repetitions. The event order is unspecified, so native shard
+hashes may differ and no total ordering is asserted. The post-change
+differential must preserve the multiset. Focused coverage requires unique
+nonzero runtime-allocated context IDs plus source-task and async-initializer
+context cleanup, stale-context rejection, suspension-budget renewal,
+callback/task entry propagation, program-session identity, and real SwiftUI
+async entry. A clean rebuild is required after changing the runtime class
+layout before the final prebuilt parallel gate.
+The canonical parallel iteration completed nine targeted tests in seven
+suites, all forty-two methodology checks, and all twenty predicate parity
+repetitions on four workers in 2.1 seconds.
+
 ## Process and liveness isolation
 
 Every native and interpreted runtime repetition has a hard wall-clock deadline.

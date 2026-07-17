@@ -147,13 +147,14 @@ extension Interpreter {
             taskLocals: taskLocals,
             name: nil)
         _ = runtime.begin(root)
-        let context = makeEvaluationTaskContext(
+        let context = runtime.makeEvaluationTaskContext(
             runtimeTaskID: root.id,
             runtimeEntry: session.runtimeEntry,
             isAsyncSession: true,
             priority: root.effectivePriority,
             executor: root.executorPreference,
-            taskLocals: taskLocals)
+            taskLocals: taskLocals,
+            interpreter: self)
         runtime.bind(context, to: root)
         defer { runtime.release(root.id) }
         return try await EvaluationTaskContext.$current.withValue(context) {

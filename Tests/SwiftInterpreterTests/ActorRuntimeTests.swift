@@ -541,10 +541,11 @@ struct ActorRuntimeTests {
             executorPreference: .mainActor,
             taskLocals: RuntimeTaskLocalStorage(),
             name: "budget-renewal")
-        let context = interpreter.makeEvaluationTaskContext(
+        let context = runtime.makeEvaluationTaskContext(
             runtimeTaskID: task.id,
             runtimeEntry: entry,
-            isAsyncSession: true)
+            isAsyncSession: true,
+            interpreter: interpreter)
         runtime.bind(context, to: task)
         #expect(runtime.begin(task))
 

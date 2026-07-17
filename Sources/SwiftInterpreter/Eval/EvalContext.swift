@@ -384,13 +384,14 @@ extension Interpreter: EvalContext {
         precondition(
             concurrencyRuntime.begin(record),
             "a fresh host callback task must begin exactly once")
-        let context = makeEvaluationTaskContext(
+        let context = concurrencyRuntime.makeEvaluationTaskContext(
             runtimeTaskID: record.id,
             runtimeEntry: entry,
             isAsyncSession: true,
             priority: record.effectivePriority,
             executor: record.executorPreference,
-            taskLocals: taskLocals)
+            taskLocals: taskLocals,
+            interpreter: self)
         concurrencyRuntime.bind(context, to: record)
         defer {
             context.removeAllDynamicState()
@@ -835,13 +836,14 @@ extension Interpreter: EvalContext {
 
         let handle = pending.handle
         let record = pending.record
-        let taskContext = makeEvaluationTaskContext(
+        let taskContext = concurrencyRuntime.makeEvaluationTaskContext(
             runtimeTaskID: handle.id,
             runtimeEntry: pending.entry,
             isAsyncSession: true,
             priority: record.effectivePriority,
             executor: record.executorPreference,
-            taskLocals: pending.taskLocals)
+            taskLocals: pending.taskLocals,
+            interpreter: self)
         concurrencyRuntime.bind(taskContext, to: record)
         let operation: @MainActor @Sendable () async -> Void = {
             [weak self, weak handle] in

@@ -3,6 +3,20 @@ import Testing
 
 @Suite("Concurrency runtime ownership")
 struct ConcurrencyRuntimeOwnershipTests {
+    @Test func runtimeAllocatesUniqueEvaluationContextIdentities() {
+        let interpreter = Interpreter()
+        let runtime = interpreter.concurrencyRuntime
+
+        let first = runtime.makeEvaluationTaskContext(
+            interpreter: interpreter)
+        let second = runtime.makeEvaluationTaskContext(
+            interpreter: interpreter)
+
+        #expect(first.id != 0)
+        #expect(second.id != 0)
+        #expect(first.id != second.id)
+    }
+
     @Test func runtimeRetainsScheduledHandleUntilCanonicalRelease() throws {
         let runtime = CooperativeConcurrencyRuntime()
         let entry = runtime.createEntry(kind: .compatibilityTask)

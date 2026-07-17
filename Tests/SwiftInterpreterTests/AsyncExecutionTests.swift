@@ -1206,10 +1206,11 @@ struct AsyncExecutionTests {
 
     @Test func taskExecutorPreferenceRejectsStaleRuntimeContext() async {
         let interpreter = Interpreter()
-        let staleContext = interpreter.makeEvaluationTaskContext(
+        let staleContext = interpreter.concurrencyRuntime.makeEvaluationTaskContext(
             runtimeTaskID: RuntimeTaskID(rawValue: 999),
             runtimeSessionID: RuntimeSessionID(rawValue: 999),
-            isAsyncSession: true)
+            isAsyncSession: true,
+            interpreter: interpreter)
         let boundContext = TaskBoundEvalContext(
             interpreter: interpreter, evaluationContext: staleContext)
 

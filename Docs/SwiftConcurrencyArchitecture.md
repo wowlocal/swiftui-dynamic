@@ -499,6 +499,32 @@ The canonical parallel iteration completed eleven ownership/lifecycle tests in
 four suites, all forty-two methodology checks, and all twenty parity
 repetitions on four workers in 1.9 seconds.
 
+The twenty-fourth prerequisite moves monotonic `EvaluationTaskContext`
+identity allocation and construction from `Interpreter` into
+`CooperativeConcurrencyRuntime`. Program roots, host callbacks, and source
+tasks now receive their task-owned evaluator context through one runtime
+factory. The facade retains only its synchronous compatibility context with
+reserved ID `0`; it no longer owns the async identity counter or factory.
+
+The architectural RED was compile-time: the runtime had no evaluator-context
+factory, and a focused ownership test could create contexts only through the
+facade. The semantic workflow reused the unchanged
+`task-owned-evaluator-context` fixture before production changes. Apple Swift
+6.3.3 and the interpreter each preserved the complete multiset of 100 distinct
+`even:index`/`odd:index` events across a forced yield in twenty bounded runs.
+Completion order is unspecified, so ordered native shard hashes vary and are
+deliberately not compared. After migration, the same twenty-run predicate
+remains GREEN. Focused tests additionally cover two unique nonzero runtime-
+allocated context IDs, 100 cleaned source-task contexts, 100 async-initializer
+contexts, stale-context rejection, suspension-budget renewal, callback/task
+entry propagation, session identity, and real SwiftUI async entry. The factory
+and contexts remain MainActor-confined and contexts still weakly reference the
+facade; this does not claim session-independent evaluation or physical
+parallelism.
+The canonical parallel iteration completed nine ownership/context tests in
+seven suites, all forty-two methodology checks, and all twenty predicate
+parity repetitions on four workers in 2.1 seconds.
+
 The stable target separates five concerns:
 
 ```text
@@ -666,11 +692,12 @@ task completion clears it. `withParkedEvaluatorFrames` no longer exists.
 
 The remaining ceiling is one level higher: sessions now own distinct mutable
 `RuntimeProgramState` declaration registries, and the cooperative runtime owns
-session-scheduled task handles, but `Interpreter` still combines the evaluator,
-compatibility facade, and shared `RuntimeHeap`. Overlapping entries therefore
-select the correct program state while still sharing MainActor-confined
-global/view heap storage. Moving evaluation behind the session and classifying
-every heap edge remain required before executor-neutral or parallel operation.
+session-scheduled task handles plus async evaluator-context identities, but
+`Interpreter` still combines the evaluator, compatibility facade, and shared
+`RuntimeHeap`. Overlapping entries therefore select the correct program state
+while still sharing MainActor-confined global/view heap storage. Moving
+evaluation behind the session and classifying every heap edge remain required
+before executor-neutral or parallel operation.
 
 ### 4.3 Async overlay over synchronous evaluation
 
