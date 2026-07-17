@@ -466,6 +466,165 @@ import Testing
     }
 
     @MainActor
+    @Test func reRenderKeepsInactivePlatformChainInert() throws {
+        let source = """
+        enum Panel: String, CaseIterable {
+            case home
+            case editor
+        }
+
+        struct Ed: View {
+            var body: some View {
+                Text(String("EDITOR PANEL"))
+                    .navigationTitle(String("Donut"))
+                    #if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbarRole(.editor)
+                    // We don't want store messages to interrupt any donut editing.
+                    .storeMessagesDeferred(true)
+                    #endif
+            }
+        }
+
+        @main
+        struct P: App {
+            @State private var selection: Panel? = Panel.home
+            var body: some Scene {
+                WindowGroup {
+                    HStack(spacing: 0) {
+                        List(selection: $selection) {
+                            NavigationLink(value: Panel.home) { Text(String("Home")) }
+                            NavigationLink(value: Panel.editor) { Text(String("Editor")) }
+                        }
+                        .frame(width: 160)
+                        switch selection {
+                        case .editor:
+                            Ed()
+                        default:
+                            Text(String("HOME PANEL"))
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+        """
+        RenderDiagnostics.reset()
+        let previousPlatform = Interpreter.interpretsAsPlatform
+        Interpreter.interpretsAsPlatform = "macOS"
+        defer { Interpreter.interpretsAsPlatform = previousPlatform }
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 420, height: 200)
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        for _ in 0..<10 { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        let initialDiagnostics = RenderDiagnostics.errors.count
+
+        // Drive the selection to re-render the detail as the editor.
+        var table: NSTableView?
+        func walk(_ view: NSView) {
+            if table == nil, let t = view as? NSTableView { table = t }
+            view.subviews.forEach(walk)
+        }
+        walk(hosting)
+        guard let sidebar = table else {
+            Issue.record("no sidebar table")
+            return
+        }
+        sidebar.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+        for _ in 0..<25 { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+
+        let fresh = RenderDiagnostics.errors.dropFirst(initialDiagnostics)
+        for entry in fresh.prefix(3) {
+            print("PROBE re-render-diag:", entry.view, String(entry.error.message.prefix(90)))
+        }
+        print("PROBE re-render fresh-diags:", fresh.count)
+        // The inactive-platform chain must stay inert across re-renders.
+        #expect(fresh.isEmpty)
+    }
+
+    @MainActor
+    @Test func demoMergeEditorNavigationDiagnostics() throws {
+        let root = FileManager.default.currentDirectoryPath
+            + "/Examples/FoodTruckBuildingASwiftUIMultiplatformApp"
+        let previousPlatform = Interpreter.interpretsAsPlatform
+        Interpreter.interpretsAsPlatform = "macOS"
+        defer { Interpreter.interpretsAsPlatform = previousPlatform }
+        RenderDiagnostics.reset()
+        let source = ProjectMaterial.mergedSource(at: root)
+        let rendered = InterpreterHost().render(source: source, lazyTopLevelGlobals: true)
+        guard case .success(let view) = rendered else {
+            Issue.record("render failed")
+            return
+        }
+        let size = NSSize(width: 1000, height: 650)
+        let hosting = NSHostingView(
+            rootView: view.frame(width: size.width, height: size.height)
+                .background(Color.white))
+        hosting.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: hosting.frame, styleMask: .borderless,
+            backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentView = hosting
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        for _ in 0..<15 { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        let initialDiagnostics = RenderDiagnostics.errors.count
+
+        var table: NSTableView?
+        func walk(_ view: NSView) {
+            if table == nil, let t = view as? NSTableView { table = t }
+            view.subviews.forEach(walk)
+        }
+        walk(hosting)
+        guard let sidebar = table, sidebar.numberOfRows >= 7 else {
+            print("PROBE demo-merge sidebar rows:", table?.numberOfRows ?? -1)
+            Issue.record("sidebar not found")
+            return
+        }
+        // Row 6 = Donut Editor (headers are rows).
+        sidebar.selectRowIndexes(IndexSet(integer: 6), byExtendingSelection: false)
+        for _ in 0..<30 { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+
+        let fresh = RenderDiagnostics.errors.dropFirst(initialDiagnostics)
+        for entry in fresh.prefix(4) {
+            print("PROBE demo-merge diag:", entry.view, String(entry.error.message.prefix(100)))
+        }
+        // Landing proof: the editor's Gauge bridges to AppKit — an
+        // NSLevelIndicator/SwiftUI gauge host appears only on the editor.
+        var controlTypes: Set<String> = []
+        var fields = 0
+        func walkControls(_ view: NSView) {
+            let name = String(describing: type(of: view))
+            if view is NSControl { controlTypes.insert(name) }
+            if let field = view as? NSTextField, field.isEditable { fields += 1 }
+            view.subviews.forEach(walkControls)
+        }
+        if let content = window.contentView { walkControls(content) }
+        print("PROBE demo-merge fresh-diags:", fresh.count,
+              "editable-fields:", fields,
+              "controls:", controlTypes.sorted().prefix(6).joined(separator: ","))
+    }
+
+    @MainActor
     @Test func harnessControlPlainText() throws {
         let source = """
         @main

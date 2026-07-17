@@ -2332,3 +2332,18 @@ context EVERY iteration — ~85% of the file, growing linearly). Rules:
   interacting with the postfix-#if re-render path. The board stays
   honestly RED on this step until attributed. Pins pass. Gate still
   blocked by main-red.
+- 2026-07-17 LIVE-DIAG BOUNDARY PINNED TO WINDOW MATERIALIZATION
+  (worktree iteration 51): two new pins close the headless space
+  entirely. (1) reRenderKeepsInactivePlatformChainInert — a
+  selection-driven RE-RENDER of a body carrying the exact iOS-only
+  postfix-#if chain stays diagnostic-free under macOS. (2)
+  demoMergeEditorNavigationDiagnostics — the DEMO'S OWN whole-root
+  merge (App.swift included), rendered headless at 1000x650, sidebar
+  driven to the Donut Editor row: the editor LANDS (editable Name
+  field, NSLevelIndicator gauges, SwiftUIPopupButton pickers) with
+  ZERO fresh diagnostics. The absorb diag therefore requires a REAL
+  ordered-front window — the remaining suspect is live
+  toolbar/titlebar materialization (the .toolbar gateway's deferred
+  interpreted evaluation in window context re-touching the postfix
+  chain). Next: instrument the toolbar gateway's deferred path in the
+  live sweep. Gate still blocked by main-red.
